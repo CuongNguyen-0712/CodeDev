@@ -121,32 +121,10 @@ export default function Member() {
             <ul className="member-list">
                 {members.members.slice(0, members.membersLengthShown).map((member) => (
                     <div key={member.id} className="member-item" >
-
-                        {(members.member_target === member.id) ?
-                            (
-                                <>
-                                    <div className="show-link">
-
-                                        <CustomLink href={member.facebook} children={<span className="icon-link"><FaSquareFacebook /></span>} />
-                                        <CustomLink href={member.instagram} children={<span className="icon-link"><FaInstagramSquare /></span>} />
-                                        <CustomLink href={member.tiktok} children={<span className="icon-link"><FaTiktok /></span>} />
-
-                                        <span className={`show-more ${members.member_target === member.id ? 'active' : ''}`} onClick={() => setMembers(prev => ({ ...prev, member_target: null }))}>
-                                            <IoClose />
-                                        </span>
-                                    </div>
-                                </>
-                            )
-                            :
-                            (
-                                <>
-                                    <Item item={<CreateMember key={member.id} {...member} />} ref={member.id < members.maxLengthMember ? handleCheckObserve(member.id) : null} />
-                                    <div className={`show-more ${members.member_target === member.id ? 'active' : ''}`} onClick={() => setMembers(prev => ({ ...prev, member_target: member.id }))}>
-                                        <MdMoreHoriz />
-                                    </div>
-                                </>
-                            )
-                        }
+                        <Item item={<CreateMember key={member.id} {...member} />} ref={member.id < members.maxLengthMember ? handleCheckObserve(member.id) : null} />
+                        <div className={`show-more ${members.member_target === member.id ? 'active' : ''}`} onClick={() => setMembers(prev => ({ ...prev, member_target: member.id }))}>
+                            <MdMoreHoriz />
+                        </div>
                     </div>
                 ))}
                 <div className="loader">
