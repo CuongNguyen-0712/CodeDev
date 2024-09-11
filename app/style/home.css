@@ -1,0 +1,235 @@
+#main {
+  display: flex;
+  position: relative;
+  height: 100vh;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  overflow: hidden;
+  flex-wrap: wrap;
+  scroll-behavior: smooth;
+}
+
+#navbar{
+  display: flex;
+  align-items: center;
+  justify-content: right;
+  width: 100%;
+  height: 10%;
+  flex-direction: row;
+  gap: 20px;
+  padding-right: 20px;
+  z-index: 1;
+  transition: width 0.2s ease-in;
+}
+
+.navbar-items{
+  display: flex;
+  align-items: center;
+  justify-content: space-evenly;
+  flex-direction: row;
+  outline: 1px solid var(--color_black);
+  background: linear-gradient(to bottom, rgba(21, 205, 238, 0.979), rgba(225, 10, 233, 0.918));
+  height: 80%;
+  width: 0%;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: 0.2s all ease-in;
+}
+
+.navbar-items.show{
+  width: 50%;
+  transition: 0.2s all ease-out;
+}
+
+.navbar-items .btns{
+  display: flex;
+  height: 35px;
+  width: 130px;
+  border-radius: 10px;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  background: #fff;
+  transform-origin: top;
+  transition: 0.2s all ease;
+}
+
+.navbar-items .btns:hover, .navbar-items .btns.effect{
+  background: var(--color_black);
+  transition: 0.2s all ease;
+}
+
+.navbar-items .btns:hover .btn, .navbar-items .btns.effect .btn{
+  color: #fff;
+}
+
+.navbar-items .btns .btn {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--color_black);
+  font-size: 15px;
+  border-radius: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+#navbar .function {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 80%;
+  width: 150px;
+  gap: 20px;
+  outline: 1px solid var(--color_black);
+  border-radius: 10px;
+  font-size: 25px;
+  background: linear-gradient(to left, rgba(21, 205, 238, 0.979), rgba(225, 10, 233, 0.918));
+  flex-direction: row;
+} 
+
+.function .list-navbar{
+  display: flex;
+  height: 40px;
+  width: 40px;
+  background: #fff;
+  border-radius: 10px;
+  transform: scale(0);
+  justify-content: center;
+  align-items: center;
+  transition: 0.2s all ease-in-out;
+}
+
+.function .list-navbar.show{
+  background: var(--color_black);
+  color: #fff;
+  transform: scale(1);
+  transition: 0.2s all ease-in-out;
+}
+
+.function .list-navbar.hide{
+  background: #fff;
+  color: var(--color_black);
+  transform: scale(1);
+  transition: 0.2s all ease-in-out;
+}
+
+.function .account{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  width: 40px;
+  border-radius: 10px;
+}
+
+.function .account.show{
+  background: var(--color_black);
+  color: #fff;
+}
+
+.function .account.hide{
+  background: #fff;
+  color: #000;
+}
+
+.account-properties{
+  display: flex;
+  position: absolute;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  width: 150px;
+  background: linear-gradient(to left, rgba(21, 205, 238, 0.979), rgba(225, 10, 233, 0.918));
+  border-radius: 10px;
+  top: 60px;
+  border: 1px solid var(--color_black);
+  right: 0px;
+  gap: 20px;
+}
+
+.account-properties li{
+  display: flex;
+  height: 20%;
+  width: 80%;
+  align-items: center;
+  justify-content: center;
+  flex-direction: row;
+  background: #fff;
+  border-radius: 5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  overflow: hidden;
+  user-select: none;
+  list-style: none;
+}
+
+.account-properties li .properties-icon{
+  display: flex;
+  position: absolute;
+  height: 100%;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  background: var(--color_black);
+  border-top-left-radius: 5px;
+  border-bottom-left-radius: 5px;
+  color: #fff;
+  flex-grow: 1;
+  flex-shrink: 1;
+  font-size: 25px;
+  transform: scaleX(0);
+  transition: 0.2s all ease-in;
+}
+
+.account-properties li:hover .properties-icon{
+  transform: scaleX(1);
+  transition: 0.2s all ease-out;
+  
+}
+
+.account-properties li .properties-name{
+  display: flex;
+  height: 100%;
+  width: 100%;
+  align-items: center;
+  font-size: 14px;
+  justify-content: center;
+  transform: scaleX(1);
+  transition: 0.2s all ease-in;
+}
+
+.account-properties li:hover .properties-name{
+  transform: scaleX(0);
+  transition: 0.2s all ease-out;
+}
+
+.logoutSheet{
+  display: flex;
+  position: absolute;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  background: #ccc;
+  opacity: 0.8;
+  z-index: 1;
+}
+
+.logout-container{
+  display: flex;
+  height: 80px;
+  width: 300px; 
+  background: #fff;
+}
+
+

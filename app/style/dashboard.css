@@ -1,0 +1,480 @@
+.dashboard-target {
+  display: flex;
+  position: absolute;
+  border-radius: 10px;
+  height: 98%;
+  max-width: 230px;
+  min-width: 50px;
+  width: 100%;
+  top: 1%;
+  left: 20px;
+  flex-direction: column;
+  background: var(--color_black);
+  align-items: center;
+  justify-content: flex-start;
+  outline: 1px solid var(--color_black);
+  user-select: none;
+  z-index: 1;
+}
+
+.dashboard-target.expand {
+  animation: animateExpand 0.2s linear forwards;
+}
+
+.dashboard-target.compact {
+  animation: animateCompact 0.2s linear forwards;
+}
+
+@keyframes animateExpand {
+  0% {
+    width: 50px;
+  }
+  100% {
+    width: 230px;
+  }
+}
+
+@keyframes animateCompact {
+  0% {
+    width: 230px;
+  }
+  100% {
+    width: 50px;
+  }
+}
+
+#header-dashboard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 10%;
+  width: 100%;
+}
+
+#header-dashboard h1 {
+  display: flex;
+  letter-spacing: 1px;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+  color: #fff;
+  filter: brightness(1.5);
+  transform: translateX(-15px);
+  transition: 0.2s all ease;
+}
+
+.dashboard-target:hover #header-dashboard h1 {
+  transform: translateX(0px);
+  transition: 0.2s all ease;
+}
+
+#header-dashboard span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #000;
+  height: 30px;
+  width: 30px;
+  background: #fff;
+  border-radius: 5px;
+  font-size: 20px;
+  outline: 1px solid var(--color_black);
+  cursor: pointer;
+  transform: scale(0);
+  transition: 0.2s all ease;
+}
+
+.dashboard-target:hover #header-dashboard span {
+  transform: scale(1);
+  transition: 0.2s all ease;
+}
+
+.dashboard-target.compact #header-dashboard h1 {
+  display: none;
+}
+
+.dashboard-target.compact::before {
+  content: attr(data-text);
+  display: flex;
+  position: absolute;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+  font-weight: 700;
+  width: 120px;
+  height: 50px;
+  left: 100px;
+  background: var(--color_black);
+  border-radius: 10px;
+  color: #fff;
+}
+
+#main-dashboard {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-direction: column;
+  border-top-right-radius: 10px;
+  background: #ccc;
+  width: 100%;
+}
+
+#main-dashboard::-webkit-scrollbar {
+  display: none;
+}
+
+.dashboard-target.expand #main-dashboard {
+  height: 75%;
+  gap: 10px;
+  border-top: 2px solid #fff;
+  padding-top: 30px;
+  background: linear-gradient(
+    to left,
+    rgba(21, 205, 238, 0.979),
+    rgba(225, 10, 233, 0.918)
+  );
+  overflow: scroll;
+}
+
+.dashboard-target.compact:hover #header-dashboard {
+  height: 10%;
+  transition: 0.2s all ease;
+}
+
+.dashboard-target.compact #header-dashboard {
+  height: 0%;
+  transition: 0.2s all ease;
+}
+
+.dashboard-target.compact #main-dashboard {
+  justify-content: center;
+  height: 85%;
+  border: none;
+  background: linear-gradient(
+    to top,
+    rgba(21, 205, 238, 0.979),
+    rgba(225, 10, 233, 0.918)
+  );
+  gap: 50px;
+  border-top-left-radius: 10px;
+  transition: 0.2s all ease;
+}
+
+.dashboard-target.compact:hover #main-dashboard {
+  height: 75%;
+  transition: 0.2s all ease;
+}
+
+.dashboard-target.compact .dashboardTitle .box-container {
+  display: none;
+}
+
+.dashboard-target.compact .container-dashboard > ul {
+  display: none;
+}
+
+.container-dashboard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  width: 100%;
+  height: auto;
+  gap: 30px;
+}
+
+.dashboard-target.compact .container-dashboard {
+  width: 100%;
+  height: max-content;
+}
+
+.dashboardTitle {
+  display: flex;
+  height: 50px;
+  width: 180px;
+  justify-content: flex-end;
+  align-items: center;
+  flex-direction: row;
+  gap: 15px;
+  border-radius: 10px;
+  background: #fff;
+  text-transform: uppercase;
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+  transform: translateX(0px);
+  transition: 0.2s;
+  z-index: 2;
+}
+
+.dashboard-target.expand .dashboardTitle.active,
+.dashboard-target.expand .dashboardTitle:hover {
+  background: var(--color_black);
+  transition: 0.2s;
+}
+
+.dashboard-target.compact .dashboardTitle {
+  height: 40px;
+  width: 40px;
+}
+
+.dashboardTitle .icon {
+  display: flex;
+  position: absolute;
+  left: 10px;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  width: 40px;
+  background: var(--color_black);
+  color: #fff;
+  border-radius: 5px;
+  font-size: 20px;
+}
+
+.dashboard-target.compact .dashboardTitle .icon {
+  height: 100%;
+  width: 100%;
+  background: #fff;
+  color: var(--color_black);
+  left: 0;
+}
+.dashboard-target.compact .dashboardTitle.active > .icon,
+.dashboard-target.compact .dashboardTitle .icon:hover {
+  background: var(--color_black);
+  color: #fff;
+  transition: 0.2s;
+}
+
+.dashboard-target.expand .dashboardTitle.active .icon,
+.dashboard-target.expand .dashboardTitle:hover .icon {
+  background: #fff;
+  color: var(--color_black);
+}
+
+.dashboard-target.compact .dashboardTitle .box-container {
+  display: none;
+}
+
+.dashboardTitle .box-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 70%;
+  gap: 10px;
+}
+
+.box-container .name {
+  display: flex;
+  font-size: 15px;
+  color: var(--color_black);
+}
+
+.dashboardTitle.active .box-container .name,
+.dashboardTitle:hover .box-container .name {
+  color: #fff;
+}
+
+.dashboard-target.compact .name {
+  display: none;
+}
+
+.dashboardTitle.active .box-container .extend,
+.dashboardTitle:hover .box-container .extend {
+  color: #fff;
+}
+
+.list {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: 170px;
+  flex-direction: column;
+  overflow: hidden;
+  gap: 15px;
+}
+
+.list.hide {
+  height: 0px;
+  transition: 0.2s all ease-in;
+}
+
+.list.show {
+  height: calc(45px * var(--length));
+  transition: 0.2s all ease-out;
+}
+
+.list > a{
+  display: flex;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  background: #fff;
+  color: var(--color_black);
+  font-weight: 700;
+  border-radius: 5px;
+  padding: 10px;
+  text-decoration: none;
+  list-style: none;
+}
+
+.dashboard-target #footer-dashboard {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0px;
+}
+  
+.dashboard-target #footer-dashboard {
+  height: 15%;
+}
+
+#footer-dashboard .handleLogout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 50%;
+  width: 100%;
+  gap: 20px;
+  background: var(--color_black);
+}
+
+.dashboard-target .handleLogout .logout-btn {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  background: var(--color_black);
+}
+
+.dashboard-target.expand .handleLogout .logout-btn {
+  text-transform: uppercase;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 1px;
+}
+
+.dashboard-target.compact .handleLogout .logout-btn {
+  font-size: 20px;
+}
+
+.dashboard-target #footer-dashboard .switchMode {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 50%;
+  width: 100%;
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+}
+
+.dashboard-target.expand #footer-dashboard .switchMode {
+  gap: 10px;
+}
+
+.dashboard-target.compact .switchMode .mode{
+  display: none;
+}
+
+.dashboard-target.compact .switchMode .mode-btn {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  border-radius: 0px;
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+  outline: none;
+}
+
+.switchMode.light {
+  background: #fff;
+}
+
+.switchMode.dark {
+  background: var(--color_black);
+}
+
+.switchMode .mode {
+  display: flex;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.switchMode.light .mode {
+  color: #000;
+}
+
+.switchMode.dark .mode {
+  color: #fff;
+}
+
+.switchMode .mode-btn {
+  display: flex;
+  align-items: center;
+  height: 70%;
+  width: 35%;
+  border-radius: 20px;
+  background: #ccc;
+}
+
+.switchMode.light .mode-btn {
+  outline: 2px solid #000;
+}
+
+.switchMode.dark .mode-btn {
+  outline: 2px solid #fff;
+}
+
+.dashboard-target .switchMode .mode-btn span{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dashboard-target.expand .switchMode .mode-btn span {
+  height: 100%;
+  width: 40%;
+  font-size: 17px;
+  border-radius: 50%;
+}
+
+.switchMode.light .mode-btn span{
+  background: #fff;
+  color: #000;
+}
+
+.switchMode.dark .mode-btn span{
+  background: #000;
+  color: #fff;
+}
+
+.dashboard-target.expand .switchMode.light .mode-btn span {
+  outline: 2px solid #000;
+  transform: translate(0%);
+  transition: 0.2s all ease;
+}
+
+.dashboard-target.expand .switchMode.dark .mode-btn span {
+  outline: 2px solid #fff;
+  transform: translateX(150%);
+  transition: 0.2s all ease;
+}
+
+.dashboard-target.compact .mode-btn span{
+  height: 100%;
+  width: 100%;
+  font-size: 20px;
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+}
+
