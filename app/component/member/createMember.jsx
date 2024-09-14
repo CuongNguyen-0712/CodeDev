@@ -1,18 +1,36 @@
-import React from "react";
+import { MdNumbers, MdDriveFileRenameOutline, MdTransgender } from "react-icons/md";
+import { FaUserLock } from "react-icons/fa";
 
-const CreateMember = ({ id, code, name, gender, phone, email }) => {
+const CreateMember = ({ id, code, name, gender, handle, isSecret, secretCode }) => {
+    const handleSetTarget = () => {
+        handle(id, secretCode);
+    }
 
     return (
         <>
-            <h2 className="member-number">Member {id}</h2>
-
-            <li className="member-info">
-                Mã sinh viên: {code}<br />
-                Tên: {name}<br />
-                Giới tính: {gender}<br />
-                Số điện thoại: {phone}<br />
-                Email: {email}<br />
-            </li>
+            <div className="info-heading">
+                <img src="" />
+                {
+                    !isSecret &&
+                    <button className="show-more" onClick={handleSetTarget}>
+                        <FaUserLock />
+                    </button>
+                }
+            </div>
+            <ul className="info">
+                <li>
+                    <i><MdNumbers /></i>
+                    <span>{code}</span>
+                </li>
+                <li>
+                    <i><MdDriveFileRenameOutline /></i>
+                    <span>{name}</span>
+                </li>
+                <li>
+                    <i><MdTransgender /></i>
+                    <span>{gender}</span>
+                </li>
+            </ul>
         </>
     )
 }

@@ -13,7 +13,6 @@ export default function Login({ login }) {
         pass: '',
         handleSubmit: false
     });
-
     useEffect(() => {
         if (pathName === '/') {
             setTimeout(() => {
@@ -53,6 +52,8 @@ export default function Login({ login }) {
                                 id="username"
                                 name="username"
                                 required
+                                autoComplete="current-value"
+                                autoFocus
                                 minLength={4}
                                 value={form.name}
                                 onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -67,6 +68,7 @@ export default function Login({ login }) {
                                 name="password"
                                 value={form.pass}
                                 required
+                                autoComplete="current-value"
                                 minLength={4}
                                 onChange={(e) => setForm({ ...form, pass: e.target.value })}
                                 placeholder="Password"

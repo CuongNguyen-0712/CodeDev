@@ -36,7 +36,7 @@
   }
   
   .frame-content.effect2{
-    width: calc(100% - 420px);
+    width: calc(100% - 370px);
     transform: translateX(60px);
     transition: 0.2s all ease-in-out;
   }

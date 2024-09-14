@@ -1,16 +1,14 @@
 import { useEffect, useState, useCallback, useRef, forwardRef } from "react";
-import CustomLink from "./customLink";
+
+import CustomInfoSecret from "./infoSecret";
 import CreateMember from "./createMember";
+import AuthMember from "./handleAuthMember ";
 
-import { MdMoreHoriz } from "react-icons/md";
-import { FaSquareFacebook, FaTiktok } from "react-icons/fa6";
-import { FaInstagramSquare } from "react-icons/fa"
-import { IoClose } from "react-icons/io5";
-
+import { IoIosLock } from "react-icons/io";
 
 const Item = forwardRef(({ item }, ref) => {
     return (
-        <div className="info-container" ref={ref}>
+        <div className="info-wrapper" ref={ref}>
             {item}
         </div>
     );
@@ -23,7 +21,8 @@ export default function Member() {
         member_target: null,
         maxLengthMember: null,
         membersLengthShown: 10,
-
+        isSecret: false,
+        currentCode: '',
     })
 
     const [loading, setLoading] = useState(false);
@@ -116,17 +115,65 @@ export default function Member() {
         }
     }
 
+    const handleTarget = (id, secretCode) => {
+        setMembers((state) => ({
+            ...state,
+            member_target: id,
+            currentCode: secretCode,
+            isSecret: false
+        }))
+    }
+
+    const handleShowSecret = () => {
+        setMembers((state) => ({
+            ...state,
+            isSecret: true,
+        }))
+    }
+
+    const handleSetClose = () => {
+        setMembers((state) => ({
+            ...state,
+            member_target: null,
+            currentCode: '',
+            isSecret: false,
+        }))
+    }
+
     return (
         <>
             <ul className="member-list">
                 {members.members.slice(0, members.membersLengthShown).map((member) => (
-                    <div key={member.id} className="member-item" >
-                        <Item item={<CreateMember key={member.id} {...member} />} ref={member.id < members.maxLengthMember ? handleCheckObserve(member.id) : null} />
-                        <div className={`show-more ${members.member_target === member.id ? 'active' : ''}`} onClick={() => setMembers(prev => ({ ...prev, member_target: member.id }))}>
-                            <MdMoreHoriz />
-                        </div>
+                    <div key={member.id} className='info-container'>
+                        <Item item={<CreateMember
+                            key={member.id} {...member}
+                            handle={(id, secretCode) => handleTarget(id, secretCode)}
+                            isSecret={members.isSecret}
+                        />}
+                            ref={member.id < members.maxLengthMember ? handleCheckObserve(member.id) : null}
+                        />
+                        {
+                            (members.member_target === member.id && !members.isSecret) &&
+                            <AuthMember
+                                handleAccess={handleShowSecret}
+                                handleDeline={handleSetClose}
+                                code={members.currentCode}
+                            />
+                        }
+                        {
+                            (members.member_target === member.id && members.isSecret) &&
+                            <>
+                                <CustomInfoSecret
+                                    infoSecret={{ phone: member.phone, email: member.email, facebook: member.facebook, instagram: member.instagram, tiktok: member.tiktok }}
+                                />
+                                <button className="lock" onClick={handleSetClose}>
+                                    <IoIosLock />
+                                </button>
+                            </>
+                        }
                     </div>
                 ))}
+
                 <div className="loader">
                     <div className={`progress-loader ${loading ? "acvate" : ""}`}>
                         <span>Loading...</span>
