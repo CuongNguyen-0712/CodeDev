@@ -13,7 +13,7 @@ const Member = dynamic(() => import('../member/studyMember'), { ssr: false });
 import { useAuth } from '../auth/handleAuth/authContext';
 import Loading from '@/app/function/loading';
 
-import { IoCaretDownSharp, IoCaretUpSharp } from "react-icons/io5";
+import { IoCaretDownSharp, IoCaretUpSharp, IoHomeSharp } from "react-icons/io5";
 import { PiStudentFill } from 'react-icons/pi';
 import { SiGnusocial } from 'react-icons/si';
 import { GiReceiveMoney } from "react-icons/gi"
@@ -22,6 +22,8 @@ import { FaArrowRight, FaRankingStar } from 'react-icons/fa6';
 import { FiMoon, FiSun } from "react-icons/fi";
 import { RiAccountCircleFill, RiExpandLeftLine, RiExpandRightLine, RiInformationFill } from "react-icons/ri";
 import { MdOutlinePlaylistPlay, MdOutlinePlaylistRemove, MdLogout, MdSettings, MdHelp } from "react-icons/md";
+import { GrLogout } from "react-icons/gr";
+
 
 export default function HomePage() {
     const { handleLogout } = useAuth();
@@ -368,10 +370,14 @@ export default function HomePage() {
             {home.setLogout &&
                 <div className='logoutSheet'>
                     <div className='logout-container'>
-                        <span>Do you want to logout?</span>
+                        <span>Do you want to logout ?</span>
                         <div className='handleChoose'>
-                            <button id='' onClick={() => setHome({ ...home, setLogout: false })}></button>
-                            <button onClick={handleLogout}></button>
+                            <button id='deline' onClick={() => setHome({ ...home, setLogout: false })}>
+                                <IoHomeSharp />
+                            </button>
+                            <button id='accept' onClick={handleLogout}>
+                                <GrLogout />
+                            </button>
                         </div>
                     </div>
                 </div>

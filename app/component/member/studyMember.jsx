@@ -148,7 +148,7 @@ export default function Member() {
                         <Item item={<CreateMember
                             key={member.id} {...member}
                             handle={(id, secretCode) => handleTarget(id, secretCode)}
-                            isSecret={members.isSecret}
+                            target={members.member_target}
                         />}
                             ref={member.id < members.maxLengthMember ? handleCheckObserve(member.id) : null}
                         />

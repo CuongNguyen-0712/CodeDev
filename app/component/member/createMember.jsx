@@ -1,7 +1,7 @@
 import { MdNumbers, MdDriveFileRenameOutline, MdTransgender } from "react-icons/md";
 import { FaUserLock } from "react-icons/fa";
 
-const CreateMember = ({ id, code, name, gender, handle, isSecret, secretCode }) => {
+const CreateMember = ({ id, code, name, gender, handle, secretCode, target }) => {
     const handleSetTarget = () => {
         handle(id, secretCode);
     }
@@ -10,12 +10,9 @@ const CreateMember = ({ id, code, name, gender, handle, isSecret, secretCode }) 
         <>
             <div className="info-heading">
                 <img src="" />
-                {
-                    !isSecret &&
-                    <button className="show-more" onClick={handleSetTarget}>
-                        <FaUserLock />
-                    </button>
-                }
+                <button className={`show-more ${target === id ? 'active' : ''}`} onClick={handleSetTarget}>
+                    <FaUserLock />
+                </button>
             </div>
             <ul className="info">
                 <li>

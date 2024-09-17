@@ -227,9 +227,58 @@
 
 .logout-container{
   display: flex;
-  height: 80px;
-  width: 300px; 
+  height: 100px;
+  width: 250px; 
+  align-items: center;
+  justify-content: center;
   background: #fff;
+  border-radius: 10px;
+  flex-direction: column;
+  border: 2px solid var(--color_black);
+  gap: 10px;
 }
 
+.logout-container span{
+  display: flex;
+  height: max-content;
+  width: max-content;
+  font-size: 15px;
+  font-weight: 700;
+}
 
+.logout-container .handleChoose{
+  display: flex;
+  width: 100%;
+  height: 50%;
+  align-items: center;
+  justify-content: center;
+  flex-direction: row;
+  gap: 30px;
+}
+
+.handleChoose button{
+  display: flex;
+  height: 40px;
+  width: 40px;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 2px solid var(--color_black);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: 0.2s all ease;
+}
+
+#deline:hover{
+  background: rgba(54, 211, 15, 0.925);
+  transition: 0.2s all ease;
+}
+
+#accept:hover{
+  background: rgba(255, 8, 8, 0.877);
+  transition: 0.2s all ease;
+}
+
+.handleChoose button svg{
+  font-size: 18px;
+}

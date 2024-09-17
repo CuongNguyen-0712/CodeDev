@@ -149,6 +149,10 @@
   border-radius: 5px;
 }
 
+.info-heading .show-more.active{
+  display: none;
+}
+
 .info {
   display: flex;
   height: 100%;
