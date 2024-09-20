@@ -307,7 +307,7 @@
   transition: 0.2s all ease-out;
 }
 
-.list > a{
+.list > li{
   display: flex;
   height: 30px;
   align-items: center;
@@ -320,6 +320,11 @@
   padding: 10px;
   text-decoration: none;
   list-style: none;
+}
+
+li.active{
+  background: var(--color_black);
+  color: #fff;
 }
 
 .dashboard-target #footer-dashboard {

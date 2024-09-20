@@ -13,7 +13,6 @@ const Item = forwardRef(({ item }, ref) => {
         </div>
     );
 });
-
 export default function Member() {
 
     const [members, setMembers] = useState({

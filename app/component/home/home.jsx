@@ -46,8 +46,7 @@ export default function HomePage() {
 
     const [showProperties, setShowOption] = useState(false);
     const [isSwitchPath, setSwitchPath] = useState(false);
-
-
+    const [target, setTarget] = useState('');
 
     const links = [
         { name: 'Dashboard', caseId: 1 },
@@ -184,6 +183,7 @@ export default function HomePage() {
                 ]
         }
     ];
+
     const handleChangePage = (key) => {
         const newState = (() => {
             switch (key) {
@@ -258,6 +258,17 @@ export default function HomePage() {
         }))
     }
 
+    const handleScrollBehavior = (id) => {
+        setTarget(id);
+        const element = document.getElementById(id);
+        if (element) {
+            element.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+            })
+        }
+    }
+
     return (
         <main id='main'>
             {isSwitchPath ? (
@@ -322,9 +333,12 @@ export default function HomePage() {
                                     </button>
                                     <ul className={`list ${item.id === home.currentId ? 'show' : 'hide'}`} style={{ '--length': `${item.list.length}` }}>
                                         {item.list.map((listItem) => (
-                                            <a key={listItem.name} href={`#${listItem.id}`}>
-                                                <li>{listItem.name}</li>
-                                            </a>
+                                            <li key={listItem.name}
+                                                onClick={() => handleScrollBehavior(listItem.id)}
+                                                className={listItem.id === target ? 'active' : ''}
+                                            >
+                                                {listItem.name}
+                                            </li>
                                         ))}
                                     </ul>
                                 </div>

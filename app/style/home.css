@@ -220,9 +220,17 @@
   justify-content: center;
   height: 100%;
   width: 100%;
+  z-index: 1;
+}
+
+.logoutSheet::before{
+  content: "";
+  display: flex;
+  position: absolute;
+  height: 100%;
+  width: 100%;
   background: #ccc;
   opacity: 0.8;
-  z-index: 1;
 }
 
 .logout-container{
