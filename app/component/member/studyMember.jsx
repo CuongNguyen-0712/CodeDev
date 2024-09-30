@@ -1,185 +1,116 @@
-import { useEffect, useState, useCallback, useRef, forwardRef } from "react";
+import { useState, useEffect } from "react";
 
-import CustomInfoSecret from "./infoSecret";
 import CreateMember from "./createMember";
-import AuthMember from "./handleAuthMember ";
+import TargetMember from "./targetMember";
+import HandleSearchMember from "./handleSearchMember";
 
-import { IoIosLock } from "react-icons/io";
+import { IoIosClose } from "react-icons/io";
+import { FaFilter, FaSearch } from "react-icons/fa";
 
-const Item = forwardRef(({ item }, ref) => {
-    return (
-        <div className="info-wrapper" ref={ref}>
-            {item}
-        </div>
-    );
-});
-export default function Member() {
+export default function Member({ handle }) {
 
-    const [members, setMembers] = useState({
-        members: [],
-        member_target: null,
-        maxLengthMember: null,
-        membersLengthShown: 10,
-        isSecret: false,
-        currentCode: '',
+    const [search, setSearch] = useState({
+        valueSearch: '',
+        searching: false
     })
 
-    const [loading, setLoading] = useState(false);
+    const [target, setTarget] = useState({
+        targetMember: {},
+        targetIndex: 0,
+    })
 
-    const observer = useRef();
-    const firstObserver = useRef();
+    const [members, setMember] = useState({
+        currentMembers: [],
+        availableMember: [],
+        membersFavor: [],
+        membersRating: [],
+    });
+
+    const fetchDataMember = async () => {
+        try {
+            const response = await fetch("/data/memberList.json")
+            if (!response.ok) {
+                throw new Error("Fetching data failed !")
+            }
+            const data = await response.json();
+            setMember((state) => ({ ...state, availableMember: data, currentMembers: data }));
+        }
+        catch (err) {
+            console.log(err)
+        }
+    }
 
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const res = await fetch("/data/memberList.json");
-                if (!res.ok) {
-                    throw new Error("Fetching failed")
-                }
-                const data = await res.json();
-                setMembers((state) => ({
-                    ...state,
-                    members: data,
-                    maxLengthMember: data.length,
-                }));
-            }
-            catch (error) {
-                console.log(error);
-            }
-        }
-        fetchData();
+        fetchDataMember();
     }, [])
 
-    const handleSetShownMember = (mount) => {
-        setMembers((state) => {
-            let newLength = members.membersLengthShown + mount;
-            if (newLength < 10) {
-                newLength = 10;
-            }
-            else if (newLength >= members.maxLengthMember) {
-                newLength = members.maxLengthMember;
-            }
-            else {
-                newLength = newLength;
-            }
-            return {
-                ...state,
-                membersLengthShown: newLength,
-            }
-        })
-    }
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            const updateMembers = HandleSearchMember({ value: search.valueSearch, members: members.currentMembers });
+            setMember((prev) => ({ ...prev, availableMember: updateMembers }))
+        }, 500)
 
-    const lastItemRef = useCallback((node) => {
-        if (observer.current) {
-            observer.current.disconnect();
+        return () => {
+            clearTimeout(handler)
         }
-        observer.current = new IntersectionObserver(entries => {
-            if (entries[0].isIntersecting) {
-                setLoading(true);
-                setTimeout(() => {
-                    setLoading(false);
-                    handleSetShownMember(10);
-                }, 2000)
-            }
-        });
-        if (node) {
-            observer.current.observe(node);
-        }
-    }, [handleSetShownMember]);
+    }, [search.valueSearch, members.availableMember])
 
-    const firstItemRef = useCallback((node) => {
-        if (firstObserver.current) {
-            firstObserver.current.disconnect();
-        }
-        firstObserver.current = new IntersectionObserver(entries => {
-            if (entries[0].isIntersecting) {
-                setLoading(false);
-                handleSetShownMember(-10);
-            }
-        });
-        if (node) {
-            firstObserver.current.observe(node);
-        }
-    }, [handleSetShownMember]);
-
-    const handleCheckObserve = (index) => {
-        if (index === members.membersLengthShown) {
-            return lastItemRef;
-        }
-        else if (index === (members.membersLengthShown - 15)) {
-            return firstItemRef;
-        }
-        else {
-            return null;
-        }
-    }
-
-    const handleTarget = (id, secretCode) => {
-        setMembers((state) => ({
-            ...state,
-            member_target: id,
-            currentCode: secretCode,
-            isSecret: false
-        }))
-    }
-
-    const handleShowSecret = () => {
-        setMembers((state) => ({
-            ...state,
-            isSecret: true,
-        }))
-    }
-
-    const handleSetClose = () => {
-        setMembers((state) => ({
-            ...state,
-            member_target: null,
-            currentCode: '',
-            isSecret: false,
-        }))
-    }
+    useEffect(() => {
+        setSearch((state) => ({ ...state, valueSearch: '' }))
+    }, [search.searching])
 
     return (
         <>
-            <ul className="member-list">
-                {members.members.slice(0, members.membersLengthShown).map((member) => (
-                    <div key={member.id} className='info-container'>
-                        <Item item={<CreateMember
-                            key={member.id} {...member}
-                            handle={(id, secretCode) => handleTarget(id, secretCode)}
-                            target={members.member_target}
-                        />}
-                            ref={member.id < members.maxLengthMember ? handleCheckObserve(member.id) : null}
+            <div className="member-container">
+                <span className="title">Member</span>
+                <div className="member-feature">
+                    <button className="filter">
+                        <FaFilter />
+                    </button>
+                    <div className={`search ${search.searching ? 'active' : ''}`}>
+                        <button className="search" onClick={() => setSearch((prev) => ({ ...prev, searching: !prev.searching }))}>
+                            <FaSearch />
+                        </button>
+                        <input
+                            type="text"
+                            value={search.valueSearch}
+                            placeholder="Search"
+                            name="Data-search"
+                            id="search-bar"
+                            onChange={(e) => setSearch((prev) => ({ ...prev, valueSearch: e.target.value }))}
                         />
-                        {
-                            (members.member_target === member.id && !members.isSecret) &&
-                            <AuthMember
-                                handleAccess={handleShowSecret}
-                                handleDeline={handleSetClose}
-                                code={members.currentCode}
-                            />
+                        {search.valueSearch ?
+                            <span onClick={() => setSearch((prev) => ({ ...prev, valueSearch: '' }))}>
+                                <IoIosClose />
+                            </span>
+                            :
+                            null
                         }
-                        {
-                            (members.member_target === member.id && members.isSecret) &&
-                            <>
-                                <CustomInfoSecret
-                                    infoSecret={{ phone: member.phone, email: member.email, facebook: member.facebook, instagram: member.instagram, tiktok: member.tiktok }}
-                                />
-                                <button className="lock" onClick={handleSetClose}>
-                                    <IoIosLock />
-                                </button>
-                            </>
-                        }
-                    </div>
-                ))}
-
-                <div className="loader">
-                    <div className={`progress-loader ${loading ? "acvate" : ""}`}>
-                        <span>Loading...</span>
-                        <div className="progress"></div>
                     </div>
                 </div>
-            </ul>
+                <div className="member-frame">
+                    <div className="list-member">
+                        <CreateMember
+                            handle={(data) => setTarget((prev) => ({ ...prev, targetMember: data, targetIndex: data.id }))}
+                            target={target.targetIndex}
+                            members={members.availableMember}
+                        />
+                    </div>
+                    <div className="target-frame">
+                        <TargetMember
+                            handle={() => setTarget((prev) => ({ ...prev, targetMember: {}, targetIndex: null }))}
+                            member={target.targetIndex ? target.targetMember : null}
+                            setFavor={members.membersFavor}
+                            setRating={members.membersRating}
+                            handleFavor={(id) => setMember((prev) => ({ ...prev, membersFavor: members.membersFavor.includes(id) ? prev.membersFavor.filter(item => item !== id) : [...prev.membersFavor, id] }))}
+                            handleRating={(id) => setMember((prev) => ({ ...prev, membersRating: members.membersRating.includes(id) ? prev.membersRating.filter(item => item !== id) : [...prev.membersRating, id] }))}
+                        />
+                    </div>
+                </div>
+                <button className="handle-close" onClick={handle}>
+                    <IoIosClose />
+                </button>
+            </div>
         </>
     )
 }

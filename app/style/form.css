@@ -69,53 +69,53 @@
   border-radius: 0px 10px 10px 0px;
 }
 
-.heading {
+.container {
   display: flex;
   width: 80%;
   height: 80%;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  text-align: center;
   gap: 20px;
   user-select: none;
 }
 
-.heading h1{
+.container h1 {
   display: flex;
   font-size: 25px;
+  text-align: center;
   text-transform: uppercase;
-  padding-top: 30px;
 }
 
-.heading span{
+.container span {
   display: flex;
   font-size: 15px;
+  text-align: center;
   font-weight: 700;
   letter-spacing: 1px;
-} 
+}
 
-.heading p{
+.container p {
   line-height: 25px;
+}
+
+.intro-login .container p{
+  text-align: start;
+}
+
+.intro-register .container p{
+  text-align: end;
 }
 
 .footer-login,
 .footer-register {
   display: flex;
-  width: 80%;
-  height: 20%;
+  width: 100%;
+  height: 10%;
   align-items: center;
-  justify-content: flex-start;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.footer-login{
-  align-self: flex-start;
-}
-
-.footer-register{
-  align-self: flex-end;
+  justify-content: center;
+  flex-direction: row;
+  gap: 20px;
 }
 
 .footer-login span,
@@ -128,20 +128,53 @@
   display: flex;
   height: 100%;
   width: 50%;
-  flex-direction: column;   
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   border-radius: 10px 0px 0px 10px;
 }
 
-.form.effect1 .intro_layout {
-  clip-path: polygon(40% 0, 100% 0, 100% 100%, 60% 100%);
-  transition: 0.2s all ease;
+.form.effect1 .intro_layout { 
+  animation:intro_effect1_laptop 0.5s linear forwards;
 }
 
+@keyframes intro_effect1_laptop {
+  0% {
+    clip-path: polygon(0 0, 60% 0, 60% 0, 40% 100%, 0 100%, 0 0);
+  }
+  25%{
+    clip-path: polygon(0 0, 100% 0, 100% 0, 40% 100%, 0 100%, 0 0);
+  }
+  50%{
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 60% 100%, 0 100%, 0 0);
+  }
+  75%{
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 60% 100%, 0 0, 0 0);
+  }
+  100%{
+    clip-path: polygon(100% 0, 100% 0, 100% 100%, 60% 100%, 40% 0, 40% 0);
+  }
+}
 .form.effect2 .intro_layout {
-  clip-path: polygon(0 0, 60% 0, 40% 100%, 0 100%);
-  transition: 0.2s all ease;
+  animation:intro_effect2_laptop 0.5s linear forwards;
+}
+
+@keyframes intro_effect2_laptop{
+  0%{
+    clip-path: polygon(100% 0, 100% 0, 100% 100%, 60% 100%, 40% 0, 40% 0);
+  }
+  25%{
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 60% 100%, 0 0, 0 0);
+  }
+  50%{
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 60% 100%, 0 100%, 0 0);
+  }
+  75%{
+    clip-path: polygon(0 0, 100% 0, 100% 0, 40% 100%, 0 100%, 0 0);
+  }
+  100%{
+    clip-path: polygon(0 0, 60% 0, 60% 0, 40% 100%, 0 100%, 0 0);
+  }
 }
 
 .login-form {
@@ -151,7 +184,6 @@
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  padding-bottom: 20px;
   border-radius: 10px 0px 0px 10px;
   transition: 0.3s all ease-in;
 }
@@ -170,81 +202,89 @@
 .register-form .title,
 .login-form .title {
   display: flex;
-  position: absolute;
-  top: 30px;
   letter-spacing: 1px;
   color: var(--color_black);
   font-weight: 700;
   font-size: 30px;
-  cursor: pointer;
+  user-select: none;
 }
 
 .form.effect1 .register-form {
-  transform: scale(0);
+  transform: scaleY(0);
   transition: 0.2s all ease-in;
 }
 .form.effect1 .login-form {
-  transform: scale(1);
+  transform: scaleY(1);
   transition: 0.2s all ease-out;
 }
 
 .form.effect2 .register-form {
-  transform: scale(1);
+  transform: scaleY(1);
   transition: 0.2s all ease-out;
 }
 
 .form.effect2 .login-form {
-  transform: scale(0);
+  transform: scaleY(0);
   transition: 0.2s all ease-in;
 }
 
 .form.effect1 .intro_layout .intro-register {
-  transform: scale(1);
+  transform: scaleY(1);
   transition: 0.2s all ease-out;
 }
 
 .form.effect1 .intro_layout .intro-login {
-  transform: scale(0);
+  transform: scaleY(0);
   transition: 0.2s all ease-in;
 }
 
-.form.effect2 .intro_layout .intro-login{
-  transform: scale(1);
+.form.effect2 .intro_layout .intro-login {
+  transform: scaleY(1);
   transition: 0.2s all ease-out;
 }
 
 .form.effect2 .intro_layout .intro-register {
-  transform: scale(0);
+  transform: scaleY(0);
   transition: 0.2s all ease-in;
 }
 
 .form-input {
   display: flex;
-  position: absolute;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
   height: 90%;
   width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   border-radius: 10px;
   gap: 10px;
 }
 
-.input-group {
+.login-form .input-group {
   display: flex;
   position: relative;
-  height: calc(100% - 60px);
+  height: 80%;
   width: 100%;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 30px;
 }
 
-.input-group #capslock {
+.register-form .input-group{
+  display: flex;
+  position: relative;
+  height: 80%;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.input-group .capslock {
   display: flex;
   position: absolute;
-  bottom: 20px;
+  bottom: 6px;
   font-size: 13px;
   font-weight: 700;
 }
@@ -255,42 +295,48 @@
   justify-content: center;
   width: 100%;
   height: 50px;
-  gap: 20px;
+  gap: 15px;
 }
 
 #optionLogin img {
   display: flex;
-  height: 40px;
-  width: 40px;
+  height: 35px;
+  width: 35px;
   background: #ccc;
   padding: 10px;
   border-radius: 10px;
-  transform: scale(0.8);
   transition: 0.2s all ease-in;
 }
 
-#optionLogin img:hover{
-  transform: scale(1);
+#optionLogin img:hover > img:not(:hover){
+  transform: scaleY(0.8);
   transition: 0.2s all ease-out;
 }
+
 
 .user-form,
 .pass-form {
   display: flex;
   height: max-content;
-  width: 100%;
-  flex-direction: column;
+  width: max-content;
   align-items: center;
   justify-content: center;
-  gap: 10px;
 }
 
-.userIcon,
-.passIcon {
+.icon {
   display: flex;
-  font-size: 40px;
-  color: var(--color_black);
-  cursor: pointer;
+  position: absolute;
+  height: 100%;
+  width: 40px;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  left: 0;
+  border-top-left-radius: 5px;
+  border-bottom-left-radius: 5px;
+  background: var(--color_black);
+  color: #fff;
+  z-index: 1;
 }
 
 .form-input input {
@@ -298,12 +344,13 @@
   height: 40px;
   width: 250px;
   text-align: left;
-  padding-left: 10px;
+  padding-left: 50px;
+  padding-right: 10px;
   font-size: 15px;
   outline: none;
   background: #ccc;
-  border-radius: 10px;
-  z-index: 1;
+  border-radius: 5px;
+  z-index: 0;
 }
 
 input::placeholder {
@@ -338,25 +385,24 @@ input:focus {
   bottom: 0px;
 }
 
-.btn-login {
+.btn-login, .btn-register {
   display: flex;
-  position: absolute;
   background: var(--color_black);
   height: 40px;
   width: 150px;
   border-radius: 10px;
   align-items: center;
   justify-content: center;
-  bottom: 0px;
   overflow: hidden;
   gap: 10px;
   text-decoration: none;
   cursor: pointer;
 }
 
-.btn-login h2 {
+.btn-login h2, .btn-register h2 {
   display: flex;
   color: #fff;
+  text-transform: uppercase;
   font-size: 17px;
   font-weight: 700;
   transform: translate(0px);
@@ -413,12 +459,50 @@ input:focus {
     width: 700px;
     transition: width 0.2s ease-in-out;
   }
-  .form.effect1 .intro_layout{
-    clip-path: polygon(45% 0, 100% 0, 100% 100%, 55% 100%);
+  .form.effect1 .intro_layout {
+    animation: intro_effect1_ipad 0.5s linear forwards;
   }
+
+  @keyframes intro_effect1_ipad {
+    0% {
+      clip-path: polygon(0 0, 55% 0, 55% 0, 45% 100%, 0 100%, 0 0);
+    }
+    25%{
+      clip-path: polygon(0 0, 100% 0, 100% 0, 45% 100%, 0 100%, 0 0);
+    }
+    50%{
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 55% 100%, 0 100%, 0 0);
+    }
+    75%{
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 55% 100%, 0 0, 0 0);
+    }
+    100%{
+      clip-path: polygon(100% 0, 100% 0, 100% 100%, 55% 100%, 45% 0, 45% 0);
+    }
+  }
+
   .form.effect2 .intro_layout {
-    clip-path: polygon(0 0, 55% 0, 45% 100%, 0 100%);
+    animation: intro_effect2_ipad 0.5s linear forwards;
   }
+
+  @keyframes intro_effect2_ipad {
+    0%{
+      clip-path: polygon(100% 0, 100% 0, 100% 100%, 55% 100%, 45% 0, 45% 0);
+    }
+    25%{
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 55% 100%, 0 0, 0 0);
+    }
+    50%{
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 55% 100%, 0 100%, 0 0);
+    }
+    75%{
+      clip-path: polygon(0 0, 100% 0, 100% 0, 45% 100%, 0 100%, 0 0);
+    }
+    100%{
+      clip-path: polygon(0 0, 55% 0, 55% 0, 45% 100%, 0 100%, 0 0);
+    }
+  }
+
   .form-input {
     width: 350px;
   }
@@ -427,7 +511,7 @@ input:focus {
   }
 }
 
-@media ( width < 800px) {
+@media (width < 800px) {
   .form {
     flex-direction: column;
     height: 80%;
@@ -436,13 +520,13 @@ input:focus {
   }
   .form_layout {
     width: 100%;
-    transform: scale(0);
+    transform: scaleY(0);
     height: 90%;
     transition: height 0.2s ease-in-out;
   }
   .intro_layout {
     width: 100%;
-    transform: scale(0);
+    transform: scaleY(0);
     height: 10%;
     transition: height 0.2s ease-in-out;
   }
@@ -477,28 +561,25 @@ input:focus {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 40px;
-  width: 40px;
-  font-size: 17px;
+  height: 30px;
+  width: 100px;
+  font-size: 15px;
   text-transform: uppercase;
   font-weight: 700;
   background: #fff;
   border-radius: 10px;
+  border: 1px solid var(--color_black);
   cursor: pointer;
+  transition: 0.2s all ease-in;
 }
 
-.login-handle svg,
-.register-handle svg {
-  transform: rotate(0deg);
-  transition: 0.5s all ease;
-}
-
-.login-handle:hover svg{
-  transform: rotate(360deg);
-  transition: 0.5s all ease;
-}
-
-.register-handle:hover svg{
-  transform: rotate(-360deg);
-  transition: 0.5s all ease;
+.register-handle:hover,
+.login-handle:hover {
+  background: linear-gradient(
+    to right,
+    rgba(21, 205, 238, 0.979),
+    rgba(225, 10, 233, 0.918)
+  );
+  transition: 0.2s all ease-out;
+  color: #fff;
 }

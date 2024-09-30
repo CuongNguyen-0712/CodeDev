@@ -5,6 +5,7 @@
 @import "./style/content.css";
 @import "./style/dashboard.css";
 @import "./style/loading.css";
+@import "./style/comment.css";
 
 *{
     margin: 0;

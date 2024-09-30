@@ -126,8 +126,8 @@
 }
 
 .dashboard-target.expand #main-dashboard {
-  height: 75%;
-  gap: 10px;
+  height: 80%;
+  gap: 15px;
   border-top: 2px solid #fff;
   padding-top: 30px;
   background: linear-gradient(
@@ -138,20 +138,11 @@
   overflow: scroll;
 }
 
-.dashboard-target.compact:hover #header-dashboard {
-  height: 10%;
-  transition: 0.2s all ease;
-}
-
-.dashboard-target.compact #header-dashboard {
-  height: 0%;
-  transition: 0.2s all ease;
-}
-
 .dashboard-target.compact #main-dashboard {
-  justify-content: center;
-  height: 85%;
+  justify-content: flex-end;
+  height: 90%;
   border: none;
+  padding-bottom: 65px;
   background: linear-gradient(
     to top,
     rgba(21, 205, 238, 0.979),
@@ -162,8 +153,22 @@
   transition: 0.2s all ease;
 }
 
-.dashboard-target.compact:hover #main-dashboard {
-  height: 75%;
+.dashboard-target.compact:hover #main-dashboard{
+  height: 80%;
+  transition: 0.2s all ease;
+}
+
+.dashboard-target.compact #header-dashboard {
+  height: 0%;
+  transform: scaleY(0);
+  transform-origin: top;
+  transition: 0.2s all ease;
+}
+
+.dashboard-target.compact:hover #header-dashboard{
+  height: 10%;
+  transform: scaleY(1);
+  transform-origin: top;
   transition: 0.2s all ease;
 }
 
@@ -330,59 +335,19 @@ li.active{
 .dashboard-target #footer-dashboard {
   display: flex;
   width: 100%;
+  height: 10%;
   align-items: center;
   justify-content: center;
-  flex-direction: column;
-  gap: 0px;
 }
   
-.dashboard-target #footer-dashboard {
-  height: 15%;
-}
-
-#footer-dashboard .handleLogout {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 50%;
-  width: 100%;
-  gap: 20px;
-  background: var(--color_black);
-}
-
-.dashboard-target .handleLogout .logout-btn {
-  display: flex;
-  height: 100%;
-  width: 100%;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: #fff;
-  background: var(--color_black);
-}
-
-.dashboard-target.expand .handleLogout .logout-btn {
-  text-transform: uppercase;
-  font-weight: 700;
-  font-size: 15px;
-  letter-spacing: 1px;
-}
-
-.dashboard-target.compact .handleLogout .logout-btn {
-  font-size: 20px;
-}
-
 .dashboard-target #footer-dashboard .switchMode {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 50%;
+  height: 100%;
   width: 100%;
   border-bottom-left-radius: 10px;
   border-bottom-right-radius: 10px;
-}
-
-.dashboard-target.expand #footer-dashboard .switchMode {
   gap: 10px;
 }
 
@@ -426,8 +391,8 @@ li.active{
 .switchMode .mode-btn {
   display: flex;
   align-items: center;
-  height: 70%;
-  width: 35%;
+  height: 50%;
+  width: 30%;
   border-radius: 20px;
   background: #ccc;
 }
@@ -448,7 +413,7 @@ li.active{
 
 .dashboard-target.expand .switchMode .mode-btn span {
   height: 100%;
-  width: 40%;
+  width: 45%;
   font-size: 17px;
   border-radius: 50%;
 }
@@ -471,7 +436,7 @@ li.active{
 
 .dashboard-target.expand .switchMode.dark .mode-btn span {
   outline: 2px solid #fff;
-  transform: translateX(150%);
+  transform: translateX(125%);
   transition: 0.2s all ease;
 }
 

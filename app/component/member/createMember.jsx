@@ -1,35 +1,21 @@
-import { MdNumbers, MdDriveFileRenameOutline, MdTransgender } from "react-icons/md";
-import { FaUserLock } from "react-icons/fa";
+import { RiAccountPinBoxFill } from "react-icons/ri";
 
-const CreateMember = ({ id, code, name, gender, handle, secretCode, target }) => {
-    const handleSetTarget = () => {
-        handle(id, secretCode);
-    }
+export default function CreateMember({ handle, target, members}) {
+
 
     return (
         <>
-            <div className="info-heading">
-                <img src="" />
-                <button className={`show-more ${target === id ? 'active' : ''}`} onClick={handleSetTarget}>
-                    <FaUserLock />
-                </button>
-            </div>
-            <ul className="info">
-                <li>
-                    <i><MdNumbers /></i>
-                    <span>{code}</span>
-                </li>
-                <li>
-                    <i><MdDriveFileRenameOutline /></i>
-                    <span>{name}</span>
-                </li>
-                <li>
-                    <i><MdTransgender /></i>
-                    <span>{gender}</span>
-                </li>
-            </ul>
+            {members.map((member) => (
+                <div className={`member ${member.id === target ? "target" : ""}`} key={member.id} onClick={() => handle(member)}>
+                    <span>
+                        <RiAccountPinBoxFill />
+                    </span>
+                    <ul>
+                        <li>{member.code}</li>
+                        <li>{member.name}</li>
+                    </ul>
+                </div>
+            ))}
         </>
     )
 }
-
-export default CreateMember;

@@ -1,3 +1,5 @@
+'use client'
+
 import dynamic from 'next/dynamic';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -18,12 +20,11 @@ import { PiStudentFill } from 'react-icons/pi';
 import { SiGnusocial } from 'react-icons/si';
 import { GiReceiveMoney } from "react-icons/gi"
 import { GoProjectRoadmap } from "react-icons/go";
-import { FaArrowRight, FaRankingStar } from 'react-icons/fa6';
+import { FaRankingStar } from 'react-icons/fa6';
 import { FiMoon, FiSun } from "react-icons/fi";
-import { RiAccountCircleFill, RiExpandLeftLine, RiExpandRightLine, RiInformationFill } from "react-icons/ri";
-import { MdOutlinePlaylistPlay, MdOutlinePlaylistRemove, MdLogout, MdSettings, MdHelp } from "react-icons/md";
-import { GrLogout } from "react-icons/gr";
-
+import { RiAccountCircleFill, RiExpandLeftLine, RiExpandRightLine, RiInformationFill, RiShutDownLine } from "react-icons/ri";
+import { MdOutlinePlaylistPlay, MdOutlinePlaylistRemove, MdSettings} from "react-icons/md";
+import { HiLogout } from "react-icons/hi";
 
 export default function HomePage() {
     const { handleLogout } = useAuth();
@@ -236,9 +237,11 @@ export default function HomePage() {
             member: false,
             comment: false,
         }))
+
+        setTarget('');
     }
 
-    const handleCloseUser = () => {
+    const handleCloseMember = () => {
         setHome((prev) => ({
             ...prev,
             member: false,
@@ -303,9 +306,9 @@ export default function HomePage() {
                                         <span className='properties-icon'><MdSettings /></span>
                                         <span className='properties-name'>Settings</span>
                                     </li>
-                                    <li onClick={() => handleSwitchPath('/help')}>
-                                        <span className='properties-icon'><MdHelp /></span>
-                                        <span className='properties-name'>Help</span>
+                                    <li onClick={() => submitLogout()}>
+                                        <span className='properties-icon'><RiShutDownLine /></span>
+                                        <span className='properties-name'>Logout</span>
                                     </li>
                                 </ul>
                             )}
@@ -346,11 +349,6 @@ export default function HomePage() {
                         </div>
 
                         <footer id='footer-dashboard'>
-                            <div className='handleLogout'>
-                                <button className='logout-btn' onClick={() => submitLogout()}>
-                                    {home.dashboard && home.expandDashboard ? "Logout" : <MdLogout />}
-                                </button>
-                            </div>
                             <div className={`switchMode ${home.switchMode ? 'light' : 'dark'}`}>
                                 <span className='mode'>{home.switchMode ? 'Light mode:' : 'Dark mode:'}</span>
                                 <button className='mode-btn' onClick={() => setHome({ ...home, switchMode: !home.switchMode })}>
@@ -360,25 +358,22 @@ export default function HomePage() {
                         </footer>
                     </div>
 
-                    <div id='content-layout'>
-                        <div className={`frame-content ${home.dashboard && home.expandDashboard ? 'effect1' : ''} ${home.member ? 'effect2' : ''}`}>
+                    <article id='content-layout'>
+                        <div className={`frame-content ${home.dashboard && home.expandDashboard ? 'effect1' : ''} ${home.comment ? 'effect2' : ''}`}>
                             {contentTitles.map((item) => (
                                 <article key={item.id} className={`content-item ${home.currentId === item.id ? 'show' : 'hide'}`}>
                                     {item.content}
                                 </article>
                             ))}
                         </div>
-                    </div>
+                    </article>
 
-                    <div className={`member-template ${home.member ? 'active' : ''}`}>
-                        <div className='member-header'>
-                            <h1 className="member-head">Member</h1>
-                            <span className="close-member" onClick={handleCloseUser}><FaArrowRight /></span>
-                        </div>
-                        <div className='member-container'>
-                            <Member />
-                        </div>
-                    </div>
+                    <article className={`frame-comment ${home.comment ? 'active' : ''}`}>
+
+                    </article>
+                    <article className={`member-template ${home.member ? 'active' : ''}`}>
+                        <Member handle={() => handleCloseMember()} />
+                    </article>
                 </>
             )}
             {home.setLogout &&
@@ -386,11 +381,11 @@ export default function HomePage() {
                     <div className='logout-container'>
                         <span>Do you want to logout ?</span>
                         <div className='handleChoose'>
-                            <button id='deline' onClick={() => setHome({ ...home, setLogout: false })}>
+                            <button onClick={() => setHome({ ...home, setLogout: false })}>
                                 <IoHomeSharp />
                             </button>
-                            <button id='accept' onClick={handleLogout}>
-                                <GrLogout />
+                            <button onClick={handleLogout}>
+                                <HiLogout />
                             </button>
                         </div>
                     </div>

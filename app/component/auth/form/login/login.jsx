@@ -5,7 +5,7 @@ import handleCheckKeyDown from "@/app/function/handleCheckKeyDown";
 import { BiSolidUserCircle } from 'react-icons/bi';
 import { FaTruckArrowRight } from "react-icons/fa6";
 import { PiLockKeyFill } from "react-icons/pi";
-export default function Login({ login }) {
+export default function Login({ login, change }) {
     const isCapsLock = handleCheckKeyDown('CapsLock');
     const pathName = usePathname();
     const [form, setForm] = useState({
@@ -36,9 +36,9 @@ export default function Login({ login }) {
     return (
         <>
             <div className='login-form'>
-                <span className="title">Sign In</span>
                 <form className="form-input" onSubmit={handleSubmit}>
                     <article className="input-group">
+                        <span className="title">Sign In</span>
                         <div id="optionLogin">
                             <img src="/img/apple.ico" alt="options" />
                             <img src="/img/google.ico" alt="options" />
@@ -47,9 +47,8 @@ export default function Login({ login }) {
                             <img src="/img/twitter.ico" alt="options" />
                         </div>
                         <div className="user-form">
-                            <span className="userIcon"><BiSolidUserCircle /></span>
+                            <span className="icon"><BiSolidUserCircle /></span>
                             <input type="text"
-                                id="username"
                                 name="username"
                                 required
                                 autoComplete="current-value"
@@ -62,9 +61,8 @@ export default function Login({ login }) {
                         </div>
 
                         <div className="pass-form">
-                            <span className="passIcon"><PiLockKeyFill /></span>
+                            <span className="icon"><PiLockKeyFill /></span>
                             <input type="password"
-                                id="password"
                                 name="password"
                                 value={form.pass}
                                 required
@@ -75,14 +73,20 @@ export default function Login({ login }) {
                             />
                         </div>
 
-                        <span id="capslock">{isCapsLock ? 'Capslock is on' : ''}</span>
+                        {isCapsLock && <span className="capslock">Capslock is on</span>}
 
                     </article>
                     <button type="submit" className={`btn-login ${form.handleSubmit ? 'active' : ''}`}>
                         <span className="loginIcon" ><FaTruckArrowRight /></span>
-                        <h2>LOGIN</h2>
+                        <h2>Login</h2>
                     </button>
                 </form>
+                <footer className="footer-register">
+                    <span>Have an account ?</span>
+                    <button className="register-handle" onClick={change}>
+                        Sign up
+                    </button>
+                </footer>
             </div>
         </>
     )

@@ -20,12 +20,12 @@ export default function Form() {
         <main id='mainsheet'>
             <div className={`form ${change ? 'effect1' : 'effect2'}`}>
                 <div className="form_layout">
-                    <Login login={handleLogin} />
-                    <Register />
+                    <Login login={handleLogin} change={() => setChange(!change)}/>
+                    <Register change = {() => setChange(!change)}/>
                 </div>
                 <div className="intro_layout">
-                    <Intro_login change={() => setChange(!change)} />
-                    <Intro_register change={() => setChange(!change)} />
+                    <Intro_login/>
+                    <Intro_register/>
                 </div>
             </div>
         </main>

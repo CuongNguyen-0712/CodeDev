@@ -277,13 +277,9 @@
   transition: 0.2s all ease;
 }
 
-#deline:hover{
-  background: rgba(54, 211, 15, 0.925);
-  transition: 0.2s all ease;
-}
-
-#accept:hover{
-  background: rgba(255, 8, 8, 0.877);
+.handleChoose button:hover{
+  color: #fff;
+  background: var(--color_black);
   transition: 0.2s all ease;
 }
 
