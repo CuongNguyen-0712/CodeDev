@@ -29,8 +29,12 @@
   justify-content: center;
   height: 90%;
   width: 90%;
-  background: #fff;
+  background: url(/image/member-background.jpg);
+  background-repeat: no-repeat;
+  background-size: cover;
+  object-fit: cover;
   border-radius: 10px;
+  overflow: hidden;
   flex-direction: column;
 }
 
@@ -62,49 +66,61 @@
 .member-frame .list-member {
   display: flex;
   height: 100%;
-  width: 70%;
-  align-items: flex-start;
-  justify-content:flex-start;
-  background: linear-gradient(
-    to top,
-    rgba(21, 205, 238, 0.979),
-    rgba(225, 10, 233, 0.918)
-  );
-  flex-wrap: wrap;
+  width: 70%; 
   border-radius: 0 0 0 10px;
-  padding: 20px;
   overflow: scroll;
   overflow-x: hidden;
-  gap: 15px;
 }
 
 .list-member::-webkit-scrollbar-thumb {
-  background: var(--color_black);
+  background: #fff;
 }
 
 .list-member::-webkit-scrollbar {
   width: 10px;
 }
 
-.list-member .member {
+.list-member .container-member{
+  display: flex;
+  height: max-content;
+  width: 100%;
+  align-items: flex-start;
+  justify-content: flex-start;  
+  padding: 20px;
+  gap: 15px;
+  flex-wrap: wrap;
+} 
+
+.container-member .member {
   display: flex;
   height: 150px;
   width: 150px;
   box-sizing: border-box;
   border-radius: 10px;
-  border: 2px solid var(--color_black);
   color: var(--color_black);
-  background: #fff;
   flex-direction: column;
   cursor: pointer;
-  transition: 0.2s all ease;
 }
 
-.member.target {
+.container-member .member::before{
+  content: "";
+  position: absolute;
+  display: flex;
+  height: 100%;
+  width: 100%;
+  border-radius: 8px;
+  background: #fff;
+  opacity: 0.7;
+}
+
+.member.target::before {
   background: var(--color_black);
-  color: #fff;
   transition: 0.2s all ease;
   box-shadow: 0 0 20px #fff;
+}
+
+.member.target{
+  color: #fff;
 }
 
 .member span {
@@ -143,7 +159,26 @@
   width: 30%;
   align-items: center;
   justify-content: center;
+  border-left: 2px solid #fff;
   flex-direction: column;
+}
+
+.member-frame .target-frame.fail::before{
+  content: "Choose any tag to see more infomation";
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  background: var(--color_black);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  text-transform: uppercase;
+  text-align: center;
+  opacity: 0.8;
+  z-index: 1;
 }
 
 .target-frame .heading-target {
@@ -159,12 +194,21 @@
   display: flex;
   height: 90%;
   width: 200px;
-  background: #fff;
   border-radius: 10px;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--color_black);
   flex-direction: row;
+}
+
+.heading-target .heading-container::before{
+  content: "";
+  display: flex;
+  position: absolute;
+  height: 100%;
+  width: 100%;
+  background: #fff;
+  border-radius: 10px;
+  opacity: 0.5;
 }
 
 .heading-container .header{
@@ -180,7 +224,6 @@
   height: 80%;
   width: 80%;
   background: #fff;
-  outline: 1px solid var(--color_black);
   border-radius: 10px;
 }
 
@@ -236,7 +279,6 @@
   background: #fff;
   border-radius: 50%;
   font-size: 20px;
-  border: 1px solid var(--color_black);
   transition: 0.2s all ease;
 }
 
@@ -281,10 +323,19 @@
   width: 90%;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--color_black);
   border-radius: 10px;
   flex-direction: column;
   flex-wrap: wrap;
+}
+
+.target-frame .container-info::before{
+  content: "";
+  position: absolute;
+  height: 100%;
+  width: 100%;
+  border-radius: 10px;
+  background: #fff;
+  opacity: 0.5;
 }
 
 .container-info .bio{
@@ -297,6 +348,7 @@
   justify-content: center;
   color: #fff;
   font-weight: 700;
+  user-select: none;
 }
 
 .container-info ul{
@@ -335,6 +387,7 @@
   display: flex;
   height: 70%;
   width: 100%;
+  background: #fff;
   border-radius: 10px;
   border: 1px solid var(--color_black);
 }
@@ -351,8 +404,11 @@
   width: 100%;
   padding-left: 10px;
   border-radius: 5px;
-  border: 1px solid var(--color_black);
   outline: none;
+}
+
+.frame-input input:focus{
+  outline: 2px solid var(--color_black);
 }
 
 .frame-input span{
@@ -378,9 +434,8 @@
   top: 10px;
   right: 10px;
   border-radius: 5px;
-  background-color: var(--color_black);
-  color: #fff;
   font-size: 15px;
+  font-weight: 700;
   cursor: pointer;
 }
 

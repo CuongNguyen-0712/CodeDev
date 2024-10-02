@@ -40,11 +40,11 @@ export default function Login({ login, change }) {
                     <article className="input-group">
                         <span className="title">Sign In</span>
                         <div id="optionLogin">
-                            <img src="/img/apple.ico" alt="options" />
-                            <img src="/img/google.ico" alt="options" />
-                            <img src="/img/facebook.ico" alt="options" />
-                            <img src="/img/github.ico" alt="options" />
-                            <img src="/img/twitter.ico" alt="options" />
+                            <img src="/image/apple.ico" alt="options" />
+                            <img src="/image/google.ico" alt="options" />
+                            <img src="/image/facebook.ico" alt="options" />
+                            <img src="/image/github.ico" alt="options" />
+                            <img src="/image/twitter.ico" alt="options" />
                         </div>
                         <div className="user-form">
                             <span className="icon"><BiSolidUserCircle /></span>

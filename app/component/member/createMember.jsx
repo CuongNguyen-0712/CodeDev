@@ -4,7 +4,7 @@ export default function CreateMember({ handle, target, members}) {
 
 
     return (
-        <>
+        <div className = "container-member">
             {members.map((member) => (
                 <div className={`member ${member.id === target ? "target" : ""}`} key={member.id} onClick={() => handle(member)}>
                     <span>
@@ -16,6 +16,6 @@ export default function CreateMember({ handle, target, members}) {
                     </ul>
                 </div>
             ))}
-        </>
+        </div>
     )
 }

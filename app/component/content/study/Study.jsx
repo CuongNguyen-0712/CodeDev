@@ -16,7 +16,7 @@ export default function Study() {
                 id: 'js',
                 title: "Javascript",
                 concept: "JavaScript (JS) là một ngôn ngữ lập trình được sử dụng chủ yếu để tạo các trang web tương tác và động. Ban đầu, JavaScript được phát triển bởi Netscape dưới tên gọi Mocha, sau đó đổi tên thành LiveScript, và cuối cùng là JavaScript. Ngày nay, JavaScript là một phần không thể thiếu của bộ ba công nghệ web cơ bản, bao gồm HTML (HyperText Markup Language), CSS (Cascading Style Sheets), và JavaScript. JavaScript chạy trên trình duyệt của người dùng (client-side), giúp tạo ra các trải nghiệm người dùng tương tác mà không cần tải lại trang. Ngoài ra, với sự phát triển của Node.js, JavaScript cũng có thể chạy trên máy chủ (server-side), giúp xây dựng các ứng dụng web hoàn chỉnh.",
-                image: "/img/javascript.ico",
+                image: "/image/javascript.ico",
                 benefit:
                     [
                         {
@@ -90,7 +90,7 @@ export default function Study() {
                 id: 'reactjs',
                 title: "ReactJS",
                 concept: "ReactJS là một thư viện JavaScript mã nguồn mở được phát triển bởi Facebook, nhằm xây dựng giao diện người dùng (UI) cho các ứng dụng web. ReactJS cho phép các nhà phát triển tạo ra các component có thể tái sử dụng, giúp dễ dàng quản lý và phát triển các ứng dụng phức tạp. Một trong những đặc điểm nổi bật của ReactJS là khả năng cập nhật và render hiệu quả các component khi dữ liệu thay đổi nhờ vào Virtual DOM. ReactJS được sử dụng rộng rãi trong việc phát triển các ứng dụng web hiện đại, từ các trang web đơn giản đến các ứng dụng web phức tạp.",
-                image: "/img/reactjs.ico",
+                image: "/image/reactjs.ico",
                 benefit: [
                     {
                         benefit_name: "Tái Sử Dụng Component",
@@ -160,7 +160,7 @@ export default function Study() {
                 id: 'nextjs',
                 title: "Nextjs",
                 concept: "Next.js là một framework React mã nguồn mở được phát triển bởi Vercel, giúp xây dựng các ứng dụng web tĩnh và động với hiệu suất cao. Next.js cung cấp các tính năng quan trọng như rendering phía server (Server-Side Rendering - SSR), rendering tĩnh (Static Site Generation - SSG), và hỗ trợ API Routes, giúp tăng cường khả năng phát triển các ứng dụng web hiện đại. Next.js cũng đi kèm với khả năng tối ưu hóa tự động, hỗ trợ TypeScript, và nhiều tính năng khác giúp đơn giản hóa quá trình phát triển.",
-                image: "/img/nextjs.ico",
+                image: "/image/nextjs.ico",
                 benefit: [
                     {
                         benefit_name: "Rendering Phía Server",
@@ -230,7 +230,7 @@ export default function Study() {
                 id: 'vuejs',
                 title: "Vuejs",
                 concept: "Vue.js là một framework JavaScript mã nguồn mở được phát triển bởi Evan You, nhằm xây dựng giao diện người dùng (UI) và ứng dụng web một cách dễ dàng và linh hoạt. Vue.js tập trung vào việc đơn giản hóa việc phát triển front-end thông qua việc cung cấp một hệ thống component mạnh mẽ, reactive data binding, và các công cụ tiên tiến để quản lý trạng thái và routing. Vue.js cũng nổi bật với cú pháp thân thiện, giúp dễ dàng học và sử dụng cho cả người mới bắt đầu lẫn những lập trình viên giàu kinh nghiệm.",
-                image: "/img/vuejs.ico",
+                image: "/image/vuejs.ico",
                 benefit: [
                     {
                         benefit_name: "Cú Pháp Thân Thiện",
@@ -300,7 +300,7 @@ export default function Study() {
                 id: 'nodejs',
                 title: "Node.js",
                 concept: "Node.js là một môi trường chạy JavaScript mã nguồn mở, đa nền tảng, được xây dựng trên V8 JavaScript engine của Chrome. Node.js cho phép các nhà phát triển chạy JavaScript trên máy chủ, thay vì chỉ trong trình duyệt, giúp xây dựng các ứng dụng web back-end một cách hiệu quả và mở rộng được. Node.js nổi bật với khả năng xử lý đồng thời nhiều kết nối bằng cách sử dụng mô hình sự kiện không đồng bộ (event-driven non-blocking I/O), phù hợp cho các ứng dụng cần hiệu suất cao như ứng dụng thời gian thực, API và dịch vụ microservices.",
-                image: "/img/nodejs.ico",
+                image: "/image/nodejs.ico",
                 benefit: [
                     {
                         benefit_name: "Hiệu Suất Cao",
@@ -370,7 +370,7 @@ export default function Study() {
                 id: 'go',
                 title: "Go (Golang)",
                 concept: "Go, hay còn gọi là Golang, là một ngôn ngữ lập trình mã nguồn mở được phát triển bởi Google. Go được thiết kế với mục tiêu đơn giản, hiệu quả và an toàn, phù hợp cho việc xây dựng các hệ thống phân tán, dịch vụ web, và các ứng dụng cần hiệu suất cao. Go nổi bật với cú pháp gọn gàng, hỗ trợ concurrency mạnh mẽ nhờ goroutines và channels, cùng với khả năng biên dịch nhanh chóng. Go đã trở thành một lựa chọn phổ biến cho các dự án quy mô lớn, nơi yêu cầu hiệu suất và độ tin cậy cao.",
-                image: "/img/golang.ico",
+                image: "/image/golang.ico",
                 benefit: [
                     {
                         benefit_name: "Hiệu Suất Cao",
@@ -436,7 +436,7 @@ export default function Study() {
                 id: "dart",
                 title: "Dart",
                 concept: "Dart là một ngôn ngữ lập trình mã nguồn mở được phát triển bởi Google, được sử dụng chủ yếu để xây dựng các ứng dụng web và di động. Dart được thiết kế để dễ học, dễ sử dụng và có hiệu suất cao, đặc biệt là khi sử dụng với framework Flutter để xây dựng các ứng dụng di động cross-platform. Dart nổi bật với cú pháp đơn giản, hệ thống type mạnh mẽ, và khả năng biên dịch nhanh chóng. Với Dart, các nhà phát triển có thể viết mã một lần và triển khai trên nhiều nền tảng khác nhau.",
-                image: "/img/dart.svg",
+                image: "/image/dart.svg",
                 benefit: [
                     {
                         benefit_name: "Hiệu Suất Cao",
@@ -506,7 +506,7 @@ export default function Study() {
                 id: 'swift',
                 title: "Swift",
                 concept: "Swift là một ngôn ngữ lập trình mạnh mẽ và trực quan được phát triển bởi Apple, được sử dụng để xây dựng các ứng dụng cho iOS, macOS, watchOS, và tvOS. Swift được thiết kế để dễ học và sử dụng, với cú pháp hiện đại và các tính năng tiên tiến nhằm đảm bảo mã nguồn an toàn và hiệu quả. Swift nổi bật với khả năng hiệu suất cao, an toàn về bộ nhớ, và hỗ trợ mạnh mẽ cho lập trình hướng đối tượng và lập trình hàm. Với Swift, các nhà phát triển có thể tạo ra các ứng dụng mạnh mẽ và tinh tế cho hệ sinh thái của Apple.",
-                image: "/img/swift.ico",
+                image: "/image/swift.ico",
                 benefit: [
                     {
                         benefit_name: "Hiệu Suất Cao",
@@ -576,7 +576,7 @@ export default function Study() {
                 id: "rust",
                 title: "Rust",
                 concept: "Rust là một ngôn ngữ lập trình hệ thống mã nguồn mở được phát triển bởi Mozilla, nổi tiếng với khả năng an toàn bộ nhớ và hiệu suất cao. Rust được thiết kế để ngăn chặn các lỗi tràn bộ nhớ và data race, hai vấn đề phổ biến trong lập trình hệ thống. Rust hỗ trợ cả lập trình hàm và lập trình hướng đối tượng, với cú pháp hiện đại và tính năng mạnh mẽ. Với Rust, các nhà phát triển có thể xây dựng các hệ thống phần mềm an toàn, hiệu quả và có hiệu suất cao, từ các ứng dụng hệ thống đến các dịch vụ web quy mô lớn.",
-                image: "/img/rust.ico",
+                image: "/image/rust.ico",
                 benefit: [
                     {
                         benefit_name: "An Toàn Bộ Nhớ",
@@ -646,7 +646,7 @@ export default function Study() {
                 id: "ruby",
                 title: "Ruby",
                 concept: "Ruby là một ngôn ngữ lập trình mã nguồn mở, hướng đối tượng, được phát triển bởi Yukihiro 'Matz' Matsumoto vào giữa những năm 1990. Ruby nổi tiếng với cú pháp đơn giản và dễ đọc, nhấn mạnh vào tính năng lập trình hướng đối tượng và khả năng mở rộng. Ruby thường được sử dụng để phát triển các ứng dụng web nhờ vào framework Ruby on Rails, giúp tăng tốc quá trình phát triển và triển khai ứng dụng. Với Ruby, các nhà phát triển có thể tạo ra các ứng dụng mạnh mẽ và dễ bảo trì với ít mã hơn.",
-                image: "/img/ruby.ico",
+                image: "/image/ruby.ico",
                 benefit: [
                     {
                         benefit_name: "Cú Pháp Đơn Giản",
@@ -716,7 +716,7 @@ export default function Study() {
                 id: "python",
                 title: "Python",
                 concept: "Python là một ngôn ngữ lập trình mã nguồn mở, đa năng và dễ học, được tạo ra bởi Guido van Rossum và ra mắt lần đầu vào năm 1991. Python nổi tiếng với cú pháp rõ ràng, dễ đọc và dễ viết, giúp tăng năng suất cho các nhà phát triển. Python hỗ trợ cả lập trình hướng đối tượng và lập trình hàm, và được sử dụng rộng rãi trong nhiều lĩnh vực như phát triển web, khoa học dữ liệu, trí tuệ nhân tạo, tự động hóa, và nhiều lĩnh vực khác. Với thư viện phong phú và cộng đồng lớn, Python là một trong những ngôn ngữ lập trình phổ biến nhất hiện nay.",
-                image: "/img/python.ico",
+                image: "/image/python.ico",
                 benefit: [
                     {
                         benefit_name: "Dễ Học và Sử Dụng",

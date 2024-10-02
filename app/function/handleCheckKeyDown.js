@@ -4,7 +4,7 @@ const handleCheckKeyDown = (key) => {
     const [isCapsLock, setIsCapsLock] = useState(false);
 
     useEffect(() => {
-        const handleCheckCapsLock = (event) => {
+        const handleCheckCapsLock = (event) => {            
             if (event.getModifierState(key)) {
                 setIsCapsLock(true);
             }

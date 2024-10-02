@@ -16,7 +16,7 @@ export default function Member({ handle }) {
 
     const [target, setTarget] = useState({
         targetMember: {},
-        targetIndex: 0,
+        targetIndex: null,
     })
 
     const [members, setMember] = useState({
@@ -96,10 +96,10 @@ export default function Member({ handle }) {
                             members={members.availableMember}
                         />
                     </div>
-                    <div className="target-frame">
+                    <div className={`target-frame ${!target.targetIndex ? 'fail' : ''}`}>
                         <TargetMember
                             handle={() => setTarget((prev) => ({ ...prev, targetMember: {}, targetIndex: null }))}
-                            member={target.targetIndex ? target.targetMember : null}
+                            member={target.targetMember}
                             setFavor={members.membersFavor}
                             setRating={members.membersRating}
                             handleFavor={(id) => setMember((prev) => ({ ...prev, membersFavor: members.membersFavor.includes(id) ? prev.membersFavor.filter(item => item !== id) : [...prev.membersFavor, id] }))}

@@ -9,10 +9,9 @@
   top: 1%;
   left: 20px;
   flex-direction: column;
-  background: var(--color_black);
+  background: #fff;
   align-items: center;
   justify-content: flex-start;
-  outline: 1px solid var(--color_black);
   user-select: none;
   z-index: 1;
 }
@@ -59,7 +58,7 @@
   font-weight: 700;
   text-align: center;
   text-transform: uppercase;
-  color: #fff;
+  color: var(--color_black);
   filter: brightness(1.5);
   transform: translateX(-15px);
   transition: 0.2s all ease;
@@ -74,7 +73,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #000;
+  color: var(--color_black);
   height: 30px;
   width: 30px;
   background: #fff;
@@ -82,12 +81,14 @@
   font-size: 20px;
   outline: 1px solid var(--color_black);
   cursor: pointer;
-  transform: scale(0);
+  transform-origin: left;
+  transform: scaleX(0);
   transition: 0.2s all ease;
 }
 
 .dashboard-target:hover #header-dashboard span {
-  transform: scale(1);
+  transform-origin: left;
+  transform: scaleX(1);
   transition: 0.2s all ease;
 }
 
@@ -106,9 +107,9 @@
   width: 120px;
   height: 50px;
   left: 100px;
-  background: var(--color_black);
+  background: #fff;
   border-radius: 10px;
-  color: #fff;
+  color: var(--color_black);
 }
 
 #main-dashboard {
@@ -346,8 +347,8 @@ li.active{
   justify-content: center;
   height: 100%;
   width: 100%;
-  border-bottom-left-radius: 10px;
-  border-bottom-right-radius: 10px;
+  border-bottom-left-radius: 7px;
+  border-bottom-right-radius: 7px;
   gap: 10px;
 }
 
@@ -420,16 +421,16 @@ li.active{
 
 .switchMode.light .mode-btn span{
   background: #fff;
-  color: #000;
+  color: var(--color_black);
 }
 
 .switchMode.dark .mode-btn span{
-  background: #000;
+  background: var(--color_black);
   color: #fff;
 }
 
 .dashboard-target.expand .switchMode.light .mode-btn span {
-  outline: 2px solid #000;
+  outline: 2px solid var(--color_black);
   transform: translate(0%);
   transition: 0.2s all ease;
 }

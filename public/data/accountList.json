@@ -1,23 +1,14 @@
 [
     {
-        "id": 1,
-        "image": "",
         "username": "admin",
         "password": "admin",
+        "email": "admin@admin",
         "access_level": "admin"
     },
     {
-        "id": 2,
-        "image": "",
-        "username": "cuongnguyen",
-        "password": "0712",
-        "access_level": "user"
-    },
-    {
-        "id": 3,
-        "image": "",
         "username": "cuongcoder",
         "password": "helloworld",
-        "access_level": "user"
+        "email": "cuongcoder@cuongcoder",
+        "access_level": "developer"
     }
 ]

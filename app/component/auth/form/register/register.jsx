@@ -1,6 +1,6 @@
 import { useState } from "react"
 
-import handleCheckKeyDown from "@/app/function/handleCheckKeyDown";
+import CreateUser from "../handleUser/createUser";
 
 import { BiSolidUserCircle } from 'react-icons/bi';
 import { MdEmail } from "react-icons/md";
@@ -12,20 +12,35 @@ export default function Register({ change }) {
         name: '',
         pass: '',
         email: '',
+        access_level: "user",
     });
+
+    const handleCreateUser = async (e) => { 
+        e.preventDefault();
+
+        try{
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            if(CreateUser(form.name, form.pass, form.email, form.access_level)){
+                change();
+            }
+        }
+        catch(err){
+            console.log(err)
+        }
+    }
 
     return (
         <>
-            <div className='register-form'>
+            <div className='register-form' onSubmit={handleCreateUser}>
                 <form className="form-input">
                     <article className="input-group">
                         <span className="title">Sign Up</span>
                         <div id="optionLogin">
-                            <img src="/img/apple.ico" alt="options" />
-                            <img src="/img/google.ico" alt="options" />
-                            <img src="/img/facebook.ico" alt="options" />
-                            <img src="/img/github.ico" alt="options" />
-                            <img src="/img/twitter.ico" alt="options" />
+                            <img src="/image/apple.ico" alt="options" />
+                            <img src="/image/google.ico" alt="options" />
+                            <img src="/image/facebook.ico" alt="options" />
+                            <img src="/image/github.ico" alt="options" />
+                            <img src="/image/twitter.ico" alt="options" />
                         </div>
                         <div className="email-form">
                             <span className="icon"><MdEmail /></span>

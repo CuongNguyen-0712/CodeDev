@@ -6,7 +6,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: #fff;
+  background: url(/image/main-background.jpg);
+  background-repeat: no-repeat;
+  background-size: cover;
   overflow: hidden;
   flex-wrap: wrap;
   scroll-behavior: smooth;
@@ -30,7 +32,6 @@
   align-items: center;
   justify-content: space-evenly;
   flex-direction: row;
-  outline: 1px solid var(--color_black);
   background: linear-gradient(to bottom, rgba(21, 205, 238, 0.979), rgba(225, 10, 233, 0.918));
   height: 80%;
   width: 0%;
@@ -89,7 +90,6 @@
   height: 80%;
   width: 150px;
   gap: 20px;
-  outline: 1px solid var(--color_black);
   border-radius: 10px;
   font-size: 25px;
   background: linear-gradient(to left, rgba(21, 205, 238, 0.979), rgba(225, 10, 233, 0.918));
@@ -152,7 +152,6 @@
   background: linear-gradient(to left, rgba(21, 205, 238, 0.979), rgba(225, 10, 233, 0.918));
   border-radius: 10px;
   top: 60px;
-  border: 1px solid var(--color_black);
   right: 0px;
   gap: 20px;
 }

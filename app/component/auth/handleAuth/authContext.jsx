@@ -9,8 +9,8 @@ export const useAuth = () => {
 }
 
 export const AuthProvider = ({ children }) => {
-
     const [accounts, setAccounts] = useState([]);
+
     const [authState, setAuthState] = useState({
         currentAccount: {
             username: null,
@@ -29,7 +29,7 @@ export const AuthProvider = ({ children }) => {
         fetch("/data/accountList.json")
             .then((res) => res.json())
             .then((data) => {
-                setAccounts(data);
+                setAccounts((prevState) => ({ ...prevState, ...data }));
                 setAuthState(prevState => ({ ...prevState, isLoading: false }));
             })
             .catch(err => {
@@ -76,8 +76,15 @@ export const AuthProvider = ({ children }) => {
     }
 
     const loginWithCredentials = async ({ name, pass }) => {
+        const usersSignUp = JSON.parse(localStorage.getItem('users')) || [];
+
+        setAccounts(prevState => ({ ...prevState, ...usersSignUp }));
+
+        console.log(accounts)
+
         try {
             await new Promise(resolve => setTimeout(resolve, 1000));
+
             const accountLogin = accounts.find(account => account.username === name && account.password === pass);
 
             if (accountLogin) {
