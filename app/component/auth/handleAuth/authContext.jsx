@@ -25,21 +25,20 @@ export const AuthProvider = ({ children }) => {
 
     const router = useRouter();
 
-    const fecthDataAccounts = async () => {
-        fetch("/data/accountList.json")
-            .then((res) => res.json())
-            .then((data) => {
-                setAccounts((prevState) => ({ ...prevState, ...data }));
-                setAuthState(prevState => ({ ...prevState, isLoading: false }));
-            })
-            .catch(err => {
-                console.error("Failed to fetch accounts:", err);
-                setAuthState(prevState => ({ ...prevState, isLoading: false }));
-            });
-    }
+    const fetchDataAccounts = async () => {
+        try {
+            const res = await fetch("/data/accountList.json");
+            const data = await res.json();
+            setAccounts(data);
+            setAuthState(prevState => ({ ...prevState, isLoading: false }));
+        } catch (err) {
+            console.error("Failed to fetch accounts:", err);
+            setAuthState(prevState => ({ ...prevState, isLoading: false }));
+        }
+    };
 
     useEffect(() => {
-        fecthDataAccounts();
+        fetchDataAccounts();
     }, []);
 
     const handleLogin = ({ name, pass, level }) => {
@@ -76,14 +75,11 @@ export const AuthProvider = ({ children }) => {
     }
 
     const loginWithCredentials = async ({ name, pass }) => {
-        const usersSignUp = JSON.parse(localStorage.getItem('users')) || [];
-
-        setAccounts(prevState => ({ ...prevState, ...usersSignUp }));
-
-        console.log(accounts)
 
         try {
             await new Promise(resolve => setTimeout(resolve, 1000));
+
+            console.log(accounts)
 
             const accountLogin = accounts.find(account => account.username === name && account.password === pass);
 
@@ -113,7 +109,7 @@ export const AuthProvider = ({ children }) => {
             {{
                 handleLogout,
                 loginWithCredentials,
-                account: authState.currentAccount,
+                fetchDataAccounts,
             }}>
             {children}
         </AuthContext.Provider>

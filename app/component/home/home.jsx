@@ -288,6 +288,7 @@ export default function HomePage() {
                                     </span>
                                 </button>
                             ))}
+                            <span id='targetItem'></span>
                         </div>
                         <div className="function">
                             <span className={`list-navbar ${home.isShownNavbar ? 'show' : 'hide'}`} onClick={() => setHome((prev) => ({ ...prev, isShownNavbar: !prev.isShownNavbar }))}>

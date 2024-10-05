@@ -1,9 +1,9 @@
-if(!localStorage.getItem('users')){
-    localStorage.setItem('users', JSON.stringify([]));
-}
-export default function CreateUser(name, pass, email, level) {
-    const users = JSON.parse(localStorage.getItem('users')) || [];
+import { useAuth } from "../../handleAuth/authContext";
 
+const users = [];
+export default function CreateUser(name, pass, email, level) {
+    const { fetchDataAccounts } = useAuth();
+    
     const newUser = {
         username: name,
         password: pass,
@@ -52,8 +52,11 @@ export default function CreateUser(name, pass, email, level) {
         }
     })
 
-    users.push(newUser);
-    localStorage.setItem('users', JSON.stringify(users));
+    users.push(newUser)
+    
+    console.log(users)
+    fetchDataAccounts(users)
+
     alert("Đăng kí tài khoản thành công !")
 
     return true
