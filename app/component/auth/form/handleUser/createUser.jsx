@@ -1,8 +1,4 @@
-import { useAuth } from "../../handleAuth/authContext";
-
-const users = [];
 export default function CreateUser(name, pass, email, level) {
-    const { fetchDataAccounts } = useAuth();
     
     const newUser = {
         username: name,
@@ -53,9 +49,6 @@ export default function CreateUser(name, pass, email, level) {
     })
 
     users.push(newUser)
-    
-    console.log(users)
-    fetchDataAccounts(users)
 
     alert("Đăng kí tài khoản thành công !")
 

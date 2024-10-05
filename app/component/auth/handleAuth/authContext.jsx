@@ -78,13 +78,9 @@ export const AuthProvider = ({ children }) => {
 
         try {
             await new Promise(resolve => setTimeout(resolve, 1000));
-
-            console.log(accounts)
-
             const accountLogin = accounts.find(account => account.username === name && account.password === pass);
 
             if (accountLogin) {
-                console.table(accountLogin)
                 handleLogin({ name: accountLogin.username, pass: accountLogin.password, level: accountLogin.access_level });
             } else {
                 alert("Tài khoản hoặc mật khẩu không đúng!");
@@ -109,7 +105,6 @@ export const AuthProvider = ({ children }) => {
             {{
                 handleLogout,
                 loginWithCredentials,
-                fetchDataAccounts,
             }}>
             {children}
         </AuthContext.Provider>
