@@ -49,7 +49,6 @@ export default function Study() {
                 :
                 <span>Đang tải dữ liệu</span>
             }
-
         </section>
     )
 }

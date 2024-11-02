@@ -1,7 +1,7 @@
-import { FaFilter } from "react-icons/fa";
+import { FaFilter, FaUserFriends } from "react-icons/fa";
 import { IoSettingsSharp } from "react-icons/io5";
 
-export default function CreateMember({handle}) {
+export default function CreateMember({ handle }) {
     return (
         <>
             <div className="member-heading">
@@ -10,6 +10,9 @@ export default function CreateMember({handle}) {
                     <span>Connect with other member and make new friends</span>
                 </div>
                 <div className="member-feature">
+                    <span>
+                        <FaUserFriends />
+                    </span>
                     <span onClick={() => handle()}>
                         <FaFilter />
                     </span>
