@@ -3,11 +3,13 @@
 @import "./style/form.css";
 @import "./style/home.css";
 @import "./style/member.css";
-@import "./style/study.css";
 @import "./style/content.css";
 @import "./style/dashboard.css";
 @import "./style/loading.css";
 @import "./style/comment.css";
+@import "./style/navbar.css";
+
+@import "./style/content/study.css";
 
 *{
     margin: 0;
@@ -21,9 +23,52 @@
 @media (width < 600px){
     body{
         display: none;
-    }
+    }   
 }
 
 :root{
     --color_black: #232323;
+    --color_blue: rgba(39, 213, 236, 0.952);
+    --color_pink: rgba(226, 43, 226, 0.897);
+}
+
+#loadingWait{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+    background: transparent;
+}
+
+#loadingWait span{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 10px;
+    width: 100px;
+    background: #fff;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+#loadingWait span::before{
+    content: "";
+    display: flex;
+    position: absolute;
+    height: 100%;
+    width: 50px;
+    left: 0;
+    border-radius: 4px;
+    background: var(--color_black);
+    animation: loading 1s linear infinite;
+}
+
+@keyframes loading {
+    0%{
+        transform: translateX(-100%);
+    }
+    100%{
+        transform: translateX(200%);
+    }
 }

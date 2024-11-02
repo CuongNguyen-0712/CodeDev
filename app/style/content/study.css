@@ -1,0 +1,390 @@
+#study{
+    display: flex;
+    width: 100%;
+    height: max-content;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.frame-course{
+    display: flex;
+    height: 400px;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border-radius: 10px;
+    gap: 20px;
+}
+
+.frame-course .view-code{
+    display:flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    height: 100%;
+    width: 50%;
+    background: var(--color_black);
+    border-radius: 10px;
+}
+
+.view-code .heading-code{
+    display: flex;
+    height: 15%;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    background: #000;    
+    border-radius: 10px 10px 0 0;
+    padding:0 20px 0 20px;
+    color: #fff;
+    border-bottom: 2px solid #fff;
+    user-select: none;
+    gap: 10px;
+}       
+
+.heading-code .part{
+    display: flex;
+    height: 100%;
+    width: max-content;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.heading-code > span{  
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 35px;
+    width: 35px;
+    border-radius: 5px;
+    transition: 0.2s all ease;
+}
+
+.heading-code .check{
+    color: rgba(9, 224, 45, 0.918);
+    filter: drop-shadow(0 0 10px rgba(9, 224, 45, 0.918));
+}
+
+.view-code .source-code{
+    display: flex;
+    height: 85%;
+    width: 100%;
+    align-items: flex-start;
+    justify-content: flex-start;
+    color: #fff;
+    flex-direction: row;
+    flex-wrap: nowrap;
+}      
+
+.source-code .row-num{
+    display: flex;
+    height: 100%;
+    width: 30px;
+    padding-top: 10px;
+    flex-direction: column;
+    color: var(--color_blue);
+    gap: 10px;
+    user-select: none;
+}
+
+.row-num > span{
+   display: flex;
+   align-items: center; 
+   justify-content: center;
+}
+
+.source-code .code{
+    display: flex;
+    width: calc(100% - 30px);
+    height: max-content;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 10px 10px 0 0;
+    list-style: none;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.heading-code > .copy:hover::before{
+    content: "";
+    position: absolute;
+    display: flex;
+    width: 100%;
+    height: 100%;
+    background: #fff;
+    opacity: 0.2;
+    border-radius: 5px;
+    transition: 0.2s all ease;
+}
+
+.code li{
+    display: flex;
+    width: max-content;
+    height: 19px;
+}
+
+.code li > span{
+    display: flex;
+    transform-origin: center;
+    transform: scaleY(0);
+    transition: 0.1s all ease;
+}
+
+.source-code .console{
+    display: flex;
+    position: absolute;
+    width: 100%;
+    height: 0;
+    align-items: center;
+    justify-content: flex-start;
+    bottom: 0;
+    flex-direction: column;
+    background: #000;
+    border-radius: 0 0 10px 10px;
+    transition: 0.2s all ease;
+    border-top: 2px solid #fff;
+    overflow: hidden;
+}
+
+.source-code .console.active{
+    height: 35%;
+    transition: 0.2s all ease;
+}
+
+.console.active > span{
+    display: flex;
+    position: absolute;
+    align-items: center;
+    justify-content: center;
+    height: 30px;
+    width: 30px;
+    top: 10px;
+    right: 15px;
+}
+
+.console.active > span:hover::before{
+    content: "";
+    position: absolute;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+    background: #fff;
+    opacity: 0.2;
+    border-radius: 5px;
+}
+
+.console > span{
+    display: none;
+}
+
+.source-code .run-code{
+    display: flex;
+    position: absolute;
+    height: 30px;
+    width: 70px;
+    align-items: center;
+    justify-content: center;
+    top: 10px;
+    right: 20px;
+    gap: 10px;
+    color: #fff;
+    border-radius: 5px;
+    cursor: pointer;
+    user-select: none;
+    background: rgba(9, 224, 45, 0.918);
+}
+
+.run-code .loading{
+    display: flex;
+    height: max-content;
+    width: max-content;
+    animation: animateLoading 1s linear infinite;
+}
+
+@keyframes animateLoading {
+    0%{
+        transform: rotate(0deg);
+    }
+    100%{
+        transform: rotate(360deg);
+    }
+}
+
+.run-code .loading svg{
+    font-size: 12px;
+}
+
+.run-code > span{
+    display: flex;
+    font-size: 12px;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+.frame-course .intro-course{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 50%;
+    background: var(--color_black);
+    border-radius: 10px;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.intro-course .intro-heading{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 30%;
+    width: 100%;
+    padding: 10px 0 10px 0;
+    gap: 10px;
+}
+
+.intro-course .intro-body{
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: 55%;
+    width: 100%;
+    padding: 0 30px 0 30px;
+    color: #fff;
+    line-height: 25px;
+}
+
+.intro-body #join{
+    display: flex;
+    position: absolute;
+    height: 30px;
+    width: 100px;
+    align-items: center;
+    justify-content: center;
+    bottom: 20px;
+    right: 40px;
+    border-radius: 5px;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #fff;
+    background: rgba(9, 224, 45, 0.918);
+    cursor: pointer;
+    user-select: none;
+}
+
+.intro-course .handle-course{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 15%;
+    width: 100%;
+    border-top: 2px solid #fff;
+    background-color: #000;
+    border-radius: 0 0 10px 10px;
+    flex-direction: row;
+    gap: 50px;
+    overflow: hidden;
+}
+
+.handle-course button{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    width: 40px;
+    border-radius: 5px;
+    background: var(--color_black);
+    color: #fff;
+    cursor: pointer;
+}
+
+.handle-course button:hover{
+    background: #fff;
+    color: var(--color_black);
+}
+
+.run-code svg{
+    font-size: 17px;
+}
+
+#js li:nth-child(2){
+    margin-left: 30px;
+}
+
+#js .file{
+    color: rgba(223, 238, 20, 0.904);
+}
+
+#js .title-course{
+    color: rgba(223, 238, 20, 0.904);
+}
+
+#nextjs .title-course{
+    color: #fff;
+}
+
+#nextjs .image-course{
+    background: #fff;
+    border-radius: 50%;
+    border: 2px solid #fff;
+}
+
+#nextjs li:nth-child(5),
+#nextjs li:nth-child(4),
+#nextjs li:nth-child(8),
+#nextjs li:nth-child(9){
+    margin-left: 30px;
+}
+
+#nextjs li:nth-child(6),
+#nextjs li:nth-child(7){
+    margin-left: 60px;
+}
+
+#dart li:nth-child(2){
+    margin-left: 30px;
+}
+
+#dart .title-course{
+    color: var(--color_blue);
+}
+
+#dart .file{
+    color: var(--color_blue);
+}
+
+#swift .title-course{
+    color: rgb(216, 105, 62);
+}
+
+#swift .file{
+    color: rgb(216, 105, 62);
+}
+
+#swift li:nth-child(3),
+#swift li:nth-child(5),
+#swift li:nth-child(8),
+#swift li:nth-child(10){
+    margin-left: 30px;
+}
+
+#swift li:nth-child(4),
+#swift li:nth-child(9){
+    margin-left: 60px;
+}
+
+#ruby .title-course{
+    color: rgb(230, 42, 35);
+}
+
+#ruby .file{
+    color: rgb(230, 42, 35);
+}
+
+
+
+

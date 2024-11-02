@@ -1,15 +1,10 @@
 'use client'
 
-import { AuthProvider } from "./component/auth/handleAuth/authContext"
-import Form from "./component/auth/form/form"
+import HomePage from "./component/home/home"
 
 export default function Page() {
 
     return (
-        <>
-            <AuthProvider>
-                <Form />
-            </AuthProvider>
-        </>
+        <HomePage />
     )
 }

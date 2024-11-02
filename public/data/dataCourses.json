@@ -1,0 +1,42 @@
+[
+    {
+        "id": "js",
+        "title": "Javascript",
+        "file": "main.js",
+        "concept": "JavaScript (JS) là ngôn ngữ lập trình tạo web tương tác, chạy trên trình duyệt để cập nhật nội dung mà không cần tải lại trang. Với Node.js, JS còn chạy trên máy chủ để xây dựng ứng dụng.",
+        "icon": "/image/javascript.ico",
+        "code": "function sayHello() {\n    console.log(\"Hello World\");\n}  \n\n sayHello();"
+    },
+    {
+        "id": "nextjs",
+        "title": "Nextjs",
+        "file": "main.jsx",
+        "concept": "Next.js là framework React giúp xây dựng web tĩnh và động, hỗ trợ SSR, SSG, và API Routes, tối ưu hóa hiệu suất.",
+        "icon": "/image/nextjs.ico",
+        "code": "import React from 'react';\n\n export default function Home() {\n  return (\n    <div>\n      <h1>Hello, World!</h1>\n  <p>Welcome to your first Next.js app!</p>\n    </div>\n  );\n}"
+    },
+    {
+        "id": "dart",
+        "title": "Dart",
+        "file": "main.dart",
+        "concept": "Dart là ngôn ngữ lập trình của Google, dùng cho phát triển web và di động, nổi bật khi kết hợp với Flutter để tạo ứng dụng đa nền tảng.",
+        "icon": "/image/dart.svg",
+        "code": "void main() {\n  print('Hello, World!');\n}"
+    },
+    {
+        "id": "swift",
+        "title": "Swift",
+        "file": "ContentView.swift",
+        "concept": "Swift là ngôn ngữ lập trình của Apple, được dùng để xây dựng ứng dụng cho hệ sinh thái iOS và macOS, nổi bật với hiệu suất cao và cú pháp hiện đại.",
+        "icon": "/image/swift.ico",
+       "code": "import SwiftUI\nstruct ContentView: View {\n    var body: some View {\n        Text(\"Hello, World!\")\n    }\n}\nstruct ContentView_Previews: PreviewProvider {\n    static var previews: some View {\n        ContentView()\n    }\n}"
+    },
+    {
+        "id": "ruby",
+        "title": "Ruby",
+        "file": "main.rb",
+        "concept": "Ruby là ngôn ngữ lập trình dễ đọc và mở rộng, được dùng phổ biến trong phát triển web với framework Ruby on Rails.",
+        "icon": "/image/ruby.ico",
+        "code": "puts 'Hello, World!'"
+    }
+]

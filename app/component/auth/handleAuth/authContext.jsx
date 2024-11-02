@@ -1,6 +1,5 @@
 import { useEffect, useState, useContext, createContext } from "react"
 import { useRouter } from 'next/navigation';
-import Loading from "@/app/function/loading";
 
 const AuthContext = createContext();
 
@@ -94,9 +93,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     if (authState.isLoading) {
-        return (
-            <Loading />
-        );
+        return null;
     }
 
     return (
