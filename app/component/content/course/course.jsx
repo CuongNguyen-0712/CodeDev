@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 
-import CreateCourse from "../study/createCourse";
+import CreateCourse from "./createCourse";
+import LoadingItem from "../../feature/loadingItem";
 
 import axios from "axios";
 
-export default function Study() {
+export default function Course() {
 
     const [data, setData] = useState([]);
     const [course, setCourse] = useState(null);
@@ -47,7 +48,7 @@ export default function Study() {
             {course ?
                 <CreateCourse data={course} key={key} handle={(value) => handleSetCourse(value)} />
                 :
-                <span>Đang tải dữ liệu</span>
+                <LoadingItem />
             }
         </section>
     )

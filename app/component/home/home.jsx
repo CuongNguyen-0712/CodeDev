@@ -1,9 +1,8 @@
 'use client'
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 import Navbar from './navbar';
-import Dashboard from './dashboard';
+import MenuSite from './menuSite';
 import Content from './content';
 import LoadingWait from '../feature/loadingWait';
 
@@ -15,35 +14,26 @@ import { HiLogout } from "react-icons/hi";
 export default function HomePage() {
 
     const [home, setHome] = useState({
-        dashboard: true,
-        isResize: false,
-        targetContentItem: 1,
+        targetContentItem: 0,
         switchMode: true,
         setLogout: false,
     })
 
     const [isSwitchPath, setSwitchPath] = useState(false);
 
-    if (isSwitchPath) return <LoadingWait />
+    if(isSwitchPath) return <LoadingWait />
 
     return (
         <main id='main'>
-            <div className={`aside ${home.isResize ? 'resize' : ''}`}>
-                <Dashboard
-                    mode={home.switchMode}
-                    isDashboard={home.dashboard}
-                    isResize={home.isResize}
-                    handleMode={() => setHome((prev) => ({ ...prev, switchMode: !prev.switchMode }))}
-                    handleContent={(key) => setHome((prev) => ({ ...prev, targetContentItem: key }))}
+            <div className="aside">
+                <MenuSite
+                    handleSetContent = {(index) => setHome({ ...home, targetContentItem: index })}
+                    handleSwitchPath = {() => setSwitchPath(true)}  
                 />
             </div>
-            <div className={`frame ${home.isResize ? 'resize' : ''}`}>
+            <div className="frame">
                 <div id='header'>
-                    <Navbar
-                        handleResize={() => setHome((prev) => ({ ...prev, isResize: !prev.isResize }))}
-                        handleChange={() => setSwitchPath(true)}
-                        isResize={home.isResize}
-                    />
+                    <Navbar/>
                 </div>
                 <div id='container'>
                     <Content
@@ -52,10 +42,6 @@ export default function HomePage() {
                     />
                 </div>
             </div>
-            {/* <article className={`frame-comment ${home.comment ? 'active' : ''}`}>
-
-                    </article>
-                     */}
             {home.setLogout &&
                 <div className='logoutSheet'>
                     <div className='logout-container'>

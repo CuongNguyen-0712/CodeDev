@@ -5,12 +5,10 @@
   align-items: flex-start;
   justify-content: center;
   background: #fff;
-  padding: 20px 0 0 10px  ;
-  overflow-y: scroll;
-  overflow-x: hidden;
+  padding: 20px;
   flex-wrap: wrap;
-  border-top-left-radius: 10px;
-  transition: 0.2s all ease;
+  overflow: scroll;
+  overflow-x: hidden;
 }
 
 .content-layout.resize{

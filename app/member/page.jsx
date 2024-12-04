@@ -12,8 +12,6 @@ import LoadingWait from "../component/feature/loadingWait";
 import axios from "axios";
 
 export default function Member() {
-    const [member, setMember] = useState([]);
-
     const [target, setTarget] = useState({
         targetMember: {},
         targetIndex: null,
@@ -23,7 +21,9 @@ export default function Member() {
     const [isFilter, setFilter] = useState(false);
     const [isSwitchPath, setSwitchPath] = useState(false);
 
-    if (isSwitchPath) return <LoadingWait />
+    if(isSwitchPath) return <LoadingWait />
+
+    // if (isSwitchPath) return <LoadingWait />
 
     // const [search, setSearch] = useState({
     //     valueSearch: '',
@@ -42,15 +42,7 @@ export default function Member() {
     //     membersRating: [],
     // });
 
-    // const fetchDataMember = async () => {
-    //     const response = await axios.get('/data/memberList.json');
-    //     const data = response.data;
-    //     setMember((prev) => ({ ...prev, currentMembers: data, availableMember: data }));
-    // }
-
-    // useEffect(() => {
-    //     fetchDataMember();
-    // }, [])
+    
 
     // useEffect(() => {
     //     const handler = setTimeout(() => {
@@ -75,11 +67,11 @@ export default function Member() {
                 </div>
                 <div className="member-content">
                     <div className="member-frame">
-                        <CreateMember handle={() => setFilter(!isFilter)}/>
+                        <CreateMember handle={() => setFilter(!isFilter)}  targetMember = {(member) => setTarget((prev) => ({ ...prev, targetMember: member }))}/>
                     </div>
                     <div className="member-aside">
-                        <TargetMember target = {target.isTarget} handle={() => setTarget((prev) => ({ ...prev, isTarget: !prev.isTarget }))}/>
-                        <TableFilter filter = {isFilter}/>
+                        <TargetMember target={target?.isTarget} targetMember={target?.targetMember} handle={() => setTarget((prev) => ({ ...prev, isTarget: !prev.isTarget }))} />
+                        <TableFilter filter={isFilter} />
                     </div>
                 </div>
             </section>

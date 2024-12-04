@@ -1,24 +1,18 @@
 import dynamic from 'next/dynamic';
 
-const Study = dynamic(() => import('../content/study/study'), { ssr: false });
-const Roadmap = dynamic(() => import('../content/roadmap/Roadmap'), { ssr: false });
-const Social = dynamic(() => import('../content/social/Social'), { ssr: false });
-const Ranking = dynamic(() => import('../content/ranking/Ranking'), { ssr: false });
-const Benefit = dynamic(() => import('../content/benefit/Benefit'), { ssr: false });
+const components = {
+    0: dynamic(() => import('../content/dashboard/dashboard'), { ssr: false }),
+    1: dynamic(() => import('../content/course/course'), { ssr: false }),
+    2: dynamic(() => import('../content/roadmap/roadmap'), { ssr: false }),
+};
 
+const DefaultComponent = components[1]; 
 export default function Content({ target, isComment }) {
-
-    const contentTitles = [
-        <Study />,
-        <Roadmap />,
-        <Social />,
-        <Ranking />,
-        <Benefit />
-    ];
-
+    const SelectedComponent = components[target] || DefaultComponent;
+    
     return (
         <article className={`content-layout ${isComment ? '' : 'resize'}`}>
-            {contentTitles[target - 1]}
+            <SelectedComponent />
         </article>
     )
 }

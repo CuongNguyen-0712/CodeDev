@@ -4,12 +4,13 @@
 @import "./style/home.css";
 @import "./style/member.css";
 @import "./style/content.css";
-@import "./style/dashboard.css";
-@import "./style/loading.css";
+@import "./style/menu.css";
 @import "./style/comment.css";
 @import "./style/navbar.css";
 
 @import "./style/content/study.css";
+
+@import "./style/loading.css";
 
 *{
     margin: 0;
@@ -28,8 +29,7 @@
 
 :root{
     --color_black: #232323;
-    --color_blue: rgba(39, 213, 236, 0.952);
-    --color_pink: rgba(226, 43, 226, 0.897);
+    --color_gray: rgb(245,245,245);
 }
 
 #loadingWait{

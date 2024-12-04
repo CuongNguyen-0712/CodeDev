@@ -1,21 +1,22 @@
 #study{
     display: flex;
-    width: 100%;
-    height: max-content;
     align-items: center;
     justify-content: center;
+    width: 100%;
+    height: max-content;
     flex-wrap: wrap;
 }
 
 .frame-course{
     display: flex;
-    height: 400px;
+    height: max-content;
     width: 100%;
     align-items: center;
     justify-content: center;
     background: #fff;
     border-radius: 10px;
     gap: 20px;
+    flex-wrap: wrap;
 }
 
 .frame-course .view-code{
@@ -23,10 +24,12 @@
     align-items: center;
     justify-content: center;
     flex-direction: column;
-    height: 100%;
-    width: 50%;
+    height: 400px;
     background: var(--color_black);
     border-radius: 10px;
+    flex-wrap: wrap;
+    flex-grow: 1;
+    flex-basis: 300px;
 }
 
 .view-code .heading-code{
@@ -122,12 +125,16 @@
 
 .code li{
     display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 1px;
     width: max-content;
     height: 19px;
 }
 
 .code li > span{
     display: flex;
+    font-size: 16px;
     transform-origin: center;
     transform: scaleY(0);
     transition: 0.1s all ease;
@@ -229,12 +236,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 100%;
-    width: 50%;
+    height: 400px;
     background: var(--color_black);
     border-radius: 10px;
     flex-direction: column;
-    overflow: hidden;
+    flex-wrap: wrap;
+    flex-grow: 1;
+    flex-basis: 300px;
 }
 
 .intro-course .intro-heading{

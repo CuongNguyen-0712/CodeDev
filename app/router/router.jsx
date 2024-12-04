@@ -1,18 +1,27 @@
 import { useRouter } from "next/navigation";
+
 export default function RouterPush(){
     const router = useRouter(); 
 
+    const navigateToCurrent = () => {
+        router.push('/', {shalow : true});
+    }
+
     const navigateToHome = () => {
-        router.push('/');
+        router.push('/home', {shalow : true});
     }
 
     const navigateToMember = () => {
-        router.push('/member');
+        router.push('/member',{shalow : true});
     }
 
-    const navigateToComment = () => {
-        router.push('/comment');
+    const navigateToCourse = () => {
+        router.push('/course', {shalow : true});
     }
 
-    return {navigateToHome, navigateToMember, navigateToComment};
+    const navigateToEvent = () => {
+        router.push('/event', {shalow : true});
+    }
+
+    return {navigateToCurrent, navigateToHome, navigateToMember, navigateToCourse, navigateToEvent};
 }
