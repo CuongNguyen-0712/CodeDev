@@ -9,6 +9,7 @@
 @import "./style/navbar.css";
 
 @import "./style/content/study.css";
+@import "./style/content/dashboard.css";
 
 @import "./style/loading.css";
 
@@ -21,15 +22,13 @@
     scroll-behavior: smooth;
     will-change: transform;
 }
-@media (width < 600px){
-    body{
-        display: none;
-    }   
-}
 
 :root{
     --color_black: #232323;
     --color_gray: rgb(245,245,245);
+    --color_green : #4CAF50;
+    --color_yellow: #FFEB3B;
+    --color_red: #F44336;
 }
 
 #loadingWait{

@@ -38,7 +38,6 @@ export default function HomePage() {
                 <div id='container'>
                     <Content
                         target={home.targetContentItem}
-                        isComment={home.comment}
                     />
                 </div>
             </div>

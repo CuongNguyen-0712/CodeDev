@@ -5,7 +5,7 @@ import Image from "next/image";
 import RouterPush from "@/app/router/router";
 
 import { FiMoon, FiSun } from "react-icons/fi";
-import { FaUsers, FaLaptopCode, FaSignOutAlt } from "react-icons/fa";
+import { FaUsers, FaLaptopCode, FaSignOutAlt, FaAngleLeft } from "react-icons/fa";
 import { GoProjectRoadmap } from "react-icons/go";
 import { FaCode } from 'react-icons/fa6';
 import { IoSettingsSharp } from "react-icons/io5";
@@ -20,6 +20,7 @@ export default function MenuSite({ handleSetContent, handleSwitchPath }) {
     const [targetItem, setTargetItem] = useState(0);
     const [targetBtn, setTargetBtn] = useState(2);
     const [showMore, setShowMore] = useState(false);
+    const [showOther, setShowOther] = useState(false);
 
     const handleNavigation = (index, handle) => {
         refNavigation.current.style.top = `${index * 49}px`;
@@ -176,21 +177,26 @@ export default function MenuSite({ handleSetContent, handleSwitchPath }) {
             </div>
             <footer className='footer-menu'>
                 <div className="other-section">
-                    <h3>Other</h3>
-                    <div className="other-frame">
-                        <button className="other-feature">
-                            <IoSettingsSharp />
-                            <span>
-                                Settings
-                            </span>
-                        </button>
-                        <button className="other-feature">
-                            <MdHelpCenter />
-                            <span>
-                                Help Center
-                            </span>
-                        </button>
-                    </div>
+                    <h3 onClick={() => setShowOther(!showOther)}>
+                        Other
+                        <FaAngleLeft style={showOther ? { transform: 'rotate(-90deg)' } : { transform: 'rotate(0deg)' }} />
+                    </h3>
+                    {showOther &&
+                        <div className="other-frame">
+                            <button className="other-feature">
+                                <IoSettingsSharp />
+                                <span>
+                                    Settings
+                                </span>
+                            </button>
+                            <button className="other-feature">
+                                <MdHelpCenter />
+                                <span>
+                                    Help Center
+                                </span>
+                            </button>
+                        </div>
+                    }
                 </div>
                 <div className="mode-frame">
                     {buttonList.map((item, index) => (

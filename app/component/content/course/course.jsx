@@ -7,6 +7,8 @@ import axios from "axios";
 
 export default function Course() {
 
+    const course_status = ["All", "Enrolled", "In Progress", "Completed"];
+
     const [data, setData] = useState([]);
     const [course, setCourse] = useState(null);
     const [key, setKey] = useState(0)

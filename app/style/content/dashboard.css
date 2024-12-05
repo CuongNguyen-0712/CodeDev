@@ -1,0 +1,237 @@
+.main-dashboard{
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.main-dashboard .overview {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: max-content;
+    flex-grow: 1;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.overview .overview-container{
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: 100%;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.overview-container .overview-info {
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: max-content;
+    gap: 20px;
+}
+
+.overview-info img{
+    border-radius: 5px;
+    outline: 1px solid #ccc;
+}
+
+.overview-info .info{
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: max-content;
+    width: max-content;
+    gap: 10px;
+    flex-direction: column;
+}
+
+.profile span{
+    font-size: 15px;
+}
+
+.overview-info .exprience{
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    font-size: 15px;
+    flex-direction: column;
+}
+
+.exprience span{
+    display: flex;
+    align-items: flex-end;
+    height: max-content;
+    width: 100%;
+    flex-direction: row;
+    gap: 5px;
+}
+
+.overview-container .course-progress{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: max-content;
+    border-radius: 5px;
+    gap: 10px;
+    flex-grow: 1;
+    flex-basis: 300px;
+    flex-wrap: wrap;
+}
+
+.course-progress .progress-item{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 40%;
+    padding: 10px 0;
+    outline: 1px solid #ccc;
+    border-radius: 10px;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.progress-item > span{
+    font-size: 15px;
+    font-weight: 500;
+}
+
+
+.main-dashboard .course{
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    height: max-content;
+    flex-grow: 1;
+    flex-direction: column;
+    gap: 20px;
+    flex-basis: 300px;
+}
+
+.course .course-recently,
+.course .course-enrolled{
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+}
+
+.course-recently h3,
+.course-enrolled h3{
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    height: max-content;
+    width: 100%;
+    padding: 10px 0;
+}
+
+.list-course{
+    display: flex;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.list-course .course-item{
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    height: 100%;
+    padding: 10px 20px;
+    border-radius: 5px;
+    border: 1px solid var(--color_black);
+    flex-grow: 1;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.course-item .item{
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    height: max-content;
+    width: 100%;
+    gap: 20px;
+}
+
+.item > span{
+    display: flex;
+    height: max-content;
+    width: max-content;
+    margin-top: 5px;
+    font-size: 30px;
+}
+
+.item .info{
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+}
+
+.info span{
+    display: flex;
+    flex-direction: row;
+    gap: 5px;
+}
+
+.info .progress-bar{
+    display: flex;
+    align-items: flex-start;
+    height: max-content;
+    width: 100%;
+    margin-top: 10px;
+    gap: 10px;
+    flex-direction: column;
+}
+
+.progress-bar .bar{
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: 100%;
+    gap: 10px;
+}
+
+.bar > span:first-child{
+    display: flex;
+    height: 10px;
+    width: 70%;
+    border-radius: 5px;
+    outline: 1px solid #ccc;
+    overflow: hidden;
+}
+
+.course-btn{
+    display: flex;
+    justify-content: flex-end;
+    height: max-content;
+    width: 100%;
+}
+
+.course-btn button{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: max-content;
+    width: max-content;
+    padding: 8px 15px;
+    background: var(--color_black);
+    color: #fff;
+    font-weight: 500;
+    border-radius: 5px;
+    cursor: pointer;
+}

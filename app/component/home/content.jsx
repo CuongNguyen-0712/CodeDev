@@ -7,11 +7,11 @@ const components = {
 };
 
 const DefaultComponent = components[1]; 
-export default function Content({ target, isComment }) {
+export default function Content({ target }) {
     const SelectedComponent = components[target] || DefaultComponent;
     
     return (
-        <article className={`content-layout ${isComment ? '' : 'resize'}`}>
+        <article className='content-layout'>
             <SelectedComponent />
         </article>
     )

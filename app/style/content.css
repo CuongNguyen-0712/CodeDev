@@ -1,24 +1,10 @@
 .content-layout {
   display: flex;
-  height: 100%;
-  width: calc(100% - 300px);
   align-items: flex-start;
   justify-content: center;
-  background: #fff;
+  height: max-content;
+  width: 100%;
+  background: transparent;
   padding: 20px;
   flex-wrap: wrap;
-  overflow: scroll;
-  overflow-x: hidden;
-}
-
-.content-layout.resize{
-  width: 100%;
-}
-
-.content-layout::-webkit-scrollbar-thumb {
-  background: var(--color_black);
-}
-
-.content-layout::-webkit-scrollbar {
-  width: 10px;
 }

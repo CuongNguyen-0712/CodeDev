@@ -7,7 +7,6 @@
   background: #fff;
   user-select: none;
   flex-direction: column;
-  gap: 10px;
   z-index: 1;
   transition: 0.2s all ease;
 }
@@ -37,6 +36,7 @@
   text-transform: uppercase;
   outline: 1px solid #ccc;
   border-radius: 5px;
+  color: var(--color_black);
   gap: 10px;
   cursor: pointer;
 }
@@ -79,9 +79,6 @@
 
 .account-info h3{
   display: flex;
-  position: sticky;
-  top: 0;
-  left: 0;
   text-transform: uppercase;
   font-size: 15px;
 }
@@ -104,7 +101,6 @@
   width: 100%;
   padding: 0px 10px;
   flex-direction: column;
-  gap: 10px;
   overflow: hidden;
 }
 
@@ -112,6 +108,8 @@
   display: flex;
   height: max-content;
   width: 100%;
+  height: max-content;
+  padding: 10px 0;
   text-transform: uppercase;
   font-size: 13px;
 }
@@ -122,6 +120,7 @@
   justify-content: flex-start;
   height: 100%;
   width: 100%;
+  padding: 10px 0;
   flex-direction: column;
   overflow: scroll;
   overflow-x: hidden;
@@ -160,8 +159,9 @@
   background: transparent;
   padding: 10px 0 10px 10px;
   border-radius: 5px;
-  transition: 0.2s all ease;
+  color: var(--color_black);
   gap: 10px;
+  transition: 0.2s all ease;
 }
 
 .menu div button.active{
@@ -220,9 +220,7 @@
   height: max-content;
   width: 100%;
   border-top: 1px solid #ccc;
-  padding: 10px 0px;
   flex-direction: column;
-  gap: 20px;
 }
 
 .footer-menu .other-section{
@@ -233,15 +231,17 @@
   width: 100%;
   padding: 0 10px;
   flex-direction: column;
+  border-bottom: 1px solid #ccc;
   gap: 10px;
 }
 
 .other-section h3{
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
   height: max-content;
   width: 100%;
+  padding: 10px 0;
   text-transform: uppercase;
   font-size: 13px;
 }
@@ -251,6 +251,7 @@
   height: max-content;
   width: 100%;
   flex-direction: column;
+  padding-bottom: 10px;
   gap: 10px;
 }
 
@@ -266,6 +267,7 @@
   background: transparent;
   font-weight: 500;
   font-size: 14px;
+  color: var(--color_black);
   padding-left: 10px;
   gap: 20px;
   transition: 0.2s all ease;
@@ -282,6 +284,7 @@
   justify-content: space-around;
   height: max-content;
   width: 100%;
+  padding: 10px 0;
 }
 
 .mode-frame button{
@@ -292,6 +295,7 @@
   width: 30px;
   border-radius: 5px;
   outline: 1px solid #ccc;
+  color: var(--color_black);
   background: transparent;
 }
 

@@ -65,6 +65,8 @@
   border-radius: 5px;
   background: #fff;
   gap: 10px;
+  color: var(--color_black);
+  user-select: none;
   cursor: pointer;
 }
 
