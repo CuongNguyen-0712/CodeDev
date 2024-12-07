@@ -12,7 +12,7 @@ import { IoSettingsSharp } from "react-icons/io5";
 import { MdHelpCenter, MdUnfoldMore, MdSpaceDashboard, MdManageAccounts, MdEmojiEvents } from "react-icons/md";
 import { AiFillProject } from "react-icons/ai";
 
-export default function MenuSite({ handleSetContent, handleSwitchPath }) {
+export default function MenuSite({ handleSetContent, onHeightDevice }) {
 
     const { navigateToMember, navigateToCourse, navigateToEvent } = RouterPush();
     const refNavigation = useRef(null);
@@ -29,6 +29,12 @@ export default function MenuSite({ handleSetContent, handleSwitchPath }) {
             handle();
         }
     }
+
+    useEffect(() => {
+        if(onHeightDevice){
+            setShowMore(true);
+        }
+    }, [onHeightDevice])
 
     const menuList = [
         {
@@ -121,9 +127,11 @@ export default function MenuSite({ handleSetContent, handleSwitchPath }) {
 
     return (
         <div className='menu-site'>
-            <header className='header-menu'>
-                <div className="heading" onClick={() => setShowMore(!showMore)}>
-                    <Image src={"/"} width={60} height={60} alt="avatar" />
+            <header className='header-menu' style={{ flexDirection: onHeightDevice && "row" }}>
+                <div className="heading" onClick={() => { !onHeightDevice && setShowMore(!showMore) }} style = {{pointerEvents: onHeightDevice && "none"}}>
+                    {!onHeightDevice &&
+                        <Image src={"/"} width={60} height={60} alt="avatar" />
+                    }
                     <div className="account-info">
                         <h3>CuongNguyen</h3>
                         <div className="info">
@@ -137,19 +145,23 @@ export default function MenuSite({ handleSetContent, handleSwitchPath }) {
                             </div>
                         </div>
                     </div>
-                    <MdUnfoldMore />
+                    {!onHeightDevice && <MdUnfoldMore />}
                 </div>
                 {showMore &&
-                    <>
-                        <button>
+                    <div className="account-btn" style={{ width: onHeightDevice && "100px" }}>
+                        <button style={{ width: onHeightDevice && "max-content", padding: onHeightDevice && "10px", height: '100%' }}>
                             <MdManageAccounts />
-                            <span>Manage account</span>
+                            {!onHeightDevice &&
+                                <span>Manage account</span>
+                            }
                         </button>
-                        <button>
+                        <button style={{ width: onHeightDevice && "max-content", padding: onHeightDevice && "10px", height: '100%' }}>
                             <FaSignOutAlt />
-                            <span>Sign out</span>
+                            {!onHeightDevice &&
+                                <span>Sign out</span>
+                            }
                         </button>
-                    </>
+                    </div>
                 }
             </header>
             <div className="main-menu">

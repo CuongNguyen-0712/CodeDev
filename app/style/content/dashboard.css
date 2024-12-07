@@ -20,7 +20,6 @@
 
 .overview .overview-container{
     display: flex;
-    align-items: center;
     height: max-content;
     width: 100%;
     gap: 20px;
@@ -76,13 +75,14 @@
 .overview-container .course-progress{
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: space-evenly;
     height: max-content;
     border-radius: 5px;
-    gap: 10px;
+    gap: 20px;
     flex-grow: 1;
     flex-basis: 300px;
     flex-wrap: wrap;
+    user-select: none;
 }
 
 .course-progress .progress-item{
@@ -92,6 +92,7 @@
     height: 100%;
     width: 40%;
     padding: 10px 0;
+    background: transparent;
     outline: 1px solid #ccc;
     border-radius: 10px;
     flex-direction: column;
@@ -103,7 +104,6 @@
     font-weight: 500;
 }
 
-
 .main-dashboard .course{
     display: flex;
     align-items: center;
@@ -113,6 +113,65 @@
     flex-direction: column;
     gap: 20px;
     flex-basis: 300px;
+}
+
+.language{
+    display: flex;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.language .language-container{
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-evenly;
+    height: max-content;
+    width: 100%;
+    gap: 20px;
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.language-container .language-item{
+    display: flex;
+    justify-content: space-between;
+    width: 40%;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.heading-language{
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    height: max-content;
+    width: 100%;
+    gap: 20px;
+}
+
+.heading-language > span{
+    display: flex;
+    font-size: 25px;
+}
+
+.language-item .bar{
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    height: max-content;
+    width: 100%;
+    padding: 10px;
+    border-radius: 5px;
+    outline: 1px solid #ccc;
+    gap: 10px;
+}
+
+.language-item .bar > span:last-of-type{
+    display: flex;
+    height: 5px;
+    width: 100%;
 }
 
 .course .course-recently,
@@ -206,7 +265,7 @@
     gap: 10px;
 }
 
-.bar > span:first-child{
+.progress-bar .bar > span:first-child{
     display: flex;
     height: 10px;
     width: 70%;

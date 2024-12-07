@@ -23,12 +23,20 @@
     gap: 10px;
 }
 
-.header-menu button{
+.header-menu .account-btn{
+  display: flex;
+  height: max-content;
+  width: 80%;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.account-btn button{
   display: flex;
   align-items: center;
   justify-content: center;
   height: max-content;
-  width: 80%;
+  width: 100%;
   background: #fff;
   padding: 10px 0;
   font-size: 12px;

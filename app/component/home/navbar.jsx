@@ -1,44 +1,17 @@
-import { useState, useRef, useEffect } from "react";
-
-import { usePathname } from "next/navigation";
+import { useRef, useEffect } from "react";
 
 import RouterPush from "@/app/router/router";
 
-import { FaUsers } from "react-icons/fa";
+import { FaListUl } from "react-icons/fa";
 import { IoSearch } from "react-icons/io5";
-import { IoMdNotifications } from "react-icons/io";
-import { MdHome, MdEmojiEvents, MdEmail } from "react-icons/md";
-import { FaCode } from "react-icons/fa6";
+import { IoMdNotifications, IoMdAdd } from "react-icons/io";
+import { MdEmail, MdWindow } from "react-icons/md";
 
-export default function Navbar({ handleChange, handleResize, isResize }) {
+export default function Navbar({ onWidthDevice, handleResize, onMobile }) {
 
     const { navigateToCurrent, navigateToMember, navigateToComment } = RouterPush();
     const ref = useRef(null);
     const refNavigation = useRef(null);
-    const currentPath = usePathname();
-
-    const links = [
-        {
-            icon: <MdHome />,
-            name: 'home',
-            locate: 1,
-        },
-        {
-            icon: <FaUsers />,
-            name: 'member',
-            locate: 2,
-        },
-        {
-            icon: <FaCode />,
-            name: 'course',
-            locate: 3,
-        },
-        {
-            icon: <MdEmojiEvents />,
-            name: 'event',
-            locate: 4,
-        }
-    ]
 
     const handleClickOutSide = (e) => {
         if (ref.current && !ref.current.contains(e.target)) {
@@ -77,29 +50,53 @@ export default function Navbar({ handleChange, handleResize, isResize }) {
         }
     }
 
+    console.log(onMobile)
+
     return (
         <nav id='navbar'>
             <div className="navbar-items">
-                <div className="navbar-feature">
-                    <span>
-                        <IoSearch />
-                    </span>
-                    <input type="text" placeholder="Search..." />
+                <div className="navbar-feature" style={{ width: onWidthDevice && "50%" }}>
+                    {onWidthDevice &&
+                        <button className="menu-btn" onClick={handleResize}>
+                            <FaListUl />
+                        </button>
+                    }
+                    <div className="input-container">
+                        <span>
+                            <IoSearch />
+                        </span>
+                        {!onWidthDevice &&
+                            <input type="text" placeholder="Search..." />
+                        }
+                    </div>
                 </div>
                 <div className="navbar-links">
                     <button>
-                        <MdHome />
-                        <span>Home</span>
+                        <IoMdAdd />
+                        <span>Add</span>
                     </button>
-                    <button>
-                        <MdEmail />
-                    </button>
-                    <button>
-                        <IoMdNotifications />
-                    </button>
-                    <button>
-                        Feedback
-                    </button>
+                    {onMobile ?
+                        <>
+                            <button style={{background: "var(--color_black)", color: "#fff"}}>
+                                <MdWindow />
+                            </button>
+                            <ul className="group-links">
+
+                            </ul>
+                        </>
+                        :
+                        <>
+                            <button>
+                                <MdEmail />
+                            </button>
+                            <button>
+                                <IoMdNotifications />
+                            </button>
+                            <button>
+                                Feedback
+                            </button>
+                        </>
+                    }
                 </div>
             </div>
         </nav>

@@ -142,15 +142,15 @@ export default function Dashboard() {
                         <div className="language-container">
                             {language_list.map((item, index) => (
                                 <div className="language-item" key={index}>
-                                    <div className="heading">
-                                        <h4>
-                                            {item.name}
-                                        </h4>
+                                    <div className="heading-language">
                                         <span style={{ color: item.color }}>{item.icon}</span>
+                                        <h4>{item.name}</h4>
                                     </div>
                                     <div className="bar">
-                                        <span style={{ background: item.color }}></span>
-                                        <span>{item.percentage}</span>
+                                        <span>
+                                            <span style={{background: item.color, height: "100%", width: item.percentage, left: "0", position: "absolute"}}></span>
+                                        </span>
+                                        <h5>{item.percentage}</h5>
                                     </div>
                                 </div>
                             ))}

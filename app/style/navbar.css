@@ -21,23 +21,46 @@
 .navbar-items .navbar-feature{
   display: flex;
   align-items: center;
-  justify-content: center;
+  width: 30%;
   height: max-content;
-  width: 25%;
+  gap: 20px;
 }
 
-.navbar-feature span{
+.navbar-feature .menu-btn{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 35px;
+  width: max-content;
+  padding: 0 11px;
+  background: #fff;
+  color: var(--color_black);
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.navbar-feature .input-container{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: max-content;
+  width: 100%;
+}
+
+.input-container span{
   display: flex;
   position: absolute;
   align-items: center;
-  height: 100%;
+  height: 35px;
   width: max-content;
+  background: #fff;
   left: 0;
+  border-radius: 5px;
   padding: 0 10px;
   z-index: 1;
 }
 
-.navbar-feature input{
+.input-container input{
   display: flex;
   height: 35px;
   width: 100%;
@@ -80,4 +103,9 @@
   color: #fff;
   font-size: 14px;
   font-weight: 500;
+}
+
+.group-links{
+  display: flex;
+  position: absolute;
 }
