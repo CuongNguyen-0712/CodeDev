@@ -6,20 +6,20 @@
         "concept": "JavaScript (JS) là ngôn ngữ lập trình phổ biến nhất thế giới, được dùng để xây dựng các trang web tương tác. Nó cho phép bạn cập nhật nội dung động mà không cần tải lại trang, tạo hiệu ứng, và xử lý sự kiện người dùng ngay trên trình duyệt. Ngoài ra, với sự hỗ trợ từ Node.js, JS có thể hoạt động trên máy chủ, làm nền tảng cho các ứng dụng lớn như API, server-side rendering, và xử lý dữ liệu theo thời gian thực. Đây là ngôn ngữ linh hoạt, phù hợp cho cả người mới bắt đầu lẫn chuyên gia trong ngành công nghệ.",
         "difficulty": "Trung bình",
         "lessons": 120,
-        "students": 1500000,
-        "reviews": 85000,
+        "students": 1500,
+        "reviews": 80,
         "icon": "/image/javascript.ico",
         "code": "function sayHello() {\n    console.log(\"Hello World\");\n}  \n\n sayHello();"
     },
-    {
+    {   
         "id": "nextjs",
         "title": "Nextjs",
         "file": "main.jsx",
         "concept": "Next.js là framework hàng đầu dành cho React, giúp lập trình viên dễ dàng xây dựng các ứng dụng web tĩnh và động với hiệu suất cao. Nó hỗ trợ nhiều tính năng hiện đại như Server-Side Rendering (SSR), Static Site Generation (SSG), và API Routes, giúp tối ưu hóa trải nghiệm người dùng. Next.js còn tích hợp mạnh mẽ với hệ sinh thái React, hỗ trợ SEO, và cung cấp công cụ linh hoạt để xây dựng các sản phẩm nhanh chóng và hiệu quả. Đây là lựa chọn lý tưởng cho các dự án lớn cần độ tin cậy và khả năng mở rộng.",
         "difficulty": "Trung bình - Khó",
         "lessons": 80,
-        "students": 800000,
-        "reviews": 54000,
+        "students": 500,
+        "reviews": 400,
         "icon": "/image/nextjs.ico",
         "code": "import React from 'react';\n\n export default function Home() {\n  return (\n    <div>\n      <h1>Hello, World!</h1>\n  <p>Welcome to your first Next.js app!</p>\n    </div>\n  );\n}"
     },
@@ -30,8 +30,8 @@
         "concept": "Dart là ngôn ngữ lập trình đa mục đích được phát triển bởi Google, nổi bật trong việc xây dựng các ứng dụng web và di động đa nền tảng. Khi kết hợp với Flutter, Dart cho phép lập trình viên tạo ra các ứng dụng mượt mà, có hiệu suất cao trên Android, iOS, và thậm chí cả web. Ngôn ngữ này có cú pháp tương tự Java hoặc C++, nhưng hiện đại hơn, giúp tối ưu hóa quy trình phát triển ứng dụng. Đây là lựa chọn lý tưởng cho những ai muốn tham gia phát triển ứng dụng nhanh chóng và tiết kiệm chi phí.",
         "difficulty": "Trung bình",
         "lessons": 70,
-        "students": 500000,
-        "reviews": 35000,
+        "students": 500,
+        "reviews": 350,
         "icon": "/image/dart.svg",
         "code": "void main() {\n  print('Hello, World!');\n}"
     },
@@ -42,8 +42,8 @@
         "concept": "Swift là ngôn ngữ lập trình mạnh mẽ và dễ học của Apple, được thiết kế để xây dựng các ứng dụng cho hệ sinh thái iOS, macOS, watchOS và tvOS. Swift nổi bật với cú pháp hiện đại, an toàn, và hiệu suất cao, cho phép lập trình viên phát triển ứng dụng một cách nhanh chóng và hiệu quả. Ngôn ngữ này đặc biệt phổ biến trong cộng đồng lập trình di động, nhờ sự hỗ trợ mạnh mẽ từ Apple và các công cụ như Xcode. Học Swift là bước đầu tiên để tham gia vào thế giới phát triển ứng dụng Apple.",
         "difficulty": "Khó",
         "lessons": 90,
-        "students": 400000,
-        "reviews": 25000,
+        "students": 400,
+        "reviews": 200,
         "icon": "/image/swift.ico",
         "code": "import SwiftUI\nstruct ContentView: View {\n    var body: some View {\n        Text(\"Hello, World!\")\n    }\n}\nstruct ContentView_Previews: PreviewProvider {\n    static var previews: some View {\n        ContentView()\n    }\n}"
     },
@@ -54,8 +54,8 @@
         "concept": "Ruby là ngôn ngữ lập trình dễ đọc, dễ học và cực kỳ linh hoạt, được biết đến rộng rãi nhờ framework Ruby on Rails. Ruby tập trung vào việc đơn giản hóa quy trình phát triển, giúp lập trình viên viết mã nhanh hơn và hiệu quả hơn. Với cú pháp tự nhiên, Ruby là lựa chọn tuyệt vời cho người mới bắt đầu hoặc các nhà phát triển web muốn tạo các ứng dụng mạnh mẽ mà không phải tốn quá nhiều thời gian viết mã phức tạp.",
         "difficulty": "Dễ",
         "lessons": 60,
-        "students": 700000,
-        "reviews": 30000,
+        "students": 700,
+        "reviews": 300,
         "icon": "/image/ruby.ico",
         "code": "puts 'Hello, World!'"
     }

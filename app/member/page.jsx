@@ -1,9 +1,9 @@
 'use client'
-
 import { useState, useEffect } from "react";
 
-// import HandleSearchMember from "../component/member/handleSearchMember";
-import Navbar from "../component/home/navbar";
+import RouterPush from "../router/router";
+
+import Layout from "../component/feature/layout";
 import CreateMember from "../component/member/createMember";
 import TableFilter from "../component/member/tableFilter";
 import TargetMember from "../component/member/targetMember";
@@ -12,16 +12,18 @@ import LoadingWait from "../component/feature/loadingWait";
 import axios from "axios";
 
 export default function Member() {
+
+    const { navigateToCurrent } = RouterPush();
+
     const [target, setTarget] = useState({
         targetMember: {},
         targetIndex: null,
         isTarget: false,
     })
 
-    const [isFilter, setFilter] = useState(false);
     const [isSwitchPath, setSwitchPath] = useState(false);
 
-    if(isSwitchPath) return <LoadingWait />
+    if (isSwitchPath) return <LoadingWait />
 
     // if (isSwitchPath) return <LoadingWait />
 
@@ -42,7 +44,7 @@ export default function Member() {
     //     membersRating: [],
     // });
 
-    
+
 
     // useEffect(() => {
     //     const handler = setTimeout(() => {
@@ -60,21 +62,9 @@ export default function Member() {
     // }, [search.searching])
 
     return (
-        <main id="main">
-            <section className="member-template">
-                <div className="member-heading">
-                    <Navbar handleChange={() => setSwitchPath(true)} />
-                </div>
-                <div className="member-content">
-                    <div className="member-frame">
-                        <CreateMember handle={() => setFilter(!isFilter)}  targetMember = {(member) => setTarget((prev) => ({ ...prev, targetMember: member }))}/>
-                    </div>
-                    <div className="member-aside">
-                        <TargetMember target={target?.isTarget} targetMember={target?.targetMember} handle={() => setTarget((prev) => ({ ...prev, isTarget: !prev.isTarget }))} />
-                        <TableFilter filter={isFilter} />
-                    </div>
-                </div>
-            </section>
-        </main>
+        <Layout children={
+            <CreateMember handle={() => setFilter(!isFilter)} targetMember={(member) => setTarget((prev) => ({ ...prev, targetMember: member }))} />}
+            onReturn={() => navigateToCurrent()}
+        />
     )
 }

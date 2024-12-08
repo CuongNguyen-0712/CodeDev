@@ -13,11 +13,19 @@ import { HiLogout } from "react-icons/hi";
 export default function HomePage() {
     const [onWidthDevice, setWidthOnDevice] = useState(false);
     const [onHeightDevice, setHeightOnDevice] = useState(false);
-
     const [onMobile, setOnMobile] = useState(false);
+
+    const [sizeDevice, setSizeDevice] = useState({
+        width: 0,
+        height: 0
+    })
 
     useLayoutEffect(() => {
         const handleResize = () => {
+            setSizeDevice({
+                width: window.innerWidth,
+                height: window.innerHeight
+            })
             setWidthOnDevice(window.innerWidth <= 768);
             setHeightOnDevice(window.innerHeight <= 600);
             setOnMobile(window.innerWidth <= 425);
@@ -32,7 +40,7 @@ export default function HomePage() {
 
     const [home, setHome] = useState({
         targetContentItem: 0,
-        resize: true,
+        overlay: false,
         switchMode: true,
         setLogout: false,
     })
@@ -41,23 +49,22 @@ export default function HomePage() {
 
     if (isSwitchPath) return <LoadingWait />
 
-    console.log(onHeightDevice)
-
     return (
         <main id='main'>
-            <div className={`aside ${(onWidthDevice && !home.resize) ? 'active' : ''}`}>
+            <div className={`aside ${(onWidthDevice && home.overlay) ? 'active' : ''}`}>
                 <MenuSite
-                    onHeightDevice = {onHeightDevice}
+                    onHeightDevice={onHeightDevice}
                     handleSetContent={(index) => setHome({ ...home, targetContentItem: index })}
                     handleSwitchPath={() => setSwitchPath(true)}
                 />
             </div>
-            <div className={`frame ${(onWidthDevice && !home.resize) ? 'hide' : ''}`} onClick={() => { !home.resize && setHome({ ...home, resize: true }) }}>
+            <div className={`frame ${(onWidthDevice && home.overlay) ? 'hide' : ''}`} onClick={() => { home.overlay && setHome({ ...home, overlay: false }) }}>
                 <div id='header'>
                     <Navbar
-                        onMobile ={onMobile}
+                        sizeDevice={sizeDevice}
+                        onMobile={onMobile}
                         onWidthDevice={onWidthDevice}
-                        handleResize={() => setHome({ ...home, resize: false })}
+                        handleOverlay={() => setHome({ ...home, overlay: true })}
                     />
                 </div>
                 <div id='container'>
@@ -66,21 +73,6 @@ export default function HomePage() {
                     />
                 </div>
             </div>
-            {home.setLogout &&
-                <div className='logoutSheet'>
-                    <div className='logout-container'>
-                        <span>Do you want to logout ?</span>
-                        <div className='handleChoose'>
-                            <button onClick={() => setHome({ ...home, setLogout: false })}>
-                                <IoHomeSharp />
-                            </button>
-                            <button onClick={() => alert("Dang sua")}>
-                                <HiLogout />
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            }
         </main>
     );
 } 

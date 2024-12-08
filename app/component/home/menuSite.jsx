@@ -148,7 +148,7 @@ export default function MenuSite({ handleSetContent, onHeightDevice }) {
                     {!onHeightDevice && <MdUnfoldMore />}
                 </div>
                 {showMore &&
-                    <div className="account-btn" style={{ width: onHeightDevice && "100px" }}>
+                    <div className="account-btn" style={{ width: onHeightDevice && "100px", pointerEvents: onHeightDevice && "none"}}>
                         <button style={{ width: onHeightDevice && "max-content", padding: onHeightDevice && "10px", height: '100%' }}>
                             <MdManageAccounts />
                             {!onHeightDevice &&

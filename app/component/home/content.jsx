@@ -1,9 +1,9 @@
 import dynamic from 'next/dynamic';
 
 const components = {
-    0: dynamic(() => import('../content/dashboard/dashboard'), { ssr: false }),
-    1: dynamic(() => import('../content/course/course'), { ssr: false }),
-    2: dynamic(() => import('../content/roadmap/roadmap'), { ssr: false }),
+    0: dynamic(() => import('../content/dashboard/dashboard'), { ssr: true }),
+    1: dynamic(() => import('../content/course/course'), { ssr: true }),
+    2: dynamic(() => import('../content/roadmap/roadmap'), { ssr: true }),
 };
 
 const DefaultComponent = components[1]; 
