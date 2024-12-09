@@ -34,6 +34,11 @@ export default function Navbar({ onWidthDevice, handleOverlay, onMobile, sizeDev
         }
     }, [])
 
+    const handleGruop = () => {
+        setHandleFeedback(true)
+        setOnGroup(false)
+    }
+
     return (
         <nav id='navbar'>
             <div className="navbar-items">
@@ -43,14 +48,16 @@ export default function Navbar({ onWidthDevice, handleOverlay, onMobile, sizeDev
                             {onReturn ? <IoMdReturnLeft style={{ fontWeight: '700' }} /> : <FaListUl />}
                         </button>
                     }
-                    <div className="input-container">
-                        <button>
+                    <button className="search">
+                        <span>
                             <IoSearch />
-                        </button>
-                        {!onMobile &&
-                            <input type="text" placeholder="Search..." />
+                        </span>
+                        {width > 500 &&
+                            <span>
+                                Search
+                            </span>
                         }
-                    </div>
+                    </button>
                 </div>
                 <div className="navbar-links">
                     <button>
@@ -79,7 +86,7 @@ export default function Navbar({ onWidthDevice, handleOverlay, onMobile, sizeDev
                     }
                     {
                         (width <= 425 && onMobile && onGroup) &&
-                        <div className="group-links" style={{ width: `${width / 2}px` }} ref={refGroup}>
+                        <div className="group-links" style={{ width: `${width}px` }} ref={refGroup}>
                             <button>
                                 <MdEmail />
                                 Mailbox
@@ -88,7 +95,7 @@ export default function Navbar({ onWidthDevice, handleOverlay, onMobile, sizeDev
                                 <IoMdNotifications />
                                 Notifications
                             </button>
-                            <button onClick={() => setHandleFeedback(true)}>
+                            <button onClick={() => handleGruop()}>
                                 Feedback
                             </button>
                         </div>
@@ -96,6 +103,33 @@ export default function Navbar({ onWidthDevice, handleOverlay, onMobile, sizeDev
                     {
                         (handleFeedback && !onMobile) &&
                         <form onSubmit={() => { }} id="feedback-form" ref={ref}>
+                            <input type="text" placeholder="example@gamil.com" />
+                            <textarea cols="30" rows="10" placeholder="Write something..."></textarea>
+                            <div className="footer-feedback">
+                                <ul className="react-rate">
+                                    <li>
+                                        <RiEmotionHappyLine />
+                                    </li>
+                                    <li>
+                                        <RiEmotionNormalLine />
+                                    </li>
+                                    <li>
+                                        <RiEmotionSadLine />
+                                    </li>
+                                    <li>
+                                        <RiEmotionUnhappyLine />
+                                    </li>
+                                </ul>
+                                <button type="submit">
+                                    Send
+                                    <IoIosSend />
+                                </button>
+                            </div>
+                        </form>
+                    }
+                    {
+                        (handleFeedback && onMobile) &&
+                        <form onSubmit={() => { }} id="feedback-form" ref={ref} style={{width: `${width}px`, right: "-20px", top: `${height - 200}px`, borderRadius: "10px 10px 0 0", outline: "none", borderTop: "1px solid var(--color_black)"}}>
                             <input type="text" placeholder="example@gamil.com" />
                             <textarea cols="30" rows="10" placeholder="Write something..."></textarea>
                             <div className="footer-feedback">
