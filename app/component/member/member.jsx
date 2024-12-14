@@ -11,7 +11,7 @@ export default function Member({ size }) {
     });
 
     return (
-        <div className="member-container">
+        <section className="member-container">
             <CreateMember
                 sizeDevice={size}
                 onFilter={filter}
@@ -24,6 +24,6 @@ export default function Member({ size }) {
                 setFilter = {() => setFilter(false)}
                 handleFilter={(value) => setFilterValue({ name: value.name, code: value.code })}
             />
-        </div>
+        </section>
     )
 }

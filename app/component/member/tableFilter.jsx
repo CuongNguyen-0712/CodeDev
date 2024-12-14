@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect } from "react"
 
 import { IoIosClose } from "react-icons/io";
-import { FaSyncAlt } from "react-icons/fa";
-import { FaArrowDownWideShort } from "react-icons/fa6";
+import { FaSyncAlt, FaSortAmountDown } from "react-icons/fa";
 
-export default function TableFilter({ onFilter, handleFilter, sizeDevice, setFilter}) {
+export default function TableFilter({ onFilter, handleFilter, sizeDevice, setFilter }) {
     const refInput = useRef(null)
 
     const { width } = sizeDevice
@@ -93,8 +92,8 @@ export default function TableFilter({ onFilter, handleFilter, sizeDevice, setFil
                     <FaSyncAlt />
                 </button>
                 {width < 768 &&
-                    <button className = 'close-filter' onClick={setFilter}>
-                        <FaArrowDownWideShort />
+                    <button className='close-filter' onClick={setFilter}>
+                        <FaSortAmountDown />
                     </button>
                 }
             </div>

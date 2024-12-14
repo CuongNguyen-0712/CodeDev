@@ -250,6 +250,7 @@
   background: var(--color_black);
   color: #fff;
   border-radius: 50px;
+  font-size: 16px;
   cursor: pointer;
 }
 

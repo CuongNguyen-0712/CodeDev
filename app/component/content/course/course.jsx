@@ -46,7 +46,7 @@ export default function Course() {
     }
 
     return (
-        <section id='study'>
+        <section className="course-container">
             {course ?
                 <CreateCourse data={course} key={key} handle={(value) => handleSetCourse(value)} />
                 :
