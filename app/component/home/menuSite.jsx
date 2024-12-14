@@ -12,10 +12,12 @@ import { IoSettingsSharp } from "react-icons/io5";
 import { MdHelpCenter, MdUnfoldMore, MdSpaceDashboard, MdManageAccounts, MdEmojiEvents } from "react-icons/md";
 import { AiFillProject } from "react-icons/ai";
 
-export default function MenuSite({ handleSetContent, onHeightDevice }) {
+export default function MenuSite({ handleSetContent, sizeDevice }) {
 
     const { navigateToMember, navigateToCourse, navigateToEvent } = RouterPush();
     const refNavigation = useRef(null);
+
+    const [layoutHeight, setLayoutHeight] = useState(false);
 
     const [targetItem, setTargetItem] = useState(0);
     const [targetBtn, setTargetBtn] = useState(2);
@@ -31,10 +33,13 @@ export default function MenuSite({ handleSetContent, onHeightDevice }) {
     }
 
     useEffect(() => {
-        if(onHeightDevice){
-            setShowMore(true);
+        if (sizeDevice.height < 600) {
+            setLayoutHeight(true);
         }
-    }, [onHeightDevice])
+        else {
+            setLayoutHeight(false);
+        }
+    }, [sizeDevice])
 
     const menuList = [
         {
@@ -127,9 +132,9 @@ export default function MenuSite({ handleSetContent, onHeightDevice }) {
 
     return (
         <div className='menu-site'>
-            <header className='header-menu' style={{ flexDirection: onHeightDevice && "row" }}>
-                <div className="heading" onClick={() => { !onHeightDevice && setShowMore(!showMore) }} style = {{pointerEvents: onHeightDevice && "none"}}>
-                    {!onHeightDevice &&
+            <header className='header-menu' style={{ flexDirection: layoutHeight && "row" }}>
+                <div className="heading" onClick={() => { !layoutHeight && setShowMore(!showMore) }}>
+                    {!layoutHeight &&
                         <Image src={"/"} width={60} height={60} alt="avatar" />
                     }
                     <div className="account-info">
@@ -137,27 +142,30 @@ export default function MenuSite({ handleSetContent, onHeightDevice }) {
                         <div className="info">
                             <div className="role">
                                 <h4>Role</h4>
-                                <span>Admin</span>
+                                <span>User</span>
                             </div>
-                            <div className="address">
-                                <h4>Address</h4>
-                                <span>Ha Noi, Viet Nam</span>
-                            </div>
+                            {
+                                !layoutHeight &&
+                                <div className="address">
+                                    <h4>Address</h4>
+                                    <span>Ha Noi, Viet Nam</span>
+                                </div>
+                            }
                         </div>
                     </div>
-                    {!onHeightDevice && <MdUnfoldMore />}
+                    {!layoutHeight && <MdUnfoldMore />}
                 </div>
-                {showMore &&
-                    <div className="account-btn" style={{ width: onHeightDevice && "100px", pointerEvents: onHeightDevice && "none"}}>
-                        <button style={{ width: onHeightDevice && "max-content", padding: onHeightDevice && "10px", height: '100%' }}>
+                {(showMore || layoutHeight) &&
+                    <div className="account-btn" style={{ flexGrow: layoutHeight && "1", flexDirection: layoutHeight && 'row' }}>
+                        <button style={{ width: layoutHeight && "max-content", padding: layoutHeight && "10px", height: '100%' }}>
                             <MdManageAccounts />
-                            {!onHeightDevice &&
+                            {!layoutHeight &&
                                 <span>Manage account</span>
                             }
                         </button>
-                        <button style={{ width: onHeightDevice && "max-content", padding: onHeightDevice && "10px", height: '100%' }}>
+                        <button style={{ width: layoutHeight && "max-content", padding: layoutHeight && "10px", height: '100%' }}>
                             <FaSignOutAlt />
-                            {!onHeightDevice &&
+                            {!layoutHeight &&
                                 <span>Sign out</span>
                             }
                         </button>

@@ -2,17 +2,48 @@ import { useState, useEffect } from "react";
 
 import Image from "next/image";
 
-import { IoSettingsSharp } from "react-icons/io5";
-import { FaFilter, FaUserFriends } from "react-icons/fa";
-import { IoMdStar } from "react-icons/io";
+import { IoFilter } from "react-icons/io5";
 
 import axios from "axios";
-export default function CreateMember({ handle, targetMember }) {
+export default function CreateMember({ onFilter, setFilter, filterValue, sizeDevice }) {
+    const { code, name } = filterValue
+    const { width } = sizeDevice
 
     const [member, setMember] = useState({
         defaultMember: [],
         filterMember: [],
     })
+
+    const formatString = (str) => {
+        const newStr = str
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/đ/g, "d")
+            .replace(/Đ/g, "D")
+            .trim()
+            .toLowerCase()
+            .split(" ")
+            .join('')
+        return newStr;
+    }
+
+    useEffect(() => {
+        const filterCode = member.defaultMember.filter((mem) => {
+            return code.some((item) => mem.code.includes(item));
+        })
+
+        const filterName = member.defaultMember.filter((mem) => {
+            return name.some((item) => formatString(mem.name).includes(formatString(item)));
+        })
+
+        const newFilterMember = [...new Set([...filterCode, ...filterName])];
+        if (newFilterMember.length > 0) {
+            setMember({ ...member, filterMember: newFilterMember });
+        }
+        else {
+            setMember({ ...member, filterMember: member.defaultMember });
+        }
+    }, [code, name])
 
     const fecthDataMember = async () => {
         try {
@@ -32,49 +63,40 @@ export default function CreateMember({ handle, targetMember }) {
     }, [])
 
     return (
-        <>
+        <div className="member-frame" style={width >= 768 ? { width: onFilter ? 'calc(100% - 350px)' : '100%', borderRight: '1px solid #ccc' } : { width: '100%' }}>
             <div className="member-heading">
-                <div className="member-intro">
-                    <h1>Welcome CuongCoder</h1>
-                    <span>Connect with other member and make new friends</span>
+                <div className="intro">
+                    <h2>Welcome CuongCoder</h2>
+                    <p>Connect with other member and make new friends</p>
                 </div>
-                <div className="member-feature">
-                    <span>
-                        <FaUserFriends />
-                    </span>
-                    <span onClick={() => handle()}>
-                        <FaFilter />
-                    </span>
-                    <span>
-                        <IoSettingsSharp />
-                    </span>
-                </div>
+                <button onClick={setFilter}>
+                    <IoFilter />
+                    Filter
+                </button>
             </div>
             <div className="members">
-                <div className="member-container">
-                    {member.defaultMember.map((mem, index) => (
+                <div className="container">
+                    {member.filterMember.map((mem, index) => (
                         <ul key={index} className="member">
                             <div className="base-info">
-                                <div className="avatar">
-                                    <Image src={`/public/`} alt='' width={80} height={80} />
-                                </div>
+                                <Image src={`/public/`} alt='avatar' width={80} height={80} />
                                 <div className="base-main">
                                     <span>{mem.code}</span>
                                     <span>{mem.name}</span>
-                                    <span>{mem.rating} <IoMdStar style={{ color: 'yellow' }} /></span>
-                                    <span>Following: ...</span>
-                                    <span>Follower: ...</span>
                                 </div>
                             </div>
-                            <div className="handleMember">
-                                <button onClick={() => targetMember(mem)}>
-                                    Detail
+                            <div className="feature">
+                                <button>
+                                    Profile
+                                </button>
+                                <button>
+                                    Add Friend
                                 </button>
                             </div>
                         </ul>
                     ))}
                 </div>
             </div>
-        </>
+        </div>
     )
 }

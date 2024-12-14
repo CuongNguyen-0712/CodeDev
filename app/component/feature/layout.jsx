@@ -1,8 +1,12 @@
 import { useState, useLayoutEffect } from "react"
 import Navbar from "../home/navbar"
-export default function Layout({ children, onReturn }) {
-    const [onWidthDevice, setWidthOnDevice] = useState(false);
-    const [onMobile, setOnMobile] = useState(false);
+export default function Layout({ children, onReturn, size}) {
+    const [device, onDevice] = useState({
+        onMobile: false,
+        onIpad: false,
+        onLaptop: false,
+    })
+
     const [sizeDevice, setSizeDevice] = useState({
         width: 0,
         height: 0
@@ -10,34 +14,41 @@ export default function Layout({ children, onReturn }) {
 
     useLayoutEffect(() => {
         const handleResize = () => {
-            setSizeDevice({
-                width: window.innerWidth,
-                height: window.innerHeight
+            const currentWidth = window.innerWidth;
+            const currentHeight = window.innerHeight;
+
+            onDevice({
+                onMobile: currentWidth <= 425,
+                onIpad: currentWidth > 425 && currentWidth <= 768,
+                onLaptop: currentWidth > 768
             })
-            setWidthOnDevice(window.innerWidth <= 768);
-            setOnMobile(window.innerWidth <= 425);
+
+            setSizeDevice({
+                width: currentWidth,
+                height: currentHeight
+            })
+
+            size({ width: currentWidth, height: currentHeight })
         }
-
-        window.addEventListener("resize", handleResize);
-
+        
         handleResize();
+        
+        window.addEventListener("resize", handleResize);
 
         return () => window.removeEventListener("resize", handleResize);
     }, []);
 
     return (
-        <main id="main" style={{ flexDirection: "column", gap: '0'}}>
+        <main id="main" style={{ flexDirection: "column", gap: '0' }}>
             <div id="header">
                 <Navbar
                     sizeDevice={sizeDevice}
-                    onMobile={onMobile}
-                    onWidthDevice={onWidthDevice}
-                    onReturn = {onReturn}
+                    onMobile={device.onMobile}
+                    onIpad={device.onIpad}
+                    onReturn={onReturn}
                 />
             </div>
-            <div className="body-container">
-                {children}
-            </div>
+            {children}
         </main>
     )
 }

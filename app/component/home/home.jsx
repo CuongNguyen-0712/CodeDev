@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect } from 'react';
+import { useState, useLayoutEffect, useRef } from 'react';
 
 import Navbar from './navbar';
 import MenuSite from './menuSite';
@@ -7,13 +7,12 @@ import LoadingWait from '../feature/loadingWait';
 
 import { useAuth } from '../auth/handleAuth/authContext';
 
-import { IoHomeSharp } from "react-icons/io5";
-import { HiLogout } from "react-icons/hi";
-
 export default function HomePage() {
-    const [onWidthDevice, setWidthOnDevice] = useState(false);
-    const [onHeightDevice, setHeightOnDevice] = useState(false);
-    const [onMobile, setOnMobile] = useState(false);
+    const [device, onDevice] = useState({
+        onMobile: false,
+        onIpad: false,
+        onLaptop: false,
+    })
 
     const [sizeDevice, setSizeDevice] = useState({
         width: 0,
@@ -22,18 +21,24 @@ export default function HomePage() {
 
     useLayoutEffect(() => {
         const handleResize = () => {
-            setSizeDevice({
-                width: window.innerWidth,
-                height: window.innerHeight
+            const currentWidth = window.innerWidth;
+            const currentHeight = window.innerHeight;
+
+            onDevice({
+                onMobile: currentWidth <= 425,
+                onIpad: currentWidth > 425 && currentWidth <= 768,
+                onLaptop: currentWidth > 768
             })
-            setWidthOnDevice(window.innerWidth <= 768);
-            setHeightOnDevice(window.innerHeight <= 600);
-            setOnMobile(window.innerWidth <= 425);
+
+            setSizeDevice({
+                width: currentWidth,
+                height: currentHeight
+            })
         }
 
-        window.addEventListener("resize", handleResize);
-
         handleResize();
+
+        window.addEventListener("resize", handleResize);
 
         return () => window.removeEventListener("resize", handleResize);
     }, []);
@@ -51,19 +56,19 @@ export default function HomePage() {
 
     return (
         <main id='main'>
-            <div className={`aside ${(onWidthDevice && home.overlay) ? 'active' : ''}`}>
+            <div className={`aside ${(sizeDevice.width < 768 && home.overlay) ? 'active' : ''}`}>
                 <MenuSite
-                    onHeightDevice={onHeightDevice}
+                    sizeDevice={sizeDevice}
                     handleSetContent={(index) => setHome({ ...home, targetContentItem: index })}
                     handleSwitchPath={() => setSwitchPath(true)}
                 />
             </div>
-            <div className={`frame ${(onWidthDevice && home.overlay) ? 'hide' : ''}`} onClick={() => { home.overlay && setHome({ ...home, overlay: false }) }}>
+            <div className={`frame ${(sizeDevice.width < 768 && home.overlay) ? 'hide' : ''}`} onClick={() => { home.overlay && setHome({ ...home, overlay: false }) }}>
                 <div id='header'>
                     <Navbar
                         sizeDevice={sizeDevice}
-                        onMobile={onMobile}
-                        onWidthDevice={onWidthDevice}
+                        onMobile={device.onMobile}
+                        onIpad={device.onIpad}
                         handleOverlay={() => setHome({ ...home, overlay: true })}
                     />
                 </div>

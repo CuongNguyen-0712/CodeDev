@@ -1,194 +1,103 @@
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 
-import { GrStatusGood, GrStatusUnknown, GrStatusWarning } from "react-icons/gr";
+import { IoIosClose } from "react-icons/io";
+import { FaSyncAlt } from "react-icons/fa";
+import { FaArrowDownWideShort } from "react-icons/fa6";
 
-export default function TableFilter({ filter }) {
+export default function TableFilter({ onFilter, handleFilter, sizeDevice, setFilter}) {
+    const refInput = useRef(null)
 
-    const [IDValue, setIDValue] = useState({
-        id: '',
-        status: null,
-    });
-    const [nameValue, setNameValue] = useState({
-        name: '',
-        status: null,
-    });
+    const { width } = sizeDevice
 
-    const refScroll = useRef(null);
-    const refInputID = useRef(null);
-    const refInputName = useRef(null);
+    const [value, setValue] = useState('');
+    const [message, setMessage] = useState(null);
 
-    const handleCheckKeyDowwnID = (e) => {
-        const key = e.key;
-        if (!Number.parseInt(key) && key !== 'Backspace' && key !== '0') {
-            e.preventDefault();
-        }
-    }
+    const [filterValue, setFilterValue] = useState({
+        name: [],
+        code: [],
+    })
 
-    const handleCheckKeyDownName = (e) => {
-        const key = e.key;
-        if (Number.parseInt(key) && key !== 'Backspace') {
-            e.preventDefault();
-        }
-    }
-
-    const handleStatus = ({ status, value }) => {
-        if (status && value !== '') {
-            return <GrStatusGood />
-        }
-        else if (!status && value !== '') {
-            return <GrStatusWarning />
+    const handleSearchValue = (e) => {
+        e.preventDefault();
+        const regex = /^(?=.*[a-zA-Z])(?=.*\d).+$/;
+        if (value.length > 0) {
+            if (regex.test(value)) {
+                setMessage("Please enter only character or number!");
+                setTimeout(() => {
+                    setMessage(null)
+                }, 1000)
+            }
+            else {
+                if (value.charCodeAt(0) >= 46 && value.charCodeAt(0) <= 57) {
+                    setFilterValue({
+                        ...filterValue,
+                        code: [...filterValue.code, value]
+                    })
+                }
+                else {
+                    setFilterValue({
+                        ...filterValue,
+                        name: [...filterValue.name, value]
+                    })
+                }
+                setValue('');
+                refInput.current.focus();
+            }
         }
         else {
-            return <GrStatusUnknown />
+            setMessage("Please enter value to search!");
+            setTimeout(() => {
+                setMessage(null)
+            }, 1000)
         }
     }
 
-    const handleScroll = (e) => {
-        refScroll.current.scrollLeft += e.deltaY;
-    }
-
-    const gender = [
-        {
-            id: 0,
-            name: 'Male',
-        },
-        {
-            id: 1,
-            name: 'Famale',
-        },
-        {
-            id: 2,
-            name: 'None',
-        }
-    ]
-
-    const rate = [
-        {
-
-            id: 0,
-            rate: 1,
-        },
-        {
-            id: 1,
-            rate: 2,
-        },
-        {
-            id: 2,
-            rate: 3,
-        },
-        {
-            id: 3,
-            rate: 4,
-        },
-        {
-            id: 4,
-            rate: 5,
-        },
-        {
-            id: 5,
-            rate: 'All',
-        }
-    ]
-
-    const social = [
-        {
-            id: 0,
-            social: 'Any'
-        },
-        {
-            id: 1,
-            social: "All"
-        },
-        {
-            id: 2,
-            social: "None"
-        }
-    ]
-
-    const [checkGender, setGender] = useState(gender.length - 1);
-    const [checkRate, setRate] = useState(rate.length - 1);
-    const [checkSocial, setSocial] = useState(social.length - 1);
+    useEffect(() => {
+        handleFilter(filterValue)
+    }, [filterValue])
 
     return (
-        <div className={`table-filter ${filter ? 'active' : ''}`} ref={refScroll} onWheel={handleScroll}>
-            <ul className="gender">
-                <span>Gender</span>
-                {gender.map((item, index) => (
-                    <li key={index}>
-                        <div className="checkbox">
-                            <input type="checkbox"
-                                checked={checkGender === item.id}
-                                onChange={() => setGender(item.id)}
-                            />
-                            <span className="checkmark"></span>
-                        </div>
-                        <span>{item.name}</span>
-                    </li>
-                ))}
-            </ul>
-            <ul className="rating">
-                <span>Rating</span>
-                {rate.map((item, index) => (
-                    <li key={index}>
-                        <div className="checkbox">
-                            <input type="checkbox"
-                                checked={checkRate === item.id}
-                                onChange={() => setRate(item.id)}
-                            />
-                            <span className="checkmark"></span>
-                        </div>
-                        <span>{item.rate}</span>
-                    </li>
-                ))}
-            </ul>
-            <ul className="search-id">
-                <span>
-                    ID
-                </span>
-                <div className="input-value">
-                    <input type="text"
-                        maxLength={10}
-                        ref={refInputID}
-                        value={IDValue.id}
-                        onKeyDown={handleCheckKeyDowwnID}
-                        onChange={(e) => setIDValue((state) => ({ ...state, status: false, id: e.target.value }))}
-                    />
-                    <span className="status">
-                        {handleStatus({ status: IDValue.status, value: IDValue.id })}
-                    </span>
+        <div className="table-filter" style={width >= 768 ? { display: 'flex', right: onFilter ? '0px' : '-350px', top: '0' } : { display: 'flex', bottom: onFilter ? '0px' : '-50%', height: '50%', width: '100%' }}>
+            <form onSubmit={handleSearchValue} className="form-search">
+                <input type="text" value={value} placeholder="Search value..." onChange={(e) => setValue(e.target.value)} ref={refInput} />
+                <button type="submit">Add</button>
+            </form>
+            {message &&
+                <div className="alert">
+                    <p>{message}</p>
                 </div>
-            </ul>
-            <ul className="search-name">
-                <span>
-                    Name
-                </span>
-                <div className="input-value">
-                    <input type="text"
-                        ref={refInputName}
-                        value={nameValue.name}
-                        onKeyDown={handleCheckKeyDownName}
-                        onChange={(e) => setNameValue((state) => ({ ...state, status: false, name: e.target.value }))}
-                    />
-                    <span className="status">
-                        {handleStatus({ status: nameValue.status, value: nameValue.name })}
-                    </span>
+            }
+            <div className="value-search">
+                <h4>Filter by code</h4>
+                <div className="code-filter">
+                    {filterValue.code.map((item, index) => (
+                        <span key={index}>
+                            {item}
+                            <IoIosClose onClick={() => setFilterValue({ ...filterValue, code: filterValue.code.filter((item, i) => i !== index) })} />
+                        </span>
+                    ))}
                 </div>
-            </ul>
-            <ul className="social">
-                <span>Social</span>
-                {social.map((item, index) => (
-                    <li key={index}>
-                        <div className="checkbox">
-                            <input type="checkbox"
-                                checked={checkSocial === item.id}
-                                onChange={() => setSocial(item.id)}
-                            />
-                            <span className="checkmark"></span>
-                        </div>
-                        <span>{item.social}</span>
-                    </li>
-                ))}
-            </ul>
+                <h4>Filter by name</h4>
+                <div className="name-filter">
+                    {filterValue.name.map((item, index) => (
+                        <span key={index}>
+                            {item}
+                            <IoIosClose onClick={() => setFilterValue({ ...filterValue, name: filterValue.name.filter((item, i) => i !== index) })} />
+                        </span>
+                    ))}
+                </div>
+            </div>
+            <div className="footer-filter">
+                <button onClick={() => setFilterValue({ name: [], code: [] })}>
+                    Clear
+                    <FaSyncAlt />
+                </button>
+                {width < 768 &&
+                    <button className = 'close-filter' onClick={setFilter}>
+                        <FaArrowDownWideShort />
+                    </button>
+                }
+            </div>
         </div>
     )
 }
