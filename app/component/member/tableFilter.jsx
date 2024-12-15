@@ -70,18 +70,22 @@ export default function TableFilter({ onFilter, handleFilter, sizeDevice, setFil
                 <h4>Filter by code</h4>
                 <div className="code-filter">
                     {filterValue.code.map((item, index) => (
-                        <span key={index}>
+                        <span key={index} className="value">
                             {item}
-                            <IoIosClose onClick={() => setFilterValue({ ...filterValue, code: filterValue.code.filter((item, i) => i !== index) })} />
+                            <span onClick={() => setFilterValue({ ...filterValue, code: filterValue.code.filter((item, i) => i !== index) })} >
+                                <IoIosClose />
+                            </span>
                         </span>
                     ))}
                 </div>
                 <h4>Filter by name</h4>
                 <div className="name-filter">
                     {filterValue.name.map((item, index) => (
-                        <span key={index}>
+                        <span key={index} className="value">
                             {item}
-                            <IoIosClose onClick={() => setFilterValue({ ...filterValue, name: filterValue.name.filter((item, i) => i !== index) })} />
+                            <span onClick={() => setFilterValue({ ...filterValue, name: filterValue.name.filter((item, i) => i !== index) })} >
+                                <IoIosClose />
+                            </span>
                         </span>
                     ))}
                 </div>
