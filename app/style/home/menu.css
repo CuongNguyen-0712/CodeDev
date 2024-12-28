@@ -26,35 +26,31 @@
 .header-menu .account-btn{
   display: flex;
   height: max-content;
-  width: 80%;
-  flex-direction: column;
+  width: 100%;
+  flex-direction: row;
+  flex-wrap: wrap;
+  padding: 0 10px;
   gap: 10px;
 }
 
 .account-btn button{
   display: flex;
-  align-items: center;
   justify-content: center;
   height: max-content;
-  width: 100%;
-  background: #fff;
   padding: 10px 0;
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
-  outline: 1px solid #ccc;
   border-radius: 5px;
-  color: var(--color_black);
+  color: var(--color_white);
+  flex-grow: 1;
+  flex-basis: 100px;
   gap: 10px;
   cursor: pointer;
 }
 
 .header-menu button > svg{
   font-size: 15px;
-}
-
-.header-menu button:hover{
-  background: var(--color_gray);
 }
 
 .header-menu .heading{
@@ -99,6 +95,19 @@
 
 .heading svg{
   font-size: 35px;
+}
+
+.heading > button{
+  display: flex;
+  height: max-content;
+  width: max-content;
+  padding: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  border-radius: 5px;
+  color: var(--color_white);
+  cursor: pointer;
 }
 
 .menu-site .main-menu{
@@ -252,13 +261,28 @@
   padding: 10px 0;
   text-transform: uppercase;
   font-size: 13px;
+  text-align: center;
+}
+
+.other-section > button{
+  display: flex;
+  justify-content: center;
+  height: max-content;
+  width: 100%;
+  padding: 10px 0;
+  text-transform: uppercase;
+  background: var(--color_blue);
+  color: var(--color_white);
+  font-weight: 500;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  cursor: pointer;
 }
 
 .other-section .other-frame{
   display: flex;
   height: max-content;
   width: 100%;
-  flex-direction: column;
   padding-bottom: 10px;
   gap: 10px;
 }
@@ -268,22 +292,13 @@
   align-items: center;
   justify-content: flex-start;
   height: max-content;
-  width: 100%;
+  flex-grow: 1;
   padding: 10px 0;
   border-radius: 5px;
-  outline: 1px solid #ccc;
-  background: transparent;
   font-weight: 500;
   font-size: 14px;
-  color: var(--color_black);
   padding-left: 10px;
-  gap: 20px;
-  transition: 0.2s all ease;
-}
-
-.other-frame button:hover{
-  background: var(--color_gray);
-  transition: 0.2s all ease;
+  gap: 10px;
 }
 
 .footer-menu .mode-frame{

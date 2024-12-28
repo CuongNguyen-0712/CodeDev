@@ -7,7 +7,7 @@ import axios from "axios";
 import { FaListUl } from "react-icons/fa";
 import { IoSearch } from "react-icons/io5";
 import { IoMdNotifications, IoIosSend, IoMdReturnLeft } from "react-icons/io";
-import { MdEmail, MdWindow, MdAddCircle } from "react-icons/md";
+import { MdEmail, MdWindow, MdAddCircle, MdOutlineSync } from "react-icons/md";
 import { RiEmotionHappyLine, RiEmotionNormalLine, RiEmotionSadLine, RiEmotionUnhappyLine } from "react-icons/ri";
 
 export default function Navbar({ onIpad, onMobile, handleOverlay, sizeDevice, onReturn }) {
@@ -75,7 +75,7 @@ export default function Navbar({ onIpad, onMobile, handleOverlay, sizeDevice, on
         setOnGroup(false)
     }
 
-    
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setStatus(true)
@@ -89,7 +89,7 @@ export default function Navbar({ onIpad, onMobile, handleOverlay, sizeDevice, on
             return;
         }
 
-        if(!emotion) {
+        if (!emotion) {
             setMessage("Your emotion is invalid");
             setTimeout(() => {
                 setStatus(false);
@@ -100,10 +100,10 @@ export default function Navbar({ onIpad, onMobile, handleOverlay, sizeDevice, on
         setMessage("Waiting... Your feedback is being sent");
 
         try {
-        const req = await axios.post("/actions/postFeedback", { title, feedback, emotion});
+            const req = await axios.post("/actions/postFeedback", { title, feedback, emotion });
 
             if (req.status === 200) {
-                setDataForm({ title: "", feedback: "", emotion: ''});
+                setDataForm({ title: "", feedback: "", emotion: '' });
                 setMessage("Feedback sent successfully!");
             } else if (req.status === 500) {
                 setMessage("Failed to send feedback, please try again!");
@@ -180,11 +180,38 @@ export default function Navbar({ onIpad, onMobile, handleOverlay, sizeDevice, on
                         <div className="footer-feedback">
                             <ul className="react-rate">
                                 {react_rate.map((item, index) => (
-                                    <li key = {index} style = {{color: (item.name === dataForm.emotion) && item.color}} onClick= {() => setDataForm({...dataForm, emotion: item.name})}>
+                                    <li
+                                        key={index}
+                                        style={{
+                                            color: item.name === dataForm.emotion ? item.color : undefined,
+                                            display:
+                                                item.name !== dataForm.emotion && dataForm.emotion !== '' ? 'none' : undefined,
+                                        }}
+                                        onClick={() =>
+                                            setDataForm({ ...dataForm, emotion: item.name })
+                                        }
+                                    >
                                         {item.icon}
+                                        {dataForm.emotion === item.name && (
+                                            <>
+                                                <span style={{ color: item.color }}>
+                                                    {dataForm.emotion}
+                                                </span>
+                                                <button
+                                                    id="change-emotion"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setDataForm({ ...dataForm, emotion: '' });
+                                                    }}
+                                                >
+                                                    <MdOutlineSync />
+                                                </button>
+                                            </>
+                                        )}
                                     </li>
                                 ))}
                             </ul>
+
                             <button type="submit" disabled={status}>
                                 Send
                                 <IoIosSend />

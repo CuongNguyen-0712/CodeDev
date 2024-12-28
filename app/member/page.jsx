@@ -2,11 +2,11 @@
 import { useState } from "react";
 
 import RouterPush from "../router/router";
-import Layout from "../component/feature/layout";
+import Layout from "../component/lib/layout";
 import Member from "../component/member/member";
 
 export default function Page() {
-    const { navigateToCurrent } = RouterPush();
+    const { navigateToHome } = RouterPush();
 
     const [sizeDevice, setSizeDevice] = useState({
         width: 0,
@@ -16,8 +16,8 @@ export default function Page() {
     return (
         <Layout
             children={<Member size={sizeDevice} />}
-            onReturn={() => navigateToCurrent()}
-            size={({ width, height }) => setSizeDevice({width: width, height: height})}
+            onReturn={navigateToHome}
+            size={({ width, height }) => setSizeDevice({ width: width, height: height })}
         />
     )
 }

@@ -1,13 +1,13 @@
 import { useState, useLayoutEffect } from 'react';
 
-import Navbar from './navbar';
+import Navbar from '../home/navbar';
 import MenuSite from './menuSite';
-import Content from './content';
+import Content from '../home/content';
 import LoadingWait from '../lib/loadingWait';
 
 import { useAuth } from '../auth/handleAuth/authContext';
 
-export default function Home() {
+export default function HomePage() {
 
     const [device, onDevice] = useState({
         onMobile: false,
@@ -45,7 +45,6 @@ export default function Home() {
     }, []);
 
     const [home, setHome] = useState({
-        targetContentItem: 0,
         overlay: false,
         switchMode: true,
         setLogout: false,
@@ -60,7 +59,6 @@ export default function Home() {
                     <div className={`aside ${(sizeDevice.width <= 768 && home.overlay) ? 'active' : ''}`}>
                         <MenuSite
                             sizeDevice={sizeDevice}
-                            handleSetContent={(index) => setHome({ ...home, targetContentItem: index })}
                             handleRedirect={() => setRedirect(true)}
                         />
                     </div>
@@ -74,9 +72,7 @@ export default function Home() {
                             />
                         </div>
                         <div id='container'>
-                            <Content
-                                target={home.targetContentItem}
-                            />
+                            <Content />
                         </div>
                     </div>
                 </>

@@ -6,7 +6,7 @@ const components = {
     2: dynamic(() => import('../content/roadmap/roadmap'), { ssr: true }),
 };
 
-const DefaultComponent = components[1]; 
+const DefaultComponent = components[2]; 
 export default function Content({ target }) {
     const SelectedComponent = components[target] || DefaultComponent;
     

@@ -1,0 +1,506 @@
+.auth-form{
+    display: flex;
+    position: relative;
+    align-items: center;
+    height: 100%;    
+    width: max-content;
+}
+
+.auth-form .form{
+    display: flex;
+    height: 90%;
+    max-height: 600px;
+    width: 450px;
+    border-radius: 20px;
+    background: var(--color_white);
+    flex-direction: column;
+    overflow: hidden;
+}   
+
+.form .heading-form{
+    display: flex;
+    height: max-content;
+    width: 100%;
+    gap: 10px;
+}
+
+.heading-form button{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 50px;
+    width: 50%;
+    background: transparent;
+    text-transform: uppercase;
+    font-weight: 500;
+    font-size: 14px;
+    color: var(--color_black);
+    border-radius: 10px 10px 0 0;
+    outline: none;
+    transition: 0.2s all ease;  
+}
+
+.heading-form button.active{
+    color: var(--color_blue);
+    transition: 0.2s all ease;
+}
+
+
+.auth-form .focus{
+    display: flex;
+    position: absolute;
+    height: 2px;
+    width: calc(50% - 20px);
+    bottom: 0;
+    background: var(--color_blue);
+    transform: translateX(10px);
+    transition: 0.2s all ease;
+}
+
+.form .main-form{
+    display: flex;
+    flex-grow: 1;
+    width: 100%;
+    flex-direction: column; 
+    overflow: hidden;
+}
+
+.aside-form{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 90%;
+    width: 400px;
+    flex-direction: column;
+}
+
+/* Login */
+#login{
+    display: flex;
+    position: absolute;
+    height: 100%;
+    width: 100%;
+    flex-direction: column;
+}
+
+#login .heading-login{
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: 100%;
+    padding: 10px 0;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.heading-login h2{
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: max-content;
+    gap: 10px;
+}
+
+.heading-login span{
+    display: flex;
+    height: max-content;
+    width: 80%;
+    text-align: center;
+    font-size: 15px;
+}
+
+#login .main-login{
+    display: flex;
+    align-items: center;
+    justify-content: space-evenly;
+    width: 100%;
+    flex-grow: 1;
+    flex-direction: column;
+}
+
+.main-login > input{
+    display: flex;  
+    height: 40px;
+    width: 60%;
+    outline: none;
+    padding: 0 10px;
+    outline: 1px solid var(--color_gray);
+    border-radius: 10px;
+    font-size: 16px;
+}
+
+.main-login > input:focus{
+    outline-color: var(--color_blue);
+    filter: drop-shadow(0 0 2px var(--color_blue));
+}
+
+.main-login .login-help{
+    display: flex;
+    justify-content: space-between;
+    height: max-content;
+    width: 100%;
+    padding: 0 30px;
+    font-size: 12px;
+    gap: 10px;
+    flex-wrap: wrap-reverse;
+}
+
+.login-help span{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: max-content;
+    width: max-content;
+    gap: 5px;
+}
+
+.login-help span:nth-child(2){
+    font-weight: 500;
+    flex-wrap: nowrap;
+}
+
+.main-login .btn-login{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    width: 60%;
+    border-radius: 10px;
+    background: var(--color_blue);
+    color: var(--color_white);
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+#login .footer-login{
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: 100%;
+    padding: 25px 0 20px 0;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.footer-login::before{
+    content: "Or sign in with";
+    display: flex;
+    position: absolute;
+    width: max-content;
+    height: max-content;
+    padding: 0 20px;
+    top: -5px;
+    font-size: 13px;
+    font-weight: 500;
+    background: var(--color_white);
+}
+
+.footer-login::after{
+    content: "";
+    display: flex;
+    position: absolute;
+    height: 2px;
+    width: 80%;
+    background: var(--color_black);
+    top: 0;
+    z-index: -1;
+}
+
+.footer-login .social-login{
+    display: flex;
+    justify-content: space-evenly;
+    height: max-content;
+    width: 100%;
+}
+
+.social-login button{
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: max-content;
+    padding: 10px;
+    gap: 10px;
+    border-radius: 5px;
+    color: var(--color_black);
+    outline: 2px solid var(--color_gray);
+    background: var(--color_white);
+    cursor: pointer;
+    transition: 0.2s all ease;
+}
+
+.social-login button:hover{
+    outline-color: var(--color_black);
+    transition: 0.2s all ease;
+}
+
+.register-auth {
+    display: flex;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    font-size: 12px;
+    gap: 10px;
+}
+
+a{
+    color: var(--color_blue);
+}
+
+/* Logup */
+#logup{
+    display: flex;
+    position: absolute;
+    height: 100%;
+    width: 100%;
+    flex-direction: column;
+}
+
+#logup input:focus{
+    outline-color: var(--color_blue);
+    filter: drop-shadow(0 0 2px var(--color_blue));
+}
+
+.heading-logup{
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: 100%;
+    padding: 10px 0;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.heading-logup h2{
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: max-content;
+    gap: 10px;
+}
+
+.heading-logup span{
+    display: flex;
+    height: max-content;
+    width: 80%;
+    text-align: center;
+    font-size: 15px;
+}
+
+.logup-page{
+    display: flex;
+    flex-grow: 1;
+    width: 200%;
+    flex-direction: row;
+    transition: 0.2s all ease;
+}
+
+#logup-page-1{
+    display: flex;  
+    justify-content: space-evenly;
+    height: 100%;
+    width: 100%;
+    padding: 0 20px;
+    flex-direction: column;
+}
+
+#logup-page-1 .logup-input{
+    display: flex;
+    height: max-content;
+    width: 100%;
+    gap: 20px;
+} 
+
+.logup-input input{
+    display: flex;
+    flex-grow: 1;
+    outline: none;
+    border-radius: 10px;
+}
+
+#logup-page-1 input{
+    display: flex;
+    height: 40px;
+    width: 100%;
+    outline: none;
+    border-radius: 10px;
+    font-size: 16px;
+    outline: 1px solid var(--color_gray);
+    padding-left: 10px;
+}
+
+#logup-page-2 {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    height: 100%;
+    width: 100%;
+    padding: 0 20px;
+    flex-direction: column;
+}
+
+#logup-page-2 > input{
+    display: flex;
+    height: 40px;
+    width: 100%;
+    outline: none;
+    border-radius: 10px;
+    font-size: 16px;
+    outline: 1px solid var(--color_gray);
+    padding-left: 10px;
+}
+
+#logup-page-2 .auth-password{
+    display: flex;
+    height: max-content;
+    width: 100%;
+    gap: 20px;
+}
+
+.auth-password > input{
+    display: flex;
+    height: 40px;
+    width: 100%;
+    outline: none;
+    border-radius: 10px;
+    font-size: 16px;
+    outline: 1px solid var(--color_gray);
+    padding-left: 10px;
+}
+
+#logup-page-2 .auth-terms{
+    display: flex;
+    height: max-content;
+    width: 100%;
+    font-size: 12px;
+    font-weight: 500;
+    gap: 10px;
+}
+
+.btn-logup{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 40px;
+    width: 80%;
+    border-radius: 10px;
+    text-transform: uppercase;
+    background: var(--color_blue);
+    font-weight: 500;
+    color: var(--color_white);
+    cursor: pointer;
+}
+
+.footer-logup{
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: 100%;
+    padding-bottom: 20px;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.footer-logup::before{
+    content: "Or sign up with";
+    display: flex;
+    position: absolute;
+    width: max-content;
+    height: max-content;
+    padding: 0 20px;
+    bottom: 110px;
+    font-size: 13px;
+    font-weight: 500;
+    background: var(--color_white);
+}
+
+.footer-logup::after{
+    content: "";
+    display: flex;
+    position: absolute;
+    height: 2px;
+    width: 80%;
+    background: var(--color_black);
+    bottom: 115px;
+    z-index: -1;
+}
+
+.footer-logup .navigate-logup{
+    display: flex;
+    justify-content: space-evenly;
+    height: max-content;
+    width: 100%;
+    padding-bottom: 40px; 
+    gap: 20px;
+}
+
+.navigate-logup button{
+    display: flex;
+    justify-content: center;
+    height: max-content;
+    width: 30%;
+    padding: 10px;
+    text-transform: uppercase;
+    font-weight: 600;
+    font-size: 12px;
+    border-bottom: 3px solid var(--color_black);
+    background: transparent;
+    cursor: pointer;
+}
+
+.footer-logup .social-logup{
+    display: flex;
+    justify-content: space-evenly;
+    height: max-content;
+    width: 100%;
+}
+
+.social-logup button{
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: max-content;
+    padding: 10px;
+    gap: 10px;
+    border-radius: 5px;
+    outline: 2px solid var(--color_gray);
+    background: var(--color_white);
+    cursor: pointer;
+    color: var(--color_black);
+    transition: 0.2s all ease;
+}
+
+.social-logup button:hover{
+    outline-color: var(--color_black);
+    transition: 0.2s all ease;
+}
+
+.login-auth {
+    display: flex;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    font-size: 12px;
+    gap: 10px;
+}
+
+input::placeholder, textarea::placeholder{
+    font-size: 14px;
+}
+
+@media screen and (max-width: 500px){
+    .auth-form{
+        width: 100%;
+    }
+    .auth-form .form{
+        height: 100%;
+        width: 100%;
+        border-radius: 0px;
+    }
+}
+
+@media screen and (max-width: 375px){
+    .social-login button h4, 
+    .social-logup button h4{
+        display: none;   
+    }
+}

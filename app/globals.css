@@ -9,8 +9,8 @@
 
 @import "./style/member.css";
 @import "./style/course.css";
-
-@import "./style/loading.css";
+@import "./style/event.css";
+@import "./style/auth.css";
 
 *{
     margin: 0;
@@ -23,6 +23,7 @@
 }
 
 :root{
+    --color_white: #fff;
     --color_black: #232323;
     --color_gray: rgb(245,245,245);
     --color_green : #4CAF50;
@@ -31,43 +32,77 @@
     --color_blue: #1E90FF;
 }
 
-#loadingWait{
+#load{
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 100%;
-    width: 100%;
+    height: max-content;
+    width: max-content;
     background: transparent;
+    flex-direction: column;
+    gap: 30px;
 }
 
-#loadingWait span{
+.shape{
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 10px;
-    width: 100px;
-    background: #fff;
-    border-radius: 5px;
-    overflow: hidden;
+    height: max-content;
+    width: max-content;
 }
 
-#loadingWait span::before{
-    content: "";
+.shape .square{
+    display: flex;
+    height: 40px;
+    width: 40px;
+    background: var(--color_black); 
+    transform: rotate(45deg);
+    animation: transformSquare 7s infinite cubic-bezier(0.075, 0.82, 0.165, 1);
+}
+
+.shape .circle{
     display: flex;
     position: absolute;
-    height: 100%;
-    width: 50px;
-    left: 0;
-    border-radius: 4px;
-    background: var(--color_black);
-    animation: loading 1s linear infinite;
+    height: 40px;
+    width: 40px;
+    background: #fff;
+    scale: 0.5;
+    border-radius: 50%;
 }
 
-@keyframes loading {
+@keyframes transformSquare{
     0%{
-        transform: translateX(-100%);
+        transform: rotate(45deg) scale(1.2);    
+    }
+    12.5%{
+        transform: rotate(45deg) scale(1);
+    }
+    25%{
+        transform: rotate(135deg) scale(1.2);
+    }
+    37.5%{
+        transform: rotate(135deg) scale(1);
+    }
+    50%{
+        transform: rotate(225deg) scale(1.2);
+    }
+    62.5%{
+        transform: rotate(225deg) scale(1);
+    }
+    75%{
+        transform: rotate(315deg) scale(1.2);
+    }
+    87.5%{
+        transform: rotate(315deg) scale(1);
     }
     100%{
-        transform: translateX(200%);
+        transform: rotate(45deg) scale(1.2);
     }
 }
+
+#load span{
+    font-weight: 700;
+}
+
+
+

@@ -149,17 +149,19 @@
 }
 
 .table-filter{
-  display: none;
+  display: flex;
   position: absolute;
   align-items: center;
   justify-content: flex-start;
   height: 100%;
   width: 350px;
+  right: -350px;
   background: #fff;
   flex-direction: column;
   z-index: 1;
   transition: 0.2s all ease;
 }
+
 .table-filter .form-search{
   display: flex;
   align-items: center;
@@ -284,4 +286,15 @@
   padding: 10px;
   border-radius: 5px;
   background: var(--color_black);
+}
+
+.result-none{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: max-content;
+  width: 100%;
+  flex-direction: row;
+  font-weight: 500;
+  gap: 10px;
 }

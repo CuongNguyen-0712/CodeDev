@@ -5,22 +5,26 @@ import axios from "axios";
 export default function Roadmap() {
     const [data, setData] = useState([]);
 
-    useEffect(() => {
-        const fetchData = async () => {
+    const fetchData = async () => {
+        try {
             const res = await axios.get("/api/roadmap")
-            if(res.status !== 200){
-                throw new Error("Failed to fetch data");
-            } 
-            const data = res.data;
-            setData(data);
+            if(res.status === 200){
+                const data = res.data;
+                setData(data)
+            }
+            else if(res.status === 500){
+                setData([{heading: "Something is wrong", content: "Failed to load content"}]);
+                throw new Error("Failed to load content")
+            }
         }
+        catch(error){
+            setData([{heading: "Something is wrong", content: "Failed to load content"}]);
+            console.log(error);
+        }
+    }
 
-        try{
-            fetchData();
-        }
-        catch{
-            throw new Error("Failed to fetch data");
-        }
+    useEffect(() => {
+        fetchData();
     }, [])
 
     return (

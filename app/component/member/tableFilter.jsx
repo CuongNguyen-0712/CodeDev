@@ -56,7 +56,7 @@ export default function TableFilter({ onFilter, handleFilter, sizeDevice, setFil
     }, [filterValue])
 
     return (
-        <div className="table-filter" style={width >= 768 ? { display: 'flex', right: onFilter ? '0px' : '-350px', top: '0' } : { display: 'flex', bottom: onFilter ? '0px' : '-50%', height: '50%', width: '100%' }}>
+        <div className="table-filter" style={width >= 768 ? { right: onFilter ? '0px' : '-350px', bottom: '0' } : { bottom: onFilter ? '0px' : '-50%', right: '0', height: '50%', width: '100%', borderTop: '1px solid #ccc' }}>
             <form onSubmit={handleSearchValue} className="form-search">
                 <input type="text" value={value} placeholder="Search value..." onChange={(e) => setValue(e.target.value)} ref={refInput} />
                 <button type="submit">Add</button>

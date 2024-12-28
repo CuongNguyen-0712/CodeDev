@@ -1,10 +1,22 @@
-.course-container{
-    display: flex;
-    position: relative;
-    height: calc(100% - 60px);
-    width: 100%;
-    background: #fff;
-    gap: 20px;
-    padding: 10px;
-    overflow: hidden;
-  }
+.course-container {
+  display: flex;
+  position: relative;
+  align-items: flex-start;
+  justify-content: flex-start;
+  height: calc(100% - 60px);
+  width: 100%;
+  background: #fff;
+  gap: 20px;
+  padding: 10px;
+  flex-direction: column;
+  overflow: scroll;
+  overflow-x: hidden;
+}
+
+.course-container::-webkit-scrollbar {
+  width: 10px;
+}
+
+.course-container::-webkit-scrollbar-thumb {
+  background: var(--color_black);
+}

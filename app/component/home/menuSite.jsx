@@ -5,16 +5,16 @@ import Image from "next/image";
 import RouterPush from "@/app/router/router";
 
 import { FiMoon, FiSun } from "react-icons/fi";
-import { FaUsers, FaLaptopCode, FaSignOutAlt, FaAngleLeft } from "react-icons/fa";
+import { FaUsers, FaLaptopCode, FaSignOutAlt, FaAngleLeft, FaSyncAlt } from "react-icons/fa";
 import { GoProjectRoadmap } from "react-icons/go";
 import { FaCode } from 'react-icons/fa6';
 import { IoSettingsSharp } from "react-icons/io5";
 import { MdHelpCenter, MdUnfoldMore, MdSpaceDashboard, MdManageAccounts, MdEmojiEvents } from "react-icons/md";
 import { AiFillProject } from "react-icons/ai";
 
-export default function MenuSite({ handleSetContent, sizeDevice }) {
+export default function MenuSite({ handleSetContent, sizeDevice, handleRedirect }) {
 
-    const { navigateToMember, navigateToCourse, navigateToEvent } = RouterPush();
+    const { navigateToCourse, navigateToEvent, navigateToMember, navigateToAuth } = RouterPush();
     const refNavigation = useRef(null);
 
     const [layoutHeight, setLayoutHeight] = useState(false);
@@ -24,11 +24,15 @@ export default function MenuSite({ handleSetContent, sizeDevice }) {
     const [showMore, setShowMore] = useState(false);
     const [showOther, setShowOther] = useState(false);
 
-    const handleNavigation = (index, handle) => {
+    const handleNavigation = (index, handle, navigate) => {
         refNavigation.current.style.top = `${index * 49}px`;
         setTargetItem(index);
-        if (typeof handle === 'function') {
-            handle();
+        if (typeof handle === 'function' && typeof navigate === 'undefined') {
+            handle(index);
+        }
+        else if (typeof navigate === 'function' && typeof handle === 'undefined') {
+            navigate();
+            handleRedirect();
         }
     }
 
@@ -61,7 +65,7 @@ export default function MenuSite({ handleSetContent, sizeDevice }) {
                 },
                 {
                     name: "All course",
-                    handle: navigateToCourse
+                    navigate: navigateToCourse
                 }
             ]
         },
@@ -106,7 +110,7 @@ export default function MenuSite({ handleSetContent, sizeDevice }) {
                 },
                 {
                     name: "Social",
-                    handle: navigateToMember
+                    navigate: navigateToMember
                 }
             ]
         },
@@ -114,7 +118,7 @@ export default function MenuSite({ handleSetContent, sizeDevice }) {
             tagClass: "event-frame",
             name: "Event",
             icon: <MdEmojiEvents />,
-            handle: navigateToEvent
+            navigate: navigateToEvent
         }
     ]
 
@@ -132,7 +136,7 @@ export default function MenuSite({ handleSetContent, sizeDevice }) {
 
     return (
         <div className='menu-site'>
-            <header className='header-menu' style={{ flexDirection: layoutHeight && "row" }}>
+            <header className='header-menu'>
                 <div className="heading" onClick={() => { !layoutHeight && setShowMore(!showMore) }}>
                     {!layoutHeight &&
                         <Image src={"/"} width={60} height={60} alt="avatar" />
@@ -153,21 +157,50 @@ export default function MenuSite({ handleSetContent, sizeDevice }) {
                             }
                         </div>
                     </div>
+                    {
+                        layoutHeight &&
+                        <>
+                            <button style={{ background: 'var(--color_black)' }}>
+                                <MdManageAccounts />
+                            </button>
+                            <button
+                                style={{ background: 'var(--color_red)' }}
+                                onClick={() => {
+                                    navigateToAuth();
+                                    handleRedirect();
+                                }}
+                            >
+                                <FaSignOutAlt />
+                            </button>
+                        </>
+                    }
                     {!layoutHeight && <MdUnfoldMore />}
                 </div>
                 {(showMore || layoutHeight) &&
                     <div className="account-btn" style={{ flexGrow: layoutHeight && "1", flexDirection: layoutHeight && 'row' }}>
-                        <button style={{ width: layoutHeight && "max-content", padding: layoutHeight && "10px", height: '100%' }}>
-                            <MdManageAccounts />
-                            {!layoutHeight &&
-                                <span>Manage account</span>
-                            }
-                        </button>
-                        <button style={{ width: layoutHeight && "max-content", padding: layoutHeight && "10px", height: '100%' }}>
-                            <FaSignOutAlt />
-                            {!layoutHeight &&
-                                <span>Sign out</span>
-                            }
+                        {
+                            !layoutHeight &&
+                            <>
+                                <button style={{ background: 'var(--color_black)' }}>
+                                    <MdManageAccounts />
+                                    Manage
+                                </button>
+                                <button
+                                    style={{ background: 'var(--color_red)' }}
+                                    onClick={() => {
+                                        navigateToAuth();
+                                        handleRedirect();
+                                    }}
+                                >
+                                    <FaSignOutAlt />
+                                    Sign out
+                                </button>
+
+                            </>
+                        }
+                        <button style={{ background: 'var(--color_blue)' }}>
+                            <FaSyncAlt />
+                            Switch account
                         </button>
                     </div>
                 }
@@ -178,14 +211,21 @@ export default function MenuSite({ handleSetContent, sizeDevice }) {
                     <div className="menu">
                         {menuList.map((item, index) => (
                             <div className={item.tagClass} key={index}>
-                                <button className={`${targetItem === index ? 'active' : ''}`} onClick={() => handleNavigation(index, item.handle?.bind(null, item.index))}>
+                                <button
+                                    className={`${targetItem === index ? 'active' : ''}`}
+                                    onClick={() => handleNavigation(index, item.handle, item.navigate)}
+                                >
                                     {item.icon}
                                     <span>{item.name}</span>
                                 </button>
                                 {(item.links && index === targetItem) &&
                                     <ul className="list">
                                         {item.links.map((link, index) => (
-                                            <li key={index} onClick={() => link.handle?.bind(null, link.index)()}>{link.name}</li>
+                                            <li key={index}
+                                                onClick={() => handleNavigation(link.index, link.handle, link.navigate)}
+                                            >
+                                                {link.name}
+                                            </li>
                                         ))}
                                     </ul>
                                 }
@@ -203,17 +243,13 @@ export default function MenuSite({ handleSetContent, sizeDevice }) {
                     </h3>
                     {showOther &&
                         <div className="other-frame">
-                            <button className="other-feature">
+                            <button style={{ color: 'var(--color_white)', background: 'var(--color_black)' }}>
                                 <IoSettingsSharp />
-                                <span>
-                                    Settings
-                                </span>
+                                Settings
                             </button>
-                            <button className="other-feature">
+                            <button style={{ background: 'var(--color_gray)', color: 'var(--color_black)' }}>
                                 <MdHelpCenter />
-                                <span>
-                                    Help Center
-                                </span>
+                                Help Center
                             </button>
                         </div>
                     }

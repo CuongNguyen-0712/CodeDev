@@ -3,15 +3,18 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 
 import { IoFilter } from "react-icons/io5";
+import { LuSearchX } from "react-icons/lu";
 
 import axios from "axios";
-export default function CreateMember({ onFilter, setFilter, filterValue, sizeDevice }) {
+export default function CreateMember({ onFilter, setFilter, filterValue, sizeDevice}) {
     const { code, name } = filterValue
     const { width } = sizeDevice
 
+    const [resultNone, onResultNone] = useState(false);
+
     const [member, setMember] = useState({
         defaultMember: [],
-        filterMember: [],
+        currentMember: [],
     })
 
     const formatString = (str) => {
@@ -28,20 +31,26 @@ export default function CreateMember({ onFilter, setFilter, filterValue, sizeDev
     }
 
     useEffect(() => {
-        const filterCode = member.defaultMember.filter((mem) => {
-            return code.some((item) => mem.code.includes(item));
-        })
-
-        const filterName = member.defaultMember.filter((mem) => {
-            return name.some((item) => formatString(mem.name).includes(formatString(item)));
-        })
-
-        const newFilterMember = [...new Set([...filterCode, ...filterName])];
-        if (newFilterMember.length > 0) {
-            setMember({ ...member, filterMember: newFilterMember });
+        if (code.length === 0 && name.length === 0) {
+            setMember({ ...member, currentMember: member.defaultMember });
         }
         else {
-            setMember({ ...member, filterMember: member.defaultMember });
+            const filterCode = member.defaultMember.filter((mem) => {
+                return code.some((item) => mem.code.includes(item));
+            })
+
+            const filterName = member.defaultMember.filter((mem) => {
+                return name.some((item) => formatString(mem.name).includes(formatString(item)));
+            })
+
+            const newFilterMember = [...new Set([...filterCode, ...filterName])];
+            if (newFilterMember.length === 0) {
+                onResultNone(true)
+            }
+            else {
+                onResultNone(false);
+            }
+            setMember({ ...member, currentMember: newFilterMember });
         }
     }, [code, name])
 
@@ -51,7 +60,7 @@ export default function CreateMember({ onFilter, setFilter, filterValue, sizeDev
             const data = res.data;
             setMember({
                 defaultMember: data,
-                filterMember: data
+                currentMember: data
             })
         } catch (error) {
             console.log(error)
@@ -76,7 +85,7 @@ export default function CreateMember({ onFilter, setFilter, filterValue, sizeDev
             </div>
             <div className="members">
                 <div className="container">
-                    {member.filterMember.map((mem, index) => (
+                    {member.currentMember.map((mem, index) => (
                         <ul key={index} className="member">
                             <div className="base-info">
                                 <Image src={`/public/`} alt='avatar' width={80} height={80} />
@@ -95,6 +104,15 @@ export default function CreateMember({ onFilter, setFilter, filterValue, sizeDev
                             </div>
                         </ul>
                     ))}
+                    {
+                        resultNone &&
+                        <div className="result-none">
+                            <LuSearchX />
+                            <p>
+                                Opps, no result can be search...
+                            </p>
+                        </div>
+                    }
                 </div>
             </div>
         </div>
