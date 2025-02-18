@@ -56,7 +56,7 @@ export default function TableFilter({ onFilter, handleFilter, sizeDevice, setFil
     }, [filterValue])
 
     return (
-        <div className="table-filter" style={width >= 768 ? { right: onFilter ? '0px' : '-350px', bottom: '0' } : { bottom: onFilter ? '0px' : '-50%', right: '0', height: '50%', width: '100%', borderTop: '1px solid #ccc' }}>
+        <div className="table-filter" style={width >= 768 ? { right: onFilter ? '0px' : '-350px', bottom: '0', visibility: onFilter ? 'visible' : 'hidden' } : { bottom: onFilter ? '0px' : '-100%', right: '0', height: '100%', width: '100%', borderTop: '1px solid #ccc' }}>
             <form onSubmit={handleSearchValue} className="form-search">
                 <input type="text" value={value} placeholder="Search value..." onChange={(e) => setValue(e.target.value)} ref={refInput} />
                 <button type="submit">Add</button>
@@ -67,27 +67,41 @@ export default function TableFilter({ onFilter, handleFilter, sizeDevice, setFil
                 </div>
             }
             <div className="value-search">
-                <h4>Filter by code</h4>
                 <div className="code-filter">
-                    {filterValue.code.map((item, index) => (
-                        <span key={index} className="value">
-                            {item}
-                            <span onClick={() => setFilterValue({ ...filterValue, code: filterValue.code.filter((item, i) => i !== index) })} >
-                                <IoIosClose />
-                            </span>
+                    <div className="heading-filter">
+                        <h4>Code</h4>
+                        <span className="clear" onClick={() => setFilterValue({...filterValue, code: []})}>
+                            <IoIosClose />
                         </span>
-                    ))}
+                    </div>
+                    <div className="filter-value">
+                        {filterValue.code.map((item, index) => (
+                            <span key={index} className="value">
+                                {item}
+                                <span onClick={() => setFilterValue({ ...filterValue, code: filterValue.code.filter((item, i) => i !== index) })} >
+                                    <IoIosClose />
+                                </span>
+                            </span>
+                        ))}
+                    </div>
                 </div>
-                <h4>Filter by name</h4>
                 <div className="name-filter">
-                    {filterValue.name.map((item, index) => (
-                        <span key={index} className="value">
-                            {item}
-                            <span onClick={() => setFilterValue({ ...filterValue, name: filterValue.name.filter((item, i) => i !== index) })} >
-                                <IoIosClose />
-                            </span>
+                    <div className="heading-filter">
+                        <h4>Name</h4>
+                        <span className="clear" onClick={() => setFilterValue({...filterValue, name: []})}>
+                            <IoIosClose />
                         </span>
-                    ))}
+                    </div>
+                    <div className="filter-value">
+                        {filterValue.name.map((item, index) => (
+                            <span key={index} className="value">
+                                {item}
+                                <span onClick={() => setFilterValue({ ...filterValue, name: filterValue.name.filter((item, i) => i !== index) })} >
+                                    <IoIosClose />
+                                </span>
+                            </span>
+                        ))}
+                    </div>
                 </div>
             </div>
             <div className="footer-filter">

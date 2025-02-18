@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 
-import Layout from "../component/lib/layout"
-import RouterPush from "../router/router"
-import Course from "../component/content/course/course";
+import Layout from "../../lib/layout"
+import RouterPush from "../../lib/router"
+import Course from "../../component/content/course/course";
 
 export default function Page() {
     const { navigateToHome } = RouterPush();

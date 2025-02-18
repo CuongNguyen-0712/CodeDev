@@ -1,9 +1,9 @@
 'use client'
 import { useState } from "react";
 
-import RouterPush from "../router/router";
-import Layout from "../component/lib/layout";
-import Member from "../component/member/member";
+import Layout from "../../lib/layout"
+import RouterPush from "../../lib/router"
+import Event from "../../component/event/event"
 
 export default function Page() {
     const { navigateToHome } = RouterPush();
@@ -15,7 +15,7 @@ export default function Page() {
 
     return (
         <Layout
-            children={<Member size={sizeDevice} />}
+            children={<Event size={sizeDevice} />}
             onReturn={navigateToHome}
             size={({ width, height }) => setSizeDevice({ width: width, height: height })}
         />

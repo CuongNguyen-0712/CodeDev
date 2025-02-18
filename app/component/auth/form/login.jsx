@@ -4,9 +4,11 @@ import Image from "next/image"
 import Form from "next/form"
 import Link from "next/link"
 
-import RouterPush from "@/app/router/router"
+import RouterPush from "@/app/lib/router"
 
-export default function Login({ active, setForm }) {
+import { FaUser, FaLock } from "react-icons/fa6";
+
+export default function Login({ active, setForm, handleAuthLogin }) {
 
     const { navigateToHome } = RouterPush()
 
@@ -17,6 +19,7 @@ export default function Login({ active, setForm }) {
 
     const submitLogin = (e) => {
         e.preventDefault()
+        handleAuthLogin()
         navigateToHome()
     }
 
@@ -25,7 +28,7 @@ export default function Login({ active, setForm }) {
             <div className="heading-login">
                 <h2>
                     Login
-                    <Link href={'/'} style={{ display: 'flex', textDecoration: 'none', gap: '5px', alignItems: 'center' }}>
+                    <Link href={'/'} onClick={handleAuthLogin} style={{ display: 'flex', textDecoration: 'none', gap: '5px', alignItems: 'center' }}>
                         CodeDev
                         <Image src="/image/logo.svg" width={20} height={20} alt="logo" />
                     </Link>
@@ -35,8 +38,18 @@ export default function Login({ active, setForm }) {
                 </span>
             </div>
             <div className="main-login">
-                <input type="text" id="nameLogin" name="nameLogin" value={login.name} onChange={(e) => setLogin({ ...login, name: e.target.value })} placeholder="Username" />
-                <input type="password" id="passLogin" name="passLogin" value={login.pass} onChange={(e) => setLogin({ ...login, pass: e.target.value })} placeholder="Password" />
+                <div className="login-input">
+                    <div className={`field-input ${login.name ? 'has-content' : ''}`}>
+                        <input type="text" id="nameLogin" name="nameLogin" value={login.name} onChange={(e) => setLogin({ ...login, name: e.target.value })} autoComplete="off" />
+                        <label>Username</label>
+                        <FaUser className="icon" />
+                    </div>
+                    <div className={`field-input ${login.pass ? 'has-content' : ''}`}>
+                        <input type="password" id="passLogin" name="passLogin" value={login.pass} onChange={(e) => setLogin({ ...login, pass: e.target.value })} autoComplete="off" />
+                        <label>Password</label>
+                        <FaLock className='icon' />
+                    </div>
+                </div>
                 <div className="login-help">
                     <span>
                         Having trouble logging in?

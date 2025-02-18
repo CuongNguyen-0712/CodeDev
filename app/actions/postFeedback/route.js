@@ -1,13 +1,14 @@
 'use server'
+import { neon } from '@neondatabase/serverless';
 
-import { sql } from '@vercel/postgres'
-
+const sql = neon(`${process.env.DATABASE_URL}`);
 export async function POST(req) {
     try {
         const data = await req.json();
-        const { title, feedback, emotion } = data;
+        const sender = 'CuongNguyen'
+        const { title, feedback, email } = data;
 
-        await sql`INSERT INTO feedback (title, feedback, emotion) VALUES (${title}, ${feedback}, ${emotion})`;
+        await sql`INSERT INTO feedback (sender, title, feedback, email) VALUES (${sender} ,${title}, ${feedback}, ${email})`;
 
         return new Response(
             JSON.stringify({ message: "Feedback saved successfully" }),

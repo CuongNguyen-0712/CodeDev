@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 
 import Image from "next/image";
 
-import RouterPush from "@/app/router/router";
+import RouterPush from "@/app/lib/router";
 
 import { FiMoon, FiSun } from "react-icons/fi";
 import { FaLaptopCode } from "react-icons/fa";
@@ -10,9 +10,9 @@ import { GoProjectRoadmap } from "react-icons/go";
 import { FaCode } from 'react-icons/fa6';
 import { MdInfoOutline } from "react-icons/md";
 
-export default function MenuSite({ sizeDevice, handleRedirect }) {
+export default function Dashboard({ sizeDevice, handleRedirect }) {
 
-    const { navigateToCourse, navigateToAuth } = RouterPush();
+    const { navigateToAuth } = RouterPush();
 
     const refNavigation = useRef(null);
 
@@ -71,28 +71,11 @@ export default function MenuSite({ sizeDevice, handleRedirect }) {
 
     return (
         <div className='menu-site'>
-            <header className='header-menu' style={{ flexDirection: layoutHeight && "row" }}>
-                <div className="heading">
-                    {!layoutHeight &&
-                        <Image src={"/"} width={60} height={60} alt="unknown" />
-                    }
-                    <div className="account-info">
-                        <h3>Unknown</h3>
-                        <div className="info">
-                            <div className="role">
-                                <h4>Role</h4>
-                                <span>Unknown</span>
-                            </div>
-                            {
-                                !layoutHeight &&
-                                <div className="address">
-                                    <h4>Address</h4>
-                                    <span>Unknown</span>
-                                </div>
-                            }
-                        </div>
-                    </div>
-                </div>
+            <header className='header-menu'>
+                <h2 style={{ alignItems: 'center', justifyContent: 'center', display: 'flex', gap: '10px' }}>
+                    <Image src='/image/logo.svg' alt="logo" height={30} width={30} style={{ outline: 'none' }} />
+                    CodeDev
+                </h2>
             </header>
             <div className="main-menu">
                 <h3>Main menu</h3>

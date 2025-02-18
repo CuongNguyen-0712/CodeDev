@@ -1,105 +1,58 @@
-#main {
+#home{
   display: flex;
   position: relative;
+  align-items: center;
+  justify-content: flex-end;
   height: 100dvh;
   width: 100%;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  background: var(--color_gray);
-  gap: 20px;
-  overflow: hidden;
-  scroll-behavior: smooth;
-}
-
-.aside {
-  display: flex;
-  height: 100%;
-  width: 250px;
-  border-right: 1px solid #ccc;
-  transform: translateX(0px);
-  transition: 0.2s all ease;
-  z-index: 3;
-  overflow: hidden;
-}
-
-.frame {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  width: calc(100% - 250px);
   flex-direction: column;
-  flex-wrap: wrap;
-  transition: 0.2s all ease;
-  z-index: 2;
 }
 
 #header {
   display: flex;
-  align-items: center;
+  position: fixed;
   justify-content: center;
+  align-items: center;
   width: 100%;
   height: 60px;
+  top: 0;
+  left: 0;
+  background: var(--color_white);
   flex-direction: row;
-  z-index: 1;
+  z-index: 2;
+}
+
+.aside {
+  display: flex;
+  position: fixed;
+  height: 100%;
+  width: 250px;
+  left: 0;
+  border-right: 1px solid #ccc;
+  flex-shrink: 0;
+  will-change: transform;
+  transition: 0.2s all ease;
+  z-index: 3;
 }
 
 #container {
   display: flex;
   align-items: center;
   justify-content: flex-start;
+  height: 100%;
   width: 100%;
-  height: calc(100% - 60px);
-  border-top-left-radius: 10px;
-  border: 1px solid #ccc;
-  overflow: scroll;
-  overflow-x: hidden;
+  padding-top: 60px;
   flex-direction: column;
   background: #fff;
   z-index: 0;
 }
 
-#container::-webkit-scrollbar-thumb {
+body::-webkit-scrollbar-thumb {
   background: var(--color_black);
 }
 
-#container::-webkit-scrollbar {
+body::-webkit-scrollbar {
   width: 10px;
-}
-
-@media screen and (max-width: 768px) {
-  .aside {
-    position: absolute;
-    top: 0;
-    left: -250px;
-    border: 0;
-    transition: 0.2s all ease;
-  }
-
-  .aside.active {
-    left: 0;
-    transition: 0.2s all ease;
-  }
-
-  .frame {
-    width: 100%;
-  }
-
-  .frame.hide::before {
-    content: "";
-    position: absolute;
-    display: flex;
-    height: 100%;
-    width: 100%;
-    background: var(--color_gray);
-    opacity: 0.8;
-    z-index: 2;
-  }
-
-  #container {
-    border-radius: 0;
-  }
 }
 
 .logoutSheet {

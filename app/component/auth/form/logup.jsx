@@ -4,7 +4,7 @@ import Link from "next/link"
 import Form from "next/form"
 import Image from "next/image"
 
-export default function Logup({ active, setForm }) {
+export default function Logup({ active, setForm, handleAuthLogup }) {
     const [page, setPage] = useState(1);
 
     return (
@@ -12,7 +12,7 @@ export default function Logup({ active, setForm }) {
             <div className="heading-logup">
                 <h2>
                     Logup
-                    <Link href={'/'} style={{display: 'flex', textDecoration: 'none', gap: '5px', alignItems: 'center'}}>
+                    <Link href={'/'} onClick={handleAuthLogup} style={{ display: 'flex', textDecoration: 'none', gap: '5px', alignItems: 'center' }}>
                         CodeDev
                         <Image src="/image/logo.svg" width={20} height={20} alt="logo" />
                     </Link>
@@ -24,16 +24,38 @@ export default function Logup({ active, setForm }) {
             <div className="logup-page" style={{ transform: `translateX(-${(page - 1) * (100 / 2)}%)` }}>
                 <Form id="logup-page-1">
                     <div className="logup-input">
-                        <input type="text" placeholder="Surname" />
-                        <input type="text" placeholder="Name" />
+                        <div className="field-input">
+                            <input type="text" />
+                            <label>Surname</label>
+                        </div>
+                        <div className="field-input">
+                            <input type="text" />
+                            <label>Name</label>
+                        </div>
                     </div>
-                    <input type="text" placeholder="Enter your email" />
+                    <div className="field-input">
+                        <input type="text" />
+                        <label>Enter your email</label>
+                    </div>
+                    <div className="field-input">
+                        <input type="text" />
+                        <label>Enter your phone</label>
+                    </div>
                 </Form>
                 <Form id="logup-page-2">
-                    <input type="text" placeholder="Username" />
+                    <div className="field-input">
+                        <input type="text" />
+                        <label>Enter create username</label>
+                    </div>
                     <div className="auth-password">
-                        <input type="password" placeholder="Password" />
-                        <input type="password" placeholder="Confirm Password" />
+                        <div className="field-input">
+                            <input type="password" />
+                            <label>Enter password</label>
+                        </div>
+                        <div className="field-input">
+                            <input type="password" />
+                            <label>Re-enter password</label>
+                        </div>
                     </div>
                     <div className="auth-terms">
                         <input type="checkbox" />

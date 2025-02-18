@@ -16,15 +16,15 @@ export default function RouterPush() {
     }
 
     const navigateToMember = () => {
-        router.push('/member', { shalow: true });
+        router.push('/home/member', { shalow: true });
     }
 
     const navigateToCourse = () => {
-        router.push('/course', { shalow: true });
+        router.push('/home/course', { shalow: true });
     }
 
     const navigateToEvent = () => {
-        router.push('/event', { shalow: true });
+        router.push('/home/event', { shalow: true });
     }
 
     return { navigateToCurrent, navigateToHome, navigateToAuth, navigateToMember, navigateToCourse, navigateToEvent };

@@ -1,0 +1,441 @@
+#overview {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+    gap: 20px;
+}
+
+#overview .overview-container {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.overview-container .overview-info {
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: max-content;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px var(--color_gray);
+    gap: 20px;
+}
+
+.overview-info img {
+    border-radius: 5px;
+    outline: 1px solid #ccc;
+}
+
+.overview-info .info {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: max-content;
+    width: max-content;
+    gap: 10px;
+    flex-direction: column;
+}
+
+.profile span {
+    font-size: 15px;
+}
+
+.overview-info .exprience {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    font-size: 15px;
+    flex-direction: column;
+}
+
+.exprience span {
+    display: flex;
+    align-items: flex-end;
+    height: max-content;
+    width: 100%;
+    flex-direction: row;
+    gap: 5px;
+}
+
+.overview-container .course-progress {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: max-content;
+    flex-grow: 1;
+    border-radius: 10px;
+    flex-basis: 400px;
+    flex-direction: column;
+    box-shadow: 0 0 10px var(--color_gray);
+    overflow: hidden;
+}
+
+.main-progress {
+    display: flex;
+    align-items: flex-start;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+}
+
+.main-progress .progress-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+    background: transparent;
+    transition: 0.2s all ease;
+}
+
+.progress-item:not(:first-child) .heading:hover {
+    background: var(--color_gray);
+    transition: 0.2s all ease;
+    cursor: pointer;
+}
+
+.progress-item .heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 50px;
+    width: 100%;
+}
+
+.heading .title {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: 100%;
+    width: max-content;
+    padding: 0 20px;
+    flex-direction: column;
+}
+
+.title h5 {
+    text-transform: uppercase;
+    user-select: none;
+}
+
+.progress-item .heading .title>span {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.progress-item .heading .title p {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.progress-item .heading svg {
+    margin-right: 20px;
+}
+
+.progress-item .detail {
+    display: flex;
+    width: 100%;
+    gap: 10px;
+    overflow-x: hidden;
+}
+
+.progress-item .detail::-webkit-scrollbar {
+    display: none;
+}
+
+.progress-item .detail .info {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.progress-item .detail .info .item {
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: 100%;
+    box-shadow: 0 0 10px var(--color_gray);
+    padding: 10px;
+    gap: 20px;
+}
+
+.progress-item .detail .info .item {
+    font-weight: 500;
+}
+
+.progress-item .header {
+    display: flex;
+    align-items: center;
+    height: max-content;
+    flex-grow: 1;
+    gap: 10px;
+}
+
+.progress-item .join-btn {
+    display: flex;
+    height: max-content;
+    width: max-content;
+    padding: 5px 10px;
+    background: var(--color_blue);
+    color: var(--color_white);
+    font-weight: 500;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.course-progress .footer {
+    display: flex;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    padding: 20px 0;
+}
+
+.course-progress .footer button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    width: 80%;
+    background: var(--color_black);
+    color: var(--color_white);
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.main-dashboard .course {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    height: max-content;
+    flex-grow: 1;
+    flex-direction: column;
+    gap: 20px;
+    flex-basis: 300px;
+}
+
+.language {
+    display: flex;
+    width: 100%;
+    border-radius: 10px;
+    box-shadow: 0 0 10px var(--color_gray);
+    flex-direction: column;
+    gap: 20px;
+    overflow: hidden;
+}
+
+.language .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 50px;
+    width: 100%;
+    background: transparent;
+    flex-shrink: 0;
+    transition: 0.2s all ease;
+}
+
+.language .header:hover {
+    background: var(--color_gray);
+    transition: 0.2s all ease;
+    cursor: pointer;
+}
+
+.language .header h5 {
+    text-transform: uppercase;
+    margin-left: 20px;
+}
+
+.language .header svg {
+    margin-right: 20px;
+}
+
+.language .main-language {
+    display: flex;
+    flex-grow: 1;
+    width: 100%;
+    padding: 20px;
+    overflow-x: hidden;
+}
+
+.language .main-language::-webkit-scrollbar {
+    display: none;
+}
+
+.language .language-container {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    gap: 20px;
+    flex-direction: column;
+}
+
+.language-container .language-item {
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: 100%;
+    gap: 10px;
+}
+
+.heading-language {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 250px;
+    gap: 20px;
+}
+
+.heading-language>span {
+    display: flex;
+    font-size: 25px;
+}
+
+.language-item .bar {
+    display: flex;
+    position: relative;
+    align-items: center;
+    justify-content: space-between;
+    height: max-content;
+    width: 100%;
+    padding: 10px;
+    border-radius: 5px;
+    outline: 1px solid var(--color_gray);
+    gap: 10px;
+}
+
+.language-item .bar>span {
+    display: flex;
+    height: 5px;
+}
+
+.course .course-recently,
+.course .course-enrolled {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+}
+
+.course-recently h3,
+.course-enrolled h3 {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    height: max-content;
+    width: 100%;
+    padding: 10px 0;
+}
+
+.list-course {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.list-course .course-item {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    height: 100%;
+    padding: 10px 20px;
+    border-radius: 10px;
+    border: 1px solid var(--color_black);
+    flex-grow: 1;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.course-item .item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    height: max-content;
+    width: 100%;
+    gap: 20px;
+}
+
+.course-item .item>span {
+    display: flex;
+    height: max-content;
+    width: max-content;
+    margin-top: 5px;
+    font-size: 30px;
+}
+
+.course-item .item .info {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+}
+
+.course-item .info span {
+    display: flex;
+    flex-direction: row;
+    gap: 5px;
+}
+
+.course-item .info .progress-bar {
+    display: flex;
+    align-items: flex-start;
+    height: max-content;
+    width: 100%;
+    margin-top: 10px;
+    gap: 10px;
+    flex-direction: column;
+}
+
+.progress-bar .bar {
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: 100%;
+    gap: 10px;
+}
+
+.progress-bar .bar p {
+    display: flex;
+    height: 10px;
+    width: 70%;
+    border-radius: 5px;
+    outline: 1px solid #ccc;
+    overflow: hidden;
+}
+
+.course-btn {
+    display: flex;
+    justify-content: flex-end;
+    height: max-content;
+    width: 100%;
+}
+
+.course-btn button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: max-content;
+    width: max-content;
+    padding: 10px 15px;
+    background: var(--color_black);
+    color: #fff;
+    font-weight: 500;
+    border-radius: 10px;
+    cursor: pointer;
+}

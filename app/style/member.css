@@ -181,6 +181,10 @@
   filter: drop-shadow(0 0 3px #ccc);
 }
 
+.form-search input:focus{
+  outline-color: var(--color_black);
+}
+
 .form-search button{
   display: flex;
   height: max-content;
@@ -214,7 +218,7 @@
   flex-direction: column;
   padding: 10px 20px;
   flex-grow: 1;
-  gap: 10px;
+  gap: 30px;
   overflow-y: scroll;
 }
 
@@ -228,19 +232,48 @@
   justify-content: flex-start;
   width: 100%;
   height: max-content;
+  padding: 10px;
+  border-radius: 10px;
+  outline: 2px solid var(--color_gray);
+  background: transparent;
+  gap: 10px;
+  flex-direction: column;
+} 
+
+.value-search .heading-filter{
+  display: flex;
+  justify-content: space-between;
+  height: max-content;
+  width: 100%;
+}
+
+.heading-filter .clear{
+  display: flex;
+  padding: 2px;
+  background: var(--color_black );
+  color: var(--color_white);
+  border-radius: 50px;
+}
+
+.value-search .filter-value{
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  height: max-content;
   gap: 10px;
   flex-wrap: wrap;
-} 
+}
 
 .value-search .value{
   display: flex;
   align-items: center;
   height: max-content;
   width: max-content;
-  padding: 5px 10px;
-  border-radius: 10px;
+  padding: 10px 15px;
+  border-radius: 5px;
   color: var(--color_black);
-  outline: 1px solid var(--color_black);
+  background: var(--color_gray);
   font-weight: 500;
   gap: 10px;
   cursor: default;

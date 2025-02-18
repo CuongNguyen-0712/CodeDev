@@ -3,23 +3,26 @@ import { useState, useEffect } from "react"
 import Login from "./login"
 import Logup from "./logup"
 
-export default function Form() {
+export default function Form({isHandle}) {
     const [form, setForm] = useState({ login: true, register: false })
     
     const [sizeDevice, setSizeDevice] = useState({height: 0, width: 0});
 
-    const handleSetDeviceLayout = () => {
-        const heightDevice = window.innerHeight
-        const widthDevice = window.innerWidth
-        setSizeDevice({
-            height: heightDevice,
-            width: widthDevice
-        })
-    }
-
+    
     useEffect(() => {
-        window.addEventListener('resize', handleSetDeviceLayout)
+        const handleSetDeviceLayout = () => {
+            const heightDevice = window.innerHeight
+            const widthDevice = window.innerWidth
+            setSizeDevice({
+                height: heightDevice,
+                width: widthDevice
+            })
+        }
 
+        handleSetDeviceLayout();
+
+        window.addEventListener('resize', handleSetDeviceLayout)
+        
         return () => {
             window.removeEventListener('resize', handleSetDeviceLayout)
         }
@@ -42,8 +45,8 @@ export default function Form() {
                     <span className="focus" style={{ transform: form.login && 'translateX(10px)' || form.register && 'translateX(calc(100% + 30px))' }}></span>
                 </div>
                 <div className="main-form">
-                    <Login active={form.login} setForm={() => setForm({ login: false, register: true })} />
-                    <Logup active={form.register} setForm={() => setForm({ login: true, register: false })} />
+                    <Login active={form.login} setForm={() => setForm({ login: false, register: true })} handleAuthLogin = {isHandle}/>
+                    <Logup active={form.register} setForm={() => setForm({ login: true, register: false })} handleAuthLogup = {isHandle}/>
                 </div>
             </div>
         </section>

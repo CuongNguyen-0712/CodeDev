@@ -1,11 +1,12 @@
 import { useState, useLayoutEffect } from 'react';
 
-import Navbar from '../home/navbar';
-import MenuSite from './menuSite';
+import Navbar from './navbar';
+import Dashboard from './dashboard'
 import Content from '../home/content';
-import LoadingWait from '../lib/loadingWait';
+import LoadingWait from '@/app/lib/loadingWait';
 
-import { useAuth } from '../auth/handleAuth/authContext';
+import { useTheme } from '@/app/contexts/themeContext';
+import { useSize } from '@/app/contexts/sizeContext';
 
 export default function HomePage() {
 
@@ -53,22 +54,21 @@ export default function HomePage() {
     const [redirect, setRedirect] = useState(false);
 
     return (
-        <main id='main'>
+        <main id='home'>
             {!redirect ?
                 <>
-                    <div className={`aside ${(sizeDevice.width <= 768 && home.overlay) ? 'active' : ''}`}>
-                        <MenuSite
+                    <div id='header'>
+                        <Navbar
                             sizeDevice={sizeDevice}
-                            handleRedirect={() => setRedirect(true)}
+                            onMobile={device.onMobile}
+                            onIpad={device.onIpad}
                         />
                     </div>
-                    <div className={`frame ${(sizeDevice.width <= 768 && home.overlay) ? 'hide' : ''}`} onClick={() => { home.overlay && setHome({ ...home, overlay: false }) }}>
-                        <div id='header'>
-                            <Navbar
+                    <div className='frame'>
+                        <div className='aside'>
+                            <Dashboard
                                 sizeDevice={sizeDevice}
-                                onMobile={device.onMobile}
-                                onIpad={device.onIpad}
-                                handleOverlay={() => setHome({ ...home, overlay: true })}
+                                handleRedirect={() => setRedirect(true)}
                             />
                         </div>
                         <div id='container'>

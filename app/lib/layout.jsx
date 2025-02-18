@@ -1,6 +1,12 @@
 import { useState, useLayoutEffect } from "react"
-import Navbar from "../home/navbar"
-export default function Layout({ children, onReturn, size}) {
+
+import Navbar from "../component/home/navbar"
+import LoadingWait from "./loadingWait"
+
+export default function Layout({ children, onReturn, size }) {
+
+    const [isLoading, setLoading] = useState(false)
+
     const [device, onDevice] = useState({
         onMobile: false,
         onIpad: false,
@@ -30,25 +36,29 @@ export default function Layout({ children, onReturn, size}) {
 
             size({ width: currentWidth, height: currentHeight })
         }
-        
+
         handleResize();
-        
+
         window.addEventListener("resize", handleResize);
 
         return () => window.removeEventListener("resize", handleResize);
     }, []);
 
     return (
-        <main id="main" style={{ flexDirection: "column", gap: '0' }}>
-            <div id="header">
-                <Navbar
-                    sizeDevice={sizeDevice}
-                    onMobile={device.onMobile}
-                    onIpad={device.onIpad}
-                    onReturn={onReturn}
-                />
-            </div>
-            {children}
+        <main id="main" style={{ flexDirection: "column", gap: '0', background: isLoading && 'var(--color_white)' }}>
+            {
+                isLoading ?
+                    <LoadingWait />
+                    :
+                    <>
+                        <div id="header">
+                            <Navbar
+                                onReturn={() => { setLoading(true), onReturn()}}
+                            />
+                        </div>
+                        {children}
+                    </>
+            }
         </main>
     )
 }
