@@ -1,23 +1,10 @@
 'use client'
 import { useState } from "react";
 
-import Layout from "../../component/ui/layout"
-import RouterPush from "../../router/router"
-import Event from "../../component/event/event"
+import Event from "@/app/component/event/event";
 
 export default function Page() {
-    const { navigateToHome } = RouterPush();
-
-    const [sizeDevice, setSizeDevice] = useState({
-        width: 0,
-        height: 0,
-    });
-
     return (
-        <Layout
-            children={<Event size={sizeDevice} />}
-            onReturn={navigateToHome}
-            size={({ width, height }) => setSizeDevice({ width: width, height: height })}
-        />
+        <Event />
     )
 }
