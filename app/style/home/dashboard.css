@@ -1,6 +1,5 @@
 #dashboard {
   display: flex;
-  position: relative;
   align-items: center;
   justify-content: space-between;
   width: 100%;
@@ -35,51 +34,36 @@
   cursor: pointer;
 }
 
-#dashboard .main-menu {
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
-  height: 100%;
-  width: 100%;
-  padding: 0px 10px;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.main-menu .heading {
+#dashboard .header {
   display: flex;
   align-items: center;
   justify-content: flex-start;
   height: 50px;
   width: 100%;
   padding-left: 20px;
+  flex-shrink: 0;
   gap: 5px;
+  border-bottom: 2px solid var(--color_black);
 }
 
-.heading h3 {
-  font-weight: 700;
-}
-
-.main-menu .menu-frame {
+#dashboard .main-menu {
   display: flex;
-  align-items: flex-start;
+  position: relative;
   justify-content: flex-start;
-  height: 100%;
+  flex-grow: 1;
   width: 100%;
-  padding: 10px 0;
+  padding: 0px 10px;
   flex-direction: column;
   overflow: scroll;
-  overflow-x: hidden;
 }
 
-.menu-frame::-webkit-scrollbar {
+.main-menu::-webkit-scrollbar {
   display: none;
 }
 
-.menu-frame .menu {
+.main-menu .menu {
   display: flex;
-  position: relative;
-  align-items: flex-start;
+  align-items: center;
   justify-content: flex-start;
   height: max-content;
   width: 100%;
@@ -87,16 +71,15 @@
   gap: 10px;
 }
 
-.menu div {
+.menu .menu-item {
   display: flex;
   align-items: center;
   justify-content: center;
   height: max-content;
   width: 100%;
-  flex-direction: column;
 }
 
-.menu div button {
+.menu .menu-item button {
   display: flex;
   position: relative;
   align-items: center;
@@ -112,47 +95,20 @@
   transition: 0.5s all ease;
 }
 
-.menu div button.active {
+.menu .menu-item button.active {
   background: var(--color_gray);
   color: var(--color_blue);
   font-weight: 500;
   transition: 0.5s all ease;
 }
 
-.menu div>button:not(.active):hover {
+.menu .menu-item button:not(.active):hover {
   background: var(--color_gray);
   font-weight: 500;
   transition: 0.2s all ease;
 }
 
-.menu div .list {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  width: 100%;
-  flex-direction: column;
-  gap: 5px;
-  overflow: hidden;
-}
-
-.menu .list>button {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  height: 40px;
-  width: 90%;
-  border-radius: 0 5px 5px 0;
-  padding-left: 20px;
-  font-size: 14px;
-  border-left: 2px solid var(--color_black);
-}
-
-.menu .list>button:hover {
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.menu .navigation {
+#navigation {
   display: flex;
   position: absolute;
   height: 39px;
@@ -228,10 +184,41 @@
   position: absolute;
   align-items: center;
   justify-content: center;
-  top: 5px;
-  right: 5px;
+  top: 10px;
+  right: 10px;
   height: 30px;
   width: 30px;
   border-radius: 5px;
   background: var(--color_gray);
+}
+
+/* Homepage */
+
+.navigate-auth {
+  display: flex;
+  align-items: center;
+  height: max-content;
+  width: 100%;
+  padding: 20px 10px;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.navigate-auth h3 {
+  font-size: 15px;
+  text-align: center;
+}
+
+.navigate-auth button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  width: 100%;
+  background: var(--color_blue);
+  color: var(--color_white);
+  text-transform: uppercase;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
 }

@@ -4,7 +4,9 @@ import Link from "next/link"
 import Form from "next/form"
 import Image from "next/image"
 
-export default function Logup({ active, setForm, handleAuthLogup }) {
+import { FaArrowRight, FaArrowLeft } from "react-icons/fa";
+
+export default function Logup({ active, setForm, redirect }) {
     const [page, setPage] = useState(1);
 
     return (
@@ -12,7 +14,7 @@ export default function Logup({ active, setForm, handleAuthLogup }) {
             <div className="heading-logup">
                 <h2>
                     Logup
-                    <Link href={'/'} onClick={handleAuthLogup} style={{ display: 'flex', textDecoration: 'none', gap: '5px', alignItems: 'center' }}>
+                    <Link href={'/'} onClick={redirect} style={{ display: 'flex', textDecoration: 'none', gap: '5px', alignItems: 'center' }}>
                         CodeDev
                         <Image src="/image/logo.svg" width={20} height={20} alt="logo" />
                     </Link>
@@ -68,8 +70,12 @@ export default function Logup({ active, setForm, handleAuthLogup }) {
             </div>
             <div className="footer-logup">
                 <div className="navigate-logup">
-                    <button type="button" style={page != 1 ? { color: 'var(--color_blue)', borderColor: 'var(--color_blue)' } : { borderColor: 'var(--color_black)' }} onClick={() => setPage(prev => prev - 1)} disabled={page == 1 ? true : false}>Previous</button >
-                    <button type="button" style={page != 2 ? { color: 'var(--color_blue)', borderColor: 'var(--color_blue)' } : { borderColor: 'var(--color_black)' }} onClick={() => setPage(prev => prev + 1)} disabled={page == 2 ? true : false}>Next</button>
+                    <button type="button" style={page != 1 ? { color: 'var(--color_white)', background: 'var(--color_blue)' } : { borderColor: 'var(--color_black)' }} onClick={() => setPage(prev => prev - 1)} disabled={page == 1 ? true : false}>
+                        <FaArrowLeft />
+                    </button >
+                    <button type="button" style={page != 2 ? { color: 'var(--color_white)', background: 'var(--color_blue)' } : { borderColor: 'var(--color_black)' }} onClick={() => setPage(prev => prev + 1)} disabled={page == 2 ? true : false}>
+                        <FaArrowRight />
+                    </button>
                 </div>
                 <div className="social-logup">
                     <button type="button">

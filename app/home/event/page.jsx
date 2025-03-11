@@ -1,8 +1,8 @@
 'use client'
 import { useState } from "react";
 
-import Layout from "../../lib/layout"
-import RouterPush from "../../lib/router"
+import Layout from "../../component/ui/layout"
+import RouterPush from "../../router/router"
 import Event from "../../component/event/event"
 
 export default function Page() {

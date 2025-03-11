@@ -4,13 +4,13 @@ import Image from "next/image"
 import Form from "next/form"
 import Link from "next/link"
 
-import RouterPush from "@/app/lib/router"
+import { useRouterActions } from "@/app/router/router"
 
 import { FaUser, FaLock } from "react-icons/fa6";
 
-export default function Login({ active, setForm, handleAuthLogin }) {
+export default function Login({ active, setForm, redirect }) {
 
-    const { navigateToHome } = RouterPush()
+    const { navigateToHome } = useRouterActions()
 
     const [login, setLogin] = useState({
         name: '',
@@ -19,7 +19,7 @@ export default function Login({ active, setForm, handleAuthLogin }) {
 
     const submitLogin = (e) => {
         e.preventDefault()
-        handleAuthLogin()
+        redirect()
         navigateToHome()
     }
 
@@ -28,7 +28,7 @@ export default function Login({ active, setForm, handleAuthLogin }) {
             <div className="heading-login">
                 <h2>
                     Login
-                    <Link href={'/'} onClick={handleAuthLogin} style={{ display: 'flex', textDecoration: 'none', gap: '5px', alignItems: 'center' }}>
+                    <Link href={'/'} onClick={redirect} style={{ display: 'flex', textDecoration: 'none', gap: '5px', alignItems: 'center' }}>
                         CodeDev
                         <Image src="/image/logo.svg" width={20} height={20} alt="logo" />
                     </Link>

@@ -1,24 +1,28 @@
+#auth {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100dvh;
+  width: 100%;
+  overflow: scroll;
+}
+
 .auth-form {
   display: flex;
   position: relative;
-  align-items: center;
-  height: 100%;
-  width: max-content;
-}
-
-.auth-form .form {
-  display: flex;
   height: 90%;
-  max-height: 600px;
+  max-height: 650px;
+  min-height: 550px;
   width: 450px;
   border-radius: 20px;
   background: var(--color_white);
   flex-direction: column;
-  overflow: hidden;
+  box-shadow: 0 0 5px var(--color_black);
 }
 
-.form .heading-form {
+.auth-form .heading-form {
   display: flex;
+  position: relative;
   height: max-content;
   width: 100%;
   gap: 10px;
@@ -56,8 +60,9 @@
   transition: 0.2s all ease;
 }
 
-.form .main-form {
+.auth-form .main-form {
   display: flex;
+  position: relative;
   flex-grow: 1;
   width: 100%;
   flex-direction: column;
@@ -126,43 +131,45 @@
   gap: 20px;
 }
 
-.main-login .field-input {
+.field-input {
   display: flex;
+  position: relative;
   height: max-content;
   width: 100%;
 }
 
-.field-input > input {
+.field-input>input {
   display: flex;
   height: 40px;
   width: 100%;
   outline: none;
-  padding: 20px 60px 10px 0;
+  padding: 10px 20px 0 0px;
   font-size: 16px;
   background: transparent;
   border-bottom: 2px solid var(--color_black);
+  z-index: 1;
 }
 
-.field-input > input:focus {
+.field-input>input:focus {
   border-color: var(--color_blue);
 }
 
-.field-input label {
+.field-input>label {
   display: flex;
   position: absolute;
   top: 15px;
   left: 20px;
   font-size: 14px;
-  color: #ccc;
+  color: var(--color_black);
   transition: 0.2s all ease;
-  z-index: -1;
+  z-index: 0;
 }
 
-.field-input > input:focus + label,
-.field-input.has-content label {
-  top: 0;
+.field-input>input:focus+label,
+.field-input.has-content>label {
+  top: -5px;
   left: 0;
-  color: var(--color_black);
+  color: var(--color_blue);
   font-size: 12px;
   font-weight: 500;
   transition: 0.2s all ease;
@@ -208,6 +215,7 @@
 
 #login .footer-login {
   display: flex;
+  position: relative;
   align-items: center;
   height: max-content;
   width: 100%;
@@ -359,7 +367,7 @@ a {
   gap: 20px;
 }
 
-.auth-password > input {
+.auth-password>input {
   display: flex;
   height: 40px;
   width: 100%;
@@ -429,24 +437,22 @@ a {
 
 .footer-logup .navigate-logup {
   display: flex;
-  justify-content: space-evenly;
+  justify-content: center;
   height: max-content;
   width: 100%;
   padding-bottom: 40px;
-  gap: 20px;
+  gap: 50px;
 }
 
 .navigate-logup button {
   display: flex;
+  align-items: center;
   justify-content: center;
-  height: max-content;
-  width: 30%;
-  padding: 10px;
-  text-transform: uppercase;
-  font-weight: 600;
-  font-size: 12px;
-  border-bottom: 3px solid var(--color_black);
-  background: transparent;
+  height: 40px;
+  width: 40px;
+  font-size: 16px;
+  color: var(--color_black);
+  border-radius: 5px;
   cursor: pointer;
 }
 
@@ -520,9 +526,6 @@ textarea::placeholder {
 
 @media screen and (max-width: 500px) {
   .auth-form {
-    width: 100%;
-  }
-  .auth-form .form {
     height: 100%;
     width: 100%;
     border-radius: 0px;
@@ -530,6 +533,7 @@ textarea::placeholder {
 }
 
 @media screen and (max-width: 375px) {
+
   .social-login button h4,
   .social-logup button h4 {
     display: none;

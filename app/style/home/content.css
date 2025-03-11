@@ -1,10 +1,917 @@
-.content-layout {
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  height: max-content;
-  width: 100%;
-  background: transparent;
-  padding: 20px;
-  flex-wrap: wrap;
+/* Overview */
+#overview {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    padding: 80px 20px 20px 20px;
+    flex-direction: column;
+    gap: 20px;
+}
+
+#overview .overview-container {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.overview-container .overview-user {
+    display: flex;
+    height: max-content;
+    width: max-content;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px var(--color_gray);
+    flex-direction: column;
+    gap: 20px;
+}
+
+.overview-user .user-container {
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: max-content;
+    gap: 20px;
+}
+
+.user-container img {
+    border-radius: 5px;
+    outline: 1px solid #ccc;
+}
+
+.user-container .info {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: max-content;
+    width: max-content;
+    gap: 10px;
+    flex-direction: column;
+}
+
+.profile h2 {
+    text-transform: uppercase;
+}
+
+.profile span {
+    font-size: 14px;
+}
+
+.user-container .exprience {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    font-size: 15px;
+    flex-direction: column;
+}
+
+.exprience p {
+    display: flex;
+    align-items: flex-end;
+    height: max-content;
+    width: 100%;
+    flex-direction: row;
+    gap: 10px;
+}
+
+.exprience p span:nth-child(1) {
+    font-size: 14px;
+}
+
+.exprience p span:nth-child(2) {
+    font-weight: 700;
+    font-size: 16px;
+}
+
+.overview-user #edit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    width: 100%;
+    background: var(--color_black);
+    color: var(--color_white);
+    font-weight: 700;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.overview-container .course-progress {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: max-content;
+    flex-grow: 1;
+    border-radius: 10px;
+    flex-basis: 400px;
+    flex-direction: column;
+    box-shadow: 0 0 10px var(--color_gray);
+    overflow: hidden;
+}
+
+.main-progress {
+    display: flex;
+    align-items: flex-start;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+}
+
+.main-progress .progress-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+    background: transparent;
+    transition: 0.2s all ease;
+}
+
+.progress-item:not(:first-child) .heading:hover {
+    background: var(--color_gray);
+    transition: 0.2s all ease;
+    cursor: pointer;
+}
+
+.progress-item .heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 50px;
+    width: 100%;
+}
+
+.heading .title {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: 100%;
+    width: max-content;
+    padding: 0 20px;
+    flex-direction: column;
+}
+
+.title h5 {
+    text-transform: uppercase;
+    user-select: none;
+}
+
+.progress-item .heading .title>span {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.progress-item .heading .title p {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.progress-item .heading svg {
+    margin-right: 20px;
+}
+
+.progress-item .detail {
+    display: flex;
+    width: 100%;
+    gap: 10px;
+    overflow-x: hidden;
+}
+
+.progress-item .detail::-webkit-scrollbar {
+    display: none;
+}
+
+.progress-item .detail .info {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.progress-item .detail .info .item {
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: 100%;
+    box-shadow: 0 0 10px var(--color_gray);
+    padding: 10px;
+    border-radius: 5px;
+    gap: 20px;
+}
+
+.progress-item .detail .info .item {
+    font-weight: 500;
+}
+
+.progress-item .item .header {
+    display: flex;
+    align-items: center;
+    height: max-content;
+    flex-grow: 1;
+    gap: 10px;
+}
+
+.progress-item .item>span {
+    height: max-content;
+    width: max-content;
+    padding: 10px 15px;
+    font-size: 10px;
+    text-transform: uppercase;
+    border-radius: 50px;
+    background: var(--color_black);
+    color: var(--color_white);
+    text-align: center;
+}
+
+#no-course {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100px;
+    width: 100%;
+}
+
+.course-progress .footer {
+    display: flex;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    padding: 20px 0;
+}
+
+.course-progress .footer button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    width: 80%;
+    background: var(--color_black);
+    color: var(--color_white);
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.language {
+    display: flex;
+    width: 100%;
+    border-radius: 10px;
+    box-shadow: 0 0 10px var(--color_gray);
+    flex-direction: column;
+    gap: 20px;
+    overflow: hidden;
+}
+
+.language .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 50px;
+    width: 100%;
+    background: transparent;
+    flex-shrink: 0;
+    transition: 0.2s all ease;
+}
+
+.language .header:hover {
+    background: var(--color_gray);
+    transition: 0.2s all ease;
+    cursor: pointer;
+}
+
+.language .header h5 {
+    text-transform: uppercase;
+    margin-left: 20px;
+}
+
+.language .header svg {
+    margin-right: 20px;
+}
+
+.language .main-language {
+    display: flex;
+    flex-grow: 1;
+    width: 100%;
+    padding: 20px;
+    overflow: scroll;
+}
+
+.language .main-language::-webkit-scrollbar {
+    display: none;
+}
+
+.language .language-container {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    gap: 20px;
+    flex-direction: column;
+}
+
+.language-container .language-item {
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.heading-language {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 250px;
+    gap: 20px;
+}
+
+.heading-language>span {
+    display: flex;
+    font-size: 25px;
+}
+
+.language-item .bar {
+    display: flex;
+    position: relative;
+    align-items: center;
+    justify-content: space-between;
+    height: max-content;
+    width: 100%;
+    padding: 10px;
+    border-radius: 5px;
+    outline: 1px solid var(--color_gray);
+    gap: 10px;
+}
+
+.language-item .bar>span {
+    display: flex;
+    height: 5px;
+}
+
+.course .course-recently,
+.course .course-enrolled {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+}
+
+.course-recently h3,
+.course-enrolled h3 {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    height: max-content;
+    width: 100%;
+    padding: 10px 0;
+}
+
+.list-course {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.list-course .course-item {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    height: 100%;
+    padding: 10px 20px;
+    border-radius: 10px;
+    border: 1px solid var(--color_black);
+    flex-grow: 1;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.course-item .item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    height: max-content;
+    width: 100%;
+    gap: 20px;
+}
+
+.course-item .item>span {
+    display: flex;
+    height: max-content;
+    width: max-content;
+    margin-top: 5px;
+    font-size: 30px;
+}
+
+.course-item .item .info {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+}
+
+.course-item .info span {
+    display: flex;
+    flex-direction: row;
+    gap: 5px;
+}
+
+.course-item .info .progress-bar {
+    display: flex;
+    align-items: flex-start;
+    height: max-content;
+    width: 100%;
+    margin-top: 10px;
+    gap: 10px;
+    flex-direction: column;
+}
+
+.progress-bar .bar {
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: 100%;
+    gap: 10px;
+}
+
+.progress-bar .bar p {
+    display: flex;
+    height: 10px;
+    width: 70%;
+    border-radius: 5px;
+    outline: 1px solid #ccc;
+    overflow: hidden;
+}
+
+.course-btn {
+    display: flex;
+    justify-content: flex-end;
+    height: max-content;
+    width: 100%;
+}
+
+.course-btn button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: max-content;
+    width: max-content;
+    padding: 10px 15px;
+    background: var(--color_black);
+    color: #fff;
+    font-weight: 500;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+/* Course */
+#myCourse {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    padding: 80px 20px 20px 20px;
+    flex-direction: column;
+    gap: 20px;
+}
+
+#myCourse .heading-myCourse {
+    display: flex;
+    justify-content: space-between;
+    height: max-content;
+    width: 100%;
+    padding: 10px 0;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.heading-myProject .input-search {
+    display: flex;
+    position: relative;
+    height: 40px;
+    width: 40%;
+    max-width: 500px;
+    min-width: 250px;
+}
+
+.input-search input {
+    display: flex;
+    height: 100%;
+    width: 100%;
+    padding: 0 10px;
+    outline: none;
+    border: 2px solid var(--color_black);
+}
+
+.input-search .filter {
+    display: flex;
+    position: absolute;
+    align-items: center;
+    justify-content: center;
+    height: 30px;
+    width: 30px;
+    top: 5px;
+    right: 10px;
+    border-radius: 50px;
+    background: transparent;
+    transition: 0.2s all ease
+}
+
+.input-search .filter:hover {
+    background: var(--color_gray);
+    transition: 0.2s all ease
+}
+
+.handle-course {
+    display: flex;
+    height: max-content;
+    width: max-content;
+    gap: 20px;
+}
+
+.handle-course #course-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    width: 150px;
+    background: var(--color_black);
+    color: var(--color_white);
+    font-weight: 700;
+    border-radius: 10px;
+    gap: 10px;
+    cursor: pointer;
+}
+
+#myCourse .course-frame {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 30px;
+}
+
+#myCourse .course-frame .course {
+    display: flex;
+    position: relative;
+    align-items: center;
+    height: 400px;
+    max-width: 350px;
+    flex-basis: 300px;
+    flex-grow: 1;
+    border-radius: 10px;
+    padding: 10px;
+    box-shadow: 0 0 10px var(--color_gray);
+    flex-direction: column;
+    gap: 20px
+}
+
+.course .heading-course {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    gap: 10px;
+}
+
+.course .heading-course h3 {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    flex-grow: 1;
+}
+
+.course .content-course {
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    width: 100%;
+    flex-grow: 1;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.course .content-course .item {
+    display: flex;
+    gap: 5px
+}
+
+.course .content-course .item:first-child {
+    align-items: center;
+    flex-direction: column;
+    text-align: center;
+    padding: 10px 20px;
+    background: var(--color_gray);
+    border-radius: 10px;
+}
+
+.course .content-course .item:first-child h4 {
+    text-transform: uppercase;
+    font-size: 14px;
+}
+
+.course .footer-course {
+    display: flex;
+    justify-content: center;
+    height: max-content;
+    width: 90%;
+    gap: 10px;
+}
+
+.setting-course .setting-list {
+    display: flex;
+    position: absolute;
+}
+
+.footer-course .setting-course {
+    display: flex;
+    position: relative;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    width: 40px;
+    border-radius: 50px;
+    background: var(--color_gray);
+    font-size: 18px;
+}
+
+.handling {
+    font-size: 20px;
+    animation: 1s handlingTranform linear infinite;
+}
+
+@keyframes handlingTranform {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.course .footer-course .join-course {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    flex-grow: 1;
+    background: var(--color_blue);
+    font-size: 15px;
+    text-transform: uppercase;
+    color: var(--color_white);
+    font-weight: 500;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.footer-course .setting-list {
+    display: flex;
+    height: max-content;
+    flex-grow: 1;
+    gap: 10px;
+}
+
+.setting-list button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    flex-grow: 1;
+    font-weight: 600;
+    gap: 10px;
+    font-size: 14px;
+    color: var(--color_white);
+    cursor: pointer;
+}
+
+.setting-list .hide-course {
+    background: var(--color_black);
+}
+
+.setting-list .cancel-course {
+    background: var(--color_red);
+}
+
+
+/* Project */
+
+#myProject {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    padding: 80px 20px 20px 20px;
+    flex-direction: column;
+    gap: 20px;
+}
+
+#myProject .heading-myProject {
+    display: flex;
+    justify-content: space-between;
+    height: max-content;
+    width: 100%;
+    padding: 10px 0;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.heading-myCourse .input-search {
+    display: flex;
+    position: relative;
+    height: 40px;
+    width: 40%;
+    max-width: 500px;
+    min-width: 250px;
+}
+
+.handle-project {
+    display: flex;
+    height: max-content;
+    width: max-content;
+    gap: 20px;
+}
+
+.handle-project #project-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    width: 150px;
+    background: var(--color_black);
+    color: var(--color_white);
+    font-weight: 700;
+    border-radius: 10px;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.project-list {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.item-project {
+    display: flex;
+    position: relative;
+    justify-content: space-between;
+    align-items: flex-start;
+    height: max-content;
+    width: 100%;
+    border-radius: 10px;
+    box-shadow: 0 0 10px var(--color_gray);
+    padding: 20px;
+    gap: 30px;
+    flex-direction: column;
+}
+
+.item-project .heading-item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    height: max-content;
+    width: 100%;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.heading-item .item {
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: max-content;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.heading-item .item span {
+    display: flex;
+    height: max-content;
+    width: max-content;
+    padding: 5px 10px;
+    border-radius: 5px;
+    background: var(--color_black);
+    color: var(--color_white);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.heading-item .item p {
+    font-size: 15px;
+}
+
+.heading-item .status {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    width: max-content;
+    gap: 10px;
+}
+
+.heading-item .status span {
+    display: flex;
+    height: max-content;
+    width: max-content;
+    padding: 5px 10px;
+    border-radius: 50px;
+    background: var(--color_black);
+    color: var(--color_white);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.heading-item .status p {
+    font-size: 14px;
+}
+
+.item-project .description {
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+    text-align: center;
+}
+
+.item-project .handle-project {
+    display: flex;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+}
+
+.handle-project .join-project {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    width: 180px;
+    background: var(--color_blue);
+    color: var(--color_white);
+    font-size: 15px;
+    font-weight: 700;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.handle-project .other-handle {
+    display: flex;
+    position: absolute;
+    height: max-content;
+    width: max-content;
+    bottom: 20px;
+    right: 20px;
+    gap: 10px;
+}
+
+.handle-project .other-handle button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    width: 40px;
+    font-size: 16px;
+    border-radius: 10px;
+}
+
+.handle-project .other-handle .hidden-btn {
+    background: var(--color_gray);
+    color: var(--color_black);
+}
+
+.handle-project .other-handle .delete-btn {
+    background: var(--color_red);
+    color: var(--color_white);
+}
+
+@media screen and (max-width: 768px) {
+    .item-project .heading-item {
+        gap: 20px;
+        padding-right: 100px;
+        flex-direction: column;
+    }
+
+    .heading-item .status {
+        height: max-content;
+    }
+
+    .handle-project .other-handle {
+        top: 20px;
+    }
 }

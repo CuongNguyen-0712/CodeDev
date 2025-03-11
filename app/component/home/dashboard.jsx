@@ -1,14 +1,13 @@
 'use client'
-import { useState, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 
 import Image from "next/image";
-import RouterPush from "@/app/lib/router";
+import { useQuery } from "@/app/router/router";
 
 import {
   FaUsers,
   FaAngleLeft,
-  FaAngleRight,
 } from "react-icons/fa";
 import { GoProjectRoadmap } from "react-icons/go";
 import { FaCode } from "react-icons/fa6";
@@ -19,214 +18,112 @@ import {
   MdEmojiEvents,
   MdOutlineClose,
 } from "react-icons/md";
-import { AiFillProject } from "react-icons/ai";
+import { VscProject } from "react-icons/vsc";
 
-export default function Dashboard({
-  handleSetContent,
-  sizeDevice,
-  handleRedirect,
-  handleMenu,
-}) {
-  const router = useRouter();
-  const {
-    navigateToCourse,
-    navigateToEvent,
-    navigateToMember,
-    navigateToAuth,
-  } = RouterPush();
+export default function Dashboard({ handleDashboard }) {
+  const queryNavigate = useQuery()
   const refNavigation = useRef(null);
 
   const [targetItem, setTargetItem] = useState(0);
   const [showOther, setShowOther] = useState(false);
+
   const params = useSearchParams();
-
-  const createQuery = (index, name) => {
-    const newQuery = new URLSearchParams();
-    newQuery.set('target', index)
-    newQuery.set('name', name)
-    router.push(`?${newQuery.toString()}`);
-  }
-
-  const handleNavigation = (index, name, handle, navigate) => {
-    refNavigation.current.style.top = `${index * 50}px`;
-    setTargetItem(index);
-    if (typeof handle === "function" && typeof navigate === "undefined") {
-      createQuery(index, name)
-    } else if (
-      typeof navigate === "function" &&
-      typeof handle === "undefined"
-    ) {
-      navigate();
-      handleRedirect();
-    }
-  };
 
   const menuList = [
     {
-      tagClass: "overview-frame",
       name: "Overview",
       icon: <MdSpaceDashboard />,
-      handle: handleSetContent,
-      index: 0,
     },
     {
-      tagClass: "course-frame",
       name: "Course",
       icon: <FaCode />,
-      links: [
-        {
-          name: "My course",
-          handle: handleSetContent,
-          index: 1,
-        },
-        {
-          name: "All course",
-          navigate: navigateToCourse,
-        },
-      ],
     },
     {
-      tagClass: "project-frame",
       name: "Project",
-      icon: <AiFillProject />,
-      links: [
-        {
-          name: "My project",
-          handle: handleSetContent,
-          index: 0,
-        },
-        {
-          name: "Teams project",
-          handle: handleSetContent,
-          index: 0,
-        },
-      ],
+      icon: <VscProject />
     },
     {
-      tagClass: "member-frame",
-      name: "Member",
+      name: "Social",
       icon: <FaUsers />,
-      links: [
-        {
-          name: "Teams",
-          handle: handleSetContent,
-          index: 0,
-        },
-        {
-          name: "Friends",
-          handle: handleSetContent,
-          index: 0,
-        },
-        {
-          name: "Social",
-          navigate: navigateToMember,
-        },
-      ],
     },
     {
-      tagClass: "roadmap-frame",
       name: "Roadmap",
       icon: <GoProjectRoadmap />,
-      handle: handleSetContent,
-      index: 2,
     },
     {
-      tagClass: "event-frame",
       name: "Event",
       icon: <MdEmojiEvents />,
-      navigate: navigateToEvent,
     },
   ];
 
+  useEffect(() => {
+    const menuBtns = document.querySelectorAll('.menu-item button')
+    const index = params.get('target') || 0
+    refNavigation.current.style.top = `${index * 50}px`;
+    menuBtns.forEach(btn => btn.classList.remove('active'))
+    menuBtns[index].classList.add('active')
+  }, [params])
+
+  const handleNavigation = (index, name) => {
+    refNavigation.current.style.top = `${index * 50}px`;
+    setTargetItem(index);
+    queryNavigate(window.location.pathname, { target: index, name: name })
+  };
+
   return (
-    <div id="dashboard">
-      <div className="main-menu">
-        <div className="heading">
-          <Image src={`./image/logo.svg`} alt="" width={20} height={20} />
+    <>
+      <div id="dashboard">
+        <div className="header">
+          <Image src={`./image/logo.svg`} alt="logo" width={20} height={20} />
           <h2>CodeDev</h2>
         </div>
-        <div className="menu-frame">
+        <div className="main-menu">
           <div className="menu">
             {menuList.map((item, index) => (
-              <div className={item.tagClass} key={index}>
+              <div className='menu-item' key={index}>
                 <button
                   className={targetItem === index ? 'active' : ''}
                   onClick={() =>
-                    handleNavigation(index, item.name, item.handle, item.navigate)
+                    handleNavigation(index, item.name)
                   }
                 >
                   {item.icon}
                   <span>{item.name}</span>
-                  {item.links && (
-                    <FaAngleRight
-                      style={{
-                        position: "absolute",
-                        display: "flex",
-                        top: "11px",
-                        right: "10px",
-                        transform:
-                          index === targetItem
-                            ? "rotate(90deg)"
-                            : "rotate(0deg)",
-                        transition: "0.5s all ease",
-                        opacity: index === targetItem ? "1" : "0.5",
-                      }}
-                    />
-                  )}
                 </button>
-                {item.links && (
-                  <div className="list" style={targetItem === index ? { height: 'max-content', padding: '10px 0', transition: '0.5s all ease' } : { height: '0', padding: '0', transition: '0.2s all ease' }}>
-                    {item.links.map((link, index) => (
-                      <button
-                        key={index}
-                        onClick={() =>
-                          handleNavigation(
-                            link.index,
-                            link.name,
-                            link.handle,
-                            link.navigate
-                          )
-                        }
-                      >
-                        {link.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
             ))}
-            <span className="navigation" ref={refNavigation}></span>
+          </div>
+          <span id="navigation" ref={refNavigation}></span>
+        </div>
+        <div id="manage" onClick={() => queryNavigate('/home', { manage: true })}>
+          <button>Open account manager</button>
+        </div>
+        <div className="footer-menu" style={showOther ? { height: '100px', transition: '0.2s all ease' } : { height: '50px', transition: '0.2s all ease' }}>
+          <div onClick={() => setShowOther(!showOther)} className="heading">
+            <span>
+              Other
+            </span>
+            <FaAngleLeft
+              style={{
+                transform: showOther ? "rotate(-90deg)" : "rotate(0deg)",
+                transition: "0.5s all ease",
+              }}
+            />
+          </div>
+          <div className="other-frame" style={showOther ? { display: 'flex' } : { display: "none" }}>
+            <button id="help">
+              <MdHelpCenter />
+              Help Center
+            </button>
+            <button id="settings">
+              <IoSettingsSharp />
+            </button>
           </div>
         </div>
+        <button id="hidden-menu" onClick={handleDashboard}>
+          <MdOutlineClose />
+        </button>
       </div>
-      <div id="manage">
-        <button>Open account manager</button>
-      </div>
-      <div className="footer-menu" style={showOther ? { height: '100px', transition: '0.2s all ease' } : { height: '50px', transition: '0.2s all ease' }}>
-        <div onClick={() => setShowOther(!showOther)} className="heading">
-          <span>
-            Other
-          </span>
-          <FaAngleLeft
-            style={{
-              transform: showOther ? "rotate(-90deg)" : "rotate(0deg)",
-              transition: "0.5s all ease",
-            }}
-          />
-        </div>
-        <div className="other-frame" style={showOther ? { display: 'flex' } : { display: "none" }}>
-          <button id="help">
-            <MdHelpCenter />
-            Help Center
-          </button>
-          <button id="settings">
-            <IoSettingsSharp />
-          </button>
-        </div>
-      </div>
-      <button id="hidden-menu" onClick={handleMenu}>
-        <MdOutlineClose />
-      </button>
-    </div>
+    </>
   );
 }

@@ -1,25 +1,8 @@
 'use client'
-
-import { useState } from "react";
-
-import Layout from "../../lib/layout"
-import RouterPush from "../../lib/router"
-import Course from "../../component/content/course/course";
-
+'use client'
+import Course from "@/app/component/course/course";
 export default function Page() {
-    const { navigateToHome } = RouterPush();
-
-    const [sizeDevice, setSizeDevice] = useState({
-        width: 0,
-        height: 0,
-    });
-
     return (
-        <>
-            <Layout children={<Course size={sizeDevice} />}
-                size={({ width, height }) => setSizeDevice({ width: width, height: height })}
-                onReturn={navigateToHome}
-            />
-        </>
+        <Course />
     )
 }

@@ -2,16 +2,16 @@
 
 @import "./style/home/home.css";
 @import "./style/home/content.css";
-@import "./style/home/overview.css";
 @import "./style/home/navbar.css";
-@import "./style/home/study.css";
 @import "./style/home/dashboard.css";
+@import "./style/home/manage.css";
 
-@import "./style/feedback.css";
-@import "./style/member.css";
+@import "./style/social.css";
 @import "./style/course.css";
 @import "./style/event.css";
 @import "./style/auth.css";
+@import "./style/ui.css";
+
 
 * {
     margin: 0;
@@ -30,84 +30,5 @@
     --color_yellow: #FFEB3B;
     --color_red: #F44336;
     --color_blue: #1E90FF;
-}
-
-#load {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: max-content;
-    width: max-content;
-    background: transparent;
-    flex-direction: column;
-    gap: 30px;
-}
-
-.shape {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: max-content;
-    width: max-content;
-}
-
-.shape .square {
-    display: flex;
-    height: 40px;
-    width: 40px;
-    background: var(--color_black);
-    transform: rotate(45deg);
-    animation: transformSquare 7s infinite cubic-bezier(0.075, 0.82, 0.165, 1);
-}
-
-.shape .circle {
-    display: flex;
-    position: absolute;
-    height: 40px;
-    width: 40px;
-    background: #fff;
-    scale: 0.5;
-    border-radius: 50%;
-}
-
-@keyframes transformSquare {
-    0% {
-        transform: rotate(45deg) scale(1.2);
-    }
-
-    12.5% {
-        transform: rotate(45deg) scale(1);
-    }
-
-    25% {
-        transform: rotate(135deg) scale(1.2);
-    }
-
-    37.5% {
-        transform: rotate(135deg) scale(1);
-    }
-
-    50% {
-        transform: rotate(225deg) scale(1.2);
-    }
-
-    62.5% {
-        transform: rotate(225deg) scale(1);
-    }
-
-    75% {
-        transform: rotate(315deg) scale(1.2);
-    }
-
-    87.5% {
-        transform: rotate(315deg) scale(1);
-    }
-
-    100% {
-        transform: rotate(45deg) scale(1.2);
-    }
-}
-
-#load span {
-    font-weight: 700;
+    --color_orange: #ED8B00;
 }

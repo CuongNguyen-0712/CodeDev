@@ -1,55 +1,37 @@
-import { useState, useLayoutEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
-import Navbar from './navbar';
+import Navbar from '../home/navbar';
 import Dashboard from './dashboard'
 import Content from '../home/content';
-import LoadingWait from '@/app/lib/loadingWait';
+import { LoadingRedirect } from '../ui/loading';
 
-import { useTheme } from '@/app/contexts/themeContext';
-import { useSize } from '@/app/contexts/sizeContext';
 
 export default function HomePage() {
 
-    const [device, onDevice] = useState({
-        onMobile: false,
-        onIpad: false,
-        onLaptop: false,
-    })
-
-    const [sizeDevice, setSizeDevice] = useState({
-        width: 0,
-        height: 0
-    })
-
-    useLayoutEffect(() => {
-        const handleResize = () => {
-            const currentWidth = window.innerWidth;
-            const currentHeight = window.innerHeight;
-
-            onDevice({
-                onMobile: currentWidth <= 425,
-                onIpad: currentWidth > 425 && currentWidth <= 768,
-                onLaptop: currentWidth > 768
-            })
-
-            setSizeDevice({
-                width: currentWidth,
-                height: currentHeight
-            })
-        }
-
-        handleResize();
-
-        window.addEventListener("resize", handleResize);
-
-        return () => window.removeEventListener("resize", handleResize);
-    }, []);
+    const ref = useRef(null);
 
     const [home, setHome] = useState({
         overlay: false,
+        dashboard: false,
         switchMode: true,
         setLogout: false,
     })
+
+    const refDashboard = (e) => {
+        if (!ref.current) return;
+
+        if (ref.current && !ref.current.contains(e.target)) {
+            setHome(prev => ({ ...prev, dashboard: false, overlay: false }));
+        }
+    };
+
+    useEffect(() => {
+        document.addEventListener('mousedown', refDashboard)
+
+        return () => {
+            document.removeEventListener('mousedown', refDashboard)
+        }
+    }, [])
 
     const [redirect, setRedirect] = useState(false);
 
@@ -59,25 +41,21 @@ export default function HomePage() {
                 <>
                     <div id='header'>
                         <Navbar
-                            sizeDevice={sizeDevice}
-                            onMobile={device.onMobile}
-                            onIpad={device.onIpad}
+                            handleDashboard={() => setHome(prev => ({ ...prev, dashboard: true, overlay: true }))}
                         />
                     </div>
-                    <div className='frame'>
-                        <div className='aside'>
-                            <Dashboard
-                                sizeDevice={sizeDevice}
-                                handleRedirect={() => setRedirect(true)}
-                            />
-                        </div>
-                        <div id='container'>
-                            <Content />
-                        </div>
+                    <div className='aside' style={home.dashboard ? { transform: 'translateX(0)' } : { transform: 'translateX(-100%)' }} ref={ref}>
+                        <Dashboard
+                            handleDashboard={() => setHome(prev => ({ ...prev, dashboard: false, overlay: false }))}
+                            handleRedirect={() => setRedirect(true)}
+                        />
+                    </div>
+                    <div id='container'>
+                        <Content />
                     </div>
                 </>
                 :
-                <LoadingWait />
+                <LoadingRedirect />
             }
         </main>
     );

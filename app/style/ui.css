@@ -1,0 +1,100 @@
+#loadRedirect {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: max-content;
+    width: max-content;
+    background: transparent;
+    flex-direction: column;
+    gap: 30px;
+}
+
+.shape {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: max-content;
+    width: max-content;
+}
+
+.shape .square {
+    display: flex;
+    height: 50px;
+    width: 50px;
+    background: var(--color_black);
+    transform: rotate(45deg);
+    animation: transformSquare 7s infinite cubic-bezier(0.075, 0.82, 0.165, 1);
+}
+
+.shape .circle {
+    display: flex;
+    position: absolute;
+    height: 50px;
+    width: 50px;
+    background: #fff;
+    scale: 0.5;
+    border-radius: 50%;
+}
+
+@keyframes transformSquare {
+    0% {
+        transform: rotate(45deg) scale(1.2);
+    }
+
+    12.5% {
+        transform: rotate(45deg) scale(1);
+    }
+
+    25% {
+        transform: rotate(135deg) scale(1.2);
+    }
+
+    37.5% {
+        transform: rotate(135deg) scale(1);
+    }
+
+    50% {
+        transform: rotate(225deg) scale(1.2);
+    }
+
+    62.5% {
+        transform: rotate(225deg) scale(1);
+    }
+
+    75% {
+        transform: rotate(315deg) scale(1.2);
+    }
+
+    87.5% {
+        transform: rotate(315deg) scale(1);
+    }
+
+    100% {
+        transform: rotate(45deg) scale(1.2);
+    }
+}
+
+#loadContent {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+    background: var(--color_white);
+    overflow: hidden;
+}
+
+#loadContent svg {
+    scale: 4;
+    animation: loadContent 1s linear infinite;
+}
+
+@keyframes loadContent {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(-360deg);
+    }
+}

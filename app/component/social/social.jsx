@@ -2,8 +2,13 @@ import { useState } from "react"
 
 import CreateMember from "./createMember"
 import TableFilter from "./tableFilter"
+import Navbar from "../home/navbar";
 
-export default function Member({ size }) {
+import Router from "@/app/router/router";
+
+export default function Social() {
+    const { navigateToHome } = Router();
+
     const [filter, setFilter] = useState(false);
     const [filterValue, setFilterValue] = useState({
         name: [],
@@ -11,7 +16,10 @@ export default function Member({ size }) {
     });
 
     return (
-        <section className="member-container">
+        <main id="main">
+            <div id="header">
+                <Navbar handleReturn={navigateToHome} />
+            </div>
             <CreateMember
                 sizeDevice={size}
                 onFilter={filter}
@@ -21,9 +29,9 @@ export default function Member({ size }) {
             <TableFilter
                 sizeDevice={size}
                 onFilter={filter}
-                setFilter = {() => setFilter(false)}
+                setFilter={() => setFilter(false)}
                 handleFilter={(value) => setFilterValue({ name: value.name, code: value.code })}
             />
-        </section>
+        </main>
     )
 }

@@ -1,105 +1,91 @@
-import { useState, useLayoutEffect, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 import Navbar from './navbar';
 import Dashboard from './dashboard';
 import Content from './content';
+import Manage from "./manage";
 
-import LoadingWait from '@/app/lib/loadingWait';
-
-import { useSize } from '@/app/contexts/sizeContext';
+import { LoadingRedirect } from '@/app/component/ui/loading';
 
 export default function Home() {
-    const { size } = useSize()
-
     const ref = useRef();
-
-    const [device, onDevice] = useState({
-        onMobile: false,
-        onIpad: false,
-        onLaptop: false,
-    })
-
-    const [sizeDevice, setSizeDevice] = useState({
-        width: 0,
-        height: 0
-    })
-
-    useLayoutEffect(() => {
-        const handleResize = () => {
-            const currentWidth = window.innerWidth;
-            const currentHeight = window.innerHeight;
-
-            onDevice({
-                onMobile: currentWidth <= 425,
-                onIpad: currentWidth > 425 && currentWidth <= 768,
-                onLaptop: currentWidth > 768
-            })
-
-            setSizeDevice({
-                width: currentWidth,
-                height: currentHeight
-            })
-        }
-
-        handleResize();
-
-        window.addEventListener("resize", handleResize);
-
-        return () => window.removeEventListener("resize", handleResize);
-    }, []);
-
-    const refMenu = (e) => {
-        if (ref.current && !ref.current.contains(e.target)) {
-            setHome({ ...home, menu: false })
-        }
-    }
-
-    useEffect(() => {
-        document.addEventListener('mousedown', refMenu)
-
-        return () => {
-            document.removeEventListener('mousedown', refMenu)
-        }
-    }, [])
+    const params = useSearchParams();
 
     const [home, setHome] = useState({
-        menu: false,
-        targetContentItem: 0,
+        dashboard: false,
+        manage: false,
         overlay: false,
-        switchMode: true,
+        redirect: false,
         setLogout: false,
     })
 
-    const [redirect, setRedirect] = useState(false);
+    useEffect(() => {
+        const onManage = params.get('manage');
+        if (onManage) {
+            setHome(prev => ({
+                ...prev,
+                manage: onManage === 'true',
+                dashboard: false,
+                overlay: false,
+            }));
+        }
+        else {
+            setHome(prev => ({
+                ...prev,
+                manage: false,
+            }));
+        }
+
+    }, [params]);
+
+    const refDashboard = (e) => {
+        if (!ref.current) return;
+
+        if (ref.current && !ref.current.contains(e.target)) {
+            setHome(prev => ({ ...prev, dashboard: false, overlay: false }));
+        }
+    };
+
+    useEffect(() => {
+        document.addEventListener('mousedown', refDashboard)
+
+        return () => {
+            document.removeEventListener('mousedown', refDashboard)
+        }
+    }, [])
+
+    useEffect(() => {
+        document.body.style.overflow = (home.overlay || home.manage) ? "hidden" : "unset";
+    }, [home.overlay, home.manage]);
 
     return (
-        <main id='home'>
-            {!redirect ?
+        <main id='home' className={home.overlay ? 'overlay' : ''}>
+            {!home.redirect ?
                 <>
                     <div id='header'>
                         <Navbar
-                            sizeDevice={sizeDevice}
-                            onMobile={device.onMobile}
-                            onIpad={device.onIpad}
-                            handleMenu={() => setHome({ ...home, menu: !home.menu })}
-                            handleOverlay={() => setHome({ ...home, overlay: true })}
-                            handleFeedback={() => setHome({ ...home, onFeedback: true })}
+                            handleDashboard={() => setHome(prev => ({ ...prev, dashboard: true, overlay: true }))}
+                            onHome={false}
                         />
                     </div>
-                    <div className='aside' style={home.menu ? { transform: 'translateX(0)' } : { transform: 'translateX(-100%)' }} ref={ref}>
+                    <div className='aside' style={home.dashboard ? { transform: 'translateX(0)' } : { transform: 'translateX(-100%)' }} ref={ref}>
                         <Dashboard
-                            sizeDevice={sizeDevice}
-                            handleMenu={() => setHome({ ...home, menu: false })}
-                            handleSetContent={(index) => setHome({ ...home, targetContentItem: index })}
-                            handleRedirect={() => setRedirect(true)}
+                            handleDashboard={() => setHome(prev => ({ ...prev, dashboard: false, overlay: false }))}
                         />
                     </div>
                     <div id='container'>
                         <Content />
                     </div>
+                    {
+                        home.manage &&
+                        <div className='manage-overlay'>
+                            <Manage />
+                        </div>
+                    }
                 </>
                 :
-                <LoadingWait />
+                <LoadingRedirect />
             }
         </main>
     );

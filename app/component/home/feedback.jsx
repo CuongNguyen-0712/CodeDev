@@ -5,8 +5,11 @@ import { BsFillInfoCircleFill } from "react-icons/bs";
 
 import Form from "next/form";
 import axios from "axios";
+import { useQuery } from "@/app/router/router";
 
 export default function Feedback({ handleFeedback }) {
+    const queryNavigate = useQuery();
+
     const [dataForm, setDataForm] = useState({
         title: "",
         feedback: "",
@@ -89,8 +92,6 @@ export default function Feedback({ handleFeedback }) {
             };
             hasError = true;
         }
-
-        console.log(hasError);
 
         setError(newError);
 
@@ -200,14 +201,14 @@ export default function Feedback({ handleFeedback }) {
                 >
                     Reset
                 </button>
-                <button type="submit" id="send" disabled={isPending}>
+                <button type="submit" id="send" disabled={isPending} style={isPending ? { cursor: 'not-allowed' } : { cursor: 'pointer' }}>
                     {isPending ? "Sending..." : "Send"}
                     <span>
                         <IoIosSend />
                     </span>
                 </button>
             </div>
-            <button type="button" onClick={handleFeedback}>
+            <button type="button" onClick={() => queryNavigate(window.location.pathname, { feedback: false })}>
                 <IoIosClose />
             </button>
         </Form>
