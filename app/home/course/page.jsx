@@ -1,8 +1,11 @@
 'use client'
-
 import Course from "@/app/component/course/course";
+import { Suspense } from "react";
+
 export default function Page() {
     return (
-        <Course />
+        <Suspense fallback={null}>
+            <Course />
+        </Suspense>
     )
 }

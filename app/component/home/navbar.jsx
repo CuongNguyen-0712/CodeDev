@@ -22,8 +22,6 @@ export default function Navbar({ onHome, handleDashboard }) {
   const params = useSearchParams();
   const pathname = usePathname();
 
-  console.log(pathname)
-
   const refGroup = useRef(null);
 
   const [onGroup, setOnGroup] = useState(false);

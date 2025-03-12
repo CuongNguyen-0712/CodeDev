@@ -16,10 +16,10 @@ export function useRouterActions() {
 
 export function useQuery() {
     const router = useRouter();
-    const searchParams = useSearchParams();
+    const params = useSearchParams();
 
     return (path, query) => {
-        const currentParams = new URLSearchParams(searchParams.toString());
+        const currentParams = new URLSearchParams(params.toString());
 
         Object.entries(query).forEach(([key, value]) => {
             if (value === null || value === undefined || value === false) {
