@@ -158,6 +158,7 @@
   justify-content: center;
   height: 35px;
   width: max-content;
+  color: var(--color_black);
   gap: 10px;
   cursor: pointer;
 }
@@ -228,7 +229,8 @@
   align-items: center;
   top: 0;
   left: 0;
-  background: transparent;
+  overflow: scroll;
+  background: var(--color_white);
   z-index: 4;
 }
 
@@ -251,7 +253,6 @@
   background: #fff;
   border-radius: 20px;
   flex-direction: column;
-  overflow: hidden;
   transition: 0.2s all ease;
 }
 
@@ -264,6 +265,7 @@
   font-size: 25px;
   background: transparent;
   border-radius: 50px;
+  color: var(--color_black);
   transition: 0.2s all ease;
 }
 
@@ -349,6 +351,7 @@
   width: 100%;
   resize: none;
   padding: 10px;
+  min-height: 100px;
   background: var(--color_gray);
   border-radius: 10px;
 }
@@ -420,5 +423,10 @@
     height: 100%;
     width: 100%;
     border-radius: 0px;
+  }
+
+  .feedback-field input,
+  .feedback-field textarea {
+    font-size: 13px;
   }
 }

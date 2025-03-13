@@ -85,7 +85,7 @@
 }
 
 #loadContent svg {
-    scale: 4;
+    scale: 2;
     animation: loadContent 1s linear infinite;
 }
 

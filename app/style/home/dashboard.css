@@ -188,6 +188,7 @@
   right: 10px;
   height: 30px;
   width: 30px;
+  color: var(--color_black);
   border-radius: 5px;
   background: var(--color_gray);
 }

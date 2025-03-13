@@ -523,6 +523,7 @@
     top: 5px;
     right: 10px;
     border-radius: 50px;
+    color: var(--color_black);
     background: transparent;
     transition: 0.2s all ease
 }
@@ -642,6 +643,7 @@
     justify-content: center;
     height: 40px;
     width: 40px;
+    color: var(--color_black);
     border-radius: 50px;
     background: var(--color_gray);
     font-size: 18px;
