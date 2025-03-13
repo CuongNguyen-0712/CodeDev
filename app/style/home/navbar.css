@@ -48,36 +48,6 @@
   user-select: none;
 }
 
-.navbar-feature #menuHome {
-  display: flex;
-  position: absolute;
-  height: max-content;
-  width: max-content;
-  top: 50px;
-  left: 0;
-  border-radius: 5px;
-  background: var(--color_white);
-  box-shadow: 0 0 10px var(--color_gray);
-  flex-direction: column;
-  overflow: hidden;
-}
-
-#menuHome button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 35px;
-  width: 120px;
-  background: transparent;
-  text-transform: uppercase;
-  font-weight: 700;
-  font-size: 11px;
-}
-
-#menuHome button:hover {
-  background: var(--color_gray);
-}
-
 @media screen and (max-width: 425px) {
   #app-name {
     font-size: 13px;
