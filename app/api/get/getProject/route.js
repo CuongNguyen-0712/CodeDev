@@ -1,4 +1,4 @@
-import { getProject } from "@/app/server/actions/get/action";
+import { getProject } from "@/app/actions/get/action";
 
 export async function GET(req) {
     const searchParams = req.nextUrl.searchParams;

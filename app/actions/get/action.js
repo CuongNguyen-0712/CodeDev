@@ -58,7 +58,7 @@ export async function getInfo(data) {
     }
 }
 
-export async function getProject() {
+export async function getProject(data) {
     try {
         const res = await sql`
             select i.*
