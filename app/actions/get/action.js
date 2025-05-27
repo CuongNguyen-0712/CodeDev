@@ -58,27 +58,27 @@ export async function getInfo(data) {
     }
 }
 
-export async function getProject() {
-    try {
-        const res = await sql`
-            select i.*
-            from joinproject j
-            join project i on j.idproject = i.id
-            join users u on j.idjoin = u.id 
-        `;
+// export async function getProject(data) {
+//     try {
+//         const res = await sql`
+//             select i.*
+//             from joinproject j
+//             join project i on j.idproject = i.id
+//             join users u on j.idjoin = u.id 
+//         `;
 
-        return new Response(
-            JSON.stringify({ data: res, message: "Get data successfully" }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-        );
-    } catch (error) {
-        console.error("Error saving feedback:", error);
-        return new Response(
-            JSON.stringify({ data: 'Something went wrong', message: "Internal server error" }),
-            { status: 500, headers: { "Content-Type": "application/json" } }
-        );
-    }
-}
+//         return new Response(
+//             JSON.stringify({ data: res, message: "Get data successfully" }),
+//             { status: 200, headers: { "Content-Type": "application/json" } }
+//         );
+//     } catch (error) {
+//         console.error("Error saving feedback:", error);
+//         return new Response(
+//             JSON.stringify({ data: 'Something went wrong', message: "Internal server error" }),
+//             { status: 500, headers: { "Content-Type": "application/json" } }
+//         );
+//     }
+// }
 
 export async function getCourse(data) {
     try {
