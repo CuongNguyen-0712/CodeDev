@@ -1,5 +1,4 @@
 import { useState } from "react"
-import { useSearchParams } from "next/navigation"
 
 import Login from "./login"
 import Logup from "./logup"
@@ -7,13 +6,13 @@ import { LoadingRedirect } from "../ui/loading"
 import { useSize } from "@/app/contexts/sizeContext"
 
 export default function Form() {
-    const params = useSearchParams();
     const { size } = useSize();
 
     const [form, setForm] = useState({
-        login: params.get('login') ?? true,
-        signup: params.get('signup') ?? false
+        login: true,
+        signup: false
     })
+
     const [redirect, setRedirect] = useState(false)
 
     return (

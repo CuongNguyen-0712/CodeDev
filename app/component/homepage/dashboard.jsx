@@ -3,7 +3,6 @@ import { useSearchParams } from "next/navigation";
 import { useSize } from "@/app/contexts/sizeContext";
 
 import Image from "next/image";
-import { useRouterActions } from "@/app/router/router";
 
 import { GoProjectRoadmap } from "react-icons/go";
 import { FaCode } from 'react-icons/fa6';
