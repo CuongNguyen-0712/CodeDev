@@ -6,23 +6,24 @@
     height: max-content;
     width: 100%;
     padding: 80px 20px 20px 20px;
-    flex-direction: column;
+    flex-wrap: wrap;
     gap: 20px;
 }
 
 #overview .overview-container {
     display: flex;
     height: max-content;
-    width: 100%;
+    flex-grow: 1;
     gap: 20px;
-    flex-wrap: wrap;
+    flex-direction: column;
+    flex-basis: 400px;
 }
 
 .overview-container .overview-user {
     display: flex;
     height: max-content;
     width: max-content;
-    padding: 20px;
+    padding: 20px 40px;
     border-radius: 10px;
     box-shadow: 0 0 10px var(--color_gray);
     flex-direction: column;
@@ -34,15 +35,24 @@
     align-items: center;
     height: max-content;
     width: max-content;
+    flex-direction: column;
     gap: 20px;
 }
 
-.user-container img {
+.user-container .user-info {
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: max-content;
+    gap: 20px;
+}
+
+.user-info img {
     border-radius: 5px;
     outline: 1px solid #ccc;
 }
 
-.user-container .info {
+.user-info .info {
     display: flex;
     align-items: flex-start;
     justify-content: center;
@@ -60,7 +70,7 @@
     font-size: 14px;
 }
 
-.user-container .exprience {
+.user-info .exprience {
     display: flex;
     align-items: flex-start;
     justify-content: center;
@@ -88,7 +98,7 @@
     font-size: 16px;
 }
 
-.overview-user #edit {
+.overview-container #edit {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -108,7 +118,6 @@
     height: max-content;
     flex-grow: 1;
     border-radius: 10px;
-    flex-basis: 400px;
     flex-direction: column;
     box-shadow: 0 0 10px var(--color_gray);
     overflow: hidden;
@@ -180,11 +189,7 @@
     display: flex;
     width: 100%;
     gap: 10px;
-    overflow-x: hidden;
-}
-
-.progress-item .detail::-webkit-scrollbar {
-    display: none;
+    overflow: hidden;
 }
 
 .progress-item .detail .info {
@@ -203,10 +208,8 @@
     box-shadow: 0 0 10px var(--color_gray);
     padding: 10px;
     border-radius: 5px;
+    flex-wrap: wrap;
     gap: 20px;
-}
-
-.progress-item .detail .info .item {
     font-weight: 500;
 }
 
@@ -219,12 +222,12 @@
 }
 
 .progress-item .item>span {
+    display: flex;
     height: max-content;
     width: max-content;
     padding: 10px 15px;
     font-size: 10px;
     text-transform: uppercase;
-    border-radius: 50px;
     background: var(--color_black);
     color: var(--color_white);
     text-align: center;
@@ -234,7 +237,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100px;
+    height: 100%;
     width: 100%;
 }
 
@@ -299,11 +302,6 @@
     flex-grow: 1;
     width: 100%;
     padding: 20px;
-    overflow: scroll;
-}
-
-.language .main-language::-webkit-scrollbar {
-    display: none;
 }
 
 .language .language-container {
@@ -495,13 +493,12 @@
     flex-wrap: wrap;
 }
 
-.heading-myProject .input-search {
+.heading-myCourse .input-search {
     display: flex;
     position: relative;
     height: 40px;
-    width: 40%;
-    max-width: 500px;
-    min-width: 250px;
+    width: 50%;
+    max-width: 400px;
 }
 
 .input-search input {
@@ -545,11 +542,12 @@
     align-items: center;
     justify-content: center;
     height: 40px;
-    width: 150px;
+    width: max-content;
     background: var(--color_black);
     color: var(--color_white);
     font-weight: 700;
     border-radius: 10px;
+    padding: 0 20px;
     gap: 10px;
     cursor: pointer;
 }
@@ -729,13 +727,12 @@
     flex-wrap: wrap;
 }
 
-.heading-myCourse .input-search {
+.heading-myProject .input-search {
     display: flex;
     position: relative;
     height: 40px;
     width: 40%;
-    max-width: 500px;
-    min-width: 250px;
+    max-width: 400px;
 }
 
 .handle-project {
@@ -750,10 +747,11 @@
     align-items: center;
     justify-content: center;
     height: 40px;
-    width: 150px;
+    width: max-content;
     background: var(--color_black);
     color: var(--color_white);
     font-weight: 700;
+    padding: 0 20px;
     border-radius: 10px;
     gap: 10px;
     cursor: pointer;
@@ -761,6 +759,7 @@
 
 .project-list {
     display: flex;
+    justify-content: center;
     height: max-content;
     width: 100%;
     flex-direction: column;
@@ -788,7 +787,6 @@
     height: max-content;
     width: 100%;
     gap: 10px;
-    flex-wrap: wrap;
 }
 
 .heading-item .item {
@@ -796,6 +794,7 @@
     align-items: center;
     height: max-content;
     width: max-content;
+    padding-right: 20px;
     gap: 10px;
     flex-wrap: wrap;
 }
@@ -858,6 +857,39 @@
     width: 100%;
 }
 
+.handle-project .table-handle {
+    display: flex;
+    position: absolute;
+    height: max-content;
+    width: max-content;
+    top: 10px;
+    right: 10px;
+    background-color: transparent;
+    flex-direction: column;
+    gap: 10px;
+    overflow: hidden;
+}
+
+.table-handle>button {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 30px;
+    width: 30px;
+    border-radius: 50px;
+    font-size: 18px;
+}
+
+.table-handle .delete-btn {
+    color: var(--color_white);
+    background: var(--color_black);
+}
+
+.table-handle .hidden-btn {
+    color: var(--color_black);
+    background: var(--color_gray);
+}
+
 .handle-project .join-project {
     display: flex;
     align-items: center;
@@ -898,14 +930,13 @@
 }
 
 .handle-project .other-handle .delete-btn {
-    background: var(--color_red);
+    background: var(--color_black);
     color: var(--color_white);
 }
 
 @media screen and (max-width: 768px) {
     .item-project .heading-item {
         gap: 20px;
-        padding-right: 100px;
         flex-direction: column;
     }
 
@@ -915,5 +946,20 @@
 
     .handle-project .other-handle {
         top: 20px;
+    }
+
+    .input-search {
+        flex-grow: 1;
+    }
+}
+
+@media screen and (max-width: 425px) {
+    .input-search input {
+        font-size: 16px;
+    }
+
+    #project-btn span,
+    #course-btn span {
+        display: none;
     }
 }

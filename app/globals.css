@@ -1,10 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap');
-
 @import "./style/home/home.css";
 @import "./style/home/content.css";
 @import "./style/home/navbar.css";
 @import "./style/home/dashboard.css";
 @import "./style/home/manage.css";
+@import "./style/home/feedback.css";
 
 @import "./style/social.css";
 @import "./style/course.css";
@@ -12,14 +11,26 @@
 @import "./style/auth.css";
 @import "./style/ui.css";
 
+@font-face {
+    font-family: 'myFont';
+    src: url(../public/font/OpenSans-VariableFont_wdth\,wght.ttf) format('truetype');
+    font-style: normal;
+    font-weight: normal;
+}
 
 * {
     margin: 0;
     border: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: "Roboto", sans-serif;
+    font-family: 'myFont', sans-serif;
     scroll-behavior: smooth;
+}
+
+body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 :root {

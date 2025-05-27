@@ -1,46 +1,48 @@
 import { useState, useEffect } from "react"
 
 import Image from "next/image";
-import axios from "axios";
-import { useRouterActions } from "@/app/router/router";
 
+import DeleteMyCourseServive from "@/app/services/deleteService/myCourseService";
+import GetMyCourseService from "@/app/services/getService/myCourseService";
+
+import { useRouterActions, useQuery } from "@/app/router/router";
 import { LoadingContent } from "../../ui/loading";
 
 import { FaCartShopping } from "react-icons/fa6";
 import { IoFilter, IoSettingsSharp, IoClose, IoEyeOff, IoTrashBin } from "react-icons/io5";
 
-export default function MyCourse() {
+export default function MyCourse({ redirect }) {
     const { navigateToCourse } = useRouterActions();
+    const querySearch = useQuery();
 
     const [pending, setPending] = useState(true)
     const [course, setCourse] = useState([])
     const [option, setOption] = useState(null)
 
+    const handleNavigate = () => {
+        redirect();
+        navigateToCourse()
+    }
+
     const fetchData = async () => {
         try {
-            const res = await axios.get('/api/myCourse');
+            const res = await GetMyCourseService('CD01');
             if (res.status === 200) {
-                const course = res.data;
-                setCourse(course);
-                setPending(false);
-            }
-            else if (res.status === 500) {
-                setCourse({ heading: 'Server is error', content: 'Failed to load content' })
+                const data = res.data;
+                setCourse(data);
                 setPending(false);
             }
         }
         catch (err) {
             setPending(false);
-            setCourse({ heading: 'Something is wrong', content: 'Failed to load content' })
             throw new Error(err);
         }
     }
 
     const handleWithdrawCourse = async (id) => {
         try {
-            const res = await axios.delete('/actions/myCourse', { data: { idCourse: id, idStudent: 'CD01' } })
+            const res = await DeleteMyCourseServive({ idCourse: id, idStudent: 'CD01' })
             if (res.status == 200) {
-
                 setOption(null)
                 await fetchData()
             }
@@ -69,9 +71,11 @@ export default function MyCourse() {
                                 </button>
                             </div>
                             <div className="handle-course">
-                                <button onClick={navigateToCourse} id="course-btn">
+                                <button onClick={handleNavigate} id="course-btn">
                                     <FaCartShopping />
-                                    Marketplace
+                                    <span>
+                                        Marketplace
+                                    </span>
                                 </button>
                             </div>
                         </div>

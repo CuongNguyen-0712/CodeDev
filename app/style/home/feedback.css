@@ -1,0 +1,210 @@
+.feedback-container {
+    display: flex;
+    position: fixed;
+    align-items: flex-start;
+    justify-content: center;
+    height: 100dvh;
+    width: 100%;
+    top: 0;
+    right: 0;
+    padding: 20px;
+    overflow-y: scroll;
+    z-index: 5;
+}
+
+#feedback-form {
+    display: flex;
+    position: relative;
+    height: max-content;
+    width: 450px;
+    background: #fff;
+    border-radius: 20px;
+    flex-direction: column;
+    transition: 0.2s all ease;
+}
+
+#feedback-form>button {
+    display: flex;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 5px;
+    font-size: 25px;
+    background: transparent;
+    border-radius: 50px;
+    color: var(--color_black);
+    transition: 0.2s all ease;
+}
+
+#feedback-form>button:hover {
+    background: var(--color_gray);
+    transition: 0.2s all ease;
+}
+
+.heading-feedback {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    align-items: center;
+    text-align: center;
+    padding: 15px 20px;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.heading-feedback .info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: max-content;
+    width: 100%;
+    border-radius: 10px;
+    padding: 10px 20px;
+    border: 1px solid var(--color_gray);
+    box-shadow: 0 0 5px var(--color_gray);
+    gap: 10px;
+}
+
+.info p {
+    font-size: 14px;
+}
+
+.modal-feedback {
+    display: flex;
+    align-items: center;
+    flex-grow: 1;
+    flex-direction: column;
+    padding: 0 20px 10px 20px;
+    gap: 30px;
+}
+
+.feedback-field {
+    display: flex;
+    position: relative;
+    height: max-content;
+    width: 100%;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.feedback-field:last-child {
+    flex-grow: 1;
+}
+
+.feedback-field .heading-field {
+    display: flex;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.feedback-field input {
+    display: flex;
+    height: 40px;
+    width: 80%;
+    background: var(--color_gray);
+    border-radius: 10px;
+    outline: none;
+    padding: 0 10px;
+}
+
+.feedback-field input:focus {
+    outline: 2px solid var(--color_black);
+}
+
+.feedback-field textarea {
+    display: flex;
+    height: 150px;
+    width: 100%;
+    resize: none;
+    padding: 10px;
+    background: var(--color_gray);
+    border-radius: 10px;
+}
+
+.feedback-field textarea:focus {
+    outline: 2px solid var(--color_black);
+}
+
+.feedback-field .error {
+    display: flex;
+    position: absolute;
+    align-items: center;
+    height: max-content;
+    width: max-content;
+    bottom: -20px;
+    font-size: 13px;
+    gap: 5px;
+    color: var(--color_red);
+}
+
+.footer-feedback {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    justify-content: space-between;
+    padding: 20px;
+    gap: 20px;
+}
+
+.footer-feedback button {
+    display: flex;
+    justify-content: center;
+    height: 40px;
+    align-items: center;
+    text-transform: uppercase;
+    color: var(--color_white);
+    font-weight: 700;
+    font-size: 13px;
+}
+
+#reset {
+    background: var(--color_black);
+    width: 100px;
+    border-radius: 50px;
+}
+
+#send {
+    position: relative;
+    flex-grow: 1;
+    background: var(--color_blue);
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+#send span {
+    display: flex;
+    position: absolute;
+    align-items: center;
+    justify-content: center;
+    height: 30px;
+    width: 30px;
+    top: 5px;
+    right: 10px;
+    background: var(--color_white);
+    border-radius: 50px;
+    color: var(--color_blue);
+    font-size: 20px;
+}
+
+@media screen and (max-width: 425px) {
+    #feedback-form {
+        height: 100%;
+        width: 100%;
+        border-radius: 0px;
+    }
+
+    .feedback-overlay {
+        background: var(--color_white);
+    }
+
+    .feedback-field input,
+    .feedback-field textarea {
+        font-size: 16px;
+    }
+
+    .feedback-field input::placeholder,
+    .feedback-field textarea::placeholder {
+        font-size: 14px;
+    }
+}

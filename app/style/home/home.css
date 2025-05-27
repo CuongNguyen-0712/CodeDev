@@ -61,13 +61,6 @@
   z-index: 0;
 }
 
-body::-webkit-scrollbar-thumb {
-  background: var(--color_black);
-}
-
-body::-webkit-scrollbar {
-  width: 10px;
-}
 
 .logoutSheet {
   display: flex;

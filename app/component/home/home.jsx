@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import Navbar from './navbar';
 import Dashboard from './dashboard';
 import Content from './content';
+import Feedback from './feedback';
 import Manage from "./manage";
 
 import { LoadingRedirect } from '@/app/component/ui/loading';
@@ -14,50 +15,44 @@ export default function Home() {
 
     const [home, setHome] = useState({
         dashboard: false,
-        manage: false,
-        overlay: false,
+        onHandle: false,
         redirect: false,
-        setLogout: false,
-    })
-
-    useEffect(() => {
-        const onManage = params.get('manage');
-        if (onManage) {
-            setHome(prev => ({
-                ...prev,
-                manage: onManage === 'true',
-                dashboard: false,
-                overlay: false,
-            }));
-        }
-        else {
-            setHome(prev => ({
-                ...prev,
-                manage: false,
-            }));
-        }
-
-    }, [params]);
+        overlay: false,
+    });
 
     const refDashboard = (e) => {
         if (!ref.current) return;
 
-        if (ref.current && !ref.current.contains(e.target)) {
-            setHome(prev => ({ ...prev, dashboard: false, overlay: false }));
+        const isOutside = !ref.current.contains(e.target);
+
+        if (isOutside && !home.onHandle) {
+            setHome(prev => ({
+                ...prev,
+                dashboard: false,
+                overlay: false
+            }));
         }
     };
 
     useEffect(() => {
-        document.addEventListener('mousedown', refDashboard)
-
+        document.addEventListener('mousedown', refDashboard);
         return () => {
-            document.removeEventListener('mousedown', refDashboard)
-        }
-    }, [])
+            document.removeEventListener('mousedown', refDashboard);
+        };
+    }, [home.onHandle]);
 
     useEffect(() => {
-        document.body.style.overflow = (home.overlay || home.manage) ? "hidden" : "unset";
-    }, [home.overlay, home.manage]);
+        const isOverlay = !!(params.get('manage') || params.get('feedback'));
+
+        setHome(prev => ({
+            ...prev,
+            dashboard: false,
+            overlay: isOverlay,
+            onHandle: isOverlay
+        }));
+
+        document.body.style.overflow = isOverlay ? 'hidden' : 'unset';
+    }, [params]);
 
     return (
         <main id='home' className={home.overlay ? 'overlay' : ''}>
@@ -75,12 +70,18 @@ export default function Home() {
                         />
                     </div>
                     <div id='container'>
-                        <Content />
+                        <Content redirect={() => setHome(prev => ({ ...prev, redirect: true }))} />
                     </div>
                     {
-                        home.manage &&
-                        <div className='manage-overlay'>
-                            <Manage />
+                        params.get('manage') &&
+                        <div className='manage-container'>
+                            <Manage redirect={() => setHome(prev => ({ ...prev, redirect: true, overlay: false }))} />
+                        </div>
+                    }
+                    {
+                        params.get('feedback') &&
+                        <div className="feedback-container">
+                            <Feedback />
                         </div>
                     }
                 </>

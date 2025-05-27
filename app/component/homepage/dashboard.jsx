@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
+import { useSize } from "@/app/contexts/sizeContext";
 
 import Image from "next/image";
 import { useRouterActions } from "@/app/router/router";
@@ -10,8 +11,7 @@ import { MdInfoOutline, MdOutlineClose } from "react-icons/md";
 
 export default function Dashboard({ handleDashboard, handleRedirect }) {
     const params = useSearchParams();
-    const { navigateToAuth } = useRouterActions();
-
+    const { size } = useSize();
     const refNavigation = useRef(null);
 
     const [targetItem, setTargetItem] = useState(0);
@@ -49,7 +49,7 @@ export default function Dashboard({ handleDashboard, handleRedirect }) {
         <div id='dashboard'>
             <div className="header">
                 <Image src={`./image/logo.svg`} alt="logo" width={20} height={20} />
-                <h2>CodeDev</h2>
+                <h3>CodeDev</h3>
             </div>
             <div className="main-menu">
                 <div className="menu">
@@ -69,13 +69,15 @@ export default function Dashboard({ handleDashboard, handleRedirect }) {
                 </div>
                 <span id="navigation" ref={refNavigation}></span>
             </div>
-            <div className="navigate-auth">
-                <h3>Please login your account or sign up to see more CodeDev</h3>
-                <button onClick={() => {
-                    navigateToAuth();
-                    handleRedirect();
-                }}>Go to login or sign up</button>
-            </div>
+            {
+                size.width < 425 &&
+                <div className="navigate-auth">
+                    <h3>Please login your account or sign up to see more CodeDev</h3>
+                    <button onClick={handleRedirect}>
+                        Go to login or sign up
+                    </button>
+                </div>
+            }
             <button id="hidden-menu" onClick={handleDashboard}>
                 <MdOutlineClose />
             </button>

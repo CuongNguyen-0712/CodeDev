@@ -7,6 +7,7 @@ export function LoadingRedirect() {
                 <div className='square'></div>
                 <div className="circle"></div>
             </div>
+            <h3>CodeDev</h3>
         </div>
     )
 }

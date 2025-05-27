@@ -22,8 +22,7 @@
   position: relative;
   height: 40px;
   width: 40%;
-  max-width: 500px;
-  min-width: 250px;
+  max-width: 450px;
 }
 
 .input-search input {
@@ -66,7 +65,8 @@
   align-items: center;
   justify-content: center;
   height: 40px;
-  width: 200px;
+  width: max-content;
+  padding: 0 20px;
   background: var(--color_black);
   color: var(--color_white);
   font-weight: 700;
@@ -247,4 +247,10 @@
   color: var(--color_white);
   font-weight: 600;
   cursor: pointer;
+}
+
+@media screen and (max-width: 500px) {
+  .handle-course #myCourse-btn h4 {
+    display: none;
+  }
 }

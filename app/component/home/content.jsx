@@ -7,12 +7,12 @@ const components = {
     2: dynamic(() => import('../content/project/project'), { ssr: true }),
 };
 
-export default function Content() {
+export default function Content({ redirect }) {
     const params = useSearchParams();
     const query = params.get('target') || 0;
     const SelectedComponent = components[query];
 
     return (
-        <SelectedComponent />
+        <SelectedComponent redirect={redirect} />
     )
 }   

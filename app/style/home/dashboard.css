@@ -98,13 +98,12 @@
 .menu .menu-item button.active {
   background: var(--color_gray);
   color: var(--color_blue);
-  font-weight: 500;
+  font-weight: 600;
   transition: 0.5s all ease;
 }
 
 .menu .menu-item button:not(.active):hover {
   background: var(--color_gray);
-  font-weight: 500;
   transition: 0.2s all ease;
 }
 
@@ -219,7 +218,7 @@
   background: var(--color_blue);
   color: var(--color_white);
   text-transform: uppercase;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
 }

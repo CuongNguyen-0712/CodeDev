@@ -4,10 +4,9 @@ import { IoIosSend, IoIosClose, IoIosWarning } from "react-icons/io";
 import { BsFillInfoCircleFill } from "react-icons/bs";
 
 import Form from "next/form";
-import axios from "axios";
 import { useQuery } from "@/app/router/router";
-
-export default function Feedback({ handleFeedback }) {
+import PostFeedbackService from "@/app/services/postService/feedbackService";
+export default function Feedback() {
     const queryNavigate = useQuery();
 
     const [dataForm, setDataForm] = useState({
@@ -98,13 +97,10 @@ export default function Feedback({ handleFeedback }) {
         if (hasError) {
             setPending(false);
             return;
-        } else {
+        }
+        else {
             try {
-                const response = await axios.post("/actions/postFeedback", {
-                    title,
-                    feedback,
-                    email,
-                });
+                const response = await PostFeedbackService(dataForm);
                 if (response.status === 200) {
                     setDataForm({
                         title: "",
@@ -115,7 +111,6 @@ export default function Feedback({ handleFeedback }) {
                     setPending(false);
                 }
             } catch (error) {
-                console.log(error);
                 setPending(false);
             }
         }

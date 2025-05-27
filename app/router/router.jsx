@@ -14,6 +14,7 @@ export function useRouterActions() {
     };
 }
 
+
 export function useQuery() {
     const router = useRouter();
     const params = useSearchParams();
@@ -29,7 +30,7 @@ export function useQuery() {
             }
         });
 
-        router.push(`${path}?${currentParams.toString()}`);
+        router.push(`${path}?${currentParams.toString()}`, { scroll: false });
     };
 }
 

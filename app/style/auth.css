@@ -4,6 +4,15 @@
   justify-content: center;
   height: 100dvh;
   width: 100%;
+}
+
+.auth-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  padding: 20px 0;
   overflow: scroll;
 }
 
@@ -46,6 +55,7 @@
 
 .heading-form button.active {
   color: var(--color_blue);
+  font-weight: 600;
   transition: 0.2s all ease;
 }
 
@@ -210,6 +220,7 @@
   border-radius: 10px;
   background: var(--color_blue);
   color: var(--color_white);
+  font-weight: 600;
   text-transform: uppercase;
   cursor: pointer;
 }
@@ -374,7 +385,6 @@ a {
   width: 100%;
   outline: none;
   font-size: 16px;
-  outline: 1px solid var(--color_gray);
   padding-left: 10px;
 }
 
@@ -524,16 +534,17 @@ textarea::placeholder {
   bottom: 10px;
 }
 
-@media screen and (max-width: 500px) {
+@media screen and (max-width: 475px) {
   .auth-form {
     height: 100%;
     width: 100%;
     border-radius: 0px;
+    box-shadow: none;
   }
 
   #login .field-input>input,
   #logup .field-input>input {
-    font-size: 13px;
+    font-size: 16px;
   }
 }
 

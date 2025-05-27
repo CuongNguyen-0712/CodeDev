@@ -74,6 +74,10 @@
     }
 }
 
+#loadRedirect h3 {
+    color: var(--color_black);
+}
+
 #loadContent {
     display: flex;
     align-items: center;

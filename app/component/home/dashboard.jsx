@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { useQuery } from "@/app/router/router";
 
+import Logo from "@/public/image/logo.svg";
+
 import {
   FaUsers,
   FaAngleLeft,
@@ -74,8 +76,8 @@ export default function Dashboard({ handleDashboard }) {
     <>
       <div id="dashboard">
         <div className="header">
-          <Image src={`./image/logo.svg`} alt="logo" width={20} height={20} />
-          <h2>CodeDev</h2>
+          <Image src={Logo} alt="logo" width={20} height={20} />
+          <h3>CodeDev</h3>
         </div>
         <div className="main-menu">
           <div className="menu">
