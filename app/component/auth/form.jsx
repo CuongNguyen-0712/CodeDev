@@ -3,10 +3,8 @@ import { useState } from "react"
 import Login from "./login"
 import Logup from "./logup"
 import { LoadingRedirect } from "../ui/loading"
-import { useSize } from "@/app/contexts/sizeContext"
 
 export default function Form() {
-    const { size } = useSize();
 
     const [form, setForm] = useState({
         login: true,
@@ -20,7 +18,7 @@ export default function Form() {
             {redirect ?
                 <LoadingRedirect />
                 :
-                <div className="auth-container" style={size.height < 600 ? { alignItems: 'flex-start' } : { alignItems: 'center' }}>
+                <div className="auth-container">
                     <section className="auth-form">
                         <div className="heading-form" >
                             <button

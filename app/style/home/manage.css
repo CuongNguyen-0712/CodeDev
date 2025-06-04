@@ -15,8 +15,9 @@
 #managePanel {
     display: flex;
     position: relative;
-    height: 100%;
+    height: max-content;
     width: 100%;
+    min-height: 600px;
     padding: 15px 20px;
     background: var(--color_white);
     border-radius: 10px;
@@ -34,8 +35,10 @@
 
 .content-manage {
     display: flex;
+    justify-content: center;
     width: 100%;
     flex-grow: 1;
+    flex-direction: column;
     gap: 10px;
 }
 
@@ -54,25 +57,60 @@
     gap: 20px;
 }
 
-
-.info-manage .info {
-    display: flex;
-    height: 100%;
-    flex-grow: 1;
-}
-
-.content-manage .beside {
+.info-manage .beside {
     display: flex;
     align-items: center;
-    justify-content: flex-start;
     height: 100%;
-    width: 200px;
+    width: 250px;
     flex-direction: column;
     flex-shrink: 0;
+    gap: 20px;
+}
+
+.info-manage .beside .header_beside {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: max-content;
+    width: 100%;
+    border: 1px solid var(--color_gray);
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0 0 2px var(--color_black);
+    flex-direction: column;
     gap: 10px;
 }
 
-.content-manage .beside #myAvatar {
+.info-manage .beside .footer_beside {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    width: 100%;
+    height: max-content;
+    border: 1px solid var(--color_gray);
+    border-radius: 10px;
+    padding: 10px 0;
+    flex-direction: column;
+    box-shadow: 0 0 2px var(--color_black);
+    gap: 10px;
+}
+
+.beside .footer_beside p {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+    font-size: 15px;
+    padding: 0 20px;
+    gap: 10px;
+}
+
+.footer_beside p span {
+    display: flex;
+    gap: 5px;
+}
+
+.beside .header_beside #myAvatar {
     display: flex;
     height: max-content;
     width: max-content;
@@ -94,21 +132,157 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 30px;
+    height: 35px;
     padding: 0 20px;
     font-weight: 600;
     border-radius: 10px;
+    gap: 5px;
 }
 
-#import-image {
+#import_image {
+    position: relative;
     flex-grow: 1;
+    background: var(--color_black);
+    color: var(--color_white);
+}
+
+#cancel_handle {
     background: var(--color_gray);
     color: var(--color_black);
 }
 
-#save-image {
+#file {
+    position: absolute;
+    height: 100%;
+    width: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.info-manage .info {
+    display: flex;
+    position: relative;
+    height: 100%;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+.info .info_container {
+    display: flex;
+    height: max-content;
+    flex-grow: 1;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.info .info_container #modify_btns {
+    display: flex;
+    position: absolute;
+    height: 35px;
+    width: max-content;
+    right: 0;
+    top: 0;
+    gap: 10px;
+}
+
+#modify_btns button {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    width: max-content;
+    border-radius: 5px;
+    padding: 0 15px;
+    font-weight: 600;
+    gap: 10px;
+}
+
+#modify_btns #edit_info {
+    background: var(--color_gray);
+    color: var(--color_black);
+}
+
+#modify_btns #save_info {
     background: var(--color_black);
     color: var(--color_white);
+}
+
+.info .info_container .item:not(:first-of-type) {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    height: max-content;
+    width: 100%;
+    gap: 5px;
+}
+
+.info_container .item label {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.info_container .item input {
+    display: flex;
+    height: 40px;
+    width: 100%;
+    max-width: 250px;
+    background: transparent;
+    color: var(--color_black);
+    font-size: 15px;
+    padding: 0 10px;
+    outline: none;
+}
+
+.info_container .item:first-of-type p {
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: max-content;
+    font-size: 15px;
+}
+
+.info_container .item:first-of-type input {
+    height: 25px;
+    font-size: 13px;
+}
+
+.info_container .item input.modify {
+    border: 2px solid var(--color_gray);
+    border-radius: 5px;
+}
+
+.info_container .item input.modify:focus {
+    border-color: var(--color_black);
+}
+
+.info .info_container>.item:nth-last-of-type(2) {
+    align-items: flex-start;
+}
+
+.info_container .item:nth-last-of-type(2) label {
+    margin-top: 10px;
+}
+
+.info_container .item textarea {
+    display: flex;
+    height: 150px;
+    max-width: 350px;
+    flex-grow: 1;
+    font-size: 15px;
+    background: transparent;
+    color: var(--color_black);
+    padding: 10px;
+    text-wrap: wrap;
+    resize: none;
+    outline: none;
+}
+
+.info_container .item textarea.modify {
+    border: 2px solid var(--color_gray);
+    border-radius: 5px;
+}
+
+.info_container .item textarea.modify:focus {
+    border-color: var(--color_black);
 }
 
 .footer-manage {
@@ -126,7 +300,7 @@
     text-transform: uppercase;
     font-size: 12px;
     font-weight: 600;
-    border-radius: 10px;
+    border-radius: 5px;
     cursor: pointer;
 }
 
@@ -160,9 +334,69 @@
     transition: 0.2s all ease;
 }
 
-@media screen and (max-width: 425px) {
-    #managePanel {
-        height: 100%;
+#alert {
+    display: flex;
+    position: absolute;
+    align-items: center;
+    height: max-content;
+    width: max-content;
+    right: 100px;
+    top: 10px;
+    padding: 10px;
+    border-radius: 5px;
+    color: var(--color_black);
+    background: var(--color_gray);
+    font-size: 12px;
+    gap: 5px;
+}
+
+#alert::before {
+    content: "";
+    display: flex;
+    position: absolute;
+    height: 2px;
+    left: 0;
+    bottom: 0;
+    background: var(--color_black);
+    animation: animateTimeout 2s linear forwards;
+}
+
+@keyframes animateTimeout {
+    0% {
+        width: 0%;
+    }
+
+    100% {
+        display: none;
         width: 100%;
+    }
+}
+
+@media screen and (max-width: 768px) {
+    .manage-container {
+        padding: 0;
+    }
+
+    #managePanel {
+        border-radius: 0;
+    }
+
+    .info-manage {
+        flex-direction: column;
+    }
+
+    .info-manage .beside {
+        width: 100%;
+        flex-direction: row;
+    }
+}
+
+@media screen and (max-width: 425px) {
+    .info-manage .beside {
+        flex-wrap: wrap;
+    }
+
+    .info-manage .info {
+        padding-top: 35px;
     }
 }

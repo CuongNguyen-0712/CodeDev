@@ -21,10 +21,14 @@
 
 .overview-container .overview-user {
     display: flex;
+    justify-content: center;
     height: max-content;
     width: max-content;
+    min-height: 200px;
+    min-width: 300px;
     padding: 20px 40px;
     border-radius: 10px;
+    border: 2px solid var(--color_gray);
     box-shadow: 0 0 10px var(--color_gray);
     flex-direction: column;
     gap: 20px;
@@ -107,6 +111,7 @@
     background: var(--color_black);
     color: var(--color_white);
     font-weight: 700;
+    border-radius: 5px;
     text-transform: uppercase;
     cursor: pointer;
 }
@@ -118,6 +123,7 @@
     height: max-content;
     flex-grow: 1;
     border-radius: 10px;
+    border: 2px solid var(--color_gray);
     flex-direction: column;
     box-shadow: 0 0 10px var(--color_gray);
     overflow: hidden;
@@ -205,12 +211,12 @@
     align-items: center;
     height: max-content;
     width: 100%;
-    box-shadow: 0 0 10px var(--color_gray);
     padding: 10px;
     border-radius: 5px;
-    flex-wrap: wrap;
+    border: 1px solid var(--color_gray);
+    box-shadow: 0 0 10px var(--color_gray);
     gap: 20px;
-    font-weight: 500;
+    flex-wrap: wrap;
 }
 
 .progress-item .item .header {
@@ -230,7 +236,8 @@
     text-transform: uppercase;
     background: var(--color_black);
     color: var(--color_white);
-    text-align: center;
+    font-weight: 600;
+    border-radius: 5px;
 }
 
 #no-course {
@@ -258,6 +265,7 @@
     background: var(--color_black);
     color: var(--color_white);
     text-transform: uppercase;
+    border-radius: 5px;
     font-weight: 600;
 }
 
@@ -265,6 +273,7 @@
     display: flex;
     width: 100%;
     border-radius: 10px;
+    border: 2px solid var(--color_gray);
     box-shadow: 0 0 10px var(--color_gray);
     flex-direction: column;
     gap: 20px;
@@ -490,18 +499,18 @@
     width: 100%;
     padding: 10px 0;
     gap: 20px;
-    flex-wrap: wrap;
+    z-index: 1;
 }
 
-.heading-myCourse .input-search {
+.heading-myCourse #search {
     display: flex;
     position: relative;
     height: 40px;
-    width: 50%;
+    flex-grow: 1;
     max-width: 400px;
 }
 
-.input-search input {
+#search input {
     display: flex;
     height: 100%;
     width: 100%;
@@ -510,7 +519,7 @@
     border: 2px solid var(--color_black);
 }
 
-.input-search .filter {
+#search .filter {
     display: flex;
     position: absolute;
     align-items: center;
@@ -525,9 +534,61 @@
     transition: 0.2s all ease
 }
 
-.input-search .filter:hover {
+#search .filter:hover {
     background: var(--color_gray);
     transition: 0.2s all ease
+}
+
+#search .filter.active {
+    background: var(--color_gray);
+    transition: 0.2s all ease
+}
+
+#course_table {
+    display: flex;
+    position: absolute;
+    height: 200px;
+    width: 100%;
+    background: var(--color_white);
+    border: 1px solid var(--color_gray);
+    border-radius: 5px;
+    top: 50px;
+    padding: 15px;
+    flex-direction: column;
+}
+
+#course_table .content_table {
+    display: flex;
+    flex-grow: 1;
+}
+
+#course_table .footer_table {
+    display: flex;
+    justify-content: flex-end;
+    height: max-content;
+    width: 100%;
+    gap: 10px;
+}
+
+#course_table .footer_table button {
+    display: flex;
+    align-items: center;
+    height: 30px;
+    width: max-content;
+    padding: 0 15px;
+    border-radius: 5px;
+    font-weight: 600;
+    font-size: 12px;
+}
+
+#cancel_btn {
+    background: var(--color_gray);
+    color: var(--color_black);
+}
+
+#apply_btn {
+    background: var(--color_black);
+    color: var(--color_white);
 }
 
 .handle-course {
@@ -647,21 +708,6 @@
     font-size: 18px;
 }
 
-.handling {
-    font-size: 20px;
-    animation: 1s handlingTranform linear infinite;
-}
-
-@keyframes handlingTranform {
-    from {
-        transform: rotate(0deg);
-    }
-
-    to {
-        transform: rotate(360deg);
-    }
-}
-
 .course .footer-course .join-course {
     display: flex;
     align-items: center;
@@ -672,9 +718,9 @@
     font-size: 15px;
     text-transform: uppercase;
     color: var(--color_white);
-    font-weight: 500;
+    font-weight: 600;
+    letter-spacing: 1px;
     border-radius: 5px;
-    cursor: pointer;
 }
 
 .footer-course .setting-list {
@@ -689,19 +735,20 @@
     align-items: center;
     justify-content: center;
     height: 40px;
-    flex-grow: 1;
     font-weight: 600;
     gap: 10px;
     font-size: 14px;
     color: var(--color_white);
-    cursor: pointer;
+    border-radius: 5px;
 }
 
 .setting-list .hide-course {
+    width: 40px;
     background: var(--color_black);
 }
 
 .setting-list .cancel-course {
+    flex-grow: 1;
     background: var(--color_red);
 }
 
@@ -727,7 +774,7 @@
     flex-wrap: wrap;
 }
 
-.heading-myProject .input-search {
+.heading-myProject #search {
     display: flex;
     position: relative;
     height: 40px;
@@ -947,16 +994,9 @@
     .handle-project .other-handle {
         top: 20px;
     }
-
-    .input-search {
-        flex-grow: 1;
-    }
 }
 
 @media screen and (max-width: 425px) {
-    .input-search input {
-        font-size: 16px;
-    }
 
     #project-btn span,
     #course-btn span {

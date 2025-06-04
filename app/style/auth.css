@@ -8,7 +8,7 @@
 
 .auth-container {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   height: 100%;
   width: 100%;
@@ -19,9 +19,9 @@
 .auth-form {
   display: flex;
   position: relative;
-  height: 90%;
-  max-height: 650px;
-  min-height: 550px;
+  height: 100%;
+  min-height: 600px;
+  max-height: 800px;
   width: 450px;
   border-radius: 20px;
   background: var(--color_white);
@@ -112,10 +112,10 @@
   align-items: center;
   height: max-content;
   width: max-content;
-  gap: 10px;
+  gap: 5px;
 }
 
-.heading-login span {
+.heading-login>span {
   display: flex;
   height: max-content;
   width: 80%;
@@ -126,10 +126,11 @@
 #login .main-login {
   display: flex;
   align-items: center;
-  justify-content: space-evenly;
+  justify-content: space-between;
   width: 100%;
   flex-grow: 1;
   flex-direction: column;
+  padding: 10px 0;
 }
 
 .login-input {
@@ -146,14 +147,15 @@
   position: relative;
   height: max-content;
   width: 100%;
+  gap: 5px;
 }
 
 #login .field-input>input,
 #logup .field-input>input {
   display: flex;
-  height: 40px;
+  height: 45px;
   width: 100%;
-  padding: 10px 20px 0 0px;
+  padding: 15px 0 0 30px;
   font-size: 16px;
   background: transparent;
   outline: none;
@@ -178,12 +180,50 @@
 
 .field-input>input:focus+label,
 .field-input.has-content>label {
-  top: -5px;
+  top: 0;
   left: 0;
   color: var(--color_blue);
   font-size: 12px;
   font-weight: 500;
   transition: 0.2s all ease;
+}
+
+.field-input>input:focus~.icon,
+.field-input.has-content .icon {
+  transform: scale(1);
+  transition: 0.2s all ease;
+}
+
+.warning {
+  display: flex;
+  position: relative;
+  align-items: flex-end;
+  height: 100%;
+  z-index: 2;
+}
+
+.warning_icon {
+  font-size: 20px;
+  color: var(--color_orange);
+  cursor: pointer;
+}
+
+.warning>p {
+  display: none;
+  position: absolute;
+  height: max-content;
+  width: max-content;
+  font-size: 12px;
+  background: var(--color_orange);
+  padding: 5px 10px;
+  border-radius: 5px;
+  right: 0;
+  bottom: -30px;
+  user-select: none;
+}
+
+.warning_icon:hover~p {
+  display: flex;
 }
 
 .main-login .login-help {
@@ -231,33 +271,21 @@
   align-items: center;
   height: max-content;
   width: 100%;
-  padding: 25px 0 20px 0;
   flex-direction: column;
+  padding: 10px 0 20px 0;
   gap: 15px;
 }
 
-.footer-login::before {
-  content: "Or sign in with";
-  display: flex;
-  position: absolute;
-  width: max-content;
-  height: max-content;
-  padding: 0 20px;
-  top: -5px;
-  font-size: 13px;
-  font-weight: 500;
-  background: var(--color_white);
-}
-
-.footer-login::after {
+#login .footer-login::before {
   content: "";
   display: flex;
-  position: absolute;
   height: 2px;
   width: 80%;
   background: var(--color_black);
-  top: 0;
-  z-index: -1;
+}
+
+.footer-login P {
+  font-size: 13px;
 }
 
 .footer-login .social-login {
@@ -328,7 +356,7 @@ a {
   align-items: center;
   height: max-content;
   width: max-content;
-  gap: 10px;
+  gap: 5px;
 }
 
 .heading-logup span {
@@ -406,7 +434,7 @@ a {
   border-radius: 10px;
   text-transform: uppercase;
   background: var(--color_blue);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--color_white);
   cursor: pointer;
 }
@@ -421,36 +449,11 @@ a {
   gap: 15px;
 }
 
-.footer-logup::before {
-  content: "Or sign up with";
-  display: flex;
-  position: absolute;
-  width: max-content;
-  height: max-content;
-  padding: 0 20px;
-  bottom: 110px;
-  font-size: 13px;
-  font-weight: 500;
-  background: var(--color_white);
-}
-
-.footer-logup::after {
-  content: "";
-  display: flex;
-  position: absolute;
-  height: 2px;
-  width: 80%;
-  background: var(--color_black);
-  bottom: 115px;
-  z-index: -1;
-}
-
 .footer-logup .navigate-logup {
   display: flex;
   justify-content: center;
   height: max-content;
   width: 100%;
-  padding-bottom: 40px;
   gap: 50px;
 }
 
@@ -464,6 +467,10 @@ a {
   color: var(--color_black);
   border-radius: 5px;
   cursor: pointer;
+}
+
+.footer-logup p {
+  font-size: 13px;
 }
 
 .footer-logup .social-logup {
@@ -530,21 +537,37 @@ textarea::placeholder {
 .icon {
   display: flex;
   position: absolute;
-  right: 10px;
+  left: 5px;
   bottom: 10px;
+  transform: scale(0);
+  transform-origin: center;
+  transition: 0.2s all ease;
+}
+
+.return_homepage {
+  display: flex;
+  align-items: center;
+  height: max-content;
+  width: max-content;
+  background: transparent;
+  text-decoration: none;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color_blue);
+  cursor: pointer;
+  gap: 5px;
 }
 
 @media screen and (max-width: 475px) {
+  .auth-container {
+    padding: 0;
+  }
+
   .auth-form {
     height: 100%;
     width: 100%;
     border-radius: 0px;
     box-shadow: none;
-  }
-
-  #login .field-input>input,
-  #logup .field-input>input {
-    font-size: 16px;
   }
 }
 

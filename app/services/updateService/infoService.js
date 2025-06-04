@@ -1,7 +1,7 @@
-export default async function PostRegisterCourseService(data) {
+export default async function UpdateInfoService(data) {
     try {
-        const res = await fetch('/api/post/postRegisterCourse', {
-            method: 'POST',
+        const res = await fetch('/api/update/updateInfo', {
+            method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
             },
@@ -9,6 +9,7 @@ export default async function PostRegisterCourseService(data) {
         });
 
         if (res.status === 404) {
+            console.error("API not found");
             return {
                 status: 404,
                 message: "API not found"
@@ -21,7 +22,7 @@ export default async function PostRegisterCourseService(data) {
             return {
                 status: res.status,
                 data: raw.data,
-                message: raw.message || "Register course successfully"
+                message: "Update infomation successfully"
             };
         } else {
             return {
@@ -29,7 +30,8 @@ export default async function PostRegisterCourseService(data) {
                 message: raw.message || "Unknown server error"
             };
         }
-    } catch (err) {
+    }
+    catch (err) {
         console.error("Network/API call failed:", err);
         return {
             status: 500,

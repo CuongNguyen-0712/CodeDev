@@ -38,7 +38,7 @@ export async function getOverview(data) {
 export async function getInfo(data) {
     try {
         const res = await sql`
-            select i.*, u.username as username
+            select i.surname as surname, i.name as name, i.email as email, i.image as image, i.bio as bio, i.nickname as nickname, i.rank as rank, i.star as star, i.level as level, u.username as username
             from public.users u
             join infouser i on u.id = i.id
             where u.id = ${data}

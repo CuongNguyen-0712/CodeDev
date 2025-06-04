@@ -85,7 +85,6 @@
     height: 100%;
     width: 100%;
     background: var(--color_white);
-    overflow: hidden;
 }
 
 #loadContent svg {
@@ -100,5 +99,45 @@
 
     100% {
         transform: rotate(-360deg);
+    }
+}
+
+#error {
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: max-content;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#error p {
+    font-size: 15px;
+}
+
+#error button {
+    display: flex;
+    align-items: center;
+    height: 35px;
+    width: max-content;
+    padding: 0 15px;
+    background: var(--color_black);
+    color: #fff;
+    font-weight: 600;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.handling {
+    animation: animateHandling 1s linear infinite;
+}
+
+@keyframes animateHandling {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
     }
 }

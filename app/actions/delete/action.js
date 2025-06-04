@@ -15,7 +15,7 @@ export async function deleteMyCourse(data) {
 
         const { idCourse, idStudent } = data
 
-        const res = await sql`      
+        await sql`      
         DELETE FROM registercourse WHERE idcourse = ${idCourse} AND idstudent = ${idStudent}
         `;
 

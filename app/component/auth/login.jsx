@@ -4,24 +4,35 @@ import Image from "next/image"
 import Form from "next/form"
 import Link from "next/link"
 
+import { SignInDefinition } from "@/app/lib/definition"
 import { useRouterActions } from "@/app/router/router"
 
 import { FaUser, FaLock } from "react-icons/fa6";
+import { FaCircleNotch } from "react-icons/fa";
+import { IoIosWarning } from "react-icons/io";
 
 export default function Login({ active, setForm, redirect }) {
-
-    const { navigateToHome } = useRouterActions()
-
+    const { navigateToHome } = useRouterActions();
     const [login, setLogin] = useState({
         name: '',
-        pass: ''
+        pass: '',
+        pending: false,
+        error: null,
     })
 
     const submitLogin = (e) => {
-        localStorage.setItem('user', JSON.stringify(login))
         e.preventDefault()
-        redirect()
-        navigateToHome()
+
+        setLogin({ ...login, pending: true })
+
+        const res = SignInDefinition({ name: login.name, pass: login.pass })
+        if (res.success) {
+            navigateToHome();
+            redirect()
+        }
+        else {
+            setLogin({ ...login, error: res.error })
+        }
     }
 
     return (
@@ -29,9 +40,9 @@ export default function Login({ active, setForm, redirect }) {
             <div className="heading-login">
                 <h2>
                     Login
-                    <Link href={'/'} onClick={redirect} style={{ display: 'flex', textDecoration: 'none', gap: '5px', alignItems: 'center' }}>
+                    <Link className="return_homepage" href="/" onClick={redirect}>
                         CodeDev
-                        <Image src="/image/logo.svg" width={20} height={20} alt="logo" />
+                        <Image src="/image/logo.svg" width={25} height={25} alt="logo" />
                     </Link>
                 </h2>
                 <span>
@@ -44,11 +55,26 @@ export default function Login({ active, setForm, redirect }) {
                         <input type="text" id="nameLogin" name="nameLogin" value={login.name} onChange={(e) => setLogin({ ...login, name: e.target.value })} autoComplete="off" />
                         <label>Username</label>
                         <FaUser className="icon" />
+                        {
+                            (login.error && login.error.name) &&
+                            <div className="warning">
+                                <IoIosWarning className="warning_icon" />
+                                <p>{login.error.name}</p>
+                            </div>
+                        }
                     </div>
                     <div className={`field-input ${login.pass ? 'has-content' : ''}`}>
                         <input type="password" id="passLogin" name="passLogin" value={login.pass} onChange={(e) => setLogin({ ...login, pass: e.target.value })} autoComplete="off" />
                         <label>Password</label>
                         <FaLock className='icon' />
+                        {
+                            (login.error && login.error.pass) &&
+                            <div className="warning">
+                                <IoIosWarning className="warning_icon" />
+                                <p>{login.error.pass}</p>
+                            </div>
+
+                        }
                     </div>
                 </div>
                 <div className="login-help">
@@ -61,12 +87,20 @@ export default function Login({ active, setForm, redirect }) {
                         <label>Remember me</label>
                     </span>
                 </div>
-                <button type="submit" className="btn-login" disabled={login.name && login.pass ? false : true}>
-                    Sign in
+                <button type="submit" className="btn-login" disabled={login.pending}>
+                    {
+                        login.pending ?
+                            <FaCircleNotch className="handling" style={{ fontSize: '20px' }} />
+                            :
+                            <>
+                                Sign in
+                            </>
+                    }
                 </button>
                 <Link href="/auth" style={{ color: 'var(--color_black)', fontSize: '14px', fontWeight: '700', textDecoration: 'none' }}>Forgot your password ?</Link>
             </div>
             <div className="footer-login">
+                <p>Or sign in with</p>
                 <div className="social-login">
                     <button type="button">
                         <Image src="/image/google.ico" width={20} height={20} alt="facebook" />

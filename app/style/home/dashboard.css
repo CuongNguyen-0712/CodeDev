@@ -27,7 +27,7 @@
   width: 80%;
   background: var(--color_black);
   color: var(--color_white);
-  border-radius: 50px;
+  border-radius: 5px;
   font-weight: 700;
   font-size: 11px;
   text-transform: uppercase;
@@ -167,7 +167,8 @@
   padding-left: 20px;
   background: var(--color_blue);
   font-weight: 700;
-  font-size: 15px;
+  border-radius: 5px;
+  font-size: 14px;
   gap: 30px;
 }
 
@@ -176,6 +177,7 @@
   width: 35px;
   border-radius: 5px;
   background: var(--color_black);
+  font-size: 16px;
 }
 
 #hidden-menu {
@@ -219,6 +221,7 @@
   color: var(--color_white);
   text-transform: uppercase;
   font-size: 12px;
+  border-radius: 5px;
   font-weight: 600;
   cursor: pointer;
 }

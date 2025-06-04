@@ -14,9 +14,9 @@ export default function Logup({ active, setForm, redirect }) {
             <div className="heading-logup">
                 <h2>
                     Logup
-                    <Link href={'/'} onClick={redirect} style={{ display: 'flex', textDecoration: 'none', gap: '5px', alignItems: 'center' }}>
+                    <Link className="return_homepage" href="/" onClick={redirect}>
                         CodeDev
-                        <Image src="/image/logo.svg" width={20} height={20} alt="logo" />
+                        <Image src="/image/logo.svg" width={25} height={25} alt="logo" />
                     </Link>
                 </h2>
                 <span>
@@ -70,13 +70,14 @@ export default function Logup({ active, setForm, redirect }) {
             </div>
             <div className="footer-logup">
                 <div className="navigate-logup">
-                    <button type="button" style={page != 1 ? { color: 'var(--color_white)', background: 'var(--color_blue)' } : { borderColor: 'var(--color_black)' }} onClick={() => setPage(prev => prev - 1)} disabled={page == 1 ? true : false}>
+                    <button type="button" style={page != 1 ? { color: 'var(--color_white)', background: 'var(--color_blue)', cursor: 'pointer' } : { borderColor: 'var(--color_black)', cursor: 'not-allowed' }} onClick={() => setPage(prev => prev - 1)} disabled={page == 1 ? true : false}>
                         <FaArrowLeft />
                     </button >
-                    <button type="button" style={page != 2 ? { color: 'var(--color_white)', background: 'var(--color_blue)' } : { borderColor: 'var(--color_black)' }} onClick={() => setPage(prev => prev + 1)} disabled={page == 2 ? true : false}>
+                    <button type="button" style={page != 2 ? { color: 'var(--color_white)', background: 'var(--color_blue)', cursor: 'pointer' } : { borderColor: 'var(--color_black)', cursor: 'not-allowed' }} onClick={() => setPage(prev => prev + 1)} disabled={page == 2 ? true : false}>
                         <FaArrowRight />
                     </button>
                 </div>
+                <p>Or sign up with</p>
                 <div className="social-logup">
                     <button type="button">
                         <Image src="/image/google.ico" width={20} height={20} alt="facebook" />

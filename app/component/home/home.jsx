@@ -31,7 +31,17 @@ export default function Home() {
                 dashboard: false,
                 overlay: false
             }));
+            document.body.style.overflow = 'unset';
         }
+    };
+
+    const handleDashboard = () => {
+        setHome(prev => ({
+            ...prev,
+            dashboard: true,
+            overlay: true,
+        }));
+        document.body.style.overflow = 'hidden';
     };
 
     useEffect(() => {
@@ -39,7 +49,7 @@ export default function Home() {
         return () => {
             document.removeEventListener('mousedown', refDashboard);
         };
-    }, [home.onHandle]);
+    }, [home.onHandle, home.dashboard]);
 
     useEffect(() => {
         const isOverlay = !!(params.get('manage') || params.get('feedback'));
@@ -60,7 +70,7 @@ export default function Home() {
                 <>
                     <div id='header'>
                         <Navbar
-                            handleDashboard={() => setHome(prev => ({ ...prev, dashboard: true, overlay: true }))}
+                            handleDashboard={handleDashboard}
                             onHome={false}
                         />
                     </div>

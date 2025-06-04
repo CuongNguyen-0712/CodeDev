@@ -30,11 +30,15 @@ export async function postRegisterCourse(data) {
         insert into registercourse (idcourse, idstudent) values (${idCourse}, ${idStudent})
         `
 
-        revalidatePath("/home/course");
-
-        return { success: true, message: "Register course successfully" }
+        return new Response(
+            JSON.stringify({ message: "Register course successfully" }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+        );
     } catch (error) {
-        console.error("Error saving feedback:", error);
-        return { success: false, message: "Server is error" }
+        console.error("Error register course:", error);
+        return new Response(
+            JSON.stringify({ message: "Somthing went wrong" }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+        );
     }
 }
