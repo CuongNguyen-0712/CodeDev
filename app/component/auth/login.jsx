@@ -29,13 +29,17 @@ export default function Login({ active, setForm, redirect }) {
 
         const res = SignInDefinition({ name: login.name, pass: login.pass })
         if (res.success) {
-            const res = await SignInService({ name: login.name, pass: login.pass })
-            if (res.status == 200 && res.success) {
-                redirect()
-                navigateToHome();
-            }
-            else {
-                setLogin({ ...login, error: res.message, pending: false })
+            try {
+                const response = await SignInService({ name: login.name, pass: login.pass });
+
+                if (response.status === 200 && response.success) {
+                    redirect();
+                    navigateToHome();
+                } else {
+                    setLogin((prev) => ({ ...prev, error: response.message, pending: false }));
+                }
+            } catch (err) {
+                setLogin((prev) => ({ ...prev, error: 'Server error', pending: false }));
             }
         }
         else {
