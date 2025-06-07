@@ -1,11 +1,15 @@
+import { getSession } from "@/app/lib/session";
+
 export default async function UpdateInfoService(data) {
+    const id = (await getSession())?.userId;
+    const req = { ...data, id: id };
     try {
         const res = await fetch('/api/update/updateInfo', {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(data)
+            body: JSON.stringify(req)
         });
 
         if (res.status === 404) {

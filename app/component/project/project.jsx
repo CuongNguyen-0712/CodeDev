@@ -1,8 +1,9 @@
+import Layout from "../ui/layout";
+import ProjectContent from "./content";
 
 export default function Project() {
     return (
-        <main id="main">
-
-        </main>
+        <Layout children={<ProjectContent />}>
+        </Layout>
     )
 }

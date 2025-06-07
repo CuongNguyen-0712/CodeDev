@@ -14,14 +14,13 @@
   width: 100%;
   padding: 10px 0;
   gap: 20px;
-  flex-wrap: wrap;
 }
 
 .heading-marketplace .input-search {
   display: flex;
   position: relative;
   height: 40px;
-  width: 40%;
+  width: 100%;
   max-width: 450px;
 }
 
@@ -44,6 +43,7 @@
   top: 5px;
   right: 10px;
   border-radius: 50px;
+  color: var(--color_black);
   background: transparent;
   transition: 0.2s all ease
 }
@@ -245,6 +245,7 @@
   width: 80%;
   text-transform: uppercase;
   color: var(--color_white);
+  border-radius: 5px;
   font-weight: 600;
   cursor: pointer;
 }

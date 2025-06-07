@@ -13,10 +13,10 @@ export async function deleteMyCourse(data) {
             );
         }
 
-        const { idCourse, idStudent } = data
+        const { userId, courseId } = data
 
         await sql`      
-        DELETE FROM registercourse WHERE idcourse = ${idCourse} AND idstudent = ${idStudent}
+        DELETE FROM registercourse WHERE idcourse = ${courseId} AND idstudent = ${userId};
         `;
 
         revalidatePath("/home");

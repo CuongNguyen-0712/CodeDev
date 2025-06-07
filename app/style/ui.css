@@ -141,3 +141,52 @@
         transform: rotate(360deg);
     }
 }
+
+#navigate_handler {
+    display: flex;
+    position: fixed;
+    align-items: flex-start;
+    height: 40px;
+    width: 40px;
+    bottom: 20px;
+    right: 20px;
+    background: transparent;
+    overflow: hidden;
+    transition: 0.2s all ease;
+}
+
+#navigate_handler>button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    width: 100%;
+    font-size: 18px;
+    border-radius: 50%;
+    opacity: 1;
+    visibility: none;
+    background: var(--color_gray);
+    color: var(--color_black);
+    transition: 0.2s all ease;
+}
+
+#navigate_handler>button.hidden {
+    opacity: 0;
+    visibility: visible;
+    transition: 0.2s all ease;
+}
+
+#navigate_handler>button:not(:last-child):hover {
+    background: var(--color_black);
+    color: var(--color_white);
+    transition: 0.2s all ease;
+}
+
+#navigate_handler #handler {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    background: var(--color_black);
+    color: var(--color_white);
+    cursor: pointer;
+}

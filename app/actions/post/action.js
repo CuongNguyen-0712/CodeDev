@@ -1,7 +1,7 @@
 'use server'
 import { neon } from '@neondatabase/serverless';
 
-const sql = neon(`${process.env.DATABASE_URL}`);
+const sql = neon(process.env.DATABASE_URL);
 
 export async function postFeedback(data) {
     try {
@@ -24,10 +24,10 @@ export async function postFeedback(data) {
 
 export async function postRegisterCourse(data) {
     try {
-        const { idStudent, idCourse } = data
+        const { userId, courseId } = data
 
         await sql`
-        insert into registercourse (idcourse, idstudent) values (${idCourse}, ${idStudent})
+        insert into registercourse (idcourse, idstudent) values (${courseId}, ${userId})
         `
 
         return new Response(

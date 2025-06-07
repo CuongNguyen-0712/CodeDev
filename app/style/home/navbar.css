@@ -58,12 +58,12 @@
   display: flex;
   height: 35px;
   width: 30%;
-  background: #fff;
-  color: var(--color_black);
   cursor: pointer;
   border-radius: 5px;
   user-select: none;
   outline: none;
+  background: #fff;
+  color: var(--color_black);
   border: 2px solid var(--color_black);
   transition: 0.2s all ease;
 }

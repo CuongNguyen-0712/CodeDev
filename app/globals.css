@@ -9,6 +9,7 @@
 @import "./style/course.css";
 @import "./style/event.css";
 @import "./style/auth.css";
+@import "./style/project.css";
 @import "./style/ui.css";
 
 @font-face {
@@ -50,6 +51,12 @@ body {
 
     input,
     textarea {
-        font-size: 16px;
+        font-size: 16px !important;
     }
+}
+
+input:disabled,
+textarea:disabled {
+    opacity: 1 !important;
+    cursor: not-allowed;
 }

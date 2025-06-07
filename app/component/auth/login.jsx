@@ -6,6 +6,7 @@ import Link from "next/link"
 
 import { SignInDefinition } from "@/app/lib/definition"
 import { useRouterActions } from "@/app/router/router"
+import SignInService from "@/app/services/authService/signIn"
 
 import { FaUser, FaLock } from "react-icons/fa6";
 import { FaCircleNotch } from "react-icons/fa";
@@ -13,6 +14,7 @@ import { IoIosWarning } from "react-icons/io";
 
 export default function Login({ active, setForm, redirect }) {
     const { navigateToHome } = useRouterActions();
+
     const [login, setLogin] = useState({
         name: '',
         pass: '',
@@ -20,15 +22,21 @@ export default function Login({ active, setForm, redirect }) {
         error: null,
     })
 
-    const submitLogin = (e) => {
+    const submitLogin = async (e) => {
         e.preventDefault()
 
         setLogin({ ...login, pending: true })
 
         const res = SignInDefinition({ name: login.name, pass: login.pass })
         if (res.success) {
-            navigateToHome();
-            redirect()
+            const res = await SignInService({ name: login.name, pass: login.pass })
+            if (res.status == 200 && res.success) {
+                redirect()
+                navigateToHome();
+            }
+            else {
+                setLogin({ ...login, error: res.message, pending: false })
+            }
         }
         else {
             setLogin({ ...login, error: res.error })

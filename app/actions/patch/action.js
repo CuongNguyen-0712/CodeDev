@@ -4,9 +4,9 @@ const sql = neon(process.env.DATABASE_URL);
 
 export async function updateInfo(data) {
     try {
-        const { nickname, surname, name, email, image, bio } = data
+        const { id, nickname, surname, name, email, image, bio } = data
 
-        const res = await sql`
+        await sql`
         update infouser
         set 
         nickname = case when ${nickname} is distinct from nickname then ${nickname} else nickname end,
@@ -15,9 +15,9 @@ export async function updateInfo(data) {
         email = case when ${email} is distinct from email then ${email} else email end,
         image = case when ${image} is distinct from image then ${image} else image end,
         bio = case when ${bio} is distinct from bio then ${bio} else bio end
-        where id = 'CD01'
+        where id = ${id}
         `
-        return new Response(JSON.stringify(res), {
+        return new Response(JSON.stringify({ message: "Update info successfully" }), {
             status: 200,
             headers: { "Content-Type": "application/json" }
         });

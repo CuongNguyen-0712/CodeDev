@@ -10,6 +10,7 @@ export function useRouterActions() {
         navigateToAuth: () => router.push("/auth", { shallow: true }),
         navigateToMember: () => router.push("/home/member", { shallow: true }),
         navigateToCourse: () => router.push("/home/course", { shallow: true }),
+        navigateToProject: () => router.push("/home/project", { shallow: true }),
         navigateToEvent: () => router.push("/home/event", { shallow: true }),
     };
 }

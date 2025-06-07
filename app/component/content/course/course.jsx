@@ -6,7 +6,7 @@ import Form from "next/form";
 import DeleteMyCourseServive from "@/app/services/deleteService/myCourseService";
 import GetMyCourseService from "@/app/services/getService/myCourseService";
 
-import { useRouterActions, useQuery } from "@/app/router/router";
+import { useRouterActions } from "@/app/router/router";
 import { LoadingContent } from "../../ui/loading";
 import { ErrorReload } from "../../ui/error";
 
@@ -38,7 +38,7 @@ export default function MyCourse({ redirect }) {
 
     const fetchData = async () => {
         try {
-            const res = await GetMyCourseService('CD01');
+            const res = await GetMyCourseService();
             if (res.status === 200) {
                 setState((prev) => ({ ...prev, data: res.data, pending: false }))
             }
@@ -57,7 +57,7 @@ export default function MyCourse({ redirect }) {
         setState((prev) => ({ ...prev, handling: { ...prev.handling, withdraw: true } }))
 
         try {
-            const res = await DeleteMyCourseServive({ idCourse: id, idStudent: 'CD01' })
+            const res = await DeleteMyCourseServive(id);
             if (res.status == 200) {
                 setState((prev) => ({ ...prev, message: { status: res.status, message: res.message }, handling: { ...prev.handling, withdraw: false }, idHandle: null }))
                 await fetchData();
@@ -81,94 +81,99 @@ export default function MyCourse({ redirect }) {
     }
 
     return (
-        state.pending ?
-            <LoadingContent />
-            :
-            state.error ?
-                <ErrorReload data={state.error} refetch={fetchData} />
-                :
-                <div id="myCourse">
-                    <div className="heading-myCourse">
-                        <Form id="search" onSubmit={handleSearch}>
-                            <input type="text" placeholder="Search your course" />
-                            <button type="button" className={`filter ${state.filter ? 'active' : ''}`} onClick={() => setState((prev) => ({ ...prev, filter: !prev.filter }))}>
-                                <IoFilter />
-                            </button>
-                            {state.filter &&
-                                <div id="course_table">
-                                    <div className="content_table">
+        <div id="myCourse">
+            <div className="heading-myCourse">
+                <Form id="search" onSubmit={handleSearch}>
+                    <input type="text" placeholder="Search your course" />
+                    <button type="button" className={`filter ${state.filter ? 'active' : ''}`} onClick={() => setState((prev) => ({ ...prev, filter: !prev.filter }))}>
+                        <IoFilter />
+                    </button>
+                    {state.filter &&
+                        <div id="course_table">
+                            <div className="content_table">
 
-                                    </div>
-                                    <div className="footer_table">
-                                        <button type="button" id="cancel_btn" onClick={() => setState((prev) => ({ ...prev, filter: false }))}>Cancel</button>
-                                        <button type="button" id="apply_btn">Apply</button>
-                                    </div>
-                                </div>
-                            }
-                        </Form>
-                        <div className="handle-course">
-                            <button onClick={handleNavigate} id="course-btn">
-                                <FaCartShopping />
-                                <span>
-                                    Marketplace
-                                </span>
-                            </button>
-                        </div>
-                    </div>
-                    <div className="course-frame">
-                        {state.data && state.data.map((item, index) => (
-                            <div key={index} className="course">
-                                <div className="heading-course">
-                                    <Image src={item.image} width={50} height={50} alt="image-course" />
-                                    <h3>{item.title}</h3>
-                                </div>
-                                <div className="content-course">
-                                    <div className="item">
-                                        <h4>Concept</h4>
-                                        <p>{item.concept}</p>
-                                    </div>
-                                    <div className="item">
-                                        <h4>Level:</h4>
-                                        <p>{item.level}</p>
-                                    </div>
-                                    <div className="item">
-                                        <h4>Language:</h4>
-                                        <p>{item.language}</p>
-                                    </div>
-                                    <div className="item">
-                                        <h4>Progress:</h4>
-                                        <p>{((item.progress / item.lesson) * 100).toPrecision(3)}% ({item.progress}/{item.lesson})</p>
-                                    </div>
-                                </div>
-                                <div className="footer-course">
-                                    {
-                                        state.idHandle === index ?
-                                            <div className="setting-list">
-                                                <button className="hide-course" disabled={state.handling.withdraw} style={{ cursor: state.handling.withdraw ? 'not-allowed' : 'pointer' }}>
-                                                    <IoEyeOff />
-                                                </button>
-                                                <button className="cancel-course" onClick={() => handleWithdrawCourse(item.id)} disabled={state.handling.withdraw} style={{ cursor: state.handling.withdraw ? 'not-allowed' : 'pointer' }}>
-                                                    {
-                                                        state.handling.withdraw ?
-                                                            <FaCircleNotch className="handling" style={{ fontSize: '1rem' }} />
-                                                            :
-                                                            <>
-                                                                <IoTrashBin />
-                                                                Withdraw
-                                                            </>
-                                                    }
-                                                </button>
-                                            </div>
-                                            :
-                                            <button className="join-course" disabled={state.handling.withdraw} style={{ cursor: state.handling.withdraw ? 'not-allowed' : 'pointer' }}>Join</button>
-                                    }
-                                    <button className="setting-course" onClick={() => setState((prev) => ({ ...prev, idHandle: state.idHandle === index ? null : index }))} disabled={state.handling.withdraw} style={{ cursor: state.handling.withdraw ? 'not-allowed' : 'default' }}>
-                                        {state.idHandle === index ? <IoClose /> : <IoSettingsSharp />}
-                                    </button>
-                                </div>
                             </div>
-                        ))}
-                    </div>
+                            <div className="footer_table">
+                                <button type="button" id="cancel_btn" onClick={() => setState((prev) => ({ ...prev, filter: false }))}>Cancel</button>
+                                <button type="button" id="apply_btn">Apply</button>
+                            </div>
+                        </div>
+                    }
+                </Form>
+                <div className="handle-course">
+                    <button onClick={handleNavigate} id="course-btn">
+                        <FaCartShopping />
+                        <span>
+                            Marketplace
+                        </span>
+                    </button>
                 </div>
+            </div>
+            <div className="course-frame">
+                {
+                    state.pending ?
+                        <LoadingContent />
+                        :
+                        state.error ?
+                            <ErrorReload data={state.error} refetch={fetchData} />
+                            :
+                            state.data && state.data.length > 0 ?
+                                state.data.map((item, index) => (
+                                    <div key={index} className="course">
+                                        <div className="heading-course">
+                                            <Image src={item.image} width={50} height={50} alt="image-course" />
+                                            <h3>{item.title}</h3>
+                                        </div>
+                                        <div className="content-course">
+                                            <div className="item">
+                                                <h4>Concept</h4>
+                                                <p>{item.concept}</p>
+                                            </div>
+                                            <div className="item">
+                                                <h4>Level:</h4>
+                                                <p>{item.level}</p>
+                                            </div>
+                                            <div className="item">
+                                                <h4>Language:</h4>
+                                                <p>{item.language}</p>
+                                            </div>
+                                            <div className="item">
+                                                <h4>Progress:</h4>
+                                                <p>{((item.progress / item.lesson) * 100).toPrecision(3)}% ({item.progress}/{item.lesson})</p>
+                                            </div>
+                                        </div>
+                                        <div className="footer-course">
+                                            {
+                                                state.idHandle === index ?
+                                                    <div className="setting-list">
+                                                        <button className="hide-course" disabled={state.handling.withdraw} style={{ cursor: state.handling.withdraw ? 'not-allowed' : 'pointer' }}>
+                                                            <IoEyeOff />
+                                                        </button>
+                                                        <button className="cancel-course" onClick={() => handleWithdrawCourse(item.id)} disabled={state.handling.withdraw} style={{ cursor: state.handling.withdraw ? 'not-allowed' : 'pointer' }}>
+                                                            {
+                                                                state.handling.withdraw ?
+                                                                    <FaCircleNotch className="handling" style={{ fontSize: '1rem' }} />
+                                                                    :
+                                                                    <>
+                                                                        <IoTrashBin />
+                                                                        Withdraw
+                                                                    </>
+                                                            }
+                                                        </button>
+                                                    </div>
+                                                    :
+                                                    <button className="join-course" disabled={state.handling.withdraw} style={{ cursor: state.handling.withdraw ? 'not-allowed' : 'pointer' }}>Join</button>
+                                            }
+                                            <button className="setting-course" onClick={() => setState((prev) => ({ ...prev, idHandle: state.idHandle === index ? null : index }))} disabled={state.handling.withdraw} style={{ cursor: state.handling.withdraw ? 'not-allowed' : 'default' }}>
+                                                {state.idHandle === index ? <IoClose /> : <IoSettingsSharp />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                                :
+                                <p>No course can be found here!</p>
+                }
+            </div>
+        </div>
     )
 }

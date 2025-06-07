@@ -159,6 +159,7 @@
   font-size: 16px;
   background: transparent;
   outline: none;
+  border: none;
   border-bottom: 2px solid var(--color_black);
   z-index: 1;
 }

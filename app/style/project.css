@@ -1,0 +1,8 @@
+#project {
+  display: flex;
+  height: max-content;
+  width: 100%;
+  padding: 80px 20px 20px 20px;
+  gap: 30px;
+  flex-direction: column;
+}

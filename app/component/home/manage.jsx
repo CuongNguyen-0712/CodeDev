@@ -14,6 +14,7 @@ import { LiaExchangeAltSolid } from "react-icons/lia";
 import { useQuery, useRouterActions } from "@/app/router/router";
 import { usePathname } from "next/navigation";
 import UpdateInfoService from "@/app/services/updateService/infoService";
+import { deleteSession } from "@/app/lib/session";
 
 import Image from "next/image";
 import Form from "next/form";
@@ -44,8 +45,9 @@ export default function Manage({ redirect }) {
 
     const pathname = usePathname();
 
-    const handleLogout = (e) => {
+    const handleLogout = async (e) => {
         e.preventDefault();
+        await deleteSession();
         redirect();
         navigateToAuth();
     }
@@ -86,13 +88,13 @@ export default function Manage({ redirect }) {
             if (res.status == 200) {
                 await fetchData();
                 queryNavigate(pathname, { update: true })
-                setAlert({ status: 200, message: res.message })
                 setState((prev) => ({ ...prev, modify: false, change: false, handling: false }))
                 setFile({ file: null, preview: null })
+                setAlert({ status: 200, message: res.message })
             }
             else {
-                setAlert({ status: res.status, message: res.message })
                 setState((prev) => ({ ...prev, handling: false }))
+                setAlert({ status: res.status, message: res.message })
             }
         }
         catch (err) {

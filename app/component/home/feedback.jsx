@@ -6,13 +6,14 @@ import { BsFillInfoCircleFill } from "react-icons/bs";
 import Form from "next/form";
 import { useQuery } from "@/app/router/router";
 import PostFeedbackService from "@/app/services/postService/feedbackService";
+
 export default function Feedback() {
     const queryNavigate = useQuery();
 
     const [dataForm, setDataForm] = useState({
         title: "",
         feedback: "",
-        email: "nguyenquoccuong07122004@gmail.com",
+        email: "nguyencuong0712@gmail.com",
         mark: false
     });
 

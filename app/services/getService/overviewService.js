@@ -1,7 +1,9 @@
+import { getSession } from "@/app/lib/session";
 
-export default async function GetOverviewService(data) {
+export default async function GetOverviewService() {
+    const id = (await getSession())?.userId;
     try {
-        const res = await fetch(`/api/get/getOverview?id=${data}`, {
+        const res = await fetch(`/api/get/getOverview?id=${id}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',

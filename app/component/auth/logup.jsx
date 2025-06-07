@@ -13,7 +13,7 @@ export default function Logup({ active, setForm, redirect }) {
         <div id="logup" style={active ? { top: '0' } : { top: '100%', display: 'none' }}>
             <div className="heading-logup">
                 <h2>
-                    Logup
+                    Signup
                     <Link className="return_homepage" href="/" onClick={redirect}>
                         CodeDev
                         <Image src="/image/logo.svg" width={25} height={25} alt="logo" />

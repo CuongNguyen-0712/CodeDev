@@ -1,4 +1,8 @@
-export default async function PostRegisterCourseService(data) {
+import { getSession } from "@/app/lib/session";
+
+export default async function PostRegisterCourseService(courseId) {
+    const userId = (await getSession())?.userId;
+    const data = { userId: userId, courseId: courseId };
     try {
         const res = await fetch('/api/post/postRegisterCourse', {
             method: 'POST',

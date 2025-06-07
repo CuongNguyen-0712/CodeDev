@@ -1,13 +1,16 @@
-export default async function GetMyProjectService(data) {
+import { getSession } from "@/app/lib/session";
+
+export default async function GetMyProjectService() {
+    const id = (await getSession())?.userId;
     try {
-        const res = await fetch(`/api/get/getMyProject?id=${data}`, {
+        const res = await fetch(`/api/get/getMyProject?id=${id}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
             },
         });
 
-        if (!res.ok) {
+        if (res.status == 404) {
             return {
                 status: 404,
                 message: 'API not found'
@@ -15,7 +18,7 @@ export default async function GetMyProjectService(data) {
         }
 
         const raw = await res.json();
-        if (res.status === 200) {
+        if (res.ok) {
             return {
                 status: res.status,
                 data: raw.data

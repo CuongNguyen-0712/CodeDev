@@ -507,7 +507,7 @@
     position: relative;
     height: 40px;
     flex-grow: 1;
-    max-width: 400px;
+    max-width: 450px;
 }
 
 #search input {
@@ -632,6 +632,7 @@
     border-radius: 10px;
     padding: 10px;
     box-shadow: 0 0 10px var(--color_gray);
+    border: 2px solid var(--color_gray);
     flex-direction: column;
     gap: 20px
 }
@@ -754,7 +755,6 @@
 
 
 /* Project */
-
 #myProject {
     display: flex;
     height: max-content;
@@ -771,15 +771,14 @@
     width: 100%;
     padding: 10px 0;
     gap: 20px;
-    flex-wrap: wrap;
 }
 
-.heading-myProject #search {
+.heading-myProject .input-search {
     display: flex;
     position: relative;
     height: 40px;
-    width: 40%;
-    max-width: 400px;
+    width: 100%;
+    max-width: 450px;
 }
 
 .handle-project {
@@ -806,11 +805,11 @@
 
 .project-list {
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
     height: max-content;
     width: 100%;
-    flex-direction: column;
     gap: 20px;
+    flex-wrap: wrap;
 }
 
 .item-project {
@@ -819,11 +818,14 @@
     justify-content: space-between;
     align-items: flex-start;
     height: max-content;
-    width: 100%;
+    max-width: 550px;
+    flex-grow: 1;
     border-radius: 10px;
     box-shadow: 0 0 10px var(--color_gray);
+    border: 2px solid var(--color_gray);
     padding: 20px;
     gap: 30px;
+    flex-basis: 400px;
     flex-direction: column;
 }
 
@@ -899,32 +901,28 @@
 
 .item-project .handle-project {
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
+    align-items: flex-end;
     height: max-content;
     width: 100%;
 }
 
 .handle-project .table-handle {
     display: flex;
-    position: absolute;
-    height: max-content;
+    height: 100%;
     width: max-content;
-    top: 10px;
-    right: 10px;
-    background-color: transparent;
-    flex-direction: column;
     gap: 10px;
-    overflow: hidden;
 }
 
 .table-handle>button {
     display: flex;
-    justify-content: center;
     align-items: center;
-    height: 30px;
-    width: 30px;
-    border-radius: 50px;
-    font-size: 18px;
+    height: max-content;
+    width: max-content;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-weight: 600;
+    gap: 5px;
 }
 
 .table-handle .delete-btn {
@@ -941,45 +939,16 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 40px;
-    width: 180px;
-    background: var(--color_blue);
-    color: var(--color_white);
-    font-size: 15px;
-    font-weight: 700;
+    height: 35px;
+    width: 100px;
+    padding: 10px 15px;
     text-transform: uppercase;
-    cursor: pointer;
-}
-
-.handle-project .other-handle {
-    display: flex;
-    position: absolute;
-    height: max-content;
-    width: max-content;
-    bottom: 20px;
-    right: 20px;
-    gap: 10px;
-}
-
-.handle-project .other-handle button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 40px;
-    width: 40px;
-    font-size: 16px;
-    border-radius: 10px;
-}
-
-.handle-project .other-handle .hidden-btn {
-    background: var(--color_gray);
-    color: var(--color_black);
-}
-
-.handle-project .other-handle .delete-btn {
-    background: var(--color_black);
     color: var(--color_white);
+    background: var(--color_blue);
+    font-weight: 600;
+    border-radius: 5px;
 }
+
 
 @media screen and (max-width: 768px) {
     .item-project .heading-item {
@@ -990,10 +959,6 @@
     .heading-item .status {
         height: max-content;
     }
-
-    .handle-project .other-handle {
-        top: 20px;
-    }
 }
 
 @media screen and (max-width: 425px) {
@@ -1001,5 +966,61 @@
     #project-btn span,
     #course-btn span {
         display: none;
+    }
+
+    .item-project .handle-project {
+        justify-content: center;
+    }
+
+    .handle-project .table-handle {
+        display: flex;
+        position: absolute;
+        height: max-content;
+        width: max-content;
+        top: 10px;
+        right: 10px;
+        background-color: transparent;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .table-handle>button {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 30px;
+        width: 30px;
+        border-radius: 50px;
+        font-size: 18px;
+        padding: 0;
+    }
+
+    .table-handle>button span {
+        display: none;
+    }
+
+    .table-handle .delete-btn {
+        color: var(--color_white);
+        background: var(--color_black);
+    }
+
+    .table-handle .hidden-btn {
+        color: var(--color_black);
+        background: var(--color_gray);
+    }
+
+    .handle-project .join-project {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 40px;
+        width: 180px;
+        background: var(--color_blue);
+        color: var(--color_white);
+        font-size: 15px;
+        font-weight: 700;
+        border-radius: 5px;
+        text-transform: uppercase;
+        cursor: pointer;
     }
 }

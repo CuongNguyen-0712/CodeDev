@@ -35,7 +35,7 @@ export default function Overview() {
 
     const fetchData = async () => {
         try {
-            const resData = await GetOverviewService('CD01');
+            const resData = await GetOverviewService();
 
             if (resData.status === 200) {
                 setState((prev) => ({
@@ -78,7 +78,7 @@ export default function Overview() {
 
     const fetchInfo = async () => {
         try {
-            const resInfo = await GetInfoService('CD01');
+            const resInfo = await GetInfoService();
 
             if (resInfo.status === 200) {
                 setState((prev) => ({

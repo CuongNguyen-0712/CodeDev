@@ -1,6 +1,10 @@
-export default async function GetCourseService(data) {
+import { getSession } from "@/app/lib/session";
+
+export default async function GetCourseService() {
+
+    const id = (await getSession())?.userId;
     try {
-        const res = await fetch(`/api/get/getCourse?id=${data}`, {
+        const res = await fetch(`/api/get/getCourse?id=${id}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
