@@ -159,13 +159,9 @@
   font-size: 16px;
   background: transparent;
   outline: none;
-  border: none;
+  border-radius: 0;
   border-bottom: 2px solid var(--color_black);
   z-index: 1;
-}
-
-.field-input>input:focus {
-  border-color: var(--color_blue);
 }
 
 .field-input>label {

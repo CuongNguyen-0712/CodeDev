@@ -9,15 +9,16 @@ export default async function GetOverviewService() {
                 'Content-Type': 'application/json',
             },
         });
-        if (!res.ok) {
+
+        if (res.status === 404) {
             return {
                 status: 404,
-                message: 'API not found'
+                message: "API not found"
             }
         }
 
         const raw = await res.json();
-        if (res.status === 200) {
+        if (res.ok) {
             return {
                 status: res.status,
                 data: raw.data

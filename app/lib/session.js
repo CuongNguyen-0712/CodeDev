@@ -1,4 +1,5 @@
 'use server'
+
 import 'server-only'
 import { cookies } from 'next/headers'
 import { SignJWT, jwtVerify } from 'jose'
@@ -32,7 +33,7 @@ export async function createSession(userId) {
 
     cookieStore.set('session', session, {
         httpOnly: true,
-        secure: true,
+        secure: process.env.NODE_ENV === 'production',
         expires: expiresAt,
         sameSite: 'lax',
         path: '/',

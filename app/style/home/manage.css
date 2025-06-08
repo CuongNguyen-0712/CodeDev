@@ -17,7 +17,7 @@
     position: relative;
     height: max-content;
     width: 100%;
-    min-height: 600px;
+    min-height: 100%;
     padding: 15px 20px;
     background: var(--color_white);
     border-radius: 10px;

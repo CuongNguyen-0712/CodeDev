@@ -11,6 +11,7 @@ import SignInService from "@/app/services/authService/signIn"
 import { FaUser, FaLock } from "react-icons/fa6";
 import { FaCircleNotch } from "react-icons/fa";
 import { MdError } from "react-icons/md";
+import { IoIosWarning } from "react-icons/io"
 
 export default function Login({ active, setForm, redirect }) {
     const { navigateToHome } = useRouterActions();
@@ -87,11 +88,25 @@ export default function Login({ active, setForm, redirect }) {
                             <input type="text" id="nameLogin" name="name" value={login.name} onChange={(e) => handleChange(e)} autoComplete="off" />
                             <label>Username</label>
                             <FaUser className="icon" />
+                            {
+                                (login.error && login.error.name) &&
+                                <div className="warning">
+                                    <IoIosWarning className="warning_icon" />
+                                    <p>{login.error.name}</p>
+                                </div>
+                            }
                         </div>
                         <div className={`field-input ${login.pass ? 'has-content' : ''}`}>
                             <input type="password" id="passLogin" name="pass" value={login.pass} onChange={(e) => handleChange(e)} autoComplete="off" />
                             <label>Password</label>
                             <FaLock className='icon' />
+                            {
+                                (login.error && login.error.pass) &&
+                                <div className="warning">
+                                    <IoIosWarning className="warning_icon" />
+                                    <p>{login.error.pass}</p>
+                                </div>
+                            }
                         </div>
                     </div>
                     <div className="login-help">
