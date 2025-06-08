@@ -36,7 +36,8 @@ export default async function SignInService(data) {
     catch (err) {
         return {
             status: 500,
-            message: err
+            success: false,
+            message: err.message
         }
     }
 }

@@ -37,7 +37,7 @@ export default async function PostFeedbackService(data) {
     catch (err) {
         return {
             status: 500,
-            message: err
+            message: err.message
         }
     }
 }

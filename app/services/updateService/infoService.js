@@ -39,7 +39,7 @@ export default async function UpdateInfoService(data) {
         console.error("Network/API call failed:", err);
         return {
             status: 500,
-            message: "Failed to call API"
+            message: err.message
         };
     }
 }

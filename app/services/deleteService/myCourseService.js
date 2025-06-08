@@ -30,7 +30,7 @@ export default async function DeleteMyCourseServive(data) {
         console.error(err);
         return {
             status: 500,
-            message: err
+            message: err.message
         }
     }
 }

@@ -18,7 +18,7 @@ export async function signIn(data) {
 
         if (res.length === 0) {
             return new Response(
-                JSON.stringify({ success: false }),
+                JSON.stringify({ success: false, message: "Invalid credentials" }),
                 { status: 400, headers: { "Content-Type": "application/json" } }
             )
         }
@@ -33,7 +33,7 @@ export async function signIn(data) {
     } catch (error) {
         console.error("Error deleting course:", error);
         return new Response(
-            JSON.stringify({ message: "Internal server error" }),
+            JSON.stringify({ success: false, message: "Internal server error" }),
             { status: 500, headers: { "Content-Type": "application/json" } }
         );
     }

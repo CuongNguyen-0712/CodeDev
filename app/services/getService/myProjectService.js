@@ -34,7 +34,7 @@ export default async function GetMyProjectService() {
     } catch (err) {
         return {
             status: 500,
-            message: err
+            message: err.message
         }
     }
 }

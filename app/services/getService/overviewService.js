@@ -33,7 +33,7 @@ export default async function GetOverviewService() {
     } catch (err) {
         return {
             status: 500,
-            message: err
+            message: err.message
         }
     }
 }

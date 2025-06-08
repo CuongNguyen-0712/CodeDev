@@ -58,10 +58,13 @@ export default function Login({ active, setForm, redirect }) {
     }
 
     useEffect(() => {
-        setTimeout(() => {
-            setLogin((prev) => ({ ...prev, message: null }))
-        }, 2000)
-    }, [login.message])
+        if (!login.message) return;
+        const timer = setTimeout(() => {
+            setLogin((prev) => ({ ...prev, message: null }));
+        }, 2000);
+        return () => clearTimeout(timer);
+    }, [login.message]);
+
 
     return (
         <>
