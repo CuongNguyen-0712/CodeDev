@@ -337,12 +337,12 @@
 
 #alert {
     display: flex;
-    position: absolute;
+    position: fixed;
     align-items: center;
     height: max-content;
     width: max-content;
-    right: 100px;
-    top: 10px;
+    right: 50pc;
+    top: 30px;
     padding: 10px;
     border-radius: 5px;
     color: var(--color_black);

@@ -559,6 +559,22 @@ textarea::placeholder {
   gap: 5px;
 }
 
+.error {
+  display: flex;
+  position: fixed;
+  align-items: center;
+  height: max-content;
+  width: max-content;
+  top: 20px;
+  right: 50px;
+  padding: 7px 10px;
+  border-radius: 5px;
+  color: var(--color_white);
+  background: var(--color_red);
+  font-size: 13px;
+  gap: 5px;
+}
+
 @media screen and (max-width: 475px) {
   .auth-container {
     padding: 0;
