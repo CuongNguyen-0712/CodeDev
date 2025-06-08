@@ -84,13 +84,6 @@ export default function Login({ active, setForm, redirect }) {
                             <input type="text" id="nameLogin" name="name" value={login.name} onChange={(e) => handleChange(e)} autoComplete="off" />
                             <label>Username</label>
                             <FaUser className="icon" />
-                            {
-                                (login.error && login.error.name) &&
-                                <div className="warning">
-                                    <IoIosWarning className="warning_icon" />
-                                    <p>{login.error.name}</p>
-                                </div>
-                            }
                         </div>
                         <div className={`field-input ${login.pass ? 'has-content' : ''}`}>
                             <input type="password" id="passLogin" name="pass" value={login.pass} onChange={(e) => handleChange(e)} autoComplete="off" />
@@ -146,7 +139,7 @@ export default function Login({ active, setForm, redirect }) {
                 login.message &&
                 <div className="error">
                     <MdError />
-                    <p>{login.message}</p>
+                    <p>{login?.message}</p>
                 </div>
             }
         </>
