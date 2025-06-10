@@ -34,8 +34,8 @@ export default function Form() {
                             <span className="focus" style={{ transform: form.login && 'translateX(10px)' || form.signup && 'translateX(calc(100% + 30px))' }}></span>
                         </div>
                         <div className="main-form">
-                            <Login active={form.login} setForm={() => setForm({ login: false, signup: true })} redirect={() => setRedirect(true)} />
-                            <Logup active={form.signup} setForm={() => setForm({ login: true, signup: false })} redirect={() => setRedirect(true)} />
+                            <Login active={form.login} changeForm={() => setForm({ login: false, signup: true })} redirect={() => setRedirect(true)} />
+                            <Logup active={form.signup} changeForm={() => setForm({ login: true, signup: false })} redirect={() => setRedirect(true)} />
                         </div>
                     </section>
                 </div>

@@ -276,7 +276,7 @@ export default function Overview() {
                         }
                     </div>
                     <div className="footer">
-                        <button onClick={() => queryNavigate('home', { target: '1', name: 'Course' })}>Open view my course</button>
+                        <button onClick={() => queryNavigate('home', { name: 'course' })}>Open view my course</button>
                     </div>
                 </div>
             </div>

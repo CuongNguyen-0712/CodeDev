@@ -1,17 +1,18 @@
+'use client'
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 
 const components = {
-    0: dynamic(() => import('../content/overview/overview'), { ssr: true }),
-    1: dynamic(() => import('../content/course/course'), { ssr: true }),
-    2: dynamic(() => import('../content/project/project'), { ssr: true }),
+    'overview': dynamic(() => import('../content/overview/overview'), { ssr: true }),
+    'course': dynamic(() => import('../content/course/course'), { ssr: true }),
+    'project': dynamic(() => import('../content/project/project'), { ssr: true }),
 };
 
-const DefaultCompponent = components[0];
+const DefaultCompponent = components['overview'];
 
 export default function Content({ redirect }) {
     const params = useSearchParams();
-    const query = params.get('target') || 0;
+    const query = params.get('name') || 'overview';
     const SelectedComponent = components[query];
 
     return (

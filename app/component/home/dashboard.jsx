@@ -26,33 +26,39 @@ export default function Dashboard({ handleDashboard }) {
   const queryNavigate = useQuery()
   const refNavigation = useRef(null);
 
-  const [targetItem, setTargetItem] = useState(0);
+  const [targetItem, setTargetItem] = useState('Overview');
   const [showOther, setShowOther] = useState(false);
 
   const params = useSearchParams();
 
   const menuList = [
     {
+      index: 0,
       name: "Overview",
       icon: <MdSpaceDashboard />,
     },
     {
+      index: 1,
       name: "Course",
       icon: <FaCode />,
     },
     {
+      index: 2,
       name: "Project",
       icon: <VscProject />
     },
     {
+      index: 3,
       name: "Social",
       icon: <FaUsers />,
     },
     {
+      index: 4,
       name: "Roadmap",
       icon: <GoProjectRoadmap />,
     },
     {
+      index: 6,
       name: "Event",
       icon: <MdEmojiEvents />,
     },
@@ -60,7 +66,7 @@ export default function Dashboard({ handleDashboard }) {
 
   useEffect(() => {
     const menuBtns = document.querySelectorAll('.menu-item button')
-    const index = params.get('target') || 0
+    const index = menuList.find(item => String.prototype.toLowerCase.call(item.name) === params.get('name'))?.index || 0
     refNavigation.current.style.top = `${index * 50}px`;
     menuBtns.forEach(btn => btn.classList.remove('active'))
     menuBtns[index].classList.add('active')
@@ -68,8 +74,8 @@ export default function Dashboard({ handleDashboard }) {
 
   const handleNavigation = (index, name) => {
     refNavigation.current.style.top = `${index * 50}px`;
-    setTargetItem(index);
-    queryNavigate(window.location.pathname, { target: index, name: name })
+    setTargetItem(name);
+    queryNavigate(window.location.pathname, { name: String.prototype.toLowerCase.call(name) })
   };
 
   return (
@@ -84,7 +90,7 @@ export default function Dashboard({ handleDashboard }) {
             {menuList.map((item, index) => (
               <div className='menu-item' key={index}>
                 <button
-                  className={targetItem === index ? 'active' : ''}
+                  className={item.name === targetItem ? 'active' : ''}
                   onClick={() =>
                     handleNavigation(index, item.name)
                   }

@@ -150,6 +150,8 @@
     width: 40px;
     bottom: 20px;
     right: 20px;
+    gap: 10px;
+    flex-direction: column;
     background: transparent;
     overflow: hidden;
     transition: 0.2s all ease;

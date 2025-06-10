@@ -3,6 +3,7 @@ export default async function SignInService(data) {
         const res = await fetch('/api/auth/signIn',
             {
                 method: 'POST',
+                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
                 },
@@ -13,6 +14,7 @@ export default async function SignInService(data) {
         if (res.status === 404) {
             return {
                 status: 404,
+                success: false,
                 message: "API not found"
             }
         }

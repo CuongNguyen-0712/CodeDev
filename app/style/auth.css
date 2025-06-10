@@ -14,6 +14,7 @@
   width: 100%;
   padding: 20px 0;
   overflow: scroll;
+  overflow-x: hidden;
 }
 
 .auth-form {
@@ -118,7 +119,6 @@
 .heading-login>span {
   display: flex;
   height: max-content;
-  width: 80%;
   text-align: center;
   font-size: 15px;
 }
@@ -359,7 +359,6 @@ a {
 .heading-logup span {
   display: flex;
   height: max-content;
-  width: 80%;
   text-align: center;
   font-size: 15px;
 }
@@ -400,6 +399,7 @@ a {
 
 #logup-page-2 .auth-password {
   display: flex;
+  height: max-content;
   width: 100%;
   gap: 20px;
 }
@@ -407,10 +407,9 @@ a {
 .auth-password>input {
   display: flex;
   height: 40px;
-  width: 100%;
+  width: 50%;
   outline: none;
   font-size: 16px;
-  padding-left: 10px;
 }
 
 #logup-page-2 .auth-terms {
@@ -427,7 +426,7 @@ a {
   justify-content: center;
   align-items: center;
   height: 40px;
-  width: 80%;
+  width: 70%;
   border-radius: 10px;
   text-transform: uppercase;
   background: var(--color_blue);
@@ -567,11 +566,67 @@ textarea::placeholder {
   border-radius: 5px;
   color: var(--color_white);
   background: var(--color_red);
-  font-size: 13px;
+  font-size: 14px;
   gap: 5px;
 }
 
-@media screen and (max-width: 475px) {
+#warning_notification {
+  display: flex;
+  position: fixed;
+  height: 35px;
+  width: 35px;
+  bottom: 25px;
+  right: 25px;
+  background: transparent;
+}
+
+#warning_notification>button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  border-radius: 50px;
+  color: var(--color_white);
+  font-size: 17px;
+  cursor: pointer;
+}
+
+#warning_notification .content_warning {
+  display: flex;
+  position: absolute;
+  height: max-content;
+  width: max-content;
+  right: 0px;
+  bottom: 50px;
+  padding: 10px;
+  border-radius: 5px;
+  background: var(--color_white);
+  border: 2px solid var(--color_gray);
+  font-size: 14px;
+  transform: scale(1);
+  flex-direction: column;
+  gap: 10px;
+  transform-origin: bottom right;
+  transition: 0.2s all ease;
+  overflow: hidden;
+}
+
+#warning_notification .content_warning.hide {
+  transform: scale(0);
+  transform-origin: bottom right;
+  transition: 0.2s all ease;
+}
+
+.content_warning p {
+  display: flex;
+  align-items: center;
+  height: max-content;
+  width: 100%;
+  gap: 5px;
+}
+
+@media screen and (max-width: 450px) {
   .auth-container {
     padding: 0;
   }
@@ -581,6 +636,14 @@ textarea::placeholder {
     width: 100%;
     border-radius: 0px;
     box-shadow: none;
+  }
+
+  #logup-page-2 .auth-password {
+    flex-wrap: wrap;
+  }
+
+  #warning_notification .content_warning {
+    width: 280px;
   }
 }
 

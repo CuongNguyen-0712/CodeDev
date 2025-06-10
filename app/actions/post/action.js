@@ -23,12 +23,17 @@ export async function postFeedback(data) {
 }
 
 export async function postRegisterCourse(data) {
-    try {
-        const { userId, courseId } = data
+    const { userId, courseId } = data
 
-        await sql`
-        insert into registercourse (idcourse, idstudent) values (${courseId}, ${userId})
-        `
+    if (!userId || !courseId) {
+        return new Response(
+            JSON.stringify({ message: "You missing something, check again" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+    }
+
+    try {
+        await sql`insert into registercourse (idcourse, idstudent) values (${courseId}, ${userId})`;
 
         return new Response(
             JSON.stringify({ message: "Register course successfully" }),

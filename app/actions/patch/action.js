@@ -14,7 +14,8 @@ export async function updateInfo(data) {
         name = case when ${name} is distinct from name then ${name} else name end,
         email = case when ${email} is distinct from email then ${email} else email end,
         image = case when ${image} is distinct from image then ${image} else image end,
-        bio = case when ${bio} is distinct from bio then ${bio} else bio end
+        bio = case when ${bio} is distinct from bio then ${bio} else bio end,
+        update_at = now()
         where id = ${id}
         `
         return new Response(JSON.stringify({ message: "Update info successfully" }), {

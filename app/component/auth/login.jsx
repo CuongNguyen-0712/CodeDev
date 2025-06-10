@@ -10,10 +10,9 @@ import SignInService from "@/app/services/authService/signIn"
 
 import { FaUser, FaLock } from "react-icons/fa6";
 import { FaCircleNotch } from "react-icons/fa";
-import { MdError } from "react-icons/md";
-import { IoIosWarning } from "react-icons/io"
+import { IoIosWarning, IoIosCloseCircle } from "react-icons/io"
 
-export default function Login({ active, setForm, redirect }) {
+export default function Login({ active, changeForm, redirect }) {
     const { navigateToHome } = useRouterActions();
 
     const [login, setLogin] = useState({
@@ -45,7 +44,7 @@ export default function Login({ active, setForm, redirect }) {
             }
         }
         else {
-            setLogin({ ...login, pending: false, error: check.error })
+            setLogin({ ...login, pending: false, error: check.errors })
         }
     }
 
@@ -79,13 +78,13 @@ export default function Login({ active, setForm, redirect }) {
                         </Link>
                     </h2>
                     <span>
-                        Welcome back to CodeDev, please enter your email and password to login your account
+                        Welcome back to CodeDev
                     </span>
                 </div>
                 <div className="main-login">
                     <div className="login-input">
                         <div className={`field-input ${login.name ? 'has-content' : ''}`}>
-                            <input type="text" id="nameLogin" name="name" value={login.name} onChange={(e) => handleChange(e)} autoComplete="off" />
+                            <input type="text" id="nameLogin" name="name" value={login.name} onChange={handleChange} autoComplete="off" />
                             <label>Username</label>
                             <FaUser className="icon" />
                             {
@@ -97,7 +96,7 @@ export default function Login({ active, setForm, redirect }) {
                             }
                         </div>
                         <div className={`field-input ${login.pass ? 'has-content' : ''}`}>
-                            <input type="password" id="passLogin" name="pass" value={login.pass} onChange={(e) => handleChange(e)} autoComplete="off" />
+                            <input type="password" id="passLogin" name="pass" value={login.pass} onChange={handleChange} autoComplete="off" />
                             <label>Password</label>
                             <FaLock className='icon' />
                             {
@@ -149,14 +148,14 @@ export default function Login({ active, setForm, redirect }) {
                     </div>
                     <div className="register-auth">
                         Don't have an account ?
-                        <Link href='/auth' onClick={setForm}>Create an account</Link>
+                        <Link href='/auth' onClick={changeForm}>Create an account</Link>
                     </div>
                 </div>
             </Form>
             {
                 login.message &&
                 <div className="error">
-                    <MdError />
+                    <IoIosCloseCircle style={{ fontSize: '17px' }} />
                     <p>{login?.message}</p>
                 </div>
             }

@@ -7,7 +7,7 @@ const publicRoutes = ['/auth', '/']
 
 export default async function middleware(req) {
     const path = req.nextUrl.pathname
-    const isProtectedRoute = protectedRoutes.includes(path)
+    const isProtectedRoute = protectedRoutes.some(route => route === path || path.startsWith('/home/'));
     const isPublicRoute = publicRoutes.includes(path)
 
     const cookie = (await cookies()).get('session')?.value

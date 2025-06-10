@@ -8,11 +8,12 @@ import Manage from "../home/manage"
 import { useRouterActions } from "@/app/router/router";
 
 import { MdOutlineRoute, MdHome, MdClose } from "react-icons/md";
+import { FaCode } from "react-icons/fa6";
 
 export default function Layout({ children }) {
     const params = useSearchParams();
 
-    const { navigateToHome } = useRouterActions();
+    const { navigateToHome, navigateToCourse } = useRouterActions();
 
     const [state, setState] = useState({
         redirect: false,
@@ -55,9 +56,12 @@ export default function Layout({ children }) {
                             <Manage redirect={() => setState(prev => ({ ...prev, overlay: false, redirect: true }))} />
                         </div>
                     }
-                    <div id="navigate_handler" style={hidden ? { height: '40px' } : { height: '90px' }}>
+                    <div id="navigate_handler" style={hidden ? { height: '40px' } : { height: '140px' }}>
                         <button onClick={() => handleNavigate({ navigate: navigateToHome })} className={hidden ? 'hidden' : ''}>
                             <MdHome />
+                        </button>
+                        <button onClick={() => handleNavigate({ navigate: navigateToCourse })} className={hidden ? 'hidden' : ''}>
+                            <FaCode />
                         </button>
                         <button id="handler" onClick={() => setHidden(!hidden)}>
                             {hidden ? <MdOutlineRoute /> : <MdClose />}

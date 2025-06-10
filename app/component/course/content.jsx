@@ -74,7 +74,7 @@ export default function CourseContent({ redirect }) {
 
     const handleRedirect = () => {
         redirect();
-        queryNavigate('/home', { target: 1, name: 'Course' })
+        queryNavigate('/home', { name: 'course' })
     }
 
     return (
