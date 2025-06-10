@@ -5,14 +5,24 @@ import { cookies } from 'next/headers'
 import { SignJWT, jwtVerify } from 'jose'
 
 const secretKey = process.env.SESSION_KEY
-const encodedKey = new TextEncoder().encode(secretKey)
+console.log('SESSION_KEY:', secretKey ? 'Defined' : 'Undefined');
+const encodedKey = new TextEncoder().encode(secretKey);
 
 export async function encrypt(payload) {
-    return new SignJWT(payload)
-        .setProtectedHeader({ alg: 'HS256' })
-        .setIssuedAt()
-        .setExpirationTime('7d')
-        .sign(encodedKey)
+    console.log('Encrypting payload:', payload);
+    if (!secretKey) throw new Error('SESSION_KEY is not defined');
+    try {
+        const token = await new SignJWT(payload)
+            .setProtectedHeader({ alg: 'HS256' })
+            .setIssuedAt()
+            .setExpirationTime('7d')
+            .sign(encodedKey);
+        console.log('Encrypted token:', token);
+        return token;
+    } catch (error) {
+        console.error('Encrypt error:', error.message);
+        throw error;
+    }
 }
 
 export async function decrypt(session) {
@@ -27,17 +37,23 @@ export async function decrypt(session) {
 }
 
 export async function createSession(userId) {
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-    const session = await encrypt({ userId, expiresAt })
-    const cookieStore = await cookies()
+    if (!userId || typeof userId !== 'string') {
+        throw new Error('Invalid userId');
+    }
+    console.log('Creating session for userId:', userId);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const session = await encrypt({ userId, expiresAt });
+    console.log('Encrypted session:', session);
+    const cookieStore = await cookies();
 
     cookieStore.set('session', session, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: false,
         expires: expiresAt,
         sameSite: 'lax',
         path: '/',
     })
+    console.log('Cookie set:', cookieStore.get('session')?.value);
 }
 
 export async function getSession() {

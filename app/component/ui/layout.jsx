@@ -1,5 +1,5 @@
 import { useState, useEffect, cloneElement } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, usePathname } from "next/navigation"
 
 import { LoadingRedirect } from "./loading";
 import Navbar from "../home/navbar"
@@ -9,16 +9,36 @@ import { useRouterActions } from "@/app/router/router";
 
 import { MdOutlineRoute, MdHome, MdClose } from "react-icons/md";
 import { FaCode } from "react-icons/fa6";
+import { VscProject } from "react-icons/vsc";
 
 export default function Layout({ children }) {
     const params = useSearchParams();
+    const path = usePathname();
 
-    const { navigateToHome, navigateToCourse } = useRouterActions();
+    const { navigateToHome, navigateToCourse, navigateToProject } = useRouterActions();
 
     const [state, setState] = useState({
         redirect: false,
         overlay: false,
     })
+
+    const navigationList = [
+        {
+            path: '/home',
+            icon: <MdHome />,
+            navigate: navigateToHome
+        },
+        {
+            path: '/course',
+            icon: <FaCode />,
+            navigate: navigateToCourse
+        },
+        {
+            path: '/project',
+            icon: <VscProject />,
+            navigate: navigateToProject
+        }
+    ]
 
     const [hidden, setHidden] = useState(true);
 
@@ -56,13 +76,14 @@ export default function Layout({ children }) {
                             <Manage redirect={() => setState(prev => ({ ...prev, overlay: false, redirect: true }))} />
                         </div>
                     }
-                    <div id="navigate_handler" style={hidden ? { height: '40px' } : { height: '140px' }}>
-                        <button onClick={() => handleNavigate({ navigate: navigateToHome })} className={hidden ? 'hidden' : ''}>
-                            <MdHome />
-                        </button>
-                        <button onClick={() => handleNavigate({ navigate: navigateToCourse })} className={hidden ? 'hidden' : ''}>
-                            <FaCode />
-                        </button>
+                    <div id="navigate_handler" style={hidden ? { height: '40px' } : { height: `${navigationList.filter((item) => item.path !== path).length * 50 + 40}px` }}>
+                        {
+                            navigationList.filter((item) => item.path !== path).map((item, index) => (
+                                <button key={index} onClick={() => handleNavigate({ navigate: item.navigate })} className={hidden ? 'hidden' : ''}>
+                                    {item.icon}
+                                </button>
+                            ))
+                        }
                         <button id="handler" onClick={() => setHidden(!hidden)}>
                             {hidden ? <MdOutlineRoute /> : <MdClose />}
                         </button>
