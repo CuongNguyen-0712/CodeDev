@@ -3,7 +3,6 @@ export default async function SignInService(data) {
         const res = await fetch('/api/auth/signIn',
             {
                 method: 'POST',
-                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
                 },
