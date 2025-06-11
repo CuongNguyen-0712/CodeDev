@@ -4,24 +4,35 @@ import { cookies } from 'next/headers'
 
 const protectedRoutes = ['/home', '/course', '/project']
 const publicRoutes = ['/auth', '/']
+const publicApis = ['/api/auth/signIn', '/api/auth/signUp']
 
 export default async function middleware(req) {
     const path = req.nextUrl.pathname
-    const isProtectedRoute = protectedRoutes.some(route => route === path || path.startsWith('/home/'));
+    const isProtectedRoute = protectedRoutes.some(route => path === route || path.startsWith(`${route}/`))
     const isPublicRoute = publicRoutes.includes(path)
+    const isApiRoute = path.startsWith('/api')
+    const isPublicApi = publicApis.includes(path)
 
-    const cookie = (await cookies()).get('session')?.value
+    const cookie = cookies().get('session')?.value
     const session = await decrypt(cookie)
+
+    if (isApiRoute && isPublicApi && session?.userId) {
+        return NextResponse.redirect(new URL('/home', req.nextUrl))
+    }
+
+    if (isApiRoute && isPublicApi) {
+        return NextResponse.next()
+    }
+
+    if (isApiRoute && !session?.userId) {
+        return NextResponse.redirect(new URL('/auth', req.nextUrl))
+    }
 
     if (isProtectedRoute && !session?.userId) {
         return NextResponse.redirect(new URL('/auth', req.nextUrl))
     }
 
-    if (
-        isPublicRoute &&
-        session?.userId &&
-        !req.nextUrl.pathname.startsWith('/home')
-    ) {
+    if (isPublicRoute && session?.userId && !path.startsWith('/home')) {
         return NextResponse.redirect(new URL('/home', req.nextUrl))
     }
 
@@ -29,5 +40,5 @@ export default async function middleware(req) {
 }
 
 export const config = {
-    matcher: ['/((?!api|_next/static|_next/image|.*\\.png$).*)'],
+    matcher: ['/((?!_next/static|_next/image|.*\\.png$).*)']
 }

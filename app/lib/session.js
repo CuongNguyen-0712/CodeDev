@@ -5,12 +5,9 @@ import { cookies } from 'next/headers'
 import { SignJWT, jwtVerify } from 'jose'
 
 const secretKey = process.env.SESSION_KEY
-console.log('SESSION_KEY:', secretKey ? 'Defined' : 'Undefined');
 const encodedKey = new TextEncoder().encode(secretKey);
 
 export async function encrypt(payload) {
-    console.log('Encrypting payload:', payload);
-    if (!secretKey) throw new Error('SESSION_KEY is not defined');
     try {
         const token = await new SignJWT(payload)
             .setProtectedHeader({ alg: 'HS256' })
@@ -40,20 +37,17 @@ export async function createSession(userId) {
     if (!userId || typeof userId !== 'string') {
         throw new Error('Invalid userId');
     }
-    console.log('Creating session for userId:', userId);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const session = await encrypt({ userId, expiresAt });
-    console.log('Encrypted session:', session);
     const cookieStore = await cookies();
 
     cookieStore.set('session', session, {
         httpOnly: true,
-        secure: false,
+        secure: process.env.NODE_ENV === 'production',
         expires: expiresAt,
         sameSite: 'lax',
         path: '/',
     })
-    console.log('Cookie set:', cookieStore.get('session')?.value);
 }
 
 export async function getSession() {
