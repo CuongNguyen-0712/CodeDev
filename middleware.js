@@ -4,6 +4,7 @@ import { cookies } from 'next/headers'
 
 const protectedRoutes = ['/home', '/course', '/project']
 const publicRoutes = ['/auth', '/']
+const publicApis = ['/api/auth/signIn', '/api/auth/signUp']
 
 export default async function middleware(req) {
     const path = req.nextUrl.pathname
@@ -14,6 +15,14 @@ export default async function middleware(req) {
     const session = await decrypt(cookie)
 
     if (isProtectedRoute && !session?.userId) {
+        return NextResponse.redirect(new URL('/auth', req.nextUrl))
+    }
+
+    if (publicApis.includes(path)) {
+        return NextResponse.next();
+    }
+
+    if (path.startsWith('/api') && !session?.userId) {
         return NextResponse.redirect(new URL('/auth', req.nextUrl))
     }
 
@@ -29,5 +38,5 @@ export default async function middleware(req) {
 }
 
 export const config = {
-    matcher: ['/((?!api|_next/static|_next/image|.*\\.png$).*)'],
+    matcher: ['/((?!_next/static|_next/image|.*\\.png$).*)',],
 }
