@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { decrypt } from './app/lib/session'
-import { cookies } from 'next/headers'
+import { getSession } from './app/lib/session'
 
 const protectedRoutes = ['/home', '/course', '/project']
 const publicRoutes = ['/auth', '/']
@@ -13,8 +12,7 @@ export default async function middleware(req) {
     const isApiRoute = path.startsWith('/api')
     const isPublicApi = publicApis.includes(path)
 
-    const cookie = cookies().get('session')?.value
-    const session = await decrypt(cookie)
+    const session = await getSession()
 
     if (isApiRoute && isPublicApi && session?.userId) {
         return NextResponse.redirect(new URL('/home', req.nextUrl))
