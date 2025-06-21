@@ -3,11 +3,18 @@ import { neon } from "@neondatabase/serverless";
 const sql = neon(process.env.DATABASE_URL);
 
 export async function updateInfo(data) {
-    try {
-        const { id, nickname, surname, name, email, image, bio } = data
+    const { id, nickname, surname, name, email, image, bio } = data
 
+    if (!id || !nickname || !surname || !name || !email || !image || !bio) {
+        return new Response(JSON.stringify({ message: "You missing something, check again" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" }
+        });
+    }
+
+    try {
         await sql`
-        update infouser
+        update private.info
         set 
         nickname = case when ${nickname} is distinct from nickname then ${nickname} else nickname end,
         surname = case when ${surname} is distinct from surname then ${surname} else surname end,
@@ -18,6 +25,7 @@ export async function updateInfo(data) {
         update_at = now()
         where id = ${id}
         `
+
         return new Response(JSON.stringify({ message: "Update info successfully" }), {
             status: 200,
             headers: { "Content-Type": "application/json" }

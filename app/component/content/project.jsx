@@ -1,14 +1,17 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useTransition } from "react"
 
 import MyProjectService from "@/app/services/getService/myProjectService";
+import DeleteMyProjectService from "@/app/services/deleteService/myProjectService";
 import { useRouterActions } from "@/app/router/router";
 
-import { ErrorReload } from "../../ui/error";
-import { LoadingContent, LoadingRedirect } from "../../ui/loading";
+import { ErrorReload } from "../ui/error";
+import { LoadingContent } from "../ui/loading";
 
 import { IoFilter, IoEyeOff } from "react-icons/io5";
 import { MdAddCircleOutline } from "react-icons/md";
 import { IoCloseSharp } from "react-icons/io5";
+import { FaCircleNotch } from "react-icons/fa"
+import { startTransition } from "react";
 
 export default function Project({ redirect }) {
     const { navigateToProject } = useRouterActions();
@@ -16,12 +19,16 @@ export default function Project({ redirect }) {
     const [state, setState] = useState({
         data: [],
         pending: true,
+        handleId: null,
+        handling: false,
+        message: null,
         error: null,
     })
 
     const fetchData = async () => {
+
         try {
-            const res = await MyProjectService('CD01');
+            const res = await MyProjectService();
             if (res.status === 200) {
                 setState((prev) => ({ ...prev, data: res.data, pending: false }));
             }
@@ -38,6 +45,35 @@ export default function Project({ redirect }) {
     useEffect(() => {
         fetchData();
     }, [])
+
+
+    const handleDelete = async (id) => {
+        if (!id) return;
+
+        setState((prev) => ({ ...prev, handleId: id, handling: true }));
+
+        try {
+            const res = await DeleteMyProjectService(id);
+            if (res.status === 200) {
+                await fetchData();
+                startTransition(() => {
+                    setState((prev) => ({ ...prev, message: { status: res.status, message: res.message }, handling: false, handleId: null }));
+                })
+            }
+            else {
+                setState((prev) => ({ ...prev, message: { status: res.status, message: res.message }, handling: false, handleId: null }));
+            }
+        }
+        catch (err) {
+            setState((prev) => ({ ...prev, message: { status: res.status, message: res.message }, handling: false, handleId: null }));
+            throw new Error(err);
+        }
+    }
+
+    const refetchData = () => {
+        setState((prev) => ({ ...prev, data: [], pending: true }));
+        fetchData();
+    }
 
     const handleRedirect = () => {
         redirect()
@@ -69,7 +105,7 @@ export default function Project({ redirect }) {
                         <LoadingContent />
                         :
                         state.error ?
-                            <ErrorReload data={state.error || { status: 500, message: "Something is wrong" }} refetch={fetchData} />
+                            <ErrorReload data={state.error || { status: 500, message: "Something is wrong" }} refetch={refetchData} />
                             :
                             state.data && state.data.length > 0 ?
                                 state.data.map((item, index) => (
@@ -90,9 +126,16 @@ export default function Project({ redirect }) {
                                         </div>
                                         <div className="handle-project">
                                             <div className="table-handle">
-                                                <button className="delete-btn">
-                                                    <span>Delete</span>
-                                                    <IoCloseSharp />
+                                                <button className="delete-btn" onClick={() => handleDelete(item.id)}>
+                                                    {
+                                                        state.handleId === item.id && state.handling ?
+                                                            <FaCircleNotch className="handling" fontSize={18} />
+                                                            :
+                                                            <>
+                                                                <span>Delete</span>
+                                                                <IoCloseSharp />
+                                                            </>
+                                                    }
                                                 </button>
                                                 <button className="hidden-btn">
                                                     <span>Hidden</span>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useTransition, startTransition } from "react";
 
 import GetInfoService from "@/app/services/getService/infoService";
 import { LoadingContent } from "../ui/loading";
@@ -40,7 +40,7 @@ export default function Manage({ redirect }) {
 
     const [alert, setAlert] = useState(null);
 
-    const { navigateToAuth } = useRouterActions();
+    const { navigateToAuth, handleRefresh } = useRouterActions();
     const queryNavigate = useQuery();
 
     const pathname = usePathname();
@@ -54,7 +54,7 @@ export default function Manage({ redirect }) {
 
     const fetchData = async () => {
         try {
-            const res = await GetInfoService('CD01');;
+            const res = await GetInfoService();;
             if (res.status == 200) {
                 setState((prev) => ({ ...prev, data: res.data[0], update: res.data[0], pending: false }))
             }
@@ -87,10 +87,12 @@ export default function Manage({ redirect }) {
 
             if (res.status == 200) {
                 await fetchData();
-                queryNavigate(pathname, { update: true })
-                setState((prev) => ({ ...prev, modify: false, change: false, handling: false }))
-                setFile({ file: null, preview: null })
-                setAlert({ status: 200, message: res.message })
+                startTransition(() => {
+                    queryNavigate(pathname, { update: true })
+                    setState((prev) => ({ ...prev, modify: false, change: false, handling: false }))
+                    setFile({ file: null, preview: null })
+                    setAlert({ status: 200, message: res.message })
+                })
             }
             else {
                 setState((prev) => ({ ...prev, handling: false }))
@@ -176,7 +178,7 @@ export default function Manage({ redirect }) {
                                                                 Change
                                                             </>
                                                     }
-                                                    <input type="file" name="file" accept="image/*" id="file" onChange={(e) => handleChangeImage(e)} />
+                                                    <input type="file" name="file" accept="image/*" id="file" onChange={(e) => handleChangeImage(e)} disabled={state.handling} />
                                                 </button>
                                                 <button type="button" id="cancel_handle" style={!file.file ? { display: 'none' } : { display: 'flex' }} onClick={handleCancelChange}>
                                                     <TbCancel />
@@ -211,7 +213,7 @@ export default function Manage({ redirect }) {
                                     <div className="info">
                                         <div className="info_container">
                                             <div className="item">
-                                                <h1>{state.data.username}</h1>
+                                                <h2>{state.data.username}</h2>
                                                 <p>
                                                     <FaHashtag />
                                                     <input type="text"
@@ -221,62 +223,77 @@ export default function Manage({ redirect }) {
                                                         value={state.modify ? state?.update?.nickname ?? '' : state?.data?.nickname ?? 'None'}
                                                         placeholder="Nickname"
                                                         onKeyDown={handleKeyDown}
-                                                        id="surname"
+                                                        id="nickname"
                                                         onChange={(e) => setState(() => ({ ...state, update: { ...state.update, nickname: e.target.value } }))}
                                                     />
                                                 </p>
                                             </div>
-                                            <div className="item">
-                                                <label htmlFor='surname'>Surname:</label>
-                                                <input type="text"
-                                                    className={state.modify ? 'modify' : ''}
-                                                    disabled={!state.modify || state.handling}
-                                                    readOnly={!state.modify || state.handling}
-                                                    value={state.modify ? state.update.surname : state.data.surname}
-                                                    placeholder="Enter your surname"
-                                                    id="surname"
-                                                    onKeyDown={handleKeyDown}
-                                                    onChange={(e) => setState(() => ({ ...state, update: { ...state.update, surname: e.target.value } }))}
-                                                />
-                                            </div>
-                                            <div className="item">
-                                                <label htmlFor="name">Name:</label>
-                                                <input type="text"
-                                                    className={state.modify ? 'modify' : ''}
-                                                    disabled={!state.modify || state.handling}
-                                                    readOnly={!state.modify || state.handling}
-                                                    value={state.modify ? state.update.name : state.data.name}
-                                                    placeholder="Enter your name"
-                                                    id="name"
-                                                    onKeyDown={handleKeyDown}
-                                                    onChange={(e) => setState(() => ({ ...state, update: { ...state.update, name: e.target.value } }))}
-                                                />
-                                            </div>
-                                            <div className="item">
-                                                <label htmlFor="email">Email:</label>
-                                                <input type="text"
-                                                    className={state.modify ? 'modify' : ''}
-                                                    disabled={!state.modify || state.handling}
-                                                    readOnly={!state.modify || state.handling}
-                                                    value={state.modify ? state.update.email : state.data.email}
-                                                    placeholder="Enter your email"
-                                                    id="email"
-                                                    onKeyDown={handleKeyDown}
-                                                    onChange={(e) => setState(() => ({ ...state, update: { ...state.update, email: e.target.value } }))}
-                                                />
-                                            </div>
-                                            <div className="item">
-                                                <label htmlFor="bio">Bio:</label>
-                                                <textarea
-                                                    placeholder="Enter your bio"
-                                                    className={state.modify ? 'modify' : ''}
-                                                    disabled={!state.modify || state.handling}
-                                                    readOnly={!state.modify || state.handling}
-                                                    value={(state.modify ? state.update.bio : state.data.bio) || ''}
-                                                    id="bio"
-                                                    onKeyDown={handleKeyDown}
-                                                    onChange={(e) => setState(() => ({ ...state, update: { ...state.update, bio: e.target.value } }))}
-                                                />
+                                            <div className="input_info">
+                                                <div className="item">
+                                                    <label htmlFor='surname'>Surname:</label>
+                                                    <input type="text"
+                                                        className={state.modify ? 'modify' : ''}
+                                                        disabled={!state.modify || state.handling}
+                                                        readOnly={!state.modify || state.handling}
+                                                        value={state.modify ? state.update.surname : state.data.surname}
+                                                        placeholder="Enter your surname"
+                                                        id="surname"
+                                                        onKeyDown={handleKeyDown}
+                                                        onChange={(e) => setState(() => ({ ...state, update: { ...state.update, surname: e.target.value } }))}
+                                                    />
+                                                </div>
+                                                <div className="item">
+                                                    <label htmlFor="name">Name:</label>
+                                                    <input type="text"
+                                                        className={state.modify ? 'modify' : ''}
+                                                        disabled={!state.modify || state.handling}
+                                                        readOnly={!state.modify || state.handling}
+                                                        value={state.modify ? state.update.name : state.data.name}
+                                                        placeholder="Enter your name"
+                                                        id="name"
+                                                        onKeyDown={handleKeyDown}
+                                                        onChange={(e) => setState(() => ({ ...state, update: { ...state.update, name: e.target.value } }))}
+                                                    />
+                                                </div>
+                                                <div className="item">
+                                                    <label htmlFor="email">Email:</label>
+                                                    <input type="text"
+                                                        className={state.modify ? 'modify' : ''}
+                                                        disabled={!state.modify || state.handling}
+                                                        readOnly={!state.modify || state.handling}
+                                                        value={state.modify ? state.update.email : state.data.email}
+                                                        placeholder="Enter your email"
+                                                        id="email"
+                                                        onKeyDown={handleKeyDown}
+                                                        onChange={(e) => setState(() => ({ ...state, update: { ...state.update, email: e.target.value } }))}
+                                                    />
+                                                </div>
+                                                <div className="item">
+                                                    <label htmlFor="phone">Phone:</label>
+                                                    <input type="text"
+                                                        className={state.modify ? 'modify' : ''}
+                                                        disabled={!state.modify || state.handling}
+                                                        readOnly={!state.modify || state.handling}
+                                                        value={state.modify ? state.update.phone : state.data.phone}
+                                                        placeholder="Enter your phone"
+                                                        id="phone"
+                                                        onKeyDown={handleKeyDown}
+                                                        onChange={(e) => setState(() => ({ ...state, update: { ...state.update, phone: e.target.value } }))}
+                                                    />
+                                                </div>
+                                                <div className="item">
+                                                    <label htmlFor="bio">Bio:</label>
+                                                    <textarea
+                                                        placeholder="Enter your bio"
+                                                        className={state.modify ? 'modify' : ''}
+                                                        disabled={!state.modify || state.handling}
+                                                        readOnly={!state.modify || state.handling}
+                                                        value={(state.modify ? state.update.bio : state.data.bio) || ''}
+                                                        id="bio"
+                                                        onKeyDown={handleKeyDown}
+                                                        onChange={(e) => setState(() => ({ ...state, update: { ...state.update, bio: e.target.value } }))}
+                                                    />
+                                                </div>
                                             </div>
                                             <div id="modify_btns">
                                                 <button type="button" id="edit_info" disabled={state.handling} onClick={() => setState((prev) => ({ ...prev, modify: !state.modify, update: state.modify ? state.data : state.update }))}>
@@ -296,7 +313,7 @@ export default function Manage({ redirect }) {
                                                 <button type="submit" disabled={!(state.modify || state.change) || state.handling} style={{ cursor: !(state.modify || state.change) || state.handling ? 'not-allowed' : 'pointer' }} id="save_info">
                                                     {
                                                         state.handling ?
-                                                            <FaCircleNotch className="handling" />
+                                                            <FaCircleNotch className="handling" fontSize={16} />
                                                             :
                                                             <>
                                                                 <FaSave />
@@ -308,12 +325,6 @@ export default function Manage({ redirect }) {
                                         </div>
                                     </div>
                                 </div>
-                                {
-                                    (pathname !== '/home') &&
-                                    <div className="quick_handler">
-
-                                    </div>
-                                }
                             </>
                 }
             </div>

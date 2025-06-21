@@ -4,10 +4,17 @@ import { neon } from '@neondatabase/serverless';
 const sql = neon(process.env.DATABASE_URL);
 
 export async function postFeedback(data) {
-    try {
-        const { title, feedback, email, sender } = data;
+    const { title, feedback, email, sender } = data;
 
-        await sql`INSERT INTO feedback (sender, title, feedback, email) VALUES (${sender} ,${title}, ${feedback}, ${email})`;
+    if (!title || !feedback || !email || !sender) {
+        return new Response(
+            JSON.stringify({ message: "You missing something, check again" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+    }
+
+    try {
+        await sql`INSERT INTO public.feedback (sender, title, feedback, email) VALUES (${sender} ,${title}, ${feedback}, ${email})`;
 
         return new Response(
             JSON.stringify({ message: "Feedback saved successfully" }),
@@ -33,7 +40,7 @@ export async function postRegisterCourse(data) {
     }
 
     try {
-        await sql`insert into registercourse (idcourse, idstudent) values (${courseId}, ${userId})`;
+        await sql`INSERT INTO course.register (userid, courseid) VALUES (${userId}, ${courseId})`;
 
         return new Response(
             JSON.stringify({ message: "Register course successfully" }),
@@ -41,6 +48,32 @@ export async function postRegisterCourse(data) {
         );
     } catch (error) {
         console.error("Error register course:", error);
+        return new Response(
+            JSON.stringify({ message: "Somthing went wrong" }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+    }
+}
+
+export async function postRegisterProject(data) {
+    const { userId, projectId } = data
+
+    if (!userId || !projectId) {
+        return new Response(
+            JSON.stringify({ message: "You missing something, check again" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+    }
+
+    try {
+        await sql`INSERT INTO project.register (userid, projectid) VALUES (${userId}, ${projectId})`;
+
+        return new Response(
+            JSON.stringify({ message: "Register project successfully" }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+    } catch (error) {
+        console.error("Error register project:", error);
         return new Response(
             JSON.stringify({ message: "Somthing went wrong" }),
             { status: 200, headers: { "Content-Type": "application/json" } }

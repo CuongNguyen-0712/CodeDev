@@ -1,10 +1,10 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useEffect, useState, useMemo } from 'react';
+import { useSearchParams, usePathname } from 'next/navigation';
 
 import Image from 'next/image';
-import { LoadingContent } from '../../ui/loading';
-import { ErrorReload } from '../../ui/error';
+import { LoadingContent } from '../ui/loading';
+import { ErrorReload } from '../ui/error';
 import { useQuery } from '@/app/router/router';
 import { useSize } from '@/app/contexts/sizeContext';
 
@@ -16,6 +16,7 @@ import { FaAngleRight, FaCaretRight } from 'react-icons/fa6';
 export default function Overview() {
     const queryNavigate = useQuery();
     const params = useSearchParams();
+    const pathname = usePathname();
 
     const [state, setState] = useState({
         data: {
@@ -120,12 +121,12 @@ export default function Overview() {
     }
 
     const refetchData = () => {
-        setState((prev) => ({ ...prev, data: { ...prev.data, data: [] } }));
+        setState((prev) => ({ ...prev, data: { ...prev.data, data: [] }, error: { ...prev.error, data: null } }));
         fetchData();
     }
 
     const refetchInfo = () => {
-        setState((prev) => ({ ...prev, data: { ...prev.data, info: null } }));
+        setState((prev) => ({ ...prev, data: { ...prev.data, info: null }, error: { ...prev.error, info: null } }));
         fetchInfo();
     }
 
@@ -136,7 +137,8 @@ export default function Overview() {
 
     useEffect(() => {
         if (params.get('update')) {
-            refetchInfo();
+            fetchInfo();
+            queryNavigate(pathname, { update: false });
         }
     }, [params])
 
@@ -146,21 +148,23 @@ export default function Overview() {
         { status: 'Completed', color: 'var(--color_green)' },
     ];
 
-    const groupedLanguages = state.data.data.reduce((acc, item) => {
-        if (!acc[item.language]) {
-            acc[item.language] = {
-                id: item.language,
-                logo: item.logo,
-                color: item.color,
-                count: 1,
-            };
-        } else {
-            acc[item.language].count++;
-        }
-        return acc;
-    }, {});
+    const languageStats = useMemo(() => {
+        const groupedLanguages = state.data.data.reduce((acc, item) => {
+            if (!acc[item.language]) {
+                acc[item.language] = {
+                    id: item.language,
+                    logo: item.logo,
+                    color: item.color,
+                    count: 1,
+                };
+            } else {
+                acc[item.language].count++;
+            }
+            return acc;
+        }, {});
 
-    const languageStats = Object.values(groupedLanguages);
+        return Object.values(groupedLanguages);
+    }, [state.data.data])
 
     return state.pending ? (
         <LoadingContent />

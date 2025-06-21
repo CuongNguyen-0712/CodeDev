@@ -1,16 +1,15 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useTransition, startTransition } from "react"
 
 import Image from "next/image";
 import RegisterCourseService from "@/app/services/postService/registerCourseService";
-import CourseService from "@/app/services/getService/courseService";
+import GetCourseService from "@/app/services/getService/courseService";
 import { useQuery } from "@/app/router/router";
 
 import { ErrorReload } from "../ui/error";
 import { LoadingContent } from "../ui/loading";
 
-import { FaStar, FaCircleNotch } from "react-icons/fa";
+import { FaStar, FaCircleNotch, FaArrowRight } from "react-icons/fa";
 import { IoFilter } from "react-icons/io5";
-import { FaRightLong } from "react-icons/fa6";
 
 export default function CourseContent({ redirect }) {
     const queryNavigate = useQuery();
@@ -26,7 +25,7 @@ export default function CourseContent({ redirect }) {
 
     const fetchData = async () => {
         try {
-            const res = await CourseService();
+            const res = await GetCourseService();
             if (res.status == 200) {
                 setState((prev) => ({ ...prev, data: res.data, pending: false }))
             }
@@ -58,23 +57,30 @@ export default function CourseContent({ redirect }) {
                 const res = await RegisterCourseService(id);
 
                 if (res.status === 200) {
-                    setState(prev => ({ ...prev, message: { status: res.status, data: res.message, handling: false, idHandle: null } }))
                     await fetchData();
+                    startTransition(() => {
+                        setState(prev => ({ ...prev, message: { status: res.status, data: res.message }, handling: false, idHandle: null }))
+                    })
                 }
                 else {
-                    setState(prev => ({ ...prev, message: { status: res.status, data: res.message, handling: false } }))
+                    setState(prev => ({ ...prev, message: { status: res.status, data: res.message }, handling: false, idHandle: false }))
                 }
             }
             catch (err) {
-                setState(prev => ({ ...prev, message: { status: 500, data: err.message, handling: false } }))
+                setState(prev => ({ ...prev, message: { status: 500, data: err.message }, handling: false, idHandle: false }))
                 throw new Error(err)
             }
         }
     }
 
     const handleRedirect = () => {
+        queryNavigate('/home', { name: 'course' });
         redirect();
-        queryNavigate('/home', { name: 'course' })
+    }
+
+    const refetchData = () => {
+        setState(prev => ({ ...prev, error: null, pending: true }))
+        fetchData();
     }
 
     return (
@@ -86,12 +92,12 @@ export default function CourseContent({ redirect }) {
                         <IoFilter />
                     </button>
                 </div>
-                <div className="handle-course">
-                    <button onClick={handleRedirect} id="myCourse-btn">
+                <div className="handle_back">
+                    <button onClick={handleRedirect} className="back_btn">
                         <h4>
-                            Back to my course
+                            Back
                         </h4>
-                        <FaRightLong />
+                        <FaArrowRight />
                     </button>
                 </div>
             </div>
@@ -101,11 +107,11 @@ export default function CourseContent({ redirect }) {
                         <LoadingContent />
                         :
                         state.error ?
-                            <ErrorReload data={state.error} refetch={fetchData} />
+                            <ErrorReload data={state.error} refetch={refetchData} />
                             :
                             state.data && state.data.length > 0 ?
                                 state.data.map((item) => (
-                                    <div className="item" key={item.id}>
+                                    <div className="item" key={item.id} id={item.id}>
                                         <div className="heading">
                                             <Image src={item.image} alt='course-image' width={65} height={65} />
                                             <h3>{item.title}</h3>
@@ -122,26 +128,26 @@ export default function CourseContent({ redirect }) {
                                                 <h5>{item.level}</h5>
                                             </div>
                                             <div className="info">
-                                                <p>{item.lesson} lessons - {item.duration} hours</p>
-                                            </div>
-                                            <div className="info">
                                                 <p>{item.description}</p>
-                                            </div>
-                                            <div className="info">
-                                                <span>Instructor:</span>
-                                                <p>{item.instructor}</p>
                                             </div>
                                             <div className="info">
                                                 <span>Subject:</span>
                                                 <p>{item.subject}</p>
                                             </div>
                                             <div className="info">
-                                                <span>Student:</span>
-                                                <p>{item.students}</p>
+                                                <span>Instructor:</span>
+                                                <p>{item.instructor}</p>
                                             </div>
                                         </div>
                                         <div className="footer">
-                                            <button onClick={() => handleRequest(item.id, item.cost !== 'free')} style={item.cost === 'free' ? { backgroundColor: 'var(--color_blue)' } : { backgroundColor: 'var(--color_black)' }} disabled={state.pending}>
+                                            <button
+                                                onClick={() => handleRequest(item.id, item.cost !== 'free')}
+                                                style={{
+                                                    backgroundColor: item.cost === 'free' ? 'var(--color_blue)' : 'var(--color_black)',
+                                                    ...(state.handling && { cursor: 'not-allowed' })
+                                                }}
+                                                disabled={state.handling}
+                                            >
                                                 {state.idHandle === item.id ?
                                                     <FaCircleNotch className="handling" style={{ fontSize: '20px' }} />
                                                     :

@@ -58,7 +58,7 @@ export default function Dashboard({ handleDashboard }) {
       icon: <GoProjectRoadmap />,
     },
     {
-      index: 6,
+      index: 5,
       name: "Event",
       icon: <MdEmojiEvents />,
     },

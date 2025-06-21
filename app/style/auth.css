@@ -560,8 +560,9 @@ textarea::placeholder {
   align-items: center;
   height: max-content;
   width: max-content;
+  max-width: calc(100% - 20px);
   top: 20px;
-  right: 50px;
+  right: 10px;
   padding: 7px 10px;
   border-radius: 5px;
   color: var(--color_white);
@@ -578,6 +579,7 @@ textarea::placeholder {
   bottom: 25px;
   right: 25px;
   background: transparent;
+  z-index: 1;
 }
 
 #warning_notification>button {
@@ -618,12 +620,18 @@ textarea::placeholder {
   transition: 0.2s all ease;
 }
 
+
 .content_warning p {
   display: flex;
   align-items: center;
   height: max-content;
   width: 100%;
   gap: 5px;
+}
+
+.content_warning p svg {
+  display: flex;
+  flex-shrink: 0;
 }
 
 @media screen and (max-width: 450px) {

@@ -1,8 +1,5 @@
 import './globals.css';
-import { Inter } from 'next/font/google';
 import Provider from './contexts/providers';
-
-const inter = Inter({ subsets: ['latin'] })
 
 export default function RootLayout({ children }) {
   return (
@@ -11,8 +8,15 @@ export default function RootLayout({ children }) {
         <title>CodeDev</title>
         <link rel="icon" href="./image/logo.svg" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link
+          rel="preload"
+          href="/font/OpenSans-VariableFont_wdth,wght.ttf"
+          as="font"
+          type="font/ttf"
+          crossOrigin="anonymous"
+        />
       </head>
-      <body className={inter.className}>
+      <body>
         <Provider>
           {children}
         </Provider>

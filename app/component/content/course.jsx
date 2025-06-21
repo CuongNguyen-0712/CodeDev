@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useTransition, startTransition } from "react"
 
 import Image from "next/image";
 import Form from "next/form";
@@ -7,8 +7,8 @@ import DeleteMyCourseServive from "@/app/services/deleteService/myCourseService"
 import GetMyCourseService from "@/app/services/getService/myCourseService";
 
 import { useRouterActions } from "@/app/router/router";
-import { LoadingContent } from "../../ui/loading";
-import { ErrorReload } from "../../ui/error";
+import { LoadingContent } from "../ui/loading";
+import { ErrorReload } from "../ui/error";
 
 import { FaCartShopping } from "react-icons/fa6";
 import { FaCircleNotch } from "react-icons/fa";
@@ -59,8 +59,10 @@ export default function MyCourse({ redirect }) {
         try {
             const res = await DeleteMyCourseServive(id);
             if (res.status == 200) {
-                setState((prev) => ({ ...prev, message: { status: res.status, message: res.message }, handling: { ...prev.handling, withdraw: false }, idHandle: null }))
                 await fetchData();
+                startTransition(() => {
+                    setState((prev) => ({ ...prev, message: { status: res.status, message: res.message }, handling: { ...prev.handling, withdraw: false }, idHandle: null }))
+                })
             }
             else {
                 setState((prev) => ({ ...prev, message: { status: res.status, message: res.message }, handling: { ...prev.handling, withdraw: false } }))
@@ -152,7 +154,7 @@ export default function MyCourse({ redirect }) {
                                                         <button className="cancel-course" onClick={() => handleWithdrawCourse(item.id)} disabled={state.handling.withdraw} style={{ cursor: state.handling.withdraw ? 'not-allowed' : 'pointer' }}>
                                                             {
                                                                 state.handling.withdraw ?
-                                                                    <FaCircleNotch className="handling" style={{ fontSize: '1rem' }} />
+                                                                    <FaCircleNotch className="handling" fontSize={18} />
                                                                     :
                                                                     <>
                                                                         <IoTrashBin />

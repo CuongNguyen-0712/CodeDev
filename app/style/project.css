@@ -1,8 +1,221 @@
 #project {
   display: flex;
+  align-items: center;
   height: max-content;
+  min-height: 100dvh;
   width: 100%;
   padding: 80px 20px 20px 20px;
+  gap: 10px;
+  flex-direction: column;
+}
+
+#project .heading_project {
+  display: flex;
+  justify-content: space-between;
+  height: max-content;
+  width: 100%;
+  padding: 10px 0;
+  gap: 20px;
+}
+
+#project .content_project {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  height: max-content;
+  width: 100%;
   gap: 30px;
   flex-direction: column;
+  padding-bottom: 30px;
+}
+
+.content_project .method_project {
+  display: flex;
+  height: max-content;
+  width: 100%;
+  gap: 20px;
+  flex-direction: column;
+}
+
+.method_project .heading {
+  display: flex;
+  position: relative;
+  align-items: center;
+  height: max-content;
+  width: 100%;
+  padding: 10px 20px;
+  gap: 5px;
+}
+
+.method_project .heading::before {
+  content: "";
+  display: flex;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  width: 100%;
+  background: var(--color_black);
+}
+
+.method_project .content {
+  display: flex;
+  height: max-content;
+  min-height: 200px;
+  width: 100%;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.method_project .content .item {
+  display: flex;
+  height: max-content;
+  flex-grow: 1;
+  max-width: 400px;
+  border-radius: 10px;
+  padding: 20px;
+  border: 2px solid var(--color_gray);
+  box-shadow: 0 0 5px var(--color_gray);
+  flex-basis: 300px;
+  flex-direction: column;
+  cursor: default;
+  gap: 20px;
+}
+
+.method_project .item .heading_item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  height: max-content;
+  width: 100%;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.item .heading_item span {
+  display: flex;
+  height: max-content;
+  width: max-content;
+  padding: 5px 20px;
+  background: var(--color_black);
+  color: var(--color_white);
+  border-radius: 50px;
+  font-size: 12px;
+  text-transform: uppercase;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.method_project .item .content_item {
+  display: flex;
+  height: max-content;
+  width: 100%;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.method_project .item .content_item>p {
+  text-align: center;
+  font-size: 15px;
+}
+
+.content_item .info {
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+.content_item .info_dropdown {
+  display: flex;
+  height: 40px;
+  width: 100%;
+  background: transparent;
+  flex-direction: column;
+  border: none;
+  overflow: hidden;
+  transition: 0.2s all ease;
+}
+
+.info_dropdown.active {
+  height: 100px;
+  transition: 0.2s all ease;
+}
+
+.info_dropdown button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 40px;
+  width: 100%;
+  padding: 0 10px;
+  border-radius: 5px;
+  background: var(--color_gray);
+  color: var(--color_black);
+  font-weight: 600;
+  flex-shrink: 0;
+  transition: 0.2s all ease;
+}
+
+.info_dropdown button svg {
+  font-size: 20px;
+  transform: rotate(0deg);
+  transition: 0.2s all ease;
+}
+
+.info_dropdown.active button {
+  border-radius: 5px 5px 0 0;
+  background: var(--color_black);
+  color: var(--color_white);
+  transition: 0.2s all ease;
+}
+
+.info_dropdown.active button svg {
+  transform: rotate(180deg);
+  transition: 0.2s all ease;
+}
+
+.info_dropdown>p {
+  display: flex;
+  flex-grow: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 0 0 5px 5px;
+  font-size: 15px;
+}
+
+.info_dropdown.active>p {
+  border: 2px solid var(--color_black);
+  border-top: none;
+}
+
+.item .footer_item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: max-content;
+  width: 100%;
+  padding: 10px;
+  border-top: 2px solid var(--color_black);
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.footer_item .info {
+  display: flex;
+  gap: 5px;
+}
+
+.footer_item button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-grow: 1;
+  height: 40px;
+  min-width: 100px;
+  padding: 0 15px;
+  border-radius: 5px;
+  color: var(--color_white);
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s all ease;
 }

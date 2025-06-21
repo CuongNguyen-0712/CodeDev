@@ -18,7 +18,7 @@ export async function signIn(data) {
     }
 
     try {
-        const res = await sql`select id, password from users where username = ${name} limit 1`
+        const res = await sql`select id, password from private.users where username = ${name} limit 1`
 
         if (res.length === 0) {
             return new Response(
@@ -62,7 +62,7 @@ export async function signUp(data) {
         })
     }
 
-    const existingUser = await sql`SELECT 1 FROM users WHERE username = ${username} LIMIT 1`
+    const existingUser = await sql`SELECT 1 FROM private.users WHERE username = ${username} LIMIT 1`
     if (existingUser.length > 0) {
         return new Response(JSON.stringify({ success: false, message: "Username already exists" }), {
             status: 409,
@@ -71,11 +71,11 @@ export async function signUp(data) {
     }
 
     try {
-        const id = uuidv4()
+        const id = uuidv4();
         const hashPassword = await bcrypt.hash(password, 10)
 
-        await sql`INSERT INTO infouser (id, surname, name, email, phone) VALUES (${id}, ${surname}, ${name}, ${email}, ${phone})`
-        await sql`INSERT INTO users (id, username, password) VALUES (${id}, ${username}, ${hashPassword})`
+        await sql`INSERT INTO private.info (id, surname, name, email, phone) VALUES (${id}, ${surname}, ${name}, ${email}, ${phone})`
+        await sql`INSERT INTO private.users (id, username, password) VALUES (${id}, ${username}, ${hashPassword})`
 
         return new Response(JSON.stringify({ success: true, message: "Sign up successfully" }), {
             status: 200,

@@ -84,7 +84,7 @@ export default function Login({ active, changeForm, redirect }) {
                 <div className="main-login">
                     <div className="login-input">
                         <div className={`field-input ${login.name ? 'has-content' : ''}`}>
-                            <input type="text" id="nameLogin" name="name" value={login.name} onChange={handleChange} autoComplete="off" />
+                            <input type="text" id="nameLogin" name="name" value={login.name} onChange={handleChange} autoComplete="off" disabled={login.pending} autoFocus />
                             <label>Username</label>
                             <FaUser className="icon" />
                             {
@@ -96,7 +96,7 @@ export default function Login({ active, changeForm, redirect }) {
                             }
                         </div>
                         <div className={`field-input ${login.pass ? 'has-content' : ''}`}>
-                            <input type="password" id="passLogin" name="pass" value={login.pass} onChange={handleChange} autoComplete="off" />
+                            <input type="password" id="passLogin" name="pass" value={login.pass} onChange={handleChange} autoComplete="off" disabled={login.pending} />
                             <label>Password</label>
                             <FaLock className='icon' />
                             {

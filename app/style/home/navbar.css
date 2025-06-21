@@ -32,7 +32,8 @@
   width: 35px;
   background: var(--color_white);
   color: var(--color_black);
-  border-radius: 50px;
+  border-radius: 5px;
+  font-size: 16px;
 }
 
 #menu-btn:hover {
@@ -127,8 +128,14 @@
   width: 35px;
   background: var(--color_white);
   color: var(--color_black);
-  border-radius: 50px;
+  font-size: 18px;
+  border-radius: 5px;
   gap: 10px;
+}
+
+#mail span,
+#noti span {
+  font-size: 14px;
 }
 
 #mail:hover,
@@ -201,4 +208,22 @@
 
 .group-links button:last-child {
   flex-grow: 1;
+}
+
+@media screen and (max-width: 425px) {
+
+  #todo span {
+    display: none;
+  }
+
+  .group-links #mail.group-btn,
+  .group-links #noti.group-btn {
+    width: 35px;
+    padding: 0;
+  }
+
+  .group-links #mail.group-btn span,
+  .group-links #noti.group-btn span {
+    display: none;
+  }
 }

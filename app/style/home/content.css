@@ -66,8 +66,11 @@
     flex-direction: column;
 }
 
-.profile h2 {
-    text-transform: uppercase;
+.info .profile {
+    display: flex;
+    height: max-content;
+    width: max-content;
+    flex-direction: column;
 }
 
 .profile span {
@@ -487,6 +490,7 @@
     display: flex;
     height: max-content;
     width: 100%;
+    min-height: 100dvh;
     padding: 80px 20px 20px 20px;
     flex-direction: column;
     gap: 20px;
@@ -617,6 +621,7 @@
     display: flex;
     height: max-content;
     width: 100%;
+    flex-grow: 1;
     flex-wrap: wrap;
     gap: 30px;
 }
@@ -759,6 +764,7 @@
     display: flex;
     height: max-content;
     width: 100%;
+    min-height: 100dvh;
     padding: 80px 20px 20px 20px;
     flex-direction: column;
     gap: 20px;
@@ -807,6 +813,7 @@
     display: flex;
     justify-content: flex-start;
     height: max-content;
+    flex-grow: 1;
     width: 100%;
     gap: 20px;
     flex-wrap: wrap;
@@ -818,7 +825,7 @@
     justify-content: space-between;
     align-items: flex-start;
     height: max-content;
-    max-width: 550px;
+    max-width: 450px;
     flex-grow: 1;
     border-radius: 10px;
     box-shadow: 0 0 10px var(--color_gray);
@@ -842,7 +849,7 @@
     display: flex;
     align-items: center;
     height: max-content;
-    width: max-content;
+    max-width: 100%;
     padding-right: 20px;
     gap: 10px;
     flex-wrap: wrap;
@@ -859,10 +866,7 @@
     font-size: 12px;
     font-weight: 700;
     text-transform: uppercase;
-}
-
-.heading-item .item p {
-    font-size: 15px;
+    flex-shrink: 0;
 }
 
 .heading-item .status {
@@ -917,9 +921,9 @@
 .table-handle>button {
     display: flex;
     align-items: center;
-    height: max-content;
-    width: max-content;
-    padding: 5px 10px;
+    justify-content: center;
+    height: 35px;
+    width: 80px;
     border-radius: 5px;
     font-weight: 600;
     gap: 5px;
@@ -940,7 +944,7 @@
     align-items: center;
     justify-content: center;
     height: 35px;
-    width: 100px;
+    width: 150px;
     padding: 10px 15px;
     text-transform: uppercase;
     color: var(--color_white);
@@ -962,10 +966,33 @@
 }
 
 @media screen and (max-width: 425px) {
+    .overview-container .overview-user {
+        width: 100%;
+    }
+
+    .overview-user .user-container {
+        width: 100%;
+    }
+
+    .user-container .user-info {
+        flex-direction: column;
+    }
+
+    .info .profile {
+        align-items: center;
+    }
+
+    .profile h2 {
+        font-size: 18px;
+    }
 
     #project-btn span,
     #course-btn span {
         display: none;
+    }
+
+    .heading-item .item h3 {
+        font-size: 16px;
     }
 
     .item-project .handle-project {

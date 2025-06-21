@@ -16,9 +16,9 @@ export async function getOverview(data) {
             l.logo as logo,
             l.color as color
             from public.course c
-            join registercourse r on r.idcourse = c.id
+            join course.register r on r.courseid = c.id
             left join language l on c.language = l.id
-            where r.idstudent = ${data}
+            where r.userid = ${data}
         `;
 
         return new Response(
@@ -37,9 +37,9 @@ export async function getOverview(data) {
 export async function getInfo(data) {
     try {
         const res = await sql`
-            select i.surname as surname, i.name as name, i.email as email, i.image as image, i.bio as bio, i.nickname as nickname, i.rank as rank, i.star as star, i.level as level, u.username as username
-            from public.users u
-            join infouser i on u.id = i.id
+            select i.surname as surname, i.name as name, i.email as email, i.image as image, i.bio as bio, i.nickname as nickname, i.rank as rank, i.star as star, i.level as level, u.username as username, i.phone as phone
+            from private.users u
+            join private.info i on u.id = i.id
             where u.id = ${data}
             limit 1
         `;
@@ -58,12 +58,22 @@ export async function getInfo(data) {
 }
 
 export async function getProject(data) {
+    if (!data) {
+        return new Response(
+            JSON.stringify({ message: "You missing something, check again" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+        )
+    }
+
     try {
         const res = await sql`
-            select i.*
-            from joinproject j
-            join project i on j.idproject = i.id
-            join users u on j.idjoin = u.id 
+            select p.*
+            from public.project p
+            where p.id not in (
+                select projectid
+                from project.register
+                where userid = ${data}
+            )
         `;
 
         return new Response(
@@ -71,9 +81,9 @@ export async function getProject(data) {
             { status: 200, headers: { "Content-Type": "application/json" } }
         );
     } catch (error) {
-        console.error("Error saving feedback:", error);
+        console.error("Error:", error);
         return new Response(
-            JSON.stringify({ data: 'Something went wrong', message: "Internal server error" }),
+            JSON.stringify({ message: "Something went wrong, please try again" }),
             { status: 500, headers: { "Content-Type": "application/json" } }
         );
     }
@@ -90,13 +100,13 @@ export async function getCourse(data) {
 
         const res = await sql`
             select *
-            from course
+            from public.course
             where course.id not in
             (
             select c.id
-            from registercourse r
-            join course c on r.idcourse = c.id
-            where r.idstudent = ${data}
+            from course.register r
+            join public.course c on r.courseid = c.id
+            where r.userid = ${data}
             )
         `;
 
@@ -106,7 +116,7 @@ export async function getCourse(data) {
         );
     } catch (error) {
         return new Response(
-            console.error("Error saving feedback:", error),
+            console.error("Error:", error),
             JSON.stringify({ message: "Something went wrong, please try again" }),
             { status: 500, headers: { "Content-Type": "application/json" } }
         );
@@ -114,12 +124,19 @@ export async function getCourse(data) {
 }
 
 export async function getMyCourse(data) {
+    if (!data) {
+        return new Response(
+            JSON.stringify({ message: "You missing something, check again" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+        )
+    }
+
     try {
         const res = await sql`
             select c.* , r.progress as progress, r.status as status
-            from registercourse r
-            join course c on r.idcourse = c.id
-            where r.idstudent = ${data}
+            from course.register r
+            join public.course c on r.courseid = c.id
+            where r.userid = ${data} and r.hidestatus = false
         `
 
         return new Response(
@@ -145,11 +162,14 @@ export async function getMyProject(data) {
         }
 
         const res = await sql`
-        select i.*
-        from joinproject j
-            join project i on j.idproject = i.id
-            join users u on j.idjoin = u.id 
-            where u.id = ${data}
+            select  p.id as id,
+                    p.name as name, 
+                    p.method as method, 
+                    r.statusprogress as status,
+                    p.description as description
+            from project.register r
+            join public.project p on r.projectid = p.id
+            where r.userid = ${data} and r.hidestatus = false
         `;
 
         return new Response(JSON.stringify({ data: res, message: "Get data successfully" }), {

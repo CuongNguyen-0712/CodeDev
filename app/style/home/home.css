@@ -54,7 +54,8 @@
   position: relative;
   align-items: center;
   justify-content: flex-start;
-  height: 100%;
+  height: max-content;
+  min-height: 100dvh;
   width: 100%;
   flex-direction: column;
   background: #fff;

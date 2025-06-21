@@ -68,7 +68,7 @@ export default function Navbar({ onHome, handleDashboard, handleRedirect }) {
                 <>
                   <button id="todo">
                     <MdAddCircle />
-                    {width > 900 && <span>Todo</span>}
+                    <span>Todo</span>
                   </button>
                   {width < 768 && (
                     <>
@@ -84,12 +84,16 @@ export default function Navbar({ onHome, handleDashboard, handleRedirect }) {
                         }}
                       >
                         <button className="group-btn" id="mail">
-                          Mail
                           <MdEmail />
+                          <span>
+                            Mail
+                          </span>
                         </button>
                         <button className="group-btn" id="noti">
-                          Noti
                           <IoMdNotifications />
+                          <span>
+                            Notification
+                          </span>
                         </button>
                         <button id="feedback-btn" onClick={() => queryNavigate(window.location.pathname, { feedback: true })}>
                           Feedback
