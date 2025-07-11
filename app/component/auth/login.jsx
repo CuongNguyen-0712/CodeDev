@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, startTransition } from "react"
 
 import Image from "next/image"
 import Form from "next/form"
@@ -7,20 +7,26 @@ import Link from "next/link"
 import { SignInDefinition } from "@/app/lib/definition"
 import { useRouterActions } from "@/app/router/router"
 import SignInService from "@/app/services/authService/signIn"
+import { useAuth } from "@/app/contexts/authContext"
+import { LoadingContent } from "../ui/loading"
 
 import { FaUser, FaLock } from "react-icons/fa6";
-import { FaCircleNotch } from "react-icons/fa";
-import { IoIosWarning, IoIosCloseCircle } from "react-icons/io"
 
-export default function Login({ active, changeForm, redirect }) {
+export default function Login({
+    active,
+    changeForm,
+    redirect,
+    error,
+    setError,
+    setMessage
+}) {
     const { navigateToHome } = useRouterActions();
+    const { refreshSession } = useAuth();
 
     const [login, setLogin] = useState({
         name: '',
         pass: '',
         pending: false,
-        error: null,
-        message: null
     })
 
     const submitLogin = async (e) => {
@@ -28,43 +34,36 @@ export default function Login({ active, changeForm, redirect }) {
 
         setLogin({ ...login, pending: true })
 
-        const check = SignInDefinition({ name: login.name, pass: login.pass })
+        const check = SignInDefinition({ name: login.name.trim(), pass: login.pass })
         if (check.success) {
             try {
                 const response = await SignInService({ name: login.name, pass: login.pass });
 
                 if (response.status === 200 && response.success) {
                     redirect();
-                    navigateToHome();
+                    await refreshSession();
+                    startTransition(() => {
+                        navigateToHome();
+                    })
                 } else {
-                    setLogin((prev) => ({ ...prev, message: response.message, pending: false }));
+                    setLogin((prev) => ({ ...prev, pending: false }));
+                    setMessage(response.message);
                 }
             } catch (err) {
-                setLogin((prev) => ({ ...prev, message: 'Server error, try again', pending: false }));
+                setLogin((prev) => ({ ...prev, pending: false }));
             }
         }
         else {
-            setLogin({ ...login, pending: false, error: check.errors })
+            error(check.errors)
+            setLogin({ ...login, pending: false })
         }
     }
 
     const handleChange = (e) => {
         const { name, value } = e.target
-        setLogin((prev) => ({
-            ...prev,
-            [name]: value,
-            error: null,
-        }));
+        setLogin((prev) => ({ ...prev, [name]: value }))
+        setError(name)
     }
-
-    useEffect(() => {
-        if (!login.message) return;
-        const timer = setTimeout(() => {
-            setLogin((prev) => ({ ...prev, message: null }));
-        }, 2000);
-        return () => clearTimeout(timer);
-    }, [login.message]);
-
 
     return (
         <>
@@ -84,28 +83,14 @@ export default function Login({ active, changeForm, redirect }) {
                 <div className="main-login">
                     <div className="login-input">
                         <div className={`field-input ${login.name ? 'has-content' : ''}`}>
-                            <input type="text" id="nameLogin" name="name" value={login.name} onChange={handleChange} autoComplete="off" disabled={login.pending} autoFocus />
+                            <input type="text" id="nameLogin" name="name" value={login.name} onChange={handleChange} autoComplete="off" readOnly={login.pending} autoFocus />
                             <label>Username</label>
                             <FaUser className="icon" />
-                            {
-                                (login.error && login.error.name) &&
-                                <div className="warning">
-                                    <IoIosWarning className="warning_icon" />
-                                    <p>{login.error.name}</p>
-                                </div>
-                            }
                         </div>
                         <div className={`field-input ${login.pass ? 'has-content' : ''}`}>
-                            <input type="password" id="passLogin" name="pass" value={login.pass} onChange={handleChange} autoComplete="off" disabled={login.pending} />
+                            <input type="password" id="passLogin" name="pass" value={login.pass} onChange={handleChange} autoComplete="off" readOnly={login.pending} />
                             <label>Password</label>
                             <FaLock className='icon' />
-                            {
-                                (login.error && login.error.pass) &&
-                                <div className="warning">
-                                    <IoIosWarning className="warning_icon" />
-                                    <p>{login.error.pass}</p>
-                                </div>
-                            }
                         </div>
                     </div>
                     <div className="login-help">
@@ -121,7 +106,7 @@ export default function Login({ active, changeForm, redirect }) {
                     <button type="submit" className="btn-login" disabled={login.pending}>
                         {
                             login.pending ?
-                                <FaCircleNotch className="handling" style={{ fontSize: '20px' }} />
+                                <LoadingContent scale={0.5} color="var(--color_white)" />
                                 :
                                 <>
                                     Sign in
@@ -152,13 +137,6 @@ export default function Login({ active, changeForm, redirect }) {
                     </div>
                 </div>
             </Form>
-            {
-                login.message &&
-                <div className="error">
-                    <IoIosCloseCircle style={{ fontSize: '17px' }} />
-                    <p>{login?.message}</p>
-                </div>
-            }
         </>
     )
 }

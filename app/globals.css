@@ -24,8 +24,8 @@
     border: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: 'myFont', sans-serif;
     scroll-behavior: smooth;
+    font-family: 'myFont', sans-serif;
 }
 
 body {
@@ -34,6 +34,7 @@ body {
     justify-content: center;
     height: 100dvh;
     width: 100%;
+    font-family: 'myFont', sans-serif;
 }
 
 :root {
@@ -56,7 +57,7 @@ body {
 }
 
 input:disabled,
-textarea:disabled {
-    background: transparent;
+textarea:disabled,
+button:disabled {
     cursor: not-allowed;
 }

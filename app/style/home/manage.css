@@ -23,7 +23,7 @@
     background: var(--color_white);
     border-radius: 10px;
     flex-direction: column;
-    gap: 10px;
+    gap: 20px;
 }
 
 .heading-manage {
@@ -296,8 +296,10 @@
 .footer-manage>button {
     display: flex;
     align-items: center;
+    justify-content: center;
     height: 35px;
     width: max-content;
+    color: var(--color_white);
     padding: 0 15px;
     text-transform: uppercase;
     font-size: 12px;
@@ -307,12 +309,22 @@
 }
 
 #change-account {
-    background: var(--color_gray);
-    color: var(--color_black);
+    background: var(--color_blue);
+    flex-grow: 1;
+    max-width: 250px;
 }
 
 #logout {
     background: var(--color_black);
+}
+
+#reject_logout {
+    background: var(--color_red);
+    color: var(--color_white);
+}
+
+#accept_logout {
+    background: var(--color_green);
     color: var(--color_white);
 }
 

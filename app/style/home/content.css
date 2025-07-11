@@ -5,7 +5,7 @@
     justify-content: center;
     height: max-content;
     width: 100%;
-    padding: 80px 20px 20px 20px;
+    padding: 70px 20px 20px 20px;
     flex-wrap: wrap;
     gap: 20px;
 }
@@ -53,6 +53,7 @@
 
 .user-info img {
     border-radius: 5px;
+    padding: 5px;
     outline: 1px solid #ccc;
 }
 
@@ -68,8 +69,9 @@
 
 .info .profile {
     display: flex;
+    align-items: center;
     height: max-content;
-    width: max-content;
+    width: 100%;
     flex-direction: column;
 }
 
@@ -111,10 +113,12 @@
     justify-content: center;
     height: 40px;
     width: 100%;
+    max-width: 200px;
     background: var(--color_black);
     color: var(--color_white);
     font-weight: 700;
     border-radius: 5px;
+    font-size: 12px;
     text-transform: uppercase;
     cursor: pointer;
 }
@@ -129,6 +133,8 @@
     border: 2px solid var(--color_gray);
     flex-direction: column;
     box-shadow: 0 0 10px var(--color_gray);
+    gap: 20px;
+    padding: 10px 0 20px 0;
     overflow: hidden;
 }
 
@@ -256,7 +262,6 @@
     justify-content: center;
     height: max-content;
     width: 100%;
-    padding: 20px 0;
 }
 
 .course-progress .footer button {
@@ -264,10 +269,12 @@
     align-items: center;
     justify-content: center;
     height: 40px;
-    width: 80%;
+    width: 100%;
+    max-width: 250px;
     background: var(--color_black);
     color: var(--color_white);
     text-transform: uppercase;
+    font-size: 12px;
     border-radius: 5px;
     font-weight: 600;
 }
@@ -362,6 +369,14 @@
 .language-item .bar>span {
     display: flex;
     height: 5px;
+}
+
+#error_analyze {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
 }
 
 .course .course-recently,
@@ -491,7 +506,7 @@
     height: max-content;
     width: 100%;
     min-height: 100dvh;
-    padding: 80px 20px 20px 20px;
+    padding: 70px 20px 20px 20px;
     flex-direction: column;
     gap: 20px;
 }
@@ -504,23 +519,6 @@
     padding: 10px 0;
     gap: 20px;
     z-index: 1;
-}
-
-.heading-myCourse #search {
-    display: flex;
-    position: relative;
-    height: 40px;
-    flex-grow: 1;
-    max-width: 450px;
-}
-
-#search input {
-    display: flex;
-    height: 100%;
-    width: 100%;
-    padding: 0 10px;
-    outline: none;
-    border: 2px solid var(--color_black);
 }
 
 #search .filter {
@@ -554,7 +552,7 @@
     height: 200px;
     width: 100%;
     background: var(--color_white);
-    border: 1px solid var(--color_gray);
+    border: 2px solid var(--color_black);
     border-radius: 5px;
     top: 50px;
     padding: 15px;
@@ -623,6 +621,7 @@
     width: 100%;
     flex-grow: 1;
     flex-wrap: wrap;
+    padding-bottom: 30px;
     gap: 30px;
 }
 
@@ -630,7 +629,8 @@
     display: flex;
     position: relative;
     align-items: center;
-    height: 400px;
+    height: max-content;
+    min-height: 420px;
     max-width: 350px;
     flex-basis: 300px;
     flex-grow: 1;
@@ -721,10 +721,10 @@
     height: 40px;
     flex-grow: 1;
     background: var(--color_blue);
-    font-size: 15px;
     text-transform: uppercase;
     color: var(--color_white);
     font-weight: 600;
+    font-size: 14px;
     letter-spacing: 1px;
     border-radius: 5px;
 }
@@ -758,14 +758,13 @@
     background: var(--color_red);
 }
 
-
 /* Project */
 #myProject {
     display: flex;
     height: max-content;
     width: 100%;
     min-height: 100dvh;
-    padding: 80px 20px 20px 20px;
+    padding: 70px 20px 20px 20px;
     flex-direction: column;
     gap: 20px;
 }
@@ -777,14 +776,6 @@
     width: 100%;
     padding: 10px 0;
     gap: 20px;
-}
-
-.heading-myProject .input-search {
-    display: flex;
-    position: relative;
-    height: 40px;
-    width: 100%;
-    max-width: 450px;
 }
 
 .handle-project {
@@ -953,6 +944,495 @@
     border-radius: 5px;
 }
 
+/*Social*/
+
+#social {
+    display: flex;
+    position: relative;
+    height: 100dvh;
+    width: 100%;
+    min-height: 100dvh;
+    padding-top: 70px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 20px;
+    overflow: hidden;
+}
+
+#social .my_social {
+    display: flex;
+    height: 100%;
+    flex-grow: 1;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.my_social .heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: max-content;
+    width: 100%;
+    padding: 0 20px;
+    flex-direction: row;
+    flex-wrap: wrap-reverse;
+    gap: 20px;
+}
+
+.my_social .heading .social_btn {
+    display: flex;
+    height: max-content;
+    width: max-content;
+    gap: 20px;
+}
+
+.social_btn button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 30px;
+    width: 70px;
+    padding: 0 10px;
+    border-radius: 5px;
+    font-weight: 600;
+    color: var(--color_black);
+    background: var(--color_gray);
+    cursor: pointer;
+    transition: 0.2s all ease;
+}
+
+.social_btn button.active {
+    color: var(--color_white);
+    background: var(--color_black);
+    transition: 0.2s all ease;
+}
+
+.my_social .heading .social_search {
+    display: flex;
+    height: max-content;
+    max-width: 300px;
+    flex-grow: 1;
+}
+
+.social_search input {
+    display: flex;
+    height: 35px;
+    width: 100%;
+    padding: 0 10px;
+    outline: none;
+    border: 2px solid var(--color_black);
+    border-radius: 5px;
+}
+
+.my_social .content {
+    display: flex;
+    flex-grow: 1;
+    width: 100%;
+    overflow: auto;
+}
+
+#frame_social {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    padding: 20px 20px 100px 20px;
+    flex-wrap: wrap;
+    gap: 50px;
+}
+
+#frame_social .card_social {
+    display: flex;
+    position: relative;
+    align-items: center;
+    height: max-content;
+    max-width: 450px;
+    flex-grow: 1;
+    border: 2px solid var(--color_gray);
+    box-shadow: 0 0 10px var(--color_gray);
+    border-radius: 10px;
+    padding: 10px;
+    gap: 20px;
+}
+
+.card_social img {
+    display: flex;
+    padding: 5px;
+    border: 2px solid var(--color_black);
+    border-radius: 5px;
+    flex-shrink: 0;
+}
+
+.card_social .card_info {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    padding-bottom: 20px;
+    flex-direction: column;
+    gap: 5px
+}
+
+.card_info .top_info {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    flex-wrap: wrap-reverse;
+    gap: 20px;
+}
+
+.top_info .main_top {
+    display: flex;
+    height: max-content;
+    flex-grow: 1;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.card_info .top_info span {
+    display: flex;
+    align-items: baseline;
+    font-size: 14px;
+    gap: 5px;
+}
+
+.card_social .card_info .tier {
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: 100%;
+    padding: 10px 20px;
+    border-top: 2px solid var(--color_black);
+    gap: 20px;
+}
+
+.tier span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 35px;
+    width: 35px;
+    background: var(--color_black);
+    color: var(--color_white);
+    border-radius: 5px;
+}
+
+.tier .tier_info p {
+    display: flex;
+    align-items: baseline;
+    height: max-content;
+    font-size: 15px;
+    gap: 5px;
+}
+
+.card_social .card_btns {
+    display: flex;
+    position: absolute;
+    height: max-content;
+    width: calc(100% - 110px);
+    bottom: -30px;
+    right: -2px;
+    background: var(--color_white);
+    padding: 10px 20px;
+    border: 2px solid var(--color_gray);
+    box-shadow: 5px 5px 10px var(--color_gray);
+    border-radius: 10px;
+    gap: 20px;
+}
+
+.card_social .card_btns::before {
+    content: '';
+    position: absolute;
+    height: calc(50% + 2px);
+    width: calc(100% + 2px);
+    background: var(--color_white);
+    inset: -2px;
+}
+
+.card_btns button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 35px;
+    flex-grow: 1;
+    border-radius: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 12px;
+    color: var(--color_white);
+    cursor: pointer;
+    z-index: 1;
+}
+
+.card_btns button:nth-child(1) {
+    background: var(--color_blue);
+}
+
+.card_btns button:nth-child(2) {
+    background: var(--color_black);
+}
+
+.card_team {
+    display: flex;
+    height: max-content;
+    flex-grow: 1;
+    max-width: 350px;
+    border-radius: 5px;
+    border: 2px solid var(--color_gray);
+    box-shadow: 0 0 10px var(--color_gray);
+    padding: 20px;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.card_team .header_team {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    gap: 20px;
+}
+
+.header_team img {
+    display: flex;
+    padding: 5px;
+    border: 2px solid var(--color_black);
+    border-radius: 5px;
+    flex-shrink: 0;
+}
+
+.header_team .team_info {
+    display: flex;
+    height: 100%;
+    flex-grow: 1;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.header_team .team_info div {
+    display: flex;
+    justify-content: flex-start;
+    align-items: baseline;
+    height: max-content;
+    width: 100%;
+    gap: 5px;
+}
+
+.team_info div p {
+    font-size: 15px;
+}
+
+.card_team .team_members {
+    display: flex;
+    justify-content: flex-start;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.card_team .team_members p {
+    display: flex;
+    height: max-content;
+    width: max-content;
+    gap: 10px;
+}
+
+.team_members p span {
+    display: flex;
+    position: relative;
+    align-items: center;
+    justify-content: center;
+    height: 30px;
+    width: 30px;
+    background: var(--color_gray);
+    border-radius: 5px;
+    cursor: pointer;
+    transition: 0.2s all ease;
+}
+
+.team_members p span:hover {
+    background: var(--color_black);
+    transition: 0.2s all ease;
+}
+
+.team_members p span svg {
+    color: var(--color_black);
+    transition: 0.2s all ease;
+}
+
+.team_members p span:hover svg {
+    color: var(--color_white);
+    transition: 0.2s all ease;
+}
+
+.team_members p span:hover::before {
+    content: attr(data-name);
+    display: flex;
+    position: absolute;
+    height: max-content;
+    width: max-content;
+    padding: 5px 10px;
+    font-size: 12px;
+    top: 35px;
+    left: 0;
+    background: var(--color_gray);
+    border-radius: 5px;
+}
+
+.card_team .footer_team {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    gap: 20px;
+}
+
+.card_team .footer_team button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 35px;
+    flex-grow: 1;
+    border-radius: 5px;
+    text-transform: uppercase;
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--color_white);
+}
+
+.card_team .footer_team button:nth-child(1) {
+    background: var(--color_black);
+}
+
+.card_team .footer_team button:nth-child(2) {
+    background: var(--color_blue);
+}
+
+#social .main_social {
+    display: flex;
+    width: 100%;
+    max-width: 425px;
+    bottom: 0;
+    right: 0;
+    background: var(--color_white);
+    border-top: 2px solid var(--color_gray);
+    border-left: 2px solid var(--color_gray);
+    border-top-left-radius: 15px;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.main_social .heading_view {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: max-content;
+    width: 100%;
+    padding: 10px;
+    gap: 20px;
+}
+
+.heading_view .input_social {
+    display: flex;
+    height: 35px;
+    flex-grow: 1;
+}
+
+.heading_view .input_social input {
+    display: flex;
+    height: 100%;
+    width: 100%;
+    padding: 0 10px;
+    outline: none;
+    border-radius: 5px;
+    border: 2px solid var(--color_black);
+}
+
+.heading_view button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 35px;
+    width: max-content;
+    color: var(--color_white);
+    border-radius: 5px;
+    padding: 0 10px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+    gap: 10px;
+    transition: 0.2s all ease;
+}
+
+.main_social .view_social {
+    display: flex;
+    height: max-content;
+    min-height: 100%;
+    width: 100%;
+    flex-direction: column;
+    padding: 10px 20px;
+    gap: 20px;
+    overflow: auto;
+}
+
+.view_social .item_social {
+    display: flex;
+    position: relative;
+    align-items: center;
+    justify-content: space-between;
+    height: max-content;
+    width: 100%;
+    padding: 10px;
+    border-radius: 10px;
+    border: 2px solid var(--color_gray);
+    box-shadow: 0 0 5px var(--color_gray);
+    overflow: hidden;
+    transition: 0.2s all ease;
+}
+
+.item_social .tag_heading {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    width: max-content;
+    gap: 10px;
+}
+
+.tag_heading button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 25px;
+    width: 25px;
+    border-radius: 50px;
+    background: var(--color_blue);
+    color: var(--color_white);
+}
+
+.item_social>button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 35px;
+    width: 35px;
+    background: var(--color_gray);
+    color: var(--color_black);
+    border-radius: 5px;
+    cursor: pointer;
+    transition: 0.2s all ease;
+}
+
+.item_social>button:hover {
+    background: var(--color_black);
+    color: var(--color_white);
+    transition: 0.2s all ease;
+}
+
+@media screen and (max-width: 1440px) {
+    #social .main_social {
+        position: absolute;
+        z-index: 1;
+    }
+}
 
 @media screen and (max-width: 768px) {
     .item-project .heading-item {
@@ -966,6 +1446,8 @@
 }
 
 @media screen and (max-width: 425px) {
+
+    /* Overview */
     .overview-container .overview-user {
         width: 100%;
     }
@@ -986,6 +1468,7 @@
         font-size: 18px;
     }
 
+    /* Project and Course */
     #project-btn span,
     #course-btn span {
         display: none;
@@ -1049,5 +1532,24 @@
         border-radius: 5px;
         text-transform: uppercase;
         cursor: pointer;
+    }
+
+    /* Social */
+    #social .main_social {
+        border-left: 0;
+        border-radius: 0;
+    }
+
+    .card_social .card_btns {
+        width: calc(100% + 4px);
+    }
+
+    .card_social .card_btns::before {
+        width: 100%;
+        left: 0;
+    }
+
+    .top_info .main_top h3 {
+        font-size: 16px;
     }
 }

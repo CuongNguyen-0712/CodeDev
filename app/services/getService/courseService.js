@@ -1,10 +1,14 @@
 import { getSession } from "@/app/lib/session";
 
-export default async function GetCourseService() {
+export default async function GetCourseService({ search, limit, offset }) {
+    const params = new URLSearchParams();
+    params.set('id', (await getSession())?.userId);
+    if (search) params.set('search', search);
+    if (limit) params.set('limit', limit);
+    if (offset) params.set('offset', offset);
 
-    const id = (await getSession())?.userId;
     try {
-        const res = await fetch(`/api/get/getCourse?id=${id}`, {
+        const res = await fetch(`/api/get/getCourse?${params.toString()}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',

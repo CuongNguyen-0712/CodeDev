@@ -1,8 +1,6 @@
-import { TfiReload } from "react-icons/tfi";
-
-export function LoadingRedirect() {
+export function LoadingRedirect({ scale }) {
     return (
-        <div id="loadRedirect">
+        <div id="loadRedirect" style={scale && { scale: scale }}>
             <svg className="logo_svg" viewBox="-5 -5 110 95">
                 <polygon
                     className="triangle"
@@ -12,10 +10,12 @@ export function LoadingRedirect() {
     )
 }
 
-export function LoadingContent() {
+export function LoadingContent({ scale, color = 'var(--color_black' } = {}) {
     return (
         <div id="loadContent">
-            <TfiReload />
+            <svg className="loader" viewBox="0 0 50 50" style={scale && { scale: scale }}>
+                <circle className="path" cx="25" cy="25" r="20" fill="none" strokeWidth="5" style={{ stroke: color }} />
+            </svg>
         </div>
     )
 }

@@ -23,6 +23,7 @@
     border-radius: 20px;
     flex-direction: column;
     transition: 0.2s all ease;
+    overflow: hidden;
 }
 
 #feedback-form>button {
@@ -129,7 +130,7 @@
     outline: 2px solid var(--color_black);
 }
 
-.feedback-field .error {
+.feedback-field .error_validation {
     display: flex;
     position: absolute;
     align-items: center;

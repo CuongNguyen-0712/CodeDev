@@ -18,7 +18,17 @@ export async function signIn(data) {
     }
 
     try {
-        const res = await sql`select id, password from private.users where username = ${name} limit 1`
+        const res = await sql`
+            select 
+                u.id as id,
+                u.password as password,
+                u.username as username,
+                i.email as email
+            from private.users u
+            join private.info i on i.id = u.id
+            where username = ${name} 
+            limit 1
+            `
 
         if (res.length === 0) {
             return new Response(
@@ -37,7 +47,23 @@ export async function signIn(data) {
         }
 
         const userId = await res[0].id
-        await createSession(userId)
+
+        const checkSession = await sql
+            `
+            insert into storage.session (id) values (${userId})
+            on conflict (id) do nothing
+            returning id
+            `
+
+        if (checkSession.length === 0) {
+            return new Response(
+                JSON.stringify({ success: false, message: "Something went wrong, please try again" }),
+                { status: 500, headers: { "Content-Type": "application/json" } }
+            )
+        }
+        else {
+            await createSession({ data: { userId: userId, username: await res[0].username, email: await res[0].email } })
+        }
 
         return new Response(
             JSON.stringify({ success: true }),

@@ -28,6 +28,10 @@ export default function Overview() {
             data: null,
             info: null,
         },
+        load: {
+            data: true,
+            info: true
+        }
     })
     const { size } = useSize();
 
@@ -45,6 +49,10 @@ export default function Overview() {
                         ...prev.data,
                         data: resData.data,
                     },
+                    load: {
+                        ...prev.load,
+                        data: false
+                    },
                     pending: false,
                 }))
             }
@@ -58,7 +66,12 @@ export default function Overview() {
                             status: resData.status,
                             message: resData.message ?? "Something is wrong !"
                         }
-                    }
+                    },
+                    load: {
+                        ...prev.load,
+                        data: false
+                    },
+                    pending: false,
                 }))
             }
 
@@ -71,9 +84,13 @@ export default function Overview() {
                         status: 500,
                         message: err.message ?? "Something is wrong !"
                     }
-                }
+                },
+                load: {
+                    ...prev.load,
+                    data: false
+                },
+                pending: false,
             }))
-            throw new Error(err);
         }
     };
 
@@ -88,6 +105,10 @@ export default function Overview() {
                         ...prev.data,
                         info: resInfo.data[0] ?? [],
                     },
+                    load: {
+                        ...prev.load,
+                        info: false
+                    },
                     pending: false,
                 }))
             }
@@ -101,7 +122,12 @@ export default function Overview() {
                             status: resInfo.status,
                             message: resInfo.message ?? "Something is wrong !"
                         }
-                    }
+                    },
+                    load: {
+                        ...prev.load,
+                        info: false
+                    },
+                    pending: false,
                 }))
             }
         }
@@ -114,9 +140,13 @@ export default function Overview() {
                         status: 500,
                         message: err.message ?? "Something is wrong !"
                     }
-                }
+                },
+                load: {
+                    ...prev.load,
+                    info: false
+                },
+                pending: false,
             }))
-            throw new Error(err);
         }
     }
 
@@ -172,7 +202,7 @@ export default function Overview() {
         <div id="overview">
             <div className="overview-container">
                 <div className="overview-user">
-                    {!state.data.info ?
+                    {(state.load.info && !state.error.info) ?
                         <LoadingContent />
                         :
                         state.error.info || state.data.info.length === 0 ?
@@ -198,7 +228,7 @@ export default function Overview() {
                     }
                 </div>
 
-                <div className="language" style={{ height: visible && languageStats.length > 0 ? `${languageStats.length * 75 + (languageStats.length - 1) * 20 + 110}px` : '50px', transition: '0.2s all ease' }}>
+                <div className="language" style={languageStats.length > 0 ? { height: visible ? `${languageStats.length * 75 + (languageStats.length - 1) * 20 + 110}px` : '50px', transition: '0.2s all ease' } : { height: visible ? '150px' : '50px', transition: '0.2s all ease' }}>
                     <div className="header" onClick={() => setVisible(!visible)} style={visible ? { background: 'var(--color_black)', color: 'var(--color_white)' } : {}}>
                         <h5>Language Skill</h5>
                         <FaCaretRight style={{ transform: visible ? 'rotate(90deg)' : 'rotate(0deg)', transition: '0.2s all ease' }} />
@@ -218,9 +248,10 @@ export default function Overview() {
                                         </div>
                                     </div>
                                 ))
-                            ) : (
-                                <p>No data, please join some courses</p>
-                            )}
+                            )
+                                :
+                                <p id='error_analyze'>No data to analyze</p>
+                            }
                         </div>
                     </div>
                 </div>
@@ -230,7 +261,7 @@ export default function Overview() {
                 <div className="course-progress">
                     <div className="main-progress">
                         {
-                            !state.data.data ?
+                            (state.load.data && !state.error.data) ?
                                 <LoadingContent />
                                 :
                                 state.error.data ?

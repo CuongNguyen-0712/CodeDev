@@ -12,26 +12,34 @@
   transition: 0.2s all ease;
 }
 
-#manage {
+#handler_dashboard {
   display: flex;
   justify-content: center;
   height: max-content;
   width: 100%;
+  flex-direction: column;
+  padding: 0 10px;
+  gap: 10px;
 }
 
-#manage button {
+#handler_dashboard button {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 40px;
-  width: 80%;
+  height: 35px;
+  flex-grow: 1;
+  background: var(--color_gray);
+  color: var(--color_black);
+  border-radius: 5px;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+#handler_dashboard #feedback {
   background: var(--color_black);
   color: var(--color_white);
-  border-radius: 5px;
-  font-weight: 700;
-  font-size: 11px;
-  text-transform: uppercase;
-  cursor: pointer;
 }
 
 #dashboard .header {

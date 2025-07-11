@@ -56,19 +56,58 @@
         }
     }
 
+    .load_wrapper {
+        display: flex;
+        height: max-content;
+        justify-content: center;
+        width: 100%;
+        padding: 10px;
+    }
+
     #loadContent {
         display: flex;
         align-items: center;
         justify-content: center;
         height: 100%;
         width: 100%;
-        background: var(--color_white);
+        background: transparent;
     }
 
-    #loadContent svg {
-        scale: 2;
-        animation: loadContent 1s linear infinite;
+    .loader {
+        width: 50px;
+        height: 50px;
+        animation: rotate 2s linear infinite;
     }
+
+    .path {
+        stroke: var(--color_black);
+        stroke-linecap: round;
+        animation: dash 1.5s ease-in-out infinite;
+    }
+
+    @keyframes rotate {
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    @keyframes dash {
+        0% {
+            stroke-dasharray: 1, 150;
+            stroke-dashoffset: 0;
+        }
+
+        50% {
+            stroke-dasharray: 90, 150;
+            stroke-dashoffset: -35;
+        }
+
+        100% {
+            stroke-dasharray: 90, 150;
+            stroke-dashoffset: -124;
+        }
+    }
+
 
     @keyframes loadContent {
         0% {
@@ -84,7 +123,7 @@
         display: flex;
         align-items: center;
         height: max-content;
-        width: max-content;
+        width: 100%;
         flex-direction: column;
         gap: 10px;
     }
@@ -104,20 +143,6 @@
         font-weight: 600;
         border-radius: 5px;
         cursor: pointer;
-    }
-
-    .handling {
-        animation: animateHandling 1s linear infinite;
-    }
-
-    @keyframes animateHandling {
-        0% {
-            transform: rotate(0deg);
-        }
-
-        100% {
-            transform: rotate(360deg);
-        }
     }
 
     #navigate_handler {
@@ -184,7 +209,7 @@
         display: flex;
         height: 100%;
         width: 100%;
-        padding: 0 10px;
+        padding: 0 50px 0 10px;
         outline: none;
         border: 2px solid var(--color_black);
     }
@@ -234,6 +259,14 @@
     @media screen and (max-width: 500px) {
         .handle_back .back_btn h4 {
             display: none;
+        }
+
+        #loadRedirect {
+            scale: 0.8;
+        }
+
+        .loader {
+            scale: 0.8;
         }
     }
 

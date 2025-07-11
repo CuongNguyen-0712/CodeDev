@@ -1,16 +1,13 @@
 import { getSession } from "@/app/lib/session";
 
-export default async function GetProjectService({ search, limit, offset, method }) {
+export default async function GetSocialService({ search }) {
     const params = new URLSearchParams();
-    params.set('id', (await getSession())?.userId);
 
+    params.set('id', (await getSession())?.userId);
     if (search) params.set('search', search);
-    if (limit) params.set('limit', limit);
-    if (offset) params.set('offset', offset);
-    if (method) params.set('method', method);
 
     try {
-        const res = await fetch(`/api/get/getProject?${params.toString()}`, {
+        const res = await fetch(`/api/get/getSocial?${params.toString()}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -38,12 +35,10 @@ export default async function GetProjectService({ search, limit, offset, method 
                 message: raw.message
             }
         }
-    }
-    catch (err) {
-        console.error(err);
+    } catch (error) {
         return {
             status: 500,
-            message: err.message
+            message: error.message
         }
     }
 }

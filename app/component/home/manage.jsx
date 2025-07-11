@@ -1,4 +1,4 @@
-import { useState, useEffect, useTransition, startTransition } from "react";
+import { useState, useEffect, startTransition } from "react";
 
 import GetInfoService from "@/app/services/getService/infoService";
 import { LoadingContent } from "../ui/loading";
@@ -10,6 +10,7 @@ import { TbCancel } from "react-icons/tb";
 import { BiImport } from "react-icons/bi";
 import { IoIosCloseCircle } from "react-icons/io";
 import { LiaExchangeAltSolid } from "react-icons/lia";
+import { MdCheck, MdClose } from "react-icons/md";
 
 import { useQuery, useRouterActions } from "@/app/router/router";
 import { usePathname } from "next/navigation";
@@ -22,6 +23,7 @@ import Logo from "@/public/image/logo.svg";
 import Default from "@/public/image/default.svg";
 
 export default function Manage({ redirect }) {
+
     const [state, setState] = useState({
         data: null,
         update: null,
@@ -38,18 +40,22 @@ export default function Manage({ redirect }) {
         preview: null,
     });
 
+    const [confirm, setConfirm] = useState(false);
     const [alert, setAlert] = useState(null);
 
-    const { navigateToAuth, handleRefresh } = useRouterActions();
+    const { navigateToAuth } = useRouterActions();
     const queryNavigate = useQuery();
 
     const pathname = usePathname();
 
     const handleLogout = async (e) => {
         e.preventDefault();
-        await deleteSession();
         redirect();
-        navigateToAuth();
+        await deleteSession();
+
+        startTransition(() => {
+            navigateToAuth();
+        })
     }
 
     const fetchData = async () => {
@@ -80,7 +86,7 @@ export default function Manage({ redirect }) {
             image: file.file ? file.file.name : state.update.image
         }
 
-        setState((prev) => ({ ...prev, handling: true }))
+        setState((prev) => ({ ...prev, change: false, handling: true }))
 
         try {
             const res = await UpdateInfoService(updateData)
@@ -89,7 +95,7 @@ export default function Manage({ redirect }) {
                 await fetchData();
                 startTransition(() => {
                     queryNavigate(pathname, { update: true })
-                    setState((prev) => ({ ...prev, modify: false, change: false, handling: false }))
+                    setState((prev) => ({ ...prev, handling: false, modify: false }))
                     setFile({ file: null, preview: null })
                     setAlert({ status: 200, message: res.message })
                 })
@@ -105,10 +111,19 @@ export default function Manage({ redirect }) {
             throw new Error(err)
         }
     }
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-        }
+
+    const handleChange = (e) => {
+        e.preventDefault();
+
+        const { name, value } = e.target;
+
+        setState((prev) => ({
+            ...prev,
+            update: {
+                ...prev.update,
+                [name]: value
+            }
+        }))
     }
 
     const handleChangeImage = (e) => {
@@ -135,10 +150,20 @@ export default function Manage({ redirect }) {
     }
 
     useEffect(() => {
-        setTimeout(() => {
+        if (!alert) return;
+        const timer = setTimeout(() => {
             setAlert(null)
         }, 2000)
+        return () => clearTimeout(timer)
     }, [alert])
+
+    useEffect(() => {
+        if (!confirm) return;
+        const timer = setTimeout(() => {
+            setConfirm(false)
+        }, 2000)
+        return () => clearTimeout(timer)
+    }, [confirm])
 
     return (
         <Form id="managePanel" onSubmit={handleUpdate}>
@@ -218,13 +243,12 @@ export default function Manage({ redirect }) {
                                                     <FaHashtag />
                                                     <input type="text"
                                                         className={state.modify ? 'modify' : ''}
-                                                        disabled={!state.modify || state.handling}
                                                         readOnly={!state.modify || state.handling}
                                                         value={state.modify ? state?.update?.nickname ?? '' : state?.data?.nickname ?? 'None'}
                                                         placeholder="Nickname"
-                                                        onKeyDown={handleKeyDown}
                                                         id="nickname"
-                                                        onChange={(e) => setState(() => ({ ...state, update: { ...state.update, nickname: e.target.value } }))}
+                                                        name="nickname"
+                                                        onChange={handleChange}
                                                     />
                                                 </p>
                                             </div>
@@ -233,52 +257,48 @@ export default function Manage({ redirect }) {
                                                     <label htmlFor='surname'>Surname:</label>
                                                     <input type="text"
                                                         className={state.modify ? 'modify' : ''}
-                                                        disabled={!state.modify || state.handling}
                                                         readOnly={!state.modify || state.handling}
                                                         value={state.modify ? state.update.surname : state.data.surname}
                                                         placeholder="Enter your surname"
                                                         id="surname"
-                                                        onKeyDown={handleKeyDown}
-                                                        onChange={(e) => setState(() => ({ ...state, update: { ...state.update, surname: e.target.value } }))}
+                                                        name="surname"
+                                                        onChange={handleChange}
                                                     />
                                                 </div>
                                                 <div className="item">
                                                     <label htmlFor="name">Name:</label>
                                                     <input type="text"
                                                         className={state.modify ? 'modify' : ''}
-                                                        disabled={!state.modify || state.handling}
                                                         readOnly={!state.modify || state.handling}
                                                         value={state.modify ? state.update.name : state.data.name}
                                                         placeholder="Enter your name"
                                                         id="name"
-                                                        onKeyDown={handleKeyDown}
-                                                        onChange={(e) => setState(() => ({ ...state, update: { ...state.update, name: e.target.value } }))}
+                                                        name="name"
+                                                        onChange={handleChange}
                                                     />
                                                 </div>
                                                 <div className="item">
                                                     <label htmlFor="email">Email:</label>
                                                     <input type="text"
                                                         className={state.modify ? 'modify' : ''}
-                                                        disabled={!state.modify || state.handling}
                                                         readOnly={!state.modify || state.handling}
                                                         value={state.modify ? state.update.email : state.data.email}
                                                         placeholder="Enter your email"
                                                         id="email"
-                                                        onKeyDown={handleKeyDown}
-                                                        onChange={(e) => setState(() => ({ ...state, update: { ...state.update, email: e.target.value } }))}
+                                                        name="email"
+                                                        onChange={handleChange}
                                                     />
                                                 </div>
                                                 <div className="item">
                                                     <label htmlFor="phone">Phone:</label>
                                                     <input type="text"
                                                         className={state.modify ? 'modify' : ''}
-                                                        disabled={!state.modify || state.handling}
                                                         readOnly={!state.modify || state.handling}
                                                         value={state.modify ? state.update.phone : state.data.phone}
                                                         placeholder="Enter your phone"
                                                         id="phone"
-                                                        onKeyDown={handleKeyDown}
-                                                        onChange={(e) => setState(() => ({ ...state, update: { ...state.update, phone: e.target.value } }))}
+                                                        name="phone"
+                                                        onChange={handleChange}
                                                     />
                                                 </div>
                                                 <div className="item">
@@ -286,12 +306,11 @@ export default function Manage({ redirect }) {
                                                     <textarea
                                                         placeholder="Enter your bio"
                                                         className={state.modify ? 'modify' : ''}
-                                                        disabled={!state.modify || state.handling}
                                                         readOnly={!state.modify || state.handling}
                                                         value={(state.modify ? state.update.bio : state.data.bio) || ''}
                                                         id="bio"
-                                                        onKeyDown={handleKeyDown}
-                                                        onChange={(e) => setState(() => ({ ...state, update: { ...state.update, bio: e.target.value } }))}
+                                                        name="bio"
+                                                        onChange={handleChange}
                                                     />
                                                 </div>
                                             </div>
@@ -313,7 +332,7 @@ export default function Manage({ redirect }) {
                                                 <button type="submit" disabled={!(state.modify || state.change) || state.handling} style={{ cursor: !(state.modify || state.change) || state.handling ? 'not-allowed' : 'pointer' }} id="save_info">
                                                     {
                                                         state.handling ?
-                                                            <FaCircleNotch className="handling" fontSize={16} />
+                                                            <LoadingContent scale={0.3} color="var(--color_white)" />
                                                             :
                                                             <>
                                                                 <FaSave />
@@ -332,9 +351,21 @@ export default function Manage({ redirect }) {
                 <button type="button" id="change-account">
                     Change account
                 </button>
-                <button type="button" id="logout" onClick={handleLogout}>
-                    Logout
-                </button>
+                {
+                    confirm ?
+                        <>
+                            <button id='reject_logout' onClick={() => setConfirm(false)}>
+                                <MdClose fontSize={20} />
+                            </button>
+                            <button id="accept_logout" onClick={handleLogout}>
+                                <MdCheck fontSize={20} />
+                            </button>
+                        </>
+                        :
+                        <button type="button" id="logout" onClick={() => setConfirm(true)}>
+                            Logout
+                        </button>
+                }
             </div>
             <button type="button" id="cancel-manage" onClick={() => queryNavigate(pathname, { manage: false, update: false })}>
                 <IoClose />

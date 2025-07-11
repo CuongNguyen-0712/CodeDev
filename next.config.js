@@ -3,11 +3,12 @@ const nextConfig = {
     async rewrites() {
         return [
             {
-                source: '/home/:name',
-                destination: '/home?name=:name',
+                source: '/',
+                destination: '/homepage',
             },
         ]
     },
+    reactStrictMode: false,
 }
 
 module.exports = nextConfig

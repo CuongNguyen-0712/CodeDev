@@ -1,19 +1,22 @@
 import { useState } from "react";
 
+import Form from "next/form";
+
 import { IoIosSend, IoIosClose, IoIosWarning } from "react-icons/io";
 import { BsFillInfoCircleFill } from "react-icons/bs";
 
-import Form from "next/form";
 import { useQuery } from "@/app/router/router";
+import { useAuth } from "@/app/contexts/authContext";
 import PostFeedbackService from "@/app/services/postService/feedbackService";
 
 export default function Feedback() {
     const queryNavigate = useQuery();
+    const { session } = useAuth();
 
     const [dataForm, setDataForm] = useState({
         title: "",
         feedback: "",
-        email: "nguyencuong0712@gmail.com",
+        email: session.email,
         mark: false
     });
 
@@ -106,7 +109,7 @@ export default function Feedback() {
                     setDataForm({
                         title: "",
                         feedback: "",
-                        email: "nguyenquoccuong07122004@gmail.com",
+                        email: session.email,
                     });
                     setError(initialError);
                     setPending(false);
@@ -116,6 +119,24 @@ export default function Feedback() {
             }
         }
     };
+
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+
+        setDataForm((prev) => ({
+            ...prev,
+            [name]: value
+        }))
+
+        setError((prev) => ({
+            ...prev,
+            [name]: {
+                status: false,
+                message: ""
+            }
+        }))
+    }
 
     return (
         <Form onSubmit={handleSubmit} id="feedback-form">
@@ -136,14 +157,12 @@ export default function Feedback() {
                         id="title"
                         name="title"
                         value={dataForm.title}
-                        onChange={(e) =>
-                            setDataForm({ ...dataForm, title: e.target.value })
-                        }
+                        onChange={handleChange}
                         placeholder="Your title"
                         disabled={isPending}
                     />
                     {error.title.status && (
-                        <span className="error">
+                        <span className="error_validation">
                             <IoIosWarning />
                             {error.title.message}
                         </span>
@@ -156,14 +175,12 @@ export default function Feedback() {
                         id="email"
                         name="email"
                         value={dataForm.email}
-                        onChange={(e) =>
-                            setDataForm({ ...dataForm, email: e.target.value })
-                        }
+                        onChange={handleChange}
                         placeholder="Your email"
                         disabled={isPending}
                     />
                     {error.email.status && (
-                        <span className="error">
+                        <span className="error_validation">
                             <IoIosWarning />
                             {error.email.message}
                         </span>
@@ -173,16 +190,14 @@ export default function Feedback() {
                     <span className="heading-field">Your feedback</span>
                     <textarea
                         id="feedback"
-                        name="feebback"
+                        name="feedback"
                         value={dataForm.feedback}
-                        onChange={(e) =>
-                            setDataForm({ ...dataForm, feedback: e.target.value })
-                        }
+                        onChange={handleChange}
                         placeholder="Write something..."
                         disabled={isPending}
                     ></textarea>
                     {error.feedback.status && (
-                        <span className="error">
+                        <span className="error_validation">
                             <IoIosWarning /> {error.feedback.message}
                         </span>
                     )}
@@ -192,7 +207,7 @@ export default function Feedback() {
                 <button
                     type="button"
                     id="reset"
-                    onClick={() => setDataForm({ title: "", feedback: "", email: "" })}
+                    onClick={() => setDataForm((prev) => ({ ...prev, title: "", feedback: "", email: "" }))}
                     disabled={isPending}
                 >
                     Reset

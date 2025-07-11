@@ -103,8 +103,10 @@ export default function Dashboard({ handleDashboard }) {
           </div>
           <span id="navigation" ref={refNavigation}></span>
         </div>
-        <div id="manage" onClick={() => queryNavigate('/home', { manage: true })}>
-          <button>Open quick manage</button>
+        <div id="handler_dashboard">
+          <button id="feedback" onClick={() => queryNavigate(window.location.pathname, { feedback: true })}>
+            Feedback
+          </button>
         </div>
         <div className="footer-menu" style={showOther ? { height: '100px', transition: '0.2s all ease' } : { height: '50px', transition: '0.2s all ease' }}>
           <div onClick={() => setShowOther(!showOther)} className="heading">
@@ -129,7 +131,7 @@ export default function Dashboard({ handleDashboard }) {
           </div>
         </div>
         <button id="hidden-menu" onClick={handleDashboard}>
-          <MdOutlineClose />
+          <MdOutlineClose fontSize={16} />
         </button>
       </div>
     </>

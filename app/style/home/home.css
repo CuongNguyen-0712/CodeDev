@@ -30,9 +30,21 @@
   height: 60px;
   top: 0;
   left: 0;
-  background: var(--color_white);
+  background: transparent;
   flex-direction: row;
   z-index: 2;
+}
+
+#header::before {
+  content: '';
+  position: absolute;
+  height: 100%;
+  width: 100%;
+  top: 0;
+  left: 0;
+  background: var(--color_white);
+  opacity: 0.8;
+  z-index: -1;
 }
 
 .aside {

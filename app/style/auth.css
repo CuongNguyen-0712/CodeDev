@@ -653,6 +653,10 @@ textarea::placeholder {
   #warning_notification .content_warning {
     width: 280px;
   }
+
+  .error {
+    width: calc(100% - 20px);
+  }
 }
 
 @media screen and (max-width: 375px) {

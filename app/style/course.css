@@ -3,7 +3,7 @@
   height: max-content;
   min-height: 100dvh;
   width: 100%;
-  padding: 80px 20px 20px 20px;
+  padding: 70px 20px 20px 20px;
   gap: 30px;
   flex-direction: column;
 }

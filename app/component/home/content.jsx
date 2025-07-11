@@ -10,6 +10,7 @@ const components = {
     'overview': dynamic(() => import('../content/overview'), { ssr: true }),
     'course': dynamic(() => import('../content/course'), { ssr: true }),
     'project': dynamic(() => import('../content/project'), { ssr: true }),
+    'social': dynamic(() => import('../content/social'), { ssr: true }),
 };
 
 export default function Content({ redirect }) {

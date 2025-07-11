@@ -1,14 +1,15 @@
-import { useState, useEffect, useTransition, startTransition } from "react"
+import { useState, useEffect, startTransition } from "react"
 
 import GetProjectService from "@/app/services/getService/projectService";
 import PostRegisterProjectService from "@/app/services/postService/registerProjectService";
 import { ErrorReload } from "../ui/error";
 import { useQuery } from "@/app/router/router";
+import { uniqWith } from "lodash";
 
 import { LoadingContent } from "../ui/loading";
 
 import { IoFilter } from "react-icons/io5"
-import { FaArrowRight, FaCircleNotch } from "react-icons/fa";
+import { FaArrowRight } from "react-icons/fa";
 import { FaUser, FaUserGroup } from "react-icons/fa6";
 import { IoMdArrowDropdown } from "react-icons/io";
 
@@ -25,30 +26,126 @@ export default function ProjectContent({ redirect }) {
         idHandle: null,
         message: null,
         pending: true,
+        search: '',
     })
 
-    const fetchData = async () => {
+    const [offset, setOffset] = useState({
+        self: 0,
+        team: 0
+    });
+
+    const [hasMore, setHasMore] = useState({
+        self: true,
+        team: true
+    });
+
+    const [registerCount, setRegisterCount] = useState({
+        self: 0,
+        team: 0
+    })
+
+    const [isLoading, setIsLoading] = useState({
+        self: false,
+        team: false
+    })
+
+    const [load, setLoad] = useState({
+        hasSearch: false,
+        limit: 5,
+    })
+
+    const [apiQueue, setApiQueue] = useState([])
+    const [isProcessing, setIsProcessing] = useState(false)
+
+    const processQueue = async () => {
+        if (isProcessing || apiQueue.length === 0) return;
+
+        setIsProcessing(true);
+
+        const task = apiQueue[0];
+
+        if (task.type === "fetch") {
+            await fetchData({ method: task.method });
+        }
+        else if (task.type === 'register') {
+            await task.execute()
+        }
+        else {
+            return;
+        }
+
+        setApiQueue((prev) => prev.slice(1));
+        setIsProcessing(false);
+    }
+
+    useEffect(() => {
+        processQueue();
+    }, [apiQueue])
+
+    const fetchData = async ({ offsetValue = 0, method } = {}) => {
+        if (method && !hasMore[method]) return;
+
         try {
-            const res = await GetProjectService();
+            const adjustedOffset = Math.max(0, (method ? offset[method] : offsetValue) - (registerCount[method] || 0));
+            const res = await GetProjectService({ search: state.search.trim(), limit: load.limit, offset: adjustedOffset.toString(), method: method ? method.charAt(0).toUpperCase() + method.slice(1) : method });
 
             if (res.status === 200) {
-                const self = res.data.filter(item => item.method === 'Self');
-                const team = res.data.filter(item => item.method === 'Team');
-                setState((prev) => ({ ...prev, data: { self, team }, pending: false }));
+                if (method) {
+                    setOffset((prev) => ({
+                        ...prev,
+                        [method]: prev[method] + load.limit,
+                    }))
+                    setHasMore((prev) => ({
+                        ...prev,
+                        [method]: res.data.length >= load.limit
+                    }))
+                    setIsLoading((prev) => ({
+                        ...prev,
+                        [method]: false
+                    }))
+                    setState((prev) => ({
+                        ...prev,
+                        data: {
+                            ...prev.data,
+                            [method]: uniqWith([...prev.data[method], ...res.data], (a, b) => a.id === b.id)
+                        },
+                        pending: false
+                    }));
+                }
+                else {
+                    const self = [...res.data].filter((item) => item.method === 'Self')
+                    const team = [...res.data].filter((item) => item.method === 'Team')
+                    setOffset((prev) => ({
+                        ...prev,
+                        self: prev.self + load.limit,
+                        team: prev.team + load.limit
+                    }))
+                    setHasMore((prev) => ({
+                        ...prev,
+                        self: self.length >= load.limit,
+                        team: team.length >= load.limit
+                    }))
+                    setState((prev) => ({
+                        ...prev,
+                        data: {
+                            self: uniqWith([...prev.data.self, ...self], (a, b) => a.id === b.id),
+                            team: uniqWith([...prev.data.team, ...team], (a, b) => a.id === b.id)
+                        },
+                        pending: false
+                    }));
+                }
             }
             else {
                 setState((prev) => ({ ...prev, error: { status: res.status, message: res.message }, pending: false }));
             }
         }
         catch (err) {
-            console.error(err);
             setState((prev) => ({ ...prev, error: { status: 500, message: err.message || 'Something is wrong' }, pending: false }));
-            throw new Error(err);
         }
     }
 
     useEffect(() => {
-        fetchData()
+        fetchData();
     }, [])
 
     const handleDropdown = (e) => {
@@ -61,16 +158,36 @@ export default function ProjectContent({ redirect }) {
         }
     }
 
+    const handleRegister = ({ id, method }) => {
+        setApiQueue((prev) => [
+            ...prev,
+            {
+                type: "register",
+                execute: () => handleRequest({ id, method })
+            }
+        ]);
+    }
 
-    const handleRequest = async (data) => {
-        if (!data) return;
+    const handleRequest = async ({ id, method }) => {
+        if (!id) return;
 
-        setState((prev) => ({ ...prev, handling: true, idHandle: data }))
+        setState((prev) => ({ ...prev, handling: true, idHandle: id }))
 
         try {
-            const res = await PostRegisterProjectService({ projectId: data });
+            const res = await PostRegisterProjectService({ projectId: id });
             if (res.status === 200) {
-                await fetchData();
+                setRegisterCount((prev) => ({
+                    ...prev,
+                    [method]: prev[method] + 1
+                }));
+                setState((prev) => ({
+                    ...prev,
+                    data: {
+                        ...prev.data,
+                        [method]: prev.data[method].filter((item) => item.id !== id)
+                    }
+                }));
+                setApiQueue((prev) => [...prev, { type: "fetch", method: method }]);
                 startTransition(() => {
                     setState((prev) => ({ ...prev, message: { status: res.status, data: res.message || 'Successfully' }, handling: false, idHandle: null }));
                 })
@@ -80,20 +197,36 @@ export default function ProjectContent({ redirect }) {
             }
         }
         catch (err) {
-            console.error(err);
             setState((prev) => ({ ...prev, message: { status: 500, data: err.message || 'Something is wrong' }, handling: false, idHandle: null }));
-            throw new Error(err);
         }
     }
 
     const refetchData = () => {
         setState(prev => ({ ...prev, error: null, pending: true }))
-        fetchData();
+        setIsLoading({
+            self: false,
+            team: false
+        })
+        setApiQueue((prev) => [...prev, { type: "fetch" }]);
     }
 
     const handleRedirect = () => {
         queryNavigate('home', { name: 'project' });
         redirect()
+    }
+
+    const handleShowMore = (value) => {
+        setIsLoading((prev) => ({
+            ...prev,
+            [value]: true
+        }))
+        setApiQueue((prev) => [
+            ...prev,
+            {
+                type: "fetch",
+                method: value
+            }
+        ]);
     }
 
     return (
@@ -157,14 +290,14 @@ export default function ProjectContent({ redirect }) {
                                                     <button
                                                         style={item.status === 'Open' && { background: 'var(--color_blue)' } || item.status === 'Closed' && { background: 'var(--color_red)', cursor: 'not-allowed' } || item.status === 'Comming soon' && { background: 'var(--color_black)', cursor: 'not-allowed' }}
                                                         disabled={item.status !== 'Open' || state.handling}
-                                                        onClick={() => handleRequest(item.id)}
+                                                        onClick={() => handleRegister({ id: item.id, method: 'self' })}
                                                     >
                                                         {
                                                             (() => {
                                                                 switch (item.status) {
                                                                     case 'Open':
                                                                         return state.idHandle === item.id ?
-                                                                            <FaCircleNotch className="handling" fontSize={20} />
+                                                                            <LoadingContent scale={0.5} color="var(--color_white)" />
                                                                             :
                                                                             <>Join</>;
                                                                     case 'Closed':
@@ -185,6 +318,21 @@ export default function ProjectContent({ redirect }) {
                                         <p>No project</p>
                         }
                     </div>
+                    {
+                        (!state.pending && !state.error) &&
+                        <div className="show_more" style={{ display: !hasMore.self && 'none' }}>
+                            <button disabled={isLoading.self} onClick={() => handleShowMore('self')}>
+                                {
+                                    isLoading.self ?
+                                        <LoadingContent scale={0.4} color="var(--color_white)" />
+                                        :
+                                        <>
+                                            See more
+                                        </>
+                                }
+                            </button>
+                        </div>
+                    }
                 </div>
                 <div className="method_project">
                     <div className="heading">
@@ -228,14 +376,14 @@ export default function ProjectContent({ redirect }) {
                                                     <button
                                                         style={item.status === 'Open' && { background: 'var(--color_blue)' } || item.status === 'Closed' && { background: 'var(--color_red)', cursor: 'not-allowed' } || item.status === 'Comming soon' && { background: 'var(--color_black)', cursor: 'not-allowed' }}
                                                         disabled={item.status !== 'Open' || state.handling}
-                                                        onClick={() => handleRequest(item.id)}
+                                                        onClick={() => handleRegister({ id: item.id, method: 'team' })}
                                                     >
                                                         {
                                                             (() => {
                                                                 switch (item.status) {
                                                                     case 'Open':
                                                                         return state.idHandle === item.id ?
-                                                                            <FaCircleNotch className="handling" style={{ fontSize: '20px' }} />
+                                                                            <LoadingContent scale={0.5} color="var(--color_white)" />
                                                                             :
                                                                             <>Join</>;
                                                                     case 'Closed':
@@ -256,6 +404,21 @@ export default function ProjectContent({ redirect }) {
                                         <p>No project</p>
                         }
                     </div>
+                    {
+                        (!state.pending && !state.error) &&
+                        <div className="show_more" style={{ display: !hasMore.team && 'none' }}>
+                            <button disabled={isLoading.team} onClick={() => handleShowMore('team')}>
+                                {
+                                    isLoading.team ?
+                                        <LoadingContent scale={0.4} color="var(--color_white)" />
+                                        :
+                                        <>
+                                            See more
+                                        </>
+                                }
+                            </button>
+                        </div>
+                    }
                 </div>
                 {
                     state.error && <ErrorReload data={state.error} refetch={refetchData} />

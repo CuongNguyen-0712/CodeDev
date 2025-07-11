@@ -59,7 +59,7 @@ export default function Layout({ children }) {
                 :
                 <>
                     <div id="header">
-                        <Navbar onHome={true} handleOverlay={() => setState(prev => ({ ...prev, overlay: !prev.overlay }))} />
+                        <Navbar handleOverlay={() => setState(prev => ({ ...prev, overlay: !prev.overlay }))} />
                     </div>
                     <div id="container">
                         {cloneElement(children, { redirect: () => setState(prev => ({ ...prev, redirect: true })) })}

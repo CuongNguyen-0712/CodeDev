@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, use } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 import Navbar from './navbar';
@@ -71,7 +71,6 @@ export default function Home() {
                     <div id='header'>
                         <Navbar
                             handleDashboard={handleDashboard}
-                            onHome={false}
                         />
                     </div>
                     <div className='aside' style={home.dashboard ? { transform: 'translateX(0)' } : { transform: 'translateX(-100%)' }} ref={ref}>

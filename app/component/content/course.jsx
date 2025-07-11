@@ -1,4 +1,4 @@
-import { useState, useEffect, useTransition, startTransition } from "react"
+import { useState, useEffect, startTransition, useMemo } from "react"
 
 import Image from "next/image";
 import Form from "next/form";
@@ -9,9 +9,11 @@ import GetMyCourseService from "@/app/services/getService/myCourseService";
 import { useRouterActions } from "@/app/router/router";
 import { LoadingContent } from "../ui/loading";
 import { ErrorReload } from "../ui/error";
+import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
+
+import { debounce, uniqWith } from "lodash";
 
 import { FaCartShopping } from "react-icons/fa6";
-import { FaCircleNotch } from "react-icons/fa";
 import { IoFilter, IoSettingsSharp, IoClose, IoEyeOff, IoTrashBin } from "react-icons/io5";
 
 export default function MyCourse({ redirect }) {
@@ -19,7 +21,7 @@ export default function MyCourse({ redirect }) {
 
     const [state, setState] = useState({
         data: [],
-        search: null,
+        search: '',
         filter: false,
         idHandle: null,
         pending: true,
@@ -31,16 +33,75 @@ export default function MyCourse({ redirect }) {
         }
     })
 
+    const [load, setLoad] = useState({
+        offset: 0,
+        hasMore: true,
+        hasSearch: false,
+        limit: 5,
+        deletedCount: 0
+    })
+
+    const [apiQueue, setApiQueue] = useState([])
+    const [isProcessing, setIsProcessing] = useState(false)
+
+    const { setRef } = useInfiniteScroll({
+        hasMore: load.hasMore,
+        onLoadMore: () => {
+            if (!isProcessing && load.hasMore) {
+                setApiQueue((prev) => [...prev, { type: "fetch" }]);
+            }
+        },
+    });
+
+    const processQueue = async () => {
+        if (isProcessing || apiQueue.length === 0) return;
+
+        setIsProcessing(true);
+
+        const task = apiQueue[0];
+
+        if (task.type === "fetch") {
+            await fetchData();
+        }
+        else if (task.type === "delete") {
+            await task.execute()
+        }
+        else {
+            return;
+        }
+
+        setApiQueue((prev) => prev.slice(1));
+        setIsProcessing(false);
+    }
+
+    useEffect(() => {
+        processQueue()
+    }, [apiQueue])
+
     const handleNavigate = () => {
         redirect();
         navigateToCourse()
     }
 
+
     const fetchData = async () => {
+        if (!load.hasMore) return;
+
         try {
-            const res = await GetMyCourseService();
+            const adjustedOffset = Math.max(0, load.offset - load.deletedCount) || 0;
+            console.log(adjustedOffset)
+            const res = await GetMyCourseService({ search: state.search.trim(), limit: load.limit, offset: adjustedOffset.toString() });
             if (res.status === 200) {
-                setState((prev) => ({ ...prev, data: res.data, pending: false }))
+                setLoad((prev) => ({
+                    ...prev,
+                    hasMore: res.data.length >= load.limit,
+                    offset: prev.offset + prev.limit
+                }))
+                setState((prev) => ({
+                    ...prev,
+                    data: uniqWith([...prev.data, ...res.data], (a, b) => a.id === b.id),
+                    pending: false
+                }))
             }
             else {
                 setState((prev) => ({ ...prev, error: { status: res.status, message: res.message }, pending: false }))
@@ -48,45 +109,96 @@ export default function MyCourse({ redirect }) {
         }
         catch (err) {
             setState((prev) => ({ ...prev, error: { status: 500, message: err.message }, pending: false }))
-            throw new Error(err);
         }
     }
 
     const handleWithdrawCourse = async (id) => {
+        setApiQueue((prev) => [
+            ...prev,
+            {
+                type: 'delete',
+                execute: async () => {
 
-        setState((prev) => ({ ...prev, handling: { ...prev.handling, withdraw: true } }))
+                    setState((prev) => ({ ...prev, handling: { ...prev.handling, withdraw: true } }))
 
-        try {
-            const res = await DeleteMyCourseServive(id);
-            if (res.status == 200) {
-                await fetchData();
-                startTransition(() => {
-                    setState((prev) => ({ ...prev, message: { status: res.status, message: res.message }, handling: { ...prev.handling, withdraw: false }, idHandle: null }))
-                })
+                    try {
+                        const res = await DeleteMyCourseServive(id);
+                        if (res.status == 200) {
+                            setLoad((prev) => ({ ...prev, deletedCount: prev.deletedCount + 1 }));
+                            setState((prev) => ({ ...prev, data: prev.data.filter((item) => item.id !== id) }));
+                            setApiQueue((prev) => [...prev, { type: "fetch" }]);
+                            startTransition(() => {
+                                setState((prev) => ({ ...prev, message: { status: res.status, message: res.message }, handling: { ...prev.handling, withdraw: false }, idHandle: null }))
+                            })
+                        }
+                        else {
+                            setState((prev) => ({ ...prev, message: { status: res.status, message: res.message }, handling: { ...prev.handling, withdraw: false } }))
+                        }
+                    }
+                    catch (err) {
+                        setState((prev) => ({ ...prev, message: { status: 500, message: err.message }, handling: { ...prev.handling, withdraw: false } }))
+                    }
+                }
             }
-            else {
-                setState((prev) => ({ ...prev, message: { status: res.status, message: res.message }, handling: { ...prev.handling, withdraw: false } }))
-            }
+        ])
+    }
+
+    const handleSubmitSearch = () => {
+        if (state.search.length > 0 && state.search.trim() === '') return
+
+        if (load.hasSearch && state.search.trim() === '') {
+            setState(prev => ({ ...prev, data: [], pending: true }));
+            setLoad(prev => ({ ...prev, offset: 0, hasMore: true, hasSearch: false }));
+            setApiQueue((prev) => [...prev, { type: "fetch" }]);
+            return;
         }
-        catch (err) {
-            setState((prev) => ({ ...prev, message: { status: 500, message: err.message }, handling: { ...prev.handling, withdraw: false } }))
-            throw new Error(err)
-        }
+
+        setState(prev => ({ ...prev, data: [], pending: true }));
+        setLoad(prev => ({ ...prev, offset: 0, hasMore: true, hasSearch: true }));
+        startTransition(() => {
+            setApiQueue((prev) => [...prev, { type: "fetch" }]);
+        })
     }
 
     useEffect(() => {
-        fetchData();
-    }, [])
+        handleSubmitSearch();
+    }, [state.search]);
 
-    const handleSearch = (e) => {
+    const handleSubmit = (e) => {
         e.preventDefault();
+        handleSubmitSearch();
     }
+
+    const refetchData = () => {
+        setState(prev => ({ ...prev, error: null, pending: true }));
+        setLoad({ offset: 0, hasMore: true });
+        startTransition(() => {
+            setApiQueue((prev) => [...prev, { type: "fetch" }]);
+        })
+    }
+
+    const handleDebounce = useMemo(() =>
+        debounce((value) => {
+            setState((prev) => ({ ...prev, search: value }));
+        }, 500)
+        , []);
+
+    useEffect(() => {
+        return () => {
+            handleDebounce.cancel();
+        };
+    }, [handleDebounce]);
+
+    const handleChange = (e) => {
+        e.preventDefault();
+        handleDebounce(e.target.value);
+    };
 
     return (
         <div id="myCourse">
             <div className="heading-myCourse">
-                <Form id="search" onSubmit={handleSearch}>
-                    <input type="text" placeholder="Search your course" />
+                <Form className="input-search" onSubmit={handleSubmit}>
+                    <input type="text" name="search" placeholder="Search your course" autoComplete="off" onChange={handleChange} />
                     <button type="button" className={`filter ${state.filter ? 'active' : ''}`} onClick={() => setState((prev) => ({ ...prev, filter: !prev.filter }))}>
                         <IoFilter />
                     </button>
@@ -104,7 +216,7 @@ export default function MyCourse({ redirect }) {
                 </Form>
                 <div className="handle-course">
                     <button onClick={handleNavigate} id="course-btn">
-                        <FaCartShopping />
+                        <FaCartShopping fontSize={16} />
                         <span>
                             Marketplace
                         </span>
@@ -117,7 +229,7 @@ export default function MyCourse({ redirect }) {
                         <LoadingContent />
                         :
                         state.error ?
-                            <ErrorReload data={state.error} refetch={fetchData} />
+                            <ErrorReload data={state.error} refetch={refetchData} />
                             :
                             state.data && state.data.length > 0 ?
                                 state.data.map((item, index) => (
@@ -154,7 +266,7 @@ export default function MyCourse({ redirect }) {
                                                         <button className="cancel-course" onClick={() => handleWithdrawCourse(item.id)} disabled={state.handling.withdraw} style={{ cursor: state.handling.withdraw ? 'not-allowed' : 'pointer' }}>
                                                             {
                                                                 state.handling.withdraw ?
-                                                                    <FaCircleNotch className="handling" fontSize={18} />
+                                                                    <LoadingContent scale={0.5} color={'var(--color_white)'} />
                                                                     :
                                                                     <>
                                                                         <IoTrashBin />
@@ -176,6 +288,14 @@ export default function MyCourse({ redirect }) {
                                 <p>No course can be found here!</p>
                 }
             </div>
+            {!state.pending && !state.error && (
+                load.hasMore ?
+                    <span ref={setRef} className="load_wrapper">
+                        <LoadingContent scale={0.5} />
+                    </span>
+                    :
+                    null
+            )}
         </div>
     )
 }

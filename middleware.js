@@ -14,6 +14,10 @@ export default async function middleware(req) {
 
     const session = await getSession()
 
+    if (isApiRoute && isPublicApi && session?.expiresAt < Date.now()) {
+        return NextResponse.redirect(new URL('/auth', req.nextUrl))
+    }
+
     if (isApiRoute && isPublicApi && session?.userId) {
         return NextResponse.redirect(new URL('/home', req.nextUrl))
     }

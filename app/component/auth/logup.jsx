@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 
 import Link from "next/link"
 import Form from "next/form"
@@ -6,13 +6,20 @@ import Image from "next/image"
 
 import { SignUpDefinition } from "@/app/lib/definition"
 import SignUpService from "@/app/services/authService/signUp"
+import { LoadingContent } from "../ui/loading"
 
-import { FaArrowRight, FaCircleNotch, FaArrowLeft, FaPhone } from "react-icons/fa";
+import { FaArrowRight, FaArrowLeft, FaPhone } from "react-icons/fa";
 import { MdModeEdit, MdAlternateEmail, MdOutlinePassword } from "react-icons/md";
 import { FaUser, FaLock } from "react-icons/fa6";
-import { IoIosWarning, IoMdClose, IoIosCloseCircle } from "react-icons/io"
 
-export default function Logup({ active, changeForm, redirect }) {
+export default function Logup({
+    active,
+    changeForm,
+    redirect,
+    error,
+    setError,
+    setMessage
+}) {
     const [page, setPage] = useState(1);
 
     const [form, setForm] = useState({
@@ -28,9 +35,6 @@ export default function Logup({ active, changeForm, redirect }) {
 
     const [state, setState] = useState({
         pending: false,
-        error: null,
-        hide: false,
-        message: null,
     })
 
     const handleSubmit = async (e) => {
@@ -48,32 +52,25 @@ export default function Logup({ active, changeForm, redirect }) {
                     setForm({ surname: '', name: '', email: '', phone: '', username: '', password: '', re_password: '', agree: false });
                     changeForm();
                 } else {
-                    setState((prev) => ({ ...prev, pending: false, message: res.message }));
+                    setState((prev) => ({ ...prev, pending: false }));
+                    setMessage(res.message);
                 }
             } catch (err) {
                 console.error(err)
-                setState((prev) => ({ ...prev, pending: false, message: 'Server error, try again' }));
+                setState((prev) => ({ ...prev, pending: false }));
             }
         }
         else {
-            setState((prev) => ({ ...prev, pending: false, error: check.errors }))
+            error(check.errors)
+            setState((prev) => ({ ...prev, pending: false }))
         }
     }
 
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
         setForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
-        setState((prev) => ({ ...prev, error: null, hide: false }));
+        setError(name);
     }
-
-    useEffect(() => {
-        if (!state.message) return;
-
-        const timer = setTimeout(() => {
-            setState((prev) => ({ ...prev, message: null }))
-        }, 2000)
-        return () => clearTimeout(timer)
-    }, [state.message])
 
     return (
         <>
@@ -140,7 +137,7 @@ export default function Logup({ active, changeForm, redirect }) {
                         <button type="submit" className="btn-logup" disabled={state.pending}>
                             {
                                 state.pending ?
-                                    <FaCircleNotch className="handling" style={{ fontSize: '20px' }} />
+                                    <LoadingContent scale={0.5} color="var(--color_white)" />
                                     :
                                     <>
                                         Sign up
@@ -179,34 +176,6 @@ export default function Logup({ active, changeForm, redirect }) {
                     </div>
                 </div>
             </Form>
-            {
-                state.error &&
-                <div id="warning_notification">
-                    <button onClick={() => setState((prev) => ({ ...prev, hide: !state.hide }))} style={state.hide ? { background: 'var(--color_orange)' } : { background: 'var(--color_black)' }}>
-                        {
-                            state.hide ?
-                                <IoIosWarning />
-                                :
-                                <IoMdClose />
-                        }
-                    </button>
-                    <div className={`content_warning ${state.hide ? 'hide' : ''}`}>
-                        {Object.keys(state.error).map((key, index) => (
-                            <p key={index}>
-                                <IoIosWarning style={{ fontSize: '17px', color: 'var(--color_orange)' }} />
-                                {state.error[key]}
-                            </p>
-                        ))}
-                    </div>
-                </div>
-            }
-            {
-                state.message &&
-                <div className="error">
-                    <IoIosCloseCircle style={{ fontSize: '17px' }} />
-                    <p>{state?.message}</p>
-                </div>
-            }
         </>
     )
 }

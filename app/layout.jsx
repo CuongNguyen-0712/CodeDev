@@ -1,9 +1,12 @@
 import './globals.css';
 import Provider from './contexts/providers';
+import { AuthProvider } from './contexts/authContext';
+import { getSession } from './lib/session';
 
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }) {
+  const session = await getSession();
   return (
-    <html lang="vi">
+    <html lang='en'>
       <head>
         <title>CodeDev</title>
         <link rel="icon" href="./image/logo.svg" />
@@ -17,9 +20,11 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body>
-        <Provider>
-          {children}
-        </Provider>
+        <AuthProvider initialSession={{ username: session?.username, email: session?.email }}>
+          <Provider>
+            {children}
+          </Provider>
+        </AuthProvider>
       </body>
     </html>
   )

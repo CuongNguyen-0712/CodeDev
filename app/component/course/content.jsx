@@ -1,15 +1,18 @@
-import { useState, useEffect, useTransition, startTransition } from "react"
+import { useState, useEffect, startTransition, useMemo } from "react"
 
 import Image from "next/image";
+import Form from "next/form";
 import RegisterCourseService from "@/app/services/postService/registerCourseService";
 import GetCourseService from "@/app/services/getService/courseService";
 import { useQuery } from "@/app/router/router";
 
 import { ErrorReload } from "../ui/error";
 import { LoadingContent } from "../ui/loading";
+import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
 
-import { FaStar, FaCircleNotch, FaArrowRight } from "react-icons/fa";
+import { FaStar, FaArrowRight } from "react-icons/fa";
 import { IoFilter } from "react-icons/io5";
+import { uniqWith, debounce } from "lodash";
 
 export default function CourseContent({ redirect }) {
     const queryNavigate = useQuery();
@@ -21,13 +24,66 @@ export default function CourseContent({ redirect }) {
         handling: false,
         error: null,
         message: null,
+        search: ''
     })
 
+    const [load, setLoad] = useState({
+        offset: 0,
+        hasMore: true,
+        hasSearch: false,
+        limit: 5,
+        registerCount: 0
+    })
+
+    const [apiQueue, setApiQueue] = useState([])
+    const [isProcessing, setIsProcessing] = useState(false)
+
+    const { setRef } = useInfiniteScroll({
+        hasMore: load.hasMore,
+        onLoadMore: () => {
+            if (!isProcessing && load.hasMore) {
+                setApiQueue((prev) => [...prev, { type: "fetch" }]);
+            }
+        },
+    });
+
+    const processQueue = async () => {
+        if (isProcessing || apiQueue.length === 0) return;
+
+        setIsProcessing(true);
+
+        const task = apiQueue[0];
+
+        if (task.type === "fetch") {
+            await fetchData();
+        } else if (task.type === "register") {
+            await task.execute()
+        }
+
+        setApiQueue((prev) => prev.slice(1));
+        setIsProcessing(false);
+    }
+
+    useEffect(() => {
+        processQueue();
+    }, [apiQueue])
+
     const fetchData = async () => {
+        if (!load.hasMore) return;
         try {
-            const res = await GetCourseService();
+            const adjustedOffset = Math.max(0, load.offset - load.registerCount);
+            const res = await GetCourseService({ search: state.search.trim(), limit: load.limit, offset: adjustedOffset.toString() });
             if (res.status == 200) {
-                setState((prev) => ({ ...prev, data: res.data, pending: false }))
+                setLoad((prev) => ({
+                    ...prev,
+                    hasMore: res.data.length >= load.limit,
+                    offset: prev.offset + prev.limit
+                }))
+                setState((prev) => ({
+                    ...prev,
+                    data: uniqWith([...prev.data, ...res.data], (a, b) => a.id === b.id),
+                    pending: false
+                }))
             }
             else {
                 setState((prev) => ({ ...prev, error: { status: res.status, message: res.message || "Something is wrong" }, pending: false }))
@@ -39,39 +95,87 @@ export default function CourseContent({ redirect }) {
         }
     }
 
-    useEffect(() => {
-        fetchData();
-    }, [])
+    const handleSubmitSearch = () => {
+        if (state.search.length > 0 && state.search.trim() === '') return;
 
-    const handleRequest = async (id, isCost) => {
-        const updateState = {
-            ...state,
-            handling: true,
-            idHandle: id
+        if (load.hasSearch && state.search.trim() === '') {
+            setLoad((prev) => ({ ...prev, offset: 0, hasMore: true }));
+            setState(prev => ({ ...prev, data: [], pending: true }));
+            setApiQueue((prev) => [...prev, { type: "fetch" }]);
+            return
         }
 
-        setState(updateState)
+        setState(prev => ({ ...prev, data: [], pending: true }));
+        setLoad(prev => ({ ...prev, offset: 0, hasMore: true, hasSearch: true }));
+        setApiQueue((prev) => [...prev, { type: "fetch" }]);
+    }
+
+    useEffect(() => {
+        handleSubmitSearch();
+    }, [state.search])
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        handleSubmitSearch();
+    }
+
+    const handleRegister = (data) => {
+        setApiQueue((prev) => [
+            ...prev,
+            {
+                type: "register",
+                execute: () => handleRequest(data)
+            }
+        ]);
+    }
+
+    const handleRequest = async (id, isCost) => {
+        setState((prev) => ({
+            ...prev,
+            handling: true,
+            idHandle: id,
+        }));
 
         if (!isCost) {
             try {
                 const res = await RegisterCourseService(id);
-
                 if (res.status === 200) {
-                    await fetchData();
+                    setLoad((prev) => ({
+                        ...prev,
+                        registerCount: prev.registerCount + 1,
+                    }));
+                    setState((prev) => ({
+                        ...prev,
+                        data: prev.data.filter((item) => item.id !== id),
+                    }));
+                    setApiQueue((prev) => [...prev, { type: "fetch" }]);
                     startTransition(() => {
-                        setState(prev => ({ ...prev, message: { status: res.status, data: res.message }, handling: false, idHandle: null }))
+                        setState((prev) => ({
+                            ...prev,
+                            message: { status: res.status, data: res.message },
+                            handling: false,
+                            idHandle: null,
+                        }))
                     })
+                } else {
+                    setState((prev) => ({
+                        ...prev,
+                        message: { status: res.status, data: res.message },
+                        handling: false,
+                        idHandle: null,
+                    }));
                 }
-                else {
-                    setState(prev => ({ ...prev, message: { status: res.status, data: res.message }, handling: false, idHandle: false }))
-                }
-            }
-            catch (err) {
-                setState(prev => ({ ...prev, message: { status: 500, data: err.message }, handling: false, idHandle: false }))
-                throw new Error(err)
+            } catch (err) {
+                setState((prev) => ({
+                    ...prev,
+                    message: { status: 500, data: err.message },
+                    handling: false,
+                    idHandle: null,
+                }));
             }
         }
-    }
+    };
+
 
     const handleRedirect = () => {
         queryNavigate('/home', { name: 'course' });
@@ -80,18 +184,36 @@ export default function CourseContent({ redirect }) {
 
     const refetchData = () => {
         setState(prev => ({ ...prev, error: null, pending: true }))
-        fetchData();
+        setLoad(prev => ({ ...prev, offset: 0, hasMore: true, hasSearch: false }));
+        setApiQueue((prev) => [...prev, { type: "fetch" }]);
+    }
+
+    const handleDebounce = useMemo(() => {
+        return debounce((value) => {
+            setState(prev => ({ ...prev, search: value }))
+        }, 500);
+    }, [])
+
+    useEffect(() => {
+        return () => {
+            handleDebounce.cancel();
+        }
+    }, [handleDebounce])
+
+    const handleChange = (e) => {
+        e.preventDefault();
+        handleDebounce(e.target.value);
     }
 
     return (
         <div id='course'>
-            <div className="heading-marketplace">
-                <div className="input-search">
-                    <input type="text" placeholder="Search course" />
-                    <button className="filter">
+            <div className="heading-marketplace" >
+                <Form className="input-search" onSubmit={handleSubmit}>
+                    <input type="text" placeholder="Search course" onChange={handleChange} autoComplete="off" />
+                    <button type='button' className="filter">
                         <IoFilter />
                     </button>
-                </div>
+                </Form>
                 <div className="handle_back">
                     <button onClick={handleRedirect} className="back_btn">
                         <h4>
@@ -110,8 +232,8 @@ export default function CourseContent({ redirect }) {
                             <ErrorReload data={state.error} refetch={refetchData} />
                             :
                             state.data && state.data.length > 0 ?
-                                state.data.map((item) => (
-                                    <div className="item" key={item.id} id={item.id}>
+                                state.data.map((item, index) => (
+                                    <div className="item" key={index}>
                                         <div className="heading">
                                             <Image src={item.image} alt='course-image' width={65} height={65} />
                                             <h3>{item.title}</h3>
@@ -141,7 +263,7 @@ export default function CourseContent({ redirect }) {
                                         </div>
                                         <div className="footer">
                                             <button
-                                                onClick={() => handleRequest(item.id, item.cost !== 'free')}
+                                                onClick={() => handleRegister(item.id, item.cost !== 'free')}
                                                 style={{
                                                     backgroundColor: item.cost === 'free' ? 'var(--color_blue)' : 'var(--color_black)',
                                                     ...(state.handling && { cursor: 'not-allowed' })
@@ -149,7 +271,7 @@ export default function CourseContent({ redirect }) {
                                                 disabled={state.handling}
                                             >
                                                 {state.idHandle === item.id ?
-                                                    <FaCircleNotch className="handling" style={{ fontSize: '20px' }} />
+                                                    <LoadingContent scale={0.5} color="var(--color_white)" />
                                                     :
                                                     item.cost === 'free' ? 'Learn' : item.cost
                                                 }
@@ -161,6 +283,17 @@ export default function CourseContent({ redirect }) {
                                 <p>No course found, please wait for the next update</p>
                 }
             </div>
+            {
+                (!state.pending && !state.error) &&
+                (
+                    load.hasMore ?
+                        <span ref={setRef} className="load_wrapper">
+                            <LoadingContent scale={0.5} />
+                        </span>
+                        :
+                        null
+                )
+            }
         </div>
     )
 }
