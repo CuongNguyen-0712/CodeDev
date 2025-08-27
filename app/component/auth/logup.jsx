@@ -48,16 +48,17 @@ export default function Logup({
                 const { re_password, agree, ...data } = form
                 const res = await SignUpService(data);
                 if (res.status === 200 && res.success) {
+                    setMessage({ status: res.status, message: res.message });
                     setState((prev) => ({ ...prev, pending: false }));
                     setForm({ surname: '', name: '', email: '', phone: '', username: '', password: '', re_password: '', agree: false });
                     changeForm();
                 } else {
                     setState((prev) => ({ ...prev, pending: false }));
-                    setMessage(res.message);
+                    setMessage({ status: res.status, message: res.message });
                 }
             } catch (err) {
-                console.error(err)
                 setState((prev) => ({ ...prev, pending: false }));
+                setMessage({ statsu: 500, message: err.message });
             }
         }
         else {
@@ -80,7 +81,7 @@ export default function Logup({
                         Signup
                         <Link className="return_homepage" href="/" onClick={redirect}>
                             CodeDev
-                            <Image src="/image/logo.svg" width={25} height={25} alt="logo" />
+                            <Image src="/image/static/logo.svg" width={25} height={25} alt="logo" />
                         </Link>
                     </h2>
                     <span>
@@ -91,50 +92,59 @@ export default function Logup({
                     <div id="logup-page-1">
                         <div className="logup-input">
                             <div className={`field-input ${form.surname ? 'has-content' : ''}`}>
-                                <input type="text" name="surname" value={form.surname} onChange={handleChange} autoComplete="off" />
+                                <input type="text" name="surname" value={form.surname} onChange={handleChange} autoComplete="off" tabIndex={page === 1 ? 1 : -1} />
                                 <label>Surname</label>
                                 <MdModeEdit className="icon" />
                             </div>
                             <div className={`field-input ${form.name ? 'has-content' : ''}`}>
-                                <input type="text" name="name" value={form.name} onChange={handleChange} autoComplete="off" />
+                                <input type="text" name="name" value={form.name} onChange={handleChange} autoComplete="off" tabIndex={page === 1 ? 1 : -1} />
                                 <label>Name</label>
                                 <MdModeEdit className="icon" />
                             </div>
                         </div>
                         <div className={`field-input ${form.email ? 'has-content' : ''}`}>
-                            <input type="text" name="email" value={form.email} onChange={handleChange} autoComplete="off" />
+                            <input type="text" name="email" value={form.email} onChange={handleChange} autoComplete="off" tabIndex={page === 1 ? 1 : -1} />
                             <label>Enter your email</label>
                             <MdAlternateEmail className='icon' />
                         </div>
                         <div className={`field-input ${form.phone ? 'has-content' : ''}`}>
-                            <input type="text" name="phone" value={form.phone} onChange={handleChange} autoComplete="off" />
+                            <input type="text" name="phone" value={form.phone} onChange={handleChange} autoComplete="off" tabIndex={page === 1 ? 1 : -1} />
                             <label>Enter your phone</label>
                             <FaPhone className="icon" />
                         </div>
                     </div>
                     <div id="logup-page-2">
-                        <div className={`field-input ${form.username ? 'has-content' : ''}`}>
-                            <input type="text" name="username" value={form.username} onChange={handleChange} autoComplete="off" />
+                        <div
+                            className={`field-input ${form.username ? 'has-content' : ''}`}
+                        >
+                            <input
+                                type="text"
+                                name="username"
+                                value={form.username}
+                                onChange={handleChange}
+                                autoComplete="off"
+                                tabIndex={page === 2 ? 1 : -1}
+                            />
                             <label>Enter create username</label>
                             <FaUser className="icon" />
                         </div>
                         <div className="auth-password">
                             <div className={`field-input ${form.password ? 'has-content' : ''}`}>
-                                <input type="password" name="password" value={form.password} onChange={handleChange} autoComplete="off" />
+                                <input type="password" name="password" value={form.password} onChange={handleChange} autoComplete="off" tabIndex={page === 2 ? 1 : -1} />
                                 <label>Enter password</label>
                                 <FaLock className="icon" />
                             </div>
                             <div className={`field-input ${form.re_password ? 'has-content' : ''}`}>
-                                <input type="password" name="re_password" value={form.re_password} onChange={handleChange} autoComplete="off" />
+                                <input type="password" name="re_password" value={form.re_password} onChange={handleChange} autoComplete="off" tabIndex={page === 2 ? 1 : -1} />
                                 <label>Re-enter password</label>
                                 <MdOutlinePassword className='icon' />
                             </div>
                         </div>
                         <div className="auth-terms">
-                            <input type="checkbox" checked={form.agree} name="agree" onChange={handleChange} />
+                            <input type="checkbox" checked={form.agree} name="agree" onChange={handleChange} tabIndex={page === 2 ? 1 : -1} />
                             <label>Agree to the terms of CodeDev</label>
                         </div>
-                        <button type="submit" className="btn-logup" disabled={state.pending}>
+                        <button type="submit" className="btn-logup" disabled={state.pending} tabIndex={page === 2 ? 1 : -1}>
                             {
                                 state.pending ?
                                     <LoadingContent scale={0.5} color="var(--color_white)" />
@@ -158,16 +168,16 @@ export default function Logup({
                     <p>Or sign up with</p>
                     <div className="social-logup">
                         <button type="button">
-                            <Image src="/image/google.ico" width={20} height={20} alt="facebook" />
+                            <Image src="/image/static/github.ico" width={20} height={20} alt="github" />
+                            <h4>Github</h4>
+                        </button>
+                        <button type="button">
+                            <Image src="/image/static/google.ico" width={20} height={20} alt="facebook" />
                             <h4>Google</h4>
                         </button>
                         <button type="button">
-                            <Image src="/image/facebook.ico" width={20} height={20} alt="facebook" />
+                            <Image src="/image/static/facebook.ico" width={20} height={20} alt="facebook" />
                             <h4>Facebook</h4>
-                        </button>
-                        <button type="button">
-                            <Image src="/image/apple.ico" width={20} height={20} alt="facebook" />
-                            <h4>Apple ID</h4>
                         </button>
                     </div>
                     <div className="login-auth">

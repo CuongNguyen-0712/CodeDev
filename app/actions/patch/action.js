@@ -3,9 +3,9 @@ import { neon } from "@neondatabase/serverless";
 const sql = neon(process.env.DATABASE_URL);
 
 export async function updateInfo(data) {
-    const { id, nickname, surname, name, email, image, bio } = data
+    const { userId, nickname, surname, name, email, image, bio } = data
 
-    if (!id || !nickname || !surname || !name || !email || !image || !bio) {
+    if (!userId || !surname || !name || !email || !image) {
         return new Response(JSON.stringify({ message: "You missing something, check again" }), {
             status: 400,
             headers: { "Content-Type": "application/json" }
@@ -13,7 +13,7 @@ export async function updateInfo(data) {
     }
 
     try {
-        await sql`
+        const result = await sql`
         update private.info
         set 
         nickname = case when ${nickname} is distinct from nickname then ${nickname} else nickname end,
@@ -23,8 +23,15 @@ export async function updateInfo(data) {
         image = case when ${image} is distinct from image then ${image} else image end,
         bio = case when ${bio} is distinct from bio then ${bio} else bio end,
         update_at = now()
-        where id = ${id}
+        where id = ${userId}
         `
+
+        if (result.count === 0) {
+            return new Response(JSON.stringify({ message: "User not found or nothing to update" }), {
+                status: 404,
+                headers: { "Content-Type": "application/json" }
+            });
+        }
 
         return new Response(JSON.stringify({ message: "Update info successfully" }), {
             status: 200,
@@ -34,6 +41,66 @@ export async function updateInfo(data) {
     catch (err) {
         console.error(err);
         return new Response(JSON.stringify({ message: "Failed to load content, try again" }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" }
+        });
+    }
+}
+
+export async function updateHideStatusCourse(data) {
+    const { userId, courseId, hide } = data;
+
+    if (!userId || !courseId) {
+        return new Response(JSON.stringify({ message: "You missing something, check again" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" }
+        });
+    }
+
+    try {
+        await sql`
+        update course.register
+        set hidestatus = ${hide}
+        where userid = ${userId} and courseid = ${courseId}
+        `;
+
+        return new Response(JSON.stringify({ message: "The action was successful" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+        });
+    }
+    catch (err) {
+        return new Response(JSON.stringify({ message: err.message || "Something went wrong, try again" }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" }
+        });
+    }
+}
+
+export async function updateHideStatusProject(data) {
+    const { userId, projectId, hide } = data;
+
+    if (!userId || !projectId) {
+        return new Response(JSON.stringify({ message: "You missing something, check again" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" }
+        });
+    }
+
+    try {
+        await sql`
+        update project.register
+        set hidestatus = ${hide}
+        where userid = ${userId} and projectid = ${projectId}
+        `
+
+        return new Response(JSON.stringify({ message: "The action was successful" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+        });
+    }
+    catch (err) {
+        return new Response(JSON.stringify({ message: err.message || "Something went wrong, try again" }), {
             status: 500,
             headers: { "Content-Type": "application/json" }
         });

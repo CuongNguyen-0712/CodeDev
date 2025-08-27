@@ -1,9 +1,14 @@
 import { getSession } from "@/app/lib/session";
 
-export default async function GetMySocialService(data) {
+export default async function GetMySocialService({ tab, search }) {
+    const params = new URLSearchParams();
     const id = (await getSession())?.userId;
+    params.set('id', id)
+    if (tab) params.set('tab', tab)
+    if (search) params.set('search', search)
+
     try {
-        const res = await fetch(`/api/get/${data === 'friend' ? 'getMyFriendSocial' : 'getMyTeamSocial'}?id=${id}`,
+        const res = await fetch(`/api/get/getMySocial?${params.toString()}`,
             {
                 method: 'GET',
                 headers: {

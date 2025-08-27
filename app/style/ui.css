@@ -1,317 +1,302 @@
-    #loadRedirect {
-        display: flex;
-        position: relative;
-        height: max-content;
-        width: max-content;
-        background: transparent;
-    }
+#loadRedirect {
+    display: flex;
+    position: relative;
+    height: max-content;
+    width: max-content;
+    background: transparent;
+}
 
-    #loadRedirect::before {
-        content: "";
-        position: absolute;
-        height: 7px;
-        width: 7px;
+#loadRedirect::before {
+    content: "";
+    position: absolute;
+    height: 7px;
+    width: 7px;
+    top: 15px;
+    right: 12px;
+    background: var(--color_black);
+    border-radius: 50px;
+    animation: move_point 1.5s linear infinite;
+}
+
+.logo_svg {
+    width: 50px;
+    height: 40px;
+}
+
+.triangle {
+    fill: transparent;
+    stroke: var(--color_black);
+    stroke-width: 10;
+    stroke-linejoin: round;
+    stroke-dasharray: 250 50;
+    stroke-dashoffset: 25;
+    animation: move_gap 1.5s linear infinite;
+}
+
+@keyframes move_gap {
+    to {
+        stroke-dashoffset: -275;
+    }
+}
+
+@keyframes move_point {
+    0% {
         top: 15px;
         right: 12px;
-        background: var(--color_black);
-        border-radius: 50px;
-        animation: move_point 1.5s linear infinite;
     }
 
-    .logo_svg {
-        width: 50px;
-        height: 40px;
+    33.33% {
+        top: 15px;
+        right: 32px;
     }
 
-    .triangle {
-        fill: transparent;
-        stroke: var(--color_black);
-        stroke-width: 10;
-        stroke-linejoin: round;
-        stroke-dasharray: 250 50;
-        stroke-dashoffset: 25;
-        animation: move_gap 1.5s linear infinite;
+    66.66% {
+        top: 34px;
+        right: 21px;
+    }
+}
+
+.load_wrapper {
+    display: flex;
+    height: max-content;
+    justify-content: center;
+    width: 100%;
+    padding: 10px;
+}
+
+#loadContent {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+    background: transparent;
+}
+
+.loader {
+    width: 50px;
+    height: 50px;
+    animation: rotate 2s linear infinite;
+}
+
+.path {
+    stroke: var(--color_black);
+    stroke-linecap: round;
+    animation: dash 1.5s ease-in-out infinite;
+}
+
+@keyframes rotate {
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes dash {
+    0% {
+        stroke-dasharray: 1, 150;
+        stroke-dashoffset: 0;
     }
 
-    @keyframes move_gap {
-        to {
-            stroke-dashoffset: -275;
-        }
+    50% {
+        stroke-dasharray: 90, 150;
+        stroke-dashoffset: -35;
     }
 
-    @keyframes move_point {
-        0% {
-            top: 15px;
-            right: 12px;
-        }
+    100% {
+        stroke-dasharray: 90, 150;
+        stroke-dashoffset: -124;
+    }
+}
 
-        33.33% {
-            top: 15px;
-            right: 32px;
-        }
 
-        66.66% {
-            top: 34px;
-            right: 21px;
-        }
+@keyframes loadContent {
+    0% {
+        transform: rotate(0deg);
     }
 
-    .load_wrapper {
-        display: flex;
-        height: max-content;
-        justify-content: center;
-        width: 100%;
-        padding: 10px;
+    100% {
+        transform: rotate(-360deg);
+    }
+}
+
+#error {
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#error p {
+    font-size: 15px;
+}
+
+#error button {
+    display: flex;
+    align-items: center;
+    height: 35px;
+    width: max-content;
+    padding: 0 15px;
+    background: var(--color_black);
+    color: #fff;
+    font-weight: 600;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+#navigate_handler {
+    display: flex;
+    position: fixed;
+    align-items: flex-start;
+    height: 40px;
+    width: 40px;
+    bottom: 15px;
+    right: 15px;
+    flex-direction: column;
+    background: transparent;
+    gap: 10px;
+    overflow: hidden;
+    transition: 0.2s all ease;
+}
+
+#navigate_handler>button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    width: 100%;
+    font-size: 18px;
+    border-radius: 50%;
+    opacity: 1;
+    visibility: none;
+    background: var(--color_gray_light);
+    color: var(--color_black);
+    transition: 0.2s all ease;
+}
+
+#navigate_handler>button.hidden {
+    opacity: 0;
+    visibility: visible;
+    pointer-events: none;
+    transition: 0.2s all ease;
+}
+
+#navigate_handler>button:not(:last-child):hover {
+    background: var(--color_black);
+    color: var(--color_white);
+    transition: 0.2s all ease;
+}
+
+#navigate_handler #handler {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    background: var(--color_black);
+    color: var(--color_white);
+    cursor: pointer;
+}
+
+.handle_back {
+    display: flex;
+    height: max-content;
+    width: max-content;
+    gap: 20px;
+}
+
+.handle_back .back_btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    width: max-content;
+    padding: 0 20px;
+    background: var(--color_black);
+    color: var(--color_white);
+    font-weight: 700;
+    border-radius: 10px;
+    gap: 10px;
+    cursor: pointer;
+}
+
+@media screen and (max-width: 500px) {
+    .handle_back .back_btn h4 {
+        display: none;
     }
 
-    #loadContent {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        height: 100%;
-        width: 100%;
-        background: transparent;
+    #loadRedirect {
+        scale: 0.8;
     }
 
     .loader {
-        width: 50px;
-        height: 50px;
-        animation: rotate 2s linear infinite;
+        scale: 0.8;
     }
+}
 
-    .path {
-        stroke: var(--color_black);
-        stroke-linecap: round;
-        animation: dash 1.5s ease-in-out infinite;
-    }
+#page_error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    background: transparent;
+}
 
-    @keyframes rotate {
-        100% {
-            transform: rotate(360deg);
-        }
-    }
+#page_error .content_error {
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: max-content;
+    flex-direction: column;
+    gap: 15px;
+}
 
-    @keyframes dash {
-        0% {
-            stroke-dasharray: 1, 150;
-            stroke-dashoffset: 0;
-        }
+.content_error footer {
+    display: flex;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    gap: 20px;
+}
 
-        50% {
-            stroke-dasharray: 90, 150;
-            stroke-dashoffset: -35;
-        }
+.content_error footer button {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 35px;
+    width: 80%;
+    padding: 0 15px;
+    border-radius: 5px;
+    font-weight: 600;
+    background: var(--color_black);
+    color: var(--color_white);
+    cursor: pointer;
+}
 
-        100% {
-            stroke-dasharray: 90, 150;
-            stroke-dashoffset: -124;
-        }
-    }
+#alert {
+    display: flex;
+    position: fixed;
+    align-items: center;
+    height: max-content;
+    min-height: 40px;
+    width: max-content;
+    left: 20px;
+    bottom: 20px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    background: var(--color_orange);
+    color: var(--color_white);
+    gap: 10px;
+    z-index: 1;
+}
 
-
-    @keyframes loadContent {
-        0% {
-            transform: rotate(0deg);
-        }
-
-        100% {
-            transform: rotate(-360deg);
-        }
-    }
-
-    #error {
-        display: flex;
-        align-items: center;
-        height: max-content;
-        width: 100%;
-        flex-direction: column;
-        gap: 10px;
-    }
-
-    #error p {
-        font-size: 15px;
-    }
-
-    #error button {
-        display: flex;
-        align-items: center;
-        height: 35px;
-        width: max-content;
-        padding: 0 15px;
-        background: var(--color_black);
-        color: #fff;
-        font-weight: 600;
-        border-radius: 5px;
-        cursor: pointer;
-    }
-
-    #navigate_handler {
-        display: flex;
-        position: fixed;
-        align-items: flex-start;
-        height: 40px;
-        width: 40px;
-        bottom: 20px;
-        right: 20px;
-        gap: 10px;
-        flex-direction: column;
-        background: transparent;
-        overflow: hidden;
-        transition: 0.2s all ease;
-    }
-
-    #navigate_handler>button {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        height: 40px;
-        width: 100%;
-        font-size: 18px;
-        border-radius: 50%;
-        opacity: 1;
-        visibility: none;
-        background: var(--color_gray);
-        color: var(--color_black);
-        transition: 0.2s all ease;
-    }
-
-    #navigate_handler>button.hidden {
-        opacity: 0;
-        visibility: visible;
-        pointer-events: none;
-        transition: 0.2s all ease;
-    }
-
-    #navigate_handler>button:not(:last-child):hover {
-        background: var(--color_black);
-        color: var(--color_white);
-        transition: 0.2s all ease;
-    }
-
-    #navigate_handler #handler {
-        position: absolute;
-        left: 0;
-        bottom: 0;
-        background: var(--color_black);
-        color: var(--color_white);
-        cursor: pointer;
-    }
-
-    .input-search {
-        display: flex;
-        position: relative;
-        height: 40px;
-        width: 100%;
-        max-width: 450px;
-    }
-
-    .input-search input {
-        display: flex;
-        height: 100%;
-        width: 100%;
-        padding: 0 50px 0 10px;
-        outline: none;
-        border: 2px solid var(--color_black);
-    }
-
-    .input-search .filter {
-        display: flex;
-        position: absolute;
-        align-items: center;
-        justify-content: center;
-        height: 30px;
-        width: 30px;
-        top: 5px;
-        right: 10px;
-        border-radius: 50px;
-        color: var(--color_black);
-        background: transparent;
-        transition: 0.2s all ease
-    }
-
-    .input-search .filter:hover {
-        background: var(--color_gray);
-        transition: 0.2s all ease
-    }
-
-    .handle_back {
-        display: flex;
-        height: max-content;
-        width: max-content;
-        gap: 20px;
-    }
-
-    .handle_back .back_btn {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        height: 40px;
-        width: max-content;
-        padding: 0 20px;
-        background: var(--color_black);
-        color: var(--color_white);
-        font-weight: 700;
-        border-radius: 10px;
-        gap: 10px;
-        cursor: pointer;
-    }
-
-    @media screen and (max-width: 500px) {
-        .handle_back .back_btn h4 {
-            display: none;
-        }
-
-        #loadRedirect {
-            scale: 0.8;
-        }
-
-        .loader {
-            scale: 0.8;
-        }
-    }
-
-    #page_error {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        height: 100%;
-        width: 100%;
-        overflow: hidden;
-        background: transparent;
-    }
-
-    #page_error .content_error {
-        display: flex;
-        align-items: center;
-        height: max-content;
-        width: max-content;
-        flex-direction: column;
-        gap: 15px;
-    }
-
-    .content_error footer {
-        display: flex;
-        height: max-content;
-        width: max-content;
-        gap: 20px;
-    }
-
-    .content_error footer button {
-        display: flex;
-        align-items: center;
-        height: 35px;
-        width: max-content;
-        padding: 0 15px;
-        border-radius: 5px;
-        font-weight: 600;
-    }
-
-    .content_error footer button:nth-child(1) {
-        background: var(--color_gray);
-        color: var(--color_black);
-    }
-
-    .content_error footer button:nth-child(2) {
-        background: var(--color_black);
-        color: var(--color_white)
-    }
+#time_bar {
+    display: flex;
+    position: absolute;
+    height: 2px;
+    left: 0;
+    bottom: 0;
+    animation: animateTimeout 2s linear forwards;
+}

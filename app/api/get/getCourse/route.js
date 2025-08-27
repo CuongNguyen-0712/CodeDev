@@ -6,6 +6,8 @@ export async function GET(req) {
         id: searchParams.get('id'),
         search: searchParams.get('search'),
         limit: searchParams.get('limit'),
-        offset: searchParams.get('offset')
+        offset: searchParams.get('offset'),
+        price: searchParams.get('price'),
+        level: searchParams.get('level')
     });
 }

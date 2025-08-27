@@ -151,18 +151,18 @@ export default function Overview() {
     }
 
     const refetchData = () => {
-        setState((prev) => ({ ...prev, data: { ...prev.data, data: [] }, error: { ...prev.error, data: null } }));
+        setState((prev) => ({ ...prev, data: { ...prev.data, data: [] }, error: { ...prev.error, data: null }, load: { ...prev, data: true } }));
         fetchData();
     }
 
     const refetchInfo = () => {
-        setState((prev) => ({ ...prev, data: { ...prev.data, info: null }, error: { ...prev.error, info: null } }));
+        setState((prev) => ({ ...prev, data: { ...prev.data, info: null }, error: { ...prev.error, info: null }, load: { ...prev, info: true } }));
         fetchInfo();
     }
 
     useEffect(() => {
-        fetchData();
         fetchInfo();
+        fetchData();
     }, []);
 
     useEffect(() => {
@@ -193,7 +193,7 @@ export default function Overview() {
             return acc;
         }, {});
 
-        return Object.values(groupedLanguages);
+        return Object.values(groupedLanguages).sort((a, b) => b.count - a.count);
     }, [state.data.data])
 
     return state.pending ? (
@@ -205,12 +205,12 @@ export default function Overview() {
                     {(state.load.info && !state.error.info) ?
                         <LoadingContent />
                         :
-                        state.error.info || state.data.info.length === 0 ?
+                        state.error.info || !state.data.info ?
                             <ErrorReload data={state.error.info || { status: 500, message: "Something is wrong !" }} refetch={refetchInfo} />
                             :
                             <div className='user-container'>
                                 <div className="user-info">
-                                    <Image src={state.data.info.image} height={100} width={100} alt="avatar" priority />
+                                    <Image src={state.data.info.image.trim()} height={100} width={100} alt="avatar" priority />
                                     <div className="info">
                                         <div className="profile">
                                             <h2>{state.data.info.username}</h2>
@@ -262,7 +262,7 @@ export default function Overview() {
                     <div className="main-progress">
                         {
                             (state.load.data && !state.error.data) ?
-                                <LoadingContent />
+                                <LoadingContent scale={0.8} />
                                 :
                                 state.error.data ?
                                     <ErrorReload data={state.error.data || { status: 500, message: "Something is wrong !" }} refetch={refetchData} />
@@ -293,7 +293,7 @@ export default function Overview() {
                                                                 filtered.map((course, key) => (
                                                                     <div className="item" key={key}>
                                                                         <div className="header">
-                                                                            <Image src={course.image} alt="image-course" width={30} height={30} />
+                                                                            <Image src={course.image.trim()} alt="image-course" width={30} height={30} />
                                                                             <h5>{course.title}</h5>
                                                                         </div>
                                                                         <span>{course.subject}</span>

@@ -11,11 +11,13 @@
 
 #project .heading_project {
   display: flex;
+  position: relative;
   justify-content: space-between;
   height: max-content;
   width: 100%;
   padding: 10px 0;
   gap: 20px;
+  z-index: 1;
 }
 
 #project .content_project {
@@ -40,11 +42,12 @@
 .method_project .heading {
   display: flex;
   position: relative;
+  justify-content: flex-start;
   align-items: center;
   height: max-content;
   width: 100%;
-  padding: 10px 20px;
-  gap: 5px;
+  padding: 0 0 10px 10px;
+  gap: 20px;
 }
 
 .method_project .heading::before {
@@ -56,6 +59,21 @@
   height: 2px;
   width: 100%;
   background: var(--color_black);
+}
+
+.method_project .heading .tag_method {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.method_project .heading button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 35px;
+  width: 35px;
+  border-radius: 5px;
 }
 
 .method_project .content {
@@ -75,7 +93,7 @@
   border-radius: 10px;
   padding: 20px;
   border: 2px solid var(--color_gray);
-  box-shadow: 0 0 5px var(--color_gray);
+  box-shadow: 0 0 5px var(--color_gray_light);
   flex-basis: 300px;
   flex-direction: column;
   cursor: default;
@@ -149,7 +167,7 @@
   width: 100%;
   padding: 0 10px;
   border-radius: 5px;
-  background: var(--color_gray);
+  background: var(--color_gray_light);
   color: var(--color_black);
   font-weight: 600;
   flex-shrink: 0;

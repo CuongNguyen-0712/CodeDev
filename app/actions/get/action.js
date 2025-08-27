@@ -57,7 +57,7 @@ export async function getInfo(data) {
     }
 }
 
-export async function getProject({ id, search, limit, offset, method }) {
+export async function getProject({ id, search, limit, offset, method, status, difficulty }) {
     if (!id) {
         return new Response(
             JSON.stringify({ message: "You missing something, check again" }),
@@ -79,6 +79,8 @@ export async function getProject({ id, search, limit, offset, method }) {
                         and p.method = ${method}
                         and (${search}::text is null or lower(p.name) like '%' || lower(${search}) || '%')
                         and (${method}::text is null or p.method = ${method})
+                        and (${status}::text is null or p.status = ${status})
+                        and (${difficulty}::text is null or p.difficulty = ${difficulty})
                         order by p.id asc
                         limit ${limit}
                         offset ${offset}
@@ -95,6 +97,9 @@ export async function getProject({ id, search, limit, offset, method }) {
                             where userid = ${id}
                         )
                         and p.method = 'Self'
+                        and (${search}::text is null or lower(p.name) like '%' || lower(${search}) || '%')
+                        and (${status}::text is null or p.status = ${status})
+                        and (${difficulty}::text is null or p.difficulty = ${difficulty})
                         order by p.id asc
                         limit ${limit}
                         offset ${offset}
@@ -109,6 +114,9 @@ export async function getProject({ id, search, limit, offset, method }) {
                             where userid = ${id}
                         )
                         and p.method = 'Team'
+                        and (${search}::text is null or lower(p.name) like '%' || lower(${search}) || '%')
+                        and (${status}::text is null or p.status = ${status})
+                        and (${difficulty}::text is null or p.difficulty = ${difficulty})
                         order by p.id asc
                         limit ${limit}
                         offset ${offset}
@@ -130,7 +138,7 @@ export async function getProject({ id, search, limit, offset, method }) {
     }
 }
 
-export async function getCourse({ id, search, limit, offset }) {
+export async function getCourse({ id, search, limit, offset, price, level }) {
     try {
         if (!id) {
             return new Response(
@@ -150,24 +158,31 @@ export async function getCourse({ id, search, limit, offset }) {
                 where r.userid = ${id}
                 )
             and (${search}::text is null or lower(course.title) like '%' || lower(${search}) || '%')
+            and (${price}::text is null or case when ${price}  = false then cost = 'free' else cost != 'free' end)
+            and (${level}::text is null or level = ${level})
             order by course.id desc
             limit ${limit} offset ${offset}
             `
 
         return new Response(
             JSON.stringify({ data: res, message: "Get data successfully" }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
+            {
+                status: 200,
+                headers: { "Content-Type": "application/json" }
+            }
         );
     } catch (error) {
         return new Response(
-            console.error("Error:", error),
-            JSON.stringify({ message: "Something went wrong, please try again" }),
-            { status: 500, headers: { "Content-Type": "application/json" } }
+            JSON.stringify({ message: error.message || "Something went wrong, please try again" }),
+            {
+                status: 500,
+                headers: { "Content-Type": "application/json" }
+            }
         );
     }
 }
 
-export async function getMyCourse({ id, search, limit, offset }) {
+export async function getMyCourse({ id, search, limit, offset, hide }) {
     if (!id) {
         return new Response(
             JSON.stringify({ message: "You missing something, check again" }),
@@ -182,8 +197,8 @@ export async function getMyCourse({ id, search, limit, offset }) {
             join public.course c on r.courseid = c.id
             where 
                 r.userid = ${id} and 
-                r.hidestatus = false and
-                (${search}::text is null or lower(c.title) like '%' || lower(${search}::text) || '%')
+                r.hidestatus = ${hide} and
+                (${search}::text is null or lower(c.title) like '%' || lower(${search}::text) || '%')    
             order by r.courseid desc
             limit ${limit} offset ${offset}
         `;
@@ -201,7 +216,7 @@ export async function getMyCourse({ id, search, limit, offset }) {
     }
 }
 
-export async function getMyProject({ id, search, limit, offset }) {
+export async function getMyProject({ id, search, limit, offset, hide }) {
     try {
         if (!id) {
             return new Response(JSON.stringify({ message: "You missing something, check again" }), {
@@ -218,10 +233,11 @@ export async function getMyProject({ id, search, limit, offset }) {
                     p.description as description
             from project.register r
             join public.project p on r.projectid = p.id
-            where r.userid = ${id} 
-            and r.hidestatus = false
-            and (${search}::text is null or lower(p.name) like '%' || lower(${search}) || '%' )
-            order by p.id desc
+            where 
+                r.userid = ${id} 
+                and (${search}::text is null or lower(p.name) like '%' || lower(${search}) || '%' )
+                and r.hidestatus = ${hide}
+                order by p.id desc
             limit ${limit} offset ${offset}
         `
 
@@ -238,36 +254,60 @@ export async function getMyProject({ id, search, limit, offset }) {
     }
 }
 
-export async function getMyTeamSocial(data) {
-    try {
-        if (!data) {
-            return new Response(JSON.stringify({ message: "You missing something, check again" }), {
-                status: 400,
-                headers: { "Content-Type": "application/json" }
-            })
-        }
+export async function getMySocial({ id, tab, search }) {
+    if (!id) {
+        return new Response(JSON.stringify({ message: "You missing something, check again" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" }
+        })
+    }
 
-        const res = await sql`
-            SELECT
-                t3.name as team_name,
-                t3.size as team_size,
-                t3.image as team_image,
-                u2.username as host_name,
-                (case when u2.id = ${data} then true else false end) as is_host,
-                string_agg(u1.username, ',') AS members
-            FROM social.team t1
-            JOIN social.team t2 ON t1.team_id = t2.team_id
-            JOIN private.users u1 ON t2.user_id = u1.id
-            join public.team t3 on t3.id = t1.team_id
-            join private.users u2 on u2.id = t3.host_id
-            WHERE t1.user_id = ${data}
-            AND exists (
-                select id
-                from public.team
-                where id = t1.team_id
-            )
-            GROUP BY t3.name, t3.size, u2.username, t3.image, u2.id
-        `;
+    try {
+        const res = await (async () => {
+            switch (tab) {
+                case 'friend':
+                    return await sql`
+                        select 
+                            u.username as username, 
+                            i.image as image,
+                            i.nickname as nickname,
+                            i.level as level,
+                            i.rank as rank,
+                            i.star as star
+                        from social.friend f
+                        inner join private.info i on i.id = f.friend_id 
+                        inner join private.users u on u.id = i.id
+                        where f.user_id = ${id}
+                        and (${search}::text is null or lower(u.username) like '%' || lower(${search}) || '%') 
+                    `;
+                case 'team':
+                    return await sql`
+                        SELECT
+                            t1.team_id as team_id,
+                            t3.name as team_name,
+                            t3.size as team_size,
+                            t3.image as team_image,
+                            u2.username as host_name,
+                            (case when u2.id = ${id} then true else false end) as is_host,
+                            string_agg(u1.username, ',') AS members
+                        FROM social.team t1
+                        JOIN social.team t2 ON t1.team_id = t2.team_id
+                        JOIN private.users u1 ON t2.user_id = u1.id
+                        join public.team t3 on t3.id = t1.team_id
+                        join private.users u2 on u2.id = t3.host_id
+                        WHERE t1.user_id = ${id}
+                        AND (${search}::text is null or lower(t3.name) like '%' || lower(${search}) || '%')
+                        AND exists (
+                            select id
+                            from public.team
+                            where id = t1.team_id
+                        )
+                        GROUP BY t3.name, t3.size, u2.username, t3.image, u2.id, t1.team_id
+                    `;
+                default:
+                    return []
+            }
+        })()
 
         return new Response(JSON.stringify({ data: res, message: "Get data successfully" }), {
             status: 200,
@@ -282,71 +322,51 @@ export async function getMyTeamSocial(data) {
     }
 }
 
-export async function getMyFriendSocial(data) {
+export async function getSocial({ id, search, offset, limit, filter }) {
     try {
-        if (!data) {
+        if (!id || !offset || !limit) {
             return new Response(JSON.stringify({ message: "You missing something, check again" }), {
                 status: 400,
                 headers: { "Content-Type": "application/json" }
             })
         }
 
-        const res = await sql`
-            select u.username as username, 
-                i.image as image,
-                i.nickname as nickname,
-                i.level as level,
-                i.rank as rank,
-                i.star as star
-            from social.friend f
-            inner join private.info i on i.id = f.friend_id 
-            inner join private.users u on u.id = i.id
-            where f.user_id = ${data}
-        `;
+        const res = await (async () => {
+            switch (filter) {
+                case 'user':
+                    return await sql`
+                    select 
+                        u.username as username, 
+                        i.image as image, 
+                        i.nickname as nickname,
+                        i.level as level,
+                        i.rank as rank,
+                        i.star as star
+                    from private.users u
+                    join private.info i on i.id = u.id
+                    where u.id not in (
+                    select friend_id
+                    from social.friend
+                    where user_id = ${id}
+                    )
+                    and u.id != ${id}
+                    and u.lockstatus = false
+                    and (${search}::text is null or lower(u.username) like '%' || lower(${search}::text) || '%')
+                    limit ${limit} offset ${offset}
+                `;
+                case 'team':
+                    return []
+                default:
+                    return []
+            }
+        })()
 
         return new Response(JSON.stringify({ data: res, message: "Get data successfully" }), {
             status: 200,
             headers: { "Content-Type": "application/json" }
         });
     } catch (err) {
-        console.error(err);
-        return new Response(JSON.stringify({ message: "Failed to load content, try again" }), {
-            status: 500,
-            headers: { "Content-Type": "application/json" }
-        });
-    }
-}
-
-export async function getSocial({ id, search }) {
-    try {
-        if (!id) {
-            return new Response(JSON.stringify({ message: "You missing something, check again" }), {
-                status: 400,
-                headers: { "Content-Type": "application/json" }
-            })
-        }
-
-        const res = await sql`
-            select u.username as username, i.image as image 
-            from private.users u
-            join private.info i on i.id = u.id
-            where u.id not in (
-            select friend_id
-            from social.friend
-            where user_id = ${id}
-            )
-            and u.id != ${id}
-            and u.lockstatus = false
-            and (${search}::text is null or lower(u.username) like '%' || lower(${search}::text) || '%')
-        `;
-
-        return new Response(JSON.stringify({ data: res, message: "Get data successfully" }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" }
-        });
-    } catch (err) {
-        console.error(err);
-        return new Response(JSON.stringify({ message: "Failed to load content, try again" }), {
+        return new Response(JSON.stringify({ message: err.message }), {
             status: 500,
             headers: { "Content-Type": "application/json" }
         });

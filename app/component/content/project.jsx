@@ -1,30 +1,37 @@
-import { useState, useEffect, startTransition, useMemo } from "react"
+import { useState, useEffect, startTransition, useMemo, useRef } from "react"
 
 import MyProjectService from "@/app/services/getService/myProjectService";
 import DeleteMyProjectService from "@/app/services/deleteService/myProjectService";
-import { useRouterActions } from "@/app/router/router";
+import UpdateHideStatusProjectService from "@/app/services/updateService/hideStatusProjectService";
 
 import Form from "next/form";
+import { useRouterActions } from "@/app/router/router";
 import { ErrorReload } from "../ui/error";
 import { LoadingContent } from "../ui/loading";
 import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
+import AlertPush from "../ui/alert";
+
 import { uniqWith, debounce } from "lodash";
 
-import { IoFilter, IoEyeOff } from "react-icons/io5";
-import { MdAddCircleOutline } from "react-icons/md";
-import { IoCloseSharp } from "react-icons/io5";
+import { IoFilter, IoEyeOff, IoEye } from "react-icons/io5";
+import { MdAddCircleOutline, MdMoreHoriz } from "react-icons/md";
+import { FaRegCheckCircle, FaInfoCircle } from "react-icons/fa";
+import { FaDeleteLeft } from "react-icons/fa6";
 
 export default function Project({ redirect }) {
     const { navigateToProject } = useRouterActions();
+    const ref = useRef(null)
+    const refDropdowns = useRef({})
 
     const [state, setState] = useState({
         data: [],
         pending: true,
-        handleId: null,
+        isHide: false,
         handling: false,
         message: null,
         error: null,
-        search: ''
+        search: '',
+        filter: false,
     })
 
     const [load, setLoad] = useState({
@@ -35,8 +42,26 @@ export default function Project({ redirect }) {
         deletedCount: 0
     })
 
+    const [filter, setFilter] = useState({
+        hide: false
+    })
+
+    const [dropdown, setDropdown] = useState({
+        id: null,
+        isShown: false,
+    })
+
+    const [confirm, setConfirm] = useState({
+        hide: false,
+        show: false,
+        delete: false,
+    })
+
+    const refConfirm = useRef(confirm)
+
     const [apiQueue, setApiQueue] = useState([]);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [alert, setAlert] = useState(null);
 
     const { setRef } = useInfiniteScroll({
         hasMore: load.hasMore,
@@ -55,7 +80,7 @@ export default function Project({ redirect }) {
 
         try {
             const adjustedOffset = Math.max(0, load.offset - load.deletedCount);
-            const res = await MyProjectService({ search: state.search.trim(), limit: load.limit, offset: adjustedOffset.toString() });
+            const res = await MyProjectService({ search: state.search.trim(), limit: load.limit, offset: adjustedOffset.toString(), filter: filter });
             if (res.status === 200) {
                 setLoad((prev) => ({
                     ...prev,
@@ -77,36 +102,131 @@ export default function Project({ redirect }) {
         }
     }
 
-    const executeDelete = async (id) => {
-        if (!id) return;
+    const executeDelete = async (data) => {
+        if (!data) return
 
-        setState((prev) => ({ ...prev, handleId: id, handling: true }));
+        setState((prev) => ({ ...prev, handling: { ...prev.handling, delete: true } }));
 
         try {
-            const res = await DeleteMyProjectService(id);
+            const res = await DeleteMyProjectService(data);
             if (res.status === 200) {
                 setLoad((prev) => ({ ...prev, deletedCount: prev.deletedCount + 1 }));
-                setState((prev) => ({ ...prev, data: prev.data.filter((item) => item.id !== id) }));
+                setState((prev) => ({ ...prev, data: prev.data.filter((item) => item.id !== data) }));
                 setApiQueue((prev) => [...prev, { type: "fetch" }]);
                 startTransition(() => {
-                    setState((prev) => ({ ...prev, message: { status: res.status, message: res.message }, handling: false, handleId: null }));
+                    setAlert({
+                        status: res.status,
+                        message: res.message || "The project was deleted"
+                    })
+                    setConfirm((prev) => ({ ...prev, delete: false }))
+                    setState((prev) => ({ ...prev, handling: { ...prev.handling, delete: false } }));
                 })
             }
             else {
-                setState((prev) => ({ ...prev, message: { status: res.status, message: res.message }, handling: false, handleId: null }));
+                setAlert({
+                    status: res.status,
+                    message: res.message || "The action failed"
+                });
+                setState((prev) => ({ ...prev, handling: { ...prev.handling, delete: false } }));
+                setConfirm((prev) => ({ ...prev, delete: false }))
             }
         }
         catch (err) {
-            setState((prev) => ({ ...prev, message: { status: res.status, message: res.message }, handling: false, handleId: null }));
+            setAlert({
+                status: err.status || 500,
+                message: err.message
+            });
+            setState((prev) => ({ ...prev, handling: { ...prev.handling, delete: false } }));
+            setConfirm((prev) => ({ ...prev, delete: false }))
         }
     }
 
-    const handleDelete = (id) => {
+    const handleDelete = (data) => {
         setApiQueue((prev) => [
             ...prev,
             {
                 type: "delete",
-                execute: () => executeDelete(id)
+                execute: () => executeDelete(data)
+            }
+        ])
+    }
+
+    const executeHide = async (data) => {
+        const { id, hide } = data
+
+        if (!id) return;
+
+        setState(prev => ({ ...prev, handling: { ...prev.handling, hide: true } }));
+
+        try {
+            const res = await UpdateHideStatusProjectService({ projectId: id, hide: hide });
+            if (res.status === 200) {
+                setState((prev) => ({ ...prev, data: prev.data.filter((item) => item.id !== id) }));
+                setApiQueue((prev) => [...prev, { type: "fetch" }]);
+                startTransition(() => {
+                    setConfirm((prev) => ({
+                        ...prev,
+                        show: false,
+                        hide: false
+                    }))
+                    setState((prev) => ({
+                        ...prev,
+                        handling: {
+                            ...prev.handling,
+                            hide: false
+                        }
+                    }));
+                    setAlert({
+                        status: res.status,
+                        message: res.message || "The action was successful"
+                    })
+                })
+            }
+            else {
+                setAlert({
+                    status: res.status,
+                    message: res.message || "The action failed"
+                });
+                setState((prev) => ({
+                    ...prev,
+                    handling: {
+                        ...prev.handling,
+                        hide: false
+                    }
+                }));
+                setConfirm((prev) => ({
+                    ...prev,
+                    show: false,
+                    hide: false
+                }))
+            }
+        }
+        catch (err) {
+            setAlert({
+                status: err.status || 500,
+                message: err.message
+            });
+            setState((prev) => ({
+                ...prev,
+                handling: {
+                    ...prev.handling,
+                    hide: false
+                }
+            }));
+            setConfirm((prev) => ({
+                ...prev,
+                show: false,
+                hide: false
+            }))
+        }
+    }
+
+    const handleHide = (data) => {
+        setApiQueue((prev) => [
+            ...prev,
+            {
+                type: 'hide',
+                execute: () => executeHide(data)
             }
         ])
     }
@@ -121,11 +241,8 @@ export default function Project({ redirect }) {
         if (task.type === "fetch") {
             await fetchData();
         }
-        else if (task.type === "delete") {
-            await task.execute()
-        }
         else {
-            return;
+            await task.execute()
         }
 
         setApiQueue((prev) => prev.slice(1));
@@ -135,6 +252,10 @@ export default function Project({ redirect }) {
     useEffect(() => {
         processQueue();
     }, [apiQueue])
+
+    useEffect(() => {
+        setState((prev) => ({ ...prev, isHide: filter.hide }));
+    }, [state.pending])
 
     const handleSubmitSearch = () => {
         if (state.search.length > 0 && state.search.trim() === '') return;
@@ -148,9 +269,7 @@ export default function Project({ redirect }) {
 
         setState(prev => ({ ...prev, data: [], pending: true }));
         setLoad(prev => ({ ...prev, offset: 0, hasMore: true, hasSearch: true }));
-        startTransition(() => {
-            setApiQueue((prev) => [...prev, { type: "fetch" }]);
-        })
+        setApiQueue((prev) => [...prev, { type: "fetch" }]);
     }
 
     useEffect(() => {
@@ -188,14 +307,86 @@ export default function Project({ redirect }) {
         handleDebounce(e.target.value);
     }
 
+    const refTable = (e) => {
+        if (!ref.current) return;
+
+        if (ref.current && !ref.current.contains(e.target)) {
+            setState(prev => ({ ...prev, filter: false }))
+        }
+    }
+
+    useEffect(() => {
+        document.addEventListener('click', refTable);
+        return () => {
+            document.removeEventListener('click', refTable);
+        }
+    }, [state.filter])
+
+    const handleRefDropdown = (e) => {
+        if (!refDropdowns.current) return;
+
+        const isClickInsideAnyDropdown = Object.values(refDropdowns.current).some(ref => {
+            return ref && ref.contains(e.target);
+        });
+
+        if (!isClickInsideAnyDropdown && !(refConfirm.current.hide || refConfirm.current.delete || refConfirm.current.show)) {
+            setDropdown((prev) => ({
+                ...prev,
+                id: null,
+                isShown: false
+            }));
+        }
+    };
+
+    useEffect(() => {
+        document.addEventListener('click', handleRefDropdown)
+        return () => {
+            document.removeEventListener('click', handleRefDropdown)
+        }
+    }, [dropdown.id])
+
+    useEffect(() => {
+        refConfirm.current = confirm
+    }, [confirm])
+
     return (
         <div id="myProject">
-            <div className="heading-myProject" onSubmit={handleSubmit}>
-                <Form className="input-search">
-                    <input type="text" name="search" placeholder="Search my project" onChange={handleChange} autoComplete="off" autoFocus />
-                    <button type="button" className="filter">
+            <div className="heading-myProject">
+                <Form className="input-search" onSubmit={handleSubmit}>
+                    <input type="text" name="search" placeholder="Search your project" autoComplete="off" onChange={handleChange} />
+                    <button type="button" className={`filter ${state.filter ? 'active' : ''}`} onClick={() => setState((prev) => ({ ...prev, filter: !prev.filter }))}>
                         <IoFilter />
                     </button>
+                    {state.filter &&
+                        <div className="table" ref={ref}>
+                            <div className="content_table">
+                                <div className="filter_value">
+                                    <span>Status</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFilter({ ...filter, hide: !filter.hide })}
+                                        style={filter.hide ? { background: 'var(--color_black)', color: 'var(--color_white)' } : { background: 'var(--color_gray_light)', color: 'var(--color_black)' }}
+                                        disabled={state.pending}
+                                    >
+                                        Hide
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="footer_table">
+                                <button type="submit" disabled={state.pending}>
+                                    {
+                                        state.pending ?
+                                            <LoadingContent scale={0.4} color='var(--color_white)' />
+                                            :
+                                            <>
+                                                <FaRegCheckCircle />
+                                                Apply changes
+                                            </>
+                                    }
+                                </button>
+                            </div>
+                        </div>
+                    }
                 </Form>
                 <div className="handle-project">
                     <button id="project-btn" onClick={handleRedirect}>
@@ -216,42 +407,176 @@ export default function Project({ redirect }) {
                             <ErrorReload data={state.error || { status: 500, message: "Something is wrong" }} refetch={refetchData} />
                             :
                             state.data && state.data.length > 0 ?
-                                state.data.map((item, index) => (
-                                    <div className="item-project" key={index}>
-                                        <div className="heading-item">
-                                            <div className="item">
-                                                <span>{item.method}</span>
-                                                <h3>{item.name}</h3>
-                                            </div>
-                                            <div className="status">
-                                                <span>Status</span>
-                                                <p>{item.status}</p>
-                                            </div>
-                                        </div>
-                                        <div className="description">
-                                            <h4>Description</h4>
-                                            <p>{item.description}</p>
-                                        </div>
-                                        <div className="handle-project">
-                                            <div className="table-handle">
-                                                <button className="delete-btn" onClick={() => handleDelete(item.id)} disabled={state.handling}>
-                                                    {
-                                                        state.handleId === item.id && state.handling ?
-                                                            <LoadingContent scale={0.4} color="var(--color_white)" />
-                                                            :
-                                                            <>
-                                                                <span>Delete</span>
-                                                                <IoCloseSharp />
-                                                            </>
-                                                    }
+                                state.data.map((item) => (
+                                    <div className="item_project" key={item.id}>
+                                        <div className="top_status">
+                                            <button className="method_project">{item.method}</button>
+                                            <button className="status_project">{item.status}</button>
+                                            <div
+                                                className='project_handler'
+                                                ref={(el) => {
+                                                    if (el) refDropdowns.current[item.id] = el
+                                                    else delete refDropdowns.current[item.id];
+                                                }}
+                                            >
+                                                <button
+                                                    onClick={() => {
+                                                        setDropdown((prev) => ({
+                                                            ...prev,
+                                                            id: item.id,
+                                                            isShown: prev.id === item.id ? !prev.isShown : true
+                                                        }))
+                                                        setConfirm((prev) => ({
+                                                            ...prev,
+                                                            hide: false,
+                                                            delete: false,
+                                                            show: false
+                                                        }))
+                                                    }}
+                                                    style={(dropdown.id === item.id && dropdown.isShown) ? { background: 'var(--color_black)', color: 'var(--color_white)' } : { background: 'var(--color_gray_light)', color: 'var(--color_black)' }}
+                                                    disabled={state.handling.hide || state.handling.delete}
+                                                >
+                                                    <MdMoreHoriz fontSize={14} />
                                                 </button>
-                                                <button className="hidden-btn">
-                                                    <span>Hidden</span>
-                                                    <IoEyeOff />
-                                                </button>
+                                                {
+                                                    (dropdown.id === item.id && dropdown.isShown) &&
+                                                    <div className="table_handler">
+                                                        {
+                                                            state.isHide ?
+                                                                <button
+                                                                    className='show_handler'
+                                                                    onClick={() => setConfirm((prev) => ({
+                                                                        ...prev,
+                                                                        show: true
+                                                                    }))}
+                                                                >
+                                                                    <IoEye />
+                                                                    Show
+                                                                </button>
+                                                                :
+                                                                <button
+                                                                    className='hide_handler'
+                                                                    onClick={() => {
+                                                                        setConfirm((prev) => ({
+                                                                            ...prev,
+                                                                            hide: true
+                                                                        }))
+                                                                    }}
+                                                                >
+                                                                    <IoEyeOff />
+                                                                    Hide
+                                                                </button>
+                                                        }
+                                                        <button
+                                                            className='delete_handler'
+                                                            onClick={() => {
+                                                                setConfirm((prev) => ({
+                                                                    ...prev,
+                                                                    delete: true
+                                                                }))
+                                                            }}
+                                                        >
+                                                            <FaDeleteLeft />
+                                                            Delete
+                                                        </button>
+                                                    </div>
+                                                }
                                             </div>
-                                            <button className="join-project">join</button>
                                         </div>
+                                        <div className='content_project'>
+                                            <h3>{item.name}</h3>
+                                            <div className="description">
+                                                <FaInfoCircle
+                                                    color={'var(--color_blue)'}
+                                                    fontSize={13}
+                                                    style={{ flexShrink: 0 }}
+                                                />
+                                                <p>{item.description}</p>
+                                            </div>
+                                        </div>
+                                        <button className="join_project">Join</button>
+                                        {
+                                            (confirm.delete || confirm.hide || confirm.show) && dropdown.id === item.id &&
+                                            <div className="confirm_handler">
+                                                {
+                                                    (state.handling.hide || state.handling.delete) ?
+                                                        <LoadingContent scale={0.8} />
+                                                        :
+                                                        <div className='form_confirm'>
+                                                            {
+                                                                confirm.delete &&
+                                                                <div className='confirm_text'>
+                                                                    <h3>Confirm deletion</h3>
+                                                                    <p>
+                                                                        All data may be lost. Are you sure you want to delete this project?
+                                                                    </p>
+                                                                </div>
+                                                            }
+                                                            {
+                                                                confirm.hide &&
+                                                                <div className='confirm_text'>
+                                                                    <h3>Confirm hiding</h3>
+                                                                    <p>
+                                                                        This action will hide the project. You can show it later.
+                                                                    </p>
+                                                                </div>
+                                                            }
+                                                            {
+                                                                confirm.show &&
+                                                                <div className='confirm_text'>
+                                                                    <h3>Confirm showing</h3>
+                                                                    <p>
+                                                                        This action will show the project. You can hide it later.
+                                                                    </p>
+                                                                </div>
+                                                            }
+                                                            <div className='form_confirm_button'>
+                                                                <button
+                                                                    className="cancel_button"
+                                                                    onClick={() => setConfirm({ delete: false, hide: false })}
+                                                                >
+                                                                    Cancel
+                                                                </button>
+                                                                {
+                                                                    confirm.delete &&
+                                                                    <button
+                                                                        className="delete_button"
+                                                                        onClick={() => handleDelete(item.id)}
+                                                                    >
+                                                                        Delete
+                                                                    </button>
+                                                                }
+                                                                {
+                                                                    state.isHide ?
+                                                                        <>
+                                                                            {
+                                                                                confirm.show &&
+                                                                                <button
+                                                                                    className="show_button"
+                                                                                    onClick={() => handleHide({ id: item.id, hide: false })}
+                                                                                >
+                                                                                    Show
+                                                                                </button>
+                                                                            }
+                                                                        </>
+                                                                        :
+                                                                        <>
+                                                                            {
+                                                                                confirm.hide &&
+                                                                                <button
+                                                                                    className="hide_button"
+                                                                                    onClick={() => handleHide({ id: item.id, hide: true })}
+                                                                                >
+                                                                                    Hide
+                                                                                </button>
+                                                                            }
+                                                                        </>
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                }
+                                            </div>
+                                        }
                                     </div>
                                 ))
                                 :
@@ -266,6 +591,14 @@ export default function Project({ redirect }) {
                     :
                     null
             )}
+            {
+                alert &&
+                <AlertPush
+                    message={alert.message}
+                    status={alert.status}
+                    reset={() => setAlert(null)}
+                />
+            }
         </div>
     )
 }

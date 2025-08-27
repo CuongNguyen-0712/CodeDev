@@ -26,8 +26,9 @@
   width: 450px;
   border-radius: 20px;
   background: var(--color_white);
+  border: 2px solid var(--color_gray);
   flex-direction: column;
-  box-shadow: 0 0 5px var(--color_black);
+  box-shadow: 0 0 10px var(--color_gray_light);
 }
 
 .auth-form .heading-form {
@@ -191,38 +192,6 @@
   transition: 0.2s all ease;
 }
 
-.warning {
-  display: flex;
-  position: relative;
-  align-items: flex-end;
-  height: 100%;
-  z-index: 2;
-}
-
-.warning_icon {
-  font-size: 20px;
-  color: var(--color_orange);
-  cursor: pointer;
-}
-
-.warning>p {
-  display: none;
-  position: absolute;
-  height: max-content;
-  width: max-content;
-  font-size: 12px;
-  background: var(--color_orange);
-  padding: 5px 10px;
-  border-radius: 5px;
-  right: 0;
-  bottom: -30px;
-  user-select: none;
-}
-
-.warning_icon:hover~p {
-  display: flex;
-}
-
 .main-login .login-help {
   display: flex;
   justify-content: space-between;
@@ -290,25 +259,28 @@
   justify-content: space-evenly;
   height: max-content;
   width: 100%;
+  padding: 0 20px;
+  gap: 20px;
 }
 
 .social-login button {
   display: flex;
-  align-items: center;
+  justify-content: center;
   height: max-content;
-  width: max-content;
+  flex-grow: 1;
   padding: 10px;
-  gap: 10px;
   border-radius: 5px;
   color: var(--color_black);
-  outline: 2px solid var(--color_gray);
-  background: var(--color_white);
+  outline: 2px solid var(--color_gray_light);
+  background: transparent;
+  gap: 10px;
   cursor: pointer;
   transition: 0.2s all ease;
 }
 
 .social-login button:hover {
   outline-color: var(--color_black);
+  background: var(--color_gray_light);
   transition: 0.2s all ease;
 }
 
@@ -474,25 +446,28 @@ a {
   justify-content: space-evenly;
   height: max-content;
   width: 100%;
+  padding: 0 20px;
+  gap: 20px;
 }
 
 .social-logup button {
   display: flex;
-  align-items: center;
+  justify-content: center;
   height: max-content;
-  width: max-content;
+  flex-grow: 1;
   padding: 10px;
-  gap: 10px;
   border-radius: 5px;
-  outline: 2px solid var(--color_gray);
-  background: var(--color_white);
+  outline: 2px solid var(--color_gray_light);
+  background: transparent;
   cursor: pointer;
   color: var(--color_black);
+  gap: 10px;
   transition: 0.2s all ease;
 }
 
 .social-logup button:hover {
   outline-color: var(--color_black);
+  background: var(--color_gray_light);
   transition: 0.2s all ease;
 }
 
@@ -554,7 +529,7 @@ textarea::placeholder {
   gap: 5px;
 }
 
-.error {
+.message {
   display: flex;
   position: fixed;
   align-items: center;
@@ -566,7 +541,6 @@ textarea::placeholder {
   padding: 7px 10px;
   border-radius: 5px;
   color: var(--color_white);
-  background: var(--color_red);
   font-size: 14px;
   gap: 5px;
 }
@@ -592,6 +566,7 @@ textarea::placeholder {
   color: var(--color_white);
   font-size: 17px;
   cursor: pointer;
+  z-index: 1
 }
 
 #warning_notification .content_warning {
@@ -604,13 +579,14 @@ textarea::placeholder {
   padding: 10px;
   border-radius: 5px;
   background: var(--color_white);
-  border: 2px solid var(--color_gray);
+  border: 2px solid var(--color_gray_light);
   font-size: 14px;
   transform: scale(1);
   flex-direction: column;
   gap: 10px;
   transform-origin: bottom right;
   transition: 0.2s all ease;
+  z-index: 0;
   overflow: hidden;
 }
 
@@ -619,7 +595,6 @@ textarea::placeholder {
   transform-origin: bottom right;
   transition: 0.2s all ease;
 }
-
 
 .content_warning p {
   display: flex;
@@ -635,15 +610,16 @@ textarea::placeholder {
 }
 
 @media screen and (max-width: 450px) {
-  .auth-container {
-    padding: 0;
-  }
-
   .auth-form {
     height: 100%;
     width: 100%;
     border-radius: 0px;
     box-shadow: none;
+    border: none;
+  }
+
+  .auth-container {
+    padding: 0;
   }
 
   #logup-page-2 .auth-password {

@@ -6,6 +6,8 @@ import { useQuery } from "@/app/router/router";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/app/contexts/authContext";
 
+import useOutside from "@/app/hooks/useOutside";
+
 import Image from "next/image";
 
 import { FaListUl, FaUserCog, FaRegUserCircle } from "react-icons/fa";
@@ -20,6 +22,11 @@ export default function Navbar({ handleDashboard, handleRedirect }) {
   const [state, setState] = useState(false);
 
   const queryNavigate = useQuery();
+
+  const ref = useOutside({
+    stateOutside: state,
+    setStateOutside: () => setState(false)
+  })
 
   return (
     <>
@@ -37,7 +44,7 @@ export default function Navbar({ handleDashboard, handleRedirect }) {
             }
             <div id="app-name">
               <Image
-                src={'/image/logo.svg'}
+                src={'/image/static/logo.svg'}
                 height={25}
                 width={25}
                 alt="CodeDev_logo"
@@ -65,8 +72,12 @@ export default function Navbar({ handleDashboard, handleRedirect }) {
                     <MdAddCircle />
                     <span>Todo</span>
                   </button>
-                  <button id="account"
-                    onClick={() => setState(!state)}
+                  <button
+                    id="account"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setState(!state);
+                    }}
                   >
                     <div className="logo_account">
                       <svg className="account_svg" viewBox="-5 -5 110 95">
@@ -78,7 +89,7 @@ export default function Navbar({ handleDashboard, handleRedirect }) {
                   </button>
                   {
                     state &&
-                    <div className="drop_down">
+                    <div className="drop_down" ref={ref} >
                       <div id="tag_account">
                         <FaRegUserCircle fontSize={20} />
                         <p>{session.username}</p>

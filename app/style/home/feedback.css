@@ -40,7 +40,7 @@
 }
 
 #feedback-form>button:hover {
-    background: var(--color_gray);
+    background: var(--color_gray_light);
     transition: 0.2s all ease;
 }
 
@@ -63,7 +63,7 @@
     width: 100%;
     border-radius: 10px;
     padding: 10px 20px;
-    border: 1px solid var(--color_gray);
+    border: 1px solid var(--color_gray_light);
     box-shadow: 0 0 5px var(--color_gray);
     gap: 10px;
 }
@@ -97,7 +97,7 @@
 
 .feedback-field .heading-field {
     display: flex;
-    font-weight: 500;
+    font-weight: 600;
     font-size: 14px;
 }
 
@@ -106,14 +106,17 @@
     height: 40px;
     width: 100%;
     max-width: 300px;
-    background: var(--color_gray);
+    background: var(--color_gray_light);
     border-radius: 10px;
     outline: none;
+    border: 2px solid var(--color_gray_light);
     padding: 0 10px;
+    transition: 0.2s all ease;
 }
 
 .feedback-field input:focus {
-    outline: 2px solid var(--color_black);
+    border-color: var(--color_black);
+    transition: 0.2s all ease;
 }
 
 .feedback-field textarea {
@@ -122,7 +125,7 @@
     width: 100%;
     resize: none;
     padding: 10px;
-    background: var(--color_gray);
+    background: var(--color_gray_light);
     border-radius: 10px;
 }
 
@@ -173,6 +176,7 @@
     flex-grow: 1;
     background: var(--color_blue);
     border-radius: 10px;
+    padding-right: 50px;
     cursor: pointer;
 }
 

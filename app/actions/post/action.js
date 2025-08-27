@@ -1,5 +1,6 @@
 'use server'
 import { neon } from '@neondatabase/serverless';
+import { v4 as uuidv4 } from 'uuid';
 
 const sql = neon(process.env.DATABASE_URL);
 
@@ -74,6 +75,33 @@ export async function postRegisterProject(data) {
         );
     } catch (error) {
         console.error("Error register project:", error);
+        return new Response(
+            JSON.stringify({ message: "Somthing went wrong" }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+    }
+}
+
+export async function postCreateTeam(data) {
+    const { userId, name, size } = data;
+    const teamId = uuidv4();
+
+    if (!name || !size || !userId) {
+        return new Response(
+            JSON.stringify({ message: "You missing something, check again" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+    }
+
+    try {
+        await sql`select create_team(${teamId}, ${name}, ${size}, ${userId})`;
+
+        return new Response(
+            JSON.stringify({ message: "Create team successfully" }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+    } catch (error) {
+        console.error("Error create team:", error);
         return new Response(
             JSON.stringify({ message: "Somthing went wrong" }),
             { status: 200, headers: { "Content-Type": "application/json" } }

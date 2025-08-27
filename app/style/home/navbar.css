@@ -21,7 +21,7 @@
   align-items: center;
   width: max-content;
   height: max-content;
-  gap: 20px;
+  gap: 10px;
 }
 
 .navbar-feature #menu-btn {
@@ -37,7 +37,7 @@
 }
 
 #menu-btn:hover {
-  background: var(--color_gray);
+  background: var(--color_gray_light);
 }
 
 .navbar-feature #app-name {
@@ -70,7 +70,7 @@
 }
 
 .search:hover {
-  background: var(--color_gray);
+  background: var(--color_gray_light);
   transition: 0.2s all ease;
 }
 
@@ -134,6 +134,8 @@
   height: 35px;
   width: max-content;
   padding: 0 15px;
+  background: var(--color_gray_light);
+  color: var(--color_black);
   border-radius: 50px;
   gap: 10px;
 }
@@ -223,7 +225,7 @@
   min-width: 150px;
   padding: 0 10px;
   border-radius: 5px;
-  background: var(--color_gray);
+  background: var(--color_gray_light);
   color: var(--color_black);
   gap: 10px;
 }

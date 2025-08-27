@@ -1,20 +1,75 @@
-import { useState, useEffect, startTransition } from "react"
+import { useState, useEffect, startTransition, useMemo, useRef } from "react"
 
 import GetProjectService from "@/app/services/getService/projectService";
 import PostRegisterProjectService from "@/app/services/postService/registerProjectService";
+
+import Form from "next/form";
 import { ErrorReload } from "../ui/error";
 import { useQuery } from "@/app/router/router";
-import { uniqWith } from "lodash";
-
+import { uniqWith, debounce } from "lodash";
 import { LoadingContent } from "../ui/loading";
 
 import { IoFilter } from "react-icons/io5"
-import { FaArrowRight } from "react-icons/fa";
+import { FaArrowRight, FaRegCheckCircle, FaChevronUp } from "react-icons/fa";
 import { FaUser, FaUserGroup } from "react-icons/fa6";
 import { IoMdArrowDropdown } from "react-icons/io";
 
 export default function ProjectContent({ redirect }) {
     const queryNavigate = useQuery();
+    const ref = useRef(null)
+
+    const filterValue = [
+        {
+            name: 'status',
+            items: [
+                {
+                    name: 'All',
+                    value: null
+                },
+                {
+                    name: 'Comming soon',
+                    value: 'Comming soon'
+                },
+                {
+                    name: 'Closed',
+                    value: 'Closed'
+                },
+                {
+                    name: 'Open',
+                    value: 'Open'
+                }
+            ]
+        },
+        {
+            name: 'difficulty',
+            items: [
+                {
+                    name: 'All',
+                    value: null
+                },
+                {
+                    name: 'Beginner',
+                    value: 'Beginner'
+                },
+                {
+                    name: 'Intermediate',
+                    value: 'Intermediate'
+                },
+                {
+                    name: 'Advanced',
+                    value: 'Advanced'
+                },
+                {
+                    name: 'Expert',
+                    value: 'Expert'
+                },
+                {
+                    name: 'Master',
+                    value: 'Master'
+                }
+            ]
+        }
+    ]
 
     const [state, setState] = useState({
         data: {
@@ -27,6 +82,7 @@ export default function ProjectContent({ redirect }) {
         message: null,
         pending: true,
         search: '',
+        filter: false
     })
 
     const [offset, setOffset] = useState({
@@ -52,6 +108,16 @@ export default function ProjectContent({ redirect }) {
     const [load, setLoad] = useState({
         hasSearch: false,
         limit: 5,
+    })
+
+    const [hide, setHide] = useState({
+        self: false,
+        team: false
+    })
+
+    const [filter, setFilter] = useState({
+        status: 'Open',
+        difficulty: null,
     })
 
     const [apiQueue, setApiQueue] = useState([])
@@ -87,7 +153,7 @@ export default function ProjectContent({ redirect }) {
 
         try {
             const adjustedOffset = Math.max(0, (method ? offset[method] : offsetValue) - (registerCount[method] || 0));
-            const res = await GetProjectService({ search: state.search.trim(), limit: load.limit, offset: adjustedOffset.toString(), method: method ? method.charAt(0).toUpperCase() + method.slice(1) : method });
+            const res = await GetProjectService({ search: state.search.trim(), limit: load.limit, offset: adjustedOffset.toString(), method: method ? method.charAt(0).toUpperCase() + method.slice(1) : method, search: state.search, filter: filter });
 
             if (res.status === 200) {
                 if (method) {
@@ -128,8 +194,8 @@ export default function ProjectContent({ redirect }) {
                     setState((prev) => ({
                         ...prev,
                         data: {
-                            self: uniqWith([...prev.data.self, ...self], (a, b) => a.id === b.id),
-                            team: uniqWith([...prev.data.team, ...team], (a, b) => a.id === b.id)
+                            self: uniqWith([...prev.data?.self ?? [], ...self], (a, b) => a.id === b.id),
+                            team: uniqWith([...prev.data?.team ?? [], ...team], (a, b) => a.id === b.id)
                         },
                         pending: false
                     }));
@@ -169,7 +235,7 @@ export default function ProjectContent({ redirect }) {
     }
 
     const handleRequest = async ({ id, method }) => {
-        if (!id) return;
+        if (!id || method === 'team') return;
 
         setState((prev) => ({ ...prev, handling: true, idHandle: id }))
 
@@ -229,15 +295,112 @@ export default function ProjectContent({ redirect }) {
         ]);
     }
 
+
+    const handleSubmitSearch = () => {
+        if (state.search.length > 0 && state.search.trim() === '') return;
+
+        if (load.hasSearch && state.search.trim() === '') {
+            setLoad((prev) => ({ ...prev, offset: 0, hasMore: true }));
+            setState(prev => ({ ...prev, data: [], pending: true }));
+            setApiQueue((prev) => [...prev, { type: "fetch" }]);
+            return
+        }
+
+        setState(prev => ({ ...prev, data: [], pending: true }));
+        setLoad(prev => ({ ...prev, offset: 0, hasMore: true, hasSearch: true }));
+        setApiQueue((prev) => [...prev, { type: "fetch" }]);
+    }
+
+    useEffect(() => {
+        handleSubmitSearch();
+    }, [state.search])
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        handleSubmitSearch();
+    }
+
+    const handleDebounce = useMemo(() => {
+        return debounce((value) => {
+            setState(prev => ({ ...prev, search: value }))
+        }, 500);
+    }, [])
+
+    useEffect(() => {
+        return () => {
+            handleDebounce.cancel();
+        }
+    }, [handleDebounce])
+
+    const handleChange = (e) => {
+        e.preventDefault();
+        handleDebounce(e.target.value);
+    }
+
+    const refTable = (e) => {
+        if (!ref.current) return;
+
+        if (ref.current && !ref.current.contains(e.target)) {
+            setState(prev => ({ ...prev, filter: false }))
+        }
+    }
+
+    useEffect(() => {
+        document.addEventListener('click', refTable);
+        return () => {
+            document.removeEventListener('click', refTable);
+        }
+    }, [state.filter])
+
     return (
         <div id="project">
             <div className="heading_project">
-                <div className="input-search">
-                    <input type="text" placeholder="Search project" />
-                    <button className="filter">
+                <Form className="input-search" onSubmit={handleSubmit}>
+                    <input type="text" placeholder="Search project" name="search" autoComplete="off" onChange={handleChange} />
+                    <button type="button" className={`filter ${state.filter ? 'active' : ''}`} onClick={() => setState((prev) => ({ ...prev, filter: !prev.filter }))}>
                         <IoFilter />
                     </button>
-                </div>
+                    {state.filter &&
+                        <div className="table" ref={ref}>
+                            <div className="content_table">
+                                {
+                                    filterValue.map((field, index) => (
+                                        <div className="filter_value" key={index}>
+                                            <span>
+                                                {field.name}
+                                            </span>
+                                            {
+                                                field.items.map((item, index) => (
+                                                    <button
+                                                        key={index}
+                                                        type="button"
+                                                        style={filter[field.name] === item.value ? { color: 'var(--color_white)', background: 'var(--color_black)' } : { color: 'var(--color_black)', background: 'var(--color_gray_light)' }}
+                                                        onClick={() => setFilter((prev) => ({ ...prev, [field.name]: item.value }))}
+                                                    >
+                                                        {item.name}
+                                                    </button>
+                                                ))
+                                            }
+                                        </div>
+                                    ))
+                                }
+                            </div>
+                            <div className="footer_table">
+                                <button type="submit" disabled={state.pending}>
+                                    {
+                                        state.pending ?
+                                            <LoadingContent scale={0.4} color='var(--color_white)' />
+                                            :
+                                            <>
+                                                <FaRegCheckCircle />
+                                                Apply changes
+                                            </>
+                                    }
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </Form>
                 <div className="handle_back">
                     <button className="back_btn" onClick={handleRedirect}>
                         <h4>
@@ -250,174 +413,205 @@ export default function ProjectContent({ redirect }) {
             <div className="content_project">
                 <div className="method_project">
                     <div className="heading">
-                        <FaUser />
-                        <h3>Self</h3>
-                    </div>
-                    <div className="content">
-                        {
-                            state.pending ?
-                                <LoadingContent />
-                                :
-                                state.error ?
-                                    <p>Something is wrong</p>
-                                    :
-                                    state.data.self && state.data.self.length > 0 ? (
-                                        state.data.self.map((item, index) => (
-                                            <div className="item" key={index}>
-                                                <div className="heading_item">
-                                                    <span>{item.status}</span>
-                                                    <h4>{item.name}</h4>
-                                                </div>
-                                                <div className="content_item">
-                                                    <p>{item.description}</p>
-                                                    <div className="info">
-                                                        <h5>Instructor:</h5>
-                                                        <p>{item.instructor}</p>
-                                                    </div>
-                                                    <div className="info_dropdown">
-                                                        <button onClick={handleDropdown}>
-                                                            Requirements:
-                                                            <IoMdArrowDropdown />
-                                                        </button>
-                                                        <p>{item.requirements}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="footer_item">
-                                                    <div className="info">
-                                                        <h5>Difficulty:</h5>
-                                                        <p>{item.difficulty}</p>
-                                                    </div>
-                                                    <button
-                                                        style={item.status === 'Open' && { background: 'var(--color_blue)' } || item.status === 'Closed' && { background: 'var(--color_red)', cursor: 'not-allowed' } || item.status === 'Comming soon' && { background: 'var(--color_black)', cursor: 'not-allowed' }}
-                                                        disabled={item.status !== 'Open' || state.handling}
-                                                        onClick={() => handleRegister({ id: item.id, method: 'self' })}
-                                                    >
-                                                        {
-                                                            (() => {
-                                                                switch (item.status) {
-                                                                    case 'Open':
-                                                                        return state.idHandle === item.id ?
-                                                                            <LoadingContent scale={0.5} color="var(--color_white)" />
-                                                                            :
-                                                                            <>Join</>;
-                                                                    case 'Closed':
-                                                                        return <>Closed</>;
-                                                                    case 'Comming soon':
-                                                                        return <>Comming soon...</>;
-                                                                    default:
-                                                                        return <>Something wrong</>;
-                                                                }
-                                                            })()
-                                                        }
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))
-                                    )
-                                        :
-                                        <p>No project</p>
-                        }
+                        <button
+                            onClick={() => setHide((prev) => ({ ...prev, self: !prev.self }))}
+                            style={hide.self ? { color: 'var(--color_white)', background: 'var(--color_black)' } : { color: 'var(--color_black)', background: 'var(--color_gray_light)' }}
+                        >
+                            <FaChevronUp style={{ transform: hide.self ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.2s all ease' }} />
+                        </button>
+                        <div className="tag_method">
+                            <FaUser />
+                            <h3>Self</h3>
+                        </div>
                     </div>
                     {
-                        (!state.pending && !state.error) &&
-                        <div className="show_more" style={{ display: !hasMore.self && 'none' }}>
-                            <button disabled={isLoading.self} onClick={() => handleShowMore('self')}>
+                        !hide.self ?
+                            <>
+                                <div className="content">
+                                    {
+                                        state.pending ?
+                                            <LoadingContent />
+                                            :
+                                            state.error ?
+                                                <p>Something is wrong</p>
+                                                :
+                                                state.data.self && state.data.self.length > 0 ? (
+                                                    state.data.self.map((item, index) => (
+                                                        <div className="item" key={index}>
+                                                            <div className="heading_item">
+                                                                <span>{item.status}</span>
+                                                                <h4>{item.name}</h4>
+                                                            </div>
+                                                            <div className="content_item">
+                                                                <p>{item.description}</p>
+                                                                <div className="info">
+                                                                    <h5>Instructor:</h5>
+                                                                    <p>{item.instructor}</p>
+                                                                </div>
+                                                                <div className="info_dropdown">
+                                                                    <button onClick={handleDropdown}>
+                                                                        Requirements:
+                                                                        <IoMdArrowDropdown />
+                                                                    </button>
+                                                                    <p>{item.requirements}</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="footer_item">
+                                                                <div className="info">
+                                                                    <h5>Difficulty:</h5>
+                                                                    <p>{item.difficulty}</p>
+                                                                </div>
+                                                                <button
+                                                                    style={item.status === 'Open' && { background: 'var(--color_blue)' } || item.status === 'Closed' && { background: 'var(--color_red)', cursor: 'not-allowed' } || item.status === 'Comming soon' && { background: 'var(--color_black)', cursor: 'not-allowed' }}
+                                                                    disabled={item.status !== 'Open' || state.handling}
+                                                                    onClick={() => handleRegister({ id: item.id, method: 'self' })}
+                                                                >
+                                                                    {
+                                                                        (() => {
+                                                                            switch (item.status) {
+                                                                                case 'Open':
+                                                                                    return state.idHandle === item.id ?
+                                                                                        <LoadingContent scale={0.5} color="var(--color_white)" />
+                                                                                        :
+                                                                                        <>Join</>;
+                                                                                case 'Closed':
+                                                                                    return <>Closed</>;
+                                                                                case 'Comming soon':
+                                                                                    return <>Comming soon...</>;
+                                                                                default:
+                                                                                    return <>Something wrong</>;
+                                                                            }
+                                                                        })()
+                                                                    }
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                )
+                                                    :
+                                                    <p>No project can be found !</p>
+                                    }
+                                </div>
                                 {
-                                    isLoading.self ?
-                                        <LoadingContent scale={0.4} color="var(--color_white)" />
-                                        :
-                                        <>
-                                            See more
-                                        </>
+                                    (!state.pending && !state.error) &&
+                                    <div className="show_more" style={{ display: !hasMore.self && 'none' }}>
+                                        <button disabled={isLoading.self} onClick={() => handleShowMore('self')}>
+                                            {
+                                                isLoading.self ?
+                                                    <LoadingContent scale={0.4} color="var(--color_white)" />
+                                                    :
+                                                    <>
+                                                        See more
+                                                    </>
+                                            }
+                                        </button>
+                                    </div>
                                 }
-                            </button>
-                        </div>
+                            </>
+                            :
+                            null
                     }
                 </div>
                 <div className="method_project">
                     <div className="heading">
-                        <FaUserGroup />
-                        <h3>Team</h3>
-                    </div>
-                    <div className="content">
-                        {
-                            state.pending ?
-                                <LoadingContent />
-                                :
-                                state.error ?
-                                    <p>Something is wrong</p>
-                                    :
-                                    state.data.team && state.data.team.length > 0 ? (
-                                        state.data.team.map((item, index) => (
-                                            <div className="item" key={index}>
-                                                <div className="heading_item">
-                                                    <span>{item.status}</span>
-                                                    <h4>{item.name}</h4>
-                                                </div>
-                                                <div className="content_item">
-                                                    <p>{item.description}</p>
-                                                    <div className="info">
-                                                        <h5>Instructor:</h5>
-                                                        <p>{item.instructor}</p>
-                                                    </div>
-                                                    <div className="info_dropdown">
-                                                        <button onClick={handleDropdown}>
-                                                            Requirements:
-                                                            <IoMdArrowDropdown />
-                                                        </button>
-                                                        <p>{item.requirements}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="footer_item">
-                                                    <div className="info">
-                                                        <h5>Difficulty:</h5>
-                                                        <p>{item.difficulty}</p>
-                                                    </div>
-                                                    <button
-                                                        style={item.status === 'Open' && { background: 'var(--color_blue)' } || item.status === 'Closed' && { background: 'var(--color_red)', cursor: 'not-allowed' } || item.status === 'Comming soon' && { background: 'var(--color_black)', cursor: 'not-allowed' }}
-                                                        disabled={item.status !== 'Open' || state.handling}
-                                                        onClick={() => handleRegister({ id: item.id, method: 'team' })}
-                                                    >
-                                                        {
-                                                            (() => {
-                                                                switch (item.status) {
-                                                                    case 'Open':
-                                                                        return state.idHandle === item.id ?
-                                                                            <LoadingContent scale={0.5} color="var(--color_white)" />
-                                                                            :
-                                                                            <>Join</>;
-                                                                    case 'Closed':
-                                                                        return <>Closed</>;
-                                                                    case 'Comming soon':
-                                                                        return <>Comming soon...</>;
-                                                                    default:
-                                                                        return <>Something wrong</>;
-                                                                }
-                                                            })()
-                                                        }
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))
-                                    )
-                                        :
-                                        <p>No project</p>
-                        }
+                        <button
+                            onClick={() => setHide((prev) => ({ ...prev, team: !prev.team }))}
+                            style={hide.team ? { color: 'var(--color_white)', background: 'var(--color_black)' } : { color: 'var(--color_black)', background: 'var(--color_gray_light)' }}
+                        >
+                            <FaChevronUp style={{ transform: hide.team ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.2s all ease' }} />
+                        </button>
+                        <div className="tag_method">
+                            <FaUserGroup />
+                            <h3>Team</h3>
+                        </div>
                     </div>
                     {
-                        (!state.pending && !state.error) &&
-                        <div className="show_more" style={{ display: !hasMore.team && 'none' }}>
-                            <button disabled={isLoading.team} onClick={() => handleShowMore('team')}>
+                        !hide.team ?
+                            <>
+                                <div className="content">
+                                    {
+                                        state.pending ?
+                                            <LoadingContent />
+                                            :
+                                            state.error ?
+                                                <p>Something is wrong</p>
+                                                :
+                                                state.data.team && state.data.team.length > 0 ? (
+                                                    state.data.team.map((item, index) => (
+                                                        <div className="item" key={index}>
+                                                            <div className="heading_item">
+                                                                <span>{item.status}</span>
+                                                                <h4>{item.name}</h4>
+                                                            </div>
+                                                            <div className="content_item">
+                                                                <p>{item.description}</p>
+                                                                <div className="info">
+                                                                    <h5>Instructor:</h5>
+                                                                    <p>{item.instructor}</p>
+                                                                </div>
+                                                                <div className="info_dropdown">
+                                                                    <button onClick={handleDropdown}>
+                                                                        Requirements:
+                                                                        <IoMdArrowDropdown />
+                                                                    </button>
+                                                                    <p>{item.requirements}</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="footer_item">
+                                                                <div className="info">
+                                                                    <h5>Difficulty:</h5>
+                                                                    <p>{item.difficulty}</p>
+                                                                </div>
+                                                                <button
+                                                                    style={item.status === 'Open' && { background: 'var(--color_blue)' } || item.status === 'Closed' && { background: 'var(--color_red)', cursor: 'not-allowed' } || item.status === 'Comming soon' && { background: 'var(--color_black)', cursor: 'not-allowed' }}
+                                                                    disabled={item.status !== 'Open' || state.handling}
+                                                                    onClick={() => handleRegister({ id: item.id, method: 'team' })}
+                                                                >
+                                                                    {
+                                                                        (() => {
+                                                                            switch (item.status) {
+                                                                                case 'Open':
+                                                                                    return state.idHandle === item.id ?
+                                                                                        <LoadingContent scale={0.5} color="var(--color_white)" />
+                                                                                        :
+                                                                                        <>Add</>;
+                                                                                case 'Closed':
+                                                                                    return <>Closed</>;
+                                                                                case 'Comming soon':
+                                                                                    return <>Comming soon...</>;
+                                                                                default:
+                                                                                    return <>Something wrong</>;
+                                                                            }
+                                                                        })()
+                                                                    }
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                )
+                                                    :
+                                                    <p>No project can be found !</p>
+
+                                    }
+                                </div>
                                 {
-                                    isLoading.team ?
-                                        <LoadingContent scale={0.4} color="var(--color_white)" />
-                                        :
-                                        <>
-                                            See more
-                                        </>
+                                    (!state.pending && !state.error) &&
+                                    <div className="show_more" style={{ display: !hasMore.team && 'none' }}>
+                                        <button disabled={isLoading.team} onClick={() => handleShowMore('team')}>
+                                            {
+                                                isLoading.team ?
+                                                    <LoadingContent scale={0.4} color="var(--color_white)" />
+                                                    :
+                                                    <>
+                                                        See more
+                                                    </>
+                                            }
+                                        </button>
+                                    </div>
                                 }
-                            </button>
-                        </div>
+                            </>
+                            :
+                            null
                     }
                 </div>
                 {

@@ -10,11 +10,13 @@
 
 #course .heading-marketplace {
   display: flex;
+  position: relative;
   justify-content: space-between;
   height: max-content;
   width: 100%;
   padding: 10px 0;
   gap: 20px;
+  z-index: 1;
 }
 
 #course .course-container {
@@ -34,8 +36,8 @@
   flex-grow: 1;
   border-radius: 10px;
   padding: 20px 10px;
-  border: 2px solid var(--color_gray);
-  box-shadow: 0 0 10px var(--color_gray);
+  border: 2px solid var(--color_gray_light);
+  box-shadow: 0 0 10px var(--color_gray_light);
   flex-direction: column;
   flex-basis: 300px;
   gap: 10px;
@@ -90,7 +92,7 @@
   height: max-content;
   width: 100%;
   bottom: 0;
-  background: var(--color_gray);
+  background: var(--color_gray_light);
   padding: 5px 10px;
   border-radius: 5px;
   transform: scaleY(0);

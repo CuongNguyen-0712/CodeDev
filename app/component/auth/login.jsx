@@ -40,6 +40,7 @@ export default function Login({
                 const response = await SignInService({ name: login.name, pass: login.pass });
 
                 if (response.status === 200 && response.success) {
+                    setMessage({ status: response.status, message: response.message });
                     redirect();
                     await refreshSession();
                     startTransition(() => {
@@ -47,9 +48,10 @@ export default function Login({
                     })
                 } else {
                     setLogin((prev) => ({ ...prev, pending: false }));
-                    setMessage(response.message);
+                    setMessage({ status: response.status, message: response.message });
                 }
             } catch (err) {
+                setMessage({ status: 500, message: err.message });
                 setLogin((prev) => ({ ...prev, pending: false }));
             }
         }
@@ -73,7 +75,7 @@ export default function Login({
                         Login
                         <Link className="return_homepage" href="/" onClick={redirect}>
                             CodeDev
-                            <Image src="/image/logo.svg" width={25} height={25} alt="logo" />
+                            <Image src="/image/static/logo.svg" width={25} height={25} alt="logo" />
                         </Link>
                     </h2>
                     <span>
@@ -119,16 +121,16 @@ export default function Login({
                     <p>Or sign in with</p>
                     <div className="social-login">
                         <button type="button">
-                            <Image src="/image/google.ico" width={20} height={20} alt="facebook" />
+                            <Image src="/image/static/github.ico" width={20} height={20} alt="github" />
+                            <h4>Github</h4>
+                        </button>
+                        <button type="button">
+                            <Image src="/image/static/google.ico" width={20} height={20} alt="facebook" />
                             <h4>Google</h4>
                         </button>
                         <button type="button">
-                            <Image src="/image/facebook.ico" width={20} height={20} alt="facebook" />
+                            <Image src="/image/static/facebook.ico" width={20} height={20} alt="facebook" />
                             <h4>Facebook</h4>
-                        </button>
-                        <button type="button">
-                            <Image src="/image/apple.ico" width={20} height={20} alt="facebook" />
-                            <h4>Apple ID</h4>
                         </button>
                     </div>
                     <div className="register-auth">

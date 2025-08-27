@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react"
 
+import useOutsite from "@/app/hooks/useOutside"
+
 import Login from "./login"
 import Logup from "./logup"
 import { LoadingRedirect } from "../ui/loading"
 
 import { IoIosWarning, IoMdClose, IoIosCloseCircle } from "react-icons/io"
+import { FaRegCircleCheck } from "react-icons/fa6";
 
 export default function Form() {
-
     const [form, setForm] = useState('login')
 
     const [state, setState] = useState({
@@ -15,17 +17,25 @@ export default function Form() {
             login: null,
             signup: null
         },
-        hide: false,
         message: {
             login: null,
             signup: null
-        }
+        },
+        hide: false
     })
 
     const [redirect, setRedirect] = useState(false)
 
+    const ref = useOutsite({
+        stateOutside: state.hide,
+        setStateOutside: () => setState((prev) => ({
+            ...prev,
+            hide: true
+        }))
+    })
+
     const handleSetError = (data) => {
-        if (state.error[form] === null) return
+        if (state.error[form] === null) return;
 
         if (Object.entries(state.error[form]).length === 0) {
             setState((prev) => ({
@@ -35,19 +45,18 @@ export default function Form() {
                     [form]: null
                 },
             }))
-
-            return;
         }
-
-        setState((prev) => ({
-            ...prev,
-            error: {
-                ...prev.error,
-                [form]: Object.fromEntries(
-                    Object.entries(state.error[form]).filter(([key]) => key !== data)
-                )
-            }
-        }))
+        else {
+            setState((prev) => ({
+                ...prev,
+                error: {
+                    ...prev.error,
+                    [form]: Object.fromEntries(
+                        Object.entries(state.error[form]).filter(([key]) => key !== data)
+                    )
+                }
+            }))
+        }
     }
 
     useEffect(() => {
@@ -108,7 +117,21 @@ export default function Form() {
                     {
                         (state.error[form] && Object.keys(state.error[form] ?? {}).length > 0) &&
                         <div id="warning_notification">
-                            <button onClick={() => setState((prev) => ({ ...prev, hide: !state.hide }))} style={state.hide ? { background: 'var(--color_orange)' } : { background: 'var(--color_black)' }}>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    setState((prev) => ({
+                                        ...prev,
+                                        hide: !prev.hide
+                                    }))
+                                }}
+                                style={
+                                    state.hide ?
+                                        { background: 'var(--color_orange)' }
+                                        :
+                                        { background: 'var(--color_black)' }
+                                }
+                            >
                                 {
                                     state.hide ?
                                         <IoIosWarning />
@@ -116,7 +139,7 @@ export default function Form() {
                                         <IoMdClose />
                                 }
                             </button>
-                            <div className={`content_warning ${state.hide ? 'hide' : ''}`}>
+                            <div className={`content_warning ${state.hide ? 'hide' : ''}`} ref={ref}>
                                 {Object.keys(state.error[form]).map((key, index) => (
                                     <p key={index}>
                                         <IoIosWarning style={{ fontSize: '17px', color: 'var(--color_orange)' }} />
@@ -128,9 +151,14 @@ export default function Form() {
                     }
                     {
                         (state.message[form] && Object.keys(state.message[form] ?? {}).length > 0) &&
-                        <div className="error">
-                            <IoIosCloseCircle style={{ fontSize: '17px' }} />
-                            <p>{state.message[form]}</p>
+                        <div className="message" style={state.message[form].status === 200 ? { background: 'var(--color_green)' } : { background: 'var(--color_red)' }} >
+                            {
+                                state.message[form].status === 200 ?
+                                    <FaRegCircleCheck fontSize={17} />
+                                    :
+                                    <IoIosCloseCircle fontSize={17} />
+                            }
+                            <p>{state.message[form].message}</p>
                         </div>
                     }
                 </div>

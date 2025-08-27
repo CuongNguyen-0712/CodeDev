@@ -1,36 +1,42 @@
-import { useState, useEffect, startTransition, useMemo } from "react"
+import { useState, useEffect, startTransition, useMemo, useRef } from "react"
 
 import Image from "next/image";
 import Form from "next/form";
 
 import DeleteMyCourseServive from "@/app/services/deleteService/myCourseService";
 import GetMyCourseService from "@/app/services/getService/myCourseService";
+import UpdateHideStatusCourseService from "@/app/services/updateService/hideStatusCourseService";
 
 import { useRouterActions } from "@/app/router/router";
 import { LoadingContent } from "../ui/loading";
 import { ErrorReload } from "../ui/error";
 import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
+import AlertPush from '../ui/alert'
 
 import { debounce, uniqWith } from "lodash";
 
 import { FaCartShopping } from "react-icons/fa6";
-import { IoFilter, IoSettingsSharp, IoClose, IoEyeOff, IoTrashBin } from "react-icons/io5";
+import { IoFilter, IoSettingsSharp, IoClose, IoEyeOff, IoTrashBin, IoEye } from "react-icons/io5";
+import { FaRegCheckCircle } from "react-icons/fa";
 
 export default function MyCourse({ redirect }) {
     const { navigateToCourse } = useRouterActions();
+    const ref = useRef(null)
 
     const [state, setState] = useState({
         data: [],
         search: '',
         filter: false,
         idHandle: null,
+        isHide: false,
         pending: true,
-        message: null,
         error: null,
-        handling: {
-            withdraw: false,
-            hide: false
-        }
+        handling: false,
+        activeUI: false,
+    })
+
+    const [filter, setFilter] = useState({
+        hide: false
     })
 
     const [load, setLoad] = useState({
@@ -41,8 +47,14 @@ export default function MyCourse({ redirect }) {
         deletedCount: 0
     })
 
+    const [confirm, setConfirm] = useState({
+        hide: false,
+        withdraw: false,
+    })
+
     const [apiQueue, setApiQueue] = useState([])
     const [isProcessing, setIsProcessing] = useState(false)
+    const [alert, setAlert] = useState(null)
 
     const { setRef } = useInfiniteScroll({
         hasMore: load.hasMore,
@@ -63,11 +75,8 @@ export default function MyCourse({ redirect }) {
         if (task.type === "fetch") {
             await fetchData();
         }
-        else if (task.type === "delete") {
-            await task.execute()
-        }
         else {
-            return;
+            await task.execute()
         }
 
         setApiQueue((prev) => prev.slice(1));
@@ -78,25 +87,28 @@ export default function MyCourse({ redirect }) {
         processQueue()
     }, [apiQueue])
 
+    useEffect(() => {
+        setState((prev) => ({ ...prev, isHide: filter.hide }))
+    }, [state.pending])
+
     const handleNavigate = () => {
         redirect();
         navigateToCourse()
     }
-
 
     const fetchData = async () => {
         if (!load.hasMore) return;
 
         try {
             const adjustedOffset = Math.max(0, load.offset - load.deletedCount) || 0;
-            console.log(adjustedOffset)
-            const res = await GetMyCourseService({ search: state.search.trim(), limit: load.limit, offset: adjustedOffset.toString() });
+            const res = await GetMyCourseService({ search: state.search.trim(), limit: load.limit, offset: adjustedOffset.toString(), filter: filter });
             if (res.status === 200) {
                 setLoad((prev) => ({
                     ...prev,
                     hasMore: res.data.length >= load.limit,
                     offset: prev.offset + prev.limit
                 }))
+
                 setState((prev) => ({
                     ...prev,
                     data: uniqWith([...prev.data, ...res.data], (a, b) => a.id === b.id),
@@ -104,11 +116,25 @@ export default function MyCourse({ redirect }) {
                 }))
             }
             else {
-                setState((prev) => ({ ...prev, error: { status: res.status, message: res.message }, pending: false }))
+                setState((prev) => ({
+                    ...prev,
+                    error: {
+                        status: res.status,
+                        message: res.message
+                    },
+                    pending: false
+                }))
             }
         }
         catch (err) {
-            setState((prev) => ({ ...prev, error: { status: 500, message: err.message }, pending: false }))
+            setState((prev) => ({
+                ...prev,
+                error: {
+                    status: err.status || 500,
+                    message: err.message
+                },
+                pending: false
+            }))
         }
     }
 
@@ -119,7 +145,7 @@ export default function MyCourse({ redirect }) {
                 type: 'delete',
                 execute: async () => {
 
-                    setState((prev) => ({ ...prev, handling: { ...prev.handling, withdraw: true } }))
+                    setState((prev) => ({ ...prev, handling: true }))
 
                     try {
                         const res = await DeleteMyCourseServive(id);
@@ -128,19 +154,96 @@ export default function MyCourse({ redirect }) {
                             setState((prev) => ({ ...prev, data: prev.data.filter((item) => item.id !== id) }));
                             setApiQueue((prev) => [...prev, { type: "fetch" }]);
                             startTransition(() => {
-                                setState((prev) => ({ ...prev, message: { status: res.status, message: res.message }, handling: { ...prev.handling, withdraw: false }, idHandle: null }))
-                            })
+                                setAlert({
+                                    status: res.status,
+                                    message: res.message
+                                });
+                                setState((prev) => ({
+                                    ...prev,
+                                    handling: false,
+                                    idHandle: null
+                                }))
+                            });
                         }
                         else {
-                            setState((prev) => ({ ...prev, message: { status: res.status, message: res.message }, handling: { ...prev.handling, withdraw: false } }))
+                            setAlert({
+                                status: res.status,
+                                message: res.message
+                            });
+                            setState((prev) => ({
+                                ...prev,
+                                handling: false,
+                            }))
                         }
                     }
                     catch (err) {
-                        setState((prev) => ({ ...prev, message: { status: 500, message: err.message }, handling: { ...prev.handling, withdraw: false } }))
+                        setAlert({
+                            status: err.status || 500,
+                            message: err.message
+                        });
+                        setState((prev) => ({
+                            ...prev,
+                            handling: false,
+                        }))
                     }
                 }
             }
         ])
+    }
+
+    const handleUpdateStatus = async ({ id, status }) => {
+        setApiQueue((prev) => [
+            ...prev,
+            {
+                type: 'update',
+                execute: async () => {
+
+                    setState((prev) => ({ ...prev, handling: true }));
+
+                    try {
+                        const res = await UpdateHideStatusCourseService({ courseId: id, hide: status });
+                        if (res.status == 200) {
+                            setState((prev) => ({
+                                ...prev,
+                                data: prev.data.filter((item) => item.id != id),
+                                idHandle: null
+                            }));
+
+                            startTransition(() => {
+                                setAlert({
+                                    status: res.status,
+                                    message: res.message
+                                });
+                                setState((prev) => ({
+                                    ...prev,
+                                    handling: false,
+                                    idHandle: null,
+                                }))
+                            })
+                        }
+                        else {
+                            setAlert({
+                                status: res.status,
+                                message: res.message
+                            });
+                            setState((prev) => ({
+                                ...prev,
+                                handling: false
+                            }))
+                        }
+                    }
+                    catch (err) {
+                        setAlert({
+                            status: err.status || 500,
+                            message: err.message
+                        });
+                        setState((prev) => ({
+                            ...prev,
+                            handling: false
+                        }))
+                    }
+                }
+            }])
     }
 
     const handleSubmitSearch = () => {
@@ -194,6 +297,21 @@ export default function MyCourse({ redirect }) {
         handleDebounce(e.target.value);
     };
 
+    const refTable = (e) => {
+        if (!ref.current) return;
+
+        if (ref.current && !ref.current.contains(e.target)) {
+            setState(prev => ({ ...prev, filter: false }))
+        }
+    }
+
+    useEffect(() => {
+        document.addEventListener('click', refTable);
+        return () => {
+            document.removeEventListener('click', refTable);
+        }
+    }, [state.filter])
+
     return (
         <div id="myCourse">
             <div className="heading-myCourse">
@@ -203,13 +321,32 @@ export default function MyCourse({ redirect }) {
                         <IoFilter />
                     </button>
                     {state.filter &&
-                        <div id="course_table">
+                        <div className="table" ref={ref}>
                             <div className="content_table">
-
+                                <div className="filter_value">
+                                    <span>Status</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFilter({ ...filter, hide: !filter.hide })}
+                                        style={filter.hide ? { background: 'var(--color_black)', color: 'var(--color_white)' } : { background: 'var(--color_gray_light)', color: 'var(--color_black)' }}
+                                        disabled={state.pending}
+                                    >
+                                        Hide
+                                    </button>
+                                </div>
                             </div>
                             <div className="footer_table">
-                                <button type="button" id="cancel_btn" onClick={() => setState((prev) => ({ ...prev, filter: false }))}>Cancel</button>
-                                <button type="button" id="apply_btn">Apply</button>
+                                <button type="submit" disabled={state.pending}>
+                                    {
+                                        state.pending ?
+                                            <LoadingContent scale={0.4} color='var(--color_white)' />
+                                            :
+                                            <>
+                                                <FaRegCheckCircle />
+                                                Apply changes
+                                            </>
+                                    }
+                                </button>
                             </div>
                         </div>
                     }
@@ -232,8 +369,8 @@ export default function MyCourse({ redirect }) {
                             <ErrorReload data={state.error} refetch={refetchData} />
                             :
                             state.data && state.data.length > 0 ?
-                                state.data.map((item, index) => (
-                                    <div key={index} className="course">
+                                state.data.map((item) => (
+                                    <div key={item.id} className="course">
                                         <div className="heading-course">
                                             <Image src={item.image} width={50} height={50} alt="image-course" />
                                             <h3>{item.title}</h3>
@@ -257,31 +394,141 @@ export default function MyCourse({ redirect }) {
                                             </div>
                                         </div>
                                         <div className="footer-course">
+                                            <button
+                                                className="setting-course"
+                                                onClick={() => {
+                                                    setState((prev) => ({
+                                                        ...prev,
+                                                        idHandle: state.idHandle === item.id ? null : item.id
+                                                    }))
+                                                    setConfirm((prev) => ({
+                                                        ...prev,
+                                                        hide: false,
+                                                        withdraw: false,
+                                                    }))
+                                                }}
+                                                disabled={state.handling}
+                                                style={{ cursor: state.handling ? 'not-allowed' : 'default' }}
+                                            >
+                                                {state.idHandle === item.id ? <IoClose /> : <IoSettingsSharp />}
+                                            </button>
                                             {
-                                                state.idHandle === index ?
+                                                state.idHandle === item.id ?
                                                     <div className="setting-list">
-                                                        <button className="hide-course" disabled={state.handling.withdraw} style={{ cursor: state.handling.withdraw ? 'not-allowed' : 'pointer' }}>
-                                                            <IoEyeOff />
-                                                        </button>
-                                                        <button className="cancel-course" onClick={() => handleWithdrawCourse(item.id)} disabled={state.handling.withdraw} style={{ cursor: state.handling.withdraw ? 'not-allowed' : 'pointer' }}>
+                                                        <button
+                                                            className='hide-course'
+                                                            onClick={() => {
+                                                                setConfirm((prev) => ({
+                                                                    ...prev,
+                                                                    hide: true
+                                                                }))
+                                                            }}
+                                                            disabled={state.handling}
+                                                            style={{ cursor: state.handling ? 'not-allowed' : 'pointer' }}
+                                                        >
                                                             {
-                                                                state.handling.withdraw ?
-                                                                    <LoadingContent scale={0.5} color={'var(--color_white)'} />
+                                                                state.isHide ?
+                                                                    <IoEye />
                                                                     :
-                                                                    <>
-                                                                        <IoTrashBin />
-                                                                        Withdraw
-                                                                    </>
+                                                                    <IoEyeOff />
                                                             }
+                                                        </button>
+                                                        <button
+                                                            className="cancel-course"
+                                                            onClick={() => setConfirm((prev) => ({
+                                                                ...prev,
+                                                                withdraw: true
+                                                            }))}
+                                                            disabled={state.handling}
+                                                            style={{ cursor: state.handling ? 'not-allowed' : 'pointer' }}
+                                                        >
+
+                                                            <IoTrashBin />
+                                                            Withdraw
                                                         </button>
                                                     </div>
                                                     :
-                                                    <button className="join-course" disabled={state.handling.withdraw} style={{ cursor: state.handling.withdraw ? 'not-allowed' : 'pointer' }}>Join</button>
+                                                    <button className="join-course" disabled={state.handling.withdraw || state.handling.hide} style={{ cursor: state.handling.withdraw ? 'not-allowed' : 'pointer' }}>Join</button>
                                             }
-                                            <button className="setting-course" onClick={() => setState((prev) => ({ ...prev, idHandle: state.idHandle === index ? null : index }))} disabled={state.handling.withdraw} style={{ cursor: state.handling.withdraw ? 'not-allowed' : 'default' }}>
-                                                {state.idHandle === index ? <IoClose /> : <IoSettingsSharp />}
-                                            </button>
                                         </div>
+                                        {
+                                            ((confirm.hide || confirm.withdraw) && state.idHandle === item.id) &&
+                                            <div className='form_confirm_course'>
+                                                {
+                                                    state.handling ?
+                                                        <LoadingContent scale={0.8} />
+                                                        :
+                                                        <>
+                                                            <div className="confirm_course_text">
+                                                                {
+                                                                    confirm.hide &&
+                                                                    <>
+                                                                        {
+                                                                            state.isHide ?
+                                                                                <>
+                                                                                    <h4>Confirm showing</h4>
+                                                                                    <p>This action will show the course from your dashboard.</p>
+                                                                                </>
+                                                                                :
+                                                                                <>
+                                                                                    <h4>Confirm hiding</h4>
+                                                                                    <p>This action will hide the course from your dashboard.</p>
+                                                                                </>
+                                                                        }
+                                                                    </>
+                                                                }
+
+                                                                {
+                                                                    confirm.withdraw &&
+                                                                    <>
+                                                                        <h4>Confirm withdrawing</h4>
+                                                                        <p>The data will be lost if you withdraw from this course.</p>
+                                                                    </>
+                                                                }
+                                                            </div>
+                                                            <div className='confirm_course_btns'>
+                                                                {
+                                                                    confirm.hide &&
+                                                                    <button
+                                                                        className='handle_hide'
+                                                                        onClick={() =>
+                                                                            handleUpdateStatus({ id: item.id, status: !state.isHide })
+                                                                        }
+                                                                    >
+                                                                        {
+                                                                            state.isHide ?
+                                                                                <>
+                                                                                    Show
+                                                                                </>
+                                                                                :
+                                                                                <>
+                                                                                    Hide
+                                                                                </>
+                                                                        }
+                                                                    </button>
+                                                                }
+                                                                {
+                                                                    confirm.withdraw &&
+                                                                    <button
+                                                                        className='handle_withdraw'
+                                                                        onClick={() =>
+                                                                            handleWithdrawCourse(item.id)
+                                                                        }
+                                                                    >
+                                                                        Withdraw
+                                                                    </button>
+                                                                }
+                                                                <button
+                                                                    className="cancel_confirm_course"
+                                                                    onClick={() => setConfirm({ hide: false, withdraw: false })}
+                                                                >
+                                                                    Cancel
+                                                                </button>
+                                                            </div>
+                                                        </>
+                                                }
+                                            </div>
+                                        }
                                     </div>
                                 ))
                                 :
@@ -296,6 +543,14 @@ export default function MyCourse({ redirect }) {
                     :
                     null
             )}
+            {
+                alert &&
+                <AlertPush
+                    message={alert.message}
+                    status={alert.status}
+                    reset={() => setAlert(null)}
+                />
+            }
         </div>
     )
 }

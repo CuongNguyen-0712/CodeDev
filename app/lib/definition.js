@@ -58,3 +58,49 @@ export function SignUpDefinition(data) {
 
     return Object.keys(errors).length > 0 ? { success: false, errors } : { success: true };
 }
+
+export function CreateTeamDefinition(data) {
+    const errors = {}
+    const { name, size } = data
+
+    if (!name || name.trim().length === 0) {
+        errors.name = 'Name is required'
+    }
+
+    if (!size) {
+        errors.size = 'Size is required'
+    }
+    else if (!Number.isInteger(Number(size))) {
+        errors.size = 'Size must be number'
+    }
+    else if (size <= 0 || size > 10) {
+        errors.size = 'Size must be between 1 and 10'
+    }
+
+    return Object.keys(errors).length > 0 ? { success: false, errors } : { success: true }
+}
+
+export function FeedbackDefinition(data) {
+    const errors = {};
+    const { title, feedback, email } = data;
+
+    if (!title || title.trim().length === 0) {
+        errors.title = 'Title is required';
+    }
+
+    if (!feedback || feedback.trim().length === 0) {
+        errors.feedback = 'Feedback is required';
+    }
+
+    if (!email || email.trim().length === 0) {
+        errors.email = 'Email is required';
+    }
+    else if (!email.includes('@') || !email.includes('.')) {
+        errors.email = 'Email must be contains @ and .';
+    }
+    else if (!email.endsWith('.com')) {
+        errors.email = 'Email must contain .com';
+    }
+
+    return Object.keys(errors).length > 0 ? { success: false, errors } : { success: true };
+}

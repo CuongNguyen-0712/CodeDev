@@ -1,4 +1,4 @@
-.member-container{
+.member-container {
   display: flex;
   position: relative;
   height: calc(100% - 60px);
@@ -8,7 +8,7 @@
   overflow: hidden;
 }
 
-.member-frame{
+.member-frame {
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
@@ -18,7 +18,7 @@
   overflow: hidden;
 }
 
-.member-heading{
+.member-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -29,17 +29,17 @@
   border-bottom: 1px solid var(--color_black);
 }
 
-.member-heading .intro{
+.member-heading .intro {
   font-size: 15px;
 }
 
-@media screen and (max-width: 425px){
-  .member-heading .intro{
+@media screen and (max-width: 425px) {
+  .member-heading .intro {
     font-size: 12px;
   }
 }
 
-.member-heading button{
+.member-heading button {
   display: flex;
   height: max-content;
   width: max-content;
@@ -51,7 +51,8 @@
   gap: 10px;
   cursor: pointer;
 }
-.members{
+
+.members {
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
@@ -69,7 +70,8 @@
 .members::-webkit-scrollbar {
   width: 10px;
 }
-.members .container{
+
+.members .container {
   display: flex;
   align-items: flex-start;
   height: max-content;
@@ -80,7 +82,7 @@
   flex-wrap: wrap;
 }
 
-.container .member{
+.container .member {
   display: flex;
   align-items: center;
   height: max-content;
@@ -93,11 +95,11 @@
   gap: 10px;
 }
 
-.container .member:hover{
+.container .member:hover {
   box-shadow: 0 0 10px #ccc;
 }
 
-.member .base-info{
+.member .base-info {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -108,11 +110,12 @@
   flex-direction: column;
 }
 
-.base-info img{
+.base-info img {
   border-radius: 5px;
   outline: 1px solid #ccc;
 }
-.base-info .base-main{
+
+.base-info .base-main {
   display: flex;
   align-items: center;
   height: max-content;
@@ -120,7 +123,7 @@
   flex-direction: column;
 }
 
-.member .feature{
+.member .feature {
   display: flex;
   justify-content: center;
   height: max-content;
@@ -129,7 +132,7 @@
   gap: 20px;
 }
 
-.feature button{
+.feature button {
   display: flex;
   height: max-content;
   width: max-content;
@@ -140,15 +143,15 @@
   cursor: pointer;
 }
 
-.feature button:first-child{
+.feature button:first-child {
   background: var(--color_black);
 }
 
-.feature button:last-child{
+.feature button:last-child {
   background: var(--color_blue);
 }
 
-.table-filter{
+.table-filter {
   display: flex;
   position: absolute;
   align-items: center;
@@ -162,7 +165,7 @@
   transition: 0.2s all ease;
 }
 
-.table-filter .form-search{
+.table-filter .form-search {
   display: flex;
   align-items: center;
   height: max-content;
@@ -171,7 +174,7 @@
   gap: 20px;
 }
 
-.form-search input{
+.form-search input {
   display: flex;
   height: 40px;
   width: 100%;
@@ -181,11 +184,11 @@
   filter: drop-shadow(0 0 3px #ccc);
 }
 
-.form-search input:focus{
+.form-search input:focus {
   outline-color: var(--color_black);
 }
 
-.form-search button{
+.form-search button {
   display: flex;
   height: max-content;
   width: max-content;
@@ -197,7 +200,7 @@
   cursor: pointer;
 }
 
-.table-filter .alert{
+.table-filter .alert {
   display: flex;
   justify-content: center;
   height: max-content;
@@ -210,7 +213,7 @@
   font-size: 15px;
 }
 
-.table-filter .value-search{
+.table-filter .value-search {
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
@@ -222,11 +225,11 @@
   overflow-y: scroll;
 }
 
-.value-search::-webkit-scrollbar{
+.value-search::-webkit-scrollbar {
   display: none;
 }
 
-.value-search > div{
+.value-search>div {
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -234,28 +237,28 @@
   height: max-content;
   padding: 10px;
   border-radius: 10px;
-  outline: 2px solid var(--color_gray);
+  outline: 2px solid var(--color_gray_light);
   background: transparent;
   gap: 10px;
   flex-direction: column;
-} 
+}
 
-.value-search .heading-filter{
+.value-search .heading-filter {
   display: flex;
   justify-content: space-between;
   height: max-content;
   width: 100%;
 }
 
-.heading-filter .clear{
+.heading-filter .clear {
   display: flex;
   padding: 2px;
-  background: var(--color_black );
+  background: var(--color_black);
   color: var(--color_white);
   border-radius: 50px;
 }
 
-.value-search .filter-value{
+.value-search .filter-value {
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -265,7 +268,7 @@
   flex-wrap: wrap;
 }
 
-.value-search .value{
+.value-search .value {
   display: flex;
   align-items: center;
   height: max-content;
@@ -273,13 +276,13 @@
   padding: 10px 15px;
   border-radius: 5px;
   color: var(--color_black);
-  background: var(--color_gray);
+  background: var(--color_gray_light);
   font-weight: 500;
   gap: 10px;
   cursor: default;
 }
 
-.value span{
+.value span {
   display: flex;
   height: max-content;
   width: max-content;
@@ -289,7 +292,7 @@
   cursor: pointer;
 }
 
-.table-filter .footer-filter{
+.table-filter .footer-filter {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -298,7 +301,7 @@
   padding: 10px 0;
 }
 
-.footer-filter button{
+.footer-filter button {
   display: flex;
   align-items: center;
   height: max-content;
@@ -312,7 +315,7 @@
   gap: 10px;
 }
 
-.footer-filter .close-filter{
+.footer-filter .close-filter {
   display: flex;
   position: absolute;
   right: 20px;
@@ -321,7 +324,7 @@
   background: var(--color_black);
 }
 
-.result-none{
+.result-none {
   display: flex;
   align-items: center;
   justify-content: center;

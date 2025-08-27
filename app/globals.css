@@ -40,12 +40,23 @@ body {
 :root {
     --color_white: #fff;
     --color_black: #232323;
-    --color_gray: rgb(245, 245, 245);
+
+    --color_gray_light: #F5F5F5;
+    --color_gray: #C0C0C0;
+    --color_gray_dark: #A9A9A9;
+
     --color_green: #4CAF50;
     --color_yellow: #FFEB3B;
+
+    --color_red_light: #FF6666;
     --color_red: #F44336;
+    --color_red_dark: #ff0000;
+
     --color_blue: #1E90FF;
     --color_orange: #ED8B00;
+    --color_purple: #777BB4;
+    --color_violet: #8A2BE2;
+    --color_cyan: #00FFFF;
 }
 
 @media screen and (max-width: 425px) {
@@ -53,6 +64,11 @@ body {
     input,
     textarea {
         font-size: 16px !important;
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+        font-size: 14px !important;
     }
 }
 

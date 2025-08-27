@@ -28,7 +28,7 @@
   justify-content: center;
   height: 35px;
   flex-grow: 1;
-  background: var(--color_gray);
+  background: var(--color_gray_light);
   color: var(--color_black);
   border-radius: 5px;
   font-weight: 600;
@@ -104,14 +104,14 @@
 }
 
 .menu .menu-item button.active {
-  background: var(--color_gray);
+  background: var(--color_gray_light);
   color: var(--color_blue);
   font-weight: 600;
   transition: 0.5s all ease;
 }
 
 .menu .menu-item button:not(.active):hover {
-  background: var(--color_gray);
+  background: var(--color_gray_light);
   transition: 0.2s all ease;
 }
 
@@ -199,7 +199,7 @@
   width: 30px;
   color: var(--color_black);
   border-radius: 5px;
-  background: var(--color_gray);
+  background: var(--color_gray_light);
 }
 
 /* Homepage */

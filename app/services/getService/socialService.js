@@ -1,10 +1,13 @@
 import { getSession } from "@/app/lib/session";
 
-export default async function GetSocialService({ search }) {
+export default async function GetSocialService({ search, offset, limit, filter }) {
     const params = new URLSearchParams();
 
     params.set('id', (await getSession())?.userId);
-    if (search) params.set('search', search);
+    if (search) params.set('search', search)
+    if (limit) params.set('limit', limit)
+    if (offset) params.set('offset', offset)
+    if (filter) params.set('filter', filter)
 
     try {
         const res = await fetch(`/api/get/getSocial?${params.toString()}`, {

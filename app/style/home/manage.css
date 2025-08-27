@@ -12,7 +12,7 @@
     z-index: 5;
 }
 
-#managePanel {
+#manage_panel {
     display: flex;
     position: relative;
     height: max-content;
@@ -24,9 +24,10 @@
     border-radius: 10px;
     flex-direction: column;
     gap: 20px;
+    overflow: hidden;
 }
 
-.heading-manage {
+.heading_manage {
     display: flex;
     align-items: center;
     height: max-content;
@@ -34,16 +35,17 @@
     gap: 10px;
 }
 
-.content-manage {
+.content_manage {
     display: flex;
     justify-content: center;
+    align-items: center;
     width: 100%;
     flex-grow: 1;
     flex-direction: column;
     gap: 10px;
 }
 
-.content-manage .info-manage {
+.content_manage .info-manage {
     display: flex;
     height: 100%;
     flex-grow: 1;
@@ -70,7 +72,7 @@
     padding: 15px;
     border-radius: 10px;
     flex-direction: column;
-    gap: 10px;
+    gap: 20px;
 }
 
 .info-manage .beside .footer_beside {
@@ -110,7 +112,7 @@
     border: 2px solid var(--color_gray);
 }
 
-.content-manage .beside .image-btns {
+.content_manage .beside .image-btns {
     display: flex;
     justify-content: center;
     height: max-content;
@@ -138,7 +140,7 @@
 }
 
 #cancel_handle {
-    background: var(--color_gray);
+    background: var(--color_gray_light);
     color: var(--color_black);
 }
 
@@ -173,22 +175,22 @@
     width: max-content;
     right: 0;
     top: 0;
-    gap: 10px;
+    gap: 15px;
 }
 
 #modify_btns button {
     display: flex;
     align-items: center;
+    justify-content: center;
     height: 100%;
-    width: max-content;
+    width: 100px;
     border-radius: 5px;
-    padding: 0 15px;
     font-weight: 600;
-    gap: 10px;
+    gap: 15px;
 }
 
 #modify_btns #edit_info {
-    background: var(--color_gray);
+    background: var(--color_gray_light);
     color: var(--color_black);
 }
 
@@ -218,13 +220,14 @@
 
 .info_container .input_info .item {
     display: flex;
-    align-items: baseline;
+    align-items: flex-start;
     height: max-content;
     flex-grow: 1;
     gap: 5px;
 }
 
 .info_container .item label {
+    margin-top: 10px;
     font-size: 15px;
     font-weight: 600;
 }
@@ -255,7 +258,7 @@
 }
 
 .info_container input.modify {
-    border: 2px solid var(--color_gray);
+    border: 2px solid var(--color_gray_light);
     border-radius: 5px;
 }
 
@@ -279,7 +282,7 @@
 }
 
 .info_container .item textarea.modify {
-    border: 2px solid var(--color_gray);
+    border: 2px solid var(--color_gray_light);
     border-radius: 5px;
 }
 
@@ -314,19 +317,11 @@
     max-width: 250px;
 }
 
-#logout {
+#logout,
+#confirm {
     background: var(--color_black);
 }
 
-#reject_logout {
-    background: var(--color_red);
-    color: var(--color_white);
-}
-
-#accept_logout {
-    background: var(--color_green);
-    color: var(--color_white);
-}
 
 #cancel-manage {
     display: flex;
@@ -342,38 +337,12 @@
     background: transparent;
     font-size: 18px;
     transition: 0.2s all ease;
+    cursor: pointer;
 }
 
 #cancel-manage:hover {
-    background: var(--color_gray);
+    background: var(--color_gray_light);
     transition: 0.2s all ease;
-}
-
-#alert {
-    display: flex;
-    position: fixed;
-    align-items: center;
-    height: max-content;
-    width: max-content;
-    right: 50%;
-    top: 30px;
-    padding: 10px;
-    border-radius: 5px;
-    color: var(--color_black);
-    background: var(--color_gray);
-    font-size: 12px;
-    gap: 5px;
-}
-
-#alert::before {
-    content: "";
-    display: flex;
-    position: absolute;
-    height: 2px;
-    left: 0;
-    bottom: 0;
-    background: var(--color_black);
-    animation: animateTimeout 2s linear forwards;
 }
 
 @keyframes animateTimeout {
@@ -392,7 +361,7 @@
         padding: 0;
     }
 
-    #managePanel {
+    #manage_panel {
         border-radius: 0;
     }
 

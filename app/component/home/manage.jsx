@@ -1,38 +1,36 @@
 import { useState, useEffect, startTransition } from "react";
 
-import GetInfoService from "@/app/services/getService/infoService";
-import { LoadingContent } from "../ui/loading";
-
 import { IoClose } from "react-icons/io5";
 import { CiEdit } from "react-icons/ci";
-import { FaSave, FaHashtag, FaCheckCircle, FaCircleNotch } from "react-icons/fa";
+import { FaSave, FaHashtag } from "react-icons/fa";
 import { TbCancel } from "react-icons/tb";
 import { BiImport } from "react-icons/bi";
-import { IoIosCloseCircle } from "react-icons/io";
 import { LiaExchangeAltSolid } from "react-icons/lia";
-import { MdCheck, MdClose } from "react-icons/md";
 
 import { useQuery, useRouterActions } from "@/app/router/router";
 import { usePathname } from "next/navigation";
 import UpdateInfoService from "@/app/services/updateService/infoService";
 import { deleteSession } from "@/app/lib/session";
+import GetInfoService from "@/app/services/getService/infoService";
+import { LoadingContent } from "../ui/loading";
+import { ErrorReload } from "../ui/error";
+import AlertPush from "../ui/alert";
 
 import Image from "next/image";
 import Form from "next/form";
-import Logo from "@/public/image/logo.svg";
-import Default from "@/public/image/default.svg";
 
 export default function Manage({ redirect }) {
 
     const [state, setState] = useState({
         data: null,
         update: null,
-        res: null,
+        error: null,
         modify: false,
         change: false,
         pending: true,
         handling: false,
         check: false,
+        logout: false,
     })
 
     const [file, setFile] = useState({
@@ -40,7 +38,6 @@ export default function Manage({ redirect }) {
         preview: null,
     });
 
-    const [confirm, setConfirm] = useState(false);
     const [alert, setAlert] = useState(null);
 
     const { navigateToAuth } = useRouterActions();
@@ -50,27 +47,35 @@ export default function Manage({ redirect }) {
 
     const handleLogout = async (e) => {
         e.preventDefault();
-        redirect();
-        await deleteSession();
 
-        startTransition(() => {
-            navigateToAuth();
-        })
+        setState((prev) => ({ ...prev, logout: true }));
+
+        try {
+            const res = await deleteSession();
+            if (res) {
+                redirect();
+                navigateToAuth();
+            }
+            else {
+                setState((prev) => ({ ...prev, logout: false }));
+            }
+        } catch (error) {
+            setState((prev) => ({ ...prev, logout: false }));
+        }
     }
 
     const fetchData = async () => {
         try {
             const res = await GetInfoService();;
-            if (res.status == 200) {
+            if (res.status === 200) {
                 setState((prev) => ({ ...prev, data: res.data[0], update: res.data[0], pending: false }))
             }
             else {
-                setState((prev) => ({ ...prev, res: { status: res.status, message: res.message || 'Something is error' }, pending: false }))
+                setState((prev) => ({ ...prev, error: { status: res.status, message: res.message } ?? { status: 500, message: 'Something is wrong !' }, pending: false }))
             }
         }
         catch (err) {
-            setState((prev) => ({ ...prev, res: { status: 500, message: err.message }, pending: false }))
-            throw new Error(err)
+            setState((prev) => ({ ...prev, error: { status: 500, message: err.message || 'Somthing is wrong !' }, pending: false }))
         }
     }
 
@@ -91,7 +96,7 @@ export default function Manage({ redirect }) {
         try {
             const res = await UpdateInfoService(updateData)
 
-            if (res.status == 200) {
+            if (res.status === 200) {
                 await fetchData();
                 startTransition(() => {
                     queryNavigate(pathname, { update: true })
@@ -102,13 +107,12 @@ export default function Manage({ redirect }) {
             }
             else {
                 setState((prev) => ({ ...prev, handling: false }))
-                setAlert({ status: res.status, message: res.message })
+                setAlert({ status: res.status || 500, message: res.message })
             }
         }
         catch (err) {
-            setAlert({ status: 500, message: err.message })
             setState((prev) => ({ ...prev, handling: false }))
-            throw new Error(err)
+            setAlert({ status: 500, message: err.message })
         }
     }
 
@@ -149,42 +153,26 @@ export default function Manage({ redirect }) {
         setState((prev) => ({ ...prev, change: false }))
     }
 
-    useEffect(() => {
-        if (!alert) return;
-        const timer = setTimeout(() => {
-            setAlert(null)
-        }, 2000)
-        return () => clearTimeout(timer)
-    }, [alert])
-
-    useEffect(() => {
-        if (!confirm) return;
-        const timer = setTimeout(() => {
-            setConfirm(false)
-        }, 2000)
-        return () => clearTimeout(timer)
-    }, [confirm])
-
     return (
-        <Form id="managePanel" onSubmit={handleUpdate}>
-            <div className="heading-manage">
-                <Image src={Logo} alt='logo' width={25} height={25} />
-                <h2>Quick Manage</h2>
+        <Form id="manage_panel" onSubmit={handleUpdate}>
+            <div className="heading_manage">
+                <Image src={'/image/static/logo.svg'} alt='logo' width={25} height={25} />
+                <h2>Management</h2>
             </div>
-            <div className="content-manage">
+            <div className="content_manage">
                 {
                     state.pending ?
                         <LoadingContent />
                         :
-                        (state.res && !state.data) ?
-                            <p>Error {state.res.status}: {state.res.message}</p>
+                        (state.error && state.data === null) ?
+                            <ErrorReload status={state.error.status || 500} message={state.error.message || 'Something is wrong !'} />
                             :
                             <>
                                 <div className="info-manage">
                                     <div className="beside">
                                         <div className="header_beside">
                                             <div id="myAvatar">
-                                                <Image src={file.preview || state.data.image || Default} alt='avatar' width={100} height={100} priority />
+                                                <Image src={file.preview || state.data.image || '/image/default.svg'} alt='avatar' width={100} height={100} priority />
                                             </div>
                                             <div className="image-btns">
                                                 <button
@@ -332,7 +320,7 @@ export default function Manage({ redirect }) {
                                                 <button type="submit" disabled={!(state.modify || state.change) || state.handling} style={{ cursor: !(state.modify || state.change) || state.handling ? 'not-allowed' : 'pointer' }} id="save_info">
                                                     {
                                                         state.handling ?
-                                                            <LoadingContent scale={0.3} color="var(--color_white)" />
+                                                            <LoadingContent scale={0.4} color="var(--color_white)" />
                                                             :
                                                             <>
                                                                 <FaSave />
@@ -351,30 +339,22 @@ export default function Manage({ redirect }) {
                 <button type="button" id="change-account">
                     Change account
                 </button>
-                {
-                    confirm ?
-                        <>
-                            <button id='reject_logout' onClick={() => setConfirm(false)}>
-                                <MdClose fontSize={20} />
-                            </button>
-                            <button id="accept_logout" onClick={handleLogout}>
-                                <MdCheck fontSize={20} />
-                            </button>
-                        </>
-                        :
-                        <button type="button" id="logout" onClick={() => setConfirm(true)}>
-                            Logout
-                        </button>
-                }
+                <button type="button" id="logout" onClick={handleLogout}>
+                    {
+                        state.logout ?
+                            <LoadingContent scale={0.4} color="var(--color_white)" />
+                            :
+                            <>
+                                Logout
+                            </>
+                    }
+                </button>
             </div>
             <button type="button" id="cancel-manage" onClick={() => queryNavigate(pathname, { manage: false, update: false })}>
                 <IoClose />
             </button>
             {
-                alert &&
-                <p id="alert">
-                    {alert.status == 200 ? <FaCheckCircle style={{ color: 'var(--color_green' }} /> : <IoIosCloseCircle style={{ color: 'var(--color_red)' }} />} {alert.message}
-                </p>
+                alert && <AlertPush status={alert.status} message={alert.message} reset={() => setAlert(null)} />
             }
         </Form >
     )

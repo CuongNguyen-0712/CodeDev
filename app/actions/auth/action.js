@@ -61,14 +61,21 @@ export async function signIn(data) {
                 { status: 500, headers: { "Content-Type": "application/json" } }
             )
         }
-        else {
-            await createSession({ data: { userId: userId, username: await res[0].username, email: await res[0].email } })
-        }
 
-        return new Response(
-            JSON.stringify({ success: true }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-        );
+        const sessionRes = await createSession({ userId: userId, username: await res[0].username, email: await res[0].email })
+
+        if (sessionRes) {
+            return new Response(
+                JSON.stringify({ success: true }),
+                { status: 200, headers: { "Content-Type": "application/json" } }
+            )
+        }
+        else {
+            return new Response(
+                JSON.stringify({ success: false, message: 'Failed to log in, please try again' }),
+                { status: 500, headers: { "Content-Type": "application/json" } }
+            );
+        }
     } catch (error) {
         console.error("Error:", error);
         return new Response(
@@ -103,7 +110,7 @@ export async function signUp(data) {
         await sql`INSERT INTO private.info (id, surname, name, email, phone) VALUES (${id}, ${surname}, ${name}, ${email}, ${phone})`
         await sql`INSERT INTO private.users (id, username, password) VALUES (${id}, ${username}, ${hashPassword})`
 
-        return new Response(JSON.stringify({ success: true, message: "Sign up successfully" }), {
+        return new Response(JSON.stringify({ success: true, message: "Sign up successfully, go to login" }), {
             status: 200,
             headers: { "Content-Type": "application/json" }
         })

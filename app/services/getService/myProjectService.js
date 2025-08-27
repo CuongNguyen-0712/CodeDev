@@ -1,12 +1,13 @@
 import { getSession } from "@/app/lib/session";
 
-export default async function GetMyProjectService({ search, limit, offset }) {
+export default async function GetMyProjectService({ search, limit, offset, filter }) {
     const params = new URLSearchParams();
 
     params.set('id', (await getSession())?.userId);
     if (search) params.set('search', search);
     if (limit) params.set('limit', limit);
     if (offset) params.set('offset', offset);
+    Object.keys(filter).forEach((key) => params.set(key, filter[key]));
 
     try {
         const res = await fetch(`/api/get/getMyProject?${params.toString()}`, {
