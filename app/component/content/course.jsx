@@ -43,7 +43,7 @@ export default function MyCourse({ redirect }) {
         offset: 0,
         hasMore: true,
         hasSearch: false,
-        limit: 5,
+        limit: 10,
         deletedCount: 0
     })
 
@@ -131,7 +131,7 @@ export default function MyCourse({ redirect }) {
                 ...prev,
                 error: {
                     status: err.status || 500,
-                    message: err.message
+                    message: err.message || "Failed to load content, try again"
                 },
                 pending: false
             }))
@@ -156,7 +156,8 @@ export default function MyCourse({ redirect }) {
                             startTransition(() => {
                                 setAlert({
                                     status: res.status,
-                                    message: res.message
+                                    message: res.message || 'Deleted successfully',
+                                    reset: () => setAlert(null)
                                 });
                                 setState((prev) => ({
                                     ...prev,
@@ -168,7 +169,8 @@ export default function MyCourse({ redirect }) {
                         else {
                             setAlert({
                                 status: res.status,
-                                message: res.message
+                                message: res.message || 'Delete failed',
+                                reset: () => setAlert(null)
                             });
                             setState((prev) => ({
                                 ...prev,
@@ -179,7 +181,8 @@ export default function MyCourse({ redirect }) {
                     catch (err) {
                         setAlert({
                             status: err.status || 500,
-                            message: err.message
+                            message: err.message || "Something is wrong, try again",
+                            reset: () => setAlert(null)
                         });
                         setState((prev) => ({
                             ...prev,
@@ -212,7 +215,8 @@ export default function MyCourse({ redirect }) {
                             startTransition(() => {
                                 setAlert({
                                     status: res.status,
-                                    message: res.message
+                                    message: res.message || 'Successfully',
+                                    reset: () => setAlert(null)
                                 });
                                 setState((prev) => ({
                                     ...prev,
@@ -224,7 +228,8 @@ export default function MyCourse({ redirect }) {
                         else {
                             setAlert({
                                 status: res.status,
-                                message: res.message
+                                message: res.message || 'Failed',
+                                reset: () => setAlert(null)
                             });
                             setState((prev) => ({
                                 ...prev,
@@ -235,7 +240,8 @@ export default function MyCourse({ redirect }) {
                     catch (err) {
                         setAlert({
                             status: err.status || 500,
-                            message: err.message
+                            message: err.message || "Something is wrong, try again",
+                            reset: () => setAlert(null)
                         });
                         setState((prev) => ({
                             ...prev,
@@ -343,7 +349,7 @@ export default function MyCourse({ redirect }) {
                                             :
                                             <>
                                                 <FaRegCheckCircle />
-                                                Apply changes
+                                                Apply
                                             </>
                                     }
                                 </button>
@@ -466,12 +472,12 @@ export default function MyCourse({ redirect }) {
                                                                         {
                                                                             state.isHide ?
                                                                                 <>
-                                                                                    <h4>Confirm showing</h4>
+                                                                                    <h4 className='hide_func'>Showing</h4>
                                                                                     <p>This action will show the course from your dashboard.</p>
                                                                                 </>
                                                                                 :
                                                                                 <>
-                                                                                    <h4>Confirm hiding</h4>
+                                                                                    <h4 className='hide_func'>Hiding</h4>
                                                                                     <p>This action will hide the course from your dashboard.</p>
                                                                                 </>
                                                                         }
@@ -481,7 +487,7 @@ export default function MyCourse({ redirect }) {
                                                                 {
                                                                     confirm.withdraw &&
                                                                     <>
-                                                                        <h4>Confirm withdrawing</h4>
+                                                                        <h4 className='delete_func'>Withdrawing</h4>
                                                                         <p>The data will be lost if you withdraw from this course.</p>
                                                                     </>
                                                                 }
@@ -537,7 +543,7 @@ export default function MyCourse({ redirect }) {
             </div>
             {!state.pending && !state.error && (
                 load.hasMore ?
-                    <span ref={setRef} className="load_wrapper">
+                    <span className="load_wrapper" ref={setRef}>
                         <LoadingContent scale={0.5} />
                     </span>
                     :

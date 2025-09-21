@@ -11,7 +11,7 @@
   align-items: center;
   justify-content: space-between;
   height: 100%;
-  gap: 30px;
+  gap: 20px;
   flex-grow: 1;
 }
 
@@ -21,7 +21,7 @@
   align-items: center;
   width: max-content;
   height: max-content;
-  gap: 10px;
+  gap: 20px;
 }
 
 .navbar-feature #menu-btn {
@@ -30,27 +30,28 @@
   justify-content: center;
   height: 35px;
   width: 35px;
-  background: var(--color_white);
   color: var(--color_black);
+  background: var(--color_white);
   border-radius: 5px;
   font-size: 16px;
 }
 
-#menu-btn:hover {
-  background: var(--color_gray_light);
-}
-
-.navbar-feature #app-name {
+.navbar-feature #app_name {
   display: flex;
   align-items: center;
   height: max-content;
   width: max-content;
-  gap: 5px;
+  color: var(--color_white);
+  gap: 10px;
   user-select: none;
 }
 
+#app_name .logo {
+  scale: 1.1;
+}
+
 @media screen and (max-width: 425px) {
-  #app-name {
+  #app_name {
     font-size: 13px;
   }
 }
@@ -59,13 +60,13 @@
   display: flex;
   height: 35px;
   width: 30%;
+  max-width: 350px;
   cursor: pointer;
   border-radius: 5px;
   user-select: none;
   outline: none;
   background: #fff;
   color: var(--color_black);
-  border: 2px solid var(--color_black);
   transition: 0.2s all ease;
 }
 
@@ -88,6 +89,7 @@
   justify-content: flex-start;
   height: 100%;
   background: transparent;
+  font-size: 14px;
 }
 
 @media screen and (max-width: 500px) {
@@ -124,20 +126,20 @@
   align-items: center;
   height: 100%;
   width: max-content;
-  gap: 20px;
+  gap: 10px;
 }
 
-#todo {
+#search_icon {
   display: flex;
   align-items: center;
   justify-content: center;
   height: 35px;
   width: max-content;
   padding: 0 15px;
-  background: var(--color_gray_light);
+  background: var(--color_white);
   color: var(--color_black);
-  border-radius: 50px;
-  gap: 10px;
+  border-radius: 5px;
+  gap: 5px;
 }
 
 #account {
@@ -146,20 +148,34 @@
   align-items: center;
   justify-content: center;
   height: 35px;
-  width: 35px;
-  background: var(--color_black);
+  width: max-content;
+  background: var(--color_white);
+  color: var(--color_black);
   border-radius: 5px;
+  padding: 0 10px;
+  gap: 10px;
+  cursor: pointer;
 }
 
-#account .logo_account {
+#account>span {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+#account>svg {
+  color: var(--color_black);
+}
+
+.logo {
   display: flex;
   position: relative;
   height: max-content;
   width: max-content;
   background: transparent;
+  scale: 0.9;
 }
 
-#account .logo_account::before {
+.logo::before {
   content: "";
   position: absolute;
   height: 4px;
@@ -170,15 +186,15 @@
   border-radius: 50px;
 }
 
-.account_svg {
+.svg {
   width: 20px;
   height: 20px;
 }
 
-.logo_svg {
+.shape {
   fill: transparent;
   stroke: var(--color_white);
-  stroke-width: 10;
+  stroke-width: 12;
   stroke-linejoin: round;
   stroke-dasharray: 250 50;
   stroke-dashoffset: 25;
@@ -189,11 +205,11 @@
   position: absolute;
   height: max-content;
   width: max-content;
-  top: 60px;
+  top: 55px;
   right: 20px;
   padding: 15px;
   background: var(--color_white);
-  border: 2px solid var(--color_gray);
+  box-shadow: 0 0 5px var(--color_gray);
   border-radius: 10px;
   flex-direction: column;
   gap: 10px;
@@ -224,7 +240,7 @@
   width: 100%;
   min-width: 150px;
   padding: 0 10px;
-  border-radius: 5px;
+  border-radius: 10px;
   background: var(--color_gray_light);
   color: var(--color_black);
   gap: 10px;

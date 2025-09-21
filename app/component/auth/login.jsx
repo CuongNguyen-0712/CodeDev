@@ -1,4 +1,4 @@
-import { useState, startTransition } from "react"
+import { useState } from "react"
 
 import Image from "next/image"
 import Form from "next/form"
@@ -18,7 +18,7 @@ export default function Login({
     redirect,
     error,
     setError,
-    setMessage
+    setAlert
 }) {
     const { navigateToHome } = useRouterActions();
     const { refreshSession } = useAuth();
@@ -40,18 +40,18 @@ export default function Login({
                 const response = await SignInService({ name: login.name, pass: login.pass });
 
                 if (response.status === 200 && response.success) {
-                    setMessage({ status: response.status, message: response.message });
-                    redirect();
                     await refreshSession();
-                    startTransition(() => {
+                    setAlert({ status: response.status, message: response.message });
+                    setTimeout(() => {
+                        redirect();
                         navigateToHome();
-                    })
+                    }, 2000)
                 } else {
                     setLogin((prev) => ({ ...prev, pending: false }));
-                    setMessage({ status: response.status, message: response.message });
+                    setAlert({ status: response.status, message: response.message });
                 }
             } catch (err) {
-                setMessage({ status: 500, message: err.message });
+                setAlert({ status: 500, message: err.message });
                 setLogin((prev) => ({ ...prev, pending: false }));
             }
         }
@@ -69,13 +69,16 @@ export default function Login({
 
     return (
         <>
-            <Form id="login" onSubmit={submitLogin} style={active ? { top: '0' } : { top: '-100%', display: 'none' }}>
+            <Form
+                className={`login ${active ? 'pop' : ''}`}
+                onSubmit={submitLogin}
+            >
                 <div className="heading-login">
+                    <Image src="/image/static/logo.svg" width={50} height={50} alt="logo" />
                     <h2>
                         Login
                         <Link className="return_homepage" href="/" onClick={redirect}>
                             CodeDev
-                            <Image src="/image/static/logo.svg" width={25} height={25} alt="logo" />
                         </Link>
                     </h2>
                     <span>

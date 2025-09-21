@@ -5,12 +5,6 @@ import { IoWarning, IoCloseCircle, IoCheckmarkCircle, IoInformationCircle } from
 export default function AlertPush({ status = 0, message = '', reset }) {
     const [visible, setVisible] = useState(true);
 
-    const style = {
-        0: { background: 'var(--color_gray_light)', color: 'var(--color_white)' },
-        200: { background: 'var(--color_green)', color: 'var(--color_white)' },
-        500: { background: 'var(--color_red)', color: 'var(--color_white)' },
-    }
-
     useEffect(() => {
         if (!message) return;
 
@@ -27,17 +21,16 @@ export default function AlertPush({ status = 0, message = '', reset }) {
     return visible ? (
         <div
             id="alert"
-            style={{ ...style[status] || { background: 'var(--color_yellow)', color: 'var(--color_white)' } }}
         >
             {
                 ({
-                    0: <IoInformationCircle fontSize={16} />,
-                    200: <IoCheckmarkCircle fontSize={16} />,
-                    500: <IoCloseCircle fontSize={16} />,
-                }[status] || <IoWarning fontSize={16} />)
+                    0: <IoInformationCircle fontSize={16} color="var(--color_blue)" />,
+                    200: <IoCheckmarkCircle fontSize={16} color='var(--color_green)' />,
+                    500: <IoCloseCircle fontSize={16} color="var(--color_red_light)" />,
+                }[status] || <IoWarning fontSize={16} color="var(--color_orange)" />)
             }
             <p>{message}</p>
-            <span id='time_bar' style={{ background: style[status] ? style[status].color : 'var(--color_white)' }}></span>
+            <span id="time_bar"></span>
         </div>
     ) : null;
 }

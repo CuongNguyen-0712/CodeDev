@@ -19,7 +19,7 @@ export async function deleteMyCourse(data) {
         `;
 
         return new Response(
-            JSON.stringify({ message: "Delete course successfully" }),
+            JSON.stringify({ message: "Deleted successfully" }),
             { status: 200, headers: { "Content-Type": "application/json" } }
         );
     } catch (error) {
@@ -47,7 +47,7 @@ export async function deleteMyProject(data) {
         `;
 
         return new Response(
-            JSON.stringify({ message: "Delete project successfully" }),
+            JSON.stringify({ message: "Deleted successfully" }),
             { status: 200, headers: { "Content-Type": "application/json" } }
         );
     } catch (error) {

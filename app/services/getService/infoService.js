@@ -21,13 +21,13 @@ export default async function GetInfoService() {
 
         if (res.ok) {
             return {
-                status: res.status,
+                status: res.status || 200,
                 data: raw.data
             }
         }
         else {
             return {
-                status: res.status,
+                status: res.status || 500,
                 message: raw.message
             }
         }

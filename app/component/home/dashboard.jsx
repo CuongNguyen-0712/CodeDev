@@ -1,17 +1,16 @@
 'use client'
 import { useState, useRef, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
 
+import { useSearchParams, usePathname } from "next/navigation";
 import Image from "next/image";
-import { useQuery } from "@/app/router/router";
 
-import {
-  FaUsers,
-  FaAngleLeft,
-} from "react-icons/fa";
+import { useQuery } from "@/app/router/router";
+import { useSize } from "@/app/contexts/sizeContext";
+
+import { FaUsers, FaAngleLeft } from "react-icons/fa";
 import { GoProjectRoadmap } from "react-icons/go";
 import { FaCode } from "react-icons/fa6";
-import { IoSettingsSharp } from "react-icons/io5";
+import { IoSettingsSharp, IoSearch } from "react-icons/io5";
 import {
   MdHelpCenter,
   MdSpaceDashboard,
@@ -21,13 +20,15 @@ import {
 import { VscProject } from "react-icons/vsc";
 
 export default function Dashboard({ handleDashboard }) {
-  const queryNavigate = useQuery()
+  const { size } = useSize();
   const refNavigation = useRef(null);
+  const params = useSearchParams();
+  const pathname = usePathname();
+  const queryNavigate = useQuery()
 
   const [targetItem, setTargetItem] = useState('Overview');
   const [showOther, setShowOther] = useState(false);
 
-  const params = useSearchParams();
 
   const menuList = [
     {
@@ -84,6 +85,16 @@ export default function Dashboard({ handleDashboard }) {
           <h3>CodeDev</h3>
         </div>
         <div className="main-menu">
+          {
+            size.width < 700 &&
+            <button
+              className="search_in_dashboard"
+              onClick={() => queryNavigate(pathname, { search: true })}
+            >
+              <IoSearch fontSize={16} />
+              <span>Search something</span>
+            </button>
+          }
           <div className="menu">
             {menuList.map((item, index) => (
               <div className='menu-item' key={index}>
@@ -98,8 +109,8 @@ export default function Dashboard({ handleDashboard }) {
                 </button>
               </div>
             ))}
+            <span id="navigation" ref={refNavigation}></span>
           </div>
-          <span id="navigation" ref={refNavigation}></span>
         </div>
         <div id="handler_dashboard">
           <button id="feedback" onClick={() => queryNavigate(window.location.pathname, { feedback: true })}>

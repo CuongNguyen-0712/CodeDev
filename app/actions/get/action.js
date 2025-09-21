@@ -44,14 +44,21 @@ export async function getInfo(data) {
             limit 1
         `;
 
+        if (res.length === 0) {
+            return new Response(
+                JSON.stringify({ message: "User not found" }),
+                { status: 404, headers: { "Content-Type": "application/json" } }
+            );
+        }
+
         return new Response(
             JSON.stringify({ data: res, message: "Get data successfully" }),
             { status: 200, headers: { "Content-Type": "application/json" } }
         );
     } catch (error) {
-        console.error("Error saving feedback:", error);
+        console.error("Error get user information:", error);
         return new Response(
-            JSON.stringify({ data: 'Something went wrong', message: "Internal server error" }),
+            JSON.stringify({ message: "Internal server error" }),
             { status: 500, headers: { "Content-Type": "application/json" } }
         );
     }
@@ -138,7 +145,7 @@ export async function getProject({ id, search, limit, offset, method, status, di
     }
 }
 
-export async function getCourse({ id, search, limit, offset, price, level }) {
+export async function getCourse({ id, search, limit, offset, price, level, rating }) {
     try {
         if (!id) {
             return new Response(
@@ -160,6 +167,7 @@ export async function getCourse({ id, search, limit, offset, price, level }) {
             and (${search}::text is null or lower(course.title) like '%' || lower(${search}) || '%')
             and (${price}::text is null or case when ${price}  = false then cost = 'free' else cost != 'free' end)
             and (${level}::text is null or level = ${level})
+            and (${rating}::text is null or rating = ${rating})
             order by course.id desc
             limit ${limit} offset ${offset}
             `
@@ -208,9 +216,8 @@ export async function getMyCourse({ id, search, limit, offset, hide }) {
             { status: 200, headers: { "Content-Type": "application/json" } }
         );
     } catch (error) {
-        console.error("Error saving feedback:", error);
         return new Response(
-            JSON.stringify({ data: 'Something went wrong', message: "Internal server error" }),
+            JSON.stringify({ message: "Internal server error" }),
             { status: 500, headers: { "Content-Type": "application/json" } }
         );
     }
@@ -336,6 +343,7 @@ export async function getSocial({ id, search, offset, limit, filter }) {
                 case 'user':
                     return await sql`
                     select 
+                        u.id as id,
                         u.username as username, 
                         i.image as image, 
                         i.nickname as nickname,
@@ -355,9 +363,22 @@ export async function getSocial({ id, search, offset, limit, filter }) {
                     limit ${limit} offset ${offset}
                 `;
                 case 'team':
-                    return []
+                    return await sql`
+                    select *
+                    from public.team 
+                    where id not in (
+                        select team_id 
+                        from social.team
+                        where user_id = ${id}
+                    )
+                    and (${search}::text is null or lower(name) like '%' || lower(${search}::text) || '%')
+                    limit ${limit} offset ${offset}
+                    `
                 default:
-                    return []
+                    return new Response(JSON.stringify({ message: "Something is wrong, try again" }), {
+                        status: 500,
+                        headers: { "Content-Type": "application/json" }
+                    })
             }
         })()
 

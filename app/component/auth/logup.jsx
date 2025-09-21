@@ -18,7 +18,7 @@ export default function Logup({
     redirect,
     error,
     setError,
-    setMessage
+    setAlert
 }) {
     const [page, setPage] = useState(1);
 
@@ -48,17 +48,17 @@ export default function Logup({
                 const { re_password, agree, ...data } = form
                 const res = await SignUpService(data);
                 if (res.status === 200 && res.success) {
-                    setMessage({ status: res.status, message: res.message });
+                    setAlert({ status: res.status, message: res.message });
                     setState((prev) => ({ ...prev, pending: false }));
                     setForm({ surname: '', name: '', email: '', phone: '', username: '', password: '', re_password: '', agree: false });
                     changeForm();
                 } else {
                     setState((prev) => ({ ...prev, pending: false }));
-                    setMessage({ status: res.status, message: res.message });
+                    setAlert({ status: res.status, message: res.message });
                 }
             } catch (err) {
                 setState((prev) => ({ ...prev, pending: false }));
-                setMessage({ statsu: 500, message: err.message });
+                setAlert({ statsu: 500, message: err.message });
             }
         }
         else {
@@ -75,13 +75,16 @@ export default function Logup({
 
     return (
         <>
-            <Form id="logup" onSubmit={handleSubmit} style={active ? { top: '0' } : { top: '100%', display: 'none' }}>
+            <Form
+                className={`logup ${active ? 'pop' : ''}`}
+                onSubmit={handleSubmit}
+            >
                 <div className="heading-logup">
+                    <Image src="/image/static/logo.svg" width={50} height={50} alt="logo" />
                     <h2>
                         Signup
                         <Link className="return_homepage" href="/" onClick={redirect}>
                             CodeDev
-                            <Image src="/image/static/logo.svg" width={25} height={25} alt="logo" />
                         </Link>
                     </h2>
                     <span>
@@ -104,12 +107,12 @@ export default function Logup({
                         </div>
                         <div className={`field-input ${form.email ? 'has-content' : ''}`}>
                             <input type="text" name="email" value={form.email} onChange={handleChange} autoComplete="off" tabIndex={page === 1 ? 1 : -1} />
-                            <label>Enter your email</label>
+                            <label>Your email</label>
                             <MdAlternateEmail className='icon' />
                         </div>
                         <div className={`field-input ${form.phone ? 'has-content' : ''}`}>
                             <input type="text" name="phone" value={form.phone} onChange={handleChange} autoComplete="off" tabIndex={page === 1 ? 1 : -1} />
-                            <label>Enter your phone</label>
+                            <label>Your phone</label>
                             <FaPhone className="icon" />
                         </div>
                     </div>
@@ -125,7 +128,7 @@ export default function Logup({
                                 autoComplete="off"
                                 tabIndex={page === 2 ? 1 : -1}
                             />
-                            <label>Enter create username</label>
+                            <label>Username</label>
                             <FaUser className="icon" />
                         </div>
                         <div className="auth-password">

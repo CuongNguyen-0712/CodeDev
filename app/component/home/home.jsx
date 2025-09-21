@@ -1,11 +1,13 @@
-import { useState, useRef, useEffect, use } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
+
 
 import Navbar from './navbar';
 import Dashboard from './dashboard';
 import Content from './content';
 import Feedback from './feedback';
 import Manage from "./manage";
+import Search from './search';
 
 import { LoadingRedirect } from '@/app/component/ui/loading';
 
@@ -52,7 +54,8 @@ export default function Home() {
     }, [home.onHandle, home.dashboard]);
 
     useEffect(() => {
-        const isOverlay = !!(params.get('manage') || params.get('feedback'));
+        const overlayParams = ['manage', 'feedback', 'search'];
+        const isOverlay = overlayParams.some(key => params.get(key));
 
         setHome(prev => ({
             ...prev,
@@ -83,14 +86,20 @@ export default function Home() {
                     </div>
                     {
                         params.get('manage') &&
-                        <div className='manage-container'>
+                        <div className='manage_container'>
                             <Manage redirect={() => setHome(prev => ({ ...prev, redirect: true, overlay: false }))} />
                         </div>
                     }
                     {
                         params.get('feedback') &&
-                        <div className="feedback-container">
+                        <div className="feedback_container">
                             <Feedback />
+                        </div>
+                    }
+                    {
+                        params.get('search') &&
+                        <div className="search_container">
+                            <Search redirect={() => setHome(prev => ({ ...prev, redirect: true, overlay: false }))} />
                         </div>
                     }
                 </>

@@ -1,0 +1,17 @@
+[
+    {
+        "name": "Home",
+        "description": "Your homepage to start your journey",
+        "path": "/home"
+    },
+    {
+        "name": "Course",
+        "description": "Explore our courses, find and start learning",
+        "path": "/course"
+    },
+    {
+        "name": "Project",
+        "description": "Discover projects to enhance your skills",
+        "path": "/project"
+    }
+]

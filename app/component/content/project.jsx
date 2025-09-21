@@ -38,7 +38,7 @@ export default function Project({ redirect }) {
         offset: 0,
         hasMore: true,
         hasSearch: false,
-        limit: 5,
+        limit: 10,
         deletedCount: 0
     })
 
@@ -116,7 +116,8 @@ export default function Project({ redirect }) {
                 startTransition(() => {
                     setAlert({
                         status: res.status,
-                        message: res.message || "The project was deleted"
+                        message: res.message || "Deleted successfully",
+                        reset: () => setAlert(null)
                     })
                     setConfirm((prev) => ({ ...prev, delete: false }))
                     setState((prev) => ({ ...prev, handling: { ...prev.handling, delete: false } }));
@@ -125,7 +126,8 @@ export default function Project({ redirect }) {
             else {
                 setAlert({
                     status: res.status,
-                    message: res.message || "The action failed"
+                    message: res.message || "Delete failed",
+                    reset: () => setAlert(null)
                 });
                 setState((prev) => ({ ...prev, handling: { ...prev.handling, delete: false } }));
                 setConfirm((prev) => ({ ...prev, delete: false }))
@@ -134,7 +136,8 @@ export default function Project({ redirect }) {
         catch (err) {
             setAlert({
                 status: err.status || 500,
-                message: err.message
+                message: err.message || "Something is wrong, try again",
+                reset: () => setAlert(null)
             });
             setState((prev) => ({ ...prev, handling: { ...prev.handling, delete: false } }));
             setConfirm((prev) => ({ ...prev, delete: false }))
@@ -178,14 +181,16 @@ export default function Project({ redirect }) {
                     }));
                     setAlert({
                         status: res.status,
-                        message: res.message || "The action was successful"
+                        message: res.message || "Successfully",
+                        reset: () => setAlert(null)
                     })
                 })
             }
             else {
                 setAlert({
-                    status: res.status,
-                    message: res.message || "The action failed"
+                    status: res.status || 500,
+                    message: res.message || "Something is wrong, try again",
+                    reset: () => setAlert(null)
                 });
                 setState((prev) => ({
                     ...prev,
@@ -204,7 +209,8 @@ export default function Project({ redirect }) {
         catch (err) {
             setAlert({
                 status: err.status || 500,
-                message: err.message
+                message: err.message || "Something is wrong, try again",
+                reset: () => setAlert(null)
             });
             setState((prev) => ({
                 ...prev,
@@ -380,7 +386,7 @@ export default function Project({ redirect }) {
                                             :
                                             <>
                                                 <FaRegCheckCircle />
-                                                Apply changes
+                                                Apply
                                             </>
                                     }
                                 </button>
@@ -436,7 +442,7 @@ export default function Project({ redirect }) {
                                                     style={(dropdown.id === item.id && dropdown.isShown) ? { background: 'var(--color_black)', color: 'var(--color_white)' } : { background: 'var(--color_gray_light)', color: 'var(--color_black)' }}
                                                     disabled={state.handling.hide || state.handling.delete}
                                                 >
-                                                    <MdMoreHoriz fontSize={14} />
+                                                    <MdMoreHoriz fontSize={22} />
                                                 </button>
                                                 {
                                                     (dropdown.id === item.id && dropdown.isShown) &&
@@ -488,8 +494,7 @@ export default function Project({ redirect }) {
                                             <div className="description">
                                                 <FaInfoCircle
                                                     color={'var(--color_blue)'}
-                                                    fontSize={13}
-                                                    style={{ flexShrink: 0 }}
+                                                    fontSize={18}
                                                 />
                                                 <p>{item.description}</p>
                                             </div>
@@ -506,7 +511,7 @@ export default function Project({ redirect }) {
                                                             {
                                                                 confirm.delete &&
                                                                 <div className='confirm_text'>
-                                                                    <h3>Confirm deletion</h3>
+                                                                    <h4 className="delete_func">Deleting</h4>
                                                                     <p>
                                                                         All data may be lost. Are you sure you want to delete this project?
                                                                     </p>
@@ -515,7 +520,7 @@ export default function Project({ redirect }) {
                                                             {
                                                                 confirm.hide &&
                                                                 <div className='confirm_text'>
-                                                                    <h3>Confirm hiding</h3>
+                                                                    <h4 className="hide_func">Hiding</h4>
                                                                     <p>
                                                                         This action will hide the project. You can show it later.
                                                                     </p>
@@ -524,7 +529,7 @@ export default function Project({ redirect }) {
                                                             {
                                                                 confirm.show &&
                                                                 <div className='confirm_text'>
-                                                                    <h3>Confirm showing</h3>
+                                                                    <h4 className="hide_func">Showing</h4>
                                                                     <p>
                                                                         This action will show the project. You can hide it later.
                                                                     </p>

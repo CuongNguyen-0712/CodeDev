@@ -3,6 +3,7 @@ import { neon } from "@neondatabase/serverless";
 
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
+import { redirect } from 'next/navigation'
 
 import { createSession } from "@/app/lib/session";
 
@@ -33,7 +34,7 @@ export async function signIn(data) {
         if (res.length === 0) {
             return new Response(
                 JSON.stringify({ success: false, message: "Invalid credentials" }),
-                { status: 400, headers: { "Content-Type": "application/json" } }
+                { status: 500, headers: { "Content-Type": "application/json" } }
             )
         }
 
@@ -42,7 +43,7 @@ export async function signIn(data) {
         if (!auth) {
             return new Response(
                 JSON.stringify({ success: false, message: "Invalid credentials" }),
-                { status: 400, headers: { "Content-Type": "application/json" } }
+                { status: 500, headers: { "Content-Type": "application/json" } }
             )
         }
 
@@ -66,7 +67,7 @@ export async function signIn(data) {
 
         if (sessionRes) {
             return new Response(
-                JSON.stringify({ success: true }),
+                JSON.stringify({ success: true, message: "Login successfully, redirecting..." }),
                 { status: 200, headers: { "Content-Type": "application/json" } }
             )
         }

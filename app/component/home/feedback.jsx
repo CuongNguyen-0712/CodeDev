@@ -5,17 +5,21 @@ import Form from "next/form";
 import { IoIosSend, IoIosClose, IoIosWarning } from "react-icons/io";
 import { BsFillInfoCircleFill } from "react-icons/bs";
 
+import PostFeedbackService from "@/app/services/postService/feedbackService";
+
 import { useQuery } from "@/app/router/router";
 import { useAuth } from "@/app/contexts/authContext";
-import { LoadingContent } from "../ui/loading";
-import PostFeedbackService from "@/app/services/postService/feedbackService";
 import { FeedbackDefinition } from "@/app/lib/definition";
+import { LoadingContent } from "../ui/loading";
 import AlertPush from "../ui/alert";
-import { set } from "lodash";
+
+import useKey from "@/app/hooks/useKey";
 
 export default function Feedback() {
     const queryNavigate = useQuery();
     const { session } = useAuth();
+
+    useKey({ key: 'Escape', param: 'feedback' });
 
     const [state, setState] = useState({
         error: null,

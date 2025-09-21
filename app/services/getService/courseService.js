@@ -6,6 +6,7 @@ export default async function GetCourseService({ search, limit, offset, filter }
     if (search) params.set('search', search);
     if (limit) params.set('limit', limit);
     if (offset) params.set('offset', offset);
+
     Object.entries(filter)
         .filter(([_, value]) => value != null)
         .forEach(([key, value]) => {

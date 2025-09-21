@@ -64,6 +64,35 @@ export default function CourseContent({ redirect }) {
                     value: true
                 }
             ]
+        },
+        {
+            name: 'rating',
+            items: [
+                {
+                    name: 'All',
+                    value: null
+                },
+                {
+                    name: '1',
+                    value: 1
+                },
+                {
+                    name: '2',
+                    value: 2
+                },
+                {
+                    name: '3',
+                    value: 3
+                },
+                {
+                    name: '4',
+                    value: 4
+                },
+                {
+                    name: '5',
+                    value: 5
+                },
+            ]
         }
     ]
 
@@ -82,13 +111,14 @@ export default function CourseContent({ redirect }) {
         offset: 0,
         hasMore: true,
         hasSearch: false,
-        limit: 5,
+        limit: 20,
         registerCount: 0
     })
 
     const [filter, setFilter] = useState({
         price: null,
         level: null,
+        rating: null,
     })
 
     const [apiQueue, setApiQueue] = useState([])
@@ -318,7 +348,7 @@ export default function CourseContent({ redirect }) {
                                             :
                                             <>
                                                 <FaRegCheckCircle />
-                                                Apply changes
+                                                Apply
                                             </>
                                     }
                                 </button>

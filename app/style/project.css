@@ -2,9 +2,9 @@
   display: flex;
   align-items: center;
   height: max-content;
-  min-height: 100dvh;
   width: 100%;
   padding: 70px 20px 20px 20px;
+  background: var(--color_bg);
   gap: 10px;
   flex-direction: column;
 }
@@ -73,6 +73,7 @@
   justify-content: center;
   height: 35px;
   width: 35px;
+  color: var(--color_white);
   border-radius: 5px;
 }
 
@@ -92,12 +93,18 @@
   max-width: 400px;
   border-radius: 10px;
   padding: 20px;
-  border: 2px solid var(--color_gray);
-  box-shadow: 0 0 5px var(--color_gray_light);
+  background: var(--color_white);
+  box-shadow: 0 0 5px var(--color_gray);
   flex-basis: 300px;
   flex-direction: column;
   cursor: default;
   gap: 20px;
+  transition: 0.2s all ease;
+}
+
+.method_project .content .item:hover {
+  box-shadow: 0 5px 10px var(--color_gray);
+  transition: 0.2s all ease;
 }
 
 .method_project .item .heading_item {
@@ -161,16 +168,18 @@
 
 .info_dropdown button {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   height: 40px;
   width: 100%;
   padding: 0 10px;
   border-radius: 5px;
+  font-size: 14px;
   background: var(--color_gray_light);
   color: var(--color_black);
   font-weight: 600;
   flex-shrink: 0;
+  gap: 10px;
   transition: 0.2s all ease;
 }
 
@@ -188,7 +197,7 @@
 }
 
 .info_dropdown.active button svg {
-  transform: rotate(180deg);
+  transform: rotate(45deg);
   transition: 0.2s all ease;
 }
 
@@ -231,7 +240,7 @@
   height: 40px;
   min-width: 100px;
   padding: 0 15px;
-  border-radius: 5px;
+  border-radius: 10px;
   color: var(--color_white);
   font-weight: 600;
   cursor: pointer;
@@ -240,19 +249,20 @@
 
 .method_project .show_more {
   display: flex;
+  justify-content: center;
   height: max-content;
   width: 100%;
-  justify-content: flex-start;
 
 }
 
 .show_more button {
   display: flex;
   height: 35px;
-  width: 100px;
+  width: 100%;
+  max-width: 350px;
   align-items: center;
   justify-content: center;
-  border-radius: 5px;
+  border-radius: 15px;
   background: var(--color_black);
   color: var(--color_white);
   text-transform: uppercase;

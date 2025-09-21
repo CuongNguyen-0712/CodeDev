@@ -12,7 +12,7 @@ import { LoadingContent } from "../ui/loading";
 import { IoFilter } from "react-icons/io5"
 import { FaArrowRight, FaRegCheckCircle, FaChevronUp } from "react-icons/fa";
 import { FaUser, FaUserGroup } from "react-icons/fa6";
-import { IoMdArrowDropdown } from "react-icons/io";
+import { MdPushPin } from "react-icons/md";
 
 export default function ProjectContent({ redirect }) {
     const queryNavigate = useQuery();
@@ -70,6 +70,21 @@ export default function ProjectContent({ redirect }) {
             ]
         }
     ]
+
+    const colorUI = {
+        'Open': {
+            color: 'var(--color_blue)',
+            opacity: 'rgba(30, 144, 255, 0.2)'
+        },
+        'Closed': {
+            color: 'var(--color_red_light)',
+            opacity: 'rgba(255, 0, 0, 0.2)'
+        },
+        'Comming soon': {
+            color: 'var(--color_orange)',
+            opacity: 'rgba(255, 255, 0, 0.2)'
+        }
+    }
 
     const [state, setState] = useState({
         data: {
@@ -300,14 +315,17 @@ export default function ProjectContent({ redirect }) {
         if (state.search.length > 0 && state.search.trim() === '') return;
 
         if (load.hasSearch && state.search.trim() === '') {
-            setLoad((prev) => ({ ...prev, offset: 0, hasMore: true }));
-            setState(prev => ({ ...prev, data: [], pending: true }));
+            setState(prev => ({ ...prev, data: { ...state.data, self: [], team: [] }, pending: true }));
+            setOffset((prev) => ({ ...prev, self: 0, team: 0 }));
+            setHasMore({ self: true, team: true });
             setApiQueue((prev) => [...prev, { type: "fetch" }]);
             return
         }
 
-        setState(prev => ({ ...prev, data: [], pending: true }));
-        setLoad(prev => ({ ...prev, offset: 0, hasMore: true, hasSearch: true }));
+        setState(prev => ({ ...prev, data: { ...state.data, self: [], team: [] }, pending: true }));
+        setOffset((prev) => ({ ...prev, self: 0, team: 0 }));
+        setHasMore({ self: true, team: true });
+        setLoad(prev => ({ ...prev, hasSearch: state.search.trim().length > 0 }));
         setApiQueue((prev) => [...prev, { type: "fetch" }]);
     }
 
@@ -393,7 +411,7 @@ export default function ProjectContent({ redirect }) {
                                             :
                                             <>
                                                 <FaRegCheckCircle />
-                                                Apply changes
+                                                Apply
                                             </>
                                     }
                                 </button>
@@ -415,7 +433,7 @@ export default function ProjectContent({ redirect }) {
                     <div className="heading">
                         <button
                             onClick={() => setHide((prev) => ({ ...prev, self: !prev.self }))}
-                            style={hide.self ? { color: 'var(--color_white)', background: 'var(--color_black)' } : { color: 'var(--color_black)', background: 'var(--color_gray_light)' }}
+                            style={hide.self ? { background: 'var(--color_blue)' } : { background: 'var(--color_black)' }}
                         >
                             <FaChevronUp style={{ transform: hide.self ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.2s all ease' }} />
                         </button>
@@ -439,7 +457,11 @@ export default function ProjectContent({ redirect }) {
                                                     state.data.self.map((item, index) => (
                                                         <div className="item" key={index}>
                                                             <div className="heading_item">
-                                                                <span>{item.status}</span>
+                                                                <span
+                                                                    style={{ background: colorUI[item.status].opacity, color: colorUI[item.status].color }}
+                                                                >
+                                                                    {item.status}
+                                                                </span>
                                                                 <h4>{item.name}</h4>
                                                             </div>
                                                             <div className="content_item">
@@ -450,10 +472,12 @@ export default function ProjectContent({ redirect }) {
                                                                 </div>
                                                                 <div className="info_dropdown">
                                                                     <button onClick={handleDropdown}>
-                                                                        Requirements:
-                                                                        <IoMdArrowDropdown />
+                                                                        <MdPushPin />
+                                                                        Requirements
                                                                     </button>
-                                                                    <p>{item.requirements}</p>
+                                                                    <p>
+                                                                        {item.requirements}
+                                                                    </p>
                                                                 </div>
                                                             </div>
                                                             <div className="footer_item">
@@ -462,7 +486,7 @@ export default function ProjectContent({ redirect }) {
                                                                     <p>{item.difficulty}</p>
                                                                 </div>
                                                                 <button
-                                                                    style={item.status === 'Open' && { background: 'var(--color_blue)' } || item.status === 'Closed' && { background: 'var(--color_red)', cursor: 'not-allowed' } || item.status === 'Comming soon' && { background: 'var(--color_black)', cursor: 'not-allowed' }}
+                                                                    style={{ background: colorUI[item.status].color }}
                                                                     disabled={item.status !== 'Open' || state.handling}
                                                                     onClick={() => handleRegister({ id: item.id, method: 'self' })}
                                                                 >
@@ -516,7 +540,7 @@ export default function ProjectContent({ redirect }) {
                     <div className="heading">
                         <button
                             onClick={() => setHide((prev) => ({ ...prev, team: !prev.team }))}
-                            style={hide.team ? { color: 'var(--color_white)', background: 'var(--color_black)' } : { color: 'var(--color_black)', background: 'var(--color_gray_light)' }}
+                            style={hide.team ? { background: 'var(--color_blue)' } : { background: 'var(--color_black)' }}
                         >
                             <FaChevronUp style={{ transform: hide.team ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.2s all ease' }} />
                         </button>
@@ -540,7 +564,11 @@ export default function ProjectContent({ redirect }) {
                                                     state.data.team.map((item, index) => (
                                                         <div className="item" key={index}>
                                                             <div className="heading_item">
-                                                                <span>{item.status}</span>
+                                                                <span
+                                                                    style={{ background: colorUI[item.status].opacity, color: colorUI[item.status].color }}
+                                                                >
+                                                                    {item.status}
+                                                                </span>
                                                                 <h4>{item.name}</h4>
                                                             </div>
                                                             <div className="content_item">
@@ -551,8 +579,8 @@ export default function ProjectContent({ redirect }) {
                                                                 </div>
                                                                 <div className="info_dropdown">
                                                                     <button onClick={handleDropdown}>
-                                                                        Requirements:
-                                                                        <IoMdArrowDropdown />
+                                                                        <MdPushPin />
+                                                                        Requirements
                                                                     </button>
                                                                     <p>{item.requirements}</p>
                                                                 </div>
@@ -563,7 +591,7 @@ export default function ProjectContent({ redirect }) {
                                                                     <p>{item.difficulty}</p>
                                                                 </div>
                                                                 <button
-                                                                    style={item.status === 'Open' && { background: 'var(--color_blue)' } || item.status === 'Closed' && { background: 'var(--color_red)', cursor: 'not-allowed' } || item.status === 'Comming soon' && { background: 'var(--color_black)', cursor: 'not-allowed' }}
+                                                                    style={{ background: colorUI[item.status].color }}
                                                                     disabled={item.status !== 'Open' || state.handling}
                                                                     onClick={() => handleRegister({ id: item.id, method: 'team' })}
                                                                 >

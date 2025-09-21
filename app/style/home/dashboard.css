@@ -4,9 +4,9 @@
   justify-content: space-between;
   width: 100%;
   height: 100%;
-  background: #fff;
   user-select: none;
   flex-direction: column;
+  background: transparent;
   z-index: 1;
   gap: 20px;
   transition: 0.2s all ease;
@@ -56,12 +56,12 @@
 
 #dashboard .main-menu {
   display: flex;
-  position: relative;
   justify-content: flex-start;
   flex-grow: 1;
   width: 100%;
   padding: 0px 10px;
   flex-direction: column;
+  gap: 10px;
   overflow: scroll;
 }
 
@@ -69,8 +69,26 @@
   display: none;
 }
 
+.main-menu .search_in_dashboard {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  height: 40px;
+  width: 100%;
+  background: var(--color_gray_light);
+  border: 2px solid var(--color_gray);
+  color: var(--color_black);
+  border-radius: 5px;
+  padding: 0 10px;
+  font-size: 14px;
+  flex-shrink: 0;
+  gap: 10px;
+  cursor: pointer;
+}
+
 .main-menu .menu {
   display: flex;
+  position: relative;
   align-items: center;
   justify-content: flex-start;
   height: max-content;
@@ -95,18 +113,18 @@
   height: 40px;
   width: 100%;
   font-size: 15px;
-  background: transparent;
   padding-left: 20px;
   border-radius: 5px;
+  background: transparent;
   color: var(--color_black);
-  gap: 10px;
+  gap: 20px;
   transition: 0.5s all ease;
 }
 
 .menu .menu-item button.active {
   background: var(--color_gray_light);
-  color: var(--color_blue);
   font-weight: 600;
+  color: var(--color_blue);
   transition: 0.5s all ease;
 }
 
@@ -120,7 +138,7 @@
   position: absolute;
   height: 39px;
   width: 2px;
-  top: 0;
+  inset: 0;
   background: var(--color_blue);
   transition: 0.2s all ease;
 }

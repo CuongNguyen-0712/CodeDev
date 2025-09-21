@@ -1,10 +1,10 @@
 #course {
   display: flex;
   height: max-content;
-  min-height: 100dvh;
   width: 100%;
   padding: 70px 20px 20px 20px;
-  gap: 30px;
+  background: var(--color_bg);
+  gap: 20px;
   flex-direction: column;
 }
 
@@ -34,15 +34,21 @@
   height: 420px;
   max-width: 350px;
   flex-grow: 1;
-  border-radius: 10px;
+  border-radius: 15px;
   padding: 20px 10px;
-  border: 2px solid var(--color_gray_light);
-  box-shadow: 0 0 10px var(--color_gray_light);
+  box-shadow: 0 0 5px var(--color_gray);
+  background: var(--color_white);
   flex-direction: column;
   flex-basis: 300px;
   gap: 10px;
   cursor: default;
   overflow: hidden;
+  transition: 0.2s all ease;
+}
+
+.course-container .item:hover {
+  box-shadow: 0 5px 10px var(--color_gray);
+  transition: 0.2s all ease;
 }
 
 .item .heading {
@@ -116,13 +122,14 @@
   position: absolute;
   align-items: center;
   justify-content: center;
-  top: -20px;
-  right: -10px;
-  height: 40px;
-  width: 60px;
+  top: -10px;
+  right: 0px;
+  height: 35px;
+  width: 50px;
+  font-size: 14px;
   background: var(--color_black);
   color: var(--color_white);
-  border-bottom-left-radius: 20px;
+  border-radius: 5px;
   gap: 5px;
 }
 

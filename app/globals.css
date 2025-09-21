@@ -4,8 +4,8 @@
 @import "./style/home/dashboard.css";
 @import "./style/home/manage.css";
 @import "./style/home/feedback.css";
+@import "./style/home/search.css";
 
-@import "./style/social.css";
 @import "./style/course.css";
 @import "./style/event.css";
 @import "./style/auth.css";
@@ -38,25 +38,32 @@ body {
 }
 
 :root {
+    --color_bg: #F9FAFB;
+
     --color_white: #fff;
-    --color_black: #232323;
+    --color_black: #374151;
 
     --color_gray_light: #F5F5F5;
     --color_gray: #C0C0C0;
     --color_gray_dark: #A9A9A9;
 
+    --color_green_light: #BBF7D0;
     --color_green: #4CAF50;
-    --color_yellow: #FFEB3B;
+
+    --color_yellow: #FFB300;
 
     --color_red_light: #FF6666;
     --color_red: #F44336;
     --color_red_dark: #ff0000;
 
+    --color_blue_light: #1E90FFB3;
     --color_blue: #1E90FF;
+
     --color_orange: #ED8B00;
     --color_purple: #777BB4;
     --color_violet: #8A2BE2;
     --color_cyan: #00FFFF;
+    --color_pink: #FF69B4;
 }
 
 @media screen and (max-width: 425px) {
@@ -75,5 +82,11 @@ body {
 input:disabled,
 textarea:disabled,
 button:disabled {
-    cursor: not-allowed;
+    pointer-events: none;
+}
+
+input:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0px 1000px transparent inset !important;
+    -webkit-text-fill-color: var(--color_black) !important;
+    background-color: transparent !important;
 }

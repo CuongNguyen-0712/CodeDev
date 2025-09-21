@@ -25,12 +25,12 @@ export default async function UpdateHideStatusProjectService(data) {
         if (res.ok) {
             return {
                 status: res.status,
-                message: raw.message
+                message: raw.message || "Successfully"
             };
         } else {
             return {
                 status: res.status,
-                message: raw.message
+                message: raw.message || "Failed"
             };
         }
     } catch (error) {

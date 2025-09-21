@@ -27,13 +27,13 @@ export async function updateInfo(data) {
         `
 
         if (result.count === 0) {
-            return new Response(JSON.stringify({ message: "User not found or nothing to update" }), {
+            return new Response(JSON.stringify({ message: "Something went wrong, try again" }), {
                 status: 404,
                 headers: { "Content-Type": "application/json" }
             });
         }
 
-        return new Response(JSON.stringify({ message: "Update info successfully" }), {
+        return new Response(JSON.stringify({ message: "Updated successfully" }), {
             status: 200,
             headers: { "Content-Type": "application/json" }
         });
@@ -64,7 +64,7 @@ export async function updateHideStatusCourse(data) {
         where userid = ${userId} and courseid = ${courseId}
         `;
 
-        return new Response(JSON.stringify({ message: "The action was successful" }), {
+        return new Response(JSON.stringify({ message: "Successfully" }), {
             status: 200,
             headers: { "Content-Type": "application/json" }
         });
@@ -94,7 +94,7 @@ export async function updateHideStatusProject(data) {
         where userid = ${userId} and projectid = ${projectId}
         `
 
-        return new Response(JSON.stringify({ message: "The action was successful" }), {
+        return new Response(JSON.stringify({ message: "Successfully" }), {
             status: 200,
             headers: { "Content-Type": "application/json" }
         });

@@ -15,17 +15,20 @@ import { FaAngleDown } from "react-icons/fa";
 import { IoPersonAdd } from "react-icons/io5";
 import { FaUser, FaUserGroup, FaHashtag } from "react-icons/fa6";
 
-export default function Main_Social() {
+export default function Contact() {
 
     const [social, setSocial] = useState({
-        data: [],
+        data: {
+            user: [],
+            team: []
+        },
         hasMore: true,
         pending: true,
         isShown: false,
         error: null,
         search: '',
         offset: 0,
-        limit: 5,
+        limit: 20,
         hasSearch: false,
     })
 
@@ -71,19 +74,24 @@ export default function Main_Social() {
     const fetchData = async () => {
         if (!social.hasMore) return;
 
+        const role = filter.value.toLowerCase();
+
         try {
             const currentOffset = social.offset;
             const res = await GetSocialService({
                 search: social.search.trim(),
                 offset: currentOffset.toString(),
                 limit: social.limit,
-                filter: filter.value.toLowerCase()
+                filter: role,
             })
 
             if (res.status === 200) {
                 setSocial(prev => ({
                     ...prev,
-                    data: uniqWith([...prev.data, ...res.data], (a, b) => a.username === b.username),
+                    data: {
+                        ...prev.data,
+                        [role]: uniqWith([...prev.data[role] ?? [], ...res.data], (a, b) => a.id === b.id),
+                    },
                     hasMore: res.data.length >= prev.limit,
                     offset: currentOffset + prev.limit,
                     pending: false
@@ -124,7 +132,7 @@ export default function Main_Social() {
     }, [apiQueue])
 
     const handleSubmitSearch = () => {
-        if (social.search.length === 0 || social.search.trim() === '') return;
+        if (social.search.length > 0 && social.search.trim() === '') return;
 
         if (social.hasSearch && social.search.trim() === '') {
             setSocial((prev) => ({
@@ -156,6 +164,7 @@ export default function Main_Social() {
     useEffect(() => {
         setSocial((prev) => ({
             ...prev,
+            offset: 0,
             hasMore: true,
             pending: true
         }))
@@ -194,8 +203,54 @@ export default function Main_Social() {
         fetchData();
     }
 
+    const view = {
+        User: (
+            <>
+                {
+                    (social.data.user?.length ?? 0) > 0 ?
+                        social.data.user.map((item) => (
+                            <div key={item.id} className='item_social'>
+                                <div className='tag_heading'>
+                                    <Image src={item.image} alt='my_avatar' width={60} height={60} />
+                                    <div>
+                                        <h4>
+                                            {item.username}
+                                        </h4>
+                                        <p>
+                                            <FaHashtag />
+                                            {item.nickname}
+                                        </p>
+                                    </div>
+                                </div>
+                                <button>
+                                    <IoPersonAdd fontSize={16} />
+                                    Invite
+                                </button>
+                            </div>
+                        ))
+                        :
+                        <p>No user can be found here !</p>
+                }
+            </>
+        ),
+        Team: (
+            <>
+                {
+                    (social.data.team?.length ?? 0) > 0 ?
+                        social.data.team.map((item) => (
+                            <div key={item.id}>
+                                {item.name}
+                            </div>
+                        ))
+                        :
+                        <p>No team can be found here !</p>
+                }
+            </>
+        )
+    }
+
     return (
-        <div className='main_social' style={social.isShown ? { height: 'calc(100% - 60px)', transition: '0.2s all ease' } : { height: '60px', transition: '0.2s all ease' }}>
+        <div className='main_social' style={social.isShown ? { height: 'calc(100% - 60px)', transition: '0.2s all ease', zIndex: 2 } : { height: '60px', transition: '0.2s all ease' }}>
             <div className='heading_view'>
                 <Form className='input_social' onSubmit={handleSubmit}>
                     <input
@@ -262,31 +317,7 @@ export default function Main_Social() {
                                     <ErrorReload data={social.error} refetch={refetchData} />
                                     :
                                     <div className='frame_social'>
-                                        {
-                                            social.data.length > 0 ?
-                                                social.data.map((item, index) => (
-                                                    <div key={index} className='item_social'>
-                                                        <div className='tag_heading'>
-                                                            <Image src={item.image} alt='my_avatar' width={60} height={60} />
-                                                            <div>
-                                                                <h4>
-                                                                    {item.username}
-                                                                </h4>
-                                                                <p>
-                                                                    <FaHashtag />
-                                                                    {item.nickname}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                        <button>
-                                                            <IoPersonAdd fontSize={16} />
-                                                            Invite
-                                                        </button>
-                                                    </div>
-                                                ))
-                                                :
-                                                <p>No user can be found here !</p>
-                                        }
+                                        {view[filter.value] || null}
                                         {!social.pending && !social.error && (
                                             social.hasMore ?
                                                 <span ref={setRef} className="load_wrapper">

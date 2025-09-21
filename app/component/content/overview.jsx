@@ -6,12 +6,11 @@ import Image from 'next/image';
 import { LoadingContent } from '../ui/loading';
 import { ErrorReload } from '../ui/error';
 import { useQuery } from '@/app/router/router';
-import { useSize } from '@/app/contexts/sizeContext';
 
 import GetOverviewService from '@/app/services/getService/overviewService';
 import GetInfoService from '@/app/services/getService/infoService';
 
-import { FaAngleRight, FaCaretRight } from 'react-icons/fa6';
+import { FaAngleRight } from 'react-icons/fa6';
 
 export default function Overview() {
     const queryNavigate = useQuery();
@@ -33,7 +32,6 @@ export default function Overview() {
             info: true
         }
     })
-    const { size } = useSize();
 
     const [target, setTarget] = useState(null);
     const [visible, setVisible] = useState(false);
@@ -173,8 +171,8 @@ export default function Overview() {
     }, [params])
 
     const progressCourse = [
-        { status: 'Enrolled', color: 'var(--color_red)' },
-        { status: 'In Progress', color: 'var(--color_yellow)' },
+        { status: 'Enrolled', color: 'var(--color_blue)' },
+        { status: 'In Progress', color: 'var(--color_orange)' },
         { status: 'Completed', color: 'var(--color_green)' },
     ];
 
@@ -217,9 +215,15 @@ export default function Overview() {
                                             <span>{state.data.info.nickname || 'No nickname'}</span>
                                         </div>
                                         <div className="exprience">
-                                            <p><span>Level</span><span>{state.data.info.level}</span></p>
-                                            <p><span>Stars</span><span>{state.data.info.star}</span></p>
-                                            <p><span>Rank</span><span>{state.data.info.rank}</span></p>
+                                            <p className="level">{state.data.info.level}</p>
+                                            <p>
+                                                <span>Stars</span>
+                                                <span>{state.data.info.star}
+                                                </span></p>
+                                            <p>
+                                                <span>Rank</span>
+                                                <span>{state.data.info.rank}</span>
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
@@ -231,7 +235,7 @@ export default function Overview() {
                 <div className="language" style={languageStats.length > 0 ? { height: visible ? `${languageStats.length * 75 + (languageStats.length - 1) * 20 + 110}px` : '50px', transition: '0.2s all ease' } : { height: visible ? '150px' : '50px', transition: '0.2s all ease' }}>
                     <div className="header" onClick={() => setVisible(!visible)} style={visible ? { background: 'var(--color_black)', color: 'var(--color_white)' } : {}}>
                         <h5>Language Skill</h5>
-                        <FaCaretRight style={{ transform: visible ? 'rotate(90deg)' : 'rotate(0deg)', transition: '0.2s all ease' }} />
+                        <FaAngleRight style={{ transform: visible ? 'rotate(90deg)' : 'rotate(0deg)', transition: '0.2s all ease' }} />
                     </div>
                     <div className="main-language">
                         <div className="language-container">
@@ -271,7 +275,7 @@ export default function Overview() {
                                         <div className="progress-item">
                                             <div className="heading">
                                                 <div className="title">
-                                                    <h5>All course</h5>
+                                                    <h4>All course</h4>
                                                     <p>{state.data.data.length}/{state.data.data.length}</p>
                                                 </div>
                                             </div>
@@ -287,7 +291,7 @@ export default function Overview() {
                                                         </div>
                                                         <FaAngleRight style={{ opacity: target === index ? 1 : 0.5, transform: target === index ? 'rotate(90deg)' : 'rotate(0deg)', transition: '0.2s all ease' }} />
                                                     </div>
-                                                    <div className="detail" style={{ height: target === index ? `${filtered.length * (size.width <= 425 ? 110 : 75) + (filtered.length - 1) * 20 + 90}px` : '0px', padding: target === index ? '20px 10px' : '0 10px', transition: '0.2s all ease' }}>
+                                                    <div className="detail" style={{ height: target === index ? (filtered.length > 0 ? '400px' : '100px') : '0px', padding: target === index ? '20px' : '0px' }}>
                                                         <div className="info">
                                                             {filtered.length > 0 ? (
                                                                 filtered.map((course, key) => (

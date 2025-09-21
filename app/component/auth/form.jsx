@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 
 import useOutsite from "@/app/hooks/useOutside"
+
+import Image from "next/image"
 
 import Login from "./login"
 import Logup from "./logup"
 import { LoadingRedirect } from "../ui/loading"
+import AlertPush from "../ui/alert"
 
-import { IoIosWarning, IoMdClose, IoIosCloseCircle } from "react-icons/io"
-import { FaRegCircleCheck } from "react-icons/fa6";
+import { IoIosWarning, IoMdClose } from "react-icons/io"
 
 export default function Form() {
     const [form, setForm] = useState('login')
@@ -17,10 +19,7 @@ export default function Form() {
             login: null,
             signup: null
         },
-        message: {
-            login: null,
-            signup: null
-        },
+        alert: null,
         hide: false
     })
 
@@ -59,50 +58,21 @@ export default function Form() {
         }
     }
 
-    useEffect(() => {
-        if (!state.message[form]) return
-
-        const timer = setTimeout(() => {
-            setState((prev) => ({
-                ...prev,
-                message: {
-                    ...prev.message,
-                    [form]: null
-                }
-            }))
-        }, 5000)
-
-        return () => clearTimeout(timer)
-    }, [state.message[form]])
-
     return (
         <main id="auth">
             {redirect ?
                 <LoadingRedirect />
                 :
                 <div className="auth-container">
-                    <section className="auth-form">
-                        <div className="heading-form" >
-                            <button
-                                className={`${form === 'login' ? 'active' : ''}`}
-                                onClick={() => setForm('login')}>
-                                Login
-                            </button>
-                            <button
-                                className={`${form === 'signup' ? 'active' : ''}`}
-                                onClick={() => setForm('signup')}>
-                                Signup
-                            </button>
-                            <span className="focus" style={{ transform: form === 'login' && 'translateX(10px)' || form === 'signup' && 'translateX(calc(100% + 30px))' }}></span>
-                        </div>
-                        <div className="main-form">
+                    <div className="container">
+                        <section className="auth-form">
                             <Login
                                 active={form === 'login'}
                                 changeForm={() => setForm('signup')}
                                 redirect={() => setRedirect(true)}
                                 error={(data) => setState((prev) => ({ ...prev, error: { ...prev.error, login: data } }))}
                                 setError={(data) => handleSetError(data)}
-                                setMessage={(data) => setState((prev) => ({ ...prev, message: { ...prev.message, login: data } }))}
+                                setAlert={(data) => setState((prev) => ({ ...prev, alert: data }))}
                             />
                             <Logup
                                 active={form === 'signup'}
@@ -110,10 +80,37 @@ export default function Form() {
                                 redirect={() => setRedirect(true)}
                                 error={(data) => setState((prev) => ({ ...prev, error: { ...prev.error, signup: data } }))}
                                 setError={(data) => handleSetError(data)}
-                                setMessage={(data) => setState((prev) => ({ ...prev, message: { ...prev.message, signup: data } }))}
+                                setAlert={(data) => setState((prev) => ({ ...prev, alert: data }))}
                             />
-                        </div>
-                    </section>
+                        </section>
+                        <section className="beside_auth">
+                            <div className="image_frame">
+                                <Image
+                                    src="/image/static/login.png"
+                                    alt='image_auth'
+                                    width={300}
+                                    height={200}
+                                />
+                            </div>
+                            <h3>
+                                Improve and develop your coding
+                            </h3>
+                            <div className="navigate_btns">
+                                <button
+                                    id="navigate_login"
+                                    onClick={() => setForm('login')}
+                                >
+                                    Login
+                                </button>
+                                <button
+                                    id="navigate_signup"
+                                    onClick={() => setForm('signup')}
+                                >
+                                    Signup
+                                </button>
+                            </div>
+                        </section>
+                    </div>
                     {
                         (state.error[form] && Object.keys(state.error[form] ?? {}).length > 0) &&
                         <div id="warning_notification">
@@ -150,16 +147,17 @@ export default function Form() {
                         </div>
                     }
                     {
-                        (state.message[form] && Object.keys(state.message[form] ?? {}).length > 0) &&
-                        <div className="message" style={state.message[form].status === 200 ? { background: 'var(--color_green)' } : { background: 'var(--color_red)' }} >
-                            {
-                                state.message[form].status === 200 ?
-                                    <FaRegCircleCheck fontSize={17} />
-                                    :
-                                    <IoIosCloseCircle fontSize={17} />
+                        state.alert &&
+                        <AlertPush
+                            status={state.alert.status}
+                            message={state.alert.message}
+                            reset={() =>
+                                setState((prev) => ({
+                                    ...prev,
+                                    alert: null,
+                                }))
                             }
-                            <p>{state.message[form].message}</p>
-                        </div>
+                        />
                     }
                 </div>
             }

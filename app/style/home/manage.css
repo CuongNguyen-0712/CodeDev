@@ -1,4 +1,4 @@
-.manage-container {
+.manage_container {
     display: flex;
     position: fixed;
     align-items: flex-start;
@@ -68,9 +68,9 @@
     align-items: center;
     height: max-content;
     width: 100%;
-    border: 2px solid var(--color_black);
+    box-shadow: 0 0 5px var(--color_gray);
     padding: 15px;
-    border-radius: 10px;
+    border-radius: 15px;
     flex-direction: column;
     gap: 20px;
 }
@@ -81,11 +81,18 @@
     align-items: center;
     width: 100%;
     height: max-content;
-    border: 2px solid var(--color_black);
-    border-radius: 10px;
-    padding: 10px 0;
+    box-shadow: 0 0 5px var(--color_gray);
+    border-radius: 15px;
+    padding: 15px 0;
     flex-direction: column;
     gap: 10px;
+}
+
+.beside .footer_beside h4 {
+    padding: 5px 20px;
+    border-radius: 50px;
+    color: var(--color_green);
+    background: var(--color_green_light);
 }
 
 .beside .footer_beside p {
@@ -105,11 +112,13 @@
 
 .beside .header_beside #myAvatar {
     display: flex;
-    height: max-content;
-    width: max-content;
-    border-radius: 10px;
-    padding: 10px;
-    border: 2px solid var(--color_gray);
+    height: 100px;
+    width: 100px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50px;
+    background: var(--color_gray_light);
+    overflow: hidden;
 }
 
 .content_manage .beside .image-btns {
@@ -118,7 +127,8 @@
     height: max-content;
     width: 100%;
     width: 100%;
-    gap: 20px;
+    flex-wrap: wrap;
+    gap: 15px;
 }
 
 .image-btns>button {
@@ -126,15 +136,16 @@
     align-items: center;
     justify-content: center;
     height: 35px;
+    flex-grow: 1;
     padding: 0 20px;
     font-weight: 600;
     border-radius: 10px;
-    gap: 5px;
+    gap: 10px;
+    cursor: pointer;
 }
 
 #import_image {
     position: relative;
-    flex-grow: 1;
     background: var(--color_black);
     color: var(--color_white);
 }
@@ -165,47 +176,75 @@
     height: max-content;
     flex-grow: 1;
     flex-direction: column;
+    box-shadow: 0 0 5px var(--color_gray);
+    padding: 15px 20px;
+    border-radius: 15px;
     gap: 10px;
 }
 
-.info .info_container #modify_btns {
+.info .info_container .heading_info {
     display: flex;
-    position: absolute;
-    height: 35px;
+    align-items: flex-end;
+    justify-content: space-between;
+    height: max-content;
+    width: 100%;
+    flex-wrap: wrap-reverse;
+    gap: 5px;
+}
+
+.heading_info .beside_info {
+    display: flex;
+    height: max-content;
     width: max-content;
-    right: 0;
-    top: 0;
-    gap: 15px;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.heading_info .beside_info p {
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: max-content;
+    font-size: 15px;
+    gap: 5px;
+}
+
+.heading_info .beside_info input {
+    height: 25px;
+    font-size: 13px;
+    padding: 0 5px;
+    outline: none;
+    border: none;
+}
+
+.heading_info #modify_btns {
+    display: flex;
+    justify-content: flex-end;
+    height: initial;
+    flex-grow: 1;
+    gap: 20px;
 }
 
 #modify_btns button {
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 100%;
-    width: 100px;
+    height: 35px;
     border-radius: 5px;
     font-weight: 600;
     gap: 15px;
 }
 
 #modify_btns #edit_info {
+    width: 80px;
     background: var(--color_gray_light);
     color: var(--color_black);
 }
 
 #modify_btns #save_info {
+    width: 100px;
     background: var(--color_black);
     color: var(--color_white);
-}
-
-.info .info_container>.item {
-    display: flex;
-    align-items: flex-start;
-    height: max-content;
-    width: max-content;
-    flex-direction: column;
-    gap: 5px;
 }
 
 .info_container .input_info {
@@ -218,76 +257,99 @@
     flex-wrap: wrap;
 }
 
-.info_container .input_info .item {
+.input_info .item {
     display: flex;
+    position: relative;
     align-items: flex-start;
     height: max-content;
-    flex-grow: 1;
+    flex: 1 1 auto;
     gap: 5px;
 }
 
-.info_container .item label {
+.input_info .item:nth-child(3),
+.input_info .item:nth-child(4) {
+    width: 100%;
+}
+
+.input_info .item label {
     margin-top: 10px;
     font-size: 15px;
     font-weight: 600;
+    flex-shrink: 0;
 }
 
-.info_container .item input {
+.item .input_item {
+    display: flex;
+    position: relative;
+    flex-grow: 1;
+}
+
+.item .input_item input {
     display: flex;
     height: 40px;
-    flex-grow: 1;
-    max-width: 250px;
+    width: 100%;
     background: transparent;
-    color: var(--color_black);
     font-size: 15px;
-    padding: 0 5px;
+    padding: 0 40px 0 10px;
     outline: none;
 }
 
-.info_container>.item p {
+.item .input_item .error_input {
     display: flex;
-    align-items: center;
-    height: max-content;
-    width: max-content;
-    font-size: 15px;
+    position: absolute;
+    right: 10px;
+    top: 10px;
+    cursor: pointer;
 }
 
-.info_container>.item input {
-    height: 25px;
+.input_item .error_input p {
+    display: none;
+}
+
+.input_item .error_input:hover p {
+    display: flex;
+    position: absolute;
+    width: max-content;
+    right: 0;
+    top: 25px;
+    padding: 10px 15px;
+    background: var(--color_gray_light);
+    color: var(--color_black);
     font-size: 13px;
+    border-radius: 5px;
+    z-index: 1;
+    cursor: default
 }
 
 .info_container input.modify {
-    border: 2px solid var(--color_gray_light);
+    outline: 2px solid var(--color_gray_light);
     border-radius: 5px;
 }
 
 .info_container input.modify:focus {
-    border-color: var(--color_black);
+    outline-color: var(--color_black);
 }
 
 .info_container textarea {
     display: flex;
     height: 150px;
-    min-width: 250px;
     max-width: 400px;
     flex-grow: 1;
     font-size: 15px;
     background: transparent;
-    color: var(--color_black);
     padding: 10px;
     text-wrap: wrap;
     resize: none;
     outline: none;
 }
 
-.info_container .item textarea.modify {
-    border: 2px solid var(--color_gray_light);
+.info_container textarea.modify {
+    outline: 2px solid var(--color_gray_light);
     border-radius: 5px;
 }
 
-.info_container .item textarea.modify:focus {
-    border-color: var(--color_black);
+.info_container textarea.modify:focus {
+    outline-color: var(--color_black);
 }
 
 .footer-manage {
@@ -301,7 +363,6 @@
     align-items: center;
     justify-content: center;
     height: 35px;
-    width: max-content;
     color: var(--color_white);
     padding: 0 15px;
     text-transform: uppercase;
@@ -317,11 +378,10 @@
     max-width: 250px;
 }
 
-#logout,
-#confirm {
+#logout {
+    width: 100px;
     background: var(--color_black);
 }
-
 
 #cancel-manage {
     display: flex;
@@ -357,7 +417,7 @@
 }
 
 @media screen and (max-width: 768px) {
-    .manage-container {
+    .manage_container {
         padding: 0;
     }
 
@@ -380,12 +440,7 @@
         flex-wrap: wrap;
     }
 
-    .info-manage .info {
-        padding-top: 50px;
-    }
-
-    #alert {
-        width: calc(100% - 20px);
-        left: 10px;
+    #modify_btns #edit_info {
+        flex-grow: 1;
     }
 }

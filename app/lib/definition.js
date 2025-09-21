@@ -104,3 +104,24 @@ export function FeedbackDefinition(data) {
 
     return Object.keys(errors).length > 0 ? { success: false, errors } : { success: true };
 }
+
+export function UpdateInfoDefinition({ data, dataUpdate }) {
+    const errors = {};
+
+    if ((dataUpdate.surname ?? '').trim().length === 0) errors.surname = 'Surname is required';
+    else if ((data.surname.trim() === (dataUpdate.surname ?? '').trim())) errors.surname = 'No change in surname';
+
+    if ((dataUpdate.name ?? '').trim().length === 0) errors.name = 'Name is required';
+    else if (data.name.trim() === (dataUpdate.name ?? '').trim()) errors.name = 'No change in name';
+
+    if ((dataUpdate.email ?? '').trim().length === 0) errors.email = 'Email is required';
+    else if (dataUpdate.email && (!dataUpdate.email?.includes('@') || !dataUpdate.email?.includes('.com'))) errors.email = 'Email must be contains @ and .com';
+    else if (data.email.trim() === (dataUpdate.email ?? '').trim()) errors.email = 'No change in email';
+
+    if ((dataUpdate.phone ?? '').trim().length === 0) errors.phone = 'Phone is required';
+    else if ((dataUpdate.phone ?? '').trim().length !== 10) errors.phone = 'Phone must be 10 digits';
+    else if (!(/^-?\d+$/.test((dataUpdate.phone ?? '').trim()))) errors.phone = 'Phone must be number';
+    else if (data.phone.trim() === (dataUpdate.phone ?? '').trim()) errors.phone = 'No change in phone';
+
+    return Object.keys(errors).length > 0 ? { success: false, errors } : { success: true };
+}

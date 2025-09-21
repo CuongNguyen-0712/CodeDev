@@ -1,4 +1,4 @@
-.feedback-container {
+.feedback_container {
     display: flex;
     position: fixed;
     align-items: flex-start;
@@ -37,6 +37,7 @@
     border-radius: 50px;
     color: var(--color_black);
     transition: 0.2s all ease;
+    cursor: pointer;
 }
 
 #feedback-form>button:hover {
@@ -61,9 +62,8 @@
     justify-content: space-between;
     height: max-content;
     width: 100%;
-    border-radius: 10px;
+    border-radius: 20px;
     padding: 10px 20px;
-    border: 1px solid var(--color_gray_light);
     box-shadow: 0 0 5px var(--color_gray);
     gap: 10px;
 }
@@ -108,14 +108,14 @@
     max-width: 300px;
     background: var(--color_gray_light);
     border-radius: 10px;
-    outline: none;
-    border: 2px solid var(--color_gray_light);
+    outline: 2px solid var(--color_gray_light);
     padding: 0 10px;
+    font-size: 14px;
     transition: 0.2s all ease;
 }
 
 .feedback-field input:focus {
-    border-color: var(--color_black);
+    outline-color: var(--color_black);
     transition: 0.2s all ease;
 }
 
@@ -126,11 +126,13 @@
     resize: none;
     padding: 10px;
     background: var(--color_gray_light);
+    outline: 2px solid var(--color_gray_light);
+    font-size: 14px;
     border-radius: 10px;
 }
 
 .feedback-field textarea:focus {
-    outline: 2px solid var(--color_black);
+    outline-color: var(--color_black);
 }
 
 .feedback-field .error_validation {
@@ -161,6 +163,7 @@
     align-items: center;
     text-transform: uppercase;
     color: var(--color_white);
+    border-radius: 15px;
     font-weight: 700;
     font-size: 13px;
 }
@@ -168,14 +171,12 @@
 #reset {
     background: var(--color_black);
     width: 100px;
-    border-radius: 50px;
 }
 
 #send {
     position: relative;
     flex-grow: 1;
     background: var(--color_blue);
-    border-radius: 10px;
     padding-right: 50px;
     cursor: pointer;
 }
@@ -196,7 +197,7 @@
 }
 
 @media screen and (max-width: 425px) {
-    .feedback-container {
+    .feedback_container {
         padding: 0px;
     }
 

@@ -1,31 +1,34 @@
 "use client";
 import { useState } from "react";
-
-import { useSize } from "@/app/contexts/sizeContext";
-import { useQuery } from "@/app/router/router";
 import { usePathname } from "next/navigation";
+
+import { useQuery } from "@/app/router/router";
+import { useSize } from "@/app/contexts/sizeContext";
 import { useAuth } from "@/app/contexts/authContext";
 
 import useOutside from "@/app/hooks/useOutside";
 
-import Image from "next/image";
-
-import { FaListUl, FaUserCog, FaRegUserCircle } from "react-icons/fa";
+import { FaListUl, FaUserCog, FaRegUserCircle, FaChevronDown } from "react-icons/fa";
 import { IoSearch } from "react-icons/io5";
-import { MdAddCircle, MdEmail, MdNotifications } from "react-icons/md";
+import { MdEmail, MdNotifications, MdAccountBox } from "react-icons/md";
 
 export default function Navbar({ handleDashboard, handleRedirect }) {
   const pathname = usePathname();
   const { size } = useSize();
   const { session } = useAuth();
 
-  const [state, setState] = useState(false);
+  const [state, setState] = useState({
+    dropdown: false,
+  });
 
   const queryNavigate = useQuery();
 
   const ref = useOutside({
-    stateOutside: state,
-    setStateOutside: () => setState(false)
+    stateOutside: state.dropdown,
+    setStateOutside: () => setState((prev) => ({
+      ...prev,
+      dropdown: false
+    }))
   })
 
   return (
@@ -42,20 +45,26 @@ export default function Navbar({ handleDashboard, handleRedirect }) {
                 <FaListUl />
               </button>
             }
-            <div id="app-name">
-              <Image
-                src={'/image/static/logo.svg'}
-                height={25}
-                width={25}
-                alt="CodeDev_logo"
-              />
+            <div id="app_name">
+              <div className="logo">
+                <svg className="svg" viewBox="-5 -5 110 95">
+                  <polygon
+                    className="shape"
+                    points="50,0 0,85 100,85" />
+                </svg>
+              </div>
               <h2>CodeDev</h2>
             </div>
           </div>
-          {size.width >= 600 && (
-            <button className="search">
+          {size.width >= 700 && (
+            <button
+              className="search"
+              onClick={() =>
+                queryNavigate(pathname, { search: true })
+              }
+            >
               <span>
-                <IoSearch />
+                <IoSearch fontSize={18} />
               </span>
               <span>Search something</span>
             </button>
@@ -68,27 +77,42 @@ export default function Navbar({ handleDashboard, handleRedirect }) {
                 </button>
                 :
                 <div className="navbar_handler">
-                  <button id="todo">
-                    <MdAddCircle />
-                    <span>Todo</span>
-                  </button>
+                  {
+                    (pathname !== '/home' && size.width < 700) &&
+                    <button
+                      id="search_icon"
+                      onClick={() =>
+                        queryNavigate(pathname, { search: true })
+                      }
+                    >
+                      __
+                      <IoSearch fontSize={18} />
+                    </button>
+                  }
                   <button
                     id="account"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setState(!state);
+                      setState((prev) => ({
+                        ...prev,
+                        dropdown: !prev.dropdown
+                      }));
                     }}
                   >
-                    <div className="logo_account">
-                      <svg className="account_svg" viewBox="-5 -5 110 95">
-                        <polygon
-                          className="logo_svg"
-                          points="50,0 0,85 100,85" />
-                      </svg>
-                    </div>
+                    <MdAccountBox fontSize={22} />
+                    {
+                      size.width >= 500 &&
+                      <span>Account</span>
+                    }
+                    <FaChevronDown
+                      style={{
+                        transform: state.dropdown ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: '0.2s all ease'
+                      }}
+                    />
                   </button>
                   {
-                    state &&
+                    state.dropdown &&
                     <div className="drop_down" ref={ref} >
                       <div id="tag_account">
                         <FaRegUserCircle fontSize={20} />
@@ -109,7 +133,7 @@ export default function Navbar({ handleDashboard, handleRedirect }) {
                         </span>
                       </button>
                       <button onClick={() => queryNavigate(pathname, { manage: true })}>
-                        <FaUserCog />
+                        <FaUserCog fontSize={16} />
                         Manage
                       </button>
                     </div>
