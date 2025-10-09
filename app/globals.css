@@ -6,7 +6,9 @@
 @import "./style/home/feedback.css";
 @import "./style/home/search.css";
 
-@import "./style/course.css";
+@import "./style/course/course.css";
+@import "./style/course/content.css";
+
 @import "./style/event.css";
 @import "./style/auth.css";
 @import "./style/project.css";

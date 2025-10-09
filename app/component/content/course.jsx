@@ -1,6 +1,5 @@
 import { useState, useEffect, startTransition, useMemo, useRef } from "react"
 
-import Image from "next/image";
 import Form from "next/form";
 
 import DeleteMyCourseServive from "@/app/services/deleteService/myCourseService";
@@ -33,6 +32,7 @@ export default function MyCourse({ redirect }) {
         error: null,
         handling: false,
         activeUI: false,
+        idRedirect: null,
     })
 
     const [filter, setFilter] = useState({
@@ -66,7 +66,7 @@ export default function MyCourse({ redirect }) {
     });
 
     const processQueue = async () => {
-        if (isProcessing || apiQueue.length === 0) return;
+        if (isProcessing || apiQueue.length === 0 || state.idRedirect) return;
 
         setIsProcessing(true);
 
@@ -318,6 +318,13 @@ export default function MyCourse({ redirect }) {
         }
     }, [state.filter])
 
+    const handleJoin = (id) => {
+        if (!id) return;
+
+        setState((prev) => ({ ...prev, idRedirect: id }));
+        navigateToCourse(id);
+    }
+
     return (
         <div id="myCourse">
             <div className="heading-myCourse">
@@ -345,7 +352,7 @@ export default function MyCourse({ redirect }) {
                                 <button type="submit" disabled={state.pending}>
                                     {
                                         state.pending ?
-                                            <LoadingContent scale={0.4} color='var(--color_white)' />
+                                            <LoadingContent scale={0.5} color='var(--color_white)' />
                                             :
                                             <>
                                                 <FaRegCheckCircle />
@@ -378,7 +385,7 @@ export default function MyCourse({ redirect }) {
                                 state.data.map((item) => (
                                     <div key={item.id} className="course">
                                         <div className="heading-course">
-                                            <Image src={item.image} width={50} height={50} alt="image-course" />
+                                            <img src={item.image?.trim()} alt="course_image" />
                                             <h3>{item.title}</h3>
                                         </div>
                                         <div className="content-course">
@@ -430,7 +437,6 @@ export default function MyCourse({ redirect }) {
                                                                 }))
                                                             }}
                                                             disabled={state.handling}
-                                                            style={{ cursor: state.handling ? 'not-allowed' : 'pointer' }}
                                                         >
                                                             {
                                                                 state.isHide ?
@@ -446,7 +452,6 @@ export default function MyCourse({ redirect }) {
                                                                 withdraw: true
                                                             }))}
                                                             disabled={state.handling}
-                                                            style={{ cursor: state.handling ? 'not-allowed' : 'pointer' }}
                                                         >
 
                                                             <IoTrashBin />
@@ -454,7 +459,20 @@ export default function MyCourse({ redirect }) {
                                                         </button>
                                                     </div>
                                                     :
-                                                    <button className="join-course" disabled={state.handling.withdraw || state.handling.hide} style={{ cursor: state.handling.withdraw ? 'not-allowed' : 'pointer' }}>Join</button>
+                                                    <button
+                                                        className="join-course"
+                                                        disabled={state.handling.withdraw || state.handling.hide || state.idRedirect}
+                                                        onClick={() => handleJoin(item.id)}
+                                                    >
+                                                        {
+                                                            state.idRedirect === item.id ?
+                                                                <LoadingContent scale={0.5} color='var(--color_white)' />
+                                                                :
+                                                                <>
+                                                                    Join
+                                                                </>
+                                                        }
+                                                    </button>
                                             }
                                         </div>
                                         {

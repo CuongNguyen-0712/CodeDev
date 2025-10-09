@@ -13,7 +13,7 @@
   justify-content: center;
   height: 100%;
   width: 100%;
-  padding: 20px 10px;
+  padding: 20px;
   background: transparent;
   overflow: auto;
   overflow-x: hidden;
@@ -38,9 +38,10 @@
   height: max-content;
   max-height: 800px;
   flex-grow: 1;
-  padding: 30px 20px;
+  padding: 20px;
   background: transparent;
   flex-direction: column;
+  flex-basis: 300px;
   flex-basis: 0;
 }
 
@@ -89,28 +90,29 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 300px;
+  min-height: 320px;
   width: 100%;
   flex-grow: 1;
   flex-direction: column;
   padding: 20px 0;
+  gap: 30px;
 }
 
 .login-input {
   display: flex;
-  justify-content: center;
+  align-items: center;
   height: max-content;
-  width: 60%;
-  min-width: 200px;
+  width: 100%;
   flex-direction: column;
-  gap: 20px;
+  gap: 25px;
 }
 
 .field-input {
   display: flex;
   position: relative;
   height: max-content;
-  width: 100%;
+  width: 80%;
+  max-width: 350px;
   gap: 5px;
 }
 
@@ -119,12 +121,14 @@
   display: flex;
   height: 45px;
   width: 100%;
-  padding: 15px 0 0 30px;
+  max-width: 100%;
+  padding: 15px 25px 0 30px;
   font-size: 16px;
   background: transparent;
   outline: none;
   border-radius: 0;
   border-bottom: 2px solid var(--color_black);
+  box-sizing: border-box;
   z-index: 1;
 }
 
@@ -155,6 +159,49 @@
   transition: 0.2s all ease;
 }
 
+.field-input .clear {
+  display: flex;
+  position: absolute;
+  top: 20px;
+  right: 5px;
+  background: transparent;
+  transform: scale(0);
+  transition: 0.2s all ease;
+  cursor: pointer;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.field-input.has-content .clear {
+  transform: scale(1);
+  transition: 0.2s all ease;
+  pointer-events: all;
+  z-index: 1;
+}
+
+.field-input p {
+  display: flex;
+  position: absolute;
+  width: 100%;
+  top: 50px;
+  left: 0;
+  color: var(--color_red);
+  font-size: 12px;
+}
+
+.field-input .eye_password {
+  display: flex;
+  position: absolute;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  width: 30px;
+  right: -40px;
+  bottom: 0;
+  border-radius: 5px;
+  background: var(--color_gray_light);
+}
+
 .main-login .login-help {
   display: flex;
   justify-content: space-between;
@@ -162,8 +209,8 @@
   width: 100%;
   padding: 0 30px;
   font-size: 12px;
-  gap: 10px;
   flex-wrap: wrap-reverse;
+  gap: 20px;
 }
 
 .login-help span {
@@ -173,6 +220,11 @@
   height: max-content;
   width: max-content;
   gap: 5px;
+}
+
+.login-help input[type='checkbox'] {
+  accent-color: var(--color_blue);
+  cursor: pointer;
 }
 
 .login-help span:nth-child(2) {
@@ -192,6 +244,21 @@
   font-weight: 600;
   text-transform: uppercase;
   cursor: pointer;
+}
+
+#forgot_password {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color_black);
+  background: transparent;
+  text-decoration: none;
+  transition: 0.2s all ease;
+  cursor: pointer;
+}
+
+#forgot_password:hover {
+  color: var(--color_gray);
+  transition: 0.2s all ease;
 }
 
 .login.pop .footer-login {
@@ -277,10 +344,6 @@ a {
   transition: 0.4s all ease;
 }
 
-.logup.pop .field-input {
-  width: 100%;
-}
-
 .heading-logup {
   display: flex;
   align-items: center;
@@ -307,63 +370,39 @@ a {
 
 .logup-page {
   display: flex;
+  height: 100%;
+  min-height: 300px;
   width: 200%;
-  min-height: 250px;
-  flex-grow: 1;
   flex-direction: row;
+  overflow: hidden;
   transition: 0.2s all ease;
 }
 
-#logup-page-1 {
-  display: flex;
-  justify-content: space-around;
-  height: initial;
-  flex-grow: 1;
-  padding: 20px 0;
-  flex-direction: column;
-  gap: 20px;
-}
-
-#logup-page-1 .logup-input {
-  display: flex;
-  height: max-content;
-  width: 100%;
-  gap: 20px;
-}
-
+#logup-page-1,
 #logup-page-2 {
   display: flex;
   justify-content: space-around;
   align-items: center;
   height: initial;
-  flex-grow: 1;
-  padding: 20px 0;
+  flex: 0 0 50%;
+  padding: 20px;
   flex-direction: column;
-  gap: 20px;
-}
-
-#logup-page-2 .auth-password {
-  display: flex;
-  height: max-content;
-  width: 100%;
-  gap: 20px;
-}
-
-.auth-password>input {
-  display: flex;
-  height: 40px;
-  width: 50%;
-  outline: none;
-  font-size: 16px;
+  gap: 30px;
 }
 
 #logup-page-2 .auth-terms {
   display: flex;
+  align-items: center;
   height: max-content;
   width: 100%;
   font-size: 12px;
   font-weight: 500;
   gap: 10px;
+}
+
+#logup-page-2 .auth-terms input[type='checkbox'] {
+  accent-color: var(--color_blue);
+  cursor: pointer;
 }
 
 .btn-logup {
@@ -501,70 +540,6 @@ textarea::placeholder {
   gap: 5px;
 }
 
-#warning_notification {
-  display: flex;
-  position: fixed;
-  height: 35px;
-  width: 35px;
-  bottom: 25px;
-  right: 25px;
-  background: transparent;
-  z-index: 1;
-}
-
-#warning_notification>button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  width: 100%;
-  border-radius: 50px;
-  color: var(--color_white);
-  font-size: 17px;
-  cursor: pointer;
-  z-index: 1
-}
-
-#warning_notification .content_warning {
-  display: flex;
-  position: absolute;
-  height: max-content;
-  width: max-content;
-  right: 0px;
-  bottom: 50px;
-  padding: 10px;
-  border-radius: 10px;
-  background: var(--color_white);
-  box-shadow: 0 0 5px var(--color_gray);
-  font-size: 14px;
-  transform: scale(1);
-  flex-direction: column;
-  gap: 10px;
-  transform-origin: bottom right;
-  transition: 0.2s all ease;
-  z-index: 0;
-  overflow: hidden;
-}
-
-#warning_notification .content_warning.hide {
-  transform: scale(0);
-  transform-origin: bottom right;
-  transition: 0.2s all ease;
-}
-
-.content_warning p {
-  display: flex;
-  align-items: center;
-  height: max-content;
-  width: 100%;
-  gap: 10px;
-}
-
-.content_warning p svg {
-  display: flex;
-  flex-shrink: 0;
-}
-
 .beside_auth {
   display: flex;
   align-items: center;
@@ -572,7 +547,7 @@ textarea::placeholder {
   height: initial;
   width: 350px;
   padding: 20px 10px;
-  background: transparent;
+  background: var(--color_blue_light);
   flex-direction: column;
   gap: 30px;
 }
@@ -580,25 +555,15 @@ textarea::placeholder {
 .beside_auth .image_frame {
   justify-content: center;
   display: flex;
-  height: max-content;
+  flex-grow: 1;
   width: 100%;
 }
 
 .beside_auth .image_frame img {
-  background-repeat: no-repeat;
-  background-size: cover;
-  border-radius: 15px;
-  box-shadow: 0 0 5px var(--color_gray);
-}
-
-.beside_auth h3 {
-  display: flex;
-  justify-content: center;
-  height: max-content;
+  height: 100%;
   width: 100%;
-  text-align: center;
-  text-transform: uppercase;
-  padding: 0 40px;
+  object-fit: contain;
+  background-repeat: no-repeat;
 }
 
 .beside_auth .navigate_btns {
@@ -625,17 +590,16 @@ textarea::placeholder {
 }
 
 #navigate_login {
+  background: var(--color_white);
+  color: var(--color_black);
+}
+
+#navigate_signup {
   background: var(--color_blue);
   color: var(--color_white);
 }
 
-#navigate_signup {
-  background: transparent;
-  border: 2px solid var(--color_blue);
-  color: var(--color_black);
-}
-
-@media screen and (max-width: 450px) {
+@media screen and (max-width: 425px) {
   .auth-container .container {
     width: 100%;
     border-radius: 0px;
@@ -648,17 +612,9 @@ textarea::placeholder {
     padding: 0;
   }
 
-  #logup-page-2 .auth-password,
-  #logup-page-1 .logup-input {
-    flex-wrap: wrap;
-  }
-
-  #warning_notification .content_warning {
-    width: 280px;
-  }
-
-  .error {
-    width: calc(100% - 20px);
+  #logup-page-1,
+  #logup-page-2 {
+    width: 100px;
   }
 }
 

@@ -39,6 +39,7 @@
     width: max-content;
     background: transparent;
     padding: 0 15px;
+    color: var(--color_blue);
     flex-shrink: 0;
     cursor: pointer;
 }

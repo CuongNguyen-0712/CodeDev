@@ -41,17 +41,17 @@ export async function postRegisterCourse(data) {
     }
 
     try {
-        await sql`INSERT INTO course.register (userid, courseid) VALUES (${userId}, ${courseId})`;
+        await sql`select register_course(${userId}, ${courseId})`;
 
         return new Response(
-            JSON.stringify({ message: "Register course successfully" }),
+            JSON.stringify({ message: 'Register course successfully' }),
             { status: 200, headers: { "Content-Type": "application/json" } }
         );
     } catch (error) {
         console.error("Error register course:", error);
         return new Response(
-            JSON.stringify({ message: "Somthing went wrong" }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
+            JSON.stringify({ message: error.message || "Somthing went wrong" }),
+            { status: 500, headers: { "Content-Type": "application/json" } }
         );
     }
 }
@@ -77,7 +77,7 @@ export async function postRegisterProject(data) {
         console.error("Error register project:", error);
         return new Response(
             JSON.stringify({ message: "Somthing went wrong" }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
+            { status: 500, headers: { "Content-Type": "application/json" } }
         );
     }
 }
@@ -104,7 +104,7 @@ export async function postCreateTeam(data) {
         console.error("Error create team:", error);
         return new Response(
             JSON.stringify({ message: "Somthing went wrong" }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
+            { status: 500, headers: { "Content-Type": "application/json" } }
         );
     }
 }

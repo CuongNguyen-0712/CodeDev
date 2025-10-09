@@ -12,7 +12,7 @@ import { LoadingContent } from "../ui/loading";
 import { IoFilter } from "react-icons/io5"
 import { FaArrowRight, FaRegCheckCircle, FaChevronUp } from "react-icons/fa";
 import { FaUser, FaUserGroup } from "react-icons/fa6";
-import { MdPushPin } from "react-icons/md";
+import { MdPushPin, MdInfoOutline } from "react-icons/md";
 
 export default function ProjectContent({ redirect }) {
     const queryNavigate = useQuery();
@@ -407,7 +407,7 @@ export default function ProjectContent({ redirect }) {
                                 <button type="submit" disabled={state.pending}>
                                     {
                                         state.pending ?
-                                            <LoadingContent scale={0.4} color='var(--color_white)' />
+                                            <LoadingContent scale={0.5} color='var(--color_white)' />
                                             :
                                             <>
                                                 <FaRegCheckCircle />
@@ -432,15 +432,29 @@ export default function ProjectContent({ redirect }) {
                 <div className="method_project">
                     <div className="heading">
                         <button
+                            className='handle_method_btn'
                             onClick={() => setHide((prev) => ({ ...prev, self: !prev.self }))}
-                            style={hide.self ? { background: 'var(--color_blue)' } : { background: 'var(--color_black)' }}
+                            style={
+                                hide.self ?
+                                    {
+                                        background: 'var(--color_blue)',
+                                        borderColor: 'var(--color_white)',
+                                        color: 'var(--color_white)'
+                                    }
+                                    :
+                                    {
+                                        background: 'var(--color_gray_light)',
+                                        borderColor: 'var(--color_gray)',
+                                        color: 'var(--color_black)'
+                                    }
+                            }
                         >
                             <FaChevronUp style={{ transform: hide.self ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.2s all ease' }} />
-                        </button>
-                        <div className="tag_method">
                             <FaUser />
-                            <h3>Self</h3>
-                        </div>
+                        </button>
+                        <button className="tag_method">
+                            <MdInfoOutline fontSize={20} />
+                        </button>
                     </div>
                     {
                         !hide.self ?
@@ -539,15 +553,29 @@ export default function ProjectContent({ redirect }) {
                 <div className="method_project">
                     <div className="heading">
                         <button
+                            className="handle_method_btn"
                             onClick={() => setHide((prev) => ({ ...prev, team: !prev.team }))}
-                            style={hide.team ? { background: 'var(--color_blue)' } : { background: 'var(--color_black)' }}
+                            style={
+                                hide.team ?
+                                    {
+                                        background: 'var(--color_blue)',
+                                        borderColor: 'var(--color_white)',
+                                        color: 'var(--color_white)'
+                                    }
+                                    :
+                                    {
+                                        background: 'var(--color_gray_light)',
+                                        borderColor: 'var(--color_gray)',
+                                        color: 'var(--color_black)'
+                                    }
+                            }
                         >
                             <FaChevronUp style={{ transform: hide.team ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.2s all ease' }} />
-                        </button>
-                        <div className="tag_method">
                             <FaUserGroup />
-                            <h3>Team</h3>
-                        </div>
+                        </button>
+                        <button className="tag_method">
+                            <MdInfoOutline fontSize={20} />
+                        </button>
                     </div>
                     {
                         !hide.team ?

@@ -214,7 +214,7 @@ export default function Overview() {
                                             <h2>{state.data.info.username}</h2>
                                             <span>{state.data.info.nickname || 'No nickname'}</span>
                                         </div>
-                                        <div className="exprience">
+                                        <div className="experience">
                                             <p className="level">{state.data.info.level}</p>
                                             <p>
                                                 <span>Stars</span>
@@ -243,7 +243,7 @@ export default function Overview() {
                                 languageStats.map((item, index) => (
                                     <div className="language-item" key={index}>
                                         <div className="heading-language">
-                                            <Image src={item.logo} alt="icon_language" width={25} height={25} />
+                                            <img src={item.logo?.trim()} alt="icon_language" />
                                             <h4>{item.id}</h4>
                                         </div>
                                         <div className="bar">
@@ -297,7 +297,7 @@ export default function Overview() {
                                                                 filtered.map((course, key) => (
                                                                     <div className="item" key={key}>
                                                                         <div className="header">
-                                                                            <Image src={course.image.trim()} alt="image-course" width={30} height={30} />
+                                                                            <img src={course.image?.trim()} alt="course_image" />
                                                                             <h5>{course.title}</h5>
                                                                         </div>
                                                                         <span>{course.subject}</span>

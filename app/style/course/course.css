@@ -60,6 +60,11 @@
 
 .item .heading img {
   position: absolute;
+  height: 65px;
+  width: 65px;
+  object-fit: contain;
+  background-repeat: no-repeat;
+  color: transparent;
   top: 0px;
   left: calc(50% - 30px);
   transition: 0.4s all ease;

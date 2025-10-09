@@ -5,14 +5,15 @@ const sql = neon(process.env.DATABASE_URL);
 
 export async function deleteMyCourse(data) {
     try {
-        if (!data) {
+        const { userId, courseId } = data
+
+        if (!(userId || courseId)) {
             return new Response(
                 JSON.stringify({ message: "You missing something, check again" }),
                 { status: 400, headers: { "Content-Type": "application/json" } }
             );
         }
 
-        const { userId, courseId } = data
 
         await sql`      
         DELETE FROM course.register WHERE courseid = ${courseId} AND userid = ${userId};

@@ -71,11 +71,14 @@
     height: 100%;
     width: 100%;
     background: transparent;
+    flex-direction: column;
+    gap: 15px;
 }
 
 .loader {
     width: 50px;
     height: 50px;
+    scale: 1;
     animation: rotate 2s linear infinite;
 }
 
@@ -85,7 +88,12 @@
     animation: dash 1.5s ease-in-out infinite;
 }
 
+#loadContent>p {
+    font-size: 14px;
+}
+
 @keyframes rotate {
+
     100% {
         transform: rotate(360deg);
     }
@@ -133,17 +141,28 @@
     align-items: center;
     height: max-content;
     width: max-content;
+    max-width: 300px;
     padding: 15px 20px;
     border-radius: 10px;
     flex-direction: column;
     box-shadow: 0 0 5px var(--color_gray);
+    outline: 2px solid var(--color_gray);
     background: var(--color_white);
     gap: 15px;
     transition: .2s all ease;
 }
 
+.error_layout h5 {
+    height: max-content;
+    width: max-content;
+    padding: 5px 20px;
+    border-radius: 20px;
+    color: var(--color_white);
+    background: var(--color_red_light);
+}
+
 .error_layout:hover {
-    box-shadow: 0 5px 10px var(--color_gray);
+    box-shadow: 0 0 10px var(--color_gray);
     transition: 0.2s all ease;
 }
 
@@ -151,17 +170,34 @@
     font-size: 15px;
 }
 
-.error_layout button {
+.error_layout .handle_error_btns {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.handle_error_btns button {
     display: flex;
     align-items: center;
+    justify-content: center;
     height: 35px;
-    width: max-content;
-    padding: 0 20px;
+    flex-grow: 1;
+    min-width: 80px;
+    font-weight: 600;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+#reload_btn {
     background: var(--color_black);
     color: #fff;
-    font-weight: 600;
-    border-radius: 15px;
-    cursor: pointer;
+}
+
+#demiss_btn {
+    background: var(--color_gray_light);
+    color: var(--color_black);
 }
 
 #navigate_handler {
@@ -246,6 +282,7 @@
     height: 100%;
     width: 100%;
     background: transparent;
+    padding: 10px;
     overflow: hidden;
 }
 
@@ -254,6 +291,7 @@
     align-items: center;
     height: max-content;
     width: max-content;
+    text-align: center;
     flex-direction: column;
     gap: 15px;
 }
@@ -266,6 +304,7 @@
     width: max-content;
     padding: 0 20px;
     border-radius: 20px;
+    outline: none;
     font-weight: 600;
     cursor: pointer;
 }

@@ -212,7 +212,7 @@ export async function getMyCourse({ id, search, limit, offset, hide }) {
         `;
 
         return new Response(
-            JSON.stringify({ data: res, message: "Get data successfully" }),
+            JSON.stringify({ data: res }),
             { status: 200, headers: { "Content-Type": "application/json" } }
         );
     } catch (error) {
@@ -394,3 +394,94 @@ export async function getSocial({ id, search, offset, limit, filter }) {
     }
 }
 
+export async function getContentCourse({ user_id, course_id }) {
+    if (!course_id) {
+        return new Response(JSON.stringify({ message: "Missing something, check again" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" }
+        })
+    }
+
+    try {
+        const res = await sql`select * from join_course(${user_id}, ${course_id})`
+        return new Response(JSON.stringify({ data: res }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+        });
+    }
+    catch (err) {
+        console.error(err)
+        return new Response(JSON.stringify({ message: "External server error" }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" }
+        })
+    }
+}
+
+export async function getContentLesson({ user_id, lesson_id }) {
+    if (!(lesson_id || user_id)) {
+        return new Response(JSON.stringify({ message: "Missing something, check again" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" }
+        })
+    }
+
+    try {
+        const res = await sql`select * from get_lesson(${user_id}, ${lesson_id})`
+        return new Response(JSON.stringify({ data: res }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+        });
+    }
+    catch (err) {
+        console.error(err)
+        if (err.code === 'P2000') {
+            return new Response(JSON.stringify({ message: err.message || 'Please complete the previous lesson' }), {
+                status: 501,
+                headers: { "Content-Type": "application/json" }
+            })
+        }
+
+        return new Response(JSON.stringify({ message: "External server error" }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" }
+        })
+    }
+}
+
+export async function getStateCourse({ course_id }) {
+    if (!course_id) {
+        return new Response(JSON.stringify({ message: "Missing something, check again" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" }
+        })
+    }
+
+    try {
+        const res = await sql`
+            select 
+                title,
+                image,
+                concept,
+                description,
+                lesson,
+                duration,
+                instructor,
+                language,
+                subject
+            from public.course
+            where id = ${course_id}
+        `
+        return new Response(JSON.stringify({ data: res?.[0] }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+        });
+    }
+    catch (err) {
+        console.error(err)
+        return new Response(JSON.stringify({ message: "External server error" }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" }
+        })
+    }
+}

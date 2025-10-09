@@ -1,18 +1,34 @@
 import Image from "next/image"
 import { useRouterActions } from "@/app/router/router"
 
-export function ErrorReload({ data, refetch }) {
+export function ErrorReload({ data, refetch, callback = null }) {
     const { status, message } = data
     return (
         <div id="error">
             <div className="error_layout">
-                <h4>
+                <h5>
                     Error {status}
-                </h4>
+                </h5>
                 <p>
                     {message}
                 </p>
-                <button onClick={refetch}>Reload</button>
+                <div className="handle_error_btns">
+                    <button
+                        onClick={refetch}
+                        id="reload_btn"
+                    >
+                        Reload
+                    </button>
+                    {
+                        callback &&
+                        <button
+                            onClick={callback}
+                            id="demiss_btn"
+                        >
+                            Demiss
+                        </button>
+                    }
+                </div>
             </div>
         </div>
     )

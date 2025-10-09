@@ -26,9 +26,9 @@
   align-items: center;
   height: max-content;
   width: 100%;
-  gap: 30px;
+  gap: 20px;
   flex-direction: column;
-  padding-bottom: 30px;
+  padding-bottom: 20px;
 }
 
 .content_project .method_project {
@@ -46,35 +46,37 @@
   align-items: center;
   height: max-content;
   width: 100%;
-  padding: 0 0 10px 10px;
-  gap: 20px;
+  padding: 0 20px;
+  gap: 10px;
 }
 
-.method_project .heading::before {
-  content: "";
+.method_project .heading .handle_method_btn {
   display: flex;
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  height: 2px;
-  width: 100%;
-  background: var(--color_black);
+  align-items: center;
+  justify-content: space-between;
+  height: 35px;
+  width: 80px;
+  padding: 0 20px;
+  border: 2px solid;
+  border-radius: 50px;
+  flex-shrink: 0;
 }
 
 .method_project .heading .tag_method {
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-
-.method_project .heading button {
-  display: flex;
-  align-items: center;
   justify-content: center;
   height: 35px;
   width: 35px;
-  color: var(--color_white);
-  border-radius: 5px;
+  background: transparent;
+  color: var(--color_black);
+  border-radius: 50px;
+  transition: 0.2s all ease;
+}
+
+.method_project .heading .tag_method:hover {
+  background: var(--color_gray_light);
+  transition: 0.2s all ease;
 }
 
 .method_project .content {

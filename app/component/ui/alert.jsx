@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 
 import { IoWarning, IoCloseCircle, IoCheckmarkCircle, IoInformationCircle } from "react-icons/io5";
 
-export default function AlertPush({ status = 0, message = '', reset }) {
+export default function AlertPush({ status = 0, message = '', reset, callback = null }) {
     const [visible, setVisible] = useState(true);
 
     useEffect(() => {
@@ -30,6 +30,14 @@ export default function AlertPush({ status = 0, message = '', reset }) {
                 }[status] || <IoWarning fontSize={16} color="var(--color_orange)" />)
             }
             <p>{message}</p>
+            {
+                callback &&
+                <button
+                    onCLick={callback}
+                >
+                    Show
+                </button>
+            }
             <span id="time_bar"></span>
         </div>
     ) : null;

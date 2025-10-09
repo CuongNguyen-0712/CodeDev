@@ -22,6 +22,7 @@
     background: #fff;
     border-radius: 20px;
     flex-direction: column;
+    gap: 20px;
     transition: 0.2s all ease;
     overflow: hidden;
 }
@@ -141,7 +142,7 @@
     align-items: center;
     height: max-content;
     width: max-content;
-    bottom: -20px;
+    bottom: -25px;
     font-size: 13px;
     gap: 5px;
     color: var(--color_red);

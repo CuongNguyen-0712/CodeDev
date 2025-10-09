@@ -2,9 +2,7 @@ import { useState, useEffect, startTransition } from "react";
 
 import { IoClose } from "react-icons/io5";
 import { FaSave, FaHashtag } from "react-icons/fa";
-import { TbCancel } from "react-icons/tb";
 import { MdFileDownload, MdErrorOutline } from "react-icons/md";
-import { LiaExchangeAltSolid } from "react-icons/lia";
 
 import { usePathname } from "next/navigation";
 
@@ -206,28 +204,28 @@ export default function Manage({ redirect }) {
                                                 <Image src={file.preview || state.data.image || '/image/default.svg'} alt='avatar' height={80} width={80} priority />
                                             </div>
                                             <div className="image-btns">
-                                                <button
-                                                    type="button"
-                                                    id="import_image"
-                                                >
-                                                    {
-                                                        !file.file ?
-                                                            <>
+                                                {
+                                                    !file.file ?
+                                                        <>
+                                                            <button
+                                                                type="button"
+                                                                id="import_image"
+                                                            >
                                                                 <MdFileDownload fontSize={15} />
                                                                 Import
-                                                            </>
-                                                            :
-                                                            <>
-                                                                <LiaExchangeAltSolid />
-                                                                Change
-                                                            </>
-                                                    }
-                                                    <input type="file" name="file" accept="image/*" id="file" onChange={(e) => handleChangeImage(e)} disabled={state.handling} />
-                                                </button>
-                                                <button type="button" id="cancel_handle" style={!file.file ? { display: 'none' } : { display: 'flex' }} onClick={handleCancelChange}>
-                                                    <TbCancel />
-                                                    Cancel
-                                                </button>
+                                                            </button>
+                                                            <input type="file" name="file" accept="image/*" id="file" onChange={(e) => handleChangeImage(e)} disabled={state.handling} />
+                                                        </>
+                                                        :
+                                                        <>
+                                                            <button id='save_image' type="submit" disabled={true}>
+                                                                Save
+                                                            </button>
+                                                            <button type="button" id="cancel_handle" onClick={handleCancelChange}>
+                                                                <IoClose fontSize={18} />
+                                                            </button>
+                                                        </>
+                                                }
                                             </div>
                                         </div>
                                         <div className="footer_beside">
@@ -287,7 +285,7 @@ export default function Manage({ redirect }) {
                                                     <button type="submit" disabled={!(state.modify || state.change) || state.handling} style={{ cursor: !(state.modify || state.change) || state.handling ? 'not-allowed' : 'pointer' }} id="save_info">
                                                         {
                                                             state.handling ?
-                                                                <LoadingContent scale={0.4} color="var(--color_white)" />
+                                                                <LoadingContent scale={0.5} color="var(--color_white)" />
                                                                 :
                                                                 <>
                                                                     <FaSave />
@@ -406,7 +404,7 @@ export default function Manage({ redirect }) {
                 <button type="button" id="logout" onClick={handleLogout}>
                     {
                         state.logout ?
-                            <LoadingContent scale={0.4} color="var(--color_white)" />
+                            <LoadingContent scale={0.5} color="var(--color_white)" />
                             :
                             <>
                                 Logout

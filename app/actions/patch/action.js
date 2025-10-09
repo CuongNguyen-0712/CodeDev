@@ -106,3 +106,30 @@ export async function updateHideStatusProject(data) {
         });
     }
 }
+
+export async function updateLesson(data) {
+    const { user_id, course_id, lesson_id } = data;
+
+    if (!(lesson_id || course_id || user_id)) {
+        return new Response(JSON.stringify({ message: "You missing something, check again" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" }
+        });
+    }
+
+    try {
+        await sql`select update_lesson(${user_id}, ${course_id}, ${lesson_id});`;
+
+        return new Response(JSON.stringify({ message: "Congratulations, learn next lesson" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+        });
+    }
+    catch (err) {
+        console.error(err);
+        return new Response(JSON.stringify({ message: "Something went wrong, try again" }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" }
+        });
+    }
+}

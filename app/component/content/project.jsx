@@ -382,7 +382,7 @@ export default function Project({ redirect }) {
                                 <button type="submit" disabled={state.pending}>
                                     {
                                         state.pending ?
-                                            <LoadingContent scale={0.4} color='var(--color_white)' />
+                                            <LoadingContent scale={0.5} color='var(--color_white)' />
                                             :
                                             <>
                                                 <FaRegCheckCircle />

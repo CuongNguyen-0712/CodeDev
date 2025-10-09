@@ -1,9 +1,9 @@
 import { useState, useEffect, startTransition, useMemo, useRef } from "react"
 
-import Image from "next/image";
 import Form from "next/form";
 import RegisterCourseService from "@/app/services/postService/registerCourseService";
 import GetCourseService from "@/app/services/getService/courseService";
+
 import { useQuery } from "@/app/router/router";
 
 import { ErrorReload } from "../ui/error";
@@ -344,7 +344,7 @@ export default function CourseContent({ redirect }) {
                                 <button type="submit" disabled={state.pending}>
                                     {
                                         state.pending ?
-                                            <LoadingContent scale={0.4} color='var(--color_white)' />
+                                            <LoadingContent scale={0.5} color='var(--color_white)' />
                                             :
                                             <>
                                                 <FaRegCheckCircle />
@@ -377,7 +377,7 @@ export default function CourseContent({ redirect }) {
                                 state.data.map((item, index) => (
                                     <div className="item" key={index}>
                                         <div className="heading">
-                                            <Image src={item.image.trim()} alt='course-image' width={65} height={65} />
+                                            <img src={item.image?.trim()} alt="course_image" />
                                             <h3>{item.title}</h3>
                                             <span className="rating">
                                                 {item.rating}
@@ -407,8 +407,7 @@ export default function CourseContent({ redirect }) {
                                             <button
                                                 onClick={() => handleRegister({ id: item.id, isCost: item.cost !== 'free' })}
                                                 style={{
-                                                    backgroundColor: item.cost === 'free' ? 'var(--color_blue)' : 'var(--color_black)',
-                                                    ...(state.handling && { cursor: 'not-allowed' })
+                                                    backgroundColor: item.cost === 'free' ? 'var(--color_blue)' : 'var(--color_black)'
                                                 }}
                                                 disabled={state.handling}
                                             >

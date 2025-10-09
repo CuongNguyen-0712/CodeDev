@@ -7,17 +7,17 @@ import Image from "next/image"
 import { SignUpDefinition } from "@/app/lib/definition"
 import SignUpService from "@/app/services/authService/signUp"
 import { LoadingContent } from "../ui/loading"
+import { InputGroup } from "../ui/input"
 
 import { FaArrowRight, FaArrowLeft, FaPhone } from "react-icons/fa";
 import { MdModeEdit, MdAlternateEmail, MdOutlinePassword } from "react-icons/md";
 import { FaUser, FaLock } from "react-icons/fa6";
+import { IoIosWarning } from "react-icons/io";
 
 export default function Logup({
     active,
     changeForm,
     redirect,
-    error,
-    setError,
     setAlert
 }) {
     const [page, setPage] = useState(1);
@@ -34,11 +34,14 @@ export default function Logup({
     })
 
     const [state, setState] = useState({
+        validation: {},
         pending: false,
     })
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        if (Object.keys(state.validation).length > 0) return;
 
         setState((prev) => ({ ...prev, pending: true }));
 
@@ -62,15 +65,43 @@ export default function Logup({
             }
         }
         else {
-            error(check.errors)
-            setState((prev) => ({ ...prev, pending: false }))
+            setState((prev) => ({ ...prev, validation: check.errors, pending: false }))
         }
+    }
+
+    const handleValidation = ({ name, value = '' }) => {
+        const { errors } = (name === 're_password' || name === 'password') ?
+            SignUpDefinition({ ...form, [name]: value })
+            :
+            SignUpDefinition({ [name]: value })
+
+        setState((prev) => {
+            const { [name]: removed, ...rest } = prev.validation || {};
+
+            return {
+                ...prev,
+                validation: errors?.[name] ?
+                    {
+                        ...prev.validation,
+                        [name]: errors[name]
+                    }
+                    :
+                    {
+                        ...rest
+                    }
+            }
+        })
     }
 
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
         setForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
-        setError(name);
+        handleValidation({ name, value: type === 'checkbox' ? checked : value })
+    }
+
+    const handleClear = (name) => {
+        setForm((prev) => ({ ...prev, [name]: '' }))
+        handleValidation({ name })
     }
 
     return (
@@ -93,59 +124,101 @@ export default function Logup({
                 </div>
                 <div className="logup-page" style={{ transform: `translateX(-${(page - 1) * (100 / 2)}%)` }}>
                     <div id="logup-page-1">
-                        <div className="logup-input">
-                            <div className={`field-input ${form.surname ? 'has-content' : ''}`}>
-                                <input type="text" name="surname" value={form.surname} onChange={handleChange} autoComplete="off" tabIndex={page === 1 ? 1 : -1} />
-                                <label>Surname</label>
-                                <MdModeEdit className="icon" />
-                            </div>
-                            <div className={`field-input ${form.name ? 'has-content' : ''}`}>
-                                <input type="text" name="name" value={form.name} onChange={handleChange} autoComplete="off" tabIndex={page === 1 ? 1 : -1} />
-                                <label>Name</label>
-                                <MdModeEdit className="icon" />
-                            </div>
-                        </div>
-                        <div className={`field-input ${form.email ? 'has-content' : ''}`}>
-                            <input type="text" name="email" value={form.email} onChange={handleChange} autoComplete="off" tabIndex={page === 1 ? 1 : -1} />
-                            <label>Your email</label>
-                            <MdAlternateEmail className='icon' />
-                        </div>
-                        <div className={`field-input ${form.phone ? 'has-content' : ''}`}>
-                            <input type="text" name="phone" value={form.phone} onChange={handleChange} autoComplete="off" tabIndex={page === 1 ? 1 : -1} />
-                            <label>Your phone</label>
-                            <FaPhone className="icon" />
-                        </div>
+                        <InputGroup
+                            name="surname"
+                            label="Surname"
+                            type="text"
+                            value={form.surname}
+                            onChange={handleChange}
+                            error={state.validation?.surname}
+                            icon={<MdModeEdit className="icon" />}
+                            reset={(name) => handleClear(name)}
+                            read={state.pending}
+                            tabIndex={page === 1 ? 1 : -1}
+                        />
+                        <InputGroup
+                            name="name"
+                            label="Name"
+                            type="text"
+                            value={form.name}
+                            onChange={handleChange}
+                            error={state.validation?.name}
+                            icon={<MdModeEdit className="icon" />}
+                            reset={(name) => handleClear(name)}
+                            read={state.pending}
+                            tabIndex={page === 1 ? 1 : -1}
+                        />
+                        <InputGroup
+                            name="email"
+                            label="Your email"
+                            type="text"
+                            value={form.email}
+                            onChange={handleChange}
+                            error={state.validation?.email}
+                            icon={<MdAlternateEmail className='icon' />}
+                            reset={(name) => handleClear(name)}
+                            read={state.pending}
+                            tabIndex={page === 1 ? 1 : -1}
+                        />
+                        <InputGroup
+                            name="phone"
+                            label="Your phone"
+                            type="text"
+                            value={form.phone}
+                            onChange={handleChange}
+                            error={state.validation?.phone}
+                            icon={<FaPhone className="icon" />}
+                            reset={(name) => handleClear(name)}
+                            read={state.pending}
+                            tabIndex={page === 1 ? 1 : -1}
+                        />
                     </div>
                     <div id="logup-page-2">
-                        <div
-                            className={`field-input ${form.username ? 'has-content' : ''}`}
-                        >
-                            <input
-                                type="text"
-                                name="username"
-                                value={form.username}
-                                onChange={handleChange}
-                                autoComplete="off"
-                                tabIndex={page === 2 ? 1 : -1}
-                            />
-                            <label>Username</label>
-                            <FaUser className="icon" />
-                        </div>
-                        <div className="auth-password">
-                            <div className={`field-input ${form.password ? 'has-content' : ''}`}>
-                                <input type="password" name="password" value={form.password} onChange={handleChange} autoComplete="off" tabIndex={page === 2 ? 1 : -1} />
-                                <label>Enter password</label>
-                                <FaLock className="icon" />
-                            </div>
-                            <div className={`field-input ${form.re_password ? 'has-content' : ''}`}>
-                                <input type="password" name="re_password" value={form.re_password} onChange={handleChange} autoComplete="off" tabIndex={page === 2 ? 1 : -1} />
-                                <label>Re-enter password</label>
-                                <MdOutlinePassword className='icon' />
-                            </div>
-                        </div>
+                        <InputGroup
+                            name="username"
+                            label="Username"
+                            type="text"
+                            value={form.username}
+                            onChange={handleChange}
+                            error={state.validation?.username}
+                            icon={<FaUser className='icon' />}
+                            reset={(name) => handleClear(name)}
+                            read={state.pending}
+                            tabIndex={page === 2 ? 1 : -1}
+                        />
+                        <InputGroup
+                            name="password"
+                            label="Enter password"
+                            type="password"
+                            value={form.password}
+                            onChange={handleChange}
+                            error={state.validation?.password}
+                            icon={<MdOutlinePassword className="icon" />}
+                            reset={(name) => handleClear(name)}
+                            read={state.pending}
+                            tabIndex={page === 2 ? 1 : -1}
+                            isPassword={true}
+                        />
+                        <InputGroup
+                            name="re_password"
+                            label="Re-enter password"
+                            type="password"
+                            value={form.re_password}
+                            onChange={handleChange}
+                            error={state.validation?.re_password}
+                            icon={<FaLock className="icon" />}
+                            reset={(name) => handleClear(name)}
+                            read={state.pending}
+                            tabIndex={page === 2 ? 1 : -1}
+                            isPassword={true}
+                        />
                         <div className="auth-terms">
                             <input type="checkbox" checked={form.agree} name="agree" onChange={handleChange} tabIndex={page === 2 ? 1 : -1} />
                             <label>Agree to the terms of CodeDev</label>
+                            {
+                                state.validation?.agree &&
+                                <IoIosWarning fontSize={17} color="var(--color_orange)" />
+                            }
                         </div>
                         <button type="submit" className="btn-logup" disabled={state.pending} tabIndex={page === 2 ? 1 : -1}>
                             {
@@ -177,10 +250,6 @@ export default function Logup({
                         <button type="button">
                             <Image src="/image/static/google.ico" width={20} height={20} alt="facebook" />
                             <h4>Google</h4>
-                        </button>
-                        <button type="button">
-                            <Image src="/image/static/facebook.ico" width={20} height={20} alt="facebook" />
-                            <h4>Facebook</h4>
                         </button>
                     </div>
                     <div className="login-auth">

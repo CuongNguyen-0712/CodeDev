@@ -4,11 +4,13 @@ import Image from "next/image"
 import Form from "next/form"
 import Link from "next/link"
 
-import { SignInDefinition } from "@/app/lib/definition"
-import { useRouterActions } from "@/app/router/router"
-import SignInService from "@/app/services/authService/signIn"
 import { useAuth } from "@/app/contexts/authContext"
+import { useRouterActions } from "@/app/router/router"
+import { SignInDefinition } from "@/app/lib/definition"
+import SignInService from "@/app/services/authService/signIn"
+
 import { LoadingContent } from "../ui/loading"
+import { InputGroup } from "../ui/input"
 
 import { FaUser, FaLock } from "react-icons/fa6";
 
@@ -16,8 +18,6 @@ export default function Login({
     active,
     changeForm,
     redirect,
-    error,
-    setError,
     setAlert
 }) {
     const { navigateToHome } = useRouterActions();
@@ -26,11 +26,14 @@ export default function Login({
     const [login, setLogin] = useState({
         name: '',
         pass: '',
+        validation: {},
         pending: false,
     })
 
     const submitLogin = async (e) => {
         e.preventDefault()
+
+        if (Object.keys(login.validation).length > 0) return
 
         setLogin({ ...login, pending: true })
 
@@ -56,15 +59,40 @@ export default function Login({
             }
         }
         else {
-            error(check.errors)
-            setLogin({ ...login, pending: false })
+            setLogin({ ...login, validation: check.errors, pending: false })
         }
+    }
+
+    const handleValidation = ({ name, value = '' }) => {
+        const { errors } = SignInDefinition({ [name]: value })
+
+        setLogin((prev) => {
+            const { [name]: removed, ...rest } = prev.validation || {};
+
+            return {
+                ...prev,
+                validation: errors?.[name] ?
+                    {
+                        ...prev.validation,
+                        [name]: errors[name]
+                    }
+                    :
+                    {
+                        ...rest
+                    }
+            }
+        })
     }
 
     const handleChange = (e) => {
         const { name, value } = e.target
         setLogin((prev) => ({ ...prev, [name]: value }))
-        setError(name)
+        handleValidation({ name, value })
+    }
+
+    const handleClear = (name) => {
+        setLogin((prev) => ({ ...prev, [name]: '' }))
+        handleValidation({ name: name })
     }
 
     return (
@@ -87,16 +115,29 @@ export default function Login({
                 </div>
                 <div className="main-login">
                     <div className="login-input">
-                        <div className={`field-input ${login.name ? 'has-content' : ''}`}>
-                            <input type="text" id="nameLogin" name="name" value={login.name} onChange={handleChange} autoComplete="off" readOnly={login.pending} autoFocus />
-                            <label>Username</label>
-                            <FaUser className="icon" />
-                        </div>
-                        <div className={`field-input ${login.pass ? 'has-content' : ''}`}>
-                            <input type="password" id="passLogin" name="pass" value={login.pass} onChange={handleChange} autoComplete="off" readOnly={login.pending} />
-                            <label>Password</label>
-                            <FaLock className='icon' />
-                        </div>
+                        <InputGroup
+                            name='name'
+                            label="Username"
+                            type="text"
+                            value={login.name}
+                            onChange={handleChange}
+                            error={login.validation?.name}
+                            icon={<FaUser className='icon' />}
+                            reset={(name) => handleClear(name)}
+                            read={login.pending}
+                        />
+                        <InputGroup
+                            name='pass'
+                            label="Password"
+                            type="password"
+                            value={login.pass}
+                            onChange={handleChange}
+                            error={login.validation?.pass}
+                            icon={<FaLock className='icon' />}
+                            reset={(name) => handleClear(name)}
+                            read={login.pending}
+                            isPassword={true}
+                        />
                     </div>
                     <div className="login-help">
                         <span>
@@ -114,14 +155,14 @@ export default function Login({
                                 <LoadingContent scale={0.5} color="var(--color_white)" />
                                 :
                                 <>
-                                    Sign in
+                                    Log in
                                 </>
                         }
                     </button>
-                    <Link href="/auth" style={{ color: 'var(--color_black)', fontSize: '14px', fontWeight: '700', textDecoration: 'none' }}>Forgot your password ?</Link>
+                    <Link href="/auth" id="forgot_password">Forgot your password ?</Link>
                 </div>
                 <div className="footer-login">
-                    <p>Or sign in with</p>
+                    <p>Or log in with</p>
                     <div className="social-login">
                         <button type="button">
                             <Image src="/image/static/github.ico" width={20} height={20} alt="github" />
@@ -130,10 +171,6 @@ export default function Login({
                         <button type="button">
                             <Image src="/image/static/google.ico" width={20} height={20} alt="facebook" />
                             <h4>Google</h4>
-                        </button>
-                        <button type="button">
-                            <Image src="/image/static/facebook.ico" width={20} height={20} alt="facebook" />
-                            <h4>Facebook</h4>
                         </button>
                     </div>
                     <div className="register-auth">
