@@ -165,7 +165,7 @@ export async function getCourse({ id, search, limit, offset, price, level, ratin
                 where r.userid = ${id}
                 )
             and (${search}::text is null or lower(course.title) like '%' || lower(${search}) || '%')
-            and (${price}::text is null or case when ${price}  = false then cost = 'free' else cost != 'free' end)
+            and (${price}::text is null or case when ${price}  = false then cost = 0 else cost <> 0 end)
             and (${level}::text is null or level = ${level})
             and (${rating}::text is null or rating = ${rating})
             order by course.id desc
@@ -207,7 +207,7 @@ export async function getMyCourse({ id, search, limit, offset, hide }) {
                 r.userid = ${id} and 
                 r.hidestatus = ${hide} and
                 (${search}::text is null or lower(c.title) like '%' || lower(${search}::text) || '%')    
-            order by r.courseid desc
+            order by r.last_at desc
             limit ${limit} offset ${offset}
         `;
 
@@ -418,8 +418,8 @@ export async function getContentCourse({ user_id, course_id }) {
     }
 }
 
-export async function getContentLesson({ user_id, lesson_id }) {
-    if (!(lesson_id || user_id)) {
+export async function getContentLesson({ user_id, lesson_id, course_id }) {
+    if (!(lesson_id || user_id || course_id)) {
         return new Response(JSON.stringify({ message: "Missing something, check again" }), {
             status: 400,
             headers: { "Content-Type": "application/json" }
@@ -427,7 +427,7 @@ export async function getContentLesson({ user_id, lesson_id }) {
     }
 
     try {
-        const res = await sql`select * from get_lesson(${user_id}, ${lesson_id})`
+        const res = await sql`select * from get_lesson(${user_id}, ${course_id}, ${lesson_id})`
         return new Response(JSON.stringify({ data: res }), {
             status: 200,
             headers: { "Content-Type": "application/json" }

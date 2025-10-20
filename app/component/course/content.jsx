@@ -405,16 +405,16 @@ export default function CourseContent({ redirect }) {
                                         </div>
                                         <div className="footer">
                                             <button
-                                                onClick={() => handleRegister({ id: item.id, isCost: item.cost !== 'free' })}
+                                                onClick={() => handleRegister({ id: item.id, isCost: Math.round(item.cost) !== 0 })}
                                                 style={{
-                                                    backgroundColor: item.cost === 'free' ? 'var(--color_blue)' : 'var(--color_black)'
+                                                    backgroundColor: Math.round(item.cost) === 0 ? 'var(--color_blue)' : 'var(--color_black)'
                                                 }}
                                                 disabled={state.handling}
                                             >
                                                 {state.idHandle === item.id ?
                                                     <LoadingContent scale={0.5} color="var(--color_white)" />
                                                     :
-                                                    item.cost === 'free' ? 'Learn' : item.cost
+                                                    Math.round(item.cost) === 0 ? 'Learn' : item.cost
                                                 }
                                             </button>
                                         </div>

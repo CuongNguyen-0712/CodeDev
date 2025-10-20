@@ -79,6 +79,7 @@ export default function Home() {
                     <div className='aside' style={home.dashboard ? { transform: 'translateX(0)' } : { transform: 'translateX(-100%)' }} ref={ref}>
                         <Dashboard
                             handleDashboard={() => setHome(prev => ({ ...prev, dashboard: false, overlay: false }))}
+                            isDashboard={home.dashboard}
                         />
                     </div>
                     <div id='container'>

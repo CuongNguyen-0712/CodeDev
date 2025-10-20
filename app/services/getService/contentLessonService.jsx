@@ -4,6 +4,7 @@ export default async function GetContentLessonService(data) {
     const user_id = (await getSession())?.userId
 
     const params = new URLSearchParams();
+    params.set('course_id', data.course_id);
     params.set('lesson_id', data.lesson_id);
     params.set('user_id', user_id)
 

@@ -36,6 +36,7 @@ body {
     justify-content: center;
     height: 100dvh;
     width: 100%;
+    -webkit-touch-callout: none;
     font-family: 'myFont', sans-serif;
 }
 
@@ -79,6 +80,17 @@ body {
     textarea::placeholder {
         font-size: 14px !important;
     }
+}
+
+@media screen and (max-width: 768px) {
+
+    button,
+    a,
+    input,
+    textarea {
+        -webkit-tap-highlight-color: transparent;
+    }
+
 }
 
 input:disabled,

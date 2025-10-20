@@ -145,6 +145,7 @@
     border-radius: 10px;
     padding: 10px;
     background: var(--color_white);
+    color: var(--color_black);
     gap: 10px;
     flex-direction: column;
     transition-delay: 0.2s;
@@ -238,6 +239,7 @@
     flex-grow: 1;
     padding: 5px 10px;
     background: transparent;
+    color: var(--color_black);
     text-align: left;
     border-radius: 5px;
     cursor: pointer;
@@ -246,6 +248,7 @@
 
 .lesson.target .lesson_title {
     background: var(--color_gray_light);
+    transition: 0.2s all ease;
 }
 
 .lesson .lesson_title:hover {

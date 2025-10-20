@@ -48,10 +48,25 @@
   justify-content: flex-start;
   height: 50px;
   width: 100%;
-  padding-left: 20px;
+  padding: 0 10px 0 20px;
   flex-shrink: 0;
-  gap: 5px;
+  gap: 20px;
   border-bottom: 2px solid var(--color_black);
+}
+
+#dashboard .header button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 35px;
+  flex-grow: 1;
+  background: var(--color_blue);
+  color: var(--color_white);
+  border-radius: 5px;
+  font-weight: 600;
+  font-size: 14px;
+  gap: 10px;
+  cursor: pointer;
 }
 
 #dashboard .main-menu {
@@ -133,6 +148,10 @@
   transition: 0.2s all ease;
 }
 
+.menu .menu-item button svg {
+  font-size: 18px;
+}
+
 #navigation {
   display: flex;
   position: absolute;
@@ -211,13 +230,13 @@
   position: absolute;
   align-items: center;
   justify-content: center;
-  top: 10px;
-  right: 10px;
   height: 30px;
   width: 30px;
+  bottom: 10px;
+  right: -40px;
   color: var(--color_black);
   border-radius: 5px;
-  background: var(--color_gray_light);
+  background: var(--color_white);
 }
 
 /* Homepage */

@@ -584,19 +584,11 @@ textarea::placeholder {
   width: 100%;
   max-width: 300px;
   text-transform: uppercase;
+  background: var(--color_white);
+  color: var(--color_black);
   font-weight: 600;
   border-radius: 20px;
   cursor: pointer;
-}
-
-#navigate_login {
-  background: var(--color_white);
-  color: var(--color_black);
-}
-
-#navigate_signup {
-  background: var(--color_blue);
-  color: var(--color_white);
 }
 
 @media screen and (max-width: 425px) {

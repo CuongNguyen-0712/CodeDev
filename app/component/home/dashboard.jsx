@@ -7,7 +7,7 @@ import Image from "next/image";
 import { useQuery } from "@/app/router/router";
 import { useSize } from "@/app/contexts/sizeContext";
 
-import { FaUsers, FaAngleLeft } from "react-icons/fa";
+import { FaUsers, FaAngleLeft, FaCrown } from "react-icons/fa";
 import { GoProjectRoadmap } from "react-icons/go";
 import { FaCode } from "react-icons/fa6";
 import { IoSettingsSharp, IoSearch } from "react-icons/io5";
@@ -19,7 +19,7 @@ import {
 } from "react-icons/md";
 import { VscProject } from "react-icons/vsc";
 
-export default function Dashboard({ handleDashboard }) {
+export default function Dashboard({ handleDashboard, isDashboard }) {
   const { size } = useSize();
   const refNavigation = useRef(null);
   const params = useSearchParams();
@@ -81,8 +81,11 @@ export default function Dashboard({ handleDashboard }) {
     <>
       <div id="dashboard">
         <div className="header">
-          <Image src={'/image/static/logo.svg'} alt="logo" width={20} height={20} />
-          <h3>CodeDev</h3>
+          <Image src={'/image/static/logo.svg'} alt="logo" width={35} height={35} />
+          <button>
+            <FaCrown fontSize={18} color="var(--color_yellow)" />
+            Upgrade to PRO
+          </button>
         </div>
         <div className="main-menu">
           {
@@ -139,9 +142,12 @@ export default function Dashboard({ handleDashboard }) {
             </button>
           </div>
         </div>
-        <button id="hidden-menu" onClick={handleDashboard}>
-          <MdOutlineClose fontSize={16} />
-        </button>
+        {
+          isDashboard &&
+          <button id="hidden-menu" onClick={handleDashboard}>
+            <MdOutlineClose fontSize={16} />
+          </button>
+        }
       </div>
     </>
   );

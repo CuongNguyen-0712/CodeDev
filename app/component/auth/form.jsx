@@ -38,18 +38,24 @@ export default function Form() {
                                 <img src="/image/static/auth.png" alt="image_auth" />
                             </div>
                             <div className="navigate_btns">
-                                <button
-                                    id="navigate_login"
-                                    onClick={() => setForm('login')}
-                                >
-                                    Log in
-                                </button>
-                                <button
-                                    id="navigate_signup"
-                                    onClick={() => setForm('signup')}
-                                >
-                                    Sign up
-                                </button>
+                                {
+                                    form === 'signup' &&
+                                    <button
+                                        id="navigate_login"
+                                        onClick={() => setForm('login')}
+                                    >
+                                        Log in
+                                    </button>
+                                }
+                                {
+                                    form === 'login' &&
+                                    <button
+                                        id="navigate_signup"
+                                        onClick={() => setForm('signup')}
+                                    >
+                                        Sign up
+                                    </button>
+                                }
                             </div>
                         </section>
                     </div>

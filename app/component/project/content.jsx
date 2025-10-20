@@ -449,8 +449,13 @@ export default function ProjectContent({ redirect }) {
                                     }
                             }
                         >
-                            <FaChevronUp style={{ transform: hide.self ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.2s all ease' }} />
-                            <FaUser />
+                            <FaChevronUp
+                                fontSize={15}
+                                style={{ transform: hide.self ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.2s all ease' }}
+                            />
+                            <FaUser
+                                fontSize={15}
+                            />
                         </button>
                         <button className="tag_method">
                             <MdInfoOutline fontSize={20} />
@@ -536,7 +541,7 @@ export default function ProjectContent({ redirect }) {
                                         <button disabled={isLoading.self} onClick={() => handleShowMore('self')}>
                                             {
                                                 isLoading.self ?
-                                                    <LoadingContent scale={0.4} color="var(--color_white)" />
+                                                    <LoadingContent scale={0.5} color="var(--color_white)" />
                                                     :
                                                     <>
                                                         See more
@@ -570,8 +575,13 @@ export default function ProjectContent({ redirect }) {
                                     }
                             }
                         >
-                            <FaChevronUp style={{ transform: hide.team ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.2s all ease' }} />
-                            <FaUserGroup />
+                            <FaChevronUp
+                                fontSize={15}
+                                style={{ transform: hide.team ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.2s all ease' }}
+                            />
+                            <FaUserGroup
+                                fontSize={15}
+                            />
                         </button>
                         <button className="tag_method">
                             <MdInfoOutline fontSize={20} />
@@ -656,7 +666,7 @@ export default function ProjectContent({ redirect }) {
                                         <button disabled={isLoading.team} onClick={() => handleShowMore('team')}>
                                             {
                                                 isLoading.team ?
-                                                    <LoadingContent scale={0.4} color="var(--color_white)" />
+                                                    <LoadingContent scale={0.5} color="var(--color_white)" />
                                                     :
                                                     <>
                                                         See more

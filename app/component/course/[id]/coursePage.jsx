@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from "react"
+import { useState, useEffect, startTransition } from "react"
 
 import { LoadingContent } from "../../ui/loading";
 import { ErrorReload } from "../../ui/error";
@@ -26,8 +26,8 @@ export default function CoursePage({ params }) {
 
     const [mapping, setMapping] = useState({})
 
-    const [slider, setSlider] = useState(true)
-    const [view, setView] = useState(true)
+    const [slider, setSlider] = useState(false)
+    const [view, setView] = useState(false)
 
     const [course, setCourse] = useState({
         module: null,
@@ -83,7 +83,8 @@ export default function CoursePage({ params }) {
         }
     }
 
-    const getCourse = async () => {
+
+    const getCourse = async ({ hasSubmit = false } = {}) => {
         if (!params.course_id) {
             setCourse((prev) => ({
                 ...prev,
@@ -96,7 +97,33 @@ export default function CoursePage({ params }) {
         try {
             const res = await GetContentCourseService({ course_id: params.course_id });
             if (res.status === 200) {
-                const map = res.data.reduce((acc, { module_id, module_title, ...rest }) => {
+                const validData = Array.isArray(res.data) ? [...res.data] : [];
+
+                const data =
+                    (hasSubmit
+                        ? validData.find((item) => item.status === 'In Progress')
+                        : validData
+                            .slice()
+                            .sort((a, b) => new Date(b.last_at) - new Date(a.last_at))[0]
+                    ) ?? validData.at(-1);
+
+                if (!data) {
+                    setCourse((prev) => ({
+                        ...prev,
+                        pending: false
+                    }))
+
+                    return;
+                }
+
+                setCourse((prev) => ({
+                    ...prev,
+                    module: data.module_id,
+                    lesson: data.lesson_id,
+                    pending: false
+                }))
+
+                const map = validData.reduce((acc, { module_id, module_title, ...rest }) => {
                     if (!acc[module_id]) {
                         acc[module_id] = {
                             id: module_id,
@@ -118,15 +145,6 @@ export default function CoursePage({ params }) {
                 }
 
                 setMapping(map);
-
-                const data = res.data?.find((item) => item.status === 'In Progress') ?? res.data?.at(-1);
-
-                setCourse((prev) => ({
-                    ...prev,
-                    module: data.module_id,
-                    lesson: data.lesson_id,
-                    pending: false
-                }))
             }
             else {
                 setCourse((prev) => ({
@@ -167,13 +185,11 @@ export default function CoursePage({ params }) {
         }))
 
         try {
-            const res = await GetContentLessonService({ lesson_id: data });
+            const res = await GetContentLessonService({ course_id: params.course_id, lesson_id: data });
             if (res.status === 200) {
                 setLesson((prev) => ({
                     ...prev,
                     data: res.data?.[0],
-                    handling: false,
-                    pending: false
                 }))
             }
             else {
@@ -195,8 +211,6 @@ export default function CoursePage({ params }) {
                             status: res.status ?? 500,
                             message: res.message || 'Something is error, try again!'
                         },
-                        handling: false,
-                        pending: false
                     }))
                 }
             }
@@ -207,9 +221,19 @@ export default function CoursePage({ params }) {
                     status: 500,
                     message: err.message || 'External server error'
                 },
-                handling: false,
+            }))
+        } finally {
+            setLesson((prev) => ({
+                ...prev,
                 pending: false
             }))
+
+            startTransition(() => {
+                setLesson((prev) => ({
+                    ...prev,
+                    handling: false
+                }))
+            })
         }
     }
 
@@ -228,8 +252,8 @@ export default function CoursePage({ params }) {
         getContentLesson(course.lesson);
     }, [lesson.handling, course.pending, course.lesson])
 
-    const submitLesson = async () => {
-        if (!lesson.data.lesson_id || lesson.handling) return;
+    const submitLesson = async ({ lesson_id }) => {
+        if (!lesson_id || lesson.handling) return;
 
         setLesson((prev) => ({
             ...prev,
@@ -237,9 +261,9 @@ export default function CoursePage({ params }) {
         }))
 
         try {
-            const res = await UpdateLessonService({ course_id: params.course_id, lesson_id: lesson.data.lesson_id })
+            const res = await UpdateLessonService({ course_id: params.course_id, lesson_id: lesson_id })
             if (res.status === 200) {
-                await getCourse();
+                await getCourse({ hasSubmit: true });
                 setAlert({ status: res.status || 200, message: res.message || 'Congratulations, learn next lesson' })
             }
             else {
@@ -359,6 +383,7 @@ export default function CoursePage({ params }) {
                                                                         </span>
                                                                         <button
                                                                             className="lesson_title"
+                                                                            disabled={lesson.status === 'Enrolled'}
                                                                             onClick={() => getContentLesson(lesson.lesson_id)}
                                                                         >
                                                                             {lesson.lesson_title}
@@ -410,7 +435,8 @@ export default function CoursePage({ params }) {
                                                 &&
                                                 <button
                                                     id="confirm_lesson"
-                                                    onClick={() => submitLesson()}
+                                                    onClick={() => submitLesson({ lesson_id: lesson.data.lesson_id })}
+                                                    disabled={lesson.handling}
                                                 >
                                                     {
                                                         lesson.handling ?

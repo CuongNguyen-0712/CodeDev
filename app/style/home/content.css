@@ -2131,10 +2131,9 @@
         justify-content: center;
         height: 35px;
         width: 35px;
-        outline: 2px solid var(--color_black);
-        background: var(--color_gray_light);
+        background: var(--color_white);
         color: var(--color_black);
-        border-radius: 5px;
+        border-radius: 50px;
         transition: 0.2s all ease;
     }
 
