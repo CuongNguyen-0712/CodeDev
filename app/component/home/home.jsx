@@ -74,6 +74,7 @@ export default function Home() {
                     <div id='header'>
                         <Navbar
                             handleDashboard={handleDashboard}
+                            handleRedirect={(value) => setHome(prev => ({ ...prev, redirect: value }))}
                         />
                     </div>
                     <div className='aside' style={home.dashboard ? { transform: 'translateX(0)' } : { transform: 'translateX(-100%)' }} ref={ref}>
@@ -83,7 +84,9 @@ export default function Home() {
                         />
                     </div>
                     <div id='container'>
-                        <Content redirect={() => setHome(prev => ({ ...prev, redirect: true }))} />
+                        <Content
+                            handleRedirect={(value) => setHome(prev => ({ ...prev, redirect: value }))}
+                        />
                     </div>
                     {
                         params.get('manage') &&

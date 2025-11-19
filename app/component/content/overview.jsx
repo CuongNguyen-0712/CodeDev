@@ -10,7 +10,7 @@ import { useQuery } from '@/app/router/router';
 import GetOverviewService from '@/app/services/getService/overviewService';
 import GetInfoService from '@/app/services/getService/infoService';
 
-import { FaAngleRight } from 'react-icons/fa6';
+import { FaAngleRight, FaStar, FaRankingStar } from 'react-icons/fa6';
 
 export default function Overview() {
     const queryNavigate = useQuery();
@@ -217,12 +217,22 @@ export default function Overview() {
                                         <div className="experience">
                                             <p className="level">{state.data.info.level}</p>
                                             <p>
-                                                <span>Stars</span>
-                                                <span>{state.data.info.star}
-                                                </span></p>
+                                                <span>
+                                                    Stars
+                                                </span>
+                                                <span>
+                                                    {state.data.info.star}
+                                                    <FaStar fontSize={16} color='var(--color_yellow)' />
+                                                </span>
+                                            </p>
                                             <p>
-                                                <span>Rank</span>
-                                                <span>{state.data.info.rank}</span>
+                                                <span>
+                                                    Rank
+                                                </span>
+                                                <span>
+                                                    {state.data.info.rank}
+                                                    <FaRankingStar fontSize={16} color='var(--color_orange)' />
+                                                </span>
                                             </p>
                                         </div>
                                     </div>

@@ -3,7 +3,6 @@ import { neon } from "@neondatabase/serverless";
 
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
-import { redirect } from 'next/navigation'
 
 import { createSession } from "@/app/lib/session";
 
@@ -26,8 +25,8 @@ export async function signIn(data) {
                 u.username as username,
                 i.email as email
             from private.users u
-            join private.info i on i.id = u.id
-            where username = ${name} 
+            join private.info i on i.user_id = u.id
+            where u.username = ${name} 
             limit 1
             `
 
@@ -63,20 +62,21 @@ export async function signIn(data) {
             )
         }
 
-        const sessionRes = await createSession({ userId: userId, username: await res[0].username, email: await res[0].email })
+        const resSession = await createSession({ userId: userId, username: await res[0].username, email: await res[0].email })
 
-        if (sessionRes) {
+        if (!resSession) {
+            return new Response(
+                JSON.stringify({ success: false, message: "Something went wrong, please try again" }),
+                { status: 500, headers: { "Content-Type": "application/json" } }
+            )
+        }
+        else {
             return new Response(
                 JSON.stringify({ success: true, message: "Login successfully, redirecting..." }),
                 { status: 200, headers: { "Content-Type": "application/json" } }
             )
         }
-        else {
-            return new Response(
-                JSON.stringify({ success: false, message: 'Failed to log in, please try again' }),
-                { status: 500, headers: { "Content-Type": "application/json" } }
-            );
-        }
+
     } catch (error) {
         console.error("Error:", error);
         return new Response(

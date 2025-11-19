@@ -309,27 +309,70 @@
     cursor: pointer;
 }
 
-#alert {
+#alert_container {
     display: flex;
     position: fixed;
-    align-items: center;
     height: max-content;
-    min-height: 40px;
     width: max-content;
-    max-width: calc(100% - 40px);
     left: 20px;
     bottom: 20px;
+    background: transparent;
+    flex-direction: column;
+    gap: 20px;
+    z-index: 10;
+}
+
+.alert {
+    display: flex;
+    position: relative;
+    align-items: center;
+    height: max-content;
+    min-height: 50px;
+    width: max-content;
+    max-width: 300px;
     border-radius: 5px;
     font-size: 14px;
     padding: 10px;
     background: var(--color_white);
-    box-shadow: 0 0 5px var(--color_gray);
-    gap: 10px;
+    box-shadow: 0 0 10px var(--color_gray);
+    transform: translateY(20px);
+    opacity: 0;
+    animation: fadeOut 0.2s linear forwards;
     overflow: hidden;
-    z-index: 1;
+    gap: 10px;
 }
 
-#alert::before {
+@keyframes fadeOut {
+    100% {
+        transform: translateY(0px);
+        opacity: 1;
+    }
+}
+
+.alert svg {
+    display: flex;
+    flex-shrink: 0;
+}
+
+.alert button {
+    display: flex;
+    border-radius: 5px;
+    padding: 5px 10px;
+    color: var(--color_black);
+    background: transparent;
+    font-size: 14px;
+    flex-shrink: 0;
+    font-weight: 600;
+    transition: 0.2s all ease;
+    cursor: pointer;
+
+    &:hover {
+        background: var(--color_gray_light);
+        transition: 0.2s all ease;
+    }
+}
+
+.alert::before {
     content: '';
     position: absolute;
     height: 2px;

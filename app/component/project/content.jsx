@@ -310,7 +310,6 @@ export default function ProjectContent({ redirect }) {
         ]);
     }
 
-
     const handleSubmitSearch = () => {
         if (state.search.length > 0 && state.search.trim() === '') return;
 
@@ -443,7 +442,7 @@ export default function ProjectContent({ redirect }) {
                                     }
                                     :
                                     {
-                                        background: 'var(--color_gray_light)',
+                                        background: 'var(--color_white)',
                                         borderColor: 'var(--color_gray)',
                                         color: 'var(--color_black)'
                                     }
@@ -569,7 +568,7 @@ export default function ProjectContent({ redirect }) {
                                     }
                                     :
                                     {
-                                        background: 'var(--color_gray_light)',
+                                        background: 'var(--color_white)',
                                         borderColor: 'var(--color_gray)',
                                         color: 'var(--color_black)'
                                     }

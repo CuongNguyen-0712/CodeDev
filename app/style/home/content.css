@@ -54,7 +54,6 @@
 
 .user-info img {
     border-radius: 50px;
-    padding: 10px;
     object-fit: cover;
     background-size: cover;
     background-position: center;
@@ -68,6 +67,8 @@
     justify-content: center;
     height: max-content;
     width: max-content;
+    min-width: 120px;
+    max-width: 150px;
     gap: 10px;
     flex-direction: column;
 }
@@ -78,16 +79,23 @@
     height: max-content;
     width: 100%;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .profile span {
+    width: 100%;
+    min-width: 0;
     font-size: 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+    overflow: hidden;
 }
 
 .user-info .experience {
     display: flex;
     height: max-content;
-    width: max-content;
+    width: 100%;
     font-size: 15px;
     flex-direction: column;
     gap: 5px;
@@ -95,7 +103,8 @@
 
 .user-info .experience .level {
     display: flex;
-    width: max-content;
+    justify-content: center;
+    width: 100%;
     padding: 5px 20px;
     border-radius: 50px;
     font-weight: 600;
@@ -106,6 +115,7 @@
 .experience p {
     display: flex;
     justify-content: space-between;
+    align-items: baseline;
     height: max-content;
     width: 100%;
     padding: 0 10px;
@@ -118,8 +128,11 @@
 }
 
 .experience p span:nth-child(2) {
+    display: flex;
+    align-items: center;
     font-weight: 700;
     font-size: 16px;
+    gap: 5px;
 }
 
 .overview-container #edit {
@@ -667,17 +680,22 @@
 }
 
 .course .content-course .item:first-child {
+    display: flex;
     align-items: center;
     flex-direction: column;
+    flex-grow: 1;
     text-align: center;
     padding: 10px 20px;
     background: var(--color_gray_light);
     border-radius: 10px;
 }
 
-.course .content-course .item:first-child h4 {
+.course .content-course .item:first-child h5 {
+    border-radius: 20px;
+    padding: 5px 10px;
+    background: var(--color_blue_light);
+    color: var(--color_white);
     text-transform: uppercase;
-    font-size: 14px;
 }
 
 .course .footer-course {
@@ -1140,7 +1158,7 @@
     height: 100dvh;
     width: 100%;
     min-height: 100dvh;
-    padding: 80px 0 70px 0;
+    padding-top: 80px;
     flex-direction: row;
     flex-wrap: wrap;
     gap: 30px;
@@ -1167,60 +1185,117 @@
     z-index: 1;
 }
 
-.my_social .heading .social_btn {
+.my_social .heading .social_search {
     display: flex;
     position: relative;
+    align-items: center;
     height: max-content;
-    width: 100%;
-    max-width: 300px;
-    gap: 20px;
+    max-width: 350px;
+    flex-grow: 1;
+    border-radius: 5px;
+    gap: 15px;
 }
 
-.social_btn button {
+.social_search input {
+    height: 40px;
+    width: 100%;
+    padding: 0 100px 0 10px;
+    outline: 2px solid var(--color_gray_light);
+    border-radius: 5px;
+    transition: 0.2s all ease;
+}
+
+.social_search input:focus {
+    outline-color: var(--color_black);
+    transition: 0.2s all ease;
+}
+
+.social_search .status_btn {
+    display: flex;
+    position: absolute;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: max-content;
+    padding: 0 12px;
+    top: 0;
+    right: 0;
+    border-left: none;
+    background: var(--color_blue);
+    color: var(--color_white);
+    text-transform: uppercase;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 5px;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.social_search .drop_down_options {
+    display: flex;
+    position: absolute;
+    height: max-content;
+    width: max-content;
+    top: 50px;
+    right: 0;
+    background: var(--color_white);
+    border: 2px solid var(--color_gray_light);
+    box-shadow: 0 0 5px var(--color_gray_light);
+    border-radius: 5px;
+    padding: 10px;
+    flex-direction: column;
+    transform-origin: top;
+    gap: 10px;
+    transition: 0.2s all ease;
+}
+
+.social_search .drop_down_options.hidden {
+    transform: translateY(-10px);
+    opacity: 0;
+    visibility: hidden;
+}
+
+.social_search .drop_down_options.shown {
+    transform: translateY(0px);
+    opacity: 1;
+    visibility: visible;
+}
+
+.social_search .drop_down_options button {
     display: flex;
     align-items: center;
     justify-content: center;
     height: 35px;
-    flex-grow: 1;
-    border-radius: 10px;
-    font-weight: 600;
-    cursor: pointer;
-    background: var(--color_white);
-    color: var(--color_black);
-    transition: 0.2s all ease;
-    z-index: 1;
-}
-
-.social_btn button.active {
-    color: var(--color_white);
-    background: transparent;
-    transition: 0.2s all ease;
-}
-
-.social_btn #navigate_social {
-    display: flex;
-    position: absolute;
-    height: 100%;
-    width: calc(50% - 10px);
-    background: var(--color_blue);
-    border-radius: 10px;
-    transition: .2s all ease;
-}
-
-.my_social .heading .social_search {
-    display: flex;
-    height: max-content;
-    max-width: 300px;
-    width: 100%;
-}
-
-.social_search input {
-    display: flex;
-    height: 35px;
-    width: 100%;
-    padding: 0 10px;
-    outline: 2px solid var(--color_gray);
+    width: 100px;
     border-radius: 5px;
+    background: transparent;
+    gap: 10px;
+    transition: 0.2s all ease;
+}
+
+.social_search .drop_down_options button.active {
+    background: var(--color_black);
+    color: var(--color_white);
+    transition: 0.2s all ease;
+}
+
+.social_search .drop_down_options button:not(.active):hover {
+    background: var(--color_gray_light);
+    transition: 0.2s all ease;
+}
+
+#social_btn {
+    display: flex;
+    align-items: center;
+    height: 40px;
+    width: max-content;
+    background: var(--color_black);
+    color: var(--color_white);
+    padding: 0 15px;
+    border-radius: 5px;
+    font-weight: 600;
+    gap: 10px;
+    cursor: pointer;
 }
 
 .my_social .content_social {
@@ -1588,7 +1663,7 @@
     flex-direction: column;
     gap: 10px;
     transition: 0.2s all ease;
-    z-index: 2;
+    z-index: 1;
 }
 
 .form_create_team.shown {
@@ -1698,15 +1773,14 @@
 
 #social .main_social {
     display: flex;
+    position: fixed;
+    height: calc(100% - 60px);
     width: 100%;
     max-width: 425px;
-    bottom: 0;
     right: 0;
     background: var(--color_white);
-    border-top: 2px solid var(--color_gray);
-    border-left: 2px solid var(--color_gray);
-    border-top-left-radius: 15px;
     flex-direction: column;
+    z-index: 2;
 }
 
 .main_social .heading_view {
@@ -1735,63 +1809,16 @@
     border-radius: 5px;
 }
 
-#filter_social {
-    position: relative;
-}
-
-#filter_social>button {
+.heading_view button {
     display: flex;
     align-items: center;
     justify-content: center;
     height: 35px;
-    width: max-content;
+    width: 35px;
+    background: var(--color_black);
+    color: var(--color_white);
     border-radius: 5px;
-    padding: 0 10px;
-    font-weight: 600;
-    flex-shrink: 0;
-    color: var(--color_white);
-    background: var(--color_black);
-    gap: 10px;
-    transition: 0.2s all ease;
-}
-
-#filter_social .dropdown {
-    display: flex;
-    position: absolute;
-    right: 0;
-    background: var(--color_white);
-    padding: 10px;
-    flex-direction: column;
-    border-radius: 10px;
-    box-shadow: 0 0 5px var(--color_gray);
-    gap: 10px;
-    z-index: 1;
-}
-
-#filter_social .dropdown button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 35px;
-    width: 80px;
-    font-size: 12px;
-    background: transparent;
-    color: var(--color_black);
-    border-radius: 15px;
-    gap: 5px;
     cursor: pointer;
-    transition: 0.2s all ease;
-}
-
-#filter_social .dropdown button:not(:disabled):hover {
-    background: var(--color_gray_light);
-    transition: 0.2s all ease;
-}
-
-#filter_social .dropdown button:disabled {
-    background: var(--color_black);
-    color: var(--color_white);
-    transition: 0.2s all ease;
 }
 
 .main_social .view_social {
@@ -1866,6 +1893,8 @@
     height: max-content;
     width: 100%;
     padding: 10px 20px;
+    border-top: 2px solid var(--color_gray_light);
+    gap: 20px;
 }
 
 .main_social .footer_view_social button {
@@ -1874,10 +1903,23 @@
     justify-content: center;
     height: 35px;
     width: 100%;
-    background: var(--color_black);
-    color: var(--color_white);
+    background: transparent;
     font-weight: 600;
-    border-radius: 15px;
+    border-radius: 5px;
+    gap: 10px;
+    transition: 0.2s all ease;
+}
+
+.main_social .footer_view_social button:not(.active) {
+    background: var(--color_gray_light);
+    color: var(--color_black);
+    transition: 0.2s all ease;
+}
+
+.main_social .footer_view_social button.active {
+    background: var(--color_blue);
+    color: var(--color_white);
+    transition: 0.2s all ease;
 }
 
 /* Other */
@@ -2119,69 +2161,8 @@
         gap: 15px;
     }
 
-    .my_social .heading .social_mobile {
-        display: flex;
-        position: relative;
-        flex-shrink: 0;
-    }
-
-    .social_mobile>button {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        height: 35px;
-        width: 35px;
-        background: var(--color_white);
-        color: var(--color_black);
-        border-radius: 50px;
-        transition: 0.2s all ease;
-    }
-
-    .social_mobile.active>button {
-        background: var(--color_black);
-        color: var(--color_white);
-        transition: 0.2s all ease;
-    }
-
-    .social_mobile .social_mobile_btns {
-        display: flex;
-        position: absolute;
-        top: 45px;
-        right: 0px;
-        padding: 10px;
-        border-radius: 10px;
-        background: var(--color_white);
-        box-shadow: 0 0 5px var(--color_gray);
-        transform: scale(0);
-        transform-origin: top right;
-        flex-directioN: column;
-        gap: 10px;
-    }
-
-    .social_mobile.active .social_mobile_btns {
-        transform: scale(1);
-        transition: 0.2s all ease;
-    }
-
-    .social_mobile .social_mobile_btns button {
-        display: flex;
-        align-items: center;
-        height: 35px;
-        padding: 0 20px;
-        border-radius: 15px;
-        background: var(--color_gray_light);
-        color: var(--color_black);
-        font-weight: 600;
-        gap: 10px;
-        transition: 0.2s all ease;
-    }
-
-
-
-    .social_mobile_btns button.active {
-        color: var(--color_white);
-        background: var(--color_blue);
-        transition: 0.2s all ease;
+    .social_search input {
+        padding-right: 50px;
     }
 
     #social .main_social {
@@ -2205,10 +2186,6 @@
     .frame_social .item_social {
         align-items: flex-end;
         flex-direction: column;
-    }
-
-    .form_create_team {
-        bottom: 90px;
     }
 
     .form_create_team.shown {

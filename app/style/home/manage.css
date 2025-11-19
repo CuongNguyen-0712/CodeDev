@@ -35,24 +35,21 @@
     gap: 10px;
 }
 
+.heading_manage img {
+    height: 25px;
+    width: 25px;
+}
+
 .content_manage {
     display: flex;
     justify-content: center;
-    align-items: center;
+    align-items: flex-start;
+    height: max-content;
     width: 100%;
-    flex-grow: 1;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.content_manage .info-manage {
-    display: flex;
-    height: 100%;
-    flex-grow: 1;
     gap: 20px;
 }
 
-.info-manage .beside {
+.content_manage .beside {
     display: flex;
     align-items: center;
     height: 100%;
@@ -62,7 +59,7 @@
     gap: 20px;
 }
 
-.info-manage .beside .header_beside {
+.content_manage .beside .header_beside {
     display: flex;
     justify-content: center;
     align-items: center;
@@ -75,33 +72,33 @@
     gap: 20px;
 }
 
-.info-manage .beside .footer_beside {
+.content_manage .beside .beside_banner {
     display: flex;
     justify-content: flex-start;
     align-items: center;
     height: max-content;
     width: 100%;
     box-shadow: 0 0 5px var(--color_gray);
-    border-radius: 15px;
-    padding: 15px 0;
+    border-radius: 5px;
+    padding: 15px 10px;
     flex-direction: column;
     gap: 10px;
 }
 
-.beside .footer_beside h4 {
-    padding: 5px 20px;
-    border-radius: 50px;
+.beside .beside_banner h5 {
+    padding: 5px 10px;
+    border-radius: 5px;
+    text-transform: uppercase;
     color: var(--color_green);
     background: var(--color_green_light);
 }
 
-.beside .footer_beside p {
+.beside .beside_banner p {
     display: flex;
     height: max-content;
     width: 100%;
     flex-direction: column;
     font-size: 15px;
-    padding: 0 20px;
     gap: 10px;
 }
 
@@ -110,115 +107,241 @@
     gap: 5px;
 }
 
-.beside .header_beside #myAvatar {
+.content_manage .info_container {
     display: flex;
-    height: 100px;
-    width: 100px;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50px;
-    padding: 5px;
-    background: var(--color_gray_light);
-    overflow: hidden;
-}
-
-#myAvatar img {
-    height: 100%;
-    width: 100%;
-    border-radius: 50px;
-    object-fit: contain;
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-}
-
-.content_manage .beside .image-btns {
-    display: flex;
-    position: relative;
     justify-content: center;
     height: max-content;
+    min-height: 300px;
     width: 100%;
-    width: 100%;
-    flex-wrap: wrap;
-    gap: 15px;
-}
-
-.image-btns>button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 35px;
-    padding: 0 20px;
-    font-weight: 600;
-    border-radius: 10px;
-    gap: 10px;
-    cursor: pointer;
-}
-
-#import_image {
-    position: relative;
-    width: 100%;
-    background: var(--color_black);
-    color: var(--color_white);
-}
-
-#save_image {
-    flex-grow: 1;
-    background: var(--color_blue);
-    color: var(--color_white);
-}
-
-#cancel_handle {
-    width: 35px;
-    padding: 0;
-    border-radius: 50px;
-    background: var(--color_gray_light);
-    color: var(--color_black);
-}
-
-#file {
-    position: absolute;
-    height: 100%;
-    width: 100%;
-    opacity: 0;
-    cursor: pointer;
-}
-
-.info-manage .info {
-    display: flex;
-    position: relative;
-    height: 100%;
-    flex-direction: column;
-    flex-grow: 1;
-}
-
-.info .info_container {
-    display: flex;
-    height: max-content;
-    flex-grow: 1;
     flex-direction: column;
     box-shadow: 0 0 5px var(--color_gray);
-    padding: 15px 20px;
+    padding: 30px 20px;
     border-radius: 15px;
-    gap: 10px;
+    gap: 20px;
 }
 
-.info .info_container .heading_info {
+.info_container .heading_info {
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
     height: max-content;
     width: 100%;
     flex-wrap: wrap-reverse;
-    gap: 20px;
+    gap: 30px;
 }
 
 .heading_info .beside_info {
     display: flex;
     height: max-content;
-    width: max-content;
+    flex-grow: 1;
     flex-direction: column;
+    gap: 20px;
+}
+
+.info_header {
+    display: flex;
+    align-items: flex-start;
+    height: max-content;
+    flex-grow: 1;
+    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.info_header .user_banner {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.user_banner .user_banner_wrapper {
+    display: flex;
+    height: max-content;
+    width: max-content;
+    gap: 20px;
+}
+
+.user_banner .image_banner {
+    display: flex;
+    justify-content: center;
+    height: initial;
+    flex-grow: 1;
+    gap: 20px;
+}
+
+.image_banner .image_wrapper {
+    display: flex;
+    position: relative;
+    border: 2px solid var(--color_gray);
+    border-radius: 10px;
+}
+
+.image_banner .image_wrapper::before {
+    content: '';
+    position: absolute;
+    height: 100%;
+    width: 100%;
+    background: var(--color_gray_light);
+    opacity: 0.5;
+    border-radius: 7px;
+    visibility: hidden;
+    z-index: 1;
+}
+
+.image_banner .image_wrapper:hover::before {
+    visibility: visible;
+}
+
+.image_banner .image_wrapper img {
+    object-fit: cover;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    border-radius: 7px;
+}
+
+.image_wrapper .image_import {
+    display: flex;
+    position: absolute;
+    align-self: center;
+    left: calc(50% - 17.5px);
+    background: transparent;
+    transform: scale(0);
+    visibility: hidden;
+    transition: 0.2s all ease;
+    z-index: 1;
+}
+
+.image_wrapper:hover .image_import {
+    visibility: visible;
+    transform: scale(1);
+    transition: 0.2s all ease;
+}
+
+.image_wrapper:hover .image_import::before {
+    transform: scale(1);
+    transition: 0.2s all ease;
+}
+
+.image_wrapper .image_import #import_image {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 35px;
+    width: 35px;
+    border-radius: 5px;
+    top: 25px;
+    background: var(--color_black);
+    color: var(--color_white);
+}
+
+.image_wrapper .image_import #file {
+    position: absolute;
+    height: 100%;
+    width: 100%;
+    opacity: 0;
+    inset: 0;
+}
+
+.image_wrapper #cancel_preview {
+    display: flex;
+    position: absolute;
+    align-items: center;
+    justify-content: center;
+    height: 25px;
+    width: 25px;
+    top: -20px;
+    right: -30px;
+    border-radius: 50%;
+    background: var(--color_gray_light);
+}
+
+.user_banner .info_banner {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    min-width: 200px;
+    gap: 10px;
+}
+
+.info_banner .info_wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    height: max-content;
+    width: 100%;
+    gap: 10px;
+}
+
+.info_banner .info_wrapper button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 35px;
+    width: 35px;
+    border-radius: 50%;
+    font-size: 14px;
+    background: var(--color_gray_light);
+    color: var(--color_black);
+    font-weight: 600;
+    gap: 10px;
+    transition: 0.2s all ease;
+    cursor: pointer;
+
+    &:hover {
+        background: var(--color_black);
+        color: var(--color_white);
+        transition: 0.2s all ease;
+    }
+}
+
+.user_banner .info_banner p {
+    padding: 5px 20px;
+    border-radius: 5px;
+    background: var(--color_blue);
+    color: var(--color_white);
+}
+
+.stats_banner {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.stats_banner .banner {
+    display: flex;
+    align-items: center;
+    flex-grow: 1;
+    min-width: 150px;
+    font-weight: 600;
+    border-radius: 5px;
+    outline: 2px solid var(--color_gray);
+    overflow: hidden;
+}
+
+.stats_banner .banner span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 35px;
+    width: 80px;
+    font-size: 12px;
+    border-radius: 5px;
+    text-transform: uppercase;
+    background: var(--color_black);
+    color: var(--color_white);
+    gap: 10px;
+}
+
+.stats_banner .banner p {
+    display: flex;
+    justify-content: center;
     gap: 5px;
+    flex-grow: 1;
 }
 
 .heading_info .beside_info p {
@@ -234,8 +357,10 @@
     height: 25px;
     font-size: 13px;
     padding: 0 5px;
-    outline: none;
     border: none;
+    outline: 2px solid transparent;
+    border-radius: 5px;
+    transition: 0.2s all ease;
 }
 
 .heading_info #modify_btns {
@@ -266,6 +391,7 @@
     width: 100px;
     background: var(--color_black);
     color: var(--color_white);
+    cursor: pointer;
 }
 
 .info_container .input_info {
@@ -311,8 +437,10 @@
     width: 100%;
     background: transparent;
     font-size: 15px;
-    padding: 0 40px 0 10px;
-    outline: none;
+    padding: 0 10px;
+    border-radius: 5px;
+    outline: 2px solid transparent;
+    transition: 0.2s all ease;
 }
 
 .item .input_item .error_input {
@@ -324,10 +452,6 @@
 }
 
 .input_item .error_input p {
-    display: none;
-}
-
-.input_item .error_input:hover p {
     display: flex;
     position: absolute;
     width: max-content;
@@ -338,17 +462,33 @@
     color: var(--color_black);
     font-size: 13px;
     border-radius: 5px;
+    transform: scale(0);
+    transform-origin: top right;
+    transition: 0.2s all ease;
+    transition-delay: 0.5s;
     z-index: 1;
     cursor: default
 }
 
+.input_item .error_input:hover p {
+    transform: scale(1);
+    transition: 0.2s all ease;
+}
+
 .info_container input.modify {
-    outline: 2px solid var(--color_gray_light);
-    border-radius: 5px;
+    outline-color: var(--color_gray_light);
+    transition: 0.2s all ease;
+}
+
+.info_container input.has_error {
+    outline-color: var(--color_red);
+    padding-right: 40px;
+    transition: 0.2s all ease;
 }
 
 .info_container input.modify:focus {
     outline-color: var(--color_black);
+    transition: 0.2s all ease;
 }
 
 .info_container textarea {
@@ -446,18 +586,18 @@
         border-radius: 0;
     }
 
-    .info-manage {
+    .content_manage {
         flex-direction: column;
     }
 
-    .info-manage .beside {
+    .content_manage .beside {
         width: 100%;
         flex-direction: row;
     }
 }
 
 @media screen and (max-width: 425px) {
-    .info-manage .beside {
+    .content_manage .beside {
         flex-wrap: wrap;
     }
 

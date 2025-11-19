@@ -44,11 +44,12 @@ export async function postRegisterCourse(data) {
         await sql`select register_course(${userId}, ${courseId})`;
 
         return new Response(
-            JSON.stringify({ message: 'Register course successfully' }),
+            JSON.stringify({ message: 'Register course successfully: ' }),
             { status: 200, headers: { "Content-Type": "application/json" } }
         );
     } catch (error) {
-        console.error("Error register course:", error);
+        w
+        console.error("Error register course: ", error);
         return new Response(
             JSON.stringify({ message: error.message || "Somthing went wrong" }),
             { status: 500, headers: { "Content-Type": "application/json" } }
@@ -70,11 +71,11 @@ export async function postRegisterProject(data) {
         await sql`INSERT INTO project.register (userid, projectid) VALUES (${userId}, ${projectId})`;
 
         return new Response(
-            JSON.stringify({ message: "Register project successfully" }),
+            JSON.stringify({ message: "Register project successfully: " }),
             { status: 200, headers: { "Content-Type": "application/json" } }
         );
     } catch (error) {
-        console.error("Error register project:", error);
+        console.error("Error register project: ", error);
         return new Response(
             JSON.stringify({ message: "Somthing went wrong" }),
             { status: 500, headers: { "Content-Type": "application/json" } }

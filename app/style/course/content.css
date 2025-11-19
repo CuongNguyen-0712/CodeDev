@@ -1,8 +1,10 @@
 #course_page_layout {
     display: flex;
-    height: 100%;
+    position: relative;
+    height: 100dvh;
     width: 100%;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .nav_layout_params {
@@ -14,6 +16,8 @@
     padding: 5px 15px;
     background: var(--color_blue_light);
     gap: 20px;
+    flex-shrink: 0;
+    z-index: 1;
 }
 
 .nav_layout_heading {
@@ -49,52 +53,50 @@
 
 .nav_layout_handler {
     display: flex;
-    height: max-content;
+    gap: 15px;
 }
 
 .nav_layout_handler button {
     display: flex;
     align-items: center;
-    padding: 7px;
-    font-weight: 600;
-    border-radius: 8px;
-    background: var(--color_white);
+    justify-content: center;
+    height: 40px;
+    width: 40px;
+    border-radius: 50%;
+    background: transparent;
     gap: 10px;
     cursor: pointer;
     transition: 0.2s all ease;
-}
 
-.nav_layout_handler button:hover {
-    background: var(--color_gray_light);
-    transition: 0.2s all ease;
+    &:hover {
+        background: var(--color_white_light);
+        transition: 0.2s all ease;
+    }
 }
 
 #course_param_content {
     display: flex;
-    width: 100%;
     flex-grow: 1;
+    width: 100%;
+    overflow: hidden;
 }
 
 #course_param_content .slider {
     display: flex;
-    position: fixed;
-    height: calc(100% - 70px);
+    height: 100%;
     width: 0;
-    bottom: 0;
-    left: 0;
     padding: 0;
-    border: none;
     background: var(--color_gray_light);
     flex-direction: column;
     gap: 20px;
-    z-index: 1;
+    flex-shrink: 0;
+    overflow: hidden;
     transition: 0.2s all ease;
 }
 
 #course_param_content .slider.active {
-    width: 300px;
+    width: 350px;
     padding: 20px 10px;
-    border-right: 2px solid var(--color_gray);
     transition: 0.2s all ease;
 }
 
@@ -102,7 +104,7 @@
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    flex-grow: 1;
+    height: 100%;
     width: 100%;
     flex-direction: column;
     overflow: scroll;
@@ -172,6 +174,17 @@
     width: 25px;
     border-radius: 50px;
     background: var(--color_gray_light);
+    color: var(--color_black);
+    transform: rotate(0deg);
+    transition: 0.2s all ease;
+}
+
+
+.module.active .module_heading .module_header .icon_module {
+    transform: rotate(90deg);
+    background: var(--color_blue);
+    color: var(--color_white);
+    transition: 0.2s all ease;
 }
 
 .module .module_heading .module_header h4 {
@@ -275,8 +288,9 @@
     height: 35px;
     width: 35px;
     background: var(--color_white);
-    border: 1px solid var(--color_black);
-    border-radius: 5px;
+    border: 1px solid var(--color_gray);
+    color: var(--color_black);
+    border-radius: 20px;
     flex-shrink: 0;
 }
 
@@ -286,7 +300,7 @@
     justify-content: center;
     height: 35px;
     width: 100%;
-    border-radius: 10px;
+    border-radius: 5px;
     background: var(--color_black);
     color: var(--color_white);
     font-weight: 600;
@@ -296,11 +310,10 @@
 
 #course_param_content .lesson_view {
     display: flex;
-    position: relative;
     justify-content: center;
-    height: max-content;
-    min-height: 100%;
-    width: 100%;
+    height: 100%;
+    flex-grow: 1;
+    min-width: 300px;
     padding: 10px;
     flex-direction: column;
     gap: 20px;
@@ -310,6 +323,7 @@
     display: flex;
     width: 100%;
     flex-grow: 1;
+    overflow: auto;
 }
 
 .lesson_view .footer_view {
@@ -335,24 +349,6 @@
     cursor: pointer;
 }
 
-.lesson_view .lesson_view_btn {
-    display: flex;
-    position: fixed;
-    align-items: center;
-    justify-content: center;
-    height: 35px;
-    width: 35px;
-    bottom: 15px;
-    left: 15px;
-    border-radius: 10px;
-    background: transparent;
-    outline: 1px solid var(--color_gray_light);
-    box-shadow: 0 0 10px var(--color_gray_light);
-    color: var(--color_black);
-    transition: 0.2s all ease;
-    cursor: pointer;
-}
-
 .lesson_view .lesson_view_btn:hover {
     background: var(--color_gray_light);
     transition: 0.2s all ease;
@@ -360,20 +356,37 @@
 
 #view_state {
     display: flex;
-    position: fixed;
-    height: calc(100% - 90px);
-    width: 300px;
-    right: 10px;
+    position: absolute;
+    height: 100%;
+    width: 100%;
+    max-width: 450px;
+    inset: 0;
     background: var(--color_white);
-    border: 2px solid var(--color_gray_light);
     box-shadow: 0 0 5px var(--color_gray_light);
     transition: 0.2s all ease;
-    border-radius: 20px;
     z-index: 2;
 }
 
 @media screen and (max-width: 768px) {
     .nav_layout_params .nav_layout_heading h3 {
         font-size: medium;
+    }
+
+    #course_param_content .slider {
+        position: absolute;
+        height: calc(100% - 70px);
+        right: 0;
+        bottom: -100%;
+        width: 300px;
+    }
+
+    #course_param_content .slider.active {
+        bottom: 0;
+    }
+}
+
+@media screen and (max-width: 425px) {
+    #course_param_content .slider.active {
+        width: 100%;
     }
 }

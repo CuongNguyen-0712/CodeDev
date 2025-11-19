@@ -16,6 +16,7 @@ import {
   MdSpaceDashboard,
   MdEmojiEvents,
   MdOutlineClose,
+  MdOutlineFeedback
 } from "react-icons/md";
 import { VscProject } from "react-icons/vsc";
 
@@ -117,6 +118,7 @@ export default function Dashboard({ handleDashboard, isDashboard }) {
         </div>
         <div id="handler_dashboard">
           <button id="feedback" onClick={() => queryNavigate(window.location.pathname, { feedback: true })}>
+            <MdOutlineFeedback fontSize={16} />
             Feedback
           </button>
         </div>

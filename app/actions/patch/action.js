@@ -23,7 +23,7 @@ export async function updateInfo(data) {
         image = case when ${image} is distinct from image then ${image} else image end,
         bio = case when ${bio} is distinct from bio then ${bio} else bio end,
         update_at = now()
-        where id = ${userId}
+        where user_id = ${userId}
         `
 
         if (result.count === 0) {
@@ -64,7 +64,7 @@ export async function updateHideStatusCourse(data) {
         where userid = ${userId} and courseid = ${courseId}
         `;
 
-        return new Response(JSON.stringify({ message: "Successfully" }), {
+        return new Response(JSON.stringify({ message: "Action successfully" }), {
             status: 200,
             headers: { "Content-Type": "application/json" }
         });
@@ -94,7 +94,7 @@ export async function updateHideStatusProject(data) {
         where userid = ${userId} and projectid = ${projectId}
         `
 
-        return new Response(JSON.stringify({ message: "Successfully" }), {
+        return new Response(JSON.stringify({ message: "Action successfully" }), {
             status: 200,
             headers: { "Content-Type": "application/json" }
         });

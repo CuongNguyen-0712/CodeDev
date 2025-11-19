@@ -39,8 +39,8 @@ export async function getInfo(data) {
         const res = await sql`
             select i.surname as surname, i.name as name, i.email as email, i.image as image, i.bio as bio, i.nickname as nickname, i.rank as rank, i.star as star, i.level as level, u.username as username, i.phone as phone
             from private.users u
-            join private.info i on u.id = i.id
-            where u.id = ${data}
+            join private.info i on u.id = i.user_id
+            where i.user_id = ${data}
             limit 1
         `;
 
@@ -190,7 +190,7 @@ export async function getCourse({ id, search, limit, offset, price, level, ratin
     }
 }
 
-export async function getMyCourse({ id, search, limit, offset, hide }) {
+export async function getMyCourse({ id, search, limit, offset, hide, status, level }) {
     if (!id) {
         return new Response(
             JSON.stringify({ message: "You missing something, check again" }),
@@ -206,7 +206,9 @@ export async function getMyCourse({ id, search, limit, offset, hide }) {
             where 
                 r.userid = ${id} and 
                 r.hidestatus = ${hide} and
-                (${search}::text is null or lower(c.title) like '%' || lower(${search}::text) || '%')    
+                (${search}::text is null or lower(c.title) like '%' || lower(CAST(${search} AS text)) || '%') and
+                (${status}::text is null or r.status = ${status}::statusenum) and
+                (${level}::text is null or c.level = ${level}::levelenum)
             order by r.last_at desc
             limit ${limit} offset ${offset}
         `;
@@ -216,6 +218,7 @@ export async function getMyCourse({ id, search, limit, offset, hide }) {
             { status: 200, headers: { "Content-Type": "application/json" } }
         );
     } catch (error) {
+        console.error(error)
         return new Response(
             JSON.stringify({ message: "Internal server error" }),
             { status: 500, headers: { "Content-Type": "application/json" } }
@@ -282,8 +285,8 @@ export async function getMySocial({ id, tab, search }) {
                             i.rank as rank,
                             i.star as star
                         from social.friend f
-                        inner join private.info i on i.id = f.friend_id 
-                        inner join private.users u on u.id = i.id
+                        inner join private.info i on i.user_id = f.friend_id 
+                        inner join private.users u on u.id = i.user_id
                         where f.user_id = ${id}
                         and (${search}::text is null or lower(u.username) like '%' || lower(${search}) || '%') 
                     `;
@@ -351,7 +354,7 @@ export async function getSocial({ id, search, offset, limit, filter }) {
                         i.rank as rank,
                         i.star as star
                     from private.users u
-                    join private.info i on i.id = u.id
+                    join private.info i on i.user_id = u.id
                     where u.id not in (
                     select friend_id
                     from social.friend

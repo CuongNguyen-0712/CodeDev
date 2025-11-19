@@ -16,7 +16,7 @@ import { MdInfoOutline } from "react-icons/md";
 import { TbLayoutSidebarLeftCollapseFilled, TbReload } from "react-icons/tb";
 import { IoMdList } from "react-icons/io";
 
-export default function CoursePage({ params }) {
+export default function CoursePage({ params } = {}) {
     const { navigateBack } = useRouterActions();
 
     const [state, setState] = useState({
@@ -300,6 +300,10 @@ export default function CoursePage({ params }) {
         getContentLesson(course.lesson);
     }
 
+    useEffect(() => {
+        setAlert(null)
+    }, [alert])
+
     return (
         <div id="course_page_layout">
             <nav className="nav_layout_params">
@@ -321,11 +325,55 @@ export default function CoursePage({ params }) {
                     <button
                         onClick={() => setView(!view)}
                     >
-                        <MdInfoOutline fontSize={24} color="var(--color_black)" />
+                        <MdInfoOutline fontSize={24} color="var(--color_white)" />
+                    </button>
+                    <button
+                        className="lesson_view_btn"
+                        onClick={() => setSlider(!slider)}
+                    >
+                        <IoMdList fontSize={24} color="var(--color_white)" />
                     </button>
                 </div>
             </nav>
             <div id="course_param_content">
+                <div className="lesson_view">
+                    {
+                        lesson.pending ?
+                            <LoadingContent message={'Waitting for lesson data...'} />
+                            :
+                            lesson.error ?
+                                <ErrorReload data={lesson?.error} refetch={() => refreshGetLesson()} />
+                                :
+                                (Object.values(lesson.data ?? {}).length > 0) ?
+                                    <>
+                                        <div id="view">
+                                            <p>{lesson.data.type}: {lesson.data.source}</p>
+                                        </div>
+                                        <footer className="footer_view">
+                                            {
+                                                lesson.data.status === 'In Progress'
+                                                &&
+                                                <button
+                                                    id="confirm_lesson"
+                                                    onClick={() => submitLesson({ lesson_id: lesson.data.lesson_id })}
+                                                    disabled={lesson.handling}
+                                                >
+                                                    {
+                                                        lesson.handling ?
+                                                            <LoadingContent scale={0.5} color={'var(--color_white)'} />
+                                                            :
+                                                            <>
+                                                                Done
+                                                            </>
+                                                    }
+                                                </button>
+                                            }
+                                        </footer>
+                                    </>
+                                    :
+                                    <p>Data can not be loaded</p>
+                    }
+                </div>
                 <div className={`slider ${slider ? 'active' : ''}`}>
                     <div className='course_slider'>
                         {
@@ -349,10 +397,10 @@ export default function CoursePage({ params }) {
                                                                 }))
                                                             }}
                                                         >
-                                                            <div className="module_header">
+                                                            <div className='module_header'>
                                                                 <h4>Chapter {index + 1}</h4>
                                                                 <div className="icon_module">
-                                                                    <FaAngleRight style={course.module === item.id ? { transform: 'rotate(90deg)', transition: '0.2s all ease' } : { transform: 'rotate(0deg)', transition: '0.2s all ease' }} />
+                                                                    <FaAngleRight />
                                                                 </div>
                                                             </div>
                                                             <h4>
@@ -416,57 +464,9 @@ export default function CoursePage({ params }) {
                         </button>
                     </div>
                 </div>
-                <div className="lesson_view">
-                    {
-                        lesson.pending ?
-                            <LoadingContent message={'Waitting for lesson data...'} />
-                            :
-                            lesson.error ?
-                                <ErrorReload data={lesson?.error} refetch={() => refreshGetLesson()} />
-                                :
-                                (Object.values(lesson.data ?? {}).length > 0) ?
-                                    <>
-                                        <div id="view">
-                                            <p>{lesson.data.type}: {lesson.data.source}</p>
-                                        </div>
-                                        <footer className="footer_view">
-                                            {
-                                                lesson.data.status === 'In Progress'
-                                                &&
-                                                <button
-                                                    id="confirm_lesson"
-                                                    onClick={() => submitLesson({ lesson_id: lesson.data.lesson_id })}
-                                                    disabled={lesson.handling}
-                                                >
-                                                    {
-                                                        lesson.handling ?
-                                                            <LoadingContent scale={0.5} color={'var(--color_white)'} />
-                                                            :
-                                                            <>
-                                                                Done
-                                                            </>
-                                                    }
-                                                </button>
-                                            }
-                                        </footer>
-                                    </>
-                                    :
-                                    <p>Data can not be loaded</p>
-                    }
-
-                    {
-                        !slider &&
-                        <button
-                            className="lesson_view_btn"
-                            onClick={() => setSlider(true)}
-                        >
-                            <IoMdList fontSize={20} />
-                        </button>
-                    }
-                </div>
                 <div
                     id="view_state"
-                    style={view ? { bottom: '10px' } : { bottom: '-100%' }}
+                    style={view ? { transform: 'translateX(0)' } : { transform: 'translateX(-100%)' }}
                 >
                     {
                         state.pending ?
@@ -481,16 +481,10 @@ export default function CoursePage({ params }) {
                     }
                 </div>
             </div>
-            {
-                alert &&
-                <AlertPush
-                    status={alert?.status}
-                    message={alert?.message}
-                    reset={() => {
-                        setAlert(null)
-                    }}
-                />
-            }
+            <AlertPush
+                message={alert?.message}
+                status={alert?.status}
+            />
         </div>
     )
 }

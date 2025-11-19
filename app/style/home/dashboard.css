@@ -40,6 +40,7 @@
 #handler_dashboard #feedback {
   background: var(--color_black);
   color: var(--color_white);
+  gap: 10px;
 }
 
 #dashboard .header {

@@ -17,7 +17,6 @@
 
 .navbar-items .navbar-feature {
   display: flex;
-  position: relative;
   align-items: center;
   width: max-content;
   height: max-content;
@@ -104,7 +103,7 @@
   align-items: center;
   height: 100%;
   width: max-content;
-  gap: 20px;
+  gap: 10px;
 }
 
 #navigate-btn {
@@ -127,6 +126,17 @@
   height: 100%;
   width: max-content;
   gap: 10px;
+}
+
+#todo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 35px;
+  width: 35px;
+  background: var(--color_white);
+  color: var(--color_black);
+  border-radius: 5px;
 }
 
 #search_icon {
@@ -204,7 +214,7 @@
   display: flex;
   position: absolute;
   height: max-content;
-  width: max-content;
+  width: 200px;
   top: 55px;
   right: 20px;
   padding: 15px;
@@ -212,7 +222,21 @@
   box-shadow: 0 0 5px var(--color_gray);
   border-radius: 10px;
   flex-direction: column;
+  transform-origin: top;
   gap: 10px;
+  transition: 0.2s all ease;
+}
+
+.navbar_handler .drop_down.hidden {
+  transform: translateY(-10px);
+  opacity: 0;
+  visibility: hidden;
+}
+
+.navbar_handler .drop_down.shown {
+  transform: translateY(0);
+  opacity: 1;
+  visibility: visible;
 }
 
 #tag_account {
@@ -227,18 +251,23 @@
 }
 
 #tag_account p {
+  width: 100%;
+  min-width: 0;
   font-size: 16px;
   font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
 }
 
-.drop_down button {
+.drop_down .btns {
   display: flex;
   position: relative;
   justify-content: flex-start;
   align-items: center;
   height: 35px;
   width: 100%;
-  min-width: 150px;
   padding: 0 10px;
   border-radius: 50px;
   background: var(--color_gray_light);
@@ -260,13 +289,45 @@
   color: var(--color_white);
 }
 
-.drop_down button:last-child {
+.drop_down #manage_btn {
+  display: flex;
+  align-items: center;
   justify-content: center;
+  height: 35px;
+  width: 100%;
   background: var(--color_black);
   color: var(--color_white);
   border-radius: 5px;
   font-weight: 600;
+  gap: 10px;
   cursor: pointer;
+}
+
+.drop_down .line {
+  height: 2px;
+  width: 100%;
+  background: var(--color_black);
+}
+
+.drop_down #logout_btn {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  height: 35px;
+  width: 100%;
+  background: transparent;
+  color: var(--color_black);
+  border-radius: 5px;
+  padding: 0 10px;
+  gap: 10px;
+  cursor: pointer;
+  transition: 0.2s all ease;
+
+  &:hover {
+    background: var(--color_red_light);
+    color: var(--color_white);
+    transition: 0.2s all ease;
+  }
 }
 
 @media screen and (max-width: 425px) {

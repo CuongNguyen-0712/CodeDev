@@ -43,7 +43,9 @@ body {
 :root {
     --color_bg: #F9FAFB;
 
+    --color_white_light: #FFFFFF4D;
     --color_white: #fff;
+
     --color_black: #374151;
 
     --color_gray_light: #F5F5F5;

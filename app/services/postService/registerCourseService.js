@@ -25,12 +25,12 @@ export default async function PostRegisterCourseService(courseId) {
             return {
                 status: res.status,
                 data: raw.data,
-                message: raw.message || "Register course successfully"
+                message: raw.message || "Register course successfully: "
             };
         } else {
             return {
                 status: res.status,
-                message: raw.message || "Unknown server error"
+                message: raw.message || "Failed to register course: "
             };
         }
     } catch (err) {

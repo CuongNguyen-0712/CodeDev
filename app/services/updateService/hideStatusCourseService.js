@@ -25,12 +25,12 @@ export default async function UpdateHideStatusCourseService(data) {
         if (res.ok) {
             return {
                 status: res.status,
-                message: raw.message || "Successfully"
+                message: raw.message || "Action successfully"
             };
         } else {
             return {
                 status: res.status,
-                message: raw.message || "Failed"
+                message: raw.message || "Action failed"
             };
         }
     } catch (error) {

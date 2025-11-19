@@ -13,7 +13,7 @@ const components = {
     'social': dynamic(() => import('../content/social'), { ssr: true }),
 };
 
-export default function Content({ redirect }) {
+export default function Content({ handleRedirect }) {
     const params = useSearchParams();
 
     const [state, setState] = useState({
@@ -44,5 +44,5 @@ export default function Content({ redirect }) {
         Page === undefined ?
             <PageError />
             :
-            <Page redirect={redirect} />
+            <Page redirect={(value) => handleRedirect(value)} />
 }   

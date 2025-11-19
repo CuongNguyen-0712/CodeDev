@@ -7,7 +7,11 @@ export default async function GetMyCourseService({ search, limit, offset, filter
     if (search) params.set('search', search);
     if (limit) params.set('limit', limit);
     if (offset) params.set('offset', offset);
-    Object.keys(filter).forEach((key) => params.set(key, filter[key]));
+    Object.entries(filter)
+        .filter(([_, value]) => value !== null)
+        .forEach(([key, value]) => {
+            params.set(key, value);
+        });
 
     try {
         const res = await fetch(`/api/get/getMyCourse?${params.toString()}`, {

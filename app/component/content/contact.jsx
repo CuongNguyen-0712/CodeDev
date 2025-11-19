@@ -6,16 +6,18 @@ import GetSocialService from '@/app/services/getService/socialService'
 import useInfiniteScroll from '@/app/hooks/useInfiniteScroll'
 import useOutside from "@/app/hooks/useOutside";
 
+import { useSize } from "@/app/contexts/sizeContext";
+
 import { LoadingContent } from '../ui/loading'
 import { ErrorReload } from '../ui/error'
 
 import { uniqWith, debounce } from "lodash";
 
-import { FaAngleDown } from "react-icons/fa";
 import { IoPersonAdd } from "react-icons/io5";
-import { FaUser, FaUserGroup, FaHashtag } from "react-icons/fa6";
+import { FaUser, FaUserGroup, FaHashtag, FaArrowDownShortWide } from "react-icons/fa6";
 
-export default function Contact() {
+export default function Contact({ redirect, state, setState }) {
+    const { size } = useSize()
 
     const [social, setSocial] = useState({
         data: {
@@ -24,7 +26,6 @@ export default function Contact() {
         },
         hasMore: true,
         pending: true,
-        isShown: false,
         error: null,
         search: '',
         offset: 0,
@@ -43,11 +44,7 @@ export default function Contact() {
         }
     ]
 
-    const [filter, setFilter] = useState({
-        icon: <FaUser />,
-        value: 'User',
-        dropdown: false
-    });
+    const [filter, setFilter] = useState('User');
 
     const [apiQueue, setApiQueue] = useState([]);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -60,21 +57,10 @@ export default function Contact() {
             }
         }
     })
-
-    const refDropdown = useOutside({
-        stateOutside: filter.dropdown,
-        setStateOutside: () => {
-            setFilter((prev) => ({
-                ...prev,
-                dropdown: false
-            }))
-        }
-    })
-
     const fetchData = async () => {
         if (!social.hasMore) return;
 
-        const role = filter.value.toLowerCase();
+        const role = filter.toLowerCase();
 
         try {
             const currentOffset = social.offset;
@@ -174,7 +160,7 @@ export default function Contact() {
                 type: 'fetch'
             }
         ])
-    }, [filter.value])
+    }, [filter])
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -250,63 +236,37 @@ export default function Contact() {
     }
 
     return (
-        <div className='main_social' style={social.isShown ? { height: 'calc(100% - 60px)', transition: '0.2s all ease', zIndex: 2 } : { height: '60px', transition: '0.2s all ease' }}>
+        <div
+            className='main_social'
+            style={state ?
+                {
+                    top: '60px',
+                    opacity: 1,
+                    transition: '0.2s all ease'
+                }
+                :
+                {
+                    top: '100%',
+                    opacity: 0,
+                    transition: '0.2s all ease'
+                }
+            }
+        >
             <div className='heading_view'>
                 <Form className='input_social' onSubmit={handleSubmit}>
                     <input
                         type="text"
                         placeholder='Search'
                         autoComplete='off'
-                        onFocus={() => {
-                            if (!social.isShown) {
-                                setSocial(prev => ({ ...prev, isShown: true }))
-                            }
-                        }
-                        }
                         onChange={handleChange}
                     />
                 </Form>
-                <div id="filter_social" ref={refDropdown}>
-                    <button
-                        onClick={() => {
-                            setFilter((prev) => ({
-                                ...prev,
-                                dropdown: !prev.dropdown
-                            }))
-                        }}
-                    >
-                        {filter.icon}
-                        <FaAngleDown />
-                    </button>
-                    {
-                        filter.dropdown &&
-                        <div
-                            className="dropdown"
-                            style={social.isShown ? { top: '40px' } : { bottom: '40px' }}
-                        >
-                            {roleSocial.map((item, index) => (
-                                <button
-                                    key={index}
-                                    disabled={filter.value === item.name}
-                                    onClick={() => {
-                                        setFilter((prev) => ({
-                                            ...prev,
-                                            dropdown: false,
-                                            value: item.name,
-                                            icon: item.icon,
-                                        }))
-                                    }}
-                                >
-                                    {item.icon}
-                                    {item.name}
-                                </button>
-                            ))}
-                        </div>
-                    }
-                </div>
+                <button onClick={() => setState(false)}>
+                    <FaArrowDownShortWide fontSize={18} />
+                </button>
             </div>
             {
-                social.isShown &&
+                state &&
                 <>
                     <div className='view_social'>
                         {
@@ -317,7 +277,7 @@ export default function Contact() {
                                     <ErrorReload data={social.error} refetch={refetchData} />
                                     :
                                     <div className='frame_social'>
-                                        {view[filter.value] || null}
+                                        {view[filter] || null}
                                         {!social.pending && !social.error && (
                                             social.hasMore ?
                                                 <span ref={setRef} className="load_wrapper">
@@ -330,10 +290,21 @@ export default function Contact() {
                         }
                     </div>
                     <div className='footer_view_social'>
-                        <button onClick={() => setSocial(prev => ({ ...prev, isShown: false }))}>Close</button>
+                        {
+                            roleSocial.map((item, index) => (
+                                <button
+                                    key={index}
+                                    className={`${filter === item.name ? 'active' : ''}`}
+                                    onClick={() => setFilter(item.name)}
+                                >
+                                    {item.icon}
+                                    {item.name}
+                                </button>
+                            ))
+                        }
                     </div>
                 </>
             }
-        </div>
+        </ div>
     )
 }

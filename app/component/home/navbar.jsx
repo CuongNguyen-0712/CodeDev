@@ -5,12 +5,14 @@ import { usePathname } from "next/navigation";
 import { useQuery } from "@/app/router/router";
 import { useSize } from "@/app/contexts/sizeContext";
 import { useAuth } from "@/app/contexts/authContext";
+import { deleteSession } from "@/app/lib/session";
 
 import useOutside from "@/app/hooks/useOutside";
 
 import { FaListUl, FaUserCog, FaRegUserCircle, FaChevronDown } from "react-icons/fa";
 import { IoSearch } from "react-icons/io5";
-import { MdEmail, MdNotifications, MdAccountBox } from "react-icons/md";
+import { MdEmail, MdNotifications, MdAccountBox, MdLogout } from "react-icons/md";
+import { FaPlus } from "react-icons/fa6";
 
 export default function Navbar({ handleDashboard, handleRedirect }) {
   const pathname = usePathname();
@@ -31,64 +33,66 @@ export default function Navbar({ handleDashboard, handleRedirect }) {
     }))
   })
 
+  const handleLogout = async () => {
+    try {
+      handleRedirect(true);
+      await deleteSession();
+    } catch (error) {
+      handleRedirect(false);
+    }
+  }
+
   return (
-    <>
-      <nav id="navbar">
-        <div className="navbar-items">
-          <div className="navbar-feature">
-            {
-              pathname === '/home' &&
-              <button
-                id="menu-btn"
-                onClick={handleDashboard}
-              >
-                <FaListUl />
-              </button>
-            }
-            <div id="app_name">
-              <div className="logo">
-                <svg className="svg" viewBox="-5 -5 110 95">
-                  <polygon
-                    className="shape"
-                    points="50,0 0,85 100,85" />
-                </svg>
-              </div>
-              <h2>CodeDev</h2>
-            </div>
-          </div>
-          {size.width >= 700 && (
+    <nav id="navbar">
+      <div className="navbar-items">
+        <div className="navbar-feature">
+          {
+            pathname === '/home' &&
             <button
-              className="search"
-              onClick={() =>
-                queryNavigate(pathname, { search: true })
-              }
+              id="menu-btn"
+              onClick={handleDashboard}
             >
-              <span>
-                <IoSearch fontSize={18} />
-              </span>
-              <span>Search something</span>
+              <FaListUl />
             </button>
-          )}
-          <div className="navbar-links">
-            {
-              pathname == '/' ?
-                <button id="navigate-btn" onClick={handleRedirect}>
-                  Login or signup
-                </button>
-                :
+          }
+          <div id="app_name">
+            <div className="logo">
+              <svg className="svg" viewBox="-5 -5 110 95">
+                <polygon
+                  className="shape"
+                  points="50,0 0,85 100,85" />
+              </svg>
+            </div>
+            <h2>CodeDev</h2>
+          </div>
+        </div>
+        {size.width >= 700 && (
+          <button
+            className="search"
+            onClick={() =>
+              queryNavigate(pathname, { search: true })
+            }
+          >
+            <span>
+              <IoSearch fontSize={18} />
+            </span>
+            <span>Search something</span>
+          </button>
+        )}
+        <div className="navbar-links">
+          {
+            pathname == '/' ?
+              <button id="navigate-btn" onClick={handleRedirect}>
+                Login or signup
+              </button>
+              :
+              <>
                 <div className="navbar_handler">
-                  {
-                    (pathname !== '/home' && size.width < 700) &&
-                    <button
-                      id="search_icon"
-                      onClick={() =>
-                        queryNavigate(pathname, { search: true })
-                      }
-                    >
-                      __
-                      <IoSearch fontSize={18} />
-                    </button>
-                  }
+                  <button id="todo">
+                    <FaPlus fontSize={16} />
+                  </button>
+                </div>
+                <div className="navbar_handler">
                   <button
                     id="account"
                     onClick={(e) => {
@@ -111,38 +115,43 @@ export default function Navbar({ handleDashboard, handleRedirect }) {
                       }}
                     />
                   </button>
-                  {
-                    state.dropdown &&
-                    <div className="drop_down" ref={ref} >
-                      <div id="tag_account">
-                        <FaRegUserCircle fontSize={20} />
-                        <p>{session.username}</p>
-                      </div>
-                      <button>
-                        <MdEmail />
-                        Mail
-                        <span>
-                          0
-                        </span>
-                      </button>
-                      <button>
-                        <MdNotifications />
-                        Notification
-                        <span>
-                          0
-                        </span>
-                      </button>
-                      <button onClick={() => queryNavigate(pathname, { manage: true })}>
-                        <FaUserCog fontSize={16} />
-                        Manage
-                      </button>
+                  <div className={`drop_down ${state.dropdown ? 'shown' : 'hidden'}`} ref={ref} >
+                    <div id="tag_account">
+                      <FaRegUserCircle fontSize={20} />
+                      <p>{session.username}</p>
                     </div>
-                  }
+                    <button className="btns">
+                      <MdEmail />
+                      Mail
+                      <span>
+                        0
+                      </span>
+                    </button>
+                    <button className="btns">
+                      <MdNotifications />
+                      Notification
+                      <span>
+                        0
+                      </span>
+                    </button>
+                    <button id="manage_btn" onClick={() => queryNavigate(pathname, { manage: true })}>
+                      <FaUserCog fontSize={16} />
+                      Manage
+                    </button>
+                    <span className="line"></span>
+                    <button
+                      id="logout_btn"
+                      onClick={handleLogout}
+                    >
+                      <MdLogout />
+                      Log out
+                    </button>
+                  </div>
                 </div>
-            }
-          </div>
+              </>
+          }
         </div>
-      </nav >
-    </>
+      </div>
+    </nav >
   );
 }

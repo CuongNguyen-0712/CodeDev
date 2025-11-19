@@ -4,6 +4,7 @@ import 'server-only'
 import { neon } from '@neondatabase/serverless'
 import { cookies } from 'next/headers'
 import { SignJWT, jwtVerify } from 'jose'
+import { redirect } from 'next/navigation'
 
 const sql = neon(process.env.DATABASE_URL)
 const secretKey = process.env.SESSION_KEY
@@ -62,7 +63,7 @@ export async function createSession(data) {
     }
     catch (err) {
         console.error('Failed to create session:', err.message)
-        return false
+        return false;
     }
 }
 
@@ -77,21 +78,10 @@ export async function deleteSession() {
     const cookieStore = await cookies()
     const id = (await getSession())?.userId
 
-    try {
-        if (!id) return;
+    if (!id) redirect('/auth');
 
-        const res = await sql`delete from storage.session where id = ${id}`
+    await sql`DELETE FROM storage.session WHERE id = ${id}`
+    cookieStore.delete('session')
 
-        if (res.count === 0) {
-            console.warn('No session found to delete for user ID:', id)
-            return false
-        }
-
-        cookieStore.delete('session')
-
-        return true
-    } catch (error) {
-        console.error('Failed to delete session:', error.message)
-        return false
-    }
+    redirect('/auth')
 }

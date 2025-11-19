@@ -22,6 +22,72 @@ export default function MyCourse({ redirect }) {
     const { navigateToCourse } = useRouterActions();
     const ref = useRef(null)
 
+    const filterValues = [
+        {
+            name: 'level',
+            items: [
+                {
+                    name: 'All',
+                    value: null
+                },
+                {
+                    name: 'Beginner',
+                    value: 'Beginner'
+                },
+                {
+                    name: 'Intermediate',
+                    value: 'Intermediate'
+                },
+                {
+                    name: 'Advanced',
+                    value: 'Advanced'
+                },
+                {
+                    name: 'Expert',
+                    value: 'Expert'
+                },
+                {
+                    name: 'Master',
+                    value: 'Master'
+                }
+            ]
+        },
+        {
+            name: 'status',
+            items: [
+                {
+                    name: 'All',
+                    value: null
+                },
+                {
+                    name: 'Enrolled',
+                    value: 'Enrolled',
+                },
+                {
+                    name: 'In Progress',
+                    value: 'In Progress',
+                },
+                {
+                    name: 'Completed',
+                    value: 'Completed',
+                }
+            ]
+        },
+        {
+            name: "hide",
+            items: [
+                {
+                    name: "None",
+                    value: false,
+                },
+                {
+                    name: 'Hidden',
+                    value: true,
+                }
+            ]
+        },
+    ]
+
     const [state, setState] = useState({
         data: [],
         search: '',
@@ -36,6 +102,8 @@ export default function MyCourse({ redirect }) {
     })
 
     const [filter, setFilter] = useState({
+        level: null,
+        status: null,
         hide: false
     })
 
@@ -92,7 +160,7 @@ export default function MyCourse({ redirect }) {
     }, [state.pending])
 
     const handleNavigate = () => {
-        redirect();
+        redirect(true);
         navigateToCourse()
     }
 
@@ -138,7 +206,7 @@ export default function MyCourse({ redirect }) {
         }
     }
 
-    const handleWithdrawCourse = async (id) => {
+    const handleWithdrawCourse = async ({ id, course }) => {
         setApiQueue((prev) => [
             ...prev,
             {
@@ -155,9 +223,8 @@ export default function MyCourse({ redirect }) {
                             setApiQueue((prev) => [...prev, { type: "fetch" }]);
                             startTransition(() => {
                                 setAlert({
-                                    status: res.status,
-                                    message: res.message || 'Deleted successfully',
-                                    reset: () => setAlert(null)
+                                    status: res?.status,
+                                    message: res?.message + ' course: ' + course,
                                 });
                                 setState((prev) => ({
                                     ...prev,
@@ -168,9 +235,8 @@ export default function MyCourse({ redirect }) {
                         }
                         else {
                             setAlert({
-                                status: res.status,
-                                message: res.message || 'Delete failed',
-                                reset: () => setAlert(null)
+                                status: res?.status,
+                                message: res?.message + ' course: ' + course,
                             });
                             setState((prev) => ({
                                 ...prev,
@@ -180,9 +246,8 @@ export default function MyCourse({ redirect }) {
                     }
                     catch (err) {
                         setAlert({
-                            status: err.status || 500,
-                            message: err.message || "Something is wrong, try again",
-                            reset: () => setAlert(null)
+                            status: err?.status || 500,
+                            message: err?.message || "Something is wrong, try again",
                         });
                         setState((prev) => ({
                             ...prev,
@@ -194,7 +259,7 @@ export default function MyCourse({ redirect }) {
         ])
     }
 
-    const handleUpdateStatus = async ({ id, status }) => {
+    const handleUpdateStatus = async ({ id, status, course }) => {
         setApiQueue((prev) => [
             ...prev,
             {
@@ -214,9 +279,8 @@ export default function MyCourse({ redirect }) {
 
                             startTransition(() => {
                                 setAlert({
-                                    status: res.status,
-                                    message: res.message || 'Successfully',
-                                    reset: () => setAlert(null)
+                                    status: res?.status,
+                                    message: res?.message + ' course: ' + course,
                                 });
                                 setState((prev) => ({
                                     ...prev,
@@ -227,9 +291,8 @@ export default function MyCourse({ redirect }) {
                         }
                         else {
                             setAlert({
-                                status: res.status,
-                                message: res.message || 'Failed',
-                                reset: () => setAlert(null)
+                                status: res?.status,
+                                message: res?.message + ' course: ' + course,
                             });
                             setState((prev) => ({
                                 ...prev,
@@ -239,9 +302,8 @@ export default function MyCourse({ redirect }) {
                     }
                     catch (err) {
                         setAlert({
-                            status: err.status || 500,
-                            message: err.message || "Something is wrong, try again",
-                            reset: () => setAlert(null)
+                            status: err?.status || 500,
+                            message: err?.message || "Something is wrong, try again",
                         });
                         setState((prev) => ({
                             ...prev,
@@ -325,6 +387,10 @@ export default function MyCourse({ redirect }) {
         navigateToCourse(id);
     }
 
+    useEffect(() => {
+        setAlert(null)
+    }, [alert])
+
     return (
         <div id="myCourse">
             <div className="heading-myCourse">
@@ -336,17 +402,31 @@ export default function MyCourse({ redirect }) {
                     {state.filter &&
                         <div className="table" ref={ref}>
                             <div className="content_table">
-                                <div className="filter_value">
-                                    <span>Status</span>
-                                    <button
-                                        type="button"
-                                        onClick={() => setFilter({ ...filter, hide: !filter.hide })}
-                                        style={filter.hide ? { background: 'var(--color_black)', color: 'var(--color_white)' } : { background: 'var(--color_gray_light)', color: 'var(--color_black)' }}
-                                        disabled={state.pending}
-                                    >
-                                        Hide
-                                    </button>
-                                </div>
+                                {
+                                    filterValues.map((field, index) => (
+                                        <div className="filter_value" key={index}>
+                                            <span>{field.name}</span>
+                                            {
+                                                field.items.map((item, index) => (
+                                                    <button
+                                                        type="button"
+                                                        key={index}
+                                                        onClick={() =>
+                                                            setFilter((prev) => ({
+                                                                ...prev,
+                                                                [field.name]: item.value
+                                                            }))
+                                                        }
+                                                        style={filter[field.name] === item.value ? { color: 'var(--color_white)', background: 'var(--color_black)' } : { color: 'var(--color_black)', background: 'var(--color_gray_light)' }}
+                                                        disabled={state.pending}
+                                                    >
+                                                        {item.name}
+                                                    </button>
+                                                ))
+                                            }
+                                        </div>
+                                    ))
+                                }
                             </div>
                             <div className="footer_table">
                                 <button type="submit" disabled={state.pending}>
@@ -390,7 +470,7 @@ export default function MyCourse({ redirect }) {
                                         </div>
                                         <div className="content-course">
                                             <div className="item">
-                                                <h4>Concept</h4>
+                                                <h5>Concept</h5>
                                                 <p>{item.concept}</p>
                                             </div>
                                             <div className="item">
@@ -516,7 +596,7 @@ export default function MyCourse({ redirect }) {
                                                                     <button
                                                                         className='handle_hide'
                                                                         onClick={() =>
-                                                                            handleUpdateStatus({ id: item.id, status: !state.isHide })
+                                                                            handleUpdateStatus({ id: item.id, status: !state.isHide, course: item.title })
                                                                         }
                                                                     >
                                                                         {
@@ -536,7 +616,7 @@ export default function MyCourse({ redirect }) {
                                                                     <button
                                                                         className='handle_withdraw'
                                                                         onClick={() =>
-                                                                            handleWithdrawCourse(item.id)
+                                                                            handleWithdrawCourse({ id: item.id, course: item.title })
                                                                         }
                                                                     >
                                                                         Withdraw
@@ -567,14 +647,11 @@ export default function MyCourse({ redirect }) {
                     :
                     null
             )}
-            {
-                alert &&
-                <AlertPush
-                    message={alert.message}
-                    status={alert.status}
-                    reset={() => setAlert(null)}
-                />
-            }
+
+            <AlertPush
+                message={alert?.message}
+                status={alert?.status}
+            />
         </div>
     )
 }

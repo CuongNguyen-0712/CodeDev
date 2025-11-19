@@ -19,10 +19,11 @@ import { uniqWith, debounce } from 'lodash'
 import Contact from './contact'
 
 import { FaHashtag, FaRankingStar, FaRegUser, FaPlus, FaUser, FaUserGroup } from 'react-icons/fa6'
-import { IoWarningOutline } from "react-icons/io5";
+import { IoWarningOutline, IoShareSocial } from "react-icons/io5";
 import { IoMdMore } from "react-icons/io";
+import { FaCaretDown } from "react-icons/fa";
 import { MdDeleteForever, MdAdd, MdEdit } from "react-icons/md";
-import { PiSignOutBold, PiListBold } from "react-icons/pi";
+import { PiSignOutBold } from "react-icons/pi";
 
 export default function Social({ redirect }) {
     const { size } = useSize();
@@ -38,6 +39,7 @@ export default function Social({ redirect }) {
         activeTab: 'friend',
         hasMore: true,
         hasSearch: false,
+        contact: false,
         limit: 5,
         offset: 0,
         search: '',
@@ -511,35 +513,6 @@ export default function Social({ redirect }) {
         <div id='social'>
             <div className='my_social'>
                 <div className='heading'>
-                    {
-                        size.width > 425 &&
-                        <div className='social_btn'>
-                            <button
-                                onClick={() => setState(prev => ({ ...prev, activeTab: 'friend' }))}
-                                className={`${state.activeTab === 'friend' ? 'active' : ''}`}
-                                disabled={state.pending}
-                            >
-                                Friend
-                            </button>
-                            <button
-                                onClick={() => setState(prev => ({ ...prev, activeTab: 'team' }))}
-                                className={`${state.activeTab === 'team' ? 'active' : ''}`}
-                                disabled={state.pending}
-                            >
-                                Team
-                            </button>
-                            <span
-                                id='navigate_social'
-                                style={
-                                    state.activeTab === 'friend' ?
-                                        { left: '0px' }
-                                        :
-                                        { left: 'calc(50% + 10px)' }
-                                }
-                            >
-                            </span>
-                        </div>
-                    }
                     <Form className='social_search' onSubmit={handleSubmit}>
                         <input
                             type="text"
@@ -547,38 +520,53 @@ export default function Social({ redirect }) {
                             placeholder='Search'
                             autoComplete='off'
                             onChange={handleChange}
-                            autoFocus
                         />
-                        {
-                            size.width <= 425 &&
-                            <div className={`social_mobile ${shown ? 'active' : ''}`} ref={refDropdown}>
-                                <button
-                                    type='button'
-                                    onClick={() => setShown(!shown)}
-                                >
-                                    <PiListBold fontSize={16} />
-                                </button>
-                                <div className='social_mobile_btns'>
-                                    <button
-                                        type='button'
-                                        className={state.activeTab === 'friend' ? 'active' : ''}
-                                        onClick={() => setState(prev => ({ ...prev, activeTab: 'friend' }))}
-                                    >
-                                        <FaUser />
-                                        Friend
-                                    </button>
-                                    <button
-                                        type='button'
-                                        className={state.activeTab === 'team' ? 'active' : ''}
-                                        onClick={() => setState(prev => ({ ...prev, activeTab: 'team' }))}
-                                    >
-                                        <FaUserGroup />
-                                        Team
-                                    </button>
-                                </div>
-                            </div>
-                        }
+                        <button
+                            type='button'
+                            className="status_btn"
+                            onClick={() => setShown(!shown)}
+                            disabled={state.pending}
+                        >
+                            {
+                                size.width > 425 &&
+                                <>
+                                    {state.activeTab}
+                                </>
+                            }
+                            <FaCaretDown fontSize={18} />
+                        </button>
+                        <div
+                            className={`drop_down_options ${shown ? 'shown' : 'hidden'}`}
+                            ref={refDropdown}
+                        >
+                            <button
+                                type='button'
+                                className={`${state.activeTab === 'friend' ? 'active' : ''}`}
+                                onClick={() => setState((prev) => ({ ...prev, activeTab: 'friend' }))}
+                            >
+                                <FaUser />
+                                Friend
+                            </button>
+                            <button
+                                type='button'
+                                className={`${state.activeTab === 'team' ? 'active' : ''}`}
+                                onClick={() => setState((prev) => ({ ...prev, activeTab: 'team' }))}
+                            >
+                                <FaUserGroup />
+                                Team
+                            </button>
+                        </div>
                     </Form>
+                    <button
+                        id="social_btn"
+                        onClick={() => setState((prev) => ({ ...prev, contact: !prev.contact }))}
+                    >
+                        <IoShareSocial />
+                        {
+                            size.width > 425 &&
+                            "Social"
+                        }
+                    </button>
                 </div>
                 <div className='content_social'>
                     {
@@ -601,7 +589,7 @@ export default function Social({ redirect }) {
                     }
                 </div>
             </div>
-            <Contact redirect={redirect} />
+            <Contact redirect={redirect} state={state.contact} setState={(value) => setState(prev => ({ ...prev, contact: value }))} />
         </div >
     )
 }

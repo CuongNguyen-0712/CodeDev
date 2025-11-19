@@ -4,10 +4,11 @@ import Form from "next/form";
 import RegisterCourseService from "@/app/services/postService/registerCourseService";
 import GetCourseService from "@/app/services/getService/courseService";
 
-import { useQuery } from "@/app/router/router";
+import { useQuery, useRouterActions } from "@/app/router/router";
 
 import { ErrorReload } from "../ui/error";
 import { LoadingContent } from "../ui/loading";
+import AlertPush from "../ui/alert";
 import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
 
 import { FaStar, FaArrowRight, FaRegCheckCircle } from "react-icons/fa";
@@ -16,6 +17,7 @@ import { uniqWith, debounce } from "lodash";
 
 export default function CourseContent({ redirect }) {
     const queryNavigate = useQuery();
+    const { navigateToCourse } = useRouterActions();
     const ref = useRef(null);
 
     const filterValue = [
@@ -102,7 +104,6 @@ export default function CourseContent({ redirect }) {
         idHandle: null,
         handling: false,
         error: null,
-        message: null,
         filter: false,
         search: ''
     })
@@ -120,6 +121,8 @@ export default function CourseContent({ redirect }) {
         level: null,
         rating: null,
     })
+
+    const [alert, setAlert] = useState(null)
 
     const [apiQueue, setApiQueue] = useState([])
     const [isProcessing, setIsProcessing] = useState(false)
@@ -205,19 +208,19 @@ export default function CourseContent({ redirect }) {
         handleSubmitSearch();
     }
 
-    const handleRegister = ({ id, isCost }) => {
+    const handleRegister = ({ id, isCost, course }) => {
         if (isCost) return
 
         setApiQueue((prev) => [
             ...prev,
             {
                 type: "register",
-                execute: () => handleRequest(id)
+                execute: () => handleRequest({ id, course })
             }
         ]);
     }
 
-    const handleRequest = async (id) => {
+    const handleRequest = async ({ id, course }) => {
 
         setState((prev) => ({
             ...prev,
@@ -240,15 +243,21 @@ export default function CourseContent({ redirect }) {
                 startTransition(() => {
                     setState((prev) => ({
                         ...prev,
-                        message: { status: res.status, data: res.message },
                         handling: false,
                         idHandle: null,
                     }))
+                    setAlert({
+                        status: res?.status,
+                        message: res?.message + course,
+                        callback: () => {
+                            navigateToCourse(id);
+                            redirect()
+                        }
+                    });
                 })
             } else {
                 setState((prev) => ({
                     ...prev,
-                    message: { status: res.status, data: res.message },
                     handling: false,
                     idHandle: null,
                 }));
@@ -256,7 +265,6 @@ export default function CourseContent({ redirect }) {
         } catch (err) {
             setState((prev) => ({
                 ...prev,
-                message: { status: 500, data: err.message },
                 handling: false,
                 idHandle: null,
             }));
@@ -331,6 +339,7 @@ export default function CourseContent({ redirect }) {
                                                         type="button"
                                                         style={filter[field.name] === item.value ? { color: 'var(--color_white)', background: 'var(--color_black)' } : { color: 'var(--color_black)', background: 'var(--color_gray_light)' }}
                                                         onClick={() => setFilter((prev) => ({ ...prev, [field.name]: item.value }))}
+                                                        disabled={state.pending}
                                                     >
                                                         {item.name}
                                                     </button>
@@ -405,7 +414,7 @@ export default function CourseContent({ redirect }) {
                                         </div>
                                         <div className="footer">
                                             <button
-                                                onClick={() => handleRegister({ id: item.id, isCost: Math.round(item.cost) !== 0 })}
+                                                onClick={() => handleRegister({ id: item.id, isCost: Math.round(item.cost) !== 0, course: item.title })}
                                                 style={{
                                                     backgroundColor: Math.round(item.cost) === 0 ? 'var(--color_blue)' : 'var(--color_black)'
                                                 }}
@@ -435,6 +444,11 @@ export default function CourseContent({ redirect }) {
                         null
                 )
             }
+            <AlertPush
+                status={alert?.status}
+                message={alert?.message}
+                callback={alert?.callback}
+            />
         </div >
     )
 }

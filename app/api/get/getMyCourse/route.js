@@ -7,6 +7,8 @@ export async function GET(req) {
         search: searchParams.get('search'),
         limit: searchParams.get('limit'),
         offset: searchParams.get('offset'),
-        hide: searchParams.get('hide')
+        hide: searchParams.get('hide'),
+        status: searchParams.get('status'),
+        level: searchParams.get('level'),
     });
 }

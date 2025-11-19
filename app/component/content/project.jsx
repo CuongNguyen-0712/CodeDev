@@ -292,7 +292,7 @@ export default function Project({ redirect }) {
         fetchData();
     }
     const handleRedirect = () => {
-        redirect()
+        redirect(true)
         navigateToProject();
     }
 
@@ -354,6 +354,10 @@ export default function Project({ redirect }) {
     useEffect(() => {
         refConfirm.current = confirm
     }, [confirm])
+
+    useEffect(() => {
+        setAlert(null)
+    }, [alert])
 
     return (
         <div id="myProject">
@@ -596,14 +600,10 @@ export default function Project({ redirect }) {
                     :
                     null
             )}
-            {
-                alert &&
-                <AlertPush
-                    message={alert.message}
-                    status={alert.status}
-                    reset={() => setAlert(null)}
-                />
-            }
+            <AlertPush
+                message={alert?.message}
+                status={alert?.status}
+            />
         </div>
     )
 }

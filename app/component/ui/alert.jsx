@@ -1,26 +1,51 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 import { IoWarning, IoCloseCircle, IoCheckmarkCircle, IoInformationCircle } from "react-icons/io5";
 
-export default function AlertPush({ status = 0, message = '', reset, callback = null }) {
-    const [visible, setVisible] = useState(true);
+export default function AlertPush({ status = 0, message = '', callback = null }) {
+    const [stack, setStack] = useState([]);
+
+    const pushAlert = useCallback((status, message, callback) => {
+        const id = Date.now();
+        setStack((prev) => [...prev, { id, status, message, callback }]);
+    }, []);
 
     useEffect(() => {
-        if (!message) return;
+        if (!message || message.trim() === '') return;
+        pushAlert(status, message, callback);
+    }, [message, status, callback, pushAlert]);
 
-        setVisible(true);
+    const removeAlert = useCallback((id) => {
+        setStack((prev) => prev.filter((a) => a.id !== id));
+    }, []);
 
+    return stack.length > 0 && (
+        <section id='alert_container'>
+            {
+                stack.map((item) => (
+                    <AlertItem key={item.id} {...item} onRemove={removeAlert} />
+                ))
+            }
+        </section>
+    )
+}
+
+function AlertItem({ id, status, message, callback, onRemove }) {
+    useEffect(() => {
         const timer = setTimeout(() => {
-            setVisible(false);
-            reset()
+            onRemove(id);
         }, 2000);
 
         return () => clearTimeout(timer);
-    }, [message]);
+    }, [id]);
 
-    return visible ? (
+    const handleCallback = () => {
+        if (typeof (callback) === 'function') callback();
+    }
+
+    return (
         <div
-            id="alert"
+            className="alert"
         >
             {
                 ({
@@ -33,12 +58,13 @@ export default function AlertPush({ status = 0, message = '', reset, callback = 
             {
                 callback &&
                 <button
-                    onCLick={callback}
+                    type="button"
+                    onClick={handleCallback}
                 >
-                    Show
+                    Next
                 </button>
             }
             <span id="time_bar"></span>
         </div>
-    ) : null;
+    )
 }
