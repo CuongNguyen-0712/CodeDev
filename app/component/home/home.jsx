@@ -1,6 +1,6 @@
+'use client'
 import { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-
 
 import Navbar from './navbar';
 import Dashboard from './dashboard';
@@ -10,7 +10,6 @@ import Manage from "./manage";
 import Search from './search';
 
 import { LoadingRedirect } from '@/app/component/ui/loading';
-
 export default function Home() {
     const ref = useRef();
     const params = useSearchParams();

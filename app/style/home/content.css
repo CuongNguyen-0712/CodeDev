@@ -53,7 +53,7 @@
 }
 
 .user-info img {
-    border-radius: 50px;
+    border-radius: 50%;
     object-fit: cover;
     background-size: cover;
     background-position: center;
@@ -79,6 +79,15 @@
     height: max-content;
     width: 100%;
     flex-direction: column;
+    overflow: hidden;
+}
+
+.info .profile h2 {
+    text-align: center;
+    width: 100%;
+    min-width: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     overflow: hidden;
 }
 
@@ -864,7 +873,7 @@
     display: flex;
     height: max-content;
     width: 100%;
-    padding: 80px 20px 20px 20px;
+    padding: 80px 20px 30px 20px;
     background: var(--color_bg);
     flex-direction: column;
     gap: 20px;
@@ -905,12 +914,12 @@
 
 .project-list {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
+    justify-content: flex-start;
     height: max-content;
-    flex-grow: 1;
     width: 100%;
-    gap: 30px;
-    padding-bottom: 20px;
+    gap: 20px;
+    flex-direction: column;
     flex-wrap: wrap;
     z-index: 0;
 }
@@ -921,16 +930,14 @@
     justify-content: space-between;
     align-items: center;
     height: max-content;
-    min-height: 250px;
-    max-width: 400px;
-    flex-grow: 1;
+    min-height: 150px;
+    width: 100%;
     border-radius: 15px;
     background: var(--color_white);
     box-shadow: 0 0 5px var(--color_gray);
-    padding: 10px;
-    gap: 10px;
-    flex-basis: 300px;
-    flex-direction: column;
+    padding: 20px 30px;
+    gap: 30px;
+    flex-wrap: wrap;
     overflow: hidden;
     transition: 0.2s all ease;
 }
@@ -940,102 +947,103 @@
     transition: 0.2s all ease;
 }
 
-.item_project .top_status {
+.item_project .project_actions {
     display: flex;
-    width: 100%;
-    gap: 10px;
+    flex-direction: column;
+    border-right: 2px solid var(--color_black);
+    padding-right: 20px;
+    gap: 15px;
 }
 
-.item_project .top_status>button {
+.item_project .project_actions button {
     display: flex;
     align-items: center;
     justify-content: center;
     height: 35px;
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    border-radius: 5px;
-}
-
-.item_project .top_status .method_project {
-    padding: 0 20px;
-    border-radius: 50px;
-    color: var(--color_green);
-    background: var(--color_green_light);
-}
-
-.item_project .top_status .status_project {
-    flex-grow: 1;
-    background: var(--color_gray_light);
-    color: var(--color_black)
-}
-
-.item_project .top_status .project_handler {
-    position: relative;
-}
-
-.project_handler>button {
-    height: 100%;
     width: 35px;
     border-radius: 5px;
+    background: var(--color_gray_light);
+    color: var(--color_black);
+    font-size: 18px;
     transition: 0.2s all ease;
-}
-
-.project_handler .table_handler {
-    display: flex;
-    position: absolute;
-    inset: 45px 0 auto auto;
-    padding: 10px;
-    border-radius: 10px;
-    background: var(--color_white);
-    box-shadow: 0 0 5px var(--color_gray);
-    flex-direction: column;
-    gap: 10px;
-    z-index: 1;
-}
-
-.table_handler button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 35px;
-    width: 100px;
-    border-radius: 50px;
-    gap: 10px;
     cursor: pointer;
 }
 
-.table_handler .hide_handler,
-.table_handler .show_handler {
-    background: var(--color_gray_light);
-    color: var(--color_black);
-}
-
-.table_handler .delete_handler {
+.project_actions .delete_project:hover {
     background: var(--color_red_light);
     color: var(--color_white);
+    transition: 0.2s all ease;
 }
 
-.content_project {
+.project_actions .hide_project:hover {
+    background: var(--color_black);
+    color: var(--color_white);
+    transition: 0.2s all ease;
+}
+
+.item_project .main_item {
+    display: flex;
+    justify-content: flex-start;
+    flex-grow: 1;
+    flex-direction: column;
+    flex-basis: 250px;
+    gap: 10px;
+}
+
+.main_item .main_top {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.main_top .method_project {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 35px;
+    width: 35px;
+    font-weight: 600;
+    text-transform: uppercase;
+    border-radius: 50%;
+    color: var(--color_green);
+    flex-shrink: 0;
+    background: var(--color_green_light);
+}
+
+.main_item .content_project {
     display: flex;
     width: 100%;
-    flex-grow: 1;
     flex-direction: column;
     gap: 15px;
 }
 
-.content_project .description {
+.main_item .content_project .description {
     display: flex;
     align-items: center;
     width: 100%;
-    padding: 0 20px;
-    text-align: center;
-    flex-direction: column;
+    flex-grow: 1;
+    padding: 0 10px;
+    text-align: start;
     gap: 10px;
 }
 
-.content_project .description p {
-    font-size: 16px;
+.item_project .status_project {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    background: var(--color_gray_light);
+    padding: 5px 15px;
+    border-radius: 20px;
+    gap: 10px
+}
+
+.item_project .status_project::before {
+    display: flex;
+    content: '';
+    height: 8px;
+    width: 8px;
+    background: var(--color);
+    border-radius: 50%;
 }
 
 .item_project .join_project {
@@ -1043,13 +1051,11 @@
     align-items: center;
     justify-content: center;
     height: 40px;
-    width: 200px;
-    border-radius: 20px;
+    width: 40px;
+    border-radius: 50%;
     background: var(--color_blue);
     color: var(--color_white);
-    font-size: 13px;
-    text-transform: uppercase;
-    font-weight: 600;
+    flex-shrink: 0;
     cursor: pointer;
 }
 
@@ -1081,20 +1087,23 @@
     justify-content: center;
     height: 100%;
     width: 100%;
-    flex-direction: column;
-    padding: 0 20px;
+    padding: 20px;
+    flex-wrap: wrap;
     gap: 20px;
 }
 
 .form_confirm .confirm_text {
     display: flex;
     align-items: center;
+    flex-grow: 1;
     padding: 15px;
+    max-width: 300px;
     text-align: center;
     font-size: 14px;
     border-radius: 15px;
     box-shadow: 0 0 5px var(--color_gray);
     background: var(--color_white);
+    flex-basis: 200px;
     flex-direction: column;
     gap: 10px;
 }
@@ -1117,7 +1126,9 @@
 
 .form_confirm .form_confirm_button {
     display: flex;
-    width: 100%;
+    max-width: 150px;
+    flex-grow: 1;
+    flex-direction: column;
     gap: 15px;
 }
 
@@ -1127,9 +1138,10 @@
     justify-content: center;
     height: 35px;
     flex-grow: 1;
-    border-radius: 15px;
+    border-radius: 5px;
     font-weight: 600;
     font-size: 12px;
+    padding: 0 30px;
     text-transform: uppercase;
     cursor: pointer;
 }
@@ -1241,6 +1253,7 @@
     background: var(--color_white);
     border: 2px solid var(--color_gray_light);
     box-shadow: 0 0 5px var(--color_gray_light);
+    color: var(--color_black);
     border-radius: 5px;
     padding: 10px;
     flex-direction: column;
@@ -1844,7 +1857,7 @@
     justify-content: space-between;
     height: max-content;
     width: 100%;
-    padding: 10px;
+    padding: 20px;
     border-radius: 15px;
     box-shadow: 0 0 5px var(--color_gray);
     gap: 20px;
@@ -1860,11 +1873,11 @@
 }
 
 .item_social .tag_heading img {
-    padding: 10px;
-    border-radius: 50px;
+    border-radius: 50%;
+    object-fit: cover;
     background: var(--color_gray_light);
     background-size: cover;
-    background-image: center;
+    background-position: center;
 }
 
 .item_social .tag_heading p {
@@ -2130,29 +2143,15 @@
         display: none;
     }
 
-    .table-handle .delete-btn {
-        color: var(--color_white);
-        background: var(--color_black);
-    }
-
-    .table-handle .hidden-btn {
-        color: var(--color_black);
-        background: var(--color_gray_light_light);
-    }
-
-    .handle-project .join-project {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        height: 40px;
-        width: 180px;
-        background: var(--color_blue);
-        color: var(--color_white);
-        font-size: 15px;
-        font-weight: 700;
-        border-radius: 5px;
-        text-transform: uppercase;
-        cursor: pointer;
+    .item_project .project_actions {
+        width: 100%;
+        flex-direction: row;
+        justify-content: space-evenly;
+        border-right: none;
+        padding-right: 0;
+        border-top: 2px solid var(--color_black);
+        padding-top: 20px;
+        order: 1;
     }
 
     /* Social */

@@ -1,12 +1,10 @@
 'use server'
-import { neon } from "@neondatabase/serverless";
+import { sql } from '@/app/lib/db';
 
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
 
 import { createSession } from "@/app/lib/session";
-
-const sql = neon(process.env.DATABASE_URL);
 
 export async function signIn(data) {
     const { name, pass } = data

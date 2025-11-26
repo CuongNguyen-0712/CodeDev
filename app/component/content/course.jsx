@@ -111,7 +111,7 @@ export default function MyCourse({ redirect }) {
         offset: 0,
         hasMore: true,
         hasSearch: false,
-        limit: 10,
+        limit: 20,
         deletedCount: 0
     })
 
@@ -382,9 +382,11 @@ export default function MyCourse({ redirect }) {
 
     const handleJoin = (id) => {
         if (!id) return;
-
         setState((prev) => ({ ...prev, idRedirect: id }));
         navigateToCourse(id);
+        setTimeout(() => {
+            redirect(true);
+        }, 1000);
     }
 
     useEffect(() => {
@@ -458,183 +460,192 @@ export default function MyCourse({ redirect }) {
                     state.pending ?
                         <LoadingContent />
                         :
-                        state.error ?
+                        (state.error && state.data.length === 0) ?
                             <ErrorReload data={state.error} refetch={refetchData} />
                             :
                             state.data && state.data.length > 0 ?
-                                state.data.map((item) => (
-                                    <div key={item.id} className="course">
-                                        <div className="heading-course">
-                                            <img src={item.image?.trim()} alt="course_image" />
-                                            <h3>{item.title}</h3>
-                                        </div>
-                                        <div className="content-course">
-                                            <div className="item">
-                                                <h5>Concept</h5>
-                                                <p>{item.concept}</p>
-                                            </div>
-                                            <div className="item">
-                                                <h4>Level:</h4>
-                                                <p>{item.level}</p>
-                                            </div>
-                                            <div className="item">
-                                                <h4>Language:</h4>
-                                                <p>{item.language}</p>
-                                            </div>
-                                            <div className="item">
-                                                <h4>Progress:</h4>
-                                                <p>{((item.progress / item.lesson) * 100).toPrecision(3)}% ({item.progress}/{item.lesson})</p>
-                                            </div>
-                                        </div>
-                                        <div className="footer-course">
-                                            <button
-                                                className="setting-course"
-                                                onClick={() => {
-                                                    setState((prev) => ({
-                                                        ...prev,
-                                                        idHandle: state.idHandle === item.id ? null : item.id
-                                                    }))
-                                                    setConfirm((prev) => ({
-                                                        ...prev,
-                                                        hide: false,
-                                                        withdraw: false,
-                                                    }))
-                                                }}
-                                                disabled={state.handling}
-                                                style={{ cursor: state.handling ? 'not-allowed' : 'default' }}
-                                            >
-                                                {state.idHandle === item.id ? <IoClose /> : <IoSettingsSharp />}
-                                            </button>
-                                            {
-                                                state.idHandle === item.id ?
-                                                    <div className="setting-list">
-                                                        <button
-                                                            className='hide-course'
-                                                            onClick={() => {
-                                                                setConfirm((prev) => ({
-                                                                    ...prev,
-                                                                    hide: true
-                                                                }))
-                                                            }}
-                                                            disabled={state.handling}
-                                                        >
-                                                            {
-                                                                state.isHide ?
-                                                                    <IoEye />
-                                                                    :
-                                                                    <IoEyeOff />
-                                                            }
-                                                        </button>
-                                                        <button
-                                                            className="cancel-course"
-                                                            onClick={() => setConfirm((prev) => ({
-                                                                ...prev,
-                                                                withdraw: true
-                                                            }))}
-                                                            disabled={state.handling}
-                                                        >
-
-                                                            <IoTrashBin />
-                                                            Withdraw
-                                                        </button>
+                                <>
+                                    {
+                                        state.data.map((item) => (
+                                            <div key={item.id} className="course">
+                                                <div className="heading-course">
+                                                    <img src={item.image?.trim()} alt="course_image" />
+                                                    <h3>{item.title}</h3>
+                                                </div>
+                                                <div className="content-course">
+                                                    <div className="item">
+                                                        <h5>Concept</h5>
+                                                        <p>{item.concept}</p>
                                                     </div>
-                                                    :
+                                                    <div className="item">
+                                                        <h4>Level:</h4>
+                                                        <p>{item.level}</p>
+                                                    </div>
+                                                    <div className="item">
+                                                        <h4>Language:</h4>
+                                                        <p>{item.language}</p>
+                                                    </div>
+                                                    <div className="item">
+                                                        <h4>Progress:</h4>
+                                                        <p>{((item.progress / item.lesson) * 100).toPrecision(3)}% ({item.progress}/{item.lesson})</p>
+                                                    </div>
+                                                </div>
+                                                <div className="footer-course">
                                                     <button
-                                                        className="join-course"
-                                                        disabled={state.handling.withdraw || state.handling.hide || state.idRedirect}
-                                                        onClick={() => handleJoin(item.id)}
+                                                        className="setting-course"
+                                                        onClick={() => {
+                                                            setState((prev) => ({
+                                                                ...prev,
+                                                                idHandle: state.idHandle === item.id ? null : item.id
+                                                            }))
+                                                            setConfirm((prev) => ({
+                                                                ...prev,
+                                                                hide: false,
+                                                                withdraw: false,
+                                                            }))
+                                                        }}
+                                                        disabled={state.handling}
+                                                        style={{ cursor: state.handling ? 'not-allowed' : 'default' }}
                                                     >
-                                                        {
-                                                            state.idRedirect === item.id ?
-                                                                <LoadingContent scale={0.5} color='var(--color_white)' />
-                                                                :
-                                                                <>
-                                                                    Join
-                                                                </>
-                                                        }
+                                                        {state.idHandle === item.id ? <IoClose /> : <IoSettingsSharp />}
                                                     </button>
-                                            }
-                                        </div>
-                                        {
-                                            ((confirm.hide || confirm.withdraw) && state.idHandle === item.id) &&
-                                            <div className='form_confirm_course'>
-                                                {
-                                                    state.handling ?
-                                                        <LoadingContent scale={0.8} />
-                                                        :
-                                                        <>
-                                                            <div className="confirm_course_text">
-                                                                {
-                                                                    confirm.hide &&
-                                                                    <>
-                                                                        {
-                                                                            state.isHide ?
-                                                                                <>
-                                                                                    <h4 className='hide_func'>Showing</h4>
-                                                                                    <p>This action will show the course from your dashboard.</p>
-                                                                                </>
-                                                                                :
-                                                                                <>
-                                                                                    <h4 className='hide_func'>Hiding</h4>
-                                                                                    <p>This action will hide the course from your dashboard.</p>
-                                                                                </>
-                                                                        }
-                                                                    </>
-                                                                }
-
-                                                                {
-                                                                    confirm.withdraw &&
-                                                                    <>
-                                                                        <h4 className='delete_func'>Withdrawing</h4>
-                                                                        <p>The data will be lost if you withdraw from this course.</p>
-                                                                    </>
-                                                                }
-                                                            </div>
-                                                            <div className='confirm_course_btns'>
-                                                                {
-                                                                    confirm.hide &&
-                                                                    <button
-                                                                        className='handle_hide'
-                                                                        onClick={() =>
-                                                                            handleUpdateStatus({ id: item.id, status: !state.isHide, course: item.title })
-                                                                        }
-                                                                    >
-                                                                        {
-                                                                            state.isHide ?
-                                                                                <>
-                                                                                    Show
-                                                                                </>
-                                                                                :
-                                                                                <>
-                                                                                    Hide
-                                                                                </>
-                                                                        }
-                                                                    </button>
-                                                                }
-                                                                {
-                                                                    confirm.withdraw &&
-                                                                    <button
-                                                                        className='handle_withdraw'
-                                                                        onClick={() =>
-                                                                            handleWithdrawCourse({ id: item.id, course: item.title })
-                                                                        }
-                                                                    >
-                                                                        Withdraw
-                                                                    </button>
-                                                                }
+                                                    {
+                                                        state.idHandle === item.id ?
+                                                            <div className="setting-list">
                                                                 <button
-                                                                    className="cancel_confirm_course"
-                                                                    onClick={() => setConfirm({ hide: false, withdraw: false })}
+                                                                    className='hide-course'
+                                                                    onClick={() => {
+                                                                        setConfirm((prev) => ({
+                                                                            ...prev,
+                                                                            hide: true
+                                                                        }))
+                                                                    }}
+                                                                    disabled={state.handling}
                                                                 >
-                                                                    Cancel
+                                                                    {
+                                                                        state.isHide ?
+                                                                            <IoEye />
+                                                                            :
+                                                                            <IoEyeOff />
+                                                                    }
+                                                                </button>
+                                                                <button
+                                                                    className="cancel-course"
+                                                                    onClick={() => setConfirm((prev) => ({
+                                                                        ...prev,
+                                                                        withdraw: true
+                                                                    }))}
+                                                                    disabled={state.handling}
+                                                                >
+
+                                                                    <IoTrashBin />
+                                                                    Withdraw
                                                                 </button>
                                                             </div>
-                                                        </>
+                                                            :
+                                                            <button
+                                                                className="join-course"
+                                                                disabled={state.handling.withdraw || state.handling.hide || state.idRedirect}
+                                                                onClick={() => handleJoin(item.id)}
+                                                            >
+                                                                {
+                                                                    state.idRedirect === item.id ?
+                                                                        <LoadingContent scale={0.5} color='var(--color_white)' />
+                                                                        :
+                                                                        <>
+                                                                            Join
+                                                                        </>
+                                                                }
+                                                            </button>
+                                                    }
+                                                </div>
+                                                {
+                                                    ((confirm.hide || confirm.withdraw) && state.idHandle === item.id) &&
+                                                    <div className='form_confirm_course'>
+                                                        {
+                                                            state.handling ?
+                                                                <LoadingContent scale={0.8} />
+                                                                :
+                                                                <>
+                                                                    <div className="confirm_course_text">
+                                                                        {
+                                                                            confirm.hide &&
+                                                                            <>
+                                                                                {
+                                                                                    state.isHide ?
+                                                                                        <>
+                                                                                            <h4 className='hide_func'>Showing</h4>
+                                                                                            <p>This action will show the course from your dashboard.</p>
+                                                                                        </>
+                                                                                        :
+                                                                                        <>
+                                                                                            <h4 className='hide_func'>Hiding</h4>
+                                                                                            <p>This action will hide the course from your dashboard.</p>
+                                                                                        </>
+                                                                                }
+                                                                            </>
+                                                                        }
+
+                                                                        {
+                                                                            confirm.withdraw &&
+                                                                            <>
+                                                                                <h4 className='delete_func'>Withdrawing</h4>
+                                                                                <p>The data will be lost if you withdraw from this course.</p>
+                                                                            </>
+                                                                        }
+                                                                    </div>
+                                                                    <div className='confirm_course_btns'>
+                                                                        {
+                                                                            confirm.hide &&
+                                                                            <button
+                                                                                className='handle_hide'
+                                                                                onClick={() =>
+                                                                                    handleUpdateStatus({ id: item.id, status: !state.isHide, course: item.title })
+                                                                                }
+                                                                            >
+                                                                                {
+                                                                                    state.isHide ?
+                                                                                        <>
+                                                                                            Show
+                                                                                        </>
+                                                                                        :
+                                                                                        <>
+                                                                                            Hide
+                                                                                        </>
+                                                                                }
+                                                                            </button>
+                                                                        }
+                                                                        {
+                                                                            confirm.withdraw &&
+                                                                            <button
+                                                                                className='handle_withdraw'
+                                                                                onClick={() =>
+                                                                                    handleWithdrawCourse({ id: item.id, course: item.title })
+                                                                                }
+                                                                            >
+                                                                                Withdraw
+                                                                            </button>
+                                                                        }
+                                                                        <button
+                                                                            className="cancel_confirm_course"
+                                                                            onClick={() => setConfirm({ hide: false, withdraw: false })}
+                                                                        >
+                                                                            Cancel
+                                                                        </button>
+                                                                    </div>
+                                                                </>
+                                                        }
+                                                    </div>
                                                 }
                                             </div>
-                                        }
-                                    </div>
-                                ))
+                                        ))}
+                                    {
+                                        (state.error && state.data.length > 0) &&
+                                        <span className='load_wrapper'>
+                                            <LoadingContent scale={0.5} message={"Something is wrong, try again"} />
+                                        </span>
+                                    }
+                                </>
                                 :
                                 <p>No course can be found here!</p>
                 }
@@ -647,7 +658,6 @@ export default function MyCourse({ redirect }) {
                     :
                     null
             )}
-
             <AlertPush
                 message={alert?.message}
                 status={alert?.status}

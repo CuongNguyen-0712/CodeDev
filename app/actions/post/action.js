@@ -1,8 +1,6 @@
 'use server'
-import { neon } from '@neondatabase/serverless';
+import { sql } from '@/app/lib/db';
 import { v4 as uuidv4 } from 'uuid';
-
-const sql = neon(process.env.DATABASE_URL);
 
 export async function postFeedback(data) {
     const { title, feedback, email, sender } = data;

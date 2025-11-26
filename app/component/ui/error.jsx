@@ -1,33 +1,40 @@
 import Image from "next/image"
 import { useRouterActions } from "@/app/router/router"
 
+import { BiSolidMessageAltError } from "react-icons/bi";
+import { IoReload, IoClose } from "react-icons/io5";
+
 export function ErrorReload({ data, refetch, callback = null }) {
     const { status, message } = data
     return (
         <div id="error">
             <div className="error_layout">
-                <h5>
-                    Error {status}
-                </h5>
-                <p>
-                    {message}
-                </p>
-                <div className="handle_error_btns">
-                    <button
-                        onClick={refetch}
-                        id="reload_btn"
-                    >
-                        Reload
-                    </button>
-                    {
-                        callback &&
+                <div className="heading_round">
+                    <BiSolidMessageAltError fontSize={20} />
+                </div>
+                <div className="error_content">
+                    <p>
+                        {message}
+                        <br />
+                        (code: {status})
+                    </p>
+                    <div className="handle_error_btns">
                         <button
-                            onClick={callback}
-                            id="demiss_btn"
+                            onClick={refetch}
+                            id="reload_btn"
                         >
-                            Demiss
+                            <IoReload />
                         </button>
-                    }
+                        {
+                            callback &&
+                            <button
+                                onClick={callback}
+                                id="demiss_btn"
+                            >
+                                <IoClose />
+                            </button>
+                        }
+                    </div>
                 </div>
             </div>
         </div>

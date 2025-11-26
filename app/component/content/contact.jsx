@@ -4,7 +4,6 @@ import Image from "next/image";
 
 import GetSocialService from '@/app/services/getService/socialService'
 import useInfiniteScroll from '@/app/hooks/useInfiniteScroll'
-import useOutside from "@/app/hooks/useOutside";
 
 import { useSize } from "@/app/contexts/sizeContext";
 
@@ -197,7 +196,13 @@ export default function Contact({ redirect, state, setState }) {
                         social.data.user.map((item) => (
                             <div key={item.id} className='item_social'>
                                 <div className='tag_heading'>
-                                    <Image src={item.image} alt='my_avatar' width={60} height={60} />
+                                    <Image
+                                        src={item.image}
+                                        alt='my_avatar'
+                                        width={80}
+                                        height={80}
+                                        quality={100}
+                                    />
                                     <div>
                                         <h4>
                                             {item.username}

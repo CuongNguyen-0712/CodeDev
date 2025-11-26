@@ -1,8 +1,8 @@
-import { useState, useEffect, startTransition } from "react";
+import { useState, useEffect, startTransition, useRef } from "react";
 
 import { IoClose } from "react-icons/io5";
 import { FaSave, FaHashtag } from "react-icons/fa";
-import { MdFileDownload, MdErrorOutline } from "react-icons/md";
+import { MdFileDownload, MdErrorOutline, MdOutlineZoomOutMap } from "react-icons/md";
 import { FaTrophy, FaStar, FaLink } from "react-icons/fa6";
 
 import { usePathname } from "next/navigation";
@@ -25,6 +25,8 @@ import Form from "next/form";
 import Image from "next/image";
 
 export default function Manage({ redirect }) {
+    const rangeRef = useRef(null)
+
     const [state, setState] = useState({
         data: null,
         update: null,
@@ -40,6 +42,8 @@ export default function Manage({ redirect }) {
     const [file, setFile] = useState({
         image: null,
         preview: null,
+        zoom: false,
+        zoom_value: 1,
         loading: true,
     });
 
@@ -167,20 +171,22 @@ export default function Manage({ redirect }) {
             setFile((prev) => ({
                 ...prev,
                 image: file,
-                preview: URL.createObjectURL(file)
+                preview: URL.createObjectURL(file),
+                zoom_value: 1
             }));
         }
         else {
             setFile({
                 image: null,
-                preview: null
+                preview: null,
+                zoom_value: 1
             });
             setState((prev) => ({ ...prev, change: false }))
         }
     }
 
     const handleCancelPreview = () => {
-        setFile({ image: null, preview: null })
+        setFile({ image: null, preview: null, zoom_value: 1 });
         setState((prev) => ({ ...prev, change: false }))
     }
 
@@ -193,10 +199,12 @@ export default function Manage({ redirect }) {
             definition: {}
         }))
 
-        setFile({
+        setFile((prev) => ({
+            ...prev,
             image: null,
-            preview: null
-        })
+            preview: null,
+            zoom_value: 1
+        }))
     }
 
     const handleCopy = () => {
@@ -217,6 +225,13 @@ export default function Manage({ redirect }) {
         setAlert(null)
     }, [alert])
 
+    useEffect(() => {
+        const range = rangeRef.current;
+        if (range) {
+            const percentage = ((file.zoom_value - range.min) / (range.max - range.min)) * 100;
+            range.style.background = `linear-gradient(to right, var(--color_black) 0%, var(--color_black) ${percentage}%, var(--color_white) ${percentage}%, var(--color_white) 100%)`;
+        }
+    }, [file.zoom_value, file.zoom]);
 
     useEffect(() => {
         if (finalUrl) {
@@ -268,28 +283,36 @@ export default function Manage({ redirect }) {
                                                 <div className="info_header">
                                                     <div className="user_banner">
                                                         <div className="image_banner">
-                                                            <div className="image_wrapper" style={state.modify ? { pointerEvents: "all" } : { pointerEvents: 'none' }}>
+                                                            <div className="image_wrapper">
                                                                 {
                                                                     file.loading ?
                                                                         <LoadingContent scale={0.5} />
                                                                         :
                                                                         <>
-                                                                            <Image src={file.preview || state.data.image} width={100} height={100} quality={100} alt="avatar" />
-                                                                            <div className="image_import">
-                                                                                <button
-                                                                                    type="button"
-                                                                                    id="import_image"
-                                                                                >
-                                                                                    <MdFileDownload fontSize={20} />
+                                                                            <Image src={file.preview || state.data.image} width={150} height={150} quality={100} alt="avatar" />
+                                                                            <div className="image_actions">
+                                                                                {
+                                                                                    state.modify &&
+                                                                                    <div className="image_import">
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            id="import_image"
+                                                                                        >
+                                                                                            <MdFileDownload fontSize={20} />
+                                                                                        </button>
+                                                                                        <input
+                                                                                            type="file"
+                                                                                            name="file"
+                                                                                            accept="image/*"
+                                                                                            id="file"
+                                                                                            disabled={state.handling || !state.modify}
+                                                                                            onChange={handleUpload}
+                                                                                        />
+                                                                                    </div>
+                                                                                }
+                                                                                <button type='button' id="zoom_image" onClick={() => setFile((prev) => ({ ...prev, zoom: true }))}>
+                                                                                    <MdOutlineZoomOutMap fontSize={20} />
                                                                                 </button>
-                                                                                <input
-                                                                                    type="file"
-                                                                                    name="file"
-                                                                                    accept="image/*"
-                                                                                    id="file"
-                                                                                    disabled={state.handling || !state.modify}
-                                                                                    onChange={handleUpload}
-                                                                                />
                                                                             </div>
                                                                             {
                                                                                 (file.preview && !state.handling) &&
@@ -477,6 +500,33 @@ export default function Manage({ redirect }) {
                                                 />
                                             </div>
                                         </div>
+                                        {file.zoom &&
+                                            <div id="zoom_overlay">
+                                                <div className="zoom_container" style={{ transform: `scale(${file.zoom_value})` }}>
+                                                    <Image
+                                                        src={file.preview || state.data?.image}
+                                                        alt='avatar_zoom'
+                                                        fill
+                                                        objectFit="cover"
+                                                        quantity={100}
+                                                        unoptimized
+                                                    />
+                                                </div>
+                                                <button type="button" id="close_zoom" onClick={() => setFile((prev) => ({ ...prev, zoom: false }))}>
+                                                    <IoClose fontSize={30} color="var(--color_white)" />
+                                                </button>
+                                                <input
+                                                    type="range"
+                                                    id="zoom_range"
+                                                    min="1"
+                                                    max="3"
+                                                    step={0.01}
+                                                    value={file.zoom_value}
+                                                    ref={rangeRef}
+                                                    onChange={(e) => setFile(prev => ({ ...prev, zoom_value: parseFloat(e.target.value) }))}
+                                                />
+                                            </div>
+                                        }
                                     </>
                                     :
                                     null

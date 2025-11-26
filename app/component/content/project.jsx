@@ -14,14 +14,20 @@ import AlertPush from "../ui/alert";
 import { uniqWith, debounce } from "lodash";
 
 import { IoFilter, IoEyeOff, IoEye } from "react-icons/io5";
-import { MdAddCircleOutline, MdMoreHoriz } from "react-icons/md";
-import { FaRegCheckCircle, FaInfoCircle } from "react-icons/fa";
-import { FaDeleteLeft } from "react-icons/fa6";
+import { MdAddCircleOutline } from "react-icons/md";
+import { FaRegCheckCircle, FaInfoCircle, FaRegTrashAlt } from "react-icons/fa";
+import { FaUserGroup, FaUser, FaArrowRight } from "react-icons/fa6";
 
 export default function Project({ redirect }) {
     const { navigateToProject } = useRouterActions();
     const ref = useRef(null)
-    const refDropdowns = useRef({})
+
+    const status_colors = {
+        'Completed': 'var(--color_green)',
+        'Ongoing': 'var(--color_blue)',
+        'Not Started': 'var(--color_red)',
+        'Pending': 'var(--color_orange)',
+    };
 
     const [state, setState] = useState({
         data: [],
@@ -46,18 +52,12 @@ export default function Project({ redirect }) {
         hide: false
     })
 
-    const [dropdown, setDropdown] = useState({
-        id: null,
-        isShown: false,
-    })
-
     const [confirm, setConfirm] = useState({
+        id: null,
         hide: false,
         show: false,
         delete: false,
     })
-
-    const refConfirm = useRef(confirm)
 
     const [apiQueue, setApiQueue] = useState([]);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -117,9 +117,8 @@ export default function Project({ redirect }) {
                     setAlert({
                         status: res.status,
                         message: res.message || "Deleted successfully",
-                        reset: () => setAlert(null)
                     })
-                    setConfirm((prev) => ({ ...prev, delete: false }))
+                    setConfirm((prev) => ({ ...prev, delete: false, id: null }))
                     setState((prev) => ({ ...prev, handling: { ...prev.handling, delete: false } }));
                 })
             }
@@ -127,20 +126,16 @@ export default function Project({ redirect }) {
                 setAlert({
                     status: res.status,
                     message: res.message || "Delete failed",
-                    reset: () => setAlert(null)
                 });
                 setState((prev) => ({ ...prev, handling: { ...prev.handling, delete: false } }));
-                setConfirm((prev) => ({ ...prev, delete: false }))
             }
         }
         catch (err) {
             setAlert({
                 status: err.status || 500,
                 message: err.message || "Something is wrong, try again",
-                reset: () => setAlert(null)
             });
             setState((prev) => ({ ...prev, handling: { ...prev.handling, delete: false } }));
-            setConfirm((prev) => ({ ...prev, delete: false }))
         }
     }
 
@@ -170,7 +165,8 @@ export default function Project({ redirect }) {
                     setConfirm((prev) => ({
                         ...prev,
                         show: false,
-                        hide: false
+                        hide: false,
+                        id: null,
                     }))
                     setState((prev) => ({
                         ...prev,
@@ -182,7 +178,6 @@ export default function Project({ redirect }) {
                     setAlert({
                         status: res.status,
                         message: res.message || "Successfully",
-                        reset: () => setAlert(null)
                     })
                 })
             }
@@ -190,7 +185,6 @@ export default function Project({ redirect }) {
                 setAlert({
                     status: res.status || 500,
                     message: res.message || "Something is wrong, try again",
-                    reset: () => setAlert(null)
                 });
                 setState((prev) => ({
                     ...prev,
@@ -199,18 +193,12 @@ export default function Project({ redirect }) {
                         hide: false
                     }
                 }));
-                setConfirm((prev) => ({
-                    ...prev,
-                    show: false,
-                    hide: false
-                }))
             }
         }
         catch (err) {
             setAlert({
                 status: err.status || 500,
                 message: err.message || "Something is wrong, try again",
-                reset: () => setAlert(null)
             });
             setState((prev) => ({
                 ...prev,
@@ -219,11 +207,6 @@ export default function Project({ redirect }) {
                     hide: false
                 }
             }));
-            setConfirm((prev) => ({
-                ...prev,
-                show: false,
-                hide: false
-            }))
         }
     }
 
@@ -328,33 +311,6 @@ export default function Project({ redirect }) {
         }
     }, [state.filter])
 
-    const handleRefDropdown = (e) => {
-        if (!refDropdowns.current) return;
-
-        const isClickInsideAnyDropdown = Object.values(refDropdowns.current).some(ref => {
-            return ref && ref.contains(e.target);
-        });
-
-        if (!isClickInsideAnyDropdown && !(refConfirm.current.hide || refConfirm.current.delete || refConfirm.current.show)) {
-            setDropdown((prev) => ({
-                ...prev,
-                id: null,
-                isShown: false
-            }));
-        }
-    };
-
-    useEffect(() => {
-        document.addEventListener('click', handleRefDropdown)
-        return () => {
-            document.removeEventListener('click', handleRefDropdown)
-        }
-    }, [dropdown.id])
-
-    useEffect(() => {
-        refConfirm.current = confirm
-    }, [confirm])
-
     useEffect(() => {
         setAlert(null)
     }, [alert])
@@ -419,93 +375,77 @@ export default function Project({ redirect }) {
                             state.data && state.data.length > 0 ?
                                 state.data.map((item) => (
                                     <div className="item_project" key={item.id}>
-                                        <div className="top_status">
-                                            <button className="method_project">{item.method}</button>
-                                            <button className="status_project">{item.status}</button>
-                                            <div
-                                                className='project_handler'
-                                                ref={(el) => {
-                                                    if (el) refDropdowns.current[item.id] = el
-                                                    else delete refDropdowns.current[item.id];
-                                                }}
+                                        <div className="project_actions">
+                                            <button
+                                                className="delete_project"
+                                                onClick={() => setConfirm((prev) => ({
+                                                    ...prev,
+                                                    id: item.id,
+                                                    show: false,
+                                                    hide: false,
+                                                    delete: true
+                                                }))}
                                             >
-                                                <button
-                                                    onClick={() => {
-                                                        setDropdown((prev) => ({
+                                                <FaRegTrashAlt />
+                                            </button>
+                                            {
+                                                filter.hide ?
+                                                    <button
+                                                        className="show_project"
+                                                        onClick={() => setConfirm((prev) => ({
                                                             ...prev,
                                                             id: item.id,
-                                                            isShown: prev.id === item.id ? !prev.isShown : true
-                                                        }))
-                                                        setConfirm((prev) => ({
-                                                            ...prev,
                                                             hide: false,
                                                             delete: false,
-                                                            show: false
-                                                        }))
-                                                    }}
-                                                    style={(dropdown.id === item.id && dropdown.isShown) ? { background: 'var(--color_black)', color: 'var(--color_white)' } : { background: 'var(--color_gray_light)', color: 'var(--color_black)' }}
-                                                    disabled={state.handling.hide || state.handling.delete}
-                                                >
-                                                    <MdMoreHoriz fontSize={22} />
+                                                            show: true
+                                                        }))}
+                                                    >
+                                                        <IoEye />
+                                                    </button>
+                                                    :
+                                                    <button
+                                                        className="hide_project"
+                                                        onClick={() => setConfirm((prev) => ({
+                                                            ...prev,
+                                                            id: item.id,
+                                                            show: false,
+                                                            delete: false,
+                                                            hide: true
+                                                        }))}
+                                                    >
+                                                        <IoEyeOff />
+                                                    </button>
+                                            }
+                                        </div>
+                                        <div className="main_item">
+                                            <div className="main_top">
+                                                <button className="method_project">
+                                                    {item.method === 'Self' && <FaUser fontSize={16} />}
+                                                    {item.method === 'Team' && <FaUserGroup fontSize={16} />}
                                                 </button>
-                                                {
-                                                    (dropdown.id === item.id && dropdown.isShown) &&
-                                                    <div className="table_handler">
-                                                        {
-                                                            state.isHide ?
-                                                                <button
-                                                                    className='show_handler'
-                                                                    onClick={() => setConfirm((prev) => ({
-                                                                        ...prev,
-                                                                        show: true
-                                                                    }))}
-                                                                >
-                                                                    <IoEye />
-                                                                    Show
-                                                                </button>
-                                                                :
-                                                                <button
-                                                                    className='hide_handler'
-                                                                    onClick={() => {
-                                                                        setConfirm((prev) => ({
-                                                                            ...prev,
-                                                                            hide: true
-                                                                        }))
-                                                                    }}
-                                                                >
-                                                                    <IoEyeOff />
-                                                                    Hide
-                                                                </button>
-                                                        }
-                                                        <button
-                                                            className='delete_handler'
-                                                            onClick={() => {
-                                                                setConfirm((prev) => ({
-                                                                    ...prev,
-                                                                    delete: true
-                                                                }))
-                                                            }}
-                                                        >
-                                                            <FaDeleteLeft />
-                                                            Delete
-                                                        </button>
-                                                    </div>
-                                                }
+                                                <h3>{item.name}</h3>
+                                            </div>
+                                            <div className='content_project'>
+                                                <p className="description">
+                                                    <FaInfoCircle
+                                                        color={'var(--color_blue)'}
+                                                        fontSize={16}
+                                                        style={{ flexShrink: 0 }}
+                                                    />
+                                                    {item.description}
+                                                </p>
                                             </div>
                                         </div>
-                                        <div className='content_project'>
-                                            <h3>{item.name}</h3>
-                                            <div className="description">
-                                                <FaInfoCircle
-                                                    color={'var(--color_blue)'}
-                                                    fontSize={18}
-                                                />
-                                                <p>{item.description}</p>
-                                            </div>
-                                        </div>
-                                        <button className="join_project">Join</button>
+                                        <p className="status_project"
+                                            style={{ '--color': status_colors[item.status] || 'var(--color_orange)' }}
+                                        >
+                                            {item.status}
+                                        </p>
+                                        <button className="join_project">
+                                            <FaArrowRight fontSize={18} />
+                                        </button>
                                         {
-                                            (confirm.delete || confirm.hide || confirm.show) && dropdown.id === item.id &&
+                                            confirm.id === item.id &&
                                             <div className="confirm_handler">
                                                 {
                                                     (state.handling.hide || state.handling.delete) ?
@@ -540,12 +480,6 @@ export default function Project({ redirect }) {
                                                                 </div>
                                                             }
                                                             <div className='form_confirm_button'>
-                                                                <button
-                                                                    className="cancel_button"
-                                                                    onClick={() => setConfirm({ delete: false, hide: false })}
-                                                                >
-                                                                    Cancel
-                                                                </button>
                                                                 {
                                                                     confirm.delete &&
                                                                     <button
@@ -581,6 +515,12 @@ export default function Project({ redirect }) {
                                                                             }
                                                                         </>
                                                                 }
+                                                                <button
+                                                                    className="cancel_button"
+                                                                    onClick={() => setConfirm({ delete: false, hide: false })}
+                                                                >
+                                                                    Cancel
+                                                                </button>
                                                             </div>
                                                         </div>
                                                 }
@@ -592,18 +532,20 @@ export default function Project({ redirect }) {
                                 <p>No project can be found here!</p>
                 }
             </div>
-            {!state.pending && !state.error && (
-                load.hasMore ?
-                    <span ref={setRef} className="load_wrapper">
-                        <LoadingContent scale={0.5} />
-                    </span>
-                    :
-                    null
-            )}
+            {
+                !state.pending && !state.error && (
+                    load.hasMore ?
+                        <span ref={setRef} className="load_wrapper">
+                            <LoadingContent scale={0.5} />
+                        </span>
+                        :
+                        null
+                )
+            }
             <AlertPush
                 message={alert?.message}
                 status={alert?.status}
             />
-        </div>
+        </div >
     )
 }

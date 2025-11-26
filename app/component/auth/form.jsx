@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 import Login from "./login"
 import Logup from "./logup"
@@ -11,6 +11,10 @@ export default function Form() {
     const [alert, setAlert] = useState(null)
 
     const [redirect, setRedirect] = useState(false)
+
+    useEffect(() => {
+        setAlert(null)
+    }, [alert]);
 
     return (
         <main id="auth">
@@ -59,16 +63,10 @@ export default function Form() {
                             </div>
                         </section>
                     </div>
-                    {
-                        alert &&
-                        <AlertPush
-                            status={alert.status}
-                            message={alert.message}
-                            reset={() =>
-                                setAlert(null)
-                            }
-                        />
-                    }
+                    <AlertPush
+                        status={alert?.status}
+                        message={alert?.message}
+                    />
                 </div>
             }
         </main>

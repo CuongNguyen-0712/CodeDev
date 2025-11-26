@@ -162,7 +162,7 @@ export default function CourseContent({ redirect }) {
         try {
             const adjustedOffset = Math.max(0, load.offset - load.registerCount);
             const res = await GetCourseService({ search: state.search.trim(), limit: load.limit, offset: adjustedOffset.toString(), filter: filter });
-            if (res.status == 200) {
+            if (res.status === 200) {
                 setLoad((prev) => ({
                     ...prev,
                     hasMore: res.data.length >= load.limit,
@@ -176,11 +176,12 @@ export default function CourseContent({ redirect }) {
             }
             else {
                 setState((prev) => ({ ...prev, error: { status: res.status, message: res.message || "Something is wrong" }, pending: false }))
+                setAlert({ status: res.status, message: res.message || "Something is wrong" })
             }
         }
         catch (err) {
             setState((prev) => ({ ...prev, error: { status: 500, message: err.message || "Something is wrong" }, pending: false }))
-            throw new Error(err);
+            setAlert({ status: 500, message: err.message || "Something is wrong" })
         }
     }
 
@@ -379,56 +380,65 @@ export default function CourseContent({ redirect }) {
                     state.pending ?
                         <LoadingContent />
                         :
-                        state.error ?
+                        (state.error && state.data.length === 0) ?
                             <ErrorReload data={state.error} refetch={refetchData} />
                             :
                             state.data && state.data.length > 0 ?
-                                state.data.map((item, index) => (
-                                    <div className="item" key={index}>
-                                        <div className="heading">
-                                            <img src={item.image?.trim()} alt="course_image" />
-                                            <h3>{item.title}</h3>
-                                            <span className="rating">
-                                                {item.rating}
-                                                <FaStar className="star" />
-                                            </span>
-                                            <div className="concept">
-                                                <p>{item.concept}</p>
+                                <>
+                                    {
+                                        state.data.map((item, index) => (
+                                            <div className="item" key={index}>
+                                                <div className="heading">
+                                                    <img src={item.image?.trim()} alt="course_image" />
+                                                    <h3>{item.title}</h3>
+                                                    <span className="rating">
+                                                        {item.rating}
+                                                        <FaStar className="star" />
+                                                    </span>
+                                                    <div className="concept">
+                                                        <p>{item.concept}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="content-item">
+                                                    <div className="info">
+                                                        <h5>{item.level}</h5>
+                                                    </div>
+                                                    <div className="info">
+                                                        <p>{item.description}</p>
+                                                    </div>
+                                                    <div className="info">
+                                                        <span>Subject:</span>
+                                                        <p>{item.subject}</p>
+                                                    </div>
+                                                    <div className="info">
+                                                        <span>Instructor:</span>
+                                                        <p>{item.instructor}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="footer">
+                                                    <button
+                                                        onClick={() => handleRegister({ id: item.id, isCost: Math.round(item.cost) !== 0, course: item.title })}
+                                                        style={{
+                                                            backgroundColor: Math.round(item.cost) === 0 ? 'var(--color_blue)' : 'var(--color_black)'
+                                                        }}
+                                                        disabled={state.handling}
+                                                    >
+                                                        {state.idHandle === item.id ?
+                                                            <LoadingContent scale={0.5} color="var(--color_white)" />
+                                                            :
+                                                            Math.round(item.cost) === 0 ? 'Learn' : item.cost
+                                                        }
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="content-item">
-                                            <div className="info">
-                                                <h5>{item.level}</h5>
-                                            </div>
-                                            <div className="info">
-                                                <p>{item.description}</p>
-                                            </div>
-                                            <div className="info">
-                                                <span>Subject:</span>
-                                                <p>{item.subject}</p>
-                                            </div>
-                                            <div className="info">
-                                                <span>Instructor:</span>
-                                                <p>{item.instructor}</p>
-                                            </div>
-                                        </div>
-                                        <div className="footer">
-                                            <button
-                                                onClick={() => handleRegister({ id: item.id, isCost: Math.round(item.cost) !== 0, course: item.title })}
-                                                style={{
-                                                    backgroundColor: Math.round(item.cost) === 0 ? 'var(--color_blue)' : 'var(--color_black)'
-                                                }}
-                                                disabled={state.handling}
-                                            >
-                                                {state.idHandle === item.id ?
-                                                    <LoadingContent scale={0.5} color="var(--color_white)" />
-                                                    :
-                                                    Math.round(item.cost) === 0 ? 'Learn' : item.cost
-                                                }
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))
+                                        ))}
+                                    {
+                                        (state.error && state.data.length > 0) &&
+                                        <span className='load_wrapper'>
+                                            <LoadingContent scale={0.5} message={"Something is wrong, try again"} />
+                                        </span>
+                                    }
+                                </>
                                 :
                                 <p>No course found, please wait for the next update</p>
                 }

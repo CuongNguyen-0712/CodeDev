@@ -26,6 +26,7 @@
     height: 100%;
     width: max-content;
     gap: 20px;
+    overflow: hidden;
 }
 
 .nav_layout_params .nav_layout_heading button {
@@ -43,12 +44,16 @@
     height: 35px;
     width: 35px;
     background: var(--color_white);
-    padding: 5px;
-    border-radius: 8px;
+    padding: 2px;
+    border-radius: 5px;
 }
 
 .nav_layout_params .nav_layout_heading h3 {
+    min-width: 0;
     color: var(--color_white);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
 .nav_layout_handler {
@@ -314,16 +319,22 @@
     height: 100%;
     flex-grow: 1;
     min-width: 300px;
-    padding: 10px;
     flex-direction: column;
-    gap: 20px;
+    gap: 10px;
 }
 
 .lesson_view #view {
     display: flex;
     width: 100%;
     flex-grow: 1;
+    padding: 30px 20px;
+    flex-direction: column;
+    gap: 10px;
     overflow: auto;
+}
+
+.lesson_view #view::-webkit-scrollbar {
+    display: none;
 }
 
 .lesson_view .footer_view {
@@ -338,14 +349,18 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    align-self: center;
     height: 35px;
-    width: 120px;
+    width: 100%;
+    max-width: 200px;
+    margin-top: 20px;
     background: var(--color_green);
     color: var(--color_white);
     font-weight: 600;
     text-transform: uppercase;
     font-size: 12px;
     border-radius: 5px;
+    flex-shrink: 0;
     cursor: pointer;
 }
 

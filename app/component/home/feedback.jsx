@@ -1,4 +1,5 @@
-import { useState } from "react";
+'use client'
+import { useState, useEffect } from "react";
 
 import Form from "next/form";
 
@@ -109,6 +110,10 @@ export default function Feedback() {
         }))
     }
 
+    useEffect(() => {
+        setAlert(null);
+    }, [alert]);
+
     return (
         <Form onSubmit={handleSubmit} id="feedback-form">
             <div className="heading-feedback">
@@ -213,9 +218,7 @@ export default function Feedback() {
             <button type="button" onClick={() => queryNavigate(window.location.pathname, { feedback: false })}>
                 <IoIosClose />
             </button>
-            {
-                alert && <AlertPush status={alert.status} message={alert.message} reset={() => setAlert(null)} />
-            }
+            <AlertPush status={alert?.status} message={alert?.message} />
         </Form>
     );
 }

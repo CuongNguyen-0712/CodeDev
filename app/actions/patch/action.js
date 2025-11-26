@@ -1,6 +1,5 @@
-import { neon } from "@neondatabase/serverless";
-
-const sql = neon(process.env.DATABASE_URL);
+'use server'
+import { sql } from '@/app/lib/db';
 
 export async function updateInfo(data) {
     const { userId, nickname, surname, name, email, image, bio } = data

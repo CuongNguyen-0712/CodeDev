@@ -561,7 +561,7 @@ export default function Social({ redirect }) {
                         id="social_btn"
                         onClick={() => setState((prev) => ({ ...prev, contact: !prev.contact }))}
                     >
-                        <IoShareSocial />
+                        <IoShareSocial fontSize={18} />
                         {
                             size.width > 425 &&
                             "Social"

@@ -208,7 +208,7 @@ export default function Overview() {
                             :
                             <div className='user-container'>
                                 <div className="user-info">
-                                    <Image src={state.data.info.image.trim()} height={100} width={100} alt="avatar" priority />
+                                    <Image src={state.data.info.image.trim()} height={120} width={120} alt="avatar" priority />
                                     <div className="info">
                                         <div className="profile">
                                             <h2>{state.data.info.username}</h2>

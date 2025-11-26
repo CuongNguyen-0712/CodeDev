@@ -5,6 +5,8 @@ import { LoadingContent } from "../../ui/loading";
 import { ErrorReload } from "../../ui/error";
 import AlertPush from "../../ui/alert";
 
+import LessonPage from "./lessonPage";
+
 import { useRouterActions } from "@/app/router/router";
 import GetContentCourseService from "@/app/services/getService/contentCourseService";
 import GetContentLessonService from "@/app/services/getService/contentLessonService";
@@ -347,28 +349,15 @@ export default function CoursePage({ params } = {}) {
                                 (Object.values(lesson.data ?? {}).length > 0) ?
                                     <>
                                         <div id="view">
-                                            <p>{lesson.data.type}: {lesson.data.source}</p>
+                                            <LessonPage
+                                                id={lesson.data?.source}
+                                                status={lesson.data.status === 'In Progress'}
+                                                submit={() => submitLesson({ lesson_id: lesson.data.lesson_id })}
+                                                isHandling={lesson.handling}
+                                            />
                                         </div>
-                                        <footer className="footer_view">
-                                            {
-                                                lesson.data.status === 'In Progress'
-                                                &&
-                                                <button
-                                                    id="confirm_lesson"
-                                                    onClick={() => submitLesson({ lesson_id: lesson.data.lesson_id })}
-                                                    disabled={lesson.handling}
-                                                >
-                                                    {
-                                                        lesson.handling ?
-                                                            <LoadingContent scale={0.5} color={'var(--color_white)'} />
-                                                            :
-                                                            <>
-                                                                Done
-                                                            </>
-                                                    }
-                                                </button>
-                                            }
-                                        </footer>
+                                        {/* <footer className="footer_view">
+                                            </footer> */}
                                     </>
                                     :
                                     <p>Data can not be loaded</p>
@@ -474,7 +463,6 @@ export default function CoursePage({ params } = {}) {
                             :
                             Object.values(state.data).length > 0 ?
                                 <>
-
                                 </>
                                 :
                                 <p>Data can not be loaded</p>

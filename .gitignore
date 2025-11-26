@@ -27,5 +27,11 @@ yarn-error.log*
 next-env.d.ts
 .vercel
 
-#env
+# env
 .env*.local
+
+# sanity local
+/sanity
+sanity.cli.js
+sanity.config.js
+/app/studio
