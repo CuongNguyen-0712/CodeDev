@@ -15,9 +15,9 @@ export function LoadingRedirect({ scale }) {
     }
 
     useEffect(() => {
-        message_timer("Redirecting...", 10000)
-        message_timer("Still redirecting...", 20000)
-        message_timer("Waiting...", 30000)
+        message_timer("Redirecting...", 5000)
+        message_timer("Still redirecting...", 10000)
+        message_timer("Waiting...", 15000)
     }, [])
 
     useEffect(() => {
@@ -29,8 +29,8 @@ export function LoadingRedirect({ scale }) {
     }, [message])
 
     return (
-        <>
-            <div id="loadRedirect" style={scale && { scale: scale }}>
+        <div id='loadRedirect'>
+            <div id="redrect_loader" style={scale && { scale: scale }}>
                 <svg className="logo_svg" viewBox="-5 -5 110 95">
                     <polygon
                         className="triangle"
@@ -59,7 +59,7 @@ export function LoadingRedirect({ scale }) {
                     {message ?? ''}
                 </p>
             </div>
-        </>
+        </div>
     )
 }
 

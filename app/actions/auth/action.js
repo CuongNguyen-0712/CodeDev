@@ -106,8 +106,8 @@ export async function signUp(data) {
         const id = uuidv4();
         const hashPassword = await bcrypt.hash(password, 10)
 
-        await sql`INSERT INTO private.info (id, surname, name, email, phone) VALUES (${id}, ${surname}, ${name}, ${email}, ${phone})`
         await sql`INSERT INTO private.users (id, username, password) VALUES (${id}, ${username}, ${hashPassword})`
+        await sql`INSERT INTO private.info (user_id, surname, name, email, phone) VALUES (${id}, ${surname}, ${name}, ${email}, ${phone})`
 
         return new Response(JSON.stringify({ success: true, message: "Sign up successfully, go to login" }), {
             status: 200,
@@ -115,6 +115,7 @@ export async function signUp(data) {
         })
     }
     catch (err) {
+        console.error(err)
         return new Response(JSON.stringify({ success: false, message: "Failed to load content, try again" }), {
             status: 500,
             headers: { "Content-Type": "application/json" }

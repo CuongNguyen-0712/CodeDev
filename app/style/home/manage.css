@@ -227,11 +227,10 @@
     position: relative;
     height: max-content;
     width: max-content;
-    background: var(--color_white_light);
-    color: var(--color_black);
+    background: transparent;
     border-radius: 50%;
-    overflow: hidden;
     transition: 0.2s all ease;
+    overflow: hidden;
 
     &:hover {
         background: var(--color_white);
@@ -247,6 +246,7 @@
     width: 35px;
     border-radius: 50%;
     background: var(--color_white_light);
+    color: var(--color_black);
     transition: 0.2s all ease;
 
     &:hover {

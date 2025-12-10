@@ -1,12 +1,22 @@
 #loadRedirect {
     display: flex;
+    align-items: center;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+    background: transparent;
+    overflow: hidden;
+}
+
+#redrect_loader {
+    display: flex;
     position: relative;
     height: max-content;
     width: max-content;
     background: transparent;
 }
 
-#loadRedirect::before {
+#redrect_loader::before {
     content: "";
     position: absolute;
     height: 7px;
