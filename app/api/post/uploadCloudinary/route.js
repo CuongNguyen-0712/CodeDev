@@ -17,7 +17,7 @@ export async function POST(req) {
         const base64 = Buffer.from(arrayBuffer).toString("base64");
         const dataUri = `data:${file.type};base64,${base64}`;
 
-        const uploadResult = await cloudinary.uploader.upload(dataUri, { folder: "codedev" });
+        const uploadResult = await cloudinary.uploader.upload(dataUri, { folder: "uploads" });
 
         return new Response(JSON.stringify({ url: uploadResult.secure_url }), { status: 200 });
 

@@ -228,6 +228,7 @@
     height: max-content;
     width: max-content;
     background: var(--color_white_light);
+    color: var(--color_black);
     border-radius: 50%;
     overflow: hidden;
     transition: 0.2s all ease;
@@ -341,9 +342,9 @@
 
 .user_banner .info_banner {
     display: flex;
-    flex-direction: column;
     flex-grow: 1;
-    min-width: 200px;
+    width: 100%;
+    flex-direction: column;
     gap: 10px;
 }
 
@@ -351,9 +352,18 @@
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    height: max-content;
     width: 100%;
+    max-width: 100%;
     gap: 10px;
+}
+
+.info_banner .info_wrapper h2 {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-all;
 }
 
 .info_banner .info_wrapper button {
@@ -368,6 +378,7 @@
     color: var(--color_black);
     font-weight: 600;
     gap: 10px;
+    flex-shrink: 0;
     transition: 0.2s all ease;
     cursor: pointer;
 

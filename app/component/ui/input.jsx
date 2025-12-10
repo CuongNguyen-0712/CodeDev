@@ -23,12 +23,19 @@ export function InputGroup({ name, label, type, value, onChange, error, icon, re
             />
             <label htmlFor={name}>{label}</label>
             {icon}
-            <IoIosCloseCircle
-                className='clear'
-                color="var(--color_gray)"
-                fontSize={18}
-                onClick={handleClear}
-            />
+            {
+                !read &&
+                <button
+                    className='clear'
+                    tabIndex={-1}
+                >
+                    <IoIosCloseCircle
+                        color="var(--color_gray)"
+                        fontSize={18}
+                        onClick={handleClear}
+                    />
+                </button>
+            }
             {
                 error &&
                 <p>{error}</p>
@@ -39,6 +46,7 @@ export function InputGroup({ name, label, type, value, onChange, error, icon, re
                     type='button'
                     className="eye_password"
                     onClick={() => setShown(!shown)}
+                    tabIndex={1}
                 >
                     {
                         shown ?

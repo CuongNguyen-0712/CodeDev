@@ -188,39 +188,63 @@ export async function getCourse({ id, search, limit, offset, price, level, ratin
     }
 }
 
-export async function getMyCourse({ id, search, limit, offset, hide, status, level }) {
+export async function getMyCourse({ id, search, limit = 20, offset = 0, hide, status, level }) {
     if (!id) {
-        return new Response(
-            JSON.stringify({ message: "You missing something, check again" }),
-            { status: 400, headers: { "Content-Type": "application/json" } }
-        )
+        return new Response(JSON.stringify({ message: "Missing id" }), { status: 400 });
     }
 
     try {
-        const res = await sql`
-            select c.*, r.progress as progress, r.status as status
-            from course.register r
-            join public.course c on r.courseid = c.id
-            where 
-                r.userid = ${id} and 
-                r.hidestatus = ${hide} and
-                (${search}::text is null or lower(c.title) like '%' || lower(CAST(${search} AS text)) || '%') and
-                (${status}::text is null or r.status = ${status}::statusenum) and
-                (${level}::text is null or c.level = ${level}::levelenum)
-            order by r.last_at desc
-            limit ${limit} offset ${offset}
+        const conditions = [];
+        const params = [];
+
+        params.push(id);
+        conditions.push(`r.userid = $${params.length}`);
+
+        if (hide !== undefined) {
+            const hideBool = hide === true || hide === "true";
+            params.push(hideBool);
+            conditions.push(`r.hidestatus = $${params.length}`);
+        }
+
+        if (search) {
+            params.push(`%${search.toLowerCase()}%`);
+            conditions.push(`LOWER(c.title) LIKE $${params.length}`);
+        }
+
+        if (status) {
+            const statuses = status.split(',').map(s => s.trim())
+            params.push(statuses);
+            conditions.push(`r.status = $${params.length}::statusenum`);
+        }
+
+        if (level) {
+            const levels = level.split(",").map(l => l.trim());
+            params.push(levels);
+            conditions.push(`c.level = ANY($${params.length}::levelenum[])`);
+        }
+
+        const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+        params.push(limit, offset);
+
+        const query = `
+            SELECT 
+                c.*, 
+                r.progress AS progress,
+                r.status AS status
+            FROM course.register r
+            JOIN public.course c ON r.courseid = c.id
+            ${whereSQL}
+            ORDER BY r.last_at DESC
+            LIMIT $${params.length - 1} OFFSET $${params.length}
         `;
 
-        return new Response(
-            JSON.stringify({ data: res }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-        );
-    } catch (error) {
-        console.error(error)
-        return new Response(
-            JSON.stringify({ message: "Internal server error" }),
-            { status: 500, headers: { "Content-Type": "application/json" } }
-        );
+        const res = await sql.query(query, params);
+
+        return new Response(JSON.stringify({ data: res }), { status: 200 });
+    } catch (err) {
+        console.error(err);
+        return new Response(JSON.stringify({ message: "Internal server error" }), { status: 500 });
     }
 }
 

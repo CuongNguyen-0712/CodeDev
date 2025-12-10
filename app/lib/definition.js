@@ -82,7 +82,7 @@ export function CreateTeamDefinition(data) {
 
 export function FeedbackDefinition(data) {
     const errors = {};
-    const { title, feedback, email } = data;
+    const { title, feedback } = data;
 
     if (!title || title.trim().length === 0) {
         errors.title = 'Title is required';
@@ -90,16 +90,6 @@ export function FeedbackDefinition(data) {
 
     if (!feedback || feedback.trim().length === 0) {
         errors.feedback = 'Feedback is required';
-    }
-
-    if (!email || email.trim().length === 0) {
-        errors.email = 'Email is required';
-    }
-    else if (!email.includes('@') || !email.includes('.')) {
-        errors.email = 'Email must be contains @ and .';
-    }
-    else if (!email.endsWith('.com')) {
-        errors.email = 'Email must contain .com';
     }
 
     return Object.keys(errors).length > 0 ? { success: false, errors } : { success: true };

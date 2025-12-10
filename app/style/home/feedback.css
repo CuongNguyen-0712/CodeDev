@@ -17,8 +17,9 @@
     display: flex;
     position: relative;
     height: max-content;
-    width: 450px;
     min-height: 100%;
+    width: 100%;
+    max-width: 425px;
     background: #fff;
     border-radius: 20px;
     flex-direction: column;
@@ -108,9 +109,9 @@
     width: 100%;
     max-width: 300px;
     background: var(--color_gray_light);
-    border-radius: 10px;
-    outline: 2px solid var(--color_gray_light);
-    padding: 0 10px;
+    border-radius: 5px;
+    outline: 2px solid var(--color_gray);
+    padding: 0 15px;
     font-size: 14px;
     transition: 0.2s all ease;
 }
@@ -121,19 +122,22 @@
 }
 
 .feedback-field textarea {
-    display: flex;
-    height: 150px;
+    flex-grow: 1;
+    min-height: 150px;
     width: 100%;
+    display: flex;
     resize: none;
-    padding: 10px;
+    padding: 10px 15px;
     background: var(--color_gray_light);
-    outline: 2px solid var(--color_gray_light);
+    outline: 2px solid var(--color_gray);
     font-size: 14px;
-    border-radius: 10px;
+    border-radius: 5px;
+    transition: 0.2s all ease;
 }
 
 .feedback-field textarea:focus {
     outline-color: var(--color_black);
+    transition: 0.2s all ease;
 }
 
 .feedback-field .error_validation {
@@ -203,7 +207,6 @@
     }
 
     #feedback-form {
-        height: max-content;
         border-radius: 0px;
     }
 

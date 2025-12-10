@@ -6,7 +6,7 @@ import DeleteMyCourseServive from "@/app/services/deleteService/myCourseService"
 import GetMyCourseService from "@/app/services/getService/myCourseService";
 import UpdateHideStatusCourseService from "@/app/services/updateService/hideStatusCourseService";
 
-import { useRouterActions } from "@/app/router/router";
+import { useRouterActions, useQuery } from "@/app/router/router";
 import { LoadingContent } from "../ui/loading";
 import { ErrorReload } from "../ui/error";
 import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
@@ -20,6 +20,7 @@ import { FaRegCheckCircle } from "react-icons/fa";
 
 export default function MyCourse({ redirect }) {
     const { navigateToCourse } = useRouterActions();
+    const queryNavigate = useQuery()
     const ref = useRef(null)
 
     const filterValues = [
@@ -389,6 +390,12 @@ export default function MyCourse({ redirect }) {
         }, 1000);
     }
 
+    const handlePreview = (id) => {
+        if (state.idHandle === id) return;
+        queryNavigate('/course/preview', { id: id, name: null })
+        redirect(true)
+    }
+
     useEffect(() => {
         setAlert(null)
     }, [alert])
@@ -467,7 +474,14 @@ export default function MyCourse({ redirect }) {
                                 <>
                                     {
                                         state.data.map((item) => (
-                                            <div key={item.id} className="course">
+                                            <div
+                                                key={item.id}
+                                                className="course"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handlePreview(item.id)
+                                                }}
+                                            >
                                                 <div className="heading-course">
                                                     <img src={item.image?.trim()} alt="course_image" />
                                                     <h3>{item.title}</h3>
@@ -493,7 +507,8 @@ export default function MyCourse({ redirect }) {
                                                 <div className="footer-course">
                                                     <button
                                                         className="setting-course"
-                                                        onClick={() => {
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
                                                             setState((prev) => ({
                                                                 ...prev,
                                                                 idHandle: state.idHandle === item.id ? null : item.id
@@ -514,7 +529,8 @@ export default function MyCourse({ redirect }) {
                                                             <div className="setting-list">
                                                                 <button
                                                                     className='hide-course'
-                                                                    onClick={() => {
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation()
                                                                         setConfirm((prev) => ({
                                                                             ...prev,
                                                                             hide: true
@@ -531,10 +547,13 @@ export default function MyCourse({ redirect }) {
                                                                 </button>
                                                                 <button
                                                                     className="cancel-course"
-                                                                    onClick={() => setConfirm((prev) => ({
-                                                                        ...prev,
-                                                                        withdraw: true
-                                                                    }))}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation()
+                                                                        setConfirm((prev) => ({
+                                                                            ...prev,
+                                                                            withdraw: true
+                                                                        }))
+                                                                    }}
                                                                     disabled={state.handling}
                                                                 >
 
@@ -546,7 +565,10 @@ export default function MyCourse({ redirect }) {
                                                             <button
                                                                 className="join-course"
                                                                 disabled={state.handling.withdraw || state.handling.hide || state.idRedirect}
-                                                                onClick={() => handleJoin(item.id)}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    handleJoin(item.id)
+                                                                }}
                                                             >
                                                                 {
                                                                     state.idRedirect === item.id ?
@@ -619,16 +641,20 @@ export default function MyCourse({ redirect }) {
                                                                             confirm.withdraw &&
                                                                             <button
                                                                                 className='handle_withdraw'
-                                                                                onClick={() =>
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
                                                                                     handleWithdrawCourse({ id: item.id, course: item.title })
-                                                                                }
+                                                                                }}
                                                                             >
                                                                                 Withdraw
                                                                             </button>
                                                                         }
                                                                         <button
                                                                             className="cancel_confirm_course"
-                                                                            onClick={() => setConfirm({ hide: false, withdraw: false })}
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setConfirm({ hide: false, withdraw: false })
+                                                                            }}
                                                                         >
                                                                             Cancel
                                                                         </button>
@@ -650,18 +676,20 @@ export default function MyCourse({ redirect }) {
                                 <p>No course can be found here!</p>
                 }
             </div>
-            {!state.pending && !state.error && (
-                load.hasMore ?
-                    <span className="load_wrapper" ref={setRef}>
-                        <LoadingContent scale={0.5} />
-                    </span>
-                    :
-                    null
-            )}
+            {
+                !state.pending && !state.error && (
+                    load.hasMore ?
+                        <span className="load_wrapper" ref={setRef}>
+                            <LoadingContent scale={0.5} />
+                        </span>
+                        :
+                        null
+                )
+            }
             <AlertPush
                 message={alert?.message}
                 status={alert?.status}
             />
-        </div>
+        </div >
     )
 }

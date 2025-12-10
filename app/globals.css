@@ -8,6 +8,7 @@
 
 @import "./style/course/course.css";
 @import "./style/course/content.css";
+@import "./style/course/preview.css";
 
 @import "./style/event.css";
 @import "./style/auth.css";

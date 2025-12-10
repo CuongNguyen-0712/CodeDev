@@ -169,6 +169,7 @@
   transition: 0.2s all ease;
   cursor: pointer;
   pointer-events: none;
+  outline: none;
   z-index: 0;
 }
 

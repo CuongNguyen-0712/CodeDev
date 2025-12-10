@@ -56,6 +56,16 @@
     }
 }
 
+#redirect_message {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 30px;
+    width: 200px;
+    margin-top: 10px;
+    overflow: hidden;
+}
+
 .load_wrapper {
     display: flex;
     height: max-content;
@@ -140,7 +150,6 @@
     display: flex;
     position: relative;
     align-items: center;
-    border-radius: 10px;
     flex-direction: column;
     background: transparent;
     gap: 20px;
@@ -189,10 +198,18 @@
     height: 35px;
     width: 35px;
     border-radius: 50%;
-    background: var(--color_gray_light);
-    color: var(--color_black);
     font-size: 18px;
     cursor: pointer;
+}
+
+#reload_btn {
+    background: var(--color_gray_light);
+    color: var(--color_black);
+}
+
+#demiss_btn {
+    background: var(--color_black);
+    color: var(--color_white);
 }
 
 #navigate_handler {
@@ -464,6 +481,7 @@
     right: 0;
     border-radius: 50%;
     background: transparent;
+    color: var(--color_black);
     cursor: pointer;
     transition: 0.2s all ease;
 }

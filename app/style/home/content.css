@@ -5,7 +5,7 @@
     justify-content: center;
     height: max-content;
     width: 100%;
-    padding: 70px 20px 20px 20px;
+    padding: 80px 20px 20px 20px;
     background: var(--color_bg);
     flex-wrap: wrap;
     gap: 20px;
@@ -627,10 +627,10 @@
     position: relative;
     align-items: center;
     height: max-content;
-    min-height: 420px;
-    max-width: 320px;
-    flex-basis: 300px;
+    min-height: 450px;
+    max-width: 350px;
     flex-grow: 1;
+    flex-basis: 300px;
     border-radius: 15px;
     padding: 15px 20px;
     background: var(--color_white);
@@ -1253,7 +1253,6 @@
     background: var(--color_white);
     border: 2px solid var(--color_gray_light);
     box-shadow: 0 0 5px var(--color_gray_light);
-    color: var(--color_black);
     border-radius: 5px;
     padding: 10px;
     flex-direction: column;
@@ -1282,6 +1281,7 @@
     width: 100px;
     border-radius: 5px;
     background: transparent;
+    color: var(--color_black);
     gap: 10px;
     transition: 0.2s all ease;
 }
@@ -2103,6 +2103,12 @@
     }
 
     /* Project and Course */
+    .course-frame .course {
+        min-height: 0;
+        width: 100%;
+        max-width: none;
+    }
+
     #project-btn span,
     #course-btn span {
         display: none;

@@ -142,10 +142,10 @@ export default function Login({
                     <div className="login-help">
                         <span>
                             Having trouble logging in?
-                            <Link href="/auth">Get help</Link>
+                            <Link href="/auth" tabIndex={1}>Get help</Link>
                         </span>
                         <span>
-                            <input type="checkbox" />
+                            <input type="checkbox" tabIndex={1} />
                             <label>Remember me</label>
                         </span>
                     </div>

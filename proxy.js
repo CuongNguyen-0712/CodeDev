@@ -5,7 +5,7 @@ const protectedRoutes = ['/home', '/course', '/project']
 const publicRoutes = ['/auth', '/']
 const publicApis = ['/api/auth/signIn', '/api/auth/signUp']
 
-export default async function middleware(req) {
+export default async function proxy(req) {
     const path = req.nextUrl.pathname
     const session = await getSession()
 

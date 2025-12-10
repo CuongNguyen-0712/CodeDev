@@ -3,9 +3,9 @@ import { sql } from '@/app/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 
 export async function postFeedback(data) {
-    const { title, feedback, email, sender } = data;
+    const { title, feedback, sender } = data;
 
-    if (!title || !feedback || !email || !sender) {
+    if (!title || !feedback || !sender) {
         return new Response(
             JSON.stringify({ message: "You missing something, check again" }),
             { status: 400, headers: { "Content-Type": "application/json" } }
@@ -13,17 +13,16 @@ export async function postFeedback(data) {
     }
 
     try {
-        await sql`INSERT INTO public.feedback (sender, title, feedback, email) VALUES (${sender} ,${title}, ${feedback}, ${email})`;
+        await sql`INSERT INTO public.feedback (sender, title, feedback) VALUES (${sender} ,${title}, ${feedback})`;
 
         return new Response(
             JSON.stringify({ message: "Feedback saved successfully" }),
             { status: 200, headers: { "Content-Type": "application/json" } }
         );
     } catch (error) {
-        console.error("Error saving feedback:", error);
         return new Response(
             JSON.stringify({ message: "Internal server error" }),
-            { status: 500, headers: { "Content-Type": "application/json" } }
+            { status: 500, headers: { "applicationContent-Type": "/json" } }
         );
     }
 }

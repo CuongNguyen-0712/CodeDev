@@ -272,6 +272,11 @@ export default function CourseContent({ redirect }) {
         }
     };
 
+    const handlePreview = (id) => {
+        if (state.handling) return;
+        redirect()
+        queryNavigate('/course/preview', { id: id });
+    }
 
     const handleRedirect = () => {
         queryNavigate('/home', { name: 'course' });
@@ -387,7 +392,14 @@ export default function CourseContent({ redirect }) {
                                 <>
                                     {
                                         state.data.map((item, index) => (
-                                            <div className="item" key={index}>
+                                            <div
+                                                className="item"
+                                                key={index}
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    handlePreview(item.id)
+                                                }}
+                                            >
                                                 <div className="heading">
                                                     <img src={item.image?.trim()} alt="course_image" />
                                                     <h3>{item.title}</h3>
@@ -417,7 +429,14 @@ export default function CourseContent({ redirect }) {
                                                 </div>
                                                 <div className="footer">
                                                     <button
-                                                        onClick={() => handleRegister({ id: item.id, isCost: Math.round(item.cost) !== 0, course: item.title })}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            handleRegister({
+                                                                id: item.id,
+                                                                isCost: Math.round(item.cost) !== 0,
+                                                                course: item.title
+                                                            })
+                                                        }}
                                                         style={{
                                                             backgroundColor: Math.round(item.cost) === 0 ? 'var(--color_blue)' : 'var(--color_black)'
                                                         }}

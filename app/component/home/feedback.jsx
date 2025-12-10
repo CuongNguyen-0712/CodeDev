@@ -30,7 +30,6 @@ export default function Feedback() {
     const [dataForm, setDataForm] = useState({
         title: "",
         feedback: "",
-        email: session.email,
     });
 
     const [alert, setAlert] = useState(null);
@@ -146,26 +145,6 @@ export default function Feedback() {
                         <span className="error_validation">
                             <IoIosWarning />
                             {state.error.title}
-                        </span>
-                    }
-                </div>
-                <div className="feedback-field">
-                    <span className="heading-field">Your email</span>
-                    <input
-                        type="text"
-                        id="email"
-                        name="email"
-                        value={dataForm.email}
-                        onChange={handleChange}
-                        placeholder="Your email"
-                        disabled={state.handling}
-                        readOnly
-                    />
-                    {
-                        (state.error && state.error.email) &&
-                        <span className="error_validation">
-                            <IoIosWarning />
-                            {state.error.email}
                         </span>
                     }
                 </div>
