@@ -1,4 +1,4 @@
-import WelcomeTemplate from "../component/templates/welcome_resend";
+import WelcomeTemplate from "../component/templates/welcomeTemplate"
 
 export default async function Page() {
     return <WelcomeTemplate />
