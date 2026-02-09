@@ -29,7 +29,6 @@ export default function Dashboard({ handleDashboard, isDashboard }) {
   const [targetItem, setTargetItem] = useState('Overview');
   const [showOther, setShowOther] = useState(false);
 
-
   const menuList = [
     {
       index: 0,
@@ -38,7 +37,7 @@ export default function Dashboard({ handleDashboard, isDashboard }) {
     },
     {
       index: 1,
-      name: "Course",
+      name: "Learning",
       icon: <FaCode />,
     },
     {
@@ -65,7 +64,7 @@ export default function Dashboard({ handleDashboard, isDashboard }) {
 
   useEffect(() => {
     const menuBtns = document.querySelectorAll('.menu-item button')
-    const index = menuList.find(item => String.prototype.toLowerCase.call(item.name) === params.get('name'))?.index || 0
+    const index = menuList.find(item => String.prototype.toLowerCase.call(item.name) === params.get('tab'))?.index || 0
     refNavigation.current.style.top = `${index * 50}px`;
     menuBtns.forEach(btn => btn.classList.remove('active'))
     menuBtns[index].classList.add('active')
@@ -74,7 +73,7 @@ export default function Dashboard({ handleDashboard, isDashboard }) {
   const handleNavigation = (index, name) => {
     refNavigation.current.style.top = `${index * 50}px`;
     setTargetItem(name);
-    queryNavigate(window.location.pathname, { name: String.prototype.toLowerCase.call(name) })
+    queryNavigate(window.location.pathname, { tab: String.prototype.toLowerCase.call(name) })
   };
 
   return (
@@ -121,19 +120,20 @@ export default function Dashboard({ handleDashboard, isDashboard }) {
             Feedback
           </button>
         </div>
-        <div className="footer-menu" style={showOther ? { height: '100px', transition: '0.2s all ease' } : { height: '50px', transition: '0.2s all ease' }}>
-          <div onClick={() => setShowOther(!showOther)} className="heading">
+        <div className={`footer-menu ${showOther ? 'show' : ''}`}>
+          <button onClick={() => setShowOther(!showOther)} className="heading">
             <span>
               Other
             </span>
             <FaAngleLeft
+              fontSize={18}
               style={{
                 transform: showOther ? "rotate(-90deg)" : "rotate(0deg)",
                 transition: "0.5s all ease",
               }}
             />
-          </div>
-          <div className="other-frame" style={showOther ? { display: 'flex' } : { display: "none" }}>
+          </button>
+          <div className="other-frame">
             <button id="help">
               <MdHelpCenter />
               Help Center

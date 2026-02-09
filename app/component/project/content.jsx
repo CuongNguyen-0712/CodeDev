@@ -1,31 +1,114 @@
-import { useState, useEffect, startTransition, useMemo, useRef } from "react"
+import { useState, useEffect } from "react"
 
 import GetProjectService from "@/app/services/getService/projectService";
 import PostRegisterProjectService from "@/app/services/postService/registerProjectService";
 
-import Form from "next/form";
-import { ErrorReload } from "../ui/error";
 import { useQuery } from "@/app/router/router";
-import { uniqWith, debounce } from "lodash";
-import { LoadingContent } from "../ui/loading";
 
-import { IoFilter } from "react-icons/io5"
-import { FaArrowRight, FaRegCheckCircle, FaChevronUp } from "react-icons/fa";
+import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
+
+import { LoadingContent } from "../ui/loading";
+import { ErrorReload } from "../ui/error";
+import Search from "../ui/search";
+import AlertPush from "../ui/alert";
+
+import { filter, uniqWith } from "lodash";
+
+import { FaArrowRight, FaChevronUp } from "react-icons/fa";
 import { FaUser, FaUserGroup } from "react-icons/fa6";
 import { MdPushPin, MdInfoOutline } from "react-icons/md";
 
+const colorUI = {
+    Open: {
+        color: "var(--color_blue)",
+        opacity: "rgba(30, 144, 255, 0.2)",
+    },
+    Closed: {
+        color: "var(--color_red_light)",
+        opacity: "rgba(255, 0, 0, 0.2)",
+    },
+    "Comming soon": {
+        color: "var(--color_orange)",
+        opacity: "rgba(255, 255, 0, 0.2)",
+    },
+};
+
+export function ProjectItem({
+    item,
+    isHandling,
+    onRegister,
+}) {
+    const [dropdown, setDropdown] = useState(false)
+
+    const renderButtonText = () => {
+        if (item.status === "Closed") return "Closed";
+        if (item.status === "Comming soon") return "Comming soon...";
+        return isHandling ? (
+            <LoadingContent scale={0.5} color="var(--color_white)" />
+        ) : (
+            item.method === 'Self' ? "Join" : "Add"
+        );
+    };
+
+    return (
+        <div className="item">
+            <div className="heading_item">
+                <span
+                    style={{
+                        background: colorUI[item.status].opacity,
+                        color: colorUI[item.status].color,
+                    }}
+                >
+                    {item.status}
+                </span>
+                <h4>{item.name}</h4>
+            </div>
+
+            <div className="content_item">
+                <p>{item.description}</p>
+
+                <div className="info">
+                    <h5>Instructor:</h5>
+                    <p>{item.instructor}</p>
+                </div>
+
+                <div className={`info_dropdown ${dropdown ? "active" : ""}`}>
+                    <button
+                        type="button"
+                        onClick={() => setDropdown(!dropdown)}
+                    >
+                        <MdPushPin />
+                        Requirements
+                    </button>
+                    <p>{item.requirements}</p>
+                </div>
+            </div>
+
+            <div className="footer_item">
+                <div className="info">
+                    <h5>Difficulty:</h5>
+                    <p>{item.difficulty}</p>
+                </div>
+
+                <button
+                    style={{ background: colorUI[item.status].color }}
+                    disabled={isHandling}
+                    onClick={() => onRegister({ id: item.id, name: item.name })}
+                >
+                    {renderButtonText()}
+                </button>
+            </div>
+        </div>
+    );
+}
+
 export default function ProjectContent({ redirect }) {
     const queryNavigate = useQuery();
-    const ref = useRef(null)
 
-    const filterValue = [
+    const filterMapping = [
         {
             name: 'status',
             items: [
-                {
-                    name: 'All',
-                    value: null
-                },
                 {
                     name: 'Comming soon',
                     value: 'Comming soon'
@@ -43,10 +126,6 @@ export default function ProjectContent({ redirect }) {
         {
             name: 'difficulty',
             items: [
-                {
-                    name: 'All',
-                    value: null
-                },
                 {
                     name: 'Beginner',
                     value: 'Beginner'
@@ -68,263 +147,187 @@ export default function ProjectContent({ redirect }) {
                     value: 'Master'
                 }
             ]
+        },
+        {
+            name: 'method',
+            items: [
+                {
+                    name: 'Self',
+                    value: 'Self'
+                },
+                {
+                    name: 'Team',
+                    value: 'Team'
+                }
+            ]
         }
     ]
 
-    const colorUI = {
-        'Open': {
-            color: 'var(--color_blue)',
-            opacity: 'rgba(30, 144, 255, 0.2)'
-        },
-        'Closed': {
-            color: 'var(--color_red_light)',
-            opacity: 'rgba(255, 0, 0, 0.2)'
-        },
-        'Comming soon': {
-            color: 'var(--color_orange)',
-            opacity: 'rgba(255, 255, 0, 0.2)'
-        }
+    const defaultFilter = {
+        status: ['Open']
     }
 
     const [state, setState] = useState({
-        data: {
-            self: [],
-            team: [],
-        },
+        data: [],
         error: null,
-        handling: false,
-        idHandle: null,
-        message: null,
         pending: true,
         search: '',
-        filter: false
-    })
-
-    const [offset, setOffset] = useState({
-        self: 0,
-        team: 0
-    });
-
-    const [hasMore, setHasMore] = useState({
-        self: true,
-        team: true
-    });
-
-    const [registerCount, setRegisterCount] = useState({
-        self: 0,
-        team: 0
-    })
-
-    const [isLoading, setIsLoading] = useState({
-        self: false,
-        team: false
+        filter: null,
     })
 
     const [load, setLoad] = useState({
+        offset: 0,
+        hasMore: true,
         hasSearch: false,
-        limit: 5,
+        limit: 20,
+        countRequest: 0
     })
 
-    const [hide, setHide] = useState({
-        self: false,
-        team: false
-    })
-
-    const [filter, setFilter] = useState({
-        status: 'Open',
-        difficulty: null,
-    })
-
+    const [handlingMap, setHandlingMap] = useState({})
+    const [alert, setAlert] = useState(null)
     const [apiQueue, setApiQueue] = useState([])
     const [isProcessing, setIsProcessing] = useState(false)
 
-    const processQueue = async () => {
-        if (isProcessing || apiQueue.length === 0) return;
-
-        setIsProcessing(true);
-
-        const task = apiQueue[0];
-
-        if (task.type === "fetch") {
-            await fetchData({ method: task.method });
-        }
-        else if (task.type === 'register') {
-            await task.execute()
-        }
-        else {
-            return;
-        }
-
-        setApiQueue((prev) => prev.slice(1));
-        setIsProcessing(false);
-    }
+    const { setRef } = useInfiniteScroll({
+        hasMore: load.hasMore,
+        onLoadMore: () => {
+            if (load.hasMore) {
+                setApiQueue((prev) => [...prev, { type: "fetch" }]);
+            }
+        },
+    });
 
     useEffect(() => {
-        processQueue();
-    }, [apiQueue])
+        if (isProcessing || apiQueue.length === 0) return;
 
-    const fetchData = async ({ offsetValue = 0, method } = {}) => {
-        if (method && !hasMore[method]) return;
+        const run = async () => {
+            setIsProcessing(true);
+
+            const task = apiQueue[0];
+
+            if (task.type === "fetch") {
+                await fetchData();
+            } else {
+                await task.execute();
+            }
+
+            setApiQueue(prev => prev.slice(1));
+            setIsProcessing(false);
+        };
+
+        run();
+    }, [apiQueue, isProcessing]);
+
+    const fetchData = async () => {
+        if (!load.hasMore) return;
+
+        setState(prev => ({ ...prev, error: null }));
 
         try {
-            const adjustedOffset = Math.max(0, (method ? offset[method] : offsetValue) - (registerCount[method] || 0));
-            const res = await GetProjectService({ search: state.search.trim(), limit: load.limit, offset: adjustedOffset.toString(), method: method ? method.charAt(0).toUpperCase() + method.slice(1) : method, search: state.search, filter: filter });
-
+            const adjustedOffset = Math.max(0, load.offset - load.countRequest);
+            const res = await GetProjectService({ search: state.search.trim(), limit: load.limit, offset: adjustedOffset.toString(), filter: state.filter ?? {} });
             if (res.status === 200) {
-                if (method) {
-                    setOffset((prev) => ({
-                        ...prev,
-                        [method]: prev[method] + load.limit,
-                    }))
-                    setHasMore((prev) => ({
-                        ...prev,
-                        [method]: res.data.length >= load.limit
-                    }))
-                    setIsLoading((prev) => ({
-                        ...prev,
-                        [method]: false
-                    }))
-                    setState((prev) => ({
-                        ...prev,
-                        data: {
-                            ...prev.data,
-                            [method]: uniqWith([...prev.data[method], ...res.data], (a, b) => a.id === b.id)
-                        },
-                        pending: false
-                    }));
-                }
-                else {
-                    const self = [...res.data].filter((item) => item.method === 'Self')
-                    const team = [...res.data].filter((item) => item.method === 'Team')
-                    setOffset((prev) => ({
-                        ...prev,
-                        self: prev.self + load.limit,
-                        team: prev.team + load.limit
-                    }))
-                    setHasMore((prev) => ({
-                        ...prev,
-                        self: self.length >= load.limit,
-                        team: team.length >= load.limit
-                    }))
-                    setState((prev) => ({
-                        ...prev,
-                        data: {
-                            self: uniqWith([...prev.data?.self ?? [], ...self], (a, b) => a.id === b.id),
-                            team: uniqWith([...prev.data?.team ?? [], ...team], (a, b) => a.id === b.id)
-                        },
-                        pending: false
-                    }));
-                }
+                setLoad((prev) => ({
+                    ...prev,
+                    hasMore: res.data.length >= load.limit,
+                    offset: prev.offset + prev.limit
+                }))
+                setState((prev) => ({
+                    ...prev,
+                    data: uniqWith([...prev.data, ...res.data], (a, b) => a.id === b.id),
+                    pending: false
+                }))
             }
             else {
-                setState((prev) => ({ ...prev, error: { status: res.status, message: res.message }, pending: false }));
+                setState((prev) => ({ ...prev, error: { status: res.status, message: res.message || "Something is wrong" }, pending: false }))
             }
         }
         catch (err) {
-            setState((prev) => ({ ...prev, error: { status: 500, message: err.message || 'Something is wrong' }, pending: false }));
+            setState((prev) => ({ ...prev, error: { status: err.status || 500, message: 'External server error' }, pending: false }));
         }
     }
 
     useEffect(() => {
-        fetchData();
+        setApiQueue((prev) => [...prev, { type: "fetch" }]);
     }, [])
 
-    const handleDropdown = (e) => {
-        const target = e.currentTarget.closest('div')?.className;
-        if (target.includes('active')) {
-            e.currentTarget.closest('div').classList.remove('active');
-        }
-        else {
-            e.currentTarget.closest('div').classList.add('active');
-        }
-    }
-
-    const handleRegister = ({ id, method }) => {
+    const handleRegister = ({ id, name }) => {
         setApiQueue((prev) => [
             ...prev,
             {
                 type: "register",
-                execute: () => handleRequest({ id, method })
+                execute: () => handleRequest({ id, name })
             }
         ]);
     }
 
-    const handleRequest = async ({ id, method }) => {
-        if (!id || method === 'team') return;
+    const handleRequest = async ({ id, name }) => {
+        if (!id) return;
 
-        setState((prev) => ({ ...prev, handling: true, idHandle: id }))
+        startHandling(id);
 
         try {
             const res = await PostRegisterProjectService({ projectId: id });
             if (res.status === 200) {
-                setRegisterCount((prev) => ({
+                setLoad((prev) => ({
                     ...prev,
-                    [method]: prev[method] + 1
-                }));
+                    countRequest: prev.countRequest + 1
+                }))
                 setState((prev) => ({
                     ...prev,
                     data: {
-                        ...prev.data,
-                        [method]: prev.data[method].filter((item) => item.id !== id)
+                        ...prev,
+                        data: prev.data.filter((item) => item.id !== id)
                     }
                 }));
-                setApiQueue((prev) => [...prev, { type: "fetch", method: method }]);
-                startTransition(() => {
-                    setState((prev) => ({ ...prev, message: { status: res.status, data: res.message || 'Successfully' }, handling: false, idHandle: null }));
+                setAlert({
+                    status: res.status,
+                    message: res.message
                 })
+                if (hasMore) {
+                    setApiQueue((prev) => [...prev, { type: "fetch" }]);
+                }
             }
             else {
-                setState((prev) => ({ ...prev, message: { status: res.status, data: res.message || 'Something is wrong' }, handling: false, idHandle: null }));
+                setAlert({
+                    status: res.status,
+                    message: res.message
+                })
             }
         }
         catch (err) {
-            setState((prev) => ({ ...prev, message: { status: 500, data: err.message || 'Something is wrong' }, handling: false, idHandle: null }));
+            setAlert({
+                status: err.status || 500,
+                message: "Internal server error"
+            })
+        } finally {
+            stopHandling(id);
         }
     }
 
     const refetchData = () => {
-        setState(prev => ({ ...prev, error: null, pending: true }))
-        setIsLoading({
-            self: false,
-            team: false
-        })
+        setState(prev => ({ ...prev, pending: true }))
+        setLoad(prev => ({ ...prev, offset: 0, hasMore: true, hasSearch: false, countRequest: 0 }));
         setApiQueue((prev) => [...prev, { type: "fetch" }]);
     }
 
     const handleRedirect = () => {
-        queryNavigate('home', { name: 'project' });
+        queryNavigate('home', { tab: 'project' });
         redirect()
-    }
-
-    const handleShowMore = (value) => {
-        setIsLoading((prev) => ({
-            ...prev,
-            [value]: true
-        }))
-        setApiQueue((prev) => [
-            ...prev,
-            {
-                type: "fetch",
-                method: value
-            }
-        ]);
     }
 
     const handleSubmitSearch = () => {
         if (state.search.length > 0 && state.search.trim() === '') return;
 
         if (load.hasSearch && state.search.trim() === '') {
-            setState(prev => ({ ...prev, data: { ...state.data, self: [], team: [] }, pending: true }));
-            setOffset((prev) => ({ ...prev, self: 0, team: 0 }));
-            setHasMore({ self: true, team: true });
+            setLoad((prev) => ({ ...prev, offset: 0, hasMore: true }));
+            setState(prev => ({ ...prev, data: [], pending: true }));
             setApiQueue((prev) => [...prev, { type: "fetch" }]);
             return
         }
 
-        setState(prev => ({ ...prev, data: { ...state.data, self: [], team: [] }, pending: true }));
-        setOffset((prev) => ({ ...prev, self: 0, team: 0 }));
-        setHasMore({ self: true, team: true });
-        setLoad(prev => ({ ...prev, hasSearch: state.search.trim().length > 0 }));
+        setState(prev => ({ ...prev, data: [], pending: true }));
+        setLoad(prev => ({ ...prev, offset: 0, hasMore: true, hasSearch: true }));
         setApiQueue((prev) => [...prev, { type: "fetch" }]);
     }
 
@@ -332,92 +335,33 @@ export default function ProjectContent({ redirect }) {
         handleSubmitSearch();
     }, [state.search])
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        handleSubmitSearch();
-    }
-
-    const handleDebounce = useMemo(() => {
-        return debounce((value) => {
-            setState(prev => ({ ...prev, search: value }))
-        }, 500);
-    }, [])
-
     useEffect(() => {
-        return () => {
-            handleDebounce.cancel();
-        }
-    }, [handleDebounce])
+        setAlert(null)
+    }, [alert])
 
-    const handleChange = (e) => {
-        e.preventDefault();
-        handleDebounce(e.target.value);
+    const startHandling = (id) => {
+        setHandlingMap(prev => ({ ...prev, [id]: true }))
     }
 
-    const refTable = (e) => {
-        if (!ref.current) return;
-
-        if (ref.current && !ref.current.contains(e.target)) {
-            setState(prev => ({ ...prev, filter: false }))
-        }
+    const stopHandling = (id) => {
+        setHandlingMap(prev => {
+            const rest = { ...prev }
+            delete rest[id]
+            return rest
+        })
     }
-
-    useEffect(() => {
-        document.addEventListener('click', refTable);
-        return () => {
-            document.removeEventListener('click', refTable);
-        }
-    }, [state.filter])
 
     return (
         <div id="project">
             <div className="heading_project">
-                <Form className="input-search" onSubmit={handleSubmit}>
-                    <input type="text" placeholder="Search project" name="search" autoComplete="off" onChange={handleChange} />
-                    <button type="button" className={`filter ${state.filter ? 'active' : ''}`} onClick={() => setState((prev) => ({ ...prev, filter: !prev.filter }))}>
-                        <IoFilter />
-                    </button>
-                    {state.filter &&
-                        <div className="table" ref={ref}>
-                            <div className="content_table">
-                                {
-                                    filterValue.map((field, index) => (
-                                        <div className="filter_value" key={index}>
-                                            <span>
-                                                {field.name}
-                                            </span>
-                                            {
-                                                field.items.map((item, index) => (
-                                                    <button
-                                                        key={index}
-                                                        type="button"
-                                                        style={filter[field.name] === item.value ? { color: 'var(--color_white)', background: 'var(--color_black)' } : { color: 'var(--color_black)', background: 'var(--color_gray_light)' }}
-                                                        onClick={() => setFilter((prev) => ({ ...prev, [field.name]: item.value }))}
-                                                    >
-                                                        {item.name}
-                                                    </button>
-                                                ))
-                                            }
-                                        </div>
-                                    ))
-                                }
-                            </div>
-                            <div className="footer_table">
-                                <button type="submit" disabled={state.pending}>
-                                    {
-                                        state.pending ?
-                                            <LoadingContent scale={0.5} color='var(--color_white)' />
-                                            :
-                                            <>
-                                                <FaRegCheckCircle />
-                                                Apply
-                                            </>
-                                    }
-                                </button>
-                            </div>
-                        </div>
-                    }
-                </Form>
+                <Search
+                    data={filterMapping}
+                    submit={handleSubmitSearch}
+                    setSearch={(data) => setState(prev => ({ ...prev, search: data }))}
+                    setFilter={(data) => setState(prev => ({ ...prev, filter: data }))}
+                    pending={state.pending}
+                    defaultFilter={defaultFilter}
+                />
                 <div className="handle_back">
                     <button className="back_btn" onClick={handleRedirect}>
                         <h4>
@@ -428,261 +372,43 @@ export default function ProjectContent({ redirect }) {
                 </div>
             </div>
             <div className="content_project">
-                <div className="method_project">
-                    <div className="heading">
-                        <button
-                            className='handle_method_btn'
-                            onClick={() => setHide((prev) => ({ ...prev, self: !prev.self }))}
-                            style={
-                                hide.self ?
-                                    {
-                                        background: 'var(--color_blue)',
-                                        borderColor: 'var(--color_white)',
-                                        color: 'var(--color_white)'
-                                    }
-                                    :
-                                    {
-                                        background: 'var(--color_white)',
-                                        borderColor: 'var(--color_gray)',
-                                        color: 'var(--color_black)'
-                                    }
-                            }
-                        >
-                            <FaChevronUp
-                                fontSize={15}
-                                style={{ transform: hide.self ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.2s all ease' }}
-                            />
-                            <FaUser
-                                fontSize={15}
-                            />
-                        </button>
-                        <button className="tag_method">
-                            <MdInfoOutline fontSize={20} />
-                        </button>
-                    </div>
-                    {
-                        !hide.self ?
-                            <>
-                                <div className="content">
-                                    {
-                                        state.pending ?
-                                            <LoadingContent />
-                                            :
-                                            state.error ?
-                                                <p>Something is wrong</p>
-                                                :
-                                                state.data.self && state.data.self.length > 0 ? (
-                                                    state.data.self.map((item, index) => (
-                                                        <div className="item" key={index}>
-                                                            <div className="heading_item">
-                                                                <span
-                                                                    style={{ background: colorUI[item.status].opacity, color: colorUI[item.status].color }}
-                                                                >
-                                                                    {item.status}
-                                                                </span>
-                                                                <h4>{item.name}</h4>
-                                                            </div>
-                                                            <div className="content_item">
-                                                                <p>{item.description}</p>
-                                                                <div className="info">
-                                                                    <h5>Instructor:</h5>
-                                                                    <p>{item.instructor}</p>
-                                                                </div>
-                                                                <div className="info_dropdown">
-                                                                    <button onClick={handleDropdown}>
-                                                                        <MdPushPin />
-                                                                        Requirements
-                                                                    </button>
-                                                                    <p>
-                                                                        {item.requirements}
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-                                                            <div className="footer_item">
-                                                                <div className="info">
-                                                                    <h5>Difficulty:</h5>
-                                                                    <p>{item.difficulty}</p>
-                                                                </div>
-                                                                <button
-                                                                    style={{ background: colorUI[item.status].color }}
-                                                                    disabled={item.status !== 'Open' || state.handling}
-                                                                    onClick={() => handleRegister({ id: item.id, method: 'self' })}
-                                                                >
-                                                                    {
-                                                                        (() => {
-                                                                            switch (item.status) {
-                                                                                case 'Open':
-                                                                                    return state.idHandle === item.id ?
-                                                                                        <LoadingContent scale={0.5} color="var(--color_white)" />
-                                                                                        :
-                                                                                        <>Join</>;
-                                                                                case 'Closed':
-                                                                                    return <>Closed</>;
-                                                                                case 'Comming soon':
-                                                                                    return <>Comming soon...</>;
-                                                                                default:
-                                                                                    return <>Something wrong</>;
-                                                                            }
-                                                                        })()
-                                                                    }
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ))
-                                                )
-                                                    :
-                                                    <p>No project can be found !</p>
-                                    }
-                                </div>
-                                {
-                                    (!state.pending && !state.error) &&
-                                    <div className="show_more" style={{ display: !hasMore.self && 'none' }}>
-                                        <button disabled={isLoading.self} onClick={() => handleShowMore('self')}>
-                                            {
-                                                isLoading.self ?
-                                                    <LoadingContent scale={0.5} color="var(--color_white)" />
-                                                    :
-                                                    <>
-                                                        See more
-                                                    </>
-                                            }
-                                        </button>
-                                    </div>
-                                }
-                            </>
-                            :
-                            null
-                    }
-                </div>
-                <div className="method_project">
-                    <div className="heading">
-                        <button
-                            className="handle_method_btn"
-                            onClick={() => setHide((prev) => ({ ...prev, team: !prev.team }))}
-                            style={
-                                hide.team ?
-                                    {
-                                        background: 'var(--color_blue)',
-                                        borderColor: 'var(--color_white)',
-                                        color: 'var(--color_white)'
-                                    }
-                                    :
-                                    {
-                                        background: 'var(--color_white)',
-                                        borderColor: 'var(--color_gray)',
-                                        color: 'var(--color_black)'
-                                    }
-                            }
-                        >
-                            <FaChevronUp
-                                fontSize={15}
-                                style={{ transform: hide.team ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.2s all ease' }}
-                            />
-                            <FaUserGroup
-                                fontSize={15}
-                            />
-                        </button>
-                        <button className="tag_method">
-                            <MdInfoOutline fontSize={20} />
-                        </button>
-                    </div>
-                    {
-                        !hide.team ?
-                            <>
-                                <div className="content">
-                                    {
-                                        state.pending ?
-                                            <LoadingContent />
-                                            :
-                                            state.error ?
-                                                <p>Something is wrong</p>
-                                                :
-                                                state.data.team && state.data.team.length > 0 ? (
-                                                    state.data.team.map((item, index) => (
-                                                        <div className="item" key={index}>
-                                                            <div className="heading_item">
-                                                                <span
-                                                                    style={{ background: colorUI[item.status].opacity, color: colorUI[item.status].color }}
-                                                                >
-                                                                    {item.status}
-                                                                </span>
-                                                                <h4>{item.name}</h4>
-                                                            </div>
-                                                            <div className="content_item">
-                                                                <p>{item.description}</p>
-                                                                <div className="info">
-                                                                    <h5>Instructor:</h5>
-                                                                    <p>{item.instructor}</p>
-                                                                </div>
-                                                                <div className="info_dropdown">
-                                                                    <button onClick={handleDropdown}>
-                                                                        <MdPushPin />
-                                                                        Requirements
-                                                                    </button>
-                                                                    <p>{item.requirements}</p>
-                                                                </div>
-                                                            </div>
-                                                            <div className="footer_item">
-                                                                <div className="info">
-                                                                    <h5>Difficulty:</h5>
-                                                                    <p>{item.difficulty}</p>
-                                                                </div>
-                                                                <button
-                                                                    style={{ background: colorUI[item.status].color }}
-                                                                    disabled={item.status !== 'Open' || state.handling}
-                                                                    onClick={() => handleRegister({ id: item.id, method: 'team' })}
-                                                                >
-                                                                    {
-                                                                        (() => {
-                                                                            switch (item.status) {
-                                                                                case 'Open':
-                                                                                    return state.idHandle === item.id ?
-                                                                                        <LoadingContent scale={0.5} color="var(--color_white)" />
-                                                                                        :
-                                                                                        <>Add</>;
-                                                                                case 'Closed':
-                                                                                    return <>Closed</>;
-                                                                                case 'Comming soon':
-                                                                                    return <>Comming soon...</>;
-                                                                                default:
-                                                                                    return <>Something wrong</>;
-                                                                            }
-                                                                        })()
-                                                                    }
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ))
-                                                )
-                                                    :
-                                                    <p>No project can be found !</p>
-
-                                    }
-                                </div>
-                                {
-                                    (!state.pending && !state.error) &&
-                                    <div className="show_more" style={{ display: !hasMore.team && 'none' }}>
-                                        <button disabled={isLoading.team} onClick={() => handleShowMore('team')}>
-                                            {
-                                                isLoading.team ?
-                                                    <LoadingContent scale={0.5} color="var(--color_white)" />
-                                                    :
-                                                    <>
-                                                        See more
-                                                    </>
-                                            }
-                                        </button>
-                                    </div>
-                                }
-                            </>
-                            :
-                            null
-                    }
-                </div>
                 {
-                    state.error && <ErrorReload data={state.error} refetch={refetchData} />
+                    state.pending ?
+                        <LoadingContent />
+                        :
+                        state.error ?
+                            <ErrorReload
+                                data={state.error}
+                                refetch={refetchData}
+                            />
+                            :
+                            (state.data && state.data.length > 0) ?
+                                state.data.map((item, index) => (
+                                    <ProjectItem
+                                        key={index}
+                                        item={item}
+                                        isHandling={!!handlingMap[item.id]}
+                                        onRegister={handleRegister}
+                                    />
+                                ))
+                                :
+                                <p className="no_data">
+                                    No project can be found !
+                                </p>
                 }
+                {!state.pending && state.data.length > 0 && load.hasMore && (
+                    <span className="load_wrapper" ref={setRef}>
+                        <LoadingContent
+                            scale={0.5}
+                            message={state.error && "Something is wrong, check your connection"}
+                        />
+                    </span>
+                )}
             </div>
+            <AlertPush
+                message={alert?.message}
+                status={alert?.status}
+            />
         </div >
     )
 }

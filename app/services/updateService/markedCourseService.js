@@ -1,46 +1,41 @@
 import { getSession } from "@/app/lib/session";
 
-export default async function GetContentLessonService(data) {
-    const user_id = (await getSession())?.userId
-    const { course_id, lesson_id } = data
-
-    const params = new URLSearchParams();
-    params.set('course_id', course_id);
-    params.set('lesson_id', lesson_id);
-    params.set('user_id', user_id)
+export default async function UpdateMarkedCourseService(data) {
+    const id = (await getSession())?.userId;
+    const req = { ...data, userId: id }
 
     try {
-        const res = await fetch(`/api/get/getContentLesson?${params.toString()}`, {
-            method: 'GET',
+        const res = await fetch('/api/update/updateMarkedCourse', {
+            method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
             },
+            body: JSON.stringify(req)
         });
 
         if (res.status === 404) {
             return {
                 status: 404,
                 message: "API not found"
-            }
+            };
         }
 
-        const raw = await res.json();
+        const raw = res.json();
 
         if (res.ok) {
             return {
                 status: res.status,
-                data: raw.data
             };
         } else {
             return {
                 status: res.status,
                 message: raw.message
-            }
+            };
         }
     } catch (error) {
         return {
             status: 500,
-            message: error.message
-        }
+            message: "Internal server error"
+        };
     }
 }

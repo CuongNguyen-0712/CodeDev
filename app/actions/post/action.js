@@ -13,7 +13,13 @@ export async function postFeedback(data) {
     }
 
     try {
-        await sql`INSERT INTO public.feedback (sender, title, feedback) VALUES (${sender} ,${title}, ${feedback})`;
+        const params = []
+
+        params.push(sender, title, feedback)
+
+        const query = `INSERT INTO public.feedback (sender, title, feedback) VALUES ($${params.length - 2}, $${params.length - 1}, $${params.length})`;
+
+        await sql.query(query, params);
 
         return new Response(
             JSON.stringify({ message: "Feedback saved successfully" }),
@@ -38,17 +44,22 @@ export async function postRegisterCourse(data) {
     }
 
     try {
-        await sql`select register_course(${userId}, ${courseId})`;
+        const params = []
+
+        params.push(userId, courseId)
+
+        const query = `select register_course($${params.length - 1}, $${params.length})`;
+
+        await sql.query(query, params);
 
         return new Response(
             JSON.stringify({ message: 'Register course successfully: ' }),
             { status: 200, headers: { "Content-Type": "application/json" } }
         );
     } catch (error) {
-        w
         console.error("Error register course: ", error);
         return new Response(
-            JSON.stringify({ message: error.message || "Somthing went wrong" }),
+            JSON.stringify({ message: "Internal server error" }),
             { status: 500, headers: { "Content-Type": "application/json" } }
         );
     }
@@ -65,7 +76,13 @@ export async function postRegisterProject(data) {
     }
 
     try {
-        await sql`INSERT INTO project.register (userid, projectid) VALUES (${userId}, ${projectId})`;
+        const params = []
+
+        params.push(userId, projectId)
+
+        const query = `INSERT INTO project.register (userid, projectid) VALUES ($${params.length - 1}, $${params.length})`;
+
+        await sql.query(query, params);
 
         return new Response(
             JSON.stringify({ message: "Register project successfully: " }),
@@ -74,7 +91,7 @@ export async function postRegisterProject(data) {
     } catch (error) {
         console.error("Error register project: ", error);
         return new Response(
-            JSON.stringify({ message: "Somthing went wrong" }),
+            JSON.stringify({ message: "Internal server error" }),
             { status: 500, headers: { "Content-Type": "application/json" } }
         );
     }
@@ -92,7 +109,13 @@ export async function postCreateTeam(data) {
     }
 
     try {
-        await sql`select create_team(${teamId}, ${name}, ${size}, ${userId})`;
+        const params = []
+
+        params.push(teamId, name, size, userId)
+
+        const query = `select create_team($${params.length - 3}, $${params.length - 2}, $${params.length - 1}, $${params.length})`;
+
+        await sql.query(query, params);
 
         return new Response(
             JSON.stringify({ message: "Create team successfully" }),
@@ -101,7 +124,39 @@ export async function postCreateTeam(data) {
     } catch (error) {
         console.error("Error create team:", error);
         return new Response(
-            JSON.stringify({ message: "Somthing went wrong" }),
+            JSON.stringify({ message: "Internal server error" }),
+            { status: 500, headers: { "Content-Type": "application/json" } }
+        );
+    }
+}
+
+export async function postCommentCourse(data) {
+    const { userId, courseId, comment } = data
+
+    if (!(userId || courseId || comment)) {
+        return new Response(
+            JSON.stringify({ message: "You missing something, check again" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+    }
+
+    try {
+        const params = []
+
+        params.push(userId, courseId, comment)
+
+        const query = `INSERT INTO public.comment (user_id, course_id, content) VALUES ($${params.length - 2}, $${params.length - 1}, $${params.length})`;
+
+        await sql.query(query, params);
+
+        return new Response(
+            JSON.stringify({ message: "Your comment has been posted" }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+    } catch (error) {
+        console.error("Error post comment:", error);
+        return new Response(
+            JSON.stringify({ message: "Internal server error" }),
             { status: 500, headers: { "Content-Type": "application/json" } }
         );
     }

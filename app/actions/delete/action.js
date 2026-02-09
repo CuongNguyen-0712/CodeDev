@@ -5,7 +5,7 @@ export async function deleteMyCourse(data) {
     try {
         const { userId, courseId } = data
 
-        if (!(userId || courseId)) {
+        if (!(userId && courseId)) {
             return new Response(
                 JSON.stringify({ message: "You missing something, check again" }),
                 { status: 400, headers: { "Content-Type": "application/json" } }
@@ -14,7 +14,9 @@ export async function deleteMyCourse(data) {
 
 
         await sql`      
-        DELETE FROM course.register WHERE courseid = ${courseId} AND userid = ${userId};
+            UPDATE course.register 
+            SET status = 'Cancelled'::status_course
+            WHERE course_id = ${courseId} AND user_id = ${userId};
         `;
 
         return new Response(

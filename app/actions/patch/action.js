@@ -12,20 +12,32 @@ export async function updateInfo(data) {
     }
 
     try {
-        const result = await sql`
+        let params = []
+        let conditions = []
+
+        params.push(userId)
+        conditions.push(`user_id = $${params.length}`)
+
+        params.push(nickname, surname, name, email, image, bio)
+
+        const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+
+        const query = `
         update private.info
         set 
-        nickname = case when ${nickname} is distinct from nickname then ${nickname} else nickname end,
-        surname = case when ${surname} is distinct from surname then ${surname} else surname end,
-        name = case when ${name} is distinct from name then ${name} else name end,
-        email = case when ${email} is distinct from email then ${email} else email end,
-        image = case when ${image} is distinct from image then ${image} else image end,
-        bio = case when ${bio} is distinct from bio then ${bio} else bio end,
+        nickname = case when $${params.length - 5} is distinct from nickname then $${params.length - 5} else nickname end,
+        surname = case when $${params.length - 4} is distinct from surname then $${params.length - 4} else surname end,
+        name = case when $${params.length - 3} is distinct from name then $${params.length - 3} else name end,
+        email = case when $${params.length - 2} is distinct from email then $${params.length - 2} else email end,
+        image = case when $${params.length - 1} is distinct from image then $${params.length - 1} else image end,
+        bio = case when $${params.length} is distinct from bio then $${params.length} else bio end,
         update_at = now()
-        where user_id = ${userId}
+        ${whereSQL}
         `
 
-        if (result.count === 0) {
+        const res = await sql.query(query, params);
+
+        if (res.count === 0) {
             return new Response(JSON.stringify({ message: "Something went wrong, try again" }), {
                 status: 404,
                 headers: { "Content-Type": "application/json" }
@@ -46,30 +58,46 @@ export async function updateInfo(data) {
     }
 }
 
-export async function updateHideStatusCourse(data) {
-    const { userId, courseId, hide } = data;
+export async function updateMarkedCourse(data) {
+    const { userId, courseId, marked } = data;
 
     if (!userId || !courseId) {
-        return new Response(JSON.stringify({ message: "You missing something, check again" }), {
+        return new Response(JSON.stringify({ message: "You missing something try again" }), {
             status: 400,
             headers: { "Content-Type": "application/json" }
         });
     }
 
     try {
-        await sql`
-        update course.register
-        set hidestatus = ${hide}
-        where userid = ${userId} and courseid = ${courseId}
+        let params = []
+        let conditions = []
+
+        params.push(userId)
+        conditions.push(`user_id = $${params.length}`)
+
+        params.push(courseId)
+        conditions.push(`course_id = $${params.length}`)
+
+        const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+
+        params.push(marked)
+
+        const query = `
+            update course.register
+            set is_marked = $${params.length}
+            ${whereSQL}
         `;
 
-        return new Response(JSON.stringify({ message: "Action successfully" }), {
+        await sql.query(query, params);
+
+        return new Response({
             status: 200,
             headers: { "Content-Type": "application/json" }
         });
     }
     catch (err) {
-        return new Response(JSON.stringify({ message: err.message || "Something went wrong, try again" }), {
+        console.error(err)
+        return new Response(JSON.stringify({ message: "Something went wrong, try again" }), {
             status: 500,
             headers: { "Content-Type": "application/json" }
         });
@@ -87,11 +115,26 @@ export async function updateHideStatusProject(data) {
     }
 
     try {
-        await sql`
-        update project.register
-        set hidestatus = ${hide}
-        where userid = ${userId} and projectid = ${projectId}
+        let params = []
+        let conditions = []
+
+        params.push(userId)
+        conditions.push(`userid = $${params.length}`)
+
+        params.push(projectId)
+        conditions.push(`projectid = $${params.length}`)
+
+        const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+
+        params.push(hide)
+
+        const query = `
+            update project.register
+            set hidestatus = $${params.length}
+            ${whereSQL}
         `
+
+        await sql.query(query, params);
 
         return new Response(JSON.stringify({ message: "Action successfully" }), {
             status: 200,
@@ -99,13 +142,46 @@ export async function updateHideStatusProject(data) {
         });
     }
     catch (err) {
-        return new Response(JSON.stringify({ message: err.message || "Something went wrong, try again" }), {
+        console.error(err);
+        return new Response(JSON.stringify({ message: "Something went wrong, try again" }), {
             status: 500,
             headers: { "Content-Type": "application/json" }
         });
     }
 }
 
+export async function updateWithdrawCourse(data) {
+    const { user_id, course_id } = data;
+
+    if (!(course_id || user_id)) {
+        return new Response(JSON.stringify({ message: "You missing something, check again" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" }
+        });
+    }
+
+    try {
+        let params = []
+
+        params.push(user_id, course_id)
+
+        const query = `select withdraw_course($${params.length - 1}, $${params.length});`;
+
+        await sql.query(query, params);
+
+        return new Response({
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+        });
+    }
+    catch (err) {
+        console.error(err);
+        return new Response(JSON.stringify({ message: "Something went wrong, try again" }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" }
+        });
+    }
+}
 export async function updateLesson(data) {
     const { user_id, course_id, lesson_id } = data;
 
@@ -117,7 +193,13 @@ export async function updateLesson(data) {
     }
 
     try {
-        await sql`select update_lesson(${user_id}, ${course_id}, ${lesson_id});`;
+        let params = []
+
+        params.push(user_id, course_id, lesson_id)
+
+        const query = `select update_lesson($${params.length - 2}, $${params.length - 1}, $${params.length});`;
+
+        await sql.query(query, params);
 
         return new Response(JSON.stringify({ message: "Congratulations, learn next lesson" }), {
             status: 200,
@@ -132,3 +214,4 @@ export async function updateLesson(data) {
         });
     }
 }
+

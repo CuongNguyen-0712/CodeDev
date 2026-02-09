@@ -1,26 +1,123 @@
-import { useState, useEffect, startTransition, useMemo, useRef } from "react"
+import { useState, useEffect, startTransition } from "react"
 
 import MyProjectService from "@/app/services/getService/myProjectService";
 import DeleteMyProjectService from "@/app/services/deleteService/myProjectService";
 import UpdateHideStatusProjectService from "@/app/services/updateService/hideStatusProjectService";
 
-import Form from "next/form";
 import { useRouterActions } from "@/app/router/router";
+
 import { ErrorReload } from "../ui/error";
 import { LoadingContent } from "../ui/loading";
-import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
 import AlertPush from "../ui/alert";
+import Search from "../ui/search";
 
-import { uniqWith, debounce } from "lodash";
+import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
 
-import { IoFilter, IoEyeOff, IoEye } from "react-icons/io5";
+import { uniqWith } from "lodash";
+
 import { MdAddCircleOutline } from "react-icons/md";
-import { FaRegCheckCircle, FaInfoCircle, FaRegTrashAlt } from "react-icons/fa";
+import { FaInfoCircle, FaRegTrashAlt } from "react-icons/fa";
 import { FaUserGroup, FaUser, FaArrowRight } from "react-icons/fa6";
+import { LuSearchX } from "react-icons/lu";
+
+export function ProjectItem({
+    item,
+    statusColors,
+    isHandling,
+    onDelete
+}) {
+    const [confirmDelete, setConfirmDelete] = useState(false);
+
+    return (
+        <div className="item_project">
+            <div className="project_actions">
+                <button
+                    className="delete_project"
+                    onClick={() => {
+                        setConfirmDelete(true);
+                    }}
+                >
+                    <FaRegTrashAlt />
+                </button>
+            </div>
+            <div className="main_item">
+                <div className="main_top">
+                    <button className="method_project">
+                        {item.method === "Self" && <FaUser fontSize={16} />}
+                        {item.method === "Team" && <FaUserGroup fontSize={16} />}
+                    </button>
+                    <h3>{item.name}</h3>
+                </div>
+
+                <div className="content_project">
+                    <p className="description">
+                        <FaInfoCircle
+                            color="var(--color_blue)"
+                            fontSize={16}
+                            style={{ flexShrink: 0 }}
+                        />
+                        {item.description}
+                    </p>
+                </div>
+            </div>
+
+            <p
+                className="status_project"
+                style={{
+                    "--color":
+                        statusColors[item.status] ||
+                        "var(--color_orange)",
+                }}
+            >
+                {item.status}
+            </p>
+
+            <button className="join_project">
+                <FaArrowRight fontSize={18} />
+            </button>
+
+            {confirmDelete && (
+                <div className="confirm_handler">
+                    {isHandling ? (
+                        <LoadingContent scale={0.8} />
+                    ) : (
+                        <div className="form_confirm">
+                            <div className="confirm_text">
+                                <h4 className="delete_func">Deleting</h4>
+                                <p>
+                                    Are you sure you want to delete the
+                                    project <strong>{item.name}</strong> ?
+                                </p>
+                            </div>
+
+                            <div className="form_confirm_button">
+                                <button
+                                    className="delete_button"
+                                    onClick={() => onDelete({ id: item.id, project: item.name })}
+                                    disabled={isHandling}
+                                >
+                                    Delete
+                                </button>
+                                <button
+                                    className="cancel_button"
+                                    onClick={() =>
+                                        setConfirmDelete(false)
+                                    }
+                                    disabled={isHandling}
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
 
 export default function Project({ redirect }) {
     const { navigateToProject } = useRouterActions();
-    const ref = useRef(null)
 
     const status_colors = {
         'Completed': 'var(--color_green)',
@@ -29,15 +126,53 @@ export default function Project({ redirect }) {
         'Pending': 'var(--color_orange)',
     };
 
+    const filterMapping = [
+        {
+            name: 'status',
+            items: [
+                {
+                    name: 'Pending',
+                    value: 'Pending'
+                },
+                {
+                    name: 'Ongoing',
+                    value: 'Ongoing'
+                },
+                {
+                    name: 'Completed',
+                    value: 'Completed'
+                },
+                {
+                    name: 'Not Started',
+                    value: 'Not Started'
+                }
+            ]
+        },
+        {
+            name: 'method',
+            items: [
+                {
+                    name: 'Self',
+                    value: 'Self'
+                },
+                {
+                    name: 'Team',
+                    value: 'Team'
+                }
+            ]
+        }
+    ]
+
+    const defaultFilter = {
+        method: ['Self']
+    }
     const [state, setState] = useState({
         data: [],
         pending: true,
-        isHide: false,
-        handling: false,
         message: null,
         error: null,
         search: '',
-        filter: false,
+        filter: null,
     })
 
     const [load, setLoad] = useState({
@@ -48,16 +183,7 @@ export default function Project({ redirect }) {
         deletedCount: 0
     })
 
-    const [filter, setFilter] = useState({
-        hide: false
-    })
-
-    const [confirm, setConfirm] = useState({
-        id: null,
-        hide: false,
-        show: false,
-        delete: false,
-    })
+    const [handlingMap, setHandlingMap] = useState({})
 
     const [apiQueue, setApiQueue] = useState([]);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -66,7 +192,8 @@ export default function Project({ redirect }) {
     const { setRef } = useInfiniteScroll({
         hasMore: load.hasMore,
         onLoadMore: () => {
-            if (!isProcessing && load.hasMore) {
+            if (
+                load.hasMore) {
                 setApiQueue((prev) => [
                     ...prev,
                     { type: "fetch" }
@@ -80,7 +207,7 @@ export default function Project({ redirect }) {
 
         try {
             const adjustedOffset = Math.max(0, load.offset - load.deletedCount);
-            const res = await MyProjectService({ search: state.search.trim(), limit: load.limit, offset: adjustedOffset.toString(), filter: filter });
+            const res = await MyProjectService({ search: state.search.trim(), limit: load.limit, offset: adjustedOffset.toString(), filter: state.filter ?? {} });
             if (res.status === 200) {
                 setLoad((prev) => ({
                     ...prev,
@@ -98,58 +225,58 @@ export default function Project({ redirect }) {
             }
         }
         catch (err) {
-            setState((prev) => ({ ...prev, error: { status: 500, message: err.message }, pending: false }));
+            setState((prev) => ({ ...prev, error: { status: err.status || 500, message: "External server error, try again" }, pending: false }));
         }
     }
 
-    const executeDelete = async (data) => {
-        if (!data) return
+    const executeDelete = async ({ id, project }) => {
+        if (!id) return
 
-        setState((prev) => ({ ...prev, handling: { ...prev.handling, delete: true } }));
+        startHandling(id);
 
         try {
-            const res = await DeleteMyProjectService(data);
+
+            const res = await DeleteMyProjectService(id);
+
             if (res.status === 200) {
                 setLoad((prev) => ({ ...prev, deletedCount: prev.deletedCount + 1 }));
-                setState((prev) => ({ ...prev, data: prev.data.filter((item) => item.id !== data) }));
+                setState((prev) => ({ ...prev, data: prev.data.filter((item) => item.id !== id) }));
                 setApiQueue((prev) => [...prev, { type: "fetch" }]);
                 startTransition(() => {
                     setAlert({
                         status: res.status,
-                        message: res.message || "Deleted successfully",
+                        message: "Deleted project successfully: " + project,
                     })
-                    setConfirm((prev) => ({ ...prev, delete: false, id: null }))
-                    setState((prev) => ({ ...prev, handling: { ...prev.handling, delete: false } }));
                 })
             }
             else {
                 setAlert({
                     status: res.status,
-                    message: res.message || "Delete failed",
+                    message: "Failed to delete project: " + project,
                 });
-                setState((prev) => ({ ...prev, handling: { ...prev.handling, delete: false } }));
             }
         }
         catch (err) {
             setAlert({
                 status: err.status || 500,
-                message: err.message || "Something is wrong, try again",
+                message: "Error deleting project: " + project,
             });
-            setState((prev) => ({ ...prev, handling: { ...prev.handling, delete: false } }));
+        } finally {
+            stopHandling(id);
         }
     }
 
-    const handleDelete = (data) => {
+    const handleDelete = ({ id, project }) => {
         setApiQueue((prev) => [
             ...prev,
             {
                 type: "delete",
-                execute: () => executeDelete(data)
+                execute: () => executeDelete({ id, project })
             }
         ])
     }
 
-    const executeHide = async (data) => {
+    const executeMarked = async (data) => {
         const { id, hide } = data
 
         if (!id) return;
@@ -198,7 +325,7 @@ export default function Project({ redirect }) {
         catch (err) {
             setAlert({
                 status: err.status || 500,
-                message: err.message || "Something is wrong, try again",
+                message: "Something is wrong, try again",
             });
             setState((prev) => ({
                 ...prev,
@@ -210,12 +337,12 @@ export default function Project({ redirect }) {
         }
     }
 
-    const handleHide = (data) => {
+    const handleMarked = (data) => {
         setApiQueue((prev) => [
             ...prev,
             {
-                type: 'hide',
-                execute: () => executeHide(data)
+                type: 'marked',
+                execute: () => executeMarked(data)
             }
         ])
     }
@@ -242,10 +369,6 @@ export default function Project({ redirect }) {
         processQueue();
     }, [apiQueue])
 
-    useEffect(() => {
-        setState((prev) => ({ ...prev, isHide: filter.hide }));
-    }, [state.pending])
-
     const handleSubmitSearch = () => {
         if (state.search.length > 0 && state.search.trim() === '') return;
 
@@ -265,95 +388,42 @@ export default function Project({ redirect }) {
         handleSubmitSearch();
     }, [state.search])
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        handleSubmitSearch();
-    }
-
     const refetchData = () => {
         setState((prev) => ({ ...prev, error: null, pending: true }));
-        fetchData();
+        setApiQueue((prev) => [...prev, { type: "fetch" }]);
     }
     const handleRedirect = () => {
         redirect(true)
         navigateToProject();
     }
 
-    const handleDebounce = useMemo(() => {
-        return debounce((value) => {
-            setState((prev) => ({ ...prev, search: value }));
-        }, 500);
-    }, [])
-
-    useEffect(() => {
-        return () => {
-            handleDebounce.cancel();
-        }
-    }, [handleDebounce])
-
-    const handleChange = (e) => {
-        e.preventDefault();
-        handleDebounce(e.target.value);
-    }
-
-    const refTable = (e) => {
-        if (!ref.current) return;
-
-        if (ref.current && !ref.current.contains(e.target)) {
-            setState(prev => ({ ...prev, filter: false }))
-        }
-    }
-
-    useEffect(() => {
-        document.addEventListener('click', refTable);
-        return () => {
-            document.removeEventListener('click', refTable);
-        }
-    }, [state.filter])
-
     useEffect(() => {
         setAlert(null)
     }, [alert])
 
+    const startHandling = (id) => {
+        setHandlingMap(prev => ({ ...prev, [id]: true }))
+    }
+
+    const stopHandling = (id) => {
+        setHandlingMap(prev => {
+            const rest = { ...prev }
+            delete rest[id]
+            return rest
+        })
+    }
+
     return (
         <div id="myProject">
             <div className="heading-myProject">
-                <Form className="input-search" onSubmit={handleSubmit}>
-                    <input type="text" name="search" placeholder="Search your project" autoComplete="off" onChange={handleChange} />
-                    <button type="button" className={`filter ${state.filter ? 'active' : ''}`} onClick={() => setState((prev) => ({ ...prev, filter: !prev.filter }))}>
-                        <IoFilter />
-                    </button>
-                    {state.filter &&
-                        <div className="table" ref={ref}>
-                            <div className="content_table">
-                                <div className="filter_value">
-                                    <span>Status</span>
-                                    <button
-                                        type="button"
-                                        onClick={() => setFilter({ ...filter, hide: !filter.hide })}
-                                        style={filter.hide ? { background: 'var(--color_black)', color: 'var(--color_white)' } : { background: 'var(--color_gray_light)', color: 'var(--color_black)' }}
-                                        disabled={state.pending}
-                                    >
-                                        Hide
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="footer_table">
-                                <button type="submit" disabled={state.pending}>
-                                    {
-                                        state.pending ?
-                                            <LoadingContent scale={0.5} color='var(--color_white)' />
-                                            :
-                                            <>
-                                                <FaRegCheckCircle />
-                                                Apply
-                                            </>
-                                    }
-                                </button>
-                            </div>
-                        </div>
-                    }
-                </Form>
+                <Search
+                    data={filterMapping}
+                    submit={handleSubmitSearch}
+                    setSearch={(value) => setState((prev) => ({ ...prev, search: value }))}
+                    setFilter={(value) => setState((prev) => ({ ...prev, filter: value }))}
+                    defaultFilter={defaultFilter}
+                    pending={state.pending}
+                />
                 <div className="handle-project">
                     <button id="project-btn" onClick={handleRedirect}>
                         <MdAddCircleOutline fontSize={16} />
@@ -365,7 +435,6 @@ export default function Project({ redirect }) {
             </div>
             <div className="project-list">
                 {
-
                     state.pending ?
                         <LoadingContent />
                         :
@@ -374,174 +443,29 @@ export default function Project({ redirect }) {
                             :
                             state.data && state.data.length > 0 ?
                                 state.data.map((item) => (
-                                    <div className="item_project" key={item.id}>
-                                        <div className="project_actions">
-                                            <button
-                                                className="delete_project"
-                                                onClick={() => setConfirm((prev) => ({
-                                                    ...prev,
-                                                    id: item.id,
-                                                    show: false,
-                                                    hide: false,
-                                                    delete: true
-                                                }))}
-                                            >
-                                                <FaRegTrashAlt />
-                                            </button>
-                                            {
-                                                filter.hide ?
-                                                    <button
-                                                        className="show_project"
-                                                        onClick={() => setConfirm((prev) => ({
-                                                            ...prev,
-                                                            id: item.id,
-                                                            hide: false,
-                                                            delete: false,
-                                                            show: true
-                                                        }))}
-                                                    >
-                                                        <IoEye />
-                                                    </button>
-                                                    :
-                                                    <button
-                                                        className="hide_project"
-                                                        onClick={() => setConfirm((prev) => ({
-                                                            ...prev,
-                                                            id: item.id,
-                                                            show: false,
-                                                            delete: false,
-                                                            hide: true
-                                                        }))}
-                                                    >
-                                                        <IoEyeOff />
-                                                    </button>
-                                            }
-                                        </div>
-                                        <div className="main_item">
-                                            <div className="main_top">
-                                                <button className="method_project">
-                                                    {item.method === 'Self' && <FaUser fontSize={16} />}
-                                                    {item.method === 'Team' && <FaUserGroup fontSize={16} />}
-                                                </button>
-                                                <h3>{item.name}</h3>
-                                            </div>
-                                            <div className='content_project'>
-                                                <p className="description">
-                                                    <FaInfoCircle
-                                                        color={'var(--color_blue)'}
-                                                        fontSize={16}
-                                                        style={{ flexShrink: 0 }}
-                                                    />
-                                                    {item.description}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <p className="status_project"
-                                            style={{ '--color': status_colors[item.status] || 'var(--color_orange)' }}
-                                        >
-                                            {item.status}
-                                        </p>
-                                        <button className="join_project">
-                                            <FaArrowRight fontSize={18} />
-                                        </button>
-                                        {
-                                            confirm.id === item.id &&
-                                            <div className="confirm_handler">
-                                                {
-                                                    (state.handling.hide || state.handling.delete) ?
-                                                        <LoadingContent scale={0.8} />
-                                                        :
-                                                        <div className='form_confirm'>
-                                                            {
-                                                                confirm.delete &&
-                                                                <div className='confirm_text'>
-                                                                    <h4 className="delete_func">Deleting</h4>
-                                                                    <p>
-                                                                        All data may be lost. Are you sure you want to delete this project?
-                                                                    </p>
-                                                                </div>
-                                                            }
-                                                            {
-                                                                confirm.hide &&
-                                                                <div className='confirm_text'>
-                                                                    <h4 className="hide_func">Hiding</h4>
-                                                                    <p>
-                                                                        This action will hide the project. You can show it later.
-                                                                    </p>
-                                                                </div>
-                                                            }
-                                                            {
-                                                                confirm.show &&
-                                                                <div className='confirm_text'>
-                                                                    <h4 className="hide_func">Showing</h4>
-                                                                    <p>
-                                                                        This action will show the project. You can hide it later.
-                                                                    </p>
-                                                                </div>
-                                                            }
-                                                            <div className='form_confirm_button'>
-                                                                {
-                                                                    confirm.delete &&
-                                                                    <button
-                                                                        className="delete_button"
-                                                                        onClick={() => handleDelete(item.id)}
-                                                                    >
-                                                                        Delete
-                                                                    </button>
-                                                                }
-                                                                {
-                                                                    state.isHide ?
-                                                                        <>
-                                                                            {
-                                                                                confirm.show &&
-                                                                                <button
-                                                                                    className="show_button"
-                                                                                    onClick={() => handleHide({ id: item.id, hide: false })}
-                                                                                >
-                                                                                    Show
-                                                                                </button>
-                                                                            }
-                                                                        </>
-                                                                        :
-                                                                        <>
-                                                                            {
-                                                                                confirm.hide &&
-                                                                                <button
-                                                                                    className="hide_button"
-                                                                                    onClick={() => handleHide({ id: item.id, hide: true })}
-                                                                                >
-                                                                                    Hide
-                                                                                </button>
-                                                                            }
-                                                                        </>
-                                                                }
-                                                                <button
-                                                                    className="cancel_button"
-                                                                    onClick={() => setConfirm({ delete: false, hide: false })}
-                                                                >
-                                                                    Cancel
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                }
-                                            </div>
-                                        }
-                                    </div>
+                                    <ProjectItem
+                                        key={item.id}
+                                        item={item}
+                                        statusColors={status_colors}
+                                        isHandling={!!handlingMap[item.id]}
+                                        onDelete={handleDelete}
+                                    />
                                 ))
                                 :
-                                <p>No project can be found here!</p>
+                                <p className='no_data'>
+                                    <LuSearchX />
+                                    No project can be found here !
+                                </p>
                 }
             </div>
-            {
-                !state.pending && !state.error && (
-                    load.hasMore ?
-                        <span ref={setRef} className="load_wrapper">
-                            <LoadingContent scale={0.5} />
-                        </span>
-                        :
-                        null
-                )
-            }
+            {!state.pending && state.data.length > 0 && load.hasMore && (
+                <span className="load_wrapper" ref={setRef}>
+                    <LoadingContent
+                        scale={0.5}
+                        message={state.error && "Something is wrong, try again..."}
+                    />
+                </span>
+            )}
             <AlertPush
                 message={alert?.message}
                 status={alert?.status}

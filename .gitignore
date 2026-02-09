@@ -11,7 +11,7 @@
 # next.js
 /.next/
 /out/
-
+/dist/
 
 # misc
 .DS_Store
@@ -28,7 +28,7 @@ next-env.d.ts
 .vercel
 
 # env
-.env*.local
+.env*
 
 # sanity local
 /sanity

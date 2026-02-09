@@ -11,6 +11,7 @@ export function useRouterActions() {
         navigateToSocial: () => router.push("/social", { shallow: true }),
         navigateToCourse: (param) => router.push(`/course/${param ?? ''}`, { shallow: true }),
         navigateToProject: (param) => router.push(`/project/${param ?? ''}`, { shallow: true }),
+        navigateToLearning: (param) => router.push(`/learning/${param ?? ''}`, { shallow: true }),
         navigateToEvent: () => router.push("/event", { shallow: true }),
         navigateBack: () => router.back(),
         handleRefresh: () => router.refresh(),

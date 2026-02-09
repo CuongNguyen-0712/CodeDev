@@ -1,12 +1,11 @@
 'use server'
 
 import 'server-only'
-import { neon } from '@neondatabase/serverless'
+import { sql } from '@/app/lib/db'
 import { cookies } from 'next/headers'
 import { SignJWT, jwtVerify } from 'jose'
 import { redirect } from 'next/navigation'
 
-const sql = neon(process.env.DATABASE_URL)
 const secretKey = process.env.SESSION_KEY
 const encodedKey = new TextEncoder().encode(secretKey);
 
@@ -80,7 +79,9 @@ export async function deleteSession() {
 
     if (!id) redirect('/auth');
 
-    await sql`DELETE FROM storage.session WHERE id = ${id}`
+    const query = `DELETE FROM storage.session WHERE id = $1`
+    await sql.query(query, [id])
+
     cookieStore.delete('session')
 
     redirect('/auth')

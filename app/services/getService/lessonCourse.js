@@ -1,17 +1,21 @@
-export default async function SignUpService(data) {
+export default async function GetLessonCourseService(data) {
+    const { course_id } = data
+
+    const params = new URLSearchParams();
+    params.set('course_id', course_id);
+
     try {
-        const res = await fetch('/api/auth/signUp', {
-            method: 'POST',
+        const res = await fetch(`/api/get/getLessonCourse?${params.toString()}`, {
+            method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(data),
-        })
+        });
 
         if (res.status === 404) {
             return {
                 status: 404,
-                message: "Something is missing, try again"
+                message: "API not found"
             }
         }
 
@@ -20,21 +24,18 @@ export default async function SignUpService(data) {
         if (res.ok) {
             return {
                 status: res.status,
-                success: raw.success,
-                message: raw.message
-            }
+                data: raw.data
+            };
         } else {
             return {
                 status: res.status,
-                success: raw.success,
                 message: raw.message
-            }
+            };
         }
-    }
-    catch (err) {
+    } catch (error) {
         return {
             status: 500,
-            message: err.message
-        }
+            message: error.message
+        };
     }
 }

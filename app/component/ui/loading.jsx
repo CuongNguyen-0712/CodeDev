@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 export function LoadingRedirect({ scale }) {
 
     const [message, setMessage] = useState(null);
-    const [onChange, setOnChange] = useState(false);
+    const [onChange, setOnChange] = useState(true);
 
     const message_timer = (message, delay) => {
         const timer = setTimeout(() => {
@@ -23,9 +23,11 @@ export function LoadingRedirect({ scale }) {
     useEffect(() => {
         setOnChange(true)
 
-        setTimeout(() => {
+        const timer = setTimeout(() => {
             setOnChange(false)
         }, 200)
+
+        return () => clearTimeout(timer)
     }, [message])
 
     return (

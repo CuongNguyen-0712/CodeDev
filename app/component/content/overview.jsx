@@ -174,10 +174,12 @@ export default function Overview() {
         { status: 'Enrolled', color: 'var(--color_blue)' },
         { status: 'In Progress', color: 'var(--color_orange)' },
         { status: 'Completed', color: 'var(--color_green)' },
+        { status: 'Cancelled', color: 'var(--color_red)' },
+        { status: 'Refunded', color: 'var(--color_purple)' }
     ];
 
     const languageStats = useMemo(() => {
-        const groupedLanguages = state.data.data.reduce((acc, item) => {
+        const groupedLanguages = state.data.data.filter((data) => data.status === 'In Progress').reduce((acc, item) => {
             if (!acc[item.language]) {
                 acc[item.language] = {
                     id: item.language,
@@ -257,8 +259,8 @@ export default function Overview() {
                                             <h4>{item.id}</h4>
                                         </div>
                                         <div className="bar">
-                                            <span style={{ background: item.color, width: `${((item.count / state.data.data.length) * 100).toFixed(2)}%` }} />
-                                            <h5>{((item.count / state.data.data.length) * 100).toFixed(2)}%</h5>
+                                            <span style={{ background: item.color, width: `${((item.count / languageStats.length) * 100).toFixed(2)}%` }} />
+                                            <h5>{((item.count / languageStats.length) * 100).toFixed(2)}%</h5>
                                         </div>
                                     </div>
                                 ))
@@ -325,7 +327,7 @@ export default function Overview() {
                         }
                     </div>
                     <div className="footer">
-                        <button onClick={() => queryNavigate('home', { name: 'course' })}>Open view my course</button>
+                        <button onClick={() => queryNavigate('home', { tab: 'learning' })}>Open view my course</button>
                     </div>
                 </div>
             </div>

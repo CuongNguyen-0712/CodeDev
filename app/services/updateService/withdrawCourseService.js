@@ -1,11 +1,11 @@
 import { getSession } from "@/app/lib/session";
 
-export default async function UpdateHideStatusCourseService(data) {
+export default async function UpdateWithdrawCourseService(data) {
     const id = (await getSession())?.userId;
-    const req = { ...data, userId: id }
+    const req = { course_id: data, user_id: id }
 
     try {
-        const res = await fetch('/api/update/updateHideStatusCourse', {
+        const res = await fetch('/api/update/updateWithdrawCourse', {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
@@ -25,12 +25,11 @@ export default async function UpdateHideStatusCourseService(data) {
         if (res.ok) {
             return {
                 status: res.status,
-                message: raw.message || "Action successfully"
             };
         } else {
             return {
                 status: res.status,
-                message: raw.message || "Action failed"
+                message: raw.message
             };
         }
     } catch (error) {

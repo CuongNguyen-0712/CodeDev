@@ -7,7 +7,24 @@ export default async function GetMyProjectService({ search, limit, offset, filte
     if (search) params.set('search', search);
     if (limit) params.set('limit', limit);
     if (offset) params.set('offset', offset);
-    Object.keys(filter).forEach((key) => params.set(key, filter[key]));
+
+    Object.entries(filter).forEach(([key, value]) => {
+        if (value === null || value === undefined || (Array.isArray(value) && value.length === 0)) return;
+
+        if (Array.isArray(value) && value.length > 0) {
+            params.set(key, value.join(","));
+            return;
+        }
+
+        if (typeof value === "string" && value.trim() !== "") {
+            params.set(key, value.trim());
+            return;
+        }
+
+        if (typeof value === "number" || typeof value === "boolean") {
+            params.set(key, String(value));
+        }
+    });
 
     try {
         const res = await fetch(`/api/get/getMyProject?${params.toString()}`, {

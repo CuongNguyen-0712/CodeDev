@@ -26,13 +26,14 @@ export function InputGroup({ name, label, type, value, onChange, error, icon, re
             {
                 !read &&
                 <button
+                    type="button"
                     className='clear'
                     tabIndex={-1}
+                    onClick={handleClear}
                 >
                     <IoIosCloseCircle
                         color="var(--color_gray)"
                         fontSize={18}
-                        onClick={handleClear}
                     />
                 </button>
             }

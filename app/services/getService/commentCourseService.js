@@ -1,16 +1,13 @@
-import { getSession } from "@/app/lib/session";
-
-export default async function GetContentLessonService(data) {
-    const user_id = (await getSession())?.userId
-    const { course_id, lesson_id } = data
+export default async function GetCommentCourseService(data) {
+    const { course_id, offset, limit } = data
 
     const params = new URLSearchParams();
     params.set('course_id', course_id);
-    params.set('lesson_id', lesson_id);
-    params.set('user_id', user_id)
+    params.set('offset', offset);
+    params.set('limit', limit);
 
     try {
-        const res = await fetch(`/api/get/getContentLesson?${params.toString()}`, {
+        const res = await fetch(`/api/get/getCommentCourse?${params.toString()}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -35,12 +32,12 @@ export default async function GetContentLessonService(data) {
             return {
                 status: res.status,
                 message: raw.message
-            }
+            };
         }
     } catch (error) {
         return {
             status: 500,
             message: error.message
-        }
+        };
     }
 }

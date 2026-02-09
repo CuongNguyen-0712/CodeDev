@@ -16,7 +16,15 @@ export async function signIn(data) {
     }
 
     try {
-        const res = await sql`
+        const params = []
+        const conditions = []
+
+        params.push(name)
+        conditions.push(`u.username = $${params.length}`)
+
+        const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+
+        const query = `
             select 
                 u.id as id,
                 u.password as password,
@@ -24,9 +32,10 @@ export async function signIn(data) {
                 i.email as email
             from private.users u
             join private.info i on i.user_id = u.id
-            where u.username = ${name} 
+            ${whereSQL}
             limit 1
             `
+        const res = await sql.query(query, params)
 
         if (res.length === 0) {
             return new Response(
@@ -35,23 +44,24 @@ export async function signIn(data) {
             )
         }
 
-        const auth = await bcrypt.compare(pass, res[0].password)
+        const isHash = await bcrypt.compare(pass, res[0].password)
 
-        if (!auth) {
+        if (!isHash) {
             return new Response(
                 JSON.stringify({ success: false, message: "Invalid credentials" }),
                 { status: 500, headers: { "Content-Type": "application/json" } }
             )
         }
 
-        const userId = await res[0].id
+        const userId = res[0].id
 
-        const checkSession = await sql
-            `
-            insert into storage.session (id) values (${userId})
+        const queryCheck = `
+            insert into storage.session (id) values ($1)
             on conflict (id) do nothing
             returning id
-            `
+        `
+
+        const checkSession = await sql.query(queryCheck, [userId]);
 
         if (checkSession.length === 0) {
             return new Response(
@@ -60,7 +70,7 @@ export async function signIn(data) {
             )
         }
 
-        const resSession = await createSession({ userId: userId, username: await res[0].username, email: await res[0].email })
+        const resSession = await createSession({ userId: userId, username: res[0].username, email: res[0].email })
 
         if (!resSession) {
             return new Response(
@@ -76,7 +86,7 @@ export async function signIn(data) {
         }
 
     } catch (error) {
-        console.error("Error:", error);
+        console.error("Error sign in:", error);
         return new Response(
             JSON.stringify({ success: false, message: "Internal server error" }),
             { status: 500, headers: { "Content-Type": "application/json" } }
@@ -85,7 +95,6 @@ export async function signIn(data) {
 }
 
 export async function signUp(data) {
-
     const { surname, name, email, phone, username, password } = data
     if (!surname || !name || !email || !phone || !username || !password) {
         return new Response(JSON.stringify({ success: false, message: "Missing credentials" }), {
@@ -95,6 +104,7 @@ export async function signUp(data) {
     }
 
     const existingUser = await sql`SELECT 1 FROM private.users WHERE username = ${username} LIMIT 1`
+
     if (existingUser.length > 0) {
         return new Response(JSON.stringify({ success: false, message: "Username already exists" }), {
             status: 409,
@@ -106,8 +116,7 @@ export async function signUp(data) {
         const id = uuidv4();
         const hashPassword = await bcrypt.hash(password, 10)
 
-        await sql`INSERT INTO private.users (id, username, password) VALUES (${id}, ${username}, ${hashPassword})`
-        await sql`INSERT INTO private.info (user_id, surname, name, email, phone) VALUES (${id}, ${surname}, ${name}, ${email}, ${phone})`
+        await sql`call add_user(${id}, ${username}, ${hashPassword}, ${surname},${name}, ${email}, ${phone});`
 
         return new Response(JSON.stringify({ success: true, message: "Sign up successfully, go to login" }), {
             status: 200,

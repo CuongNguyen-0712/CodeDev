@@ -17,9 +17,10 @@ import { FaAngleLeft, FaAngleRight, FaCheck } from "react-icons/fa6";
 import { MdInfoOutline } from "react-icons/md";
 import { TbLayoutSidebarLeftCollapseFilled, TbReload } from "react-icons/tb";
 import { IoMdList } from "react-icons/io";
+import { BiMessageSquareDetail } from "react-icons/bi";
 
 export default function CoursePage({ params } = {}) {
-    const { navigateBack } = useRouterActions();
+    const { navigateBack, navigateToCourse } = useRouterActions();
 
     const [state, setState] = useState({
         data: {},
@@ -36,7 +37,7 @@ export default function CoursePage({ params } = {}) {
         lesson: null,
         handling: false,
         pending: true,
-        error: null
+        error: null,
     })
 
     const [lesson, setLesson] = useState({
@@ -45,6 +46,8 @@ export default function CoursePage({ params } = {}) {
         handling: false,
         error: null,
     })
+
+    const [redirect, setRedirect] = useState(false)
 
     const [alert, setAlert] = useState(null)
 
@@ -302,6 +305,13 @@ export default function CoursePage({ params } = {}) {
         getContentLesson(course.lesson);
     }
 
+    const redirectToDetailCourse = ({ id }) => {
+        if (!id) return;
+
+        setRedirect(true)
+        navigateToCourse(id)
+    }
+
     useEffect(() => {
         setAlert(null)
     }, [alert])
@@ -360,7 +370,7 @@ export default function CoursePage({ params } = {}) {
                                             </footer> */}
                                     </>
                                     :
-                                    <p>Data can not be loaded</p>
+                                    <p className='no_data'>Data can not be loaded, please try again!</p>
                     }
                 </div>
                 <div className={`slider ${slider ? 'active' : ''}`}>
@@ -434,7 +444,7 @@ export default function CoursePage({ params } = {}) {
                                             }
                                         </div>
                                         :
-                                        <p>No data can be shown here, try later!</p>
+                                        <p className="no_data">No data can be shown here, try later!</p>
                         }
                     </div>
                     <div className="footer_slider">
@@ -463,9 +473,44 @@ export default function CoursePage({ params } = {}) {
                             :
                             Object.values(state.data).length > 0 ?
                                 <>
+                                    <div className="view_course">
+                                        <img
+                                            src={state.data.image}
+                                            alt={state.data.title}
+                                            height={100}
+                                            width={100}
+                                        />
+                                        <h2>
+                                            {state.data.title}
+                                        </h2>
+                                        <p>
+                                            {state.data.description}
+                                        </p>
+                                    </div>
+                                    <div className="footer_view">
+                                        <button
+                                            onClick={() => setView(false)}
+                                        >
+                                            Close
+                                        </button>
+                                        <button
+                                            onClick={() => redirectToDetailCourse({ id: state.data.id })}
+                                            disabled={redirect}
+                                        >
+                                            {
+                                                redirect ?
+                                                    <LoadingContent scale={0.5} color='var(--color_white)' />
+                                                    :
+                                                    <>
+                                                        <BiMessageSquareDetail fontSize={18} />
+                                                        More info
+                                                    </>
+                                            }
+                                        </button>
+                                    </div>
                                 </>
                                 :
-                                <p>Data can not be loaded</p>
+                                <p className="no_data">Data can not be loaded, please try again!</p>
                     }
                 </div>
             </div>

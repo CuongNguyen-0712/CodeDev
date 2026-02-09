@@ -1,3 +1,4 @@
+'use client'
 import Layout from "../ui/layout";
 import CourseContent from "./content";
 

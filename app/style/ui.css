@@ -76,6 +76,12 @@
     overflow: hidden;
 }
 
+#redirect_message p {
+    transform: translateY(30px);
+    opacity: 0;
+    transition: 0.2s all ease;
+}
+
 .load_wrapper {
     display: flex;
     height: max-content;
@@ -381,17 +387,11 @@
     border-radius: 5px;
     padding: 5px 10px;
     color: var(--color_black);
-    background: transparent;
+    background: var(--color_gray_light);
     font-size: 14px;
     flex-shrink: 0;
     font-weight: 600;
-    transition: 0.2s all ease;
     cursor: pointer;
-
-    &:hover {
-        background: var(--color_gray_light);
-        transition: 0.2s all ease;
-    }
 }
 
 .alert::before {
@@ -435,12 +435,18 @@
     font-weight: 600;
     gap: 5px;
     cursor: pointer;
+    transition: 0.2s all ease;
 }
 
 #back_btn {
-    background: var(--color_gray_light);
+    background: var(--color_white);
     border: 2px solid var(--color_gray);
     color: var(--color_black);
+}
+
+#back_btn:hover {
+    background: var(--color_gray_light);
+    transition: 0.2s all ease;
 }
 
 #home_btn {
@@ -535,6 +541,264 @@
     100% {
         width: 100%;
     }
+}
+
+/* Input Search */
+.input_search {
+    display: flex;
+    height: 40px;
+    flex-grow: 1;
+    gap: 30px
+}
+
+.input_search .input_wrapper {
+    display: flex;
+    position: relative;
+    align-items: center;
+    height: 100%;
+    width: 100%;
+    max-width: 400px;
+    background: var(--color_white);
+    outline: 2px solid var(--color_gray);
+    border-radius: 50px;
+    overflow: hidden;
+    flex-shrink: 0;
+    transition: 0.2s all ease-out;
+}
+
+.input_search.active .input_wrapper {
+    width: 40px;
+    flex-grow: 0;
+    transition: 0.2s all ease-in;
+}
+
+.input_wrapper input {
+    display: flex;
+    height: 100%;
+    width: 100%;
+    padding: 0 10px 0 20px;
+    border: none;
+    outline: none;
+    transition: 0.2s all ease-out;
+}
+
+.input_search.active .input_wrapper input {
+    padding: 0;
+    width: 0;
+    visibility: hidden;
+    transition: 0.2s all ease-in;
+}
+
+#clear_search {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 20px;
+    width: 20px;
+    border-radius: 50%;
+    margin: 0 10px 0 auto;
+    background: var(--color_gray_light);
+    color: var(--color_black);
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.input_wrapper .filter_btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 40px;
+    color: var(--color_black);
+    background: transparent;
+    border-radius: 50px;
+    outline: none;
+    flex-shrink: 0;
+    transition: 0.2s all ease
+}
+
+.input_wrapper .filter_btn:hover {
+    background: var(--color_gray_light);
+    transition: 0.2s all ease
+}
+
+.input_search .table_filter {
+    display: flex;
+    height: 100%;
+    width: 0;
+    visibility: hidden;
+    gap: 30px;
+}
+
+.input_search.active .table_filter {
+    width: max-content;
+    visibility: visible;
+    transition-delay: 0.2s;
+}
+
+.input_search .table_filter * {
+    display: none;
+}
+
+.input_search.active .table_filter * {
+    display: flex;
+}
+
+.content_table {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    height: 100%;
+    width: max-content;
+    gap: 20px;
+}
+
+.filter_container {
+    display: flex;
+    height: max-content;
+    width: max-content;
+    gap: 20px;
+    flex-wrap: nowrap;
+}
+
+.filter_field {
+    display: flex;
+    position: relative;
+    height: max-content;
+    width: max-content;
+    background: transparent;
+}
+
+.filter_field>button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 35px;
+    width: max-content;
+    padding: 0 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 11px;
+    border-radius: 5px;
+    background: var(--color_white);
+    color: var(--color_black);
+    border: 1px solid var(--color_gray);
+    gap: 5px;
+}
+
+.filter_field>button span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 18px;
+    width: 18px;
+    font-weight: 600;
+    color: var(--color_white);
+    background: var(--color_blue_light);
+    border-radius: 50%;
+    margin-right: 5px;
+}
+
+.filter_field .table_field {
+    display: flex;
+    position: absolute;
+    height: max-content;
+    width: max-content;
+    top: 45px;
+    left: 0;
+    padding: 10px;
+    flex-direction: column;
+    background: var(--color_white);
+    gap: 10px;
+    box-shadow: 0 0 5px var(--color_gray);
+    border-radius: 5px;
+    transform: translateY(-10px);
+    opacity: 0;
+    visibility: hidden;
+    z-index: 1;
+    transition: 0.2s all ease;
+}
+
+.filter_field:hover .table_field {
+    transform: translateY(0px);
+    visibility: visible;
+    opacity: 1;
+    transition: 0.2s all ease;
+}
+
+.table_field button {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    height: 35px;
+    width: 100%;
+    padding: 0 10px;
+    font-size: 13px;
+    background: transparent;
+    color: var(--color_black);
+    border-radius: 5px;
+    gap: 10px;
+    transition: 0.2s all ease;
+    cursor: pointer;
+}
+
+.table_field button:hover {
+    background: var(--color_gray_light);
+    transition: 0.2s all ease;
+}
+
+.table_field button svg {
+    border-radius: 50%;
+    padding: 2px;
+    border: 2px solid var(--color_black);
+}
+
+.footer_table {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    width: max-content;
+    gap: 10px;
+}
+
+.footer_table button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 35px;
+    width: max-content;
+    font-weight: 600;
+    border-radius: 10px;
+    gap: 10px;
+    cursor: pointer;
+}
+
+#apply_filter {
+    width: 100px;
+    padding: 0 10px;
+    background: var(--color_black);
+    color: var(--color_white);
+}
+
+#reset_filter {
+    width: 35px;
+    background: var(--color_white);
+    color: var(--color_black);
+    border: 1px solid var(--color_gray);
+}
+
+/* No-data */
+.no_data {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    height: 100%;
+    width: 100%;
+    background: transparent;
+    color: var(--color_black_dark);
+    padding: 0 20px;
+    gap: 10px;
 }
 
 @media screen and (max-width: 500px) {

@@ -91,7 +91,7 @@
     height: 100%;
     width: 0;
     padding: 0;
-    background: var(--color_gray_light);
+    background: var(--color_bg);
     flex-direction: column;
     gap: 20px;
     flex-shrink: 0;
@@ -150,10 +150,10 @@
     min-height: 50px;
     width: 100%;
     border-radius: 10px;
-    padding: 10px;
+    padding: 20px;
     background: var(--color_white);
     color: var(--color_black);
-    gap: 10px;
+    gap: 20px;
     flex-direction: column;
     transition-delay: 0.2s;
 }
@@ -187,7 +187,7 @@
 
 .module.active .module_heading .module_header .icon_module {
     transform: rotate(90deg);
-    background: var(--color_blue);
+    background: var(--color_black);
     color: var(--color_white);
     transition: 0.2s all ease;
 }
@@ -196,9 +196,10 @@
     display: flex;
     height: max-content;
     width: max-content;
-    background: var(--color_blue);
-    color: var(--color_white);
-    border-radius: 15px;
+    background: var(--color_gray_light);
+    color: var(--color_black);
+    outline: 1px solid var(--color_gray);
+    border-radius: 5px;
     padding: 5px 15px;
     flex-shrink: 0;
 }
@@ -316,7 +317,6 @@
 #course_param_content .lesson_view {
     display: flex;
     justify-content: center;
-    height: 100%;
     flex-grow: 1;
     min-width: 300px;
     flex-direction: column;
@@ -327,6 +327,7 @@
     display: flex;
     width: 100%;
     flex-grow: 1;
+    background: transparent;
     padding: 30px 20px;
     flex-direction: column;
     gap: 10px;
@@ -376,10 +377,53 @@
     width: 100%;
     max-width: 450px;
     inset: 0;
+    padding: 20px;
     background: var(--color_white);
     box-shadow: 0 0 5px var(--color_gray_light);
+    flex-direction: column;
     transition: 0.2s all ease;
+    gap: 10px;
     z-index: 2;
+}
+
+.view_course {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-grow: 1;
+    width: 100%;
+    flex-direction: column;
+    gap: 20px;
+    text-align: center;
+}
+
+.footer_view {
+    display: flex;
+    gap: 20px;
+}
+
+.footer_view button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 35px;
+    flex-grow: 1;
+    padding: 0 10px;
+    font-weight: 600;
+    border-radius: 5px;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.footer_view button:first-child {
+    max-width: 150px;
+    background: var(--color_gray_light);
+    color: var(--color_black_dark);
+}
+
+.footer_view button:last-child {
+    background: var(--color_black);
+    color: var(--color_white);
 }
 
 @media screen and (max-width: 768px) {

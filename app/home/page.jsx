@@ -9,9 +9,9 @@ const pageTitles = {
         title: "Overview",
         description: "Welcome to CodeDev, your gateway to mastering coding skills...",
     },
-    course: {
-        title: "Course",
-        description: "Explore our courses, find and start learning",
+    learning: {
+        title: "Learning",
+        description: "Discover courses to enhance your skills",
     },
     project: {
         title: "Project",
@@ -23,11 +23,11 @@ const pageTitles = {
     },
     roadmap: {
         title: "Roadmap",
-        description: "Discover roadmap"
+        description: "Discover your coding journey",
     },
     event: {
         title: "Event",
-        description: "Join event"
+        description: "Join us for exciting coding events",
     }
 };
 
@@ -60,7 +60,7 @@ export async function generateMetadata(context) {
         };
     }
 
-    const tab = searchParams?.name || "overview";
+    const tab = searchParams?.tab || 'overview';
     const page = pageTitles[tab] || pageTitles.overview;
 
     return {

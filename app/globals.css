@@ -48,6 +48,7 @@ body {
     --color_white: #fff;
 
     --color_black: #374151;
+    --color_black_dark: #000000;
 
     --color_gray_light: #F5F5F5;
     --color_gray: #C0C0C0;
@@ -55,6 +56,7 @@ body {
 
     --color_green_light: #BBF7D0;
     --color_green: #4CAF50;
+    --color_green_dark: #228B22;
 
     --color_yellow: #FFB300;
 
@@ -83,6 +85,10 @@ body {
     textarea::placeholder {
         font-size: 14px !important;
     }
+
+    p {
+        font-size: 14px !important;
+    }
 }
 
 @media screen and (max-width: 768px) {
@@ -98,7 +104,8 @@ body {
 
 input:disabled,
 textarea:disabled,
-button:disabled {
+button:disabled,
+svg {
     pointer-events: none;
 }
 

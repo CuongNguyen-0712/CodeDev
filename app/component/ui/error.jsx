@@ -4,7 +4,9 @@ import { useRouterActions } from "@/app/router/router"
 import { BiSolidMessageAltError } from "react-icons/bi";
 import { IoReload, IoClose } from "react-icons/io5";
 
-export function ErrorReload({ data, refetch, callback = null }) {
+export function ErrorReload({ data = null, refetch, callback = null }) {
+    if (data === null) return;
+
     const { status, message } = data
     return (
         <div id="error">
