@@ -4,152 +4,163 @@ import { useSearchParams, usePathname } from "next/navigation";
 import Image from "next/image";
 
 import { useQuery } from "@/app/router/router";
-import { useSize } from "@/app/contexts/sizeContext";
 
-import { FaUsers, FaAngleLeft, FaCrown } from "react-icons/fa";
+import { FaUsers, FaCrown } from "react-icons/fa";
 import { GoProjectRoadmap } from "react-icons/go";
 import { FaCode } from "react-icons/fa6";
-import { IoSettingsSharp, IoSearch } from "react-icons/io5";
+import { IoSettingsSharp, IoSearch, IoClose } from "react-icons/io5";
 import {
   MdHelpCenter,
   MdSpaceDashboard,
   MdEmojiEvents,
-  MdOutlineClose,
   MdOutlineFeedback
 } from "react-icons/md";
 import { VscProject } from "react-icons/vsc";
+import { HiChevronDown, HiSparkles } from "react-icons/hi2";
 
-export default function Dashboard({ handleDashboard, isDashboard }) {
-  const { size } = useSize();
-  const refNavigation = useRef(null);
+export default function Dashboard({ isDashboard, handleDashboard }) {
+  const dashBoardRef = useRef(null);
+  const pathnameRef = useRef(null);
+
   const params = useSearchParams();
   const pathname = usePathname();
-  const queryNavigate = useQuery()
+  const queryNavigate = useQuery();
 
-  const [targetItem, setTargetItem] = useState('Overview');
+  const [activeIndex, setActiveIndex] = useState(0);
   const [showOther, setShowOther] = useState(false);
 
   const menuList = [
-    {
-      index: 0,
-      name: "Overview",
-      icon: <MdSpaceDashboard />,
-    },
-    {
-      index: 1,
-      name: "Learning",
-      icon: <FaCode />,
-    },
-    {
-      index: 2,
-      name: "Project",
-      icon: <VscProject />
-    },
-    {
-      index: 3,
-      name: "Social",
-      icon: <FaUsers />,
-    },
-    {
-      index: 4,
-      name: "Roadmap",
-      icon: <GoProjectRoadmap />,
-    },
-    {
-      index: 5,
-      name: "Event",
-      icon: <MdEmojiEvents />,
-    },
+    { name: "Overview", icon: <MdSpaceDashboard />, badge: null },
+    { name: "Learning", icon: <FaCode />, badge: "5" },
+    { name: "Project", icon: <VscProject />, badge: null },
+    { name: "Social", icon: <FaUsers />, badge: "12" },
+    { name: "Roadmap", icon: <GoProjectRoadmap />, badge: null },
+    { name: "Event", icon: <MdEmojiEvents />, badge: "3" },
   ];
 
+  const refDashboard = (e) => {
+    e.stopPropagation();
+    if (!dashBoardRef.current || !isDashboard) return;
+
+    if (!dashBoardRef.current.contains(e.target)) {
+      handleDashboard(false);
+      document.body.classList.remove('overlay');
+    }
+  };
+
   useEffect(() => {
-    const menuBtns = document.querySelectorAll('.menu-item button')
-    const index = menuList.find(item => String.prototype.toLowerCase.call(item.name) === params.get('tab'))?.index || 0
-    refNavigation.current.style.top = `${index * 50}px`;
-    menuBtns.forEach(btn => btn.classList.remove('active'))
-    menuBtns[index].classList.add('active')
-  }, [params])
+    document.addEventListener('mousedown', refDashboard);
+    return () => document.removeEventListener('mousedown', refDashboard);
+  }, [isDashboard, handleDashboard]);
+
+  useEffect(() => {
+    const tab = params.get('tab');
+    const index = menuList.findIndex(item => item.name.toLowerCase() === tab);
+    setActiveIndex(index >= 0 ? index : 0);
+    pathnameRef.current = pathname;
+    handleDashboard(false);
+  }, [params]);
 
   const handleNavigation = (index, name) => {
-    refNavigation.current.style.top = `${index * 50}px`;
-    setTargetItem(name);
-    queryNavigate(window.location.pathname, { tab: String.prototype.toLowerCase.call(name) })
+    setActiveIndex(index);
+    queryNavigate(pathnameRef.current, { tab: name.toLowerCase() });
   };
 
   return (
-    <>
+    <aside id="aside" className={isDashboard ? "active" : ""} ref={dashBoardRef}>
       <div id="dashboard">
-        <div className="header">
-          <Image src={'/image/static/logo.svg'} alt="logo" width={35} height={35} />
-          <button>
-            <FaCrown fontSize={18} color="var(--color_yellow)" />
-            Upgrade to PRO
-          </button>
-        </div>
-        <div className="main-menu">
-          {
-            size.width < 700 &&
-            <button
-              className="search_in_dashboard"
-              onClick={() => queryNavigate(pathname, { search: true })}
-            >
-              <IoSearch fontSize={16} />
-              <span>Search something</span>
-            </button>
-          }
-          <div className="menu">
-            {menuList.map((item, index) => (
-              <div className='menu-item' key={index}>
-                <button
-                  className={item.name === targetItem ? 'active' : ''}
-                  onClick={() =>
-                    handleNavigation(index, item.name)
-                  }
-                >
-                  {item.icon}
-                  <span>{item.name}</span>
-                </button>
-              </div>
-            ))}
-            <span id="navigation" ref={refNavigation}></span>
+        {/* Header */}
+        <div className="dash-header">
+          <div className="dash-brand">
+            <div className="brand-icon">
+              <Image src="/image/static/logo.svg" alt="logo" width={24} height={24} />
+            </div>
+            <span className="brand-name">CodeDev</span>
           </div>
-        </div>
-        <div id="handler_dashboard">
-          <button id="feedback" onClick={() => queryNavigate(window.location.pathname, { feedback: true })}>
-            <MdOutlineFeedback fontSize={16} />
-            Feedback
+          <button className="dash-upgrade">
+            <FaCrown />
+            <span>PRO</span>
           </button>
         </div>
-        <div className={`footer-menu ${showOther ? 'show' : ''}`}>
-          <button onClick={() => setShowOther(!showOther)} className="heading">
-            <span>
-              Other
+
+        {/* Quick Search */}
+        <div className="dash-search">
+          <button className="search-trigger" onClick={() => queryNavigate(pathname, { search: true })}>
+            <span className="search-icon"><IoSearch /></span>
+            <span className="search-placeholder">Quick search...</span>
+            <span className="search-keys">
+              <kbd>⌘</kbd>
+              <kbd>K</kbd>
             </span>
-            <FaAngleLeft
-              fontSize={18}
-              style={{
-                transform: showOther ? "rotate(-90deg)" : "rotate(0deg)",
-                transition: "0.5s all ease",
-              }}
-            />
           </button>
-          <div className="other-frame">
-            <button id="help">
-              <MdHelpCenter />
-              Help Center
-            </button>
-            <button id="settings">
-              <IoSettingsSharp />
+        </div>
+
+        {/* Navigation */}
+        <nav className="dash-nav">
+          <div className="nav-section">
+            <span className="nav-title">Menu</span>
+            <ul className="nav-menu">
+              {menuList.map((item, index) => (
+                <li key={index}>
+                  <button
+                    className={`nav-link ${activeIndex === index ? 'active' : ''}`}
+                    onClick={() => handleNavigation(index, item.name)}
+                  >
+                    <span className="link-icon">{item.icon}</span>
+                    <span className="link-text">{item.name}</span>
+                    {item.badge && (
+                      <span className="link-badge">{item.badge}</span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </nav>
+
+        {/* Feedback Card */}
+        <div className="dash-feedback">
+          <div className="feedback-card">
+            <span className="feedback-icon"><HiSparkles /></span>
+            <p className="feedback-text">Share your thoughts</p>
+            <button
+              className="feedback-btn"
+              onClick={() => queryNavigate(pathnameRef.current, { feedback: true })}
+            >
+              <MdOutlineFeedback />
+              <span>Send Feedback</span>
             </button>
           </div>
         </div>
-        {
-          isDashboard &&
-          <button id="hidden-menu" onClick={handleDashboard}>
-            <MdOutlineClose fontSize={16} />
+
+        {/* Footer */}
+        <div className={`dash-footer ${showOther ? 'expanded' : ''}`}>
+          <button className="footer-toggle" onClick={() => setShowOther(!showOther)}>
+            <span className="toggle-text">More Options</span>
+            <HiChevronDown className={`toggle-arrow ${showOther ? 'rotated' : ''}`} />
           </button>
-        }
+
+          {showOther && (
+            <div className="footer-content">
+              <button className="footer-link help">
+                <span className="link-icon"><MdHelpCenter /></span>
+                <span className="link-text">Help Center</span>
+              </button>
+              <button className="footer-link settings">
+                <span className="link-icon"><IoSettingsSharp /></span>
+                <span className="link-text">Settings</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile Close */}
+        {isDashboard && (
+          <button className="dash-close" onClick={() => handleDashboard(false)}>
+            <IoClose />
+          </button>
+        )}
       </div>
-    </>
+    </aside>
   );
 }

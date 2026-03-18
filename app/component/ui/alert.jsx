@@ -1,8 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 
-import { IoWarning, IoCloseCircle, IoCheckmarkCircle, IoInformationCircle } from "react-icons/io5";
+import { IoWarning, IoCloseCircle, IoCheckmarkCircle, IoInformationCircle, IoClose } from "react-icons/io5";
 
-export default function AlertPush({ status = 0, message = '', callback = null }) {
+const alertConfig = {
+    0: { icon: IoInformationCircle, color: 'var(--color_primary)', bg: 'rgba(48, 102, 190, 0.1)', label: 'Info' },
+    200: { icon: IoCheckmarkCircle, color: 'var(--color_green)', bg: 'rgba(16, 185, 129, 0.1)', label: 'Success' },
+    500: { icon: IoCloseCircle, color: 'var(--color_red)', bg: 'rgba(244, 63, 94, 0.1)', label: 'Error' },
+    default: { icon: IoWarning, color: 'var(--color_orange)', bg: 'rgba(249, 115, 22, 0.1)', label: 'Warning' }
+};
+
+export default function AlertPush({ status = 0, message = '', callback = null, reset }) {
     const [stack, setStack] = useState([]);
 
     const pushAlert = useCallback((status, message, callback) => {
@@ -13,6 +20,7 @@ export default function AlertPush({ status = 0, message = '', callback = null })
     useEffect(() => {
         if (!message || message.trim() === '') return;
         pushAlert(status, message, callback);
+        reset();
     }, [message, status, callback, pushAlert]);
 
     const removeAlert = useCallback((id) => {
@@ -20,51 +28,50 @@ export default function AlertPush({ status = 0, message = '', callback = null })
     }, []);
 
     return stack.length > 0 && (
-        <section id='alert_container'>
-            {
-                stack.map((item) => (
-                    <AlertItem key={item.id} {...item} onRemove={removeAlert} />
-                ))
-            }
+        <section className="alert-stack">
+            {stack.map((item) => (
+                <AlertItem key={item.id} {...item} onRemove={removeAlert} />
+            ))}
         </section>
-    )
+    );
 }
 
 function AlertItem({ id, status, message, callback, onRemove }) {
+    const config = alertConfig[status] || alertConfig.default;
+    const Icon = config.icon;
+
     useEffect(() => {
         const timer = setTimeout(() => {
             onRemove(id);
-        }, 2000);
+        }, 3000);
 
         return () => clearTimeout(timer);
-    }, [id]);
+    }, [id, onRemove]);
 
     const handleCallback = () => {
-        if (typeof (callback) === 'function') callback();
-    }
+        if (typeof callback === 'function') callback();
+    };
 
     return (
-        <div
-            className="alert"
-        >
-            {
-                ({
-                    0: <IoInformationCircle fontSize={16} color="var(--color_blue)" />,
-                    200: <IoCheckmarkCircle fontSize={16} color='var(--color_green)' />,
-                    500: <IoCloseCircle fontSize={16} color="var(--color_red_light)" />,
-                }[status] || <IoWarning fontSize={16} color="var(--color_orange)" />)
-            }
-            <p>{message}</p>
-            {
-                callback &&
-                <button
-                    type="button"
-                    onClick={handleCallback}
-                >
-                    Next
+        <div className="alert-item" style={{ '--alert-color': config.color, '--alert-bg': config.bg }}>
+            <div className="alert-icon">
+                <Icon />
+            </div>
+            <div className="alert-content">
+                <span className="alert-label">{config.label}</span>
+                <p className="alert-message">{message}</p>
+            </div>
+            <div className="alert-actions">
+                {callback && (
+                    <button className="btn-action" onClick={handleCallback}>
+                        Next
+                    </button>
+                )}
+                <button className="btn-close" onClick={() => onRemove(id)}>
+                    <IoClose />
                 </button>
-            }
-            <span id="time_bar"></span>
+            </div>
+            <span className="alert-progress" />
         </div>
-    )
+    );
 }

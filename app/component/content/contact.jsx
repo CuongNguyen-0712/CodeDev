@@ -5,8 +5,6 @@ import Image from "next/image";
 import GetSocialService from '@/app/services/getService/socialService'
 import useInfiniteScroll from '@/app/hooks/useInfiniteScroll'
 
-import { useSize } from "@/app/contexts/sizeContext";
-
 import { LoadingContent } from '../ui/loading'
 import { ErrorReload } from '../ui/error'
 
@@ -16,7 +14,6 @@ import { IoPersonAdd } from "react-icons/io5";
 import { FaUser, FaUserGroup, FaHashtag, FaArrowDownShortWide } from "react-icons/fa6";
 
 export default function Contact({ redirect, state, setState }) {
-    const { size } = useSize()
 
     const [social, setSocial] = useState({
         data: {

@@ -1,10 +1,9 @@
-'use client'
-import Layout from "../ui/layout";
 import CourseContent from "./content";
+import BaseLayout from "@/app/layout/baseLayout";
 
 export default function Course() {
     return (
-        <Layout children={<CourseContent />}>
-        </Layout>
+        <BaseLayout children={<CourseContent />}>
+        </BaseLayout>
     )
 }

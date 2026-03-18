@@ -3,6 +3,8 @@ import Provider from './contexts/providers';
 import { AuthProvider } from './contexts/authContext';
 import { getSession } from './lib/session';
 
+import Search from './component/home/search';
+
 export default async function RootLayout({ children }) {
   const session = await getSession();
   return (
@@ -23,6 +25,7 @@ export default async function RootLayout({ children }) {
         <AuthProvider initialSession={{ username: session?.username, email: session?.email }}>
           <Provider>
             {children}
+            <Search />
           </Provider>
         </AuthProvider>
       </body>

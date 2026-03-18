@@ -1,3 +1,4 @@
+'use client'
 import { useState, useEffect, startTransition, useRef } from "react";
 
 import { IoClose } from "react-icons/io5";
@@ -5,7 +6,7 @@ import { FaSave, FaHashtag } from "react-icons/fa";
 import { MdFileDownload, MdErrorOutline, MdOutlineZoomOutMap } from "react-icons/md";
 import { FaTrophy, FaStar, FaLink } from "react-icons/fa6";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 import GetInfoService from "@/app/services/getService/infoService";
 import UpdateInfoService from "@/app/services/updateService/infoService";
@@ -14,7 +15,6 @@ import { deleteSession } from "@/app/lib/session";
 
 import { LoadingContent } from "../ui/loading";
 import { ErrorReload } from "../ui/error";
-import AlertPush from "../ui/alert";
 
 import { UpdateInfoDefinition } from "@/app/lib/definition";
 
@@ -24,7 +24,8 @@ import useImagesValidator from "@/app/hooks/useImageValidator";
 import Form from "next/form";
 import Image from "next/image";
 
-export default function Manage({ redirect }) {
+export default function Manage({ redirect, alert }) {
+    useKey({ key: 'Escape', param: 'manage' });
     const rangeRef = useRef(null)
 
     const [state, setState] = useState({
@@ -47,23 +48,23 @@ export default function Manage({ redirect }) {
         loading: true,
     });
 
-    const [alert, setAlert] = useState(null);
-
     const pathname = usePathname();
+    const params = useSearchParams();
+    const manage = params.get('manage');
+
     const queryNavigate = useQuery();
 
-    useKey({ key: 'Escape', param: 'manage' });
     const { finalUrl } = useImagesValidator(state.data?.image ? [state.data.image] : [], '/image/static/default.svg')
 
     const handleLogout = async (e) => {
         e.preventDefault();
 
         try {
-            redirect();
+            redirect(true);
             await deleteSession({ url: pathname });
         } catch (error) {
             console.error(error)
-            redirect();
+            redirect(false);
         }
     }
 
@@ -101,12 +102,12 @@ export default function Manage({ redirect }) {
 
         if (JSON.stringify(state.data) === JSON.stringify(updateData)) {
             setState((prev) => ({ ...prev, change: false, modify: false }))
-            setAlert({ message: 'Nothing can be update' })
+            alert(0, 'Nothing can be update')
             return;
         }
 
         if (Object.entries(state.definition).length > 0) {
-            setAlert({ status: 500, message: 'Update infomation failed' })
+            alert(0, 'Please fix the errors before submit')
             return;
         }
 
@@ -126,17 +127,17 @@ export default function Manage({ redirect }) {
                     queryNavigate(pathname, { update: true })
                     setState((prev) => ({ ...prev, handling: false, modify: false }))
                     setFile({ file: null, preview: null })
-                    setAlert({ status: 200, message: res.message })
+                    alert(200, res.message)
                 })
             }
             else {
                 setState((prev) => ({ ...prev, handling: false }))
-                setAlert({ status: res.status ?? 500, message: res.message ?? "Something is wrong, try again !" })
+                alert(res.status, res.message || 'Failed to update your information')
             }
         }
         catch (err) {
             setState((prev) => ({ ...prev, handling: false }))
-            setAlert({ status: 500, message: err.message })
+            alert(500, err.message || 'Failed to update your information')
         }
     }
 
@@ -209,7 +210,7 @@ export default function Manage({ redirect }) {
 
     const handleCopy = () => {
         navigator.clipboard.writeText(window.location.href)
-        setAlert({ status: 200, message: 'Your profile link has been copied' })
+        alert(200, 'Your profile link has been copied')
     }
 
     const refetchData = () => {
@@ -220,10 +221,6 @@ export default function Manage({ redirect }) {
         }))
         fetchData();
     }
-
-    useEffect(() => {
-        setAlert(null)
-    }, [alert])
 
     useEffect(() => {
         const range = rangeRef.current;
@@ -253,298 +250,291 @@ export default function Manage({ redirect }) {
         }))
     }, [finalUrl])
 
-    return (
-        <Form id="manage_panel" onSubmit={handleUpdate}>
-            <div className="heading_manage">
-                <img src={'/image/static/logo.svg'} alt='logo' />
-                <h2>Management</h2>
-            </div>
-            <div className="content_manage">
-                <div className="beside">
-                    <div className="beside_banner">
-                        <h5>Achievement</h5>
-                        <p>
-                            Nothing to update
-                        </p>
+    return manage && (
+        <>
+            <div
+                className='manage_container'
+                style={{
+                    overflowY: file.zoom ? 'hidden' : 'auto'
+                }}
+            >
+                <Form id="manage_panel" onSubmit={handleUpdate}>
+                    <div className="heading_manage">
+                        <img src={'/image/static/logo.svg'} alt='logo' />
+                        <h2>Account Settings</h2>
+                        <button type="button" id="cancel-manage" onClick={() => queryNavigate(pathname, { manage: null, update: null })}>
+                            <IoClose />
+                        </button>
                     </div>
-                </div>
-                <div className="info_container">
-                    {
-                        state.pending ?
-                            <LoadingContent />
-                            :
-                            state.error ?
-                                <ErrorReload data={state.error} refetch={refetchData} />
+
+                    <div className="content_manage">
+                        {
+                            state.pending ?
+                                <LoadingContent />
                                 :
-                                state.data ?
-                                    <>
-                                        <div className="heading_info">
-                                            <div className="beside_info">
-                                                <div className="info_header">
-                                                    <div className="user_banner">
-                                                        <div className="image_banner">
-                                                            <div className="image_wrapper">
-                                                                {
-                                                                    file.loading ?
-                                                                        <LoadingContent scale={0.5} />
-                                                                        :
-                                                                        <>
-                                                                            <Image src={file.preview || state.data.image} width={150} height={150} quality={100} alt="avatar" />
-                                                                            <div className="image_actions">
-                                                                                {
-                                                                                    state.modify &&
-                                                                                    <div className="image_import">
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            id="import_image"
-                                                                                        >
-                                                                                            <MdFileDownload fontSize={20} />
-                                                                                        </button>
-                                                                                        <input
-                                                                                            type="file"
-                                                                                            name="file"
-                                                                                            accept="image/*"
-                                                                                            id="file"
-                                                                                            disabled={state.handling || !state.modify}
-                                                                                            onChange={handleUpload}
-                                                                                        />
-                                                                                    </div>
-                                                                                }
-                                                                                <button type='button' id="zoom_image" onClick={() => setFile((prev) => ({ ...prev, zoom: true }))}>
-                                                                                    <MdOutlineZoomOutMap fontSize={20} />
-                                                                                </button>
-                                                                            </div>
-                                                                            {
-                                                                                (file.preview && !state.handling) &&
-                                                                                <button type='button' id="cancel_preview" onClick={handleCancelPreview}>
-                                                                                    <IoClose fontSize={14} />
-                                                                                </button>
-                                                                            }
-                                                                        </>
-                                                                }
-                                                            </div>
-                                                        </div>
-                                                        <div className="info_banner">
-                                                            <div className="info_wrapper">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleCopy()}
-                                                                >
-                                                                    <FaLink />
-                                                                </button>
-                                                                <h2>
-                                                                    {state.data?.username ?? '-'}
-                                                                </h2>
-                                                            </div>
-                                                            <p>
-                                                                {state.data?.level ?? "-"}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="stats_banner">
-                                                        <div className="banner">
-                                                            <span>
-                                                                Star
-                                                            </span>
-                                                            <p>
-                                                                {state.data?.star ?? "-"}
-                                                                <FaStar color="var(--color_yellow)" />
-                                                            </p>
-                                                        </div>
-                                                        <div className="banner">
-                                                            <span>
-                                                                Rank
-                                                            </span>
-                                                            <p>
-                                                                {state.data?.rank ?? "-"}
-                                                                <FaTrophy color="var(--color_orange)" />
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <p>
-                                                    <FaHashtag />
-                                                    <input type="text"
-                                                        className={state.modify ? 'modify' : ''}
-                                                        readOnly={!state.modify || state.handling}
-                                                        value={state.modify ? state.update?.nickname ?? '' : state.data?.nickname ?? 'None'}
-                                                        placeholder="Nickname"
-                                                        name="nickname"
-                                                        onChange={handleChange}
-                                                    />
-                                                </p>
-                                            </div>
-                                            <div id="modify_btns">
-                                                <button
-                                                    type="button"
-                                                    id="edit_info"
-                                                    disabled={state.handling}
-                                                    onClick={handleModify}
-                                                >
-                                                    {
-                                                        state.modify ?
-                                                            <>
-                                                                Cancel
-                                                            </>
-                                                            :
-                                                            <>
-                                                                Edit
-                                                            </>
-                                                    }
-                                                </button>
-                                                <button type="submit" disabled={!(state.modify || state.change) || state.handling} style={{ cursor: !(state.modify || state.change) || state.handling ? 'not-allowed' : 'pointer' }} id="save_info">
-                                                    {
-                                                        state.handling ?
-                                                            <LoadingContent scale={0.5} color="var(--color_white)" />
-                                                            :
-                                                            <>
-                                                                <FaSave />
-                                                                Save
-                                                            </>
-                                                    }
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div className="input_info">
-                                            <div className="item">
-                                                <label htmlFor='surname'>Surname:</label>
-                                                <div className="input_item">
-                                                    <input type="text"
-                                                        className={state.modify ? state.definition?.surname ? "has_error" : "modify" : ''}
-                                                        readOnly={!state.modify || state.handling}
-                                                        value={state.modify ? state.update.surname : state.data.surname}
-                                                        placeholder="Enter your surname"
-                                                        name="surname"
-                                                        onChange={handleChange}
-                                                    />
-                                                    {
-                                                        (state.definition && state.definition?.surname) &&
-                                                        <div className="error_input">
-                                                            <MdErrorOutline fontSize={20} color='var(--color_red_dark)' />
-                                                            <p>{state.definition?.surname ?? ''}</p>
-                                                        </div>
-                                                    }
-                                                </div>
-                                            </div>
-                                            <div className="item">
-                                                <label htmlFor="name">Name:</label>
-                                                <div className="input_item">
-                                                    <input
-                                                        type="text"
-                                                        className={state.modify ? state.definition?.name ? "has_error" : "modify" : ''}
-                                                        readOnly={!state.modify || state.handling}
-                                                        value={state.modify ? state.update.name : state.data.name}
-                                                        placeholder="Enter your name"
-                                                        name="name"
-                                                        onChange={handleChange}
-                                                    />
-                                                    {
-                                                        (state.definition && state.definition?.name) &&
-                                                        <div className="error_input">
-                                                            <MdErrorOutline fontSize={20} color='var(--color_red_dark)' />
-                                                            <p>{state.definition?.name ?? ''}</p>
-                                                        </div>
-                                                    }
-                                                </div>
-                                            </div>
-                                            <div className="item">
-                                                <label htmlFor="email">Email:</label>
-                                                <div className="input_item">
-                                                    <input type="text"
-                                                        className={state.modify ? state.definition?.email ? "has_error" : "modify" : ''}
-                                                        readOnly={!state.modify || state.handling}
-                                                        value={state.modify ? state.update.email : state.data.email}
-                                                        placeholder="Enter your email"
-                                                        name="email"
-                                                        onChange={handleChange}
-                                                    />
-                                                    {
-                                                        (state.definition && state.definition?.email) &&
-                                                        <div className="error_input">
-                                                            <MdErrorOutline fontSize={20} color='var(--color_red_dark)' />
-                                                            <p>{state.definition?.email ?? ''}</p>
-                                                        </div>
-                                                    }
-                                                </div>
-                                            </div>
-                                            <div className="item">
-                                                <label htmlFor="phone">Phone:</label>
-                                                <div className="input_item">
-                                                    <input
-                                                        type="text"
-                                                        className={state.modify ? state.definition?.phone ? "has_error" : "modify" : ''}
-                                                        readOnly={!state.modify || state.handling}
-                                                        value={state.modify ? state.update.phone : state.data.phone}
-                                                        placeholder="Enter your phone"
-                                                        name="phone"
-                                                        onChange={handleChange}
-                                                    />
-                                                    {
-                                                        (state.definition && state.definition?.phone) &&
-                                                        <div className="error_input">
-                                                            <MdErrorOutline fontSize={20} color='var(--color_red_dark)' />
-                                                            <p>{state.definition?.phone ?? ''}</p>
-                                                        </div>
-                                                    }
-                                                </div>
-                                            </div>
-                                            <div className="item">
-                                                <label htmlFor="bio">Bio:</label>
-                                                <textarea
-                                                    placeholder="Enter your bio"
-                                                    className={state.modify ? 'modify' : ''}
-                                                    readOnly={!state.modify || state.handling}
-                                                    value={(state.modify ? state.update.bio : state.data.bio) ?? ''}
-                                                    name="bio"
-                                                    onChange={handleChange}
-                                                />
-                                            </div>
-                                        </div>
-                                        {file.zoom &&
-                                            <div id="zoom_overlay">
-                                                <div className="zoom_container" style={{ transform: `scale(${file.zoom_value})` }}>
-                                                    <Image
-                                                        src={file.preview || state.data?.image}
-                                                        alt='avatar_zoom'
-                                                        fill
-                                                        objectFit="cover"
-                                                        quantity={100}
-                                                        unoptimized
-                                                    />
-                                                </div>
-                                                <button type="button" id="close_zoom" onClick={() => setFile((prev) => ({ ...prev, zoom: false }))}>
-                                                    <IoClose fontSize={30} color="var(--color_white)" />
-                                                </button>
-                                                <input
-                                                    type="range"
-                                                    id="zoom_range"
-                                                    min="1"
-                                                    max="3"
-                                                    step={0.01}
-                                                    value={file.zoom_value}
-                                                    ref={rangeRef}
-                                                    onChange={(e) => setFile(prev => ({ ...prev, zoom_value: parseFloat(e.target.value) }))}
-                                                />
-                                            </div>
-                                        }
-                                    </>
+                                state.error ?
+                                    <ErrorReload data={state.error} refetch={refetchData} />
                                     :
-                                    null
-                    }
+                                    state.data ?
+                                        <>
+                                            {/* Profile Card Section */}
+                                            <div className="profile_card">
+                                                <div className="profile_avatar">
+                                                    <div className="image_wrapper">
+                                                        {
+                                                            file.loading ?
+                                                                <LoadingContent scale={0.5} />
+                                                                :
+                                                                <>
+                                                                    <Image src={file.preview || state.data.image} width={120} height={120} quality={100} alt="avatar" />
+                                                                    <div className="image_actions">
+                                                                        {
+                                                                            state.modify &&
+                                                                            <div className="image_import">
+                                                                                <button type="button" id="import_image">
+                                                                                    <MdFileDownload fontSize={18} />
+                                                                                </button>
+                                                                                <input
+                                                                                    type="file"
+                                                                                    name="file"
+                                                                                    accept="image/*"
+                                                                                    id="file"
+                                                                                    disabled={state.handling || !state.modify}
+                                                                                    onChange={handleUpload}
+                                                                                />
+                                                                            </div>
+                                                                        }
+                                                                        <button type='button' id="zoom_image" onClick={() => setFile((prev) => ({ ...prev, zoom: true }))}>
+                                                                            <MdOutlineZoomOutMap fontSize={18} />
+                                                                        </button>
+                                                                    </div>
+                                                                    {
+                                                                        (file.preview && !state.handling) &&
+                                                                        <button type='button' id="cancel_preview" onClick={handleCancelPreview}>
+                                                                            <IoClose fontSize={12} />
+                                                                        </button>
+                                                                    }
+                                                                </>
+                                                        }
+                                                    </div>
+                                                </div>
+
+                                                <div className="profile_info">
+                                                    <div className="profile_name">
+                                                        <h3>{state.data?.username ?? '-'}</h3>
+                                                        <button type="button" className="copy_link" onClick={() => handleCopy()}>
+                                                            <FaLink fontSize={12} />
+                                                        </button>
+                                                    </div>
+                                                    <span className="profile_level">{state.data?.level ?? "-"}</span>
+                                                    <div className="profile_nickname">
+                                                        <FaHashtag fontSize={12} />
+                                                        <input
+                                                            type="text"
+                                                            className={state.modify ? 'modify' : ''}
+                                                            readOnly={!state.modify || state.handling}
+                                                            value={state.modify ? state.update?.nickname ?? '' : state.data?.nickname ?? 'None'}
+                                                            placeholder="Nickname"
+                                                            name="nickname"
+                                                            onChange={handleChange}
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="profile_stats">
+                                                    <div className="stat_item">
+                                                        <FaStar fontSize={16} color="var(--color_yellow)" />
+                                                        <div className="stat_content">
+                                                            <span className="stat_value">{state.data?.star ?? "-"}</span>
+                                                            <span className="stat_label">Stars</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="stat_item">
+                                                        <FaTrophy fontSize={16} color="var(--color_orange)" />
+                                                        <div className="stat_content">
+                                                            <span className="stat_value">{state.data?.rank ?? "-"}</span>
+                                                            <span className="stat_label">Rank</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Form Section */}
+                                            <div className="form_section">
+                                                <div className="form_header">
+                                                    <h4>Personal Information</h4>
+                                                    <div className="form_actions">
+                                                        <button
+                                                            type="button"
+                                                            id="edit_info"
+                                                            disabled={state.handling}
+                                                            onClick={handleModify}
+                                                        >
+                                                            {state.modify ? 'Cancel' : 'Edit'}
+                                                        </button>
+                                                        <button
+                                                            type="submit"
+                                                            disabled={!(state.modify || state.change) || state.handling}
+                                                            id="save_info"
+                                                        >
+                                                            {
+                                                                state.handling ?
+                                                                    <LoadingContent scale={0.4} color="var(--color_white)" />
+                                                                    :
+                                                                    <>
+                                                                        <FaSave fontSize={14} />
+                                                                        Save
+                                                                    </>
+                                                            }
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="form_grid">
+                                                    <div className="form_item">
+                                                        <label htmlFor='surname'>Surname</label>
+                                                        <div className="input_wrapper">
+                                                            <input
+                                                                type="text"
+                                                                className={state.modify ? state.definition?.surname ? "has_error modify" : "modify" : ''}
+                                                                readOnly={!state.modify || state.handling}
+                                                                value={(state.modify ? state.update?.surname : state.data?.surname) ?? ''}
+                                                                placeholder="Enter surname"
+                                                                name="surname"
+                                                                onChange={handleChange}
+                                                            />
+                                                            {
+                                                                state.definition?.surname &&
+                                                                <div className="error_tooltip">
+                                                                    <MdErrorOutline fontSize={18} color='var(--color_red)' />
+                                                                    <span>{state.definition.surname}</span>
+                                                                </div>
+                                                            }
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="form_item">
+                                                        <label htmlFor="name">Name</label>
+                                                        <div className="input_wrapper">
+                                                            <input
+                                                                type="text"
+                                                                className={state.modify ? state.definition?.name ? "has_error modify" : "modify" : ''}
+                                                                readOnly={!state.modify || state.handling}
+                                                                value={(state.modify ? state.update?.name : state.data?.name) ?? ''}
+                                                                placeholder="Enter name"
+                                                                name="name"
+                                                                onChange={handleChange}
+                                                            />
+                                                            {
+                                                                state.definition?.name &&
+                                                                <div className="error_tooltip">
+                                                                    <MdErrorOutline fontSize={18} color='var(--color_red)' />
+                                                                    <span>{state.definition.name}</span>
+                                                                </div>
+                                                            }
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="form_item full_width">
+                                                        <label htmlFor="email">Email</label>
+                                                        <div className="input_wrapper">
+                                                            <input
+                                                                type="text"
+                                                                className={state.modify ? state.definition?.email ? "has_error modify" : "modify" : ''}
+                                                                readOnly={!state.modify || state.handling}
+                                                                value={(state.modify ? state.update?.email : state.data?.email) ?? ''}
+                                                                placeholder="Enter email"
+                                                                name="email"
+                                                                onChange={handleChange}
+                                                            />
+                                                            {
+                                                                state.definition?.email &&
+                                                                <div className="error_tooltip">
+                                                                    <MdErrorOutline fontSize={18} color='var(--color_red)' />
+                                                                    <span>{state.definition.email}</span>
+                                                                </div>
+                                                            }
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="form_item full_width">
+                                                        <label htmlFor="phone">Phone</label>
+                                                        <div className="input_wrapper">
+                                                            <input
+                                                                type="text"
+                                                                className={state.modify ? state.definition?.phone ? "has_error modify" : "modify" : ''}
+                                                                readOnly={!state.modify || state.handling}
+                                                                value={(state.modify ? state.update?.phone : state.data?.phone) ?? ''}
+                                                                placeholder="Enter phone"
+                                                                name="phone"
+                                                                onChange={handleChange}
+                                                            />
+                                                            {
+                                                                state.definition?.phone &&
+                                                                <div className="error_tooltip">
+                                                                    <MdErrorOutline fontSize={18} color='var(--color_red)' />
+                                                                    <span>{state.definition.phone}</span>
+                                                                </div>
+                                                            }
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="form_item full_width">
+                                                        <label htmlFor="bio">Bio</label>
+                                                        <textarea
+                                                            placeholder="Tell us about yourself..."
+                                                            className={state.modify ? 'modify' : ''}
+                                                            readOnly={!state.modify || state.handling}
+                                                            value={(state.modify ? state.update.bio : state.data.bio) ?? ''}
+                                                            name="bio"
+                                                            onChange={handleChange}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </>
+                                        :
+                                        null
+                        }
+                    </div>
+
+                    <div className="footer_manage">
+                        <button type="button" id="change_account">
+                            Change Account
+                        </button>
+                        <button type="button" id="logout" onClick={handleLogout}>
+                            Logout
+                        </button>
+                    </div>
+                </Form>
+            </div>
+            {file.zoom &&
+                <div id="zoom_overlay">
+                    <div className="zoom_container" style={{ transform: `scale(${file.zoom_value})` }}>
+                        <Image
+                            src={file.preview || state.data?.image}
+                            alt='avatar_zoom'
+                            fill
+                            objectFit="cover"
+                            quantity={100}
+                            unoptimized
+                        />
+                    </div>
+                    <button type="button" id="close_zoom" onClick={() => setFile((prev) => ({ ...prev, zoom: false }))}>
+                        <IoClose fontSize={30} color="var(--color_white)" />
+                    </button>
+                    <input
+                        type="range"
+                        id="zoom_range"
+                        min="1"
+                        max="3"
+                        step={0.01}
+                        value={file.zoom_value}
+                        ref={rangeRef}
+                        onChange={(e) => setFile(prev => ({ ...prev, zoom_value: parseFloat(e.target.value) }))}
+                    />
                 </div>
-            </div>
-            <div className="footer-manage">
-                <button type="button" id="change-account">
-                    Change account
-                </button>
-                <button type="button" id="logout" onClick={handleLogout}>
-                    Logout
-                </button>
-            </div>
-            <button type="button" id="cancel-manage" onClick={() => queryNavigate(pathname, { manage: false, update: false })}>
-                <IoClose />
-            </button>
-            <AlertPush status={alert?.status} message={alert?.message} reset={() => setAlert(null)} />
-        </Form >
+            }
+        </>
     )
 }

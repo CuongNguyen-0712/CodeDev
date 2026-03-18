@@ -1,38 +1,39 @@
 'use client'
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useSearchParams, usePathname } from "next/navigation";
 
 import Form from "next/form";
 
-import { IoIosSend, IoIosClose, IoIosWarning } from "react-icons/io";
-import { BsFillInfoCircleFill } from "react-icons/bs";
+import { IoClose } from "react-icons/io5";
+import { HiSparkles, HiPaperAirplane } from "react-icons/hi2";
+import { BiMessageDetail } from "react-icons/bi";
+import { MdWarning } from "react-icons/md";
 
 import PostFeedbackService from "@/app/services/postService/feedbackService";
 
 import { useQuery } from "@/app/router/router";
-import { useAuth } from "@/app/contexts/authContext";
 import { FeedbackDefinition } from "@/app/lib/definition";
 import { LoadingContent } from "../ui/loading";
-import AlertPush from "../ui/alert";
 
 import useKey from "@/app/hooks/useKey";
 
-export default function Feedback() {
-    const queryNavigate = useQuery();
-    const { session } = useAuth();
-
+export default function Feedback({ alert }) {
     useKey({ key: 'Escape', param: 'feedback' });
+
+    const queryNavigate = useQuery();
+    const params = useSearchParams();
+    const pathname = usePathname();
+    const feedback = params.get('feedback');
 
     const [state, setState] = useState({
         error: null,
         handling: false,
-    })
+    });
 
     const [dataForm, setDataForm] = useState({
         title: "",
         feedback: "",
     });
-
-    const [alert, setAlert] = useState(null);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -56,10 +57,7 @@ export default function Feedback() {
         try {
             const res = await PostFeedbackService(dataForm);
             if (res.status === 200) {
-                setAlert({
-                    status: 200,
-                    message: "Thank you for your contribution!",
-                });
+                alert(200, "Thank you for your contribution!");
                 setDataForm((prev) => ({
                     ...prev,
                     title: "",
@@ -71,27 +69,20 @@ export default function Feedback() {
                 }));
             }
             else {
-                setAlert({
-                    status: res.status,
-                    message: res.message
-                });
+                alert(res.status, res.message);
                 setState((prev) => ({
                     ...prev,
                     handling: false,
                 }));
             }
         } catch (err) {
-            setAlert({
-                status: err.status || 500,
-                message: err.message
-            });
+            alert(500, err.message || "An error occurred while submitting feedback");
             setState((prev) => ({
                 ...prev,
                 handling: false,
             }));
         }
-    }
-
+    };
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -106,98 +97,103 @@ export default function Feedback() {
             error: Object.fromEntries(
                 Object.entries(prev.error || {}).filter(([key, _]) => key !== name)
             )
-        }))
-    }
+        }));
+    };
 
-    useEffect(() => {
-        setAlert(null);
-    }, [alert]);
+    const handleClose = () => queryNavigate(pathname, { feedback: null });
 
-    return (
-        <Form onSubmit={handleSubmit} id="feedback-form">
-            <div className="heading-feedback">
-                <h2>Feedback</h2>
-                <div className="info">
-                    <BsFillInfoCircleFill
-                        style={{
-                            color: "var(--color_blue)",
-                            fontSize: "20px",
-                            flexShrink: '0'
-                        }}
-                    />
-                    <p>Share feedback or ideas on how we can improve CodeDev.</p>
-                </div>
-            </div>
-            <div className="modal-feedback">
-                <div className="feedback-field">
-                    <span className="heading-field">Title of your feedback</span>
-                    <input
-                        type="text"
-                        id="title"
-                        name="title"
-                        value={dataForm.title}
-                        onChange={handleChange}
-                        placeholder="Your title"
-                        disabled={state.handling}
-                    />
-                    {
-                        (state.error && state.error.title) &&
-                        <span className="error_validation">
-                            <IoIosWarning />
-                            {state.error.title}
-                        </span>
-                    }
-                </div>
-                <div className="feedback-field">
-                    <span className="heading-field">Your feedback</span>
-                    <textarea
-                        id="feedback"
-                        name="feedback"
-                        value={dataForm.feedback}
-                        onChange={handleChange}
-                        placeholder="Write something..."
-                        disabled={state.handling}
-                    ></textarea>
-                    {
-                        (state.error && state.error.feedback) &&
-                        <span className="error_validation">
-                            <IoIosWarning />
-                            {state.error.feedback}
-                        </span>
-                    }
-                </div>
-            </div>
-            <div className="footer-feedback">
-                <button
-                    type="button"
-                    id="reset"
-                    onClick={() => setDataForm((prev) => ({ ...prev, title: "", feedback: "" }))}
-                    disabled={state.handling}
-                >
-                    Reset
+    return feedback && (
+        <div className="feedback-overlay">
+            <Form onSubmit={handleSubmit} className="feedback-modal">
+                {/* Close Button */}
+                <button type="button" className="btn-close" onClick={handleClose}>
+                    <IoClose />
                 </button>
-                <button type="submit" id="send" disabled={state.handling} style={state.handling ? { cursor: 'not-allowed' } : { cursor: 'pointer' }}>
-                    {state.handling ?
-                        <>
-                            Sending...
-                            <span style={{ background: "var(--color_blue)" }}>
-                                <LoadingContent color="var(--color_white)" scale={0.8} />
+
+                {/* Modal Header */}
+                <div className="feedback-header">
+                    <div className="header-icon">
+                        <BiMessageDetail />
+                    </div>
+                    <h2>Send Feedback</h2>
+                    <p>Share your thoughts and help us improve CodeDev</p>
+                </div>
+
+                {/* Info Banner */}
+                <div className="feedback-info">
+                    <HiSparkles />
+                    <span>Your feedback helps us build a better experience for everyone.</span>
+                </div>
+
+                {/* Form Fields */}
+                <div className="feedback-body">
+                    <div className="form-field">
+                        <label htmlFor="title">Title</label>
+                        <input
+                            type="text"
+                            id="title"
+                            name="title"
+                            value={dataForm.title}
+                            onChange={handleChange}
+                            placeholder="Brief summary of your feedback"
+                            disabled={state.handling}
+                        />
+                        {state.error?.title && (
+                            <span className="field-error">
+                                <MdWarning />
+                                {state.error.title}
                             </span>
-                        </>
-                        :
-                        <>
-                            Send
-                            <span>
-                                <IoIosSend />
+                        )}
+                    </div>
+
+                    <div className="form-field">
+                        <label htmlFor="feedback">Your Feedback</label>
+                        <textarea
+                            id="feedback"
+                            name="feedback"
+                            value={dataForm.feedback}
+                            onChange={handleChange}
+                            placeholder="Tell us what's on your mind..."
+                            disabled={state.handling}
+                        />
+                        {state.error?.feedback && (
+                            <span className="field-error">
+                                <MdWarning />
+                                {state.error.feedback}
                             </span>
-                        </>
-                    }
-                </button>
-            </div>
-            <button type="button" onClick={() => queryNavigate(window.location.pathname, { feedback: false })}>
-                <IoIosClose />
-            </button>
-            <AlertPush status={alert?.status} message={alert?.message} />
-        </Form>
+                        )}
+                    </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="feedback-footer">
+                    <button
+                        type="button"
+                        className="btn-reset"
+                        onClick={() => setDataForm({ title: "", feedback: "" })}
+                        disabled={state.handling}
+                    >
+                        Clear
+                    </button>
+                    <button
+                        type="submit"
+                        className="btn-submit"
+                        disabled={state.handling}
+                    >
+                        {state.handling ? (
+                            <>
+                                <LoadingContent color="var(--color_white)" scale={0.5} />
+                                <span>Sending...</span>
+                            </>
+                        ) : (
+                            <>
+                                <HiPaperAirplane />
+                                <span>Send Feedback</span>
+                            </>
+                        )}
+                    </button>
+                </div>
+            </Form>
+        </div>
     );
 }

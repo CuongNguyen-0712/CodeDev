@@ -647,7 +647,7 @@ export async function getContentLesson({ user_id, lesson_id, course_id }) {
     }
 }
 
-export async function getStateCourse({ course_id }) {
+export async function getStateCourse({ user_id, course_id }) {
     if (!course_id) {
         return new Response(JSON.stringify({ message: "Missing something, check again" }), {
             status: 400,
@@ -659,13 +659,19 @@ export async function getStateCourse({ course_id }) {
         const conditions = []
         const params = []
 
-        params.push(course_id)
-        conditions.push(`id = $${params.length}`)
+        params.push(course_id, user_id)
+        conditions.push(`id = $${params.length - 1}`)
 
         const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
         const query = `
-            SELECT *
+            SELECT *,
+            (
+                SELECT status
+                FROM course.register
+                WHERE course_id = $${params.length - 1} 
+                AND user_id = $${params.length}
+            ) AS status
             FROM public.course
             ${whereSQL}
             LIMIT 1

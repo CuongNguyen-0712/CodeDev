@@ -33,45 +33,93 @@
 
 body {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     height: 100dvh;
     width: 100%;
     -webkit-touch-callout: none;
     font-family: 'myFont', sans-serif;
+    overflow-y: scroll;
 }
 
 :root {
-    --color_bg: #F9FAFB;
+    /* Background & Base */
+    --color_bg: #F0F7FA;
+    --color_bg_secondary: #E5F2F5;
 
-    --color_white_light: #FFFFFF4D;
-    --color_white: #fff;
+    --color_white_light: #FFFFFF80;
+    --color_white: #FFFFFF;
+    --color_white_soft: #F8FCFD;
 
-    --color_black: #374151;
-    --color_black_dark: #000000;
+    /* Text Colors */
+    --color_black: #1A3A4A;
+    --color_black_dark: #0D2535;
+    --color_text_secondary: #5A7A8A;
+    --color_text_muted: #8BA5B5;
 
-    --color_gray_light: #F5F5F5;
-    --color_gray: #C0C0C0;
-    --color_gray_dark: #A9A9A9;
+    /* Gray Scale */
+    --color_gray_light: #EDF4F7;
+    --color_gray: #C5D8E0;
+    --color_gray_dark: #8BA5B5;
 
-    --color_green_light: #BBF7D0;
-    --color_green: #4CAF50;
-    --color_green_dark: #228B22;
+    /* Success - Modern Emerald */
+    --color_green_light: #D1FAE5;
+    --color_green: #10B981;
+    --color_green_dark: #059669;
 
-    --color_yellow: #FFB300;
+    /* Warning - Vibrant Amber */
+    --color_yellow_light: #FEF3C7;
+    --color_yellow: #F59E0B;
+    --color_yellow_dark: #D97706;
 
-    --color_red_light: #FF6666;
-    --color_red: #F44336;
-    --color_red_dark: #ff0000;
+    /* Error - Modern Rose */
+    --color_red_light: #FFE4E6;
+    --color_red: #F43F5E;
+    --color_red_dark: #E11D48;
 
-    --color_blue_light: #1E90FFB3;
-    --color_blue: #1E90FF;
+    /* Primary - Smart Blue */
+    --color_primary_light: #6d9dc5;
+    --color_primary: #3066be;
+    --color_primary_dark: #254fa0;
 
-    --color_orange: #ED8B00;
-    --color_purple: #777BB4;
-    --color_violet: #8A2BE2;
-    --color_cyan: #00FFFF;
-    --color_pink: #FF69B4;
+    /* Secondary - Dark Cyan */
+    --color_blue_light: #80ded9;
+    --color_blue: #119da4;
+    --color_blue_dark: #0d7a80;
+
+    /* Accent Colors - Aqua Palette */
+    --color_orange_light: #FED7AA;
+    --color_orange: #F97316;
+    --color_orange_dark: #EA580C;
+
+    --color_purple_light: #aeecef;
+    --color_purple: #80ded9;
+    --color_purple_dark: #119da4;
+
+    --color_violet: #6d9dc5;
+    --color_cyan: #80ded9;
+    --color_pink: #aeecef;
+    --color_teal: #119da4;
+
+    /* Gradients */
+    --gradient_primary: linear-gradient(135deg, #3066be 0%, #119da4 50%, #80ded9 100%);
+    --gradient_header: linear-gradient(135deg, #3066be 0%, #119da4 100%);
+    --gradient_accent: linear-gradient(135deg, #119da4 0%, #80ded9 100%);
+    --gradient_success: linear-gradient(135deg, #10B981 0%, #119da4 100%);
+    --gradient_card: linear-gradient(145deg, #FFFFFF 0%, #F0F7FA 100%);
+
+    /* Shadows */
+    --shadow_sm: 0 1px 2px 0 rgba(48, 102, 190, 0.05);
+    --shadow_md: 0 4px 6px -1px rgba(48, 102, 190, 0.1), 0 2px 4px -2px rgba(48, 102, 190, 0.1);
+    --shadow_lg: 0 10px 15px -3px rgba(48, 102, 190, 0.1), 0 4px 6px -4px rgba(48, 102, 190, 0.1);
+    --shadow_xl: 0 20px 25px -5px rgba(48, 102, 190, 0.15), 0 8px 10px -6px rgba(48, 102, 190, 0.1);
+    --shadow_glow: 0 0 20px rgba(48, 102, 190, 0.3);
+
+    /* Border Radius */
+    --radius_sm: 6px;
+    --radius_md: 10px;
+    --radius_lg: 16px;
+    --radius_xl: 24px;
 }
 
 @media screen and (max-width: 425px) {
@@ -113,4 +161,18 @@ input:-webkit-autofill {
     -webkit-box-shadow: 0 0 0px 1000px transparent inset !important;
     -webkit-text-fill-color: var(--color_black) !important;
     background-color: transparent !important;
+}
+
+.overlay {
+    overflow: hidden !important;
+}
+
+.overlay::before {
+    content: '';
+    position: fixed;
+    height: 100%;
+    width: 100%;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 3;
 }

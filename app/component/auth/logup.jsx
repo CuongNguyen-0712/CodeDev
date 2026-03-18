@@ -9,20 +9,14 @@ import SignUpService from "@/app/services/authService/signUp"
 import { LoadingContent } from "../ui/loading"
 import { InputGroup } from "../ui/input"
 
-import { FaArrowRight, FaArrowLeft, FaPhone } from "react-icons/fa";
-import { MdModeEdit, MdAlternateEmail, MdOutlinePassword } from "react-icons/md";
-import { FaUser, FaLock } from "react-icons/fa6";
-import { IoIosWarning } from "react-icons/io";
+import { FaArrowRight, FaArrowLeft, FaPhone, FaGithub, FaGoogle, FaUser, FaLock } from "react-icons/fa6"
+import { MdModeEdit, MdAlternateEmail, MdOutlinePassword } from "react-icons/md"
+import { IoIosWarning, IoIosCheckmarkCircle } from "react-icons/io"
 
-export default function Logup({
-    active,
-    changeForm,
-    redirect,
-    setAlert
-}) {
-    const [page, setPage] = useState(1);
+export default function Logup({ active, changeForm, redirect, setAlert }) {
+    const [step, setStep] = useState(1)
 
-    const [form, setForm] = useState({
+    const [formData, setFormData] = useState({
         surname: '',
         name: '',
         email: '',
@@ -33,231 +27,248 @@ export default function Logup({
         agree: false
     })
 
-    const [state, setState] = useState({
-        validation: {},
-        pending: false,
-    })
+    const [validation, setValidation] = useState({})
+    const [isPending, setIsPending] = useState(false)
 
     const handleSubmit = async (e) => {
-        e.preventDefault();
+        e.preventDefault()
+        if (Object.keys(validation).length > 0) return
 
-        if (Object.keys(state.validation).length > 0) return;
+        setIsPending(true)
 
-        setState((prev) => ({ ...prev, pending: true }));
-
-        const check = SignUpDefinition(form);
+        const check = SignUpDefinition(formData)
         if (check.success) {
             try {
-                const { re_password, agree, ...data } = form
-                const res = await SignUpService(data);
+                const { re_password, agree, ...data } = formData
+                const res = await SignUpService(data)
+
                 if (res.status === 200 && res.success) {
-                    setAlert({ status: res.status, message: res.message });
-                    setState((prev) => ({ ...prev, pending: false }));
-                    setForm({ surname: '', name: '', email: '', phone: '', username: '', password: '', re_password: '', agree: false });
-                    changeForm();
+                    setAlert({ status: res.status, message: res.message })
+                    setIsPending(false)
+                    setFormData({
+                        surname: '', name: '', email: '', phone: '',
+                        username: '', password: '', re_password: '', agree: false
+                    })
+                    changeForm()
                 } else {
-                    setState((prev) => ({ ...prev, pending: false }));
-                    setAlert({ status: res.status, message: res.message });
+                    setIsPending(false)
+                    setAlert({ status: res.status, message: res.message })
                 }
             } catch (err) {
-                setState((prev) => ({ ...prev, pending: false }));
-                setAlert({ statsu: 500, message: err.message });
+                setIsPending(false)
+                setAlert({ status: 500, message: err.message })
             }
-        }
-        else {
-            setState((prev) => ({ ...prev, validation: check.errors, pending: false }))
+        } else {
+            setValidation(check.errors)
+            setIsPending(false)
         }
     }
 
     const handleValidation = ({ name, value = '' }) => {
-        const { errors } = (name === 're_password' || name === 'password') ?
-            SignUpDefinition({ ...form, [name]: value })
-            :
-            SignUpDefinition({ [name]: value })
+        const { errors } = (name === 're_password' || name === 'password')
+            ? SignUpDefinition({ ...formData, [name]: value })
+            : SignUpDefinition({ [name]: value })
 
-        setState((prev) => {
-            const { [name]: removed, ...rest } = prev.validation || {};
-
-            return {
-                ...prev,
-                validation: errors?.[name] ?
-                    {
-                        ...prev.validation,
-                        [name]: errors[name]
-                    }
-                    :
-                    {
-                        ...rest
-                    }
-            }
+        setValidation((prev) => {
+            const { [name]: removed, ...rest } = prev || {}
+            return errors?.[name] ? { ...prev, [name]: errors[name] } : { ...rest }
         })
     }
 
     const handleChange = (e) => {
-        const { name, value, type, checked } = e.target;
-        setForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+        const { name, value, type, checked } = e.target
+        setFormData((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
         handleValidation({ name, value: type === 'checkbox' ? checked : value })
     }
 
     const handleClear = (name) => {
-        setForm((prev) => ({ ...prev, [name]: '' }))
+        setFormData((prev) => ({ ...prev, [name]: '' }))
         handleValidation({ name })
     }
 
+    const canGoNext = step < 2
+    const canGoPrev = step > 1
+
     return (
-        <>
-            <Form
-                className={`logup ${active ? 'pop' : ''}`}
-                onSubmit={handleSubmit}
-            >
-                <div className="heading-logup">
-                    <Image src="/image/static/logo.svg" width={50} height={50} alt="logo" />
-                    <h2>
-                        Signup
-                        <Link className="return_homepage" href="/" onClick={redirect}>
-                            CodeDev
-                        </Link>
-                    </h2>
-                    <span>
-                        Welcome to the CodeDev
-                    </span>
+        <Form className={`auth_form signup_form ${active ? 'active' : ''}`} onSubmit={handleSubmit}>
+            <header className="form_header">
+                <Image src="/image/static/logo.svg" width={48} height={48} alt="CodeDev Logo" />
+                <h2>Create Account</h2>
+                <p>Join <Link href="/" onClick={redirect}>CodeDev</Link> community</p>
+            </header>
+
+            <div className="step_indicator">
+                <div className={`step ${step >= 1 ? 'active' : ''}`}>
+                    <span className="step_number">1</span>
+                    <span className="step_label">Personal Info</span>
                 </div>
-                <div className="logup-page" style={{ transform: `translateX(-${(page - 1) * (100 / 2)}%)` }}>
-                    <div id="logup-page-1">
+                <div className="step_line"></div>
+                <div className={`step ${step >= 2 ? 'active' : ''}`}>
+                    <span className="step_number">2</span>
+                    <span className="step_label">Account Setup</span>
+                </div>
+            </div>
+
+            <div className="form_body">
+                <div className="form_steps" style={{ transform: `translateX(-${(step - 1) * 50}%)` }}>
+                    <div className="form_step step_1">
                         <InputGroup
                             name="surname"
-                            label="Surname"
+                            label="First Name"
                             type="text"
-                            value={form.surname}
+                            value={formData.surname}
                             onChange={handleChange}
-                            error={state.validation?.surname}
+                            error={validation?.surname}
                             icon={<MdModeEdit className="icon" />}
-                            reset={(name) => handleClear(name)}
-                            read={state.pending}
-                            tabIndex={page === 1 ? 1 : -1}
+                            reset={handleClear}
+                            read={isPending}
+                            tabIndex={step === 1 ? 0 : -1}
                         />
                         <InputGroup
                             name="name"
-                            label="Name"
+                            label="Last Name"
                             type="text"
-                            value={form.name}
+                            value={formData.name}
                             onChange={handleChange}
-                            error={state.validation?.name}
+                            error={validation?.name}
                             icon={<MdModeEdit className="icon" />}
-                            reset={(name) => handleClear(name)}
-                            read={state.pending}
-                            tabIndex={page === 1 ? 1 : -1}
+                            reset={handleClear}
+                            read={isPending}
+                            tabIndex={step === 1 ? 0 : -1}
                         />
                         <InputGroup
                             name="email"
-                            label="Your email"
+                            label="Email Address"
                             type="text"
-                            value={form.email}
+                            value={formData.email}
                             onChange={handleChange}
-                            error={state.validation?.email}
-                            icon={<MdAlternateEmail className='icon' />}
-                            reset={(name) => handleClear(name)}
-                            read={state.pending}
-                            tabIndex={page === 1 ? 1 : -1}
+                            error={validation?.email}
+                            icon={<MdAlternateEmail className="icon" />}
+                            reset={handleClear}
+                            read={isPending}
+                            tabIndex={step === 1 ? 0 : -1}
                         />
                         <InputGroup
                             name="phone"
-                            label="Your phone"
+                            label="Phone Number"
                             type="text"
-                            value={form.phone}
+                            value={formData.phone}
                             onChange={handleChange}
-                            error={state.validation?.phone}
+                            error={validation?.phone}
                             icon={<FaPhone className="icon" />}
-                            reset={(name) => handleClear(name)}
-                            read={state.pending}
-                            tabIndex={page === 1 ? 1 : -1}
+                            reset={handleClear}
+                            read={isPending}
+                            tabIndex={step === 1 ? 0 : -1}
                         />
                     </div>
-                    <div id="logup-page-2">
+
+                    <div className="form_step step_2">
                         <InputGroup
                             name="username"
                             label="Username"
                             type="text"
-                            value={form.username}
+                            value={formData.username}
                             onChange={handleChange}
-                            error={state.validation?.username}
-                            icon={<FaUser className='icon' />}
-                            reset={(name) => handleClear(name)}
-                            read={state.pending}
-                            tabIndex={page === 2 ? 1 : -1}
+                            error={validation?.username}
+                            icon={<FaUser className="icon" />}
+                            reset={handleClear}
+                            read={isPending}
+                            tabIndex={step === 2 ? 0 : -1}
                         />
                         <InputGroup
                             name="password"
-                            label="Enter password"
+                            label="Password"
                             type="password"
-                            value={form.password}
+                            value={formData.password}
                             onChange={handleChange}
-                            error={state.validation?.password}
+                            error={validation?.password}
                             icon={<MdOutlinePassword className="icon" />}
-                            reset={(name) => handleClear(name)}
-                            read={state.pending}
-                            tabIndex={page === 2 ? 1 : -1}
+                            reset={handleClear}
+                            read={isPending}
+                            tabIndex={step === 2 ? 0 : -1}
                             isPassword={true}
                         />
                         <InputGroup
                             name="re_password"
-                            label="Re-enter password"
+                            label="Confirm Password"
                             type="password"
-                            value={form.re_password}
+                            value={formData.re_password}
                             onChange={handleChange}
-                            error={state.validation?.re_password}
+                            error={validation?.re_password}
                             icon={<FaLock className="icon" />}
-                            reset={(name) => handleClear(name)}
-                            read={state.pending}
-                            tabIndex={page === 2 ? 1 : -1}
+                            reset={handleClear}
+                            read={isPending}
+                            tabIndex={step === 2 ? 0 : -1}
                             isPassword={true}
                         />
-                        <div className="auth-terms">
-                            <input type="checkbox" checked={form.agree} name="agree" onChange={handleChange} tabIndex={page === 2 ? 1 : -1} />
-                            <label>Agree to the terms of CodeDev</label>
-                            {
-                                state.validation?.agree &&
-                                <IoIosWarning fontSize={17} color="var(--color_orange)" />
-                            }
-                        </div>
-                        <button type="submit" className="btn-logup" disabled={state.pending} tabIndex={page === 2 ? 1 : -1}>
-                            {
-                                state.pending ?
-                                    <LoadingContent scale={0.5} color="var(--color_white)" />
-                                    :
-                                    <>
-                                        Sign up
-                                    </>
-                            }
-                        </button>
+                        <label className="terms_checkbox">
+                            <input
+                                type="checkbox"
+                                checked={formData.agree}
+                                name="agree"
+                                onChange={handleChange}
+                                tabIndex={step === 2 ? 0 : -1}
+                            />
+                            <span>I agree to the Terms & Conditions</span>
+                            {validation?.agree && <IoIosWarning className="warning_icon" />}
+                            {formData.agree && !validation?.agree && <IoIosCheckmarkCircle className="check_icon" />}
+                        </label>
                     </div>
                 </div>
-                <div className="footer-logup">
-                    <div className="navigate-logup">
-                        <button type="button" style={page != 1 ? { color: 'var(--color_white)', background: 'var(--color_blue)', cursor: 'pointer' } : { borderColor: 'var(--color_black)', cursor: 'not-allowed' }} onClick={() => setPage(prev => prev - 1)} disabled={page == 1 ? true : false}>
-                            <FaArrowLeft />
-                        </button >
-                        <button type="button" style={page != 2 ? { color: 'var(--color_white)', background: 'var(--color_blue)', cursor: 'pointer' } : { borderColor: 'var(--color_black)', cursor: 'not-allowed' }} onClick={() => setPage(prev => prev + 1)} disabled={page == 2 ? true : false}>
-                            <FaArrowRight />
-                        </button>
-                    </div>
-                    <p>Or sign up with</p>
-                    <div className="social-logup">
-                        <button type="button">
-                            <Image src="/image/static/github.ico" width={20} height={20} alt="github" />
-                            <h4>Github</h4>
-                        </button>
-                        <button type="button">
-                            <Image src="/image/static/google.ico" width={20} height={20} alt="facebook" />
-                            <h4>Google</h4>
-                        </button>
-                    </div>
-                    <div className="login-auth">
-                        Already have an account?
-                        <Link href='/auth' onClick={changeForm}>Login</Link>
-                    </div>
+            </div>
+
+            <div className="form_actions">
+                <div className="step_navigation">
+                    <button
+                        type="button"
+                        className={`nav_btn prev ${canGoPrev ? 'active' : ''}`}
+                        onClick={() => setStep((s) => s - 1)}
+                        disabled={!canGoPrev}
+                    >
+                        <FaArrowLeft />
+                    </button>
+                    <button
+                        type="button"
+                        className={`nav_btn next ${canGoNext ? 'active' : ''}`}
+                        onClick={() => setStep((s) => s + 1)}
+                        disabled={!canGoNext}
+                    >
+                        <FaArrowRight />
+                    </button>
                 </div>
-            </Form>
-        </>
+
+                {step === 2 && (
+                    <button type="submit" className="btn_submit" disabled={isPending} tabIndex={step === 2 ? 0 : -1}>
+                        {isPending ? (
+                            <LoadingContent scale={0.5} color="var(--color_white)" />
+                        ) : (
+                            'Create Account'
+                        )}
+                    </button>
+                )}
+            </div>
+
+            <footer className="form_footer">
+                <div className="divider">
+                    <span>or sign up with</span>
+                </div>
+
+                <div className="social_buttons">
+                    <button type="button" className="social_btn">
+                        <FaGithub />
+                        <span>Github</span>
+                    </button>
+                    <button type="button" className="social_btn">
+                        <FaGoogle />
+                        <span>Google</span>
+                    </button>
+                </div>
+
+                <p className="switch_form">
+                    Already have an account?
+                    <Link href="/auth" onClick={changeForm}>Sign in</Link>
+                </p>
+            </footer>
+        </Form>
     )
 }

@@ -1,156 +1,166 @@
+'use client'
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 
-import { useQuery } from "@/app/router/router";
-import { useSize } from "@/app/contexts/sizeContext";
+import { useQuery, useRouterActions } from "@/app/router/router";
 import { useAuth } from "@/app/contexts/authContext";
 import { deleteSession } from "@/app/lib/session";
 
 import useOutside from "@/app/hooks/useOutside";
 
-import { FaListUl, FaUserCog, FaRegUserCircle, FaChevronDown } from "react-icons/fa";
-import { IoSearch } from "react-icons/io5";
-import { MdEmail, MdNotifications, MdAccountBox, MdLogout } from "react-icons/md";
+import { FaListUl, FaChevronDown } from "react-icons/fa";
+import { IoSearch, IoSettingsSharp, IoLogOut } from "react-icons/io5";
+import { MdEmail, MdNotifications } from "react-icons/md";
 import { FaPlus } from "react-icons/fa6";
+import { HiUser } from "react-icons/hi2";
+import { LuSparkles } from "react-icons/lu";
 
-export default function Navbar({ handleDashboard, handleRedirect }) {
+export default function Navbar({ handleDashboard, redirect }) {
   const pathname = usePathname();
-  const { size } = useSize();
   const { session } = useAuth();
 
-  const [state, setState] = useState({
-    dropdown: false,
-  });
+  const [dropdown, setDropdown] = useState(false);
 
   const queryNavigate = useQuery();
+  const { navigateToTask, navigateToAuth } = useRouterActions();
 
   const ref = useOutside({
-    stateOutside: state.dropdown,
-    setStateOutside: () => setState((prev) => ({
-      ...prev,
-      dropdown: false
-    }))
-  })
+    stateOutside: dropdown,
+    setStateOutside: () => setDropdown(false)
+  });
 
   const handleLogout = async () => {
     try {
-      handleRedirect(true);
+      redirect(true);
       await deleteSession();
     } catch (error) {
-      handleRedirect(false);
+      redirect(false);
     }
+  };
+
+  const handleAuth = () => {
+    redirect(true);
+    navigateToAuth();
   }
 
+  const handleTask = () => {
+    redirect(true);
+    navigateToTask();
+  }
+
+  const toggleDropdown = (e) => {
+    e.stopPropagation();
+    setDropdown(prev => !prev);
+  };
+
   return (
-    <nav id="navbar">
-      <div className="navbar-items">
-        <div className="navbar-feature">
-          {
-            pathname === '/home' &&
-            <button
-              id="menu-btn"
-              onClick={handleDashboard}
-            >
+    <section id='header'>
+      <nav id="navbar">
+        {/* Left Section - Logo & Menu */}
+        <div className="nav-left">
+          {(pathname === '/' || pathname === '/home') && (
+            <button className="nav-icon-btn menu-btn" onClick={() => handleDashboard(true)}>
               <FaListUl />
             </button>
-          }
-          <div id="app_name">
-            <div className="logo">
-              <svg className="svg" viewBox="-5 -5 110 95">
-                <polygon
-                  className="shape"
-                  points="50,0 0,85 100,85" />
+          )}
+          <div className="nav-brand">
+            <div className="brand-logo">
+              <svg viewBox="-5 -5 110 95">
+                <polygon points="50,0 0,85 100,85" />
               </svg>
             </div>
-            <h2>CodeDev</h2>
+            <span className="brand-text">CodeDev</span>
           </div>
         </div>
-        {size.width >= 700 && (
-          <button
-            className="search"
-            onClick={() =>
-              queryNavigate(pathname, { search: true })
-            }
-          >
-            <span>
-              <IoSearch fontSize={18} />
-            </span>
-            <span>Search something</span>
-          </button>
-        )}
-        <div className="navbar-links">
-          {
-            pathname == '/' ?
-              <button id="navigate-btn" onClick={handleRedirect}>
-                Login or signup
+
+        {/* Search Bar */}
+        <button className="nav-search" onClick={() => queryNavigate(pathname, { search: true })}>
+          <span className="search-icon"><IoSearch /></span>
+          <span className="search-text">Search anything...</span>
+          <span className="search-shortcut">
+            <kbd>⌘</kbd>
+            <kbd>K</kbd>
+          </span>
+        </button>
+
+        {/* Right Section - Actions */}
+        <div className="nav-right">
+          {pathname === '/' ? (
+            <button className="nav-cta" onClick={handleAuth}>
+              <LuSparkles />
+              <span>Get Started</span>
+            </button>
+          ) : (
+            <>
+              <button className="nav-icon-btn search-mobile" onClick={() => queryNavigate(pathname, { search: true })}>
+                <IoSearch />
               </button>
-              :
-              <>
-                <div className="navbar_handler">
-                  <button id="todo">
-                    <FaPlus fontSize={16} />
-                  </button>
-                </div>
-                <div className="navbar_handler">
-                  <button
-                    id="account"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setState((prev) => ({
-                        ...prev,
-                        dropdown: !prev.dropdown
-                      }));
-                    }}
-                  >
-                    <MdAccountBox fontSize={22} />
-                    {
-                      size.width >= 500 &&
-                      <span>Account</span>
-                    }
-                    <FaChevronDown
-                      style={{
-                        transform: state.dropdown ? 'rotate(180deg)' : 'rotate(0deg)',
-                        transition: '0.2s all ease'
-                      }}
-                    />
-                  </button>
-                  <div className={`drop_down ${state.dropdown ? 'shown' : 'hidden'}`} ref={ref} >
-                    <div id="tag_account">
-                      <FaRegUserCircle fontSize={20} />
-                      <p>{session.username}</p>
+
+              <button className="nav-icon-btn add-btn" onClick={handleTask}>
+                <FaPlus />
+              </button>
+
+              <button className="nav-icon-btn notification-btn">
+                <MdNotifications />
+                <span className="notification-dot" />
+              </button>
+
+              {/* Account Dropdown */}
+              <div className="nav-account" ref={ref}>
+                <button className="account-trigger" onClick={toggleDropdown}>
+                  <div className="account-avatar">
+                    <HiUser />
+                  </div>
+                  <div className="account-info">
+                    <span className="account-name">{session?.username || 'Account'}</span>
+                  </div>
+                  <FaChevronDown className={`account-arrow ${dropdown ? 'rotated' : ''}`} />
+                </button>
+
+                <div className={`account-dropdown ${dropdown ? 'active' : ''}`}>
+                  <div className="dropdown-header">
+                    <div className="dropdown-avatar">
+                      <HiUser />
                     </div>
-                    <button className="btns">
-                      <MdEmail />
-                      Mail
-                      <span>
-                        0
-                      </span>
+                    <div className="dropdown-user">
+                      <h4>{session?.username || 'User'}</h4>
+                      <p>{session?.email || 'user@email.com'}</p>
+                    </div>
+                  </div>
+
+                  <div className="dropdown-divider" />
+
+                  <div className="dropdown-group">
+                    <button className="dropdown-item">
+                      <span className="item-icon"><MdEmail /></span>
+                      <span className="item-label">Messages</span>
+                      <span className="item-badge">0</span>
                     </button>
-                    <button className="btns">
-                      <MdNotifications />
-                      Notification
-                      <span>
-                        0
-                      </span>
+                    <button className="dropdown-item">
+                      <span className="item-icon"><MdNotifications /></span>
+                      <span className="item-label">Notifications</span>
+                      <span className="item-badge">0</span>
                     </button>
-                    <button id="manage_btn" onClick={() => queryNavigate(pathname, { manage: true })}>
-                      <FaUserCog fontSize={16} />
-                      Manage
+                  </div>
+
+                  <div className="dropdown-divider" />
+
+                  <div className="dropdown-group">
+                    <button className="dropdown-item highlight" onClick={() => queryNavigate(pathname, { manage: true })}>
+                      <span className="item-icon"><IoSettingsSharp /></span>
+                      <span className="item-label">Settings</span>
                     </button>
-                    <span className="line"></span>
-                    <button
-                      id="logout_btn"
-                      onClick={handleLogout}
-                    >
-                      <MdLogout />
-                      Log out
+                    <button className="dropdown-item danger" onClick={handleLogout}>
+                      <span className="item-icon"><IoLogOut /></span>
+                      <span className="item-label">Log out</span>
                     </button>
                   </div>
                 </div>
-              </>
-          }
+              </div>
+            </>
+          )}
         </div>
-      </div>
-    </nav >
+      </nav>
+    </section>
   );
 }

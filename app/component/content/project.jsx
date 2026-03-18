@@ -8,17 +8,18 @@ import { useRouterActions } from "@/app/router/router";
 
 import { ErrorReload } from "../ui/error";
 import { LoadingContent } from "../ui/loading";
-import AlertPush from "../ui/alert";
-import Search from "../ui/search";
+import Search from "../ui/searchBar";
 
 import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
 
 import { uniqWith } from "lodash";
 
-import { MdAddCircleOutline } from "react-icons/md";
-import { FaInfoCircle, FaRegTrashAlt } from "react-icons/fa";
-import { FaUserGroup, FaUser, FaArrowRight } from "react-icons/fa6";
+import { FaRegTrashAlt, FaPlus } from "react-icons/fa";
+import { FaUserGroup, FaUser, FaArrowRight, FaFolderOpen, FaCalendarDays } from "react-icons/fa6";
 import { LuSearchX } from "react-icons/lu";
+import { IoClose } from "react-icons/io5";
+import { HiSparkles } from "react-icons/hi2";
+import { VscProject } from "react-icons/vsc";
 
 export function ProjectItem({
     item,
@@ -28,87 +29,105 @@ export function ProjectItem({
 }) {
     const [confirmDelete, setConfirmDelete] = useState(false);
 
+    const statusConfig = {
+        'Completed': { color: 'var(--color_green)', bg: 'rgba(16, 185, 129, 0.1)' },
+        'Ongoing': { color: 'var(--color_primary)', bg: 'rgba(48, 102, 190, 0.1)' },
+        'Not Started': { color: 'var(--color_red)', bg: 'rgba(244, 63, 94, 0.1)' },
+        'Pending': { color: 'var(--color_orange)', bg: 'rgba(249, 115, 22, 0.1)' },
+    };
+
+    const currentStatus = statusConfig[item.status] || statusConfig['Pending'];
+
     return (
-        <div className="item_project">
-            <div className="project_actions">
+        <div className="project-card">
+            {/* Card Header */}
+            <div className="card-header">
+                <div className="project-icon" style={{ '--status-color': currentStatus.color, '--status-bg': currentStatus.bg }}>
+                    <VscProject />
+                </div>
+                <div className="project-method">
+                    {item.method === "Self" ? <FaUser /> : <FaUserGroup />}
+                    <span>{item.method}</span>
+                </div>
+            </div>
+
+            {/* Card Body */}
+            <div className="card-body">
+                <h3 className="project-title">{item.name}</h3>
+                <p className="project-desc">{item.description}</p>
+
+                <div className="project-meta">
+                    <span
+                        className="meta-status"
+                        style={{ '--status-color': currentStatus.color, '--status-bg': currentStatus.bg }}
+                    >
+                        <span className="status-dot" />
+                        {item.status}
+                    </span>
+                    {item.created_at && (
+                        <span className="meta-date">
+                            <FaCalendarDays />
+                            {new Date(item.created_at).toLocaleDateString()}
+                        </span>
+                    )}
+                </div>
+            </div>
+
+            {/* Card Footer */}
+            <div className="card-footer">
+                <button className="btn-open">
+                    <FaArrowRight />
+                    <span>Open Project</span>
+                </button>
                 <button
-                    className="delete_project"
-                    onClick={() => {
+                    className="btn-delete"
+                    disabled={isHandling}
+                    onClick={(e) => {
+                        e.stopPropagation();
                         setConfirmDelete(true);
                     }}
                 >
                     <FaRegTrashAlt />
                 </button>
             </div>
-            <div className="main_item">
-                <div className="main_top">
-                    <button className="method_project">
-                        {item.method === "Self" && <FaUser fontSize={16} />}
-                        {item.method === "Team" && <FaUserGroup fontSize={16} />}
-                    </button>
-                    <h3>{item.name}</h3>
-                </div>
 
-                <div className="content_project">
-                    <p className="description">
-                        <FaInfoCircle
-                            color="var(--color_blue)"
-                            fontSize={16}
-                            style={{ flexShrink: 0 }}
-                        />
-                        {item.description}
-                    </p>
-                </div>
-            </div>
-
-            <p
-                className="status_project"
-                style={{
-                    "--color":
-                        statusColors[item.status] ||
-                        "var(--color_orange)",
-                }}
-            >
-                {item.status}
-            </p>
-
-            <button className="join_project">
-                <FaArrowRight fontSize={18} />
-            </button>
-
+            {/* Confirm Delete Modal */}
             {confirmDelete && (
-                <div className="confirm_handler">
+                <div className="confirm-modal">
                     {isHandling ? (
                         <LoadingContent scale={0.8} />
                     ) : (
-                        <div className="form_confirm">
-                            <div className="confirm_text">
-                                <h4 className="delete_func">Deleting</h4>
-                                <p>
-                                    Are you sure you want to delete the
-                                    project <strong>{item.name}</strong> ?
-                                </p>
+                        <>
+                            <div className="modal-content">
+                                <span className="modal-icon delete">
+                                    <FaRegTrashAlt />
+                                </span>
+                                <h4>Delete Project</h4>
+                                <p>Are you sure you want to delete <strong>{item.name}</strong>?</p>
                             </div>
-
-                            <div className="form_confirm_button">
+                            <div className="modal-actions">
                                 <button
-                                    className="delete_button"
-                                    onClick={() => onDelete({ id: item.id, project: item.name })}
+                                    className="btn-confirm"
                                     disabled={isHandling}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDelete({ id: item.id, project: item.name });
+                                    }}
                                 >
                                     Delete
                                 </button>
                                 <button
-                                    className="cancel_button"
-                                    onClick={() =>
-                                        setConfirmDelete(false)
-                                    }
+                                    className="btn-cancel"
                                     disabled={isHandling}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setConfirmDelete(false);
+                                    }}
                                 >
                                     Cancel
                                 </button>
                             </div>
-                        </div>
+                        </>
                     )}
                 </div>
             )}
@@ -116,12 +135,12 @@ export function ProjectItem({
     );
 }
 
-export default function Project({ redirect }) {
+export default function Project({ redirect, alert }) {
     const { navigateToProject } = useRouterActions();
 
     const status_colors = {
         'Completed': 'var(--color_green)',
-        'Ongoing': 'var(--color_blue)',
+        'Ongoing': 'var(--color_primary)',
         'Not Started': 'var(--color_red)',
         'Pending': 'var(--color_orange)',
     };
@@ -130,35 +149,17 @@ export default function Project({ redirect }) {
         {
             name: 'status',
             items: [
-                {
-                    name: 'Pending',
-                    value: 'Pending'
-                },
-                {
-                    name: 'Ongoing',
-                    value: 'Ongoing'
-                },
-                {
-                    name: 'Completed',
-                    value: 'Completed'
-                },
-                {
-                    name: 'Not Started',
-                    value: 'Not Started'
-                }
+                { name: 'Pending', value: 'Pending' },
+                { name: 'Ongoing', value: 'Ongoing' },
+                { name: 'Completed', value: 'Completed' },
+                { name: 'Not Started', value: 'Not Started' }
             ]
         },
         {
             name: 'method',
             items: [
-                {
-                    name: 'Self',
-                    value: 'Self'
-                },
-                {
-                    name: 'Team',
-                    value: 'Team'
-                }
+                { name: 'Self', value: 'Self' },
+                { name: 'Team', value: 'Team' }
             ]
         }
     ]
@@ -187,7 +188,6 @@ export default function Project({ redirect }) {
 
     const [apiQueue, setApiQueue] = useState([]);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [alert, setAlert] = useState(null);
 
     const { setRef } = useInfiniteScroll({
         hasMore: load.hasMore,
@@ -243,24 +243,15 @@ export default function Project({ redirect }) {
                 setState((prev) => ({ ...prev, data: prev.data.filter((item) => item.id !== id) }));
                 setApiQueue((prev) => [...prev, { type: "fetch" }]);
                 startTransition(() => {
-                    setAlert({
-                        status: res.status,
-                        message: "Deleted project successfully: " + project,
-                    })
+                    alert(res.status, res.message || "Project " + project + " has been deleted successfully");
                 })
             }
             else {
-                setAlert({
-                    status: res.status,
-                    message: "Failed to delete project: " + project,
-                });
+                alert(res.status || 500, res.message || "An error occurred while deleting project: " + project);
             }
         }
         catch (err) {
-            setAlert({
-                status: err.status || 500,
-                message: "Error deleting project: " + project,
-            });
+            alert(err.status || 500, err.message || "An error occurred while deleting project: " + project);
         } finally {
             stopHandling(id);
         }
@@ -302,17 +293,11 @@ export default function Project({ redirect }) {
                             hide: false
                         }
                     }));
-                    setAlert({
-                        status: res.status,
-                        message: res.message || "Successfully",
-                    })
+                    alert(res.status, res.message || "Project has been updated successfully");
                 })
             }
             else {
-                setAlert({
-                    status: res.status || 500,
-                    message: res.message || "Something is wrong, try again",
-                });
+                alert(res.status || 500, res.message || "Something is wrong, try again");
                 setState((prev) => ({
                     ...prev,
                     handling: {
@@ -323,10 +308,7 @@ export default function Project({ redirect }) {
             }
         }
         catch (err) {
-            setAlert({
-                status: err.status || 500,
-                message: "Something is wrong, try again",
-            });
+            alert(err.status || 500, err.message || "Something is wrong, try again");
             setState((prev) => ({
                 ...prev,
                 handling: {
@@ -397,10 +379,6 @@ export default function Project({ redirect }) {
         navigateToProject();
     }
 
-    useEffect(() => {
-        setAlert(null)
-    }, [alert])
-
     const startHandling = (id) => {
         setHandlingMap(prev => ({ ...prev, [id]: true }))
     }
@@ -415,7 +393,24 @@ export default function Project({ redirect }) {
 
     return (
         <div id="myProject">
-            <div className="heading-myProject">
+            {/* Page Header */}
+            <section className="project-header">
+                <div className="header-text">
+                    <span className="header-label">
+                        <HiSparkles />
+                        Workspace
+                    </span>
+                    <h1>My Projects</h1>
+                    <p>Manage and track your development projects</p>
+                </div>
+                <button className="btn-new-project" onClick={handleRedirect}>
+                    <FaPlus />
+                    <span>New Project</span>
+                </button>
+            </section>
+
+            {/* Search & Filter */}
+            <section className="project-search">
                 <Search
                     data={filterMapping}
                     submit={handleSubmitSearch}
@@ -424,52 +419,46 @@ export default function Project({ redirect }) {
                     defaultFilter={defaultFilter}
                     pending={state.pending}
                 />
-                <div className="handle-project">
-                    <button id="project-btn" onClick={handleRedirect}>
-                        <MdAddCircleOutline fontSize={16} />
-                        <span>
-                            Add project
-                        </span>
-                    </button>
-                </div>
-            </div>
-            <div className="project-list">
-                {
-                    state.pending ?
-                        <LoadingContent />
-                        :
-                        state.error ?
-                            <ErrorReload data={state.error || { status: 500, message: "Something is wrong" }} refetch={refetchData} />
-                            :
-                            state.data && state.data.length > 0 ?
-                                state.data.map((item) => (
-                                    <ProjectItem
-                                        key={item.id}
-                                        item={item}
-                                        statusColors={status_colors}
-                                        isHandling={!!handlingMap[item.id]}
-                                        onDelete={handleDelete}
-                                    />
-                                ))
-                                :
-                                <p className='no_data'>
-                                    <LuSearchX />
-                                    No project can be found here !
-                                </p>
-                }
-            </div>
+            </section>
+
+            {/* Project Grid */}
+            <section className="project-grid">
+                {state.pending ? (
+                    <LoadingContent />
+                ) : state.error ? (
+                    <ErrorReload data={state.error || { status: 500, message: "Something is wrong" }} refetch={refetchData} />
+                ) : state.data && state.data.length > 0 ? (
+                    state.data.map((item) => (
+                        <ProjectItem
+                            key={item.id}
+                            item={item}
+                            statusColors={status_colors}
+                            isHandling={!!handlingMap[item.id]}
+                            onDelete={handleDelete}
+                        />
+                    ))
+                ) : (
+                    <div className="empty-state">
+                        <FaFolderOpen />
+                        <h4>No projects found</h4>
+                        <p>Create your first project to get started</p>
+                        <button onClick={handleRedirect}>
+                            <FaPlus />
+                            Create Project
+                        </button>
+                    </div>
+                )}
+            </section>
+
+            {/* Load More */}
             {!state.pending && state.data.length > 0 && load.hasMore && (
-                <span className="load_wrapper" ref={setRef}>
+                <div className="load-more" ref={setRef}>
                     <LoadingContent
                         scale={0.5}
                         message={state.error && "Something is wrong, try again..."}
                     />
-                </span>
+                </div>
             )}
-            <AlertPush
-                message={alert?.message}
-                status={alert?.status}
-            />
-        </div >
+        </div>
     )
 }

@@ -7,8 +7,9 @@ import Image from "next/image";
 import { GoProjectRoadmap } from "react-icons/go";
 import { FaCode } from 'react-icons/fa6';
 import { MdInfoOutline, MdOutlineClose } from "react-icons/md";
+import { VscProject } from "react-icons/vsc";
 
-export default function Dashboard({ handleDashboard, handleRedirect }) {
+export default function Dashboard({ isDashboard, handleDashboard, handleRedirect }) {
     const params = useSearchParams();
     const { size } = useSize();
     const refNavigation = useRef(null);
@@ -39,6 +40,10 @@ export default function Dashboard({ handleDashboard, handleRedirect }) {
             icon: <FaCode />,
         },
         {
+            name: 'Project',
+            icon: <VscProject />
+        },
+        {
             name: "About",
             icon: <MdInfoOutline />
         }
@@ -47,7 +52,7 @@ export default function Dashboard({ handleDashboard, handleRedirect }) {
     return (
         <div id='dashboard'>
             <div className="header">
-                <Image src={`./image/logo.svg`} alt="logo" width={20} height={20} />
+                <Image src={'/image/static/logo.svg'} alt="logo" width={35} height={35} />
                 <h3>CodeDev</h3>
             </div>
             <div className="main-menu">
@@ -55,7 +60,7 @@ export default function Dashboard({ handleDashboard, handleRedirect }) {
                     {menuList.map((item, index) => (
                         <div className='menu-item' key={index}>
                             <button
-                                className={targetItem === index ? 'active' : ''}
+                                className={item.name === targetItem ? 'active' : ''}
                                 onClick={() =>
                                     handleNavigation(index, item.name)
                                 }
@@ -65,8 +70,8 @@ export default function Dashboard({ handleDashboard, handleRedirect }) {
                             </button>
                         </div>
                     ))}
+                    <span id="navigation" ref={refNavigation}></span>
                 </div>
-                <span id="navigation" ref={refNavigation}></span>
             </div>
             {
                 size.width < 425 &&
@@ -77,9 +82,12 @@ export default function Dashboard({ handleDashboard, handleRedirect }) {
                     </button>
                 </div>
             }
-            <button id="hidden-menu" onClick={handleDashboard}>
-                <MdOutlineClose />
-            </button>
+            {
+                isDashboard &&
+                <button id="hidden-menu" onClick={handleDashboard}>
+                    <MdOutlineClose fontSize={16} />
+                </button>
+            }
         </div>
     )
 }

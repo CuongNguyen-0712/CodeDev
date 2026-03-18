@@ -1,28 +1,33 @@
-import { useEffect } from 'react';
+'use client'
 
-import { usePathname } from 'next/navigation';
+import { useEffect, useCallback } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
 
-import { useQuery } from '../router/router';
+export default function useKey({ key = 'Escape', param }) {
+    const router = useRouter()
+    const pathname = usePathname()
 
-export default function useKey({ key, param, callback }) {
-    const pathname = usePathname();
-    const queryNavigate = useQuery();
+    const handleKey = useCallback((event) => {
+        if (event.key !== key) return
+
+        const currentParams = new URLSearchParams(window.location.search)
+
+        if (!currentParams.get(param)) return
+
+        currentParams.delete(param)
+
+        const queryString = currentParams.toString()
+
+        router.push(
+            queryString ? `${pathname}?${queryString}` : pathname,
+            { scroll: false }
+        )
+    }, [key, param, router, pathname])
 
     useEffect(() => {
-        const handleKeyDown = (e) => {
-            if (e.key === key) {
-                e.preventDefault();
-                if (typeof callback === 'function') {
-                    callback();
-                }
-                else {
-                    queryNavigate(pathname, { [param]: false });
-                }
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keydown', handleKey)
         return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-        };
-    }, [key, callback]);
+            window.removeEventListener('keydown', handleKey)
+        }
+    }, [handleKey])
 }

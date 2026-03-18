@@ -12,173 +12,143 @@ import SignInService from "@/app/services/authService/signIn"
 import { LoadingContent } from "../ui/loading"
 import { InputGroup } from "../ui/input"
 
-import { FaUser, FaLock } from "react-icons/fa6";
+import { FaUser, FaLock, FaGithub, FaGoogle } from "react-icons/fa6"
 
-export default function Login({
-    active,
-    changeForm,
-    redirect,
-    setAlert
-}) {
-    const { navigateToHome } = useRouterActions();
-    const { refreshSession } = useAuth();
+export default function Login({ active, changeForm, redirect, setAlert }) {
+    const { navigateToHome } = useRouterActions()
+    const { refreshSession } = useAuth()
 
-    const [login, setLogin] = useState({
+    const [formData, setFormData] = useState({
         name: '',
         pass: '',
-        validation: {},
-        pending: false,
     })
+    const [validation, setValidation] = useState({})
+    const [isPending, setIsPending] = useState(false)
 
-    const submitLogin = async (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault()
+        if (Object.keys(validation).length > 0) return
 
-        if (Object.keys(login.validation).length > 0) return
+        setIsPending(true)
 
-        setLogin({ ...login, pending: true })
-
-        const check = SignInDefinition({ name: login.name.trim(), pass: login.pass })
+        const check = SignInDefinition({ name: formData.name.trim(), pass: formData.pass })
         if (check.success) {
             try {
-                const response = await SignInService({ name: login.name, pass: login.pass });
+                const response = await SignInService({ name: formData.name, pass: formData.pass })
 
                 if (response.status === 200 && response.success) {
-                    await refreshSession();
-                    setAlert({ status: response.status, message: response.message });
+                    await refreshSession()
+                    setAlert({ status: response.status, message: response.message })
                     setTimeout(() => {
-                        redirect();
-                        navigateToHome();
+                        redirect()
+                        navigateToHome()
                     }, 2000)
                 } else {
-                    setLogin((prev) => ({ ...prev, pending: false }));
-                    setAlert({ status: response.status, message: response.message });
+                    setIsPending(false)
+                    setAlert({ status: response.status, message: response.message })
                 }
             } catch (err) {
-                setAlert({ status: 500, message: err.message });
-                setLogin((prev) => ({ ...prev, pending: false }));
+                setAlert({ status: 500, message: err.message })
+                setIsPending(false)
             }
-        }
-        else {
-            setLogin({ ...login, validation: check.errors, pending: false })
+        } else {
+            setValidation(check.errors)
+            setIsPending(false)
         }
     }
 
     const handleValidation = ({ name, value = '' }) => {
         const { errors } = SignInDefinition({ [name]: value })
-
-        setLogin((prev) => {
-            const { [name]: removed, ...rest } = prev.validation || {};
-
-            return {
-                ...prev,
-                validation: errors?.[name] ?
-                    {
-                        ...prev.validation,
-                        [name]: errors[name]
-                    }
-                    :
-                    {
-                        ...rest
-                    }
-            }
+        setValidation((prev) => {
+            const { [name]: removed, ...rest } = prev || {}
+            return errors?.[name] ? { ...prev, [name]: errors[name] } : { ...rest }
         })
     }
 
     const handleChange = (e) => {
         const { name, value } = e.target
-        setLogin((prev) => ({ ...prev, [name]: value }))
+        setFormData((prev) => ({ ...prev, [name]: value }))
         handleValidation({ name, value })
     }
 
     const handleClear = (name) => {
-        setLogin((prev) => ({ ...prev, [name]: '' }))
-        handleValidation({ name: name })
+        setFormData((prev) => ({ ...prev, [name]: '' }))
+        handleValidation({ name })
     }
 
     return (
-        <>
-            <Form
-                className={`login ${active ? 'pop' : ''}`}
-                onSubmit={submitLogin}
-            >
-                <div className="heading-login">
-                    <Image src="/image/static/logo.svg" width={50} height={50} alt="logo" />
-                    <h2>
-                        Login
-                        <Link className="return_homepage" href="/" onClick={redirect}>
-                            CodeDev
-                        </Link>
-                    </h2>
-                    <span>
-                        Welcome back to CodeDev
-                    </span>
+        <Form className={`auth_form login_form ${active ? 'active' : ''}`} onSubmit={handleSubmit}>
+            <header className="form_header">
+                <Image src="/image/static/logo.svg" width={48} height={48} alt="CodeDev Logo" />
+                <h2>Welcome Back</h2>
+                <p>Sign in to continue to <Link href="/" onClick={redirect}>CodeDev</Link></p>
+            </header>
+
+            <div className="form_body">
+                <div className="form_inputs">
+                    <InputGroup
+                        name="name"
+                        label="Username"
+                        type="text"
+                        value={formData.name}
+                        onChange={handleChange}
+                        error={validation?.name}
+                        icon={<FaUser className="icon" />}
+                        reset={handleClear}
+                        read={isPending}
+                    />
+                    <InputGroup
+                        name="pass"
+                        label="Password"
+                        type="password"
+                        value={formData.pass}
+                        onChange={handleChange}
+                        error={validation?.pass}
+                        icon={<FaLock className="icon" />}
+                        reset={handleClear}
+                        read={isPending}
+                        isPassword={true}
+                    />
                 </div>
-                <div className="main-login">
-                    <div className="login-input">
-                        <InputGroup
-                            name='name'
-                            label="Username"
-                            type="text"
-                            value={login.name}
-                            onChange={handleChange}
-                            error={login.validation?.name}
-                            icon={<FaUser className='icon' />}
-                            reset={(name) => handleClear(name)}
-                            read={login.pending}
-                        />
-                        <InputGroup
-                            name='pass'
-                            label="Password"
-                            type="password"
-                            value={login.pass}
-                            onChange={handleChange}
-                            error={login.validation?.pass}
-                            icon={<FaLock className='icon' />}
-                            reset={(name) => handleClear(name)}
-                            read={login.pending}
-                            isPassword={true}
-                        />
-                    </div>
-                    <div className="login-help">
-                        <span>
-                            Having trouble logging in?
-                            <Link href="/auth" tabIndex={1}>Get help</Link>
-                        </span>
-                        <span>
-                            <input type="checkbox" tabIndex={1} />
-                            <label>Remember me</label>
-                        </span>
-                    </div>
-                    <button type="submit" className="btn-login" disabled={login.pending}>
-                        {
-                            login.pending ?
-                                <LoadingContent scale={0.5} color="var(--color_white)" />
-                                :
-                                <>
-                                    Log in
-                                </>
-                        }
+
+                <div className="form_options">
+                    <label className="remember_me">
+                        <input type="checkbox" tabIndex={1} />
+                        <span>Remember me</span>
+                    </label>
+                    <Link href="/auth" className="forgot_link">Forgot password?</Link>
+                </div>
+
+                <button type="submit" className="btn_submit" disabled={isPending}>
+                    {isPending ? (
+                        <LoadingContent scale={0.5} color="var(--color_white)" />
+                    ) : (
+                        'Sign In'
+                    )}
+                </button>
+            </div>
+
+            <footer className="form_footer">
+                <div className="divider">
+                    <span>or continue with</span>
+                </div>
+
+                <div className="social_buttons">
+                    <button type="button" className="social_btn">
+                        <FaGithub />
+                        <span>Github</span>
                     </button>
-                    <Link href="/auth" id="forgot_password">Forgot your password ?</Link>
+                    <button type="button" className="social_btn">
+                        <FaGoogle />
+                        <span>Google</span>
+                    </button>
                 </div>
-                <div className="footer-login">
-                    <p>Or log in with</p>
-                    <div className="social-login">
-                        <button type="button">
-                            <Image src="/image/static/github.ico" width={20} height={20} alt="github" />
-                            <h4>Github</h4>
-                        </button>
-                        <button type="button">
-                            <Image src="/image/static/google.ico" width={20} height={20} alt="facebook" />
-                            <h4>Google</h4>
-                        </button>
-                    </div>
-                    <div className="register-auth">
-                        Don't have an account ?
-                        <Link href='/auth' onClick={changeForm}>Create an account</Link>
-                    </div>
-                </div>
-            </Form>
-        </>
+
+                <p className="switch_form">
+                    Don't have an account?
+                    <Link href="/auth" onClick={changeForm}>Create account</Link>
+                </p>
+            </footer>
+        </Form>
     )
 }

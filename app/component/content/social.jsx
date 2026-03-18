@@ -5,7 +5,6 @@ import Form from 'next/form'
 import GetMySocialService from '@/app/services/getService/mySocialService'
 import PostCreateTeamService from '@/app/services/postService/createTeamService'
 
-import { useSize } from '@/app/contexts/sizeContext'
 import { CreateTeamDefinition } from '@/app/lib/definition'
 
 import useInfiniteScroll from '@/app/hooks/useInfiniteScroll'
@@ -26,7 +25,6 @@ import { MdDeleteForever, MdAdd, MdEdit } from "react-icons/md";
 import { PiSignOutBold } from "react-icons/pi";
 
 export default function Social({ redirect }) {
-    const { size } = useSize();
     const refDropdowns = useRef({})
 
     const [state, setState] = useState({
@@ -286,10 +284,7 @@ export default function Social({ redirect }) {
                     (state.data.friend?.length ?? 0) > 0 ?
                         state.data.friend.map((item, index) => (
                             <div className='card_social' key={index}>
-                                {
-                                    size.width >= 425 &&
-                                    <Image src={item.image || '/image/default.svg'} alt='avatar' width={100} height={100} />
-                                }
+                                <Image src={item.image || '/image/default.svg'} alt='avatar' width={100} height={100} />
                                 <div className='card_info'>
                                     <div className='top_info'>
                                         <div className='main_top'>
@@ -299,10 +294,7 @@ export default function Social({ redirect }) {
                                                 {item.nickname}
                                             </span>
                                         </div>
-                                        {
-                                            size.width < 425 &&
-                                            <Image src={'/image/default.svg'} alt='avatar' width={100} height={100} />
-                                        }
+                                        <Image src={'/image/default.svg'} alt='avatar' width={100} height={100} />
                                     </div>
                                     <div className='tier'>
                                         <span>
@@ -527,12 +519,8 @@ export default function Social({ redirect }) {
                             onClick={() => setShown(!shown)}
                             disabled={state.pending}
                         >
-                            {
-                                size.width > 425 &&
-                                <>
-                                    {state.activeTab}
-                                </>
-                            }
+
+                            {state.activeTab}
                             <FaCaretDown fontSize={18} />
                         </button>
                         <div
@@ -562,10 +550,7 @@ export default function Social({ redirect }) {
                         onClick={() => setState((prev) => ({ ...prev, contact: !prev.contact }))}
                     >
                         <IoShareSocial fontSize={18} />
-                        {
-                            size.width > 425 &&
-                            "Social"
-                        }
+                        Social
                     </button>
                 </div>
                 <div className='content_social'>

@@ -65,16 +65,15 @@ export function LoadingRedirect({ scale }) {
     )
 }
 
-export function LoadingContent({ scale, color = 'var(--color_black)', message = null }) {
+export function LoadingContent({ scale = 1, color = 'var(--color_primary)', message = null }) {
     return (
-        <div id="loadContent">
-            <svg className="loader" viewBox="0 0 50 50" style={scale && { scale: scale }}>
-                <circle className="path" cx="25" cy="25" r="20" fill="none" strokeWidth="5" style={{ stroke: color }} />
-            </svg>
-            {
-                message &&
-                <p>{message}</p>
-            }
+        <div className="loading-container">
+            <div className="loading-spinner" style={{ transform: `scale(${scale})` }}>
+                <svg viewBox="0 0 50 50">
+                    <circle cx="25" cy="25" r="20" fill="none" strokeWidth="4" style={{ stroke: color }} />
+                </svg>
+            </div>
+            {message && <p className="loading-message">{message}</p>}
         </div>
     )
 }

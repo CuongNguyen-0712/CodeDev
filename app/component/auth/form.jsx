@@ -1,75 +1,77 @@
 'use client'
-import { useState, useEffect } from "react"
+import { useState } from "react"
 
 import Login from "./login"
 import Logup from "./logup"
 import { LoadingRedirect } from "../ui/loading"
 import AlertPush from "../ui/alert"
 
+import { HiSparkles } from "react-icons/hi2"
+
 export default function Form() {
-    const [form, setForm] = useState('login')
-
+    const [activeForm, setActiveForm] = useState('login')
     const [alert, setAlert] = useState(null)
+    const [isRedirecting, setIsRedirecting] = useState(false)
 
-    const [redirect, setRedirect] = useState(false)
-
-    useEffect(() => {
-        setAlert(null)
-    }, [alert]);
+    const isLogin = activeForm === 'login'
+    const isSignup = activeForm === 'signup'
 
     return (
         <main id="auth">
-            {redirect ?
+            {isRedirecting ? (
                 <LoadingRedirect />
-                :
-                <div className="auth-container">
-                    <div className="container">
-                        <section className="auth-form">
+            ) : (
+                <div className="auth_wrapper">
+                    <div className="auth_card">
+                        <section className="auth_forms">
                             <Login
-                                active={form === 'login'}
-                                changeForm={() => setForm('signup')}
-                                redirect={() => setRedirect(true)}
-                                setAlert={(data) => setAlert(data)}
+                                active={isLogin}
+                                changeForm={() => setActiveForm('signup')}
+                                redirect={() => setIsRedirecting(true)}
+                                setAlert={setAlert}
                             />
                             <Logup
-                                active={form === 'signup'}
-                                changeForm={() => setForm('login')}
-                                redirect={() => setRedirect(true)}
-                                setAlert={(data) => setAlert(data)}
+                                active={isSignup}
+                                changeForm={() => setActiveForm('login')}
+                                redirect={() => setIsRedirecting(true)}
+                                setAlert={setAlert}
                             />
                         </section>
-                        <section className="beside_auth">
-                            <div className="image_frame">
-                                <img src="/image/static/auth.png" alt="image_auth" />
+
+                        <aside className="auth_sidebar">
+                            <div className="sidebar_content">
+                                <div className="sidebar_brand">
+                                    <HiSparkles className="brand_icon" />
+                                    <h3>CodeDev</h3>
+                                </div>
+                                <div className="sidebar_image">
+                                    <img src="/image/static/auth.png" alt="Authentication" />
+                                </div>
+                                <div className="sidebar_text">
+                                    <h4>{isLogin ? 'New here?' : 'Already a member?'}</h4>
+                                    <p>
+                                        {isLogin
+                                            ? 'Join us and start your coding journey today!'
+                                            : 'Welcome back! Sign in to continue your progress.'}
+                                    </p>
+                                </div>
+                                <button
+                                    className="sidebar_btn"
+                                    onClick={() => setActiveForm(isLogin ? 'signup' : 'login')}
+                                >
+                                    {isLogin ? 'Create Account' : 'Sign In'}
+                                </button>
                             </div>
-                            <div className="navigate_btns">
-                                {
-                                    form === 'signup' &&
-                                    <button
-                                        id="navigate_login"
-                                        onClick={() => setForm('login')}
-                                    >
-                                        Log in
-                                    </button>
-                                }
-                                {
-                                    form === 'login' &&
-                                    <button
-                                        id="navigate_signup"
-                                        onClick={() => setForm('signup')}
-                                    >
-                                        Sign up
-                                    </button>
-                                }
-                            </div>
-                        </section>
+                        </aside>
                     </div>
+
                     <AlertPush
                         status={alert?.status}
                         message={alert?.message}
+                        reset={() => setAlert(null)}
                     />
                 </div>
-            }
+            )}
         </main>
     )
 }        

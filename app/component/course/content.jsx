@@ -1,3 +1,4 @@
+'use client'
 import { useState, useEffect } from "react"
 
 import RegisterCourseService from "@/app/services/postService/registerCourseService";
@@ -7,81 +8,87 @@ import { useQuery, useRouterActions } from "@/app/router/router";
 
 import { ErrorReload } from "../ui/error";
 import { LoadingContent } from "../ui/loading";
-import AlertPush from "../ui/alert";
-import Search from "../ui/search";
+import Search from "../ui/searchBar";
 
 import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
 
 import { uniqWith } from "lodash";
 
-import { FaStar, FaArrowRight } from "react-icons/fa";
-import { CgDetailsMore } from "react-icons/cg";
+import { FaStar, FaArrowRight, FaUser, FaBookOpen } from "react-icons/fa";
+import { HiOutlineExternalLink } from "react-icons/hi";
+
+const levelConfig = {
+    'Beginner': {
+        color: 'var(--color_green)',
+        bg: 'rgba(16, 185, 129, 0.1)',
+    },
+    'Intermediate': {
+        color: 'var(--color_primary)',
+        bg: 'rgba(48, 102, 190, 0.1)',
+    },
+    'Advanced': {
+        color: 'var(--color_orange)',
+        bg: 'rgba(245, 158, 11, 0.1)',
+    },
+    'Expert': {
+        color: 'var(--color_purple)',
+        bg: 'rgba(139, 92, 246, 0.1)',
+    },
+    'Master': {
+        color: 'var(--color_red_dark)',
+        bg: 'rgba(239, 68, 68, 0.1)',
+    }
+}
 
 const CourseItem = ({ item, handlePreview, handleRegister, startHandling, isHandling }) => {
-    const colorLevelMap = {
-        'Beginner': {
-            color: 'var(--color_green)',
-        },
-        'Intermediate': {
-            color: 'var(--color_blue)',
-        },
-        'Advanced': {
-            color: 'var(--color_orange)',
-        },
-        'Expert': {
-            color: 'var(--color_purple)',
-        },
-        'Master': {
-            color: 'var(--color_red_dark)',
-        }
-    }
+    const level = levelConfig[item.level] || levelConfig['Beginner']
 
     return (
-        <div
-            className="course_item"
-        >
-            <div className="heading">
-                <img src={item.image?.trim()} alt="course_image" />
-                <h3>{item.title}</h3>
-
-                <span className="rating">
-                    {item.rating}
-                    <FaStar className="star" />
-                </span>
-
-                <div className="concept">
-                    <p>{item.concept}</p>
+        <div className="course-card">
+            <div className="course-card-header">
+                <div className="course-image-wrapper">
+                    <img src={item.image?.trim()} alt={item.title} className="course-image" />
                 </div>
-            </div>
 
-            <div className="content-item">
+                <div className="course-rating">
+                    <FaStar className="star-icon" />
+                    <span>{item.rating}</span>
+                </div>
+
                 <div
-                    className="info"
-                    style={{ 'color': `${colorLevelMap[item.level].color}` }}
+                    className="course-level"
+                    style={{
+                        color: level.color,
+                        background: level.bg
+                    }}
                 >
-                    <h5>{item.level}</h5>
-                </div>
-                <div className="info">
-                    <p>{item.description}</p>
-                </div>
-                <div className="info">
-                    <span>Subject:</span>
-                    <p>{item.subject}</p>
-                </div>
-                <div className="info">
-                    <span>Instructor:</span>
-                    <p>{item.instructor}</p>
+                    {item.level}
                 </div>
             </div>
 
-            <div className="footer">
+            <div className="course-card-body">
+                <h3 className="course-title">{item.title}</h3>
+                <p className="course-concept">{item.concept}</p>
+                <p className="course-description">{item.description}</p>
+
+                <div className="course-meta">
+                    <div className="meta-item">
+                        <FaBookOpen className="meta-icon" />
+                        <span>{item.subject}</span>
+                    </div>
+                    <div className="meta-item">
+                        <FaUser className="meta-icon" />
+                        <span>{item.instructor}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div className="course-card-footer">
                 <button
-                    className="submit_course"
+                    className={`course-enroll-btn ${Math.round(item.cost) !== 0 ? 'paid' : ''}`}
                     onClick={(e) => {
                         e.stopPropagation()
-
                         if (Math.round(item.cost) !== 0) return
-
                         startHandling(item.id)
                         handleRegister({
                             id: item.id,
@@ -90,25 +97,20 @@ const CourseItem = ({ item, handlePreview, handleRegister, startHandling, isHand
                         })
                     }}
                     disabled={isHandling}
-                    style={{
-                        backgroundColor:
-                            Math.round(item.cost) === 0
-                                ? 'var(--color_blue)'
-                                : 'var(--color_black)'
-                    }}
                 >
                     {isHandling ? (
                         <LoadingContent scale={0.5} color="var(--color_white)" />
                     ) : (
-                        Math.round(item.cost) === 0 ? 'Learn' : item.cost
+                        Math.round(item.cost) === 0 ? 'Enroll Free' : `$${item.cost}`
                     )}
                 </button>
                 <button
-                    className="more_detail"
+                    className="course-detail-btn"
                     disabled={isHandling}
                     onClick={() => handlePreview(item.id)}
+                    title="View Details"
                 >
-                    <CgDetailsMore fontSize={20} />
+                    <HiOutlineExternalLink fontSize={18} />
                 </button>
             </div>
         </div>
@@ -116,7 +118,7 @@ const CourseItem = ({ item, handlePreview, handleRegister, startHandling, isHand
 }
 
 
-export default function CourseContent({ redirect }) {
+export default function CourseContent({ redirect, alert }) {
     const queryNavigate = useQuery();
     const { navigateToLearning, navigateToCourse } = useRouterActions();
 
@@ -206,8 +208,6 @@ export default function CourseContent({ redirect }) {
         limit: 20,
         registerCount: 0
     })
-
-    const [alert, setAlert] = useState(null)
 
     const [apiQueue, setApiQueue] = useState([])
     const [isProcessing, setIsProcessing] = useState(false)
@@ -326,25 +326,12 @@ export default function CourseContent({ redirect }) {
                     data: prev.data.filter((item) => item.id !== id),
                 }));
                 setApiQueue((prev) => [...prev, { type: "fetch" }]);
-                setAlert({
-                    status: res?.status,
-                    message: res?.message + course,
-                    callback: () => {
-                        navigateToLearning(id);
-                        redirect()
-                    }
-                });
+                alert(200, `Successfully registered course: ${course}`, () => navigateToLearning(id));
             } else {
-                setAlert({
-                    status: res?.status,
-                    message: "Failed to register course: " + res?.message
-                });
+                alert(res.status, res.message || `Failed to register course: ${course}`);
             }
         } catch (err) {
-            setAlert({
-                status: err.status || 500,
-                message: "Failed to register course: Internal server error"
-            });
+            alert(err.status || 500, err.message || `An error occurred while registering course: ${course}`);
         } finally {
             stopHandling(id);
         }
@@ -352,13 +339,13 @@ export default function CourseContent({ redirect }) {
 
     const handlePreview = (id) => {
         if (state.handling) return;
-        redirect()
+        redirect(true)
         navigateToCourse(id);
     }
 
     const handleRedirect = () => {
+        redirect(true);
         queryNavigate('/home', { tab: 'learning' });
-        redirect();
     }
 
     const refetchData = () => {
@@ -380,8 +367,8 @@ export default function CourseContent({ redirect }) {
     }
 
     return (
-        <div id='course'>
-            <div className="heading-marketplace" >
+        <section id="course-marketplace">
+            <div className="marketplace-header">
                 <Search
                     data={filterMapping}
                     setSearch={(data) => setState(prev => ({ ...prev, search: data }))}
@@ -390,53 +377,47 @@ export default function CourseContent({ redirect }) {
                     defaultFilter={defaultFilter}
                     pending={state.pending}
                 />
-                <div className="handle_back">
-                    <button onClick={handleRedirect} className="back_btn">
-                        <h4>
-                            Back
-                        </h4>
-                        <FaArrowRight />
-                    </button>
-                </div>
+                <button onClick={handleRedirect} className="back-btn">
+                    <span>My Courses</span>
+                    <FaArrowRight />
+                </button>
             </div>
-            <div className="course-container">
-                {
-                    state.pending ?
-                        <LoadingContent />
-                        :
-                        (state.error && state.data.length === 0) ?
-                            <ErrorReload data={state.error} refetch={refetchData} />
-                            :
-                            state.data && state.data.length > 0 ?
-                                state.data.map(item => (
-                                    <CourseItem
-                                        key={item.id}
-                                        item={item}
-                                        handlePreview={handlePreview}
-                                        handleRegister={handleRegister}
-                                        startHandling={startHandling}
-                                        isHandling={!!handlingMap[item.id]}
-                                    />
-                                ))
-                                :
-                                <p className="no_data">
-                                    No course found, please wait for the next update !
-                                </p>
-                }
+
+            <div className="courses-grid">
+                {state.pending ? (
+                    <LoadingContent />
+                ) : (state.error && state.data.length === 0) ? (
+                    <ErrorReload data={state.error} refetch={refetchData} />
+                ) : state.data && state.data.length > 0 ? (
+                    state.data.map(item => (
+                        <CourseItem
+                            key={item.id}
+                            item={item}
+                            handlePreview={handlePreview}
+                            handleRegister={handleRegister}
+                            startHandling={startHandling}
+                            isHandling={!!handlingMap[item.id]}
+                        />
+                    ))
+                ) : (
+                    <div className="empty-state">
+                        <div className="empty-icon">
+                            <FaBookOpen />
+                        </div>
+                        <h3>No courses found</h3>
+                        <p>Please wait for the next update or try a different search</p>
+                    </div>
+                )}
             </div>
+
             {!state.pending && state.data.length > 0 && load.hasMore && (
-                <span className="load_wrapper" ref={setRef}>
+                <div className="load-more-wrapper" ref={setRef}>
                     <LoadingContent
                         scale={0.5}
                         message={state.error && "Something is wrong, check your connection"}
                     />
-                </span>
+                </div>
             )}
-            <AlertPush
-                status={alert?.status}
-                message={alert?.message}
-                callback={alert?.callback}
-            />
-        </div >
+        </section>
     )
 }

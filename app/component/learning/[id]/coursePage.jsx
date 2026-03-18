@@ -312,10 +312,6 @@ export default function CoursePage({ params } = {}) {
         navigateToCourse(id)
     }
 
-    useEffect(() => {
-        setAlert(null)
-    }, [alert])
-
     return (
         <div id="course_page_layout">
             <nav className="nav_layout_params">
@@ -421,7 +417,7 @@ export default function CoursePage({ params } = {}) {
                                                                             style={{
                                                                                 ...{
                                                                                     'Enrolled': { background: 'var(--color_gray_light)', color: 'var(--color_black)' },
-                                                                                    'In Progress': { background: 'var(--color_blue_light)', color: 'var(--color_white)' },
+                                                                                    'In Progress': { background: 'var(--color_primary)', color: 'var(--color_white)' },
                                                                                     'Completed': { background: 'var(--color_green)', color: 'var(--color_white)' },
                                                                                 }[lesson.status]
                                                                             }}
@@ -517,6 +513,7 @@ export default function CoursePage({ params } = {}) {
             <AlertPush
                 message={alert?.message}
                 status={alert?.status}
+                reset={() => setAlert(null)}
             />
         </div>
     )

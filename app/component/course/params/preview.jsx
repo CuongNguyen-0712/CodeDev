@@ -8,6 +8,7 @@ import GetStateCourseService from "@/app/services/getService/stateCourseService"
 import GetCommentCourseService from "@/app/services/getService/commentCourseService";
 import GetLessonCourseService from "@/app/services/getService/lessonCourse";
 import PostCommentCourseService from "@/app/services/postService/createCommentCourseService";
+import PostRegisterCourseService from "@/app/services/postService/registerCourseService";
 
 import { useRouterActions } from "@/app/router/router";
 
@@ -17,7 +18,15 @@ import AlertPush from "../../ui/alert";
 
 import Form from "next/form";
 
-import { FaArrowLeft, FaStar, FaCheckCircle, FaAngleDoubleUp, FaAngleDoubleDown } from "react-icons/fa";
+import {
+    FaArrowLeft,
+    FaStar,
+    FaCheckCircle,
+    FaThumbsUp,
+    FaThumbsDown,
+    FaGraduationCap,
+    FaPlayCircle
+} from "react-icons/fa";
 import { BiDetail } from "react-icons/bi";
 import { MdPlayLesson } from "react-icons/md";
 import { LuAlarmClock } from "react-icons/lu";
@@ -37,13 +46,11 @@ const CommentItem = ({ data }) => {
 
     const formatDate = (str) => {
         const d = new Date(str);
-
         const day = String(d.getDate()).padStart(2, "0");
         const month = String(d.getMonth() + 1).padStart(2, "0");
         const year = d.getFullYear();
         const hour = String(d.getHours()).padStart(2, "0");
         const minute = String(d.getMinutes()).padStart(2, "0");
-
         return `${day}/${month}/${year} ${hour}:${minute}`;
     };
 
@@ -58,7 +65,6 @@ const CommentItem = ({ data }) => {
                 [name]: prev[name] + 1,
                 [keyVote]: prev[keyVote] - 1
             }))
-
             setFlag((prev) =>
                 Object.fromEntries(
                     Object.entries(prev).map(([key, _]) => [
@@ -67,13 +73,11 @@ const CommentItem = ({ data }) => {
                     ])
                 )
             )
-        }
-        else {
+        } else {
             setState((prev) => ({
                 ...prev,
                 [name]: flag[name] ? prev[name] - 1 : prev[name] + 1
             }))
-
             setFlag((prev) => ({
                 ...prev,
                 [name]: !prev[name]
@@ -82,46 +86,38 @@ const CommentItem = ({ data }) => {
     }
 
     return (
-        <div className="comment_item">
-            <div className="comment_info">
+        <div className="comment-card">
+            <div className="comment-header">
                 <img
-                    className="comment_img"
+                    className="comment-avatar"
                     src={data.avatar}
-                    alt="avatar"
-                    height={40}
-                    width={40}
+                    alt={data.username}
+                    height={44}
+                    width={44}
                 />
-                <div className="info">
-                    <h4>{data.username}</h4>
-                    <p>{formatDate(data.created_at)}</p>
+                <div className="comment-user-info">
+                    <h4 className="comment-username">{data.username}</h4>
+                    <span className="comment-date">{formatDate(data.created_at)}</span>
                 </div>
             </div>
-            <div className="comment">
-                <p>
-                    {data.comment}
-                </p>
-                <div className="comment_footer">
+            <div className="comment-body">
+                <p className="comment-text">{data.comment}</p>
+                <div className="comment-actions">
                     <button
                         name="upvotes"
                         onClick={handleVoting}
-                        className={`${flag.upvotes ? 'flag' : ''}`}
+                        className={`vote-btn upvote ${flag.upvotes ? 'active' : ''}`}
                     >
-                        <FaAngleDoubleUp
-                            fontSize={18}
-                            color={'var(--color_green_dark)'}
-                        />
-                        {state.upvotes}
+                        <FaThumbsUp fontSize={14} />
+                        <span>{state.upvotes}</span>
                     </button>
                     <button
                         name="downvotes"
                         onClick={handleVoting}
-                        className={`${flag.downvotes ? 'flag' : ''}`}
+                        className={`vote-btn downvote ${flag.downvotes ? 'active' : ''}`}
                     >
-                        <FaAngleDoubleDown
-                            fontSize={18}
-                            color={'var(--color_red_dark)'}
-                        />
-                        {state.downvotes}
+                        <FaThumbsDown fontSize={14} />
+                        <span>{state.downvotes}</span>
                     </button>
                 </div>
             </div>
@@ -129,27 +125,17 @@ const CommentItem = ({ data }) => {
     )
 }
 
+const levelConfig = {
+    'Beginner': { color: 'var(--color_green)', bg: 'rgba(16, 185, 129, 0.1)' },
+    'Intermediate': { color: 'var(--color_primary)', bg: 'rgba(48, 102, 190, 0.1)' },
+    'Advanced': { color: 'var(--color_orange)', bg: 'rgba(245, 158, 11, 0.1)' },
+    'Expert': { color: 'var(--color_purple)', bg: 'rgba(139, 92, 246, 0.1)' },
+    'Master': { color: 'var(--color_red_dark)', bg: 'rgba(239, 68, 68, 0.1)' }
+}
+
 export default function PreviewCourse({ params } = {}) {
     const { navigateBack } = useRouterActions()
     const scrollRef = useRef(null)
-
-    const colorLevelMap = {
-        'Beginner': {
-            color: 'var(--color_green)',
-        },
-        'Intermediate': {
-            color: 'var(--color_blue)',
-        },
-        'Advanced': {
-            color: 'var(--color_orange)',
-        },
-        'Expert': {
-            color: 'var(--color_purple)',
-        },
-        'Master': {
-            color: 'var(--color_red_dark)',
-        }
-    }
 
     const initialState = {
         state: {
@@ -186,7 +172,6 @@ export default function PreviewCourse({ params } = {}) {
                     ...state,
                     [key]: {
                         ...state[key],
-                        pending: true,
                         error: null,
                     },
                 };
@@ -242,7 +227,11 @@ export default function PreviewCourse({ params } = {}) {
         rating: null,
     })
 
-    const [handling, setHandling] = useState(false)
+    const [handling, setHandling] = useState({
+        comment: false,
+        submit: false,
+    })
+
     const [error, setError] = useState(null)
     const [pending, setPending] = useState(true)
     const [alert, setAlert] = useState(null)
@@ -527,14 +516,20 @@ export default function PreviewCourse({ params } = {}) {
     const submitComment = async (e) => {
         e.preventDefault();
 
-        setHandling(true)
+        setHandling((prev) => ({
+            ...prev,
+            comment: true
+        }))
 
         if (comment.content.trim().length === 0 || comment.content === '') {
             setAlert({
                 status: 404,
                 message: 'No comment, please throw your new!'
             })
-            setHandling(false)
+            setHandling((prev) => ({
+                ...prev,
+                comment: false
+            }))
             return;
         }
 
@@ -563,7 +558,10 @@ export default function PreviewCourse({ params } = {}) {
             })
         }
         finally {
-            setHandling(false)
+            setHandling((prev) => ({
+                ...prev,
+                comment: false
+            }))
         }
     }
 
@@ -571,254 +569,275 @@ export default function PreviewCourse({ params } = {}) {
         fetchData()
     }, [])
 
-    useEffect(() => {
-        setAlert(null)
-    }, [alert])
+    const submitCourse = async () => {
+        if (!state.state.data) return;
+
+        setHandling((prev) => ({
+            ...prev,
+            submit: true,
+        }))
+
+        await PostRegisterCourseService(state.state.data.id)
+            .then(res => {
+                if (res.status === 200) {
+                    alert("Submitting....")
+                }
+                else {
+                    setAlert({
+                        status: res.status,
+                        message: res.message
+                    })
+                }
+            })
+            .catch(err => {
+                setAlert({
+                    status: err.status || 500,
+                    message: 'External server error'
+                })
+            })
+            .finally(() => {
+                setHandling((prev) => ({
+                    ...prev,
+                    submit: false,
+                }))
+            })
+    }
 
     return (
-        <section id="course_preview">
-            <div className="header_preview">
+        <section id="course-preview">
+            <header className="preview-header">
                 <button
                     type="button"
-                    id="preview_back_btn"
-                    onClick={() => navigateBack()}
+                    className="back-btn"
+                    onClick={navigateBack}
                 >
                     <FaArrowLeft fontSize={16} />
                 </button>
-            </div>
-            {
-                pending ?
-                    <LoadingContent />
-                    :
-                    error ?
-                        <ErrorReload data={error} refetch={fetchData} />
-                        :
-                        <div className="body_preview">
-                            <div className="preview_container">
-                                {
-                                    state.state.pending ?
-                                        <LoadingContent />
-                                        :
-                                        state.state.error ?
-                                            <ErrorReload
-                                                data={state.state.error || { status: 500, message: "Something is wrong" }}
-                                                refetch={refetchData('state')}
-                                            />
-                                            :
-                                            state.state.data ?
-                                                <>
-                                                    <div className="content_preview">
-                                                        <div className="top_preview">
-                                                            <img
-                                                                src={state.state.data.image || '/image/static/logo.svg'}
-                                                                alt="course_logo"
-                                                                height={50}
-                                                                width={50}
-                                                            />
-                                                            <h2>{state.state.data.title}</h2>
-                                                            <span
-                                                                style={{
-                                                                    color: colorLevelMap[state.state.data.level].color,
-                                                                }}
-                                                            >{state.state.data.level}
-                                                            </span>
-                                                            <span style={{
-                                                                color: 'var(--color_black)'
-                                                            }}>
-                                                                {state.state.data.rating}
-                                                                <FaStar color={'var(--color_orange)'}
-                                                                />
-                                                            </span>
-                                                        </div>
-                                                        <p>
-                                                            {state.state.data.concept}
-                                                        </p>
-                                                    </div>
-                                                    <div className="beside_preview">
-                                                        <p>
-                                                            <BiDetail fontSize={22} />
-                                                            {state.state.data.description}
-                                                            <span>
-                                                                <FaCheckCircle
-                                                                    color={"var(--color_blue)"}
-                                                                />
-                                                                Instructor by <b>{state.state.data.instructor}</b>
-                                                            </span>
-                                                        </p>
-                                                        <div className="beside_items">
-                                                            <button>
-                                                                <MdPlayLesson
-                                                                    fontSize={20}
-                                                                    color={'var(--color_green)'}
-                                                                />
-                                                                <span>
-                                                                    Lessons:
-                                                                </span>
-                                                                {state.state.data.lesson}
-                                                            </button>
-                                                            <button>
-                                                                <LuAlarmClock
-                                                                    fontSize={20}
-                                                                    color={'var(--color_orange)'}
-                                                                />
-                                                                <span>
-                                                                    Hours:
-                                                                </span>
-                                                                {state.state.data.duration}
-                                                            </button>
-                                                            <button>
-                                                                <PiStudent
-                                                                    fontSize={20}
-                                                                    color={'var(--color_blue)'}
-                                                                />
-                                                                <span>
-                                                                    Students:
-                                                                </span>
-                                                                {state.state.data.students}
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </>
-                                                :
-                                                <p>Something is wrong, try again!</p>
-                                }
-                                {
-                                    state.lesson.pending ?
-                                        <LoadingContent />
-                                        :
-                                        state.lesson.error ?
-                                            <ErrorReload
-                                                data={state.lesson.error || { status: 500, message: "Something is wrong" }}
-                                                refetch={refetchData('lesson')}
-                                            />
-                                            :
-                                            (Object.values(state.lesson.data).length > 0 || Object.values(state.lesson.data).includes(undefined)) ?
-                                                <div className="base_lesson">
-                                                    {
-                                                        Object.values(state.lesson.data).map((item, index) => (
-                                                            <div
-                                                                key={item.id}
-                                                                className="module_item"
-                                                            >
-                                                                <button className="module_header">
-                                                                    <h4>Chapter {index + 1}</h4>
-                                                                    <p>{item.title}</p>
-                                                                </button>
-                                                                <button className="module_container">
-                                                                    {
-                                                                        item.lessons.map((child, idx) => (
-                                                                            <div
-                                                                                key={child.lesson_id}
-                                                                                className="module_lesson"
-                                                                            >
-                                                                                <p>{index + 1}.{idx + 1} - {child.name}</p>
-                                                                                <span>{child.type}</span>
-                                                                            </div>
-                                                                        ))
-                                                                    }
-                                                                </button>
-                                                            </div>
-                                                        ))
-                                                    }
-                                                </div>
-                                                :
-                                                <p className="no_data">
-                                                    Something is wrong, try again !
-                                                </p>
-                                }
-                            </div>
-                            <div id="comment">
-                                <div className="comment_course" ref={scrollRef}>
-                                    {
-                                        state.comment.pending ?
-                                            <LoadingContent />
-                                            :
-                                            state.comment.error ?
-                                                <ErrorReload
-                                                    data={state.comment.error}
-                                                    refetch={refetchData('comment')}
-                                                />
-                                                :
-                                                (state.comment.data && state.comment.data.length > 0) ?
-                                                    <div className="comment_container">
-                                                        {state.comment.data.map((item) => (
-                                                            <CommentItem
-                                                                key={item.id}
-                                                                data={item}
-                                                            />
-                                                        ))}
-                                                        {
-                                                            load.hasMore &&
-                                                            <button id="more_comment_btn" onClick={() => handleLoadComment()}>
-                                                                {
-                                                                    load.handling ?
-                                                                        <LoadingContent scale={0.5} />
-                                                                        :
-                                                                        <>
-                                                                            More comments...
-                                                                        </>
-                                                                }
-                                                            </button>
-                                                        }
-                                                    </div>
-                                                    :
-                                                    <p className="no_data">
-                                                        No comment can be show here ! Throw new comment on below.
-                                                    </p>
-                                    }
-                                </div>
-                                <Form onSubmit={submitComment} id="comment_input">
-                                    <div className="input_text">
-                                        <textarea
-                                            id='input_comment'
-                                            name='comment'
-                                            rows='4'
-                                            placeholder="Throw your new comment here..."
-                                            value={comment.content}
-                                            readOnly={handling}
-                                            onChange={(e) => setComment(prev => ({ ...prev, content: e.target.value }))}
+            </header>
+
+            {pending ? (
+                <LoadingContent />
+            ) : error ? (
+                <ErrorReload data={error} refetch={fetchData} />
+            ) : (
+                <div className="preview-content">
+                    <div className="preview-main">
+                        {state.state.pending ? (
+                            <LoadingContent />
+                        ) : state.state.error ? (
+                            <ErrorReload
+                                data={state.state.error || { status: 500, message: "Something is wrong" }}
+                                refetch={() => refetchData('state')}
+                            />
+                        ) : state.state.data ? (
+                            <>
+                                <div className="course-hero">
+                                    <div className="hero-header">
+                                        <img
+                                            src={state.state.data.image || '/image/static/logo.svg'}
+                                            alt={state.state.data.title}
+                                            className="course-logo"
                                         />
-                                        <div className="comment_handler">
-                                            <button
-                                                type="submit"
-                                                disabled={handling || comment.content.length === 0}
-                                                style={comment.content.length > 0 ?
-                                                    {
-                                                        'color': 'var(--color_white)',
-                                                        'background': 'var(--color_blue)',
-                                                        'transition': '0.2s all ease'
-                                                    }
-                                                    :
-                                                    {
-                                                        'color': 'var(--color_black)',
-                                                        'background': 'var(--color_gray_light)',
-                                                        'transition': '0.2s all ease'
-                                                    }
-                                                }
-                                            >
-                                                {
-                                                    handling ?
-                                                        <LoadingContent scale={0.5} color={'var(--color_white)'} />
-                                                        :
-                                                        <IoSend fontSize={18} />
-                                                }
-                                            </button>
+                                        <div className="hero-info">
+                                            <h1 className="course-title">{state.state.data.title}</h1>
+                                            <div className="course-badges">
+                                                <span
+                                                    className="level-badge"
+                                                    style={{
+                                                        color: levelConfig?.[state.state.data.level]?.color,
+                                                        background: levelConfig?.[state.state.data.level]?.bg
+                                                    }}
+                                                >
+                                                    {state.state.data.level}
+                                                </span>
+                                                <span className="rating-badge">
+                                                    <FaStar color="var(--color_yellow)" />
+                                                    {state.state.data.rating}
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div>
+                                    <p className="course-concept">{state.state.data.concept}</p>
+                                </div>
+
+                                <div className="course-details">
+                                    <div className="detail-card">
+                                        <BiDetail className="detail-icon" />
+                                        <p className="detail-text">{state.state.data.description}</p>
+                                        <div className="instructor-info">
+                                            <FaCheckCircle color="var(--color_primary)" />
+                                            <span>Instructor: <strong>{state.state.data.instructor}</strong></span>
+                                        </div>
                                     </div>
-                                </Form>
+
+                                    <div className="stats-grid">
+                                        <div className="stat-card">
+                                            <MdPlayLesson className="stat-icon lessons" />
+                                            <div className="stat-info">
+                                                <span className="stat-label">Lessons</span>
+                                                <strong className="stat-value">{state.state.data.lesson}</strong>
+                                            </div>
+                                        </div>
+                                        <div className="stat-card">
+                                            <LuAlarmClock className="stat-icon duration" />
+                                            <div className="stat-info">
+                                                <span className="stat-label">Duration</span>
+                                                <strong className="stat-value">{state.state.data.duration}h</strong>
+                                            </div>
+                                        </div>
+                                        <div className="stat-card">
+                                            <PiStudent className="stat-icon students" />
+                                            <div className="stat-info">
+                                                <span className="stat-label">Students</span>
+                                                <strong className="stat-value">{state.state.data.students}</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <p className="error-text">Something is wrong, try again!</p>
+                        )}
+
+                        {state.lesson.pending ? (
+                            <LoadingContent />
+                        ) : state.lesson.error ? (
+                            <ErrorReload
+                                data={state.lesson.error || { status: 500, message: "Something is wrong" }}
+                                refetch={() => refetchData('lesson')}
+                            />
+                        ) : state.lesson.data &&
+                            Object.values(state.lesson.data).length > 0 ? (
+                            <div className="curriculum-section">
+                                <h2 className="section-title">
+                                    <FaGraduationCap />
+                                    Course Curriculum
+                                </h2>
+                                <div className="modules-list">
+                                    {Object.values(state.lesson.data).map((item, index) => (
+                                        <div key={item.id} className="module-card">
+                                            <div className="module-header">
+                                                <span className="chapter-badge">Chapter {index + 1}</span>
+                                                <h3 className="module-title">{item.title}</h3>
+                                            </div>
+                                            <div className="lessons-list">
+                                                {item.lessons.map((child, idx) => (
+                                                    <div
+                                                        key={child.lesson_id}
+                                                        className="lesson-item"
+                                                    >
+                                                        <FaPlayCircle className="lesson-icon" />
+                                                        <span className="lesson-name">
+                                                            {index + 1}.{idx + 1} - {child.name}
+                                                        </span>
+                                                        <span className="lesson-type">{child.type}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
+                        ) : (
+                            <div className="empty-lessons">
+                                <p>No lessons available yet</p>
+                            </div>
+                        )}
+                    </div>
+
+                    <aside className="comments-sidebar" id="comments">
+                        <div className="comments-container" ref={scrollRef}>
+                            {state.comment.pending ? (
+                                <LoadingContent />
+                            ) : state.comment.error ? (
+                                <ErrorReload
+                                    data={state.comment.error}
+                                    refetch={() => refetchData('comment')}
+                                />
+                            ) : state.comment.data && state.comment.data.length > 0 ? (
+                                <div className="comments-list">
+                                    {state.comment.data.map((item) => (
+                                        <CommentItem
+                                            key={item.id}
+                                            data={item}
+                                        />
+                                    ))}
+
+                                    {load.hasMore && (
+                                        <button
+                                            className="load-more-btn"
+                                            onClick={handleLoadComment}
+                                        >
+                                            {load.handling ? (
+                                                <LoadingContent scale={0.5} />
+                                            ) : (
+                                                <>Load more comments</>
+                                            )}
+                                        </button>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="empty-comments">
+                                    <p>No comments yet. Be the first!</p>
+                                </div>
+                            )}
                         </div>
-            }
-            <div className="footer_preview">
-                <button id="join_course_btn">
-                    Join course
+
+                        <Form onSubmit={submitComment} className="comment-form">
+                            <div className="form-input-wrapper">
+                                <textarea
+                                    name="comment"
+                                    rows="3"
+                                    placeholder="Share your thoughts..."
+                                    value={comment.content}
+                                    readOnly={handling.comment}
+                                    onChange={(e) =>
+                                        setComment(prev => ({
+                                            ...prev,
+                                            content: e.target.value
+                                        }))
+                                    }
+                                />
+                                <button
+                                    type="submit"
+                                    className="submit-btn"
+                                    disabled={handling.comment || comment.content.length === 0}
+                                >
+                                    {handling.comment ? (
+                                        <LoadingContent scale={0.4} color="var(--color_white)" />
+                                    ) : (
+                                        <IoSend fontSize={16} />
+                                    )}
+                                </button>
+                            </div>
+                        </Form>
+                    </aside>
+                </div>
+            )}
+
+            <footer className="preview-footer">
+                <button
+                    className="enroll-btn"
+                    disabled={!state.state.data || handling.submit}
+                    onClick={submitCourse}
+                >
+                    {!state.state.data || handling.submit ? (
+                        <LoadingContent scale={0.5} color="var(--color_white)" />
+                    ) : (() => {
+                        switch (state.state.data?.status ?? 'Not Enrolled') {
+                            case 'Enrolled': return "Start Learning"
+                            case 'In Progress': return "Continue Learning"
+                            case 'Completed': return "Review Course"
+                            default: return "Enroll Now"
+                        }
+                    })()}
                 </button>
-            </div>
+            </footer>
+
             <AlertPush
                 status={alert?.status}
                 message={alert?.message}
+                reset={() => setAlert(null)}
             />
         </section>
     )

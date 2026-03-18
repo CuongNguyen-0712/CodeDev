@@ -1,87 +1,249 @@
-import { useState, useEffect } from "react"
-import { usePathname } from "next/navigation";
+'use client'
+import { useState, useEffect, useRef, useCallback } from "react"
+import { usePathname, useSearchParams } from "next/navigation";
 
 import useKey from "@/app/hooks/useKey";
 import { useQuery } from "@/app/router/router";
 
-import { IoSearch } from "react-icons/io5";
+import { IoSearch, IoClose, IoTime, IoArrowBack } from "react-icons/io5";
 import { FaLink } from "react-icons/fa6";
-import { IoIosArrowBack } from "react-icons/io";
+import { HiOutlineDocumentText, HiOutlineFolder, HiOutlineGlobeAlt } from "react-icons/hi2";
+import { RiCommandLine } from "react-icons/ri";
 
 import Form from "next/form"
 import Link from "next/link";
+
+const STORAGE_KEY = 'search_history';
+const MAX_HISTORY = 5;
+
+const categories = [
+    { id: 'all', label: 'All', icon: null },
+    { id: 'links', label: 'Links', icon: FaLink },
+    { id: 'pages', label: 'Pages', icon: HiOutlineDocumentText },
+    { id: 'projects', label: 'Projects', icon: HiOutlineFolder },
+];
 
 export default function Search() {
     useKey({ key: 'Escape', param: 'search' });
 
     const queryNavigate = useQuery();
     const pathname = usePathname();
+    const params = useSearchParams();
+    const search = params.get('search');
+    const inputRef = useRef(null);
 
     const [state, setState] = useState({
-        search: "",
-        links: []
-    })
+        query: "",
+        links: [],
+        history: [],
+        activeCategory: 'all',
+        isLoading: false
+    });
+
+    const closeSearch = useCallback(() => {
+        queryNavigate(pathname, { search: null });
+    }, [queryNavigate, pathname]);
+
+    const clearInput = () => {
+        setState(prev => ({ ...prev, query: "" }));
+        inputRef.current?.focus();
+    };
+
+    const addToHistory = (term) => {
+        if (!term.trim()) return;
+        const newHistory = [term, ...state.history.filter(h => h !== term)].slice(0, MAX_HISTORY);
+        setState(prev => ({ ...prev, history: newHistory }));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(newHistory));
+    };
+
+    const removeFromHistory = (term, e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const newHistory = state.history.filter(h => h !== term);
+        setState(prev => ({ ...prev, history: newHistory }));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(newHistory));
+    };
 
     const submitSearch = (e) => {
         e.preventDefault();
-        return;
-    }
+        if (state.query.trim()) {
+            addToHistory(state.query.trim());
+        }
+    };
+
+    const handleHistoryClick = (term) => {
+        setState(prev => ({ ...prev, query: term }));
+        inputRef.current?.focus();
+    };
+
+    const filteredLinks = state.links.filter(link => {
+        const matchesQuery = !state.query ||
+            link.name?.toLowerCase().includes(state.query.toLowerCase()) ||
+            link.description?.toLowerCase().includes(state.query.toLowerCase());
+        const matchesCategory = state.activeCategory === 'all' || link.category === state.activeCategory;
+        return matchesQuery && matchesCategory;
+    });
 
     useEffect(() => {
+        const savedHistory = localStorage.getItem(STORAGE_KEY);
+        if (savedHistory) {
+            setState(prev => ({ ...prev, history: JSON.parse(savedHistory) }));
+        }
+
         fetch('/data/links.json')
             .then(res => res.json())
             .then(data => {
-                setState(prev => ({
-                    ...prev,
-                    links: data
-                }))
+                setState(prev => ({ ...prev, links: data }));
             });
     }, []);
 
+    useEffect(() => {
+        document.body.style.overflow = search ? 'hidden' : 'unset';
+        if (search) {
+            setTimeout(() => inputRef.current?.focus(), 100);
+        }
+    }, [search]);
+
+    if (!search) return null;
+
     return (
-        <div id="search_template">
-            <Form
-                id="form_search"
-                onSubmit={submitSearch}
-            >
-                <button
-                    type='button'
-                    className="escape_search"
-                    onClick={() => {
-                        queryNavigate(pathname, { search: null })
-                    }}
-                >
-                    <IoIosArrowBack fontSize={24} />
-                </button>
-                <div className="search_box">
-                    <input
-                        type="text"
-                        name="search"
-                        value={state.search}
-                        placeholder="Type to search or / to link"
-                        autoComplete="off"
-                        onChange={(e) => setState({ ...state, search: e.target.value })}
-                    />
-                    <button type="submit">
-                        <IoSearch fontSize={20} />
+        <div className="search-modal" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="search-header">
+                <Form className="search-form" onSubmit={submitSearch}>
+                    <button type="button" className="search-back" onClick={closeSearch}>
+                        <IoArrowBack />
                     </button>
+                    <div className="search-input-wrapper">
+                        <IoSearch className="search-icon" />
+                        <input
+                            ref={inputRef}
+                            type="text"
+                            name="search"
+                            value={state.query}
+                            placeholder="Search pages, links, projects..."
+                            autoComplete="off"
+                            onChange={(e) => setState(prev => ({ ...prev, query: e.target.value }))}
+                        />
+                        {state.query && (
+                            <button type="button" className="search-clear" onClick={clearInput}>
+                                <IoClose />
+                            </button>
+                        )}
+                    </div>
+                    <div className="search-shortcuts">
+                        <kbd>Esc</kbd>
+                        <span>to close</span>
+                    </div>
+                </Form>
+            </div>
+
+            {/* Categories */}
+            <div className="search-categories">
+                {categories.map(cat => (
+                    <button
+                        key={cat.id}
+                        className={`category-tab ${state.activeCategory === cat.id ? 'active' : ''}`}
+                        onClick={() => setState(prev => ({ ...prev, activeCategory: cat.id }))}
+                    >
+                        {cat.icon && <cat.icon />}
+                        <span>{cat.label}</span>
+                    </button>
+                ))}
+            </div>
+
+            {/* Content */}
+            <div className="search-content">
+                {/* History Section */}
+                {!state.query && state.history.length > 0 && (
+                    <div className="search-section">
+                        <div className="section-header">
+                            <IoTime />
+                            <span>Recent Searches</span>
+                        </div>
+                        <div className="history-list">
+                            {state.history.map((term, index) => (
+                                <button
+                                    key={index}
+                                    className="history-item"
+                                    onClick={() => handleHistoryClick(term)}
+                                >
+                                    <span>{term}</span>
+                                    <IoClose
+                                        className="history-remove"
+                                        onClick={(e) => removeFromHistory(term, e)}
+                                    />
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Results Section */}
+                {(state.query || filteredLinks.length > 0) && (
+                    <div className="search-section">
+                        {state.query && (
+                            <div className="section-header">
+                                <HiOutlineGlobeAlt />
+                                <span>Results</span>
+                                <span className="result-count">{filteredLinks.length}</span>
+                            </div>
+                        )}
+
+                        {filteredLinks.length > 0 ? (
+                            <div className="results-list">
+                                {filteredLinks.map((link, index) => (
+                                    <Link
+                                        href={link.path || '#'}
+                                        key={index}
+                                        className="result-item"
+                                        onClick={() => addToHistory(state.query || link.name)}
+                                    >
+                                        <div className="result-icon">
+                                            <FaLink />
+                                        </div>
+                                        <div className="result-info">
+                                            <h4>{link.name}</h4>
+                                            <p>{link.description}</p>
+                                        </div>
+                                        <div className="result-shortcut">
+                                            <RiCommandLine />
+                                        </div>
+                                    </Link>
+                                ))}
+                            </div>
+                        ) : state.query && (
+                            <div className="search-empty">
+                                <div className="empty-icon">
+                                    <IoSearch />
+                                </div>
+                                <h3>No results found</h3>
+                                <p>Try searching for something else or check your spelling</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Empty State - No query, no history */}
+                {!state.query && state.history.length === 0 && (
+                    <div className="search-empty">
+                        <div className="empty-icon">
+                            <IoSearch />
+                        </div>
+                        <h3>Start searching</h3>
+                        <p>Find pages, links, and projects across the platform</p>
+                    </div>
+                )}
+            </div>
+
+            {/* Footer */}
+            <div className="search-footer">
+                <div className="footer-hints">
+                    <span><kbd>↑</kbd><kbd>↓</kbd> to navigate</span>
+                    <span><kbd>Enter</kbd> to select</span>
+                    <span><kbd>Esc</kbd> to close</span>
                 </div>
-            </Form>
-            <section id="option_frame">
-                <div className="list">
-                    {
-                        state.links.map((link, index) => (
-                            <Link href={link.path || '#'} key={index}>
-                                <h4>
-                                    <FaLink />
-                                    {link.name}
-                                </h4>
-                                <p>{link.description}</p>
-                            </Link>
-                        ))
-                    }
-                </div>
-            </section>
+            </div>
         </div>
-    )
+    );
 }

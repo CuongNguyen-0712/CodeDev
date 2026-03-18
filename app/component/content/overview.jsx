@@ -10,7 +10,9 @@ import { useQuery } from '@/app/router/router';
 import GetOverviewService from '@/app/services/getService/overviewService';
 import GetInfoService from '@/app/services/getService/infoService';
 
-import { FaAngleRight, FaStar, FaRankingStar } from 'react-icons/fa6';
+import { FaAngleRight, FaStar, FaRankingStar, FaBook, FaGraduationCap, FaFire, FaChartLine } from 'react-icons/fa6';
+import { HiSparkles } from 'react-icons/hi2';
+import { MdEdit } from 'react-icons/md';
 
 export default function Overview() {
     const queryNavigate = useQuery();
@@ -171,11 +173,10 @@ export default function Overview() {
     }, [params])
 
     const progressCourse = [
-        { status: 'Enrolled', color: 'var(--color_blue)' },
-        { status: 'In Progress', color: 'var(--color_orange)' },
-        { status: 'Completed', color: 'var(--color_green)' },
-        { status: 'Cancelled', color: 'var(--color_red)' },
-        { status: 'Refunded', color: 'var(--color_purple)' }
+        { status: 'Enrolled', color: 'var(--color_primary)', icon: <FaBook /> },
+        { status: 'In Progress', color: 'var(--color_orange)', icon: <FaFire /> },
+        { status: 'Completed', color: 'var(--color_green)', icon: <FaGraduationCap /> },
+        { status: 'Cancelled', color: 'var(--color_red)', icon: <FaChartLine /> },
     ];
 
     const languageStats = useMemo(() => {
@@ -196,141 +197,189 @@ export default function Overview() {
         return Object.values(groupedLanguages).sort((a, b) => b.count - a.count);
     }, [state.data.data])
 
+    const stats = useMemo(() => {
+        const total = state.data.data.length;
+        const inProgress = state.data.data.filter(c => c.status === 'In Progress').length;
+        const completed = state.data.data.filter(c => c.status === 'Completed').length;
+        return { total, inProgress, completed };
+    }, [state.data.data]);
+
     return state.pending ? (
         <LoadingContent />
     ) : (
         <div id="overview">
-            <div className="overview-container">
-                <div className="overview-user">
-                    {(state.load.info && !state.error.info) ?
-                        <LoadingContent />
-                        :
-                        state.error.info || !state.data.info ?
-                            <ErrorReload data={state.error.info || { status: 500, message: "Something is wrong !" }} refetch={refetchInfo} />
-                            :
-                            <div className='user-container'>
-                                <div className="user-info">
-                                    <Image src={state.data.info.image.trim()} height={120} width={120} alt="avatar" priority />
-                                    <div className="info">
-                                        <div className="profile">
-                                            <h2>{state.data.info.username}</h2>
-                                            <span>{state.data.info.nickname || 'No nickname'}</span>
-                                        </div>
-                                        <div className="experience">
-                                            <p className="level">{state.data.info.level}</p>
-                                            <p>
-                                                <span>
-                                                    Stars
-                                                </span>
-                                                <span>
-                                                    {state.data.info.star}
-                                                    <FaStar fontSize={16} color='var(--color_yellow)' />
-                                                </span>
-                                            </p>
-                                            <p>
-                                                <span>
-                                                    Rank
-                                                </span>
-                                                <span>
-                                                    {state.data.info.rank}
-                                                    <FaRankingStar fontSize={16} color='var(--color_orange)' />
-                                                </span>
-                                            </p>
-                                        </div>
+            {/* Welcome Header */}
+            <section className="overview-welcome">
+                {(state.load.info && !state.error.info) ? (
+                    <LoadingContent scale={0.6} />
+                ) : state.error.info || !state.data.info ? (
+                    <ErrorReload data={state.error.info || { status: 500, message: "Something is wrong !" }} refetch={refetchInfo} />
+                ) : (
+                    <>
+                        <div className="welcome-content">
+                            <div className="welcome-text">
+                                <span className="greeting">
+                                    <HiSparkles />
+                                    Welcome back
+                                </span>
+                                <h1>{state.data.info.username}</h1>
+                                <p>Track your progress and continue your learning journey</p>
+                            </div>
+                            <div className="welcome-avatar">
+                                <Image src={state.data.info.image.trim()} height={80} width={80} alt="avatar" priority />
+                                <button className="edit-btn" onClick={() => queryNavigate(window.location.pathname, { manage: true })}>
+                                    <MdEdit />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="welcome-badges">
+                            <div className="badge level">
+                                <FaRankingStar />
+                                <span>{state.data.info.level}</span>
+                            </div>
+                            <div className="badge stars">
+                                <FaStar />
+                                <span>{state.data.info.star} Stars</span>
+                            </div>
+                            <div className="badge rank">
+                                <FaChartLine />
+                                <span>Rank #{state.data.info.rank}</span>
+                            </div>
+                        </div>
+                    </>
+                )}
+            </section>
+
+            {/* Quick Stats */}
+            <section className="overview-stats">
+                <div className="stat-card">
+                    <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #3066be, #119da4)' }}>
+                        <FaBook />
+                    </div>
+                    <div className="stat-info">
+                        <span>Total Courses</span>
+                        <h3>{stats.total}</h3>
+                    </div>
+                </div>
+                <div className="stat-card">
+                    <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #F59E0B, #EF4444)' }}>
+                        <FaFire />
+                    </div>
+                    <div className="stat-info">
+                        <span>In Progress</span>
+                        <h3>{stats.inProgress}</h3>
+                    </div>
+                </div>
+                <div className="stat-card">
+                    <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #10B981, #059669)' }}>
+                        <FaGraduationCap />
+                    </div>
+                    <div className="stat-info">
+                        <span>Completed</span>
+                        <h3>{stats.completed}</h3>
+                    </div>
+                </div>
+                <div className="stat-card">
+                    <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #119da4, #80ded9)' }}>
+                        <HiSparkles />
+                    </div>
+                    <div className="stat-info">
+                        <span>Languages</span>
+                        <h3>{languageStats.length}</h3>
+                    </div>
+                </div>
+            </section>
+
+            {/* Main Content */}
+            <section className="overview-main">
+                {/* Language Skills */}
+                <div className="overview-skills">
+                    <div className="card-header">
+                        <h3>
+                            <HiSparkles />
+                            Language Skills
+                        </h3>
+                        <button onClick={() => setVisible(!visible)}>
+                            {visible ? 'Collapse' : 'Expand'}
+                            <FaAngleRight style={{ transform: visible ? 'rotate(90deg)' : 'rotate(0deg)' }} />
+                        </button>
+                    </div>
+                    <div className="skills-content" style={{ maxHeight: visible ? '500px' : '200px' }}>
+                        {languageStats.length > 0 ? (
+                            languageStats.map((item, index) => (
+                                <div className="skill-item" key={index}>
+                                    <div className="skill-header">
+                                        <img src={item.logo?.trim()} alt="icon_language" />
+                                        <span className="skill-name">{item.id}</span>
+                                        <span className="skill-percent">{((item.count / languageStats.length) * 100).toFixed(0)}%</span>
+                                    </div>
+                                    <div className="skill-bar">
+                                        <div className="skill-progress" style={{ background: item.color, width: `${((item.count / languageStats.length) * 100).toFixed(2)}%` }} />
                                     </div>
                                 </div>
-                                <button id="edit" onClick={() => queryNavigate(window.location.pathname, { manage: true })}>Edit profile</button>
-                            </div>
-                    }
-                </div>
-
-                <div className="language" style={languageStats.length > 0 ? { height: visible ? `${languageStats.length * 75 + (languageStats.length - 1) * 20 + 110}px` : '50px', transition: '0.2s all ease' } : { height: visible ? '150px' : '50px', transition: '0.2s all ease' }}>
-                    <div className="header" onClick={() => setVisible(!visible)} style={visible ? { background: 'var(--color_black)', color: 'var(--color_white)' } : {}}>
-                        <h5>Language Skill</h5>
-                        <FaAngleRight style={{ transform: visible ? 'rotate(90deg)' : 'rotate(0deg)', transition: '0.2s all ease' }} />
-                    </div>
-                    <div className="main-language">
-                        <div className="language-container">
-                            {languageStats.length > 0 ? (
-                                languageStats.map((item, index) => (
-                                    <div className="language-item" key={index}>
-                                        <div className="heading-language">
-                                            <img src={item.logo?.trim()} alt="icon_language" />
-                                            <h4>{item.id}</h4>
-                                        </div>
-                                        <div className="bar">
-                                            <span style={{ background: item.color, width: `${((item.count / languageStats.length) * 100).toFixed(2)}%` }} />
-                                            <h5>{((item.count / languageStats.length) * 100).toFixed(2)}%</h5>
-                                        </div>
-                                    </div>
-                                ))
-                            )
-                                :
-                                <p id='error_analyze'>No data to analyze</p>
-                            }
-                        </div>
+                            ))
+                        ) : (
+                            <p className='empty-state'>No language data available yet. Start learning to see your progress!</p>
+                        )}
                     </div>
                 </div>
-            </div>
 
-            <div className="overview-container">
-                <div className="course-progress">
-                    <div className="main-progress">
-                        {
-                            (state.load.data && !state.error.data) ?
-                                <LoadingContent scale={0.8} />
-                                :
-                                state.error.data ?
-                                    <ErrorReload data={state.error.data || { status: 500, message: "Something is wrong !" }} refetch={refetchData} />
-                                    :
-                                    <>
-                                        <div className="progress-item">
-                                            <div className="heading">
-                                                <div className="title">
-                                                    <h4>All course</h4>
-                                                    <p>{state.data.data.length}/{state.data.data.length}</p>
+                {/* Course Progress */}
+                <div className="overview-progress">
+                    <div className="card-header">
+                        <h3>
+                            <FaChartLine />
+                            Course Progress
+                        </h3>
+                        <button onClick={() => queryNavigate('home', { tab: 'learning' })}>
+                            View All
+                            <FaAngleRight />
+                        </button>
+                    </div>
+                    <div className="progress-content">
+                        {(state.load.data && !state.error.data) ? (
+                            <LoadingContent scale={0.6} />
+                        ) : state.error.data ? (
+                            <ErrorReload data={state.error.data || { status: 500, message: "Something is wrong !" }} refetch={refetchData} />
+                        ) : (
+                            <div className="progress-list">
+                                {progressCourse.map((item, index) => {
+                                    const filtered = state.data.data.filter(course => course.status === item.status);
+                                    return (
+                                        <div className={`progress-item ${target === index ? 'active' : ''}`} key={index}>
+                                            <div className="progress-header" onClick={() => setTarget(target === index ? null : index)}>
+                                                <div className="progress-icon" style={{ color: item.color }}>
+                                                    {item.icon}
                                                 </div>
+                                                <div className="progress-info">
+                                                    <span className="progress-status" style={{ color: item.color }}>{item.status}</span>
+                                                    <span className="progress-count">{filtered.length} courses</span>
+                                                </div>
+                                                <FaAngleRight className="arrow" />
+                                            </div>
+                                            <div className="progress-detail">
+                                                {filtered.length > 0 ? (
+                                                    filtered.slice(0, 3).map((course, key) => (
+                                                        <div className="course-item" key={key}>
+                                                            <img src={course.image?.trim()} alt="course" />
+                                                            <div className="course-info">
+                                                                <h5>{course.title}</h5>
+                                                                <span>{course.subject}</span>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <p className="empty-state">No courses in this category</p>
+                                                )}
                                             </div>
                                         </div>
-                                        {progressCourse.map((item, index) => {
-                                            const filtered = state.data.data.filter(course => course.status === item.status);
-                                            return (
-                                                <div className="progress-item" key={index}>
-                                                    <div className="heading" onClick={() => setTarget(target === index ? null : index)} style={target === index ? { background: 'var(--color_black)', color: 'var(--color_white)' } : {}}>
-                                                        <div className="title">
-                                                            <span style={{ color: item.color }}>{item.status}</span>
-                                                            <p>{filtered.length}/{state.data.data.length}</p>
-                                                        </div>
-                                                        <FaAngleRight style={{ opacity: target === index ? 1 : 0.5, transform: target === index ? 'rotate(90deg)' : 'rotate(0deg)', transition: '0.2s all ease' }} />
-                                                    </div>
-                                                    <div className="detail" style={{ height: target === index ? (filtered.length > 0 ? '400px' : '100px') : '0px', padding: target === index ? '20px' : '0px' }}>
-                                                        <div className="info">
-                                                            {filtered.length > 0 ? (
-                                                                filtered.map((course, key) => (
-                                                                    <div className="item" key={key}>
-                                                                        <div className="header">
-                                                                            <img src={course.image?.trim()} alt="course_image" />
-                                                                            <h5>{course.title}</h5>
-                                                                        </div>
-                                                                        <span>{course.subject}</span>
-                                                                    </div>
-                                                                ))
-                                                            ) : (
-                                                                <p id="no-course">No course can be shown</p>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </>
-                        }
-                    </div>
-                    <div className="footer">
-                        <button onClick={() => queryNavigate('home', { tab: 'learning' })}>Open view my course</button>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 </div>
-            </div>
+            </section>
         </div>
     );
 }

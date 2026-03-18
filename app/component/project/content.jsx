@@ -1,3 +1,4 @@
+'use client'
 import { useState, useEffect } from "react"
 
 import GetProjectService from "@/app/services/getService/projectService";
@@ -9,28 +10,37 @@ import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
 
 import { LoadingContent } from "../ui/loading";
 import { ErrorReload } from "../ui/error";
-import Search from "../ui/search";
+import Search from "../ui/searchBar";
 import AlertPush from "../ui/alert";
 
 import { filter, uniqWith } from "lodash";
 
-import { FaArrowRight, FaChevronUp } from "react-icons/fa";
-import { FaUser, FaUserGroup } from "react-icons/fa6";
-import { MdPushPin, MdInfoOutline } from "react-icons/md";
+import { FaArrowRight, FaChevronDown, FaUsers, FaUser } from "react-icons/fa";
+import { FaUserGroup } from "react-icons/fa6";
+import { MdPushPin, MdInfoOutline, MdAccessTime } from "react-icons/md";
+import { HiOutlineClipboardDocumentList } from "react-icons/hi2";
 
-const colorUI = {
+const statusConfig = {
     Open: {
-        color: "var(--color_blue)",
-        opacity: "rgba(30, 144, 255, 0.2)",
+        color: "#10b981",
+        bg: "rgba(16, 185, 129, 0.1)",
     },
     Closed: {
-        color: "var(--color_red_light)",
-        opacity: "rgba(255, 0, 0, 0.2)",
+        color: "#f43f5e",
+        bg: "rgba(244, 63, 94, 0.1)",
     },
     "Comming soon": {
-        color: "var(--color_orange)",
-        opacity: "rgba(255, 255, 0, 0.2)",
+        color: "#f97316",
+        bg: "rgba(249, 115, 22, 0.1)",
     },
+};
+
+const difficultyConfig = {
+    Beginner: { color: "#10b981", bg: "rgba(16, 185, 129, 0.1)" },
+    Intermediate: { color: "#3b82f6", bg: "rgba(59, 130, 246, 0.1)" },
+    Advanced: { color: "#f97316", bg: "rgba(249, 115, 22, 0.1)" },
+    Expert: { color: "#ef4444", bg: "rgba(239, 68, 68, 0.1)" },
+    Master: { color: "#8b5cf6", bg: "rgba(139, 92, 246, 0.1)" },
 };
 
 export function ProjectItem({
@@ -38,66 +48,83 @@ export function ProjectItem({
     isHandling,
     onRegister,
 }) {
-    const [dropdown, setDropdown] = useState(false)
+    const [expanded, setExpanded] = useState(false)
 
     const renderButtonText = () => {
         if (item.status === "Closed") return "Closed";
-        if (item.status === "Comming soon") return "Comming soon...";
+        if (item.status === "Comming soon") return "Coming Soon";
         return isHandling ? (
             <LoadingContent scale={0.5} color="var(--color_white)" />
         ) : (
-            item.method === 'Self' ? "Join" : "Add"
+            <>
+                {item.method === 'Self' ? "Join Project" : "Add to Team"}
+                <FaArrowRight fontSize={12} />
+            </>
         );
     };
 
     return (
-        <div className="item">
-            <div className="heading_item">
+        <div className="project-card">
+            <div className="card-header">
                 <span
+                    className="status-badge"
                     style={{
-                        background: colorUI[item.status].opacity,
-                        color: colorUI[item.status].color,
+                        background: statusConfig[item.status]?.bg,
+                        color: statusConfig[item.status]?.color,
                     }}
                 >
                     {item.status}
                 </span>
-                <h4>{item.name}</h4>
+                <span className="method-badge">
+                    {item.method === 'Self' ? <FaUser /> : <FaUsers />}
+                    {item.method}
+                </span>
             </div>
 
-            <div className="content_item">
-                <p>{item.description}</p>
+            <h3 className="card-title">{item.name}</h3>
+            <p className="card-description">{item.description}</p>
 
-                <div className="info">
-                    <h5>Instructor:</h5>
-                    <p>{item.instructor}</p>
+            <div className="card-meta">
+                <div className="meta-item">
+                    <span className="meta-label">Instructor</span>
+                    <span className="meta-value">{item.instructor}</span>
                 </div>
-
-                <div className={`info_dropdown ${dropdown ? "active" : ""}`}>
-                    <button
-                        type="button"
-                        onClick={() => setDropdown(!dropdown)}
+                <div className="meta-item">
+                    <span className="meta-label">Difficulty</span>
+                    <span
+                        className="difficulty-badge"
+                        style={{
+                            color: difficultyConfig[item.difficulty]?.color,
+                            background: difficultyConfig[item.difficulty]?.bg,
+                        }}
                     >
-                        <MdPushPin />
-                        Requirements
-                    </button>
+                        {item.difficulty}
+                    </span>
+                </div>
+            </div>
+
+            <div className={`requirements-section ${expanded ? "expanded" : ""}`}>
+                <button
+                    type="button"
+                    className="requirements-toggle"
+                    onClick={() => setExpanded(!expanded)}
+                >
+                    <HiOutlineClipboardDocumentList />
+                    <span>Requirements</span>
+                    <FaChevronDown className="toggle-icon" />
+                </button>
+                <div className="requirements-content">
                     <p>{item.requirements}</p>
                 </div>
             </div>
 
-            <div className="footer_item">
-                <div className="info">
-                    <h5>Difficulty:</h5>
-                    <p>{item.difficulty}</p>
-                </div>
-
-                <button
-                    style={{ background: colorUI[item.status].color }}
-                    disabled={isHandling}
-                    onClick={() => onRegister({ id: item.id, name: item.name })}
-                >
-                    {renderButtonText()}
-                </button>
-            </div>
+            <button
+                className={`action-btn ${item.status !== 'Open' ? 'disabled' : ''}`}
+                disabled={isHandling || item.status !== 'Open'}
+                onClick={() => onRegister({ id: item.id, name: item.name })}
+            >
+                {renderButtonText()}
+            </button>
         </div>
     );
 }
@@ -313,7 +340,7 @@ export default function ProjectContent({ redirect }) {
 
     const handleRedirect = () => {
         queryNavigate('home', { tab: 'project' });
-        redirect()
+        redirect(true)
     }
 
     const handleSubmitSearch = () => {
@@ -352,8 +379,8 @@ export default function ProjectContent({ redirect }) {
     }
 
     return (
-        <div id="project">
-            <div className="heading_project">
+        <div id="project-marketplace">
+            <header className="project-header">
                 <Search
                     data={filterMapping}
                     submit={handleSubmitSearch}
@@ -362,53 +389,50 @@ export default function ProjectContent({ redirect }) {
                     pending={state.pending}
                     defaultFilter={defaultFilter}
                 />
-                <div className="handle_back">
-                    <button className="back_btn" onClick={handleRedirect}>
-                        <h4>
-                            Back
-                        </h4>
-                        <FaArrowRight />
-                    </button>
-                </div>
-            </div>
-            <div className="content_project">
-                {
-                    state.pending ?
-                        <LoadingContent />
-                        :
-                        state.error ?
-                            <ErrorReload
-                                data={state.error}
-                                refetch={refetchData}
-                            />
-                            :
-                            (state.data && state.data.length > 0) ?
-                                state.data.map((item, index) => (
-                                    <ProjectItem
-                                        key={index}
-                                        item={item}
-                                        isHandling={!!handlingMap[item.id]}
-                                        onRegister={handleRegister}
-                                    />
-                                ))
-                                :
-                                <p className="no_data">
-                                    No project can be found !
-                                </p>
-                }
-                {!state.pending && state.data.length > 0 && load.hasMore && (
-                    <span className="load_wrapper" ref={setRef}>
-                        <LoadingContent
-                            scale={0.5}
-                            message={state.error && "Something is wrong, check your connection"}
+                <button className="back-btn" onClick={handleRedirect}>
+                    <span>Back</span>
+                    <FaArrowRight />
+                </button>
+            </header>
+
+            <div className="projects-grid">
+                {state.pending ? (
+                    <LoadingContent />
+                ) : state.error ? (
+                    <ErrorReload
+                        data={state.error}
+                        refetch={refetchData}
+                    />
+                ) : state.data && state.data.length > 0 ? (
+                    state.data.map((item, index) => (
+                        <ProjectItem
+                            key={item.id || index}
+                            item={item}
+                            isHandling={!!handlingMap[item.id]}
+                            onRegister={handleRegister}
                         />
-                    </span>
+                    ))
+                ) : (
+                    <div className="empty-state">
+                        <HiOutlineClipboardDocumentList />
+                        <p>No projects found</p>
+                    </div>
                 )}
             </div>
+
+            {!state.pending && state.data.length > 0 && load.hasMore && (
+                <div className="load-more-wrapper" ref={setRef}>
+                    <LoadingContent
+                        scale={0.5}
+                        message={state.error && "Something is wrong, check your connection"}
+                    />
+                </div>
+            )}
+
             <AlertPush
                 message={alert?.message}
                 status={alert?.status}
             />
-        </div >
+        </div>
     )
 }

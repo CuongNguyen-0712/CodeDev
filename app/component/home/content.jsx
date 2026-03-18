@@ -1,3 +1,4 @@
+'use client'
 import dynamic from 'next/dynamic';
 
 import { useSearchParams } from 'next/navigation';
@@ -10,7 +11,7 @@ const components = {
     'social': dynamic(() => import('../content/social'), { ssr: true }),
 };
 
-export default function Content({ handleRedirect }) {
+export default function Content({ redirect, alert }) {
     const params = useSearchParams();
     const page = params.get('tab') || 'overview';
 
@@ -18,5 +19,8 @@ export default function Content({ handleRedirect }) {
 
     if (!Page) return <PageError />;
 
-    return <Page redirect={handleRedirect} />;
+    return <Page
+        redirect={redirect}
+        alert={alert}
+    />;
 }

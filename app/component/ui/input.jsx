@@ -53,7 +53,7 @@ export function InputGroup({ name, label, type, value, onChange, error, icon, re
                         shown ?
                             <VscEyeClosed fontSize={16} color="var(--color_black)" />
                             :
-                            <VscEye fontSize={16} color="var(--color_blue)" />
+                            <VscEye fontSize={16} color="var(--color_primary)" />
                     }
                 </button>
             }

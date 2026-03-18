@@ -1,6 +1,9 @@
+import { getSession } from "@/app/lib/session";
+
 export default async function GetStateCourseService({ course_id }) {
     const params = new URLSearchParams();
     params.set('course_id', course_id);
+    params.set('user_id', (await getSession())?.userId);
 
     try {
         const res = await fetch(`/api/get/getStateCourse?${params.toString()}`, {

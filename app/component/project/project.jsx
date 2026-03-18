@@ -1,9 +1,9 @@
-import Layout from "../ui/layout";
+import BaseLayout from "@/app/layout/baseLayout";
 import ProjectContent from "./content";
 
 export default function Project() {
     return (
-        <Layout children={<ProjectContent />}>
-        </Layout>
+        <BaseLayout children={<ProjectContent />}>
+        </BaseLayout>
     )
 }

@@ -1,3 +1,7 @@
+/* ============================================
+   Course Learning Page - Modern UI
+   ============================================ */
+
 #course_page_layout {
     display: flex;
     position: relative;
@@ -5,60 +9,75 @@
     width: 100%;
     flex-direction: column;
     overflow: hidden;
+    background: var(--color_bg);
 }
 
+/* Navigation Header */
 .nav_layout_params {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 70px;
+    height: 64px;
     width: 100%;
-    padding: 5px 15px;
-    background: var(--color_blue_light);
+    padding: 0 20px;
+    background: var(--gradient_header);
     gap: 20px;
     flex-shrink: 0;
-    z-index: 1;
+    box-shadow: var(--shadow_lg);
+    z-index: 10;
 }
 
 .nav_layout_heading {
     display: flex;
     align-items: center;
     height: 100%;
-    width: max-content;
-    gap: 20px;
+    gap: 16px;
     overflow: hidden;
+    flex: 1;
+    min-width: 0;
 }
 
 .nav_layout_params .nav_layout_heading button {
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 100%;
-    background: transparent;
-    color: var(--color_black);
-    outline: none;
+    height: 40px;
+    width: 40px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius_md);
+    color: var(--color_white);
     cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.nav_layout_params .nav_layout_heading button:hover {
+    background: rgba(255, 255, 255, 0.2);
 }
 
 .nav_layout_params .nav_layout_heading img {
-    height: 35px;
-    width: 35px;
+    height: 40px;
+    width: 40px;
     background: var(--color_white);
-    padding: 2px;
-    border-radius: 5px;
+    padding: 4px;
+    border-radius: var(--radius_md);
+    object-fit: contain;
+    flex-shrink: 0;
 }
 
 .nav_layout_params .nav_layout_heading h3 {
-    min-width: 0;
+    font-size: 16px;
+    font-weight: 600;
     color: var(--color_white);
-    text-overflow: ellipsis;
     white-space: nowrap;
+    text-overflow: ellipsis;
     overflow: hidden;
 }
 
 .nav_layout_handler {
     display: flex;
-    gap: 15px;
+    gap: 8px;
+    flex-shrink: 0;
 }
 
 .nav_layout_handler button {
@@ -67,52 +86,54 @@
     justify-content: center;
     height: 40px;
     width: 40px;
-    border-radius: 50%;
-    background: transparent;
-    gap: 10px;
+    border-radius: var(--radius_md);
+    background: rgba(255, 255, 255, 0.1);
     cursor: pointer;
-    transition: 0.2s all ease;
-
-    &:hover {
-        background: var(--color_white_light);
-        transition: 0.2s all ease;
-    }
+    transition: all 0.2s ease;
 }
 
+.nav_layout_handler button:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Main Content Area */
 #course_param_content {
     display: flex;
     flex-grow: 1;
     width: 100%;
     overflow: hidden;
+    position: relative;
 }
 
+/* Sidebar */
 #course_param_content .slider {
     display: flex;
     height: 100%;
     width: 0;
     padding: 0;
-    background: var(--color_bg);
+    background: var(--color_white);
+    border-right: 1px solid var(--color_gray_light);
     flex-direction: column;
-    gap: 20px;
+    gap: 16px;
     flex-shrink: 0;
     overflow: hidden;
-    transition: 0.2s all ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 #course_param_content .slider.active {
-    width: 350px;
-    padding: 20px 10px;
-    transition: 0.2s all ease;
+    width: 360px;
+    padding: 20px 16px;
 }
 
+/* Course Slider Container */
 .slider.active .course_slider {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: flex-start;
     height: 100%;
     width: 100%;
     flex-direction: column;
-    overflow: scroll;
+    overflow-y: auto;
     overflow-x: hidden;
 }
 
@@ -121,7 +142,22 @@
 }
 
 .course_slider::-webkit-scrollbar {
-    display: none;
+    width: 4px;
+}
+
+.course_slider::-webkit-scrollbar-thumb {
+    background: var(--color_gray);
+    border-radius: 4px;
+}
+
+/* Loading State in Slider */
+.course_slider>.loading-container {
+    flex: 1;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
 }
 
 .frame_slider {
@@ -130,123 +166,123 @@
     height: max-content;
     width: 100%;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
 }
 
+/* Module Accordion */
 .course_slider .module {
     display: flex;
     height: max-content;
     width: 100%;
     background: transparent;
-    border-radius: 5px;
+    border-radius: var(--radius_lg);
     flex-direction: column;
-    transition: 0.2s all ease;
+    overflow: hidden;
+    border: 1px solid var(--color_gray_light);
+    transition: all 0.2s ease;
+}
+
+.course_slider .module:hover {
+    border-color: rgba(48, 102, 190, 0.2);
 }
 
 .module .module_heading {
     display: flex;
-    align-items: center;
-    height: max-content;
-    min-height: 50px;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 60px;
     width: 100%;
-    border-radius: 10px;
-    padding: 20px;
+    padding: 16px;
     background: var(--color_white);
     color: var(--color_black);
-    gap: 20px;
-    flex-direction: column;
-    transition-delay: 0.2s;
+    cursor: pointer;
+    transition: all 0.2s ease;
 }
 
 .module.active .module_heading {
-    border-radius: 10px 10px 0 0;
-    transition: 0s all ease;
+    background: linear-gradient(135deg, rgba(48, 102, 190, 0.05) 0%, rgba(17, 157, 164, 0.05) 100%);
 }
 
 .module .module_heading .module_header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: max-content;
     width: 100%;
+}
+
+.module .module_heading .module_header h4 {
+    display: flex;
+    padding: 5px 12px;
+    background: var(--gradient_primary);
+    color: var(--color_white);
+    border-radius: var(--radius_sm);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: var(--shadow_sm);
 }
 
 .module .module_heading .module_header .icon_module {
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 25px;
-    width: 25px;
-    border-radius: 50px;
+    height: 28px;
+    width: 28px;
+    border-radius: var(--radius_full);
     background: var(--color_gray_light);
     color: var(--color_black);
     transform: rotate(0deg);
-    transition: 0.2s all ease;
+    transition: all 0.2s ease;
 }
-
 
 .module.active .module_heading .module_header .icon_module {
     transform: rotate(90deg);
-    background: var(--color_black);
+    background: var(--color_primary);
     color: var(--color_white);
-    transition: 0.2s all ease;
 }
 
-.module .module_heading .module_header h4 {
-    display: flex;
-    height: max-content;
-    width: max-content;
-    background: var(--color_gray_light);
+.module .module_heading>h4 {
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.4;
     color: var(--color_black);
-    outline: 1px solid var(--color_gray);
-    border-radius: 5px;
-    padding: 5px 15px;
-    flex-shrink: 0;
 }
 
-.module .module_heading p {
-    display: flex;
-    align-items: center;
-    flex-grow: 1;
-    text-align: left;
-}
-
+/* Lessons List */
 .module .lessons {
     display: flex;
     justify-content: flex-start;
     width: 100%;
-    border-radius: 0;
     padding: 0;
     background: var(--color_white);
     flex-direction: column;
-    transition-delay: 0.2s;
-    transition: 0.2s all ease;
-    gap: 5px;
+    gap: 4px;
     overflow: hidden;
+    transition: all 0.3s ease;
 }
 
 .module.active .lessons {
-    padding: 10px;
-    border-radius: 0 0 10px 10px;
-    transition: 0.2s all ease;
+    padding: 12px;
+    border-top: 1px solid var(--color_gray_light);
 }
 
 .module .lessons .lesson {
     display: flex;
     align-items: center;
-    flex-grow: 1;
     width: 100%;
-    background: transparent;
-    gap: 10px;
+    gap: 12px;
+    padding: 4px;
 }
 
 .lesson .target_lesson {
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 20px;
-    width: 20px;
-    border-radius: 50px;
+    height: 24px;
+    width: 24px;
+    border-radius: var(--radius_full);
     flex-shrink: 0;
 }
 
@@ -256,31 +292,40 @@
     justify-content: flex-start;
     height: 100%;
     flex-grow: 1;
-    padding: 5px 10px;
+    padding: 10px 14px;
     background: transparent;
     color: var(--color_black);
+    font-size: 13px;
     text-align: left;
-    border-radius: 5px;
+    border-radius: var(--radius_md);
     cursor: pointer;
-    transition: 0.2s all ease;
+    transition: all 0.2s ease;
 }
 
 .lesson.target .lesson_title {
-    background: var(--color_gray_light);
-    transition: 0.2s all ease;
+    background: rgba(48, 102, 190, 0.1);
+    color: var(--color_primary);
+    font-weight: 500;
 }
 
-.lesson .lesson_title:hover {
+.lesson .lesson_title:hover:not(:disabled) {
     background: var(--color_gray_light);
-    transition: 0.2s all ease;
 }
 
+.lesson .lesson_title:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Sidebar Footer */
 .slider.active .footer_slider {
     display: flex;
     justify-content: center;
     height: max-content;
     width: 100%;
     gap: 10px;
+    padding-top: 12px;
+    border-top: 1px solid var(--color_gray_light);
 }
 
 .slider .footer_slider {
@@ -291,51 +336,79 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 35px;
-    width: 35px;
+    height: 40px;
+    width: 40px;
     background: var(--color_white);
     border: 1px solid var(--color_gray);
     color: var(--color_black);
-    border-radius: 20px;
+    border-radius: var(--radius_md);
     flex-shrink: 0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+#reload_slider:hover {
+    background: var(--color_gray_light);
 }
 
 #handle_slider {
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 35px;
-    width: 100%;
-    border-radius: 5px;
+    height: 40px;
+    flex-grow: 1;
+    border-radius: var(--radius_md);
     background: var(--color_black);
     color: var(--color_white);
+    font-size: 13px;
     font-weight: 600;
-    gap: 20px;
+    gap: 10px;
     cursor: pointer;
+    transition: all 0.2s ease;
 }
 
+#handle_slider:hover {
+    background: var(--color_black_dark);
+}
+
+/* Lesson View Area */
 #course_param_content .lesson_view {
     display: flex;
+    align-items: center;
     justify-content: center;
     flex-grow: 1;
     min-width: 300px;
     flex-direction: column;
     gap: 10px;
+    background: var(--color_bg);
+}
+
+/* Loading State */
+.lesson_view>.loading-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .lesson_view #view {
     display: flex;
     width: 100%;
     flex-grow: 1;
-    background: transparent;
-    padding: 30px 20px;
+    background: var(--color_white);
+    padding: 32px 24px;
     flex-direction: column;
-    gap: 10px;
+    gap: 16px;
     overflow: auto;
 }
 
 .lesson_view #view::-webkit-scrollbar {
-    display: none;
+    width: 6px;
+}
+
+.lesson_view #view::-webkit-scrollbar-thumb {
+    background: var(--color_gray);
+    border-radius: 6px;
 }
 
 .lesson_view .footer_view {
@@ -343,7 +416,7 @@
     justify-content: flex-end;
     height: max-content;
     width: 100%;
-    padding: 0 10px;
+    padding: 0 16px;
 }
 
 #confirm_lesson {
@@ -351,39 +424,43 @@
     align-items: center;
     justify-content: center;
     align-self: center;
-    height: 35px;
+    height: 40px;
     width: 100%;
-    max-width: 200px;
-    margin-top: 20px;
-    background: var(--color_green);
+    max-width: 240px;
+    margin-top: 24px;
+    background: var(--gradient_primary);
     color: var(--color_white);
     font-weight: 600;
     text-transform: uppercase;
-    font-size: 12px;
-    border-radius: 5px;
+    font-size: 13px;
     flex-shrink: 0;
+    letter-spacing: 0.5px;
+    border-radius: var(--radius_md);
+    box-shadow: var(--shadow_md);
     cursor: pointer;
+    transition: all 0.2s ease;
 }
 
-.lesson_view .lesson_view_btn:hover {
-    background: var(--color_gray_light);
-    transition: 0.2s all ease;
+#confirm_lesson:hover {
+    box-shadow: var(--shadow_lg);
+    transform: translateY(-2px);
 }
 
+/* Course Info Panel */
 #view_state {
     display: flex;
     position: absolute;
     height: 100%;
     width: 100%;
-    max-width: 450px;
+    max-width: 420px;
     inset: 0;
-    padding: 20px;
+    padding: 24px;
     background: var(--color_white);
-    box-shadow: 0 0 5px var(--color_gray_light);
+    box-shadow: var(--shadow_xl);
     flex-direction: column;
-    transition: 0.2s all ease;
-    gap: 10px;
-    z-index: 2;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    gap: 20px;
+    z-index: 5;
 }
 
 .view_course {
@@ -395,57 +472,118 @@
     flex-direction: column;
     gap: 20px;
     text-align: center;
+    padding: 20px;
+}
+
+.view_course img {
+    border-radius: var(--radius_lg);
+    box-shadow: var(--shadow_md);
+}
+
+.view_course h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--color_black);
+}
+
+.view_course p {
+    font-size: 14px;
+    color: var(--color_black_light);
+    line-height: 1.6;
 }
 
 .footer_view {
     display: flex;
-    gap: 20px;
+    gap: 12px;
 }
 
 .footer_view button {
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 35px;
+    height: 44px;
     flex-grow: 1;
-    padding: 0 10px;
+    padding: 0 16px;
     font-weight: 600;
-    border-radius: 5px;
+    font-size: 14px;
+    border-radius: var(--radius_md);
     gap: 10px;
     cursor: pointer;
+    transition: all 0.2s ease;
 }
 
 .footer_view button:first-child {
-    max-width: 150px;
+    max-width: 120px;
     background: var(--color_gray_light);
-    color: var(--color_black_dark);
+    color: var(--color_black);
+}
+
+.footer_view button:first-child:hover {
+    background: var(--color_gray);
 }
 
 .footer_view button:last-child {
-    background: var(--color_black);
+    background: var(--gradient_primary);
     color: var(--color_white);
+    box-shadow: var(--shadow_sm);
 }
 
+.footer_view button:last-child:hover {
+    box-shadow: var(--shadow_md);
+}
+
+/* Empty State */
+.no_data {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 40px 20px;
+    font-size: 14px;
+    color: var(--color_black_light);
+    text-align: center;
+}
+
+/* Responsive */
 @media screen and (max-width: 768px) {
+    .nav_layout_params {
+        padding: 0 12px;
+    }
+
     .nav_layout_params .nav_layout_heading h3 {
-        font-size: medium;
+        font-size: 14px;
     }
 
     #course_param_content .slider {
         position: absolute;
-        height: calc(100% - 70px);
+        height: calc(100% - 64px);
         right: 0;
         bottom: -100%;
-        width: 300px;
+        width: 100%;
+        max-width: 320px;
+        border-right: none;
+        border-left: 1px solid var(--color_gray_light);
+        box-shadow: var(--shadow_xl);
+        z-index: 5;
     }
 
     #course_param_content .slider.active {
         bottom: 0;
+        width: 100%;
+        max-width: 320px;
+    }
+
+    .lesson_view #view {
+        padding: 24px 16px;
     }
 }
 
-@media screen and (max-width: 425px) {
+@media screen and (max-width: 480px) {
     #course_param_content .slider.active {
-        width: 100%;
+        max-width: 100%;
+    }
+
+    #view_state {
+        max-width: 100%;
     }
 }

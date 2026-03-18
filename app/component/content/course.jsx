@@ -10,16 +10,15 @@ import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
 
 import { LoadingContent } from "../ui/loading";
 import { ErrorReload } from "../ui/error";
-import AlertPush from '../ui/alert'
-import Search from "../ui/search";
+import Search from "../ui/searchBar";
 
 import { uniqWith } from "lodash";
 
-import { FaCartShopping } from "react-icons/fa6";
+import { FaCartShopping, FaPlay, FaChartLine, FaCode, FaGraduationCap } from "react-icons/fa6";
 import { IoSettingsSharp, IoClose, IoTrashBin } from "react-icons/io5";
 import { GoHeartFill } from "react-icons/go";
-import { LuSearchX } from "react-icons/lu";
-import { BsThreeDots } from "react-icons/bs";
+import { LuSearchX, LuExternalLink } from "react-icons/lu";
+import { HiSparkles } from "react-icons/hi2";
 
 export function CourseItem({
     item,
@@ -31,150 +30,163 @@ export function CourseItem({
 }) {
     const [openSetting, setOpenSetting] = useState(false)
     const [confirmWithdraw, setConfirmWithdraw] = useState(false)
-
     const [marked, setMarked] = useState(item.is_marked)
 
+    const progressPercent = ((item.progress / item.lesson) * 100).toFixed(0);
+
     return (
-        <div
-            className="course"
-        >
-            <div className="heading-course">
-                <img src={item.image?.trim()} alt="course_image" />
-                <h3>{item.title}</h3>
-            </div>
-
-            <div className="content-course">
-                <div className="item">
-                    <h5>Concept</h5>
-                    <p>{item.concept}</p>
-                    <button
-                        className="detail_more"
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            onPreview(item.id)
-                        }}
-                    >
-                        <BsThreeDots fontSize={20} />
-                    </button>
+        <div className="course-card">
+            {/* Card Header */}
+            <div className="card-header">
+                <div className="course-icon">
+                    <img src={item.image?.trim()} alt="course_image" />
                 </div>
-                <div className="item">
-                    <h4>Level:</h4>
-                    <p>{item.level}</p>
-                </div>
-                <div className="item">
-                    <h4>Language:</h4>
-                    <p>{item.language}</p>
-                </div>
-                <div className="item">
-                    <h4>Progress:</h4>
-                    <p>
-                        {((item.progress / item.lesson) * 100).toPrecision(3)}%
-                        ({item.progress}/{item.lesson})
-                    </p>
-                </div>
-            </div>
-
-            <div className="footer_course">
                 <button
-                    className="setting_course"
+                    className={`bookmark-btn ${marked ? 'active' : ''}`}
                     disabled={isHandling}
                     onClick={(e) => {
                         e.stopPropagation()
-                        setOpenSetting(prev => !prev)
-                        setConfirmWithdraw(false)
+                        setMarked(!marked)
+                        onMarked({ id: item.id, status: !marked, course: item.title })
                     }}
                 >
-                    {openSetting ? <IoClose /> : <IoSettingsSharp />}
+                    <GoHeartFill fontSize={16} />
                 </button>
+            </div>
 
-                {openSetting ?
-                    <div className="setting_list">
+            {/* Card Body */}
+            <div className="card-body">
+                <h3 className="course-title">{item.title}</h3>
+                <p className="course-concept">{item.concept}</p>
+
+                <div className="course-meta">
+                    <span className="meta-item level">
+                        <FaGraduationCap />
+                        {item.level}
+                    </span>
+                    <span className="meta-item language">
+                        <FaCode />
+                        {item.language}
+                    </span>
+                </div>
+
+                {/* Progress */}
+                <div className="course-progress">
+                    <div className="progress-header">
+                        <span className="progress-label">Progress</span>
+                        <span className="progress-value">{progressPercent}%</span>
+                    </div>
+                    <div className="progress-bar">
+                        <div
+                            className="progress-fill"
+                            style={{ width: `${progressPercent}%` }}
+                        />
+                    </div>
+                    <span className="progress-detail">{item.progress}/{item.lesson} lessons</span>
+                </div>
+            </div>
+
+            {/* Card Footer */}
+            <div className="card-footer">
+                {openSetting ? (
+                    <div className="setting-actions">
                         <button
-                            className="withdraw_course"
+                            className="btn-withdraw"
                             disabled={isHandling}
                             onClick={(e) => {
                                 e.stopPropagation()
                                 setConfirmWithdraw(true)
                             }}
                         >
-                            {
-                                confirmWithdraw ?
-                                    <LoadingContent scale={0.5} color={"var(--color_white)"} />
-                                    :
-                                    <>
-                                        <IoTrashBin />
-                                        Withdraw
-                                    </>
-                            }
+                            {isHandling ? (
+                                <LoadingContent scale={0.4} color={"var(--color_white)"} />
+                            ) : (
+                                <>
+                                    <IoTrashBin />
+                                    Withdraw
+                                </>
+                            )}
                         </button>
                         <button
-                            className="marked_course"
-                            disabled={isHandling}
+                            className="btn-close"
                             onClick={(e) => {
                                 e.stopPropagation()
-                                setMarked(!marked)
-                                onMarked({ id: item.id, status: !marked, course: item.title })
+                                setOpenSetting(false)
+                                setConfirmWithdraw(false)
                             }}
                         >
-                            <GoHeartFill
-                                fontSize={20}
-                                color={marked ? "var(--color_orange)" : "var(--color_gray)"}
-                            />
+                            <IoClose />
                         </button>
                     </div>
-                    :
-                    <>
+                ) : (
+                    <div className="main-actions">
                         <button
-                            className="join_course"
+                            className="btn-join"
                             disabled={isHandling}
                             onClick={(e) => {
                                 e.stopPropagation()
                                 onJoin(item.id)
                             }}
                         >
-                            {
-                                isHandling ?
-                                    <LoadingContent scale={0.5} color={"var(--color_white)"} />
-                                    :
-                                    <>
-                                        Join
-                                    </>
-                            }
+                            {isHandling ? (
+                                <LoadingContent scale={0.4} color={"var(--color_white)"} />
+                            ) : (
+                                <>
+                                    <FaPlay />
+                                    Continue
+                                </>
+                            )}
                         </button>
-                    </>
-                }
+                        <button
+                            className="btn-preview"
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                onPreview(item.id)
+                            }}
+                        >
+                            <LuExternalLink />
+                        </button>
+                        <button
+                            className="btn-settings"
+                            disabled={isHandling}
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                setOpenSetting(true)
+                            }}
+                        >
+                            <IoSettingsSharp />
+                        </button>
+                    </div>
+                )}
             </div>
 
+            {/* Confirm Withdraw Modal */}
             {confirmWithdraw && (
-                <div className="form_confirm_course">
-                    {isHandling ?
+                <div className="confirm-modal">
+                    {isHandling ? (
                         <LoadingContent scale={0.8} />
-                        :
+                    ) : (
                         <>
-                            <div className="confirm_course_text">
-                                <h4 className="delete_func">Withdrawing</h4>
-                                <p>
-                                    Are you sure to withdraw course <strong>{item.title}</strong> from your learning ?
-                                </p>
+                            <div className="modal-content">
+                                <span className="modal-icon">
+                                    <IoTrashBin />
+                                </span>
+                                <h4>Withdraw Course</h4>
+                                <p>Are you sure you want to withdraw <strong>{item.title}</strong>?</p>
                             </div>
-
-                            <div className="confirm_course_btns">
+                            <div className="modal-actions">
                                 <button
-                                    className="handle_withdraw"
+                                    className="btn-confirm"
                                     disabled={isHandling}
                                     onClick={(e) => {
                                         e.stopPropagation()
-                                        onWithdraw({
-                                            id: item.id,
-                                            course: item.title
-                                        })
+                                        onWithdraw({ id: item.id, course: item.title })
                                     }}
                                 >
                                     Withdraw
                                 </button>
-
                                 <button
-                                    className="cancel_confirm_course"
+                                    className="btn-cancel"
                                     disabled={isHandling}
                                     onClick={(e) => {
                                         e.stopPropagation()
@@ -183,17 +195,16 @@ export function CourseItem({
                                 >
                                     Cancel
                                 </button>
-
                             </div>
                         </>
-                    }
+                    )}
                 </div>
             )}
         </div>
     )
 }
 
-export default function MyCourse({ redirect }) {
+export default function MyCourse({ redirect, alert }) {
     const { navigateToLearning, navigateToCourse } = useRouterActions();
 
     const filterMapping = [
@@ -286,7 +297,6 @@ export default function MyCourse({ redirect }) {
 
     const [apiQueue, setApiQueue] = useState([])
     const [isProcessing, setIsProcessing] = useState(false)
-    const [alert, setAlert] = useState(null)
 
     const { setRef } = useInfiniteScroll({
         hasMore: load.hasMore,
@@ -319,8 +329,8 @@ export default function MyCourse({ redirect }) {
     }, [apiQueue, isProcessing]);
 
     const handleNavigate = () => {
-        redirect(true);
         navigateToCourse()
+        redirect(true);
     }
     const fetchData = async () => {
         if (!load.hasMore) return;
@@ -397,22 +407,13 @@ export default function MyCourse({ redirect }) {
                             setApiQueue(prev => [...prev, { type: 'fetch' }])
 
                             startTransition(() => {
-                                setAlert({
-                                    status: res.status,
-                                    message: `Withdraw course: ${course}`
-                                })
+                                alert(res.status, `Successfully withdraw course: ${course}`)
                             })
                         } else {
-                            setAlert({
-                                status: res.status,
-                                message: `Failed to withdraw course: ${course} ( ${res.message || "Something is error"} )`
-                            })
+                            alert(res.status, res.message || `Failed to withdraw course: ${course}`)
                         }
                     } catch (err) {
-                        setAlert({
-                            status: err?.status || 500,
-                            message: 'Something is wrong, try again'
-                        })
+                        alert(err.status || 500, `Failed to withdraw course: ${course} ( Internal server error )`)
                     } finally {
                         stopHandling(id)
                     }
@@ -432,25 +433,17 @@ export default function MyCourse({ redirect }) {
                     try {
                         const res = await UpdateMarkedCourseService({ courseId: id, marked: status });
                         if (res.status == 200) {
-                            setAlert({
-                                status: res?.status,
-                                message: `${status ? 'Marked' : 'Unmarked'} course: ` + course,
-                            });
+                            alert(res.status, `${status ? 'Marked' : 'Unmarked'} course: ${course} successfully`)
                             setApiQueue((prev) => [...prev, { type: "fetch" }]);
                         }
                         else {
-                            setAlert({
-                                status: res?.status,
-                                message: 'Failed to marked course: ' + course + ` ( ${res?.message || "Something is error"} )`,
-                            });
+                            alert(res.status, res.message || `Failed to marked course: ${course}`)
                         }
                     }
                     catch (err) {
-                        setAlert({
-                            status: err?.status || 500,
-                            message: "Failed to marked course: " + course + ' ( Internal server error )',
-                        })
-                    } finally {
+                        alert(err.status || 500, `Failed to marked course: ${course} ( Internal server error )`)
+                    }
+                    finally {
                         stopHandling(id)
                     }
                 }
@@ -496,10 +489,6 @@ export default function MyCourse({ redirect }) {
         navigateToCourse(id);
     }
 
-    useEffect(() => {
-        setAlert(null)
-    }, [alert])
-
     const startHandling = (id) => {
         setHandlingMap(prev => ({ ...prev, [id]: true }))
     }
@@ -514,7 +503,26 @@ export default function MyCourse({ redirect }) {
 
     return (
         <div id="myCourse">
-            <div className="heading-myCourse">
+            {/* Page Header */}
+            <section className="course-header">
+                <div className="header-content">
+                    <div className="header-text">
+                        <span className="header-label">
+                            <HiSparkles />
+                            My Learning
+                        </span>
+                        <h1>My Courses</h1>
+                        <p>Continue your learning journey and track progress</p>
+                    </div>
+                    <button className="btn-marketplace" onClick={handleNavigate}>
+                        <FaCartShopping />
+                        <span>Browse Marketplace</span>
+                    </button>
+                </div>
+            </section>
+
+            {/* Search & Filter */}
+            <section className="course-search">
                 <Search
                     data={filterMapping}
                     setSearch={(data) => setState(prev => ({ ...prev, search: data }))}
@@ -523,54 +531,48 @@ export default function MyCourse({ redirect }) {
                     defaultFilter={defaultFilter}
                     pending={state.pending}
                 />
-                <div className="handle-course">
-                    <button onClick={handleNavigate} id="course-btn">
-                        <FaCartShopping fontSize={16} />
-                        <span>
-                            Marketplace
-                        </span>
-                    </button>
-                </div>
-            </div>
-            <div className="course-frame">
-                {
-                    state.pending ?
-                        <LoadingContent />
-                        :
-                        (state.error && state.data.length === 0) ?
-                            <ErrorReload data={state.error} refetch={refetchData} />
-                            :
-                            state.data && state.data.length > 0 ?
-                                state.data.map(item => (
-                                    <CourseItem
-                                        key={item.id}
-                                        item={item}
-                                        onPreview={handlePreview}
-                                        onJoin={handleJoin}
-                                        onWithdraw={handleWithdrawCourse}
-                                        onMarked={handleMarkedCourse}
-                                        isHandling={!!handlingMap[item.id]}
-                                    />
-                                ))
-                                :
-                                <p className='no_data'>
-                                    <LuSearchX fontSize={18} />
-                                    No course can be found here !
-                                </p>
-                }
-            </div>
+            </section>
+
+            {/* Course Grid */}
+            <section className="course-grid">
+                {state.pending ? (
+                    <LoadingContent />
+                ) : state.error && state.data.length === 0 ? (
+                    <ErrorReload data={state.error} refetch={refetchData} />
+                ) : state.data && state.data.length > 0 ? (
+                    state.data.map(item => (
+                        <CourseItem
+                            key={item.id}
+                            item={item}
+                            onPreview={handlePreview}
+                            onJoin={handleJoin}
+                            onWithdraw={handleWithdrawCourse}
+                            onMarked={handleMarkedCourse}
+                            isHandling={!!handlingMap[item.id]}
+                        />
+                    ))
+                ) : (
+                    <div className="empty-state">
+                        <LuSearchX />
+                        <h4>No courses found</h4>
+                        <p>Try adjusting your search or explore the marketplace</p>
+                        <button onClick={handleNavigate}>
+                            <FaCartShopping />
+                            Browse Marketplace
+                        </button>
+                    </div>
+                )}
+            </section>
+
+            {/* Load More */}
             {!state.pending && state.data.length > 0 && load.hasMore && (
-                <span className="load_wrapper" ref={setRef}>
+                <div className="load-more" ref={setRef}>
                     <LoadingContent
                         scale={0.5}
-                        message={state.error && "Something is wrong, check your connection"}
+                        message={state.error && "Something went wrong, check your connection"}
                     />
-                </span>
+                </div>
             )}
-            <AlertPush
-                message={alert?.message}
-                status={alert?.status}
-            />
-        </div >
+        </div>
     )
 }
