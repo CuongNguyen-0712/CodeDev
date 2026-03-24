@@ -685,13 +685,8 @@
 }
 
 @media screen and (max-width: 380px) {
-  #auth .social_btn span {
-    display: none;
-  }
-
   #auth .social_btn {
     justify-content: center;
-    flex: none;
     width: 50px;
   }
 

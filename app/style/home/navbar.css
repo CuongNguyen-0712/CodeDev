@@ -537,11 +537,9 @@
   }
 }
 
-@media screen and (max-width: 375px) {
-  .brand-text {
-    display: none;
-  }
+@media screen and (max-width: 425px) {
 
+  .nav-icon-btn.search-mobile,
   .nav-icon-btn.notification-btn {
     display: none;
   }

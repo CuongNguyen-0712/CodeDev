@@ -2,22 +2,34 @@
 import { sql } from '@/app/lib/db';
 
 export async function deleteMyCourse(data) {
+    const { userId, courseId } = data
+
+    if (!(userId && courseId)) {
+        return new Response(
+            JSON.stringify({ message: "You missing something, check again" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+    }
+
     try {
-        const { userId, courseId } = data
+        const conditions = [];
+        const params = [];
 
-        if (!(userId && courseId)) {
-            return new Response(
-                JSON.stringify({ message: "You missing something, check again" }),
-                { status: 400, headers: { "Content-Type": "application/json" } }
-            );
-        }
+        params.push(userId);
+        conditions.push(`user_id = $${params.length}`);
 
+        params.push(courseId);
+        conditions.push(`course_id = $${params.length}`);
 
-        await sql`      
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        const query = `      
             UPDATE course.register 
             SET status = 'Cancelled'::status_course
-            WHERE course_id = ${courseId} AND user_id = ${userId};
+            ${whereClause};
         `;
+
+        await sql.query(query, params);
 
         return new Response(
             JSON.stringify({ message: "Deleted successfully" }),
@@ -33,19 +45,34 @@ export async function deleteMyCourse(data) {
 }
 
 export async function deleteMyProject(data) {
+    const { userId, projectId } = data
+
+    if (!(userId && projectId)) {
+        return new Response(
+            JSON.stringify({ message: "You missing something, check again" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+    }
+
     try {
-        if (!data) {
-            return new Response(
-                JSON.stringify({ message: "You missing something, check again" }),
-                { status: 400, headers: { "Content-Type": "application/json" } }
-            );
-        }
+        const conditions = [];
+        const params = [];
 
-        const { userId, projectId } = data
+        params.push(userId);
+        conditions.push(`join_id = $${params.length}`);
 
-        await sql`      
-        DELETE FROM project.register WHERE projectid = ${projectId} AND userid = ${userId};
+        params.push(projectId);
+        conditions.push(`project_id = $${params.length}`);
+
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        const query = `      
+            UPDATE project.register 
+            SET is_deleted = true
+            ${whereClause};
         `;
+
+        await sql.query(query, params);
 
         return new Response(
             JSON.stringify({ message: "Deleted successfully" }),

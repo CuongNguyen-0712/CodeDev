@@ -32,7 +32,7 @@
   background: var(--color_white);
   color: var(--color_primary);
   border: 1px solid rgba(48, 102, 190, 0.2);
-  border-radius: var(--radius_full);
+  border-radius: var(--radius_md);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -98,7 +98,7 @@
   display: inline-flex;
   align-items: center;
   padding: 6px 14px;
-  border-radius: var(--radius_full);
+  border-radius: var(--radius_sm);
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -112,7 +112,7 @@
   padding: 6px 12px;
   background: var(--color_gray_light);
   color: var(--color_black_light);
-  border-radius: var(--radius_full);
+  border-radius: var(--radius_sm);
   font-size: 12px;
   font-weight: 600;
 }
@@ -322,7 +322,7 @@
   }
 
   .project-header .back-btn {
-    align-self: flex-end;
+    width: 100%;
   }
 
   .projects-grid {

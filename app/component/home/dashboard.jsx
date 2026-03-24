@@ -54,7 +54,7 @@ export default function Dashboard({ isDashboard, handleDashboard }) {
   }, [isDashboard, handleDashboard]);
 
   useEffect(() => {
-    const tab = params.get('tab');
+    const tab = params.get('tab')?.toLowerCase();
     const index = menuList.findIndex(item => item.name.toLowerCase() === tab);
     setActiveIndex(index >= 0 ? index : 0);
     pathnameRef.current = pathname;
@@ -62,6 +62,7 @@ export default function Dashboard({ isDashboard, handleDashboard }) {
   }, [params]);
 
   const handleNavigation = (index, name) => {
+    scrollTo(0, 0);
     setActiveIndex(index);
     queryNavigate(pathnameRef.current, { tab: name.toLowerCase() });
   };

@@ -11,10 +11,10 @@ const components = {
     'social': dynamic(() => import('../content/social'), { ssr: true }),
 };
 
+
 export default function Content({ redirect, alert }) {
     const params = useSearchParams();
     const page = params.get('tab') || 'overview';
-
     const Page = components[page];
 
     if (!Page) return <PageError />;

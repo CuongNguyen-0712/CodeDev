@@ -7,6 +7,7 @@ import Navbar from '../component/home/navbar';
 import Dashboard from '../component/home/dashboard';
 import Manage from '../component/home/manage';
 import Feedback from '../component/home/feedback';
+import Footer from '../component/ui/footer';
 
 import AlertPush from '../component/ui/alert';
 
@@ -43,34 +44,37 @@ export default function BaseLayout({ children }) {
     return state.redirect ?
         <LoadingRedirect />
         :
-        <main id='main'>
-            <Navbar
-                handleDashboard={(value) => setState(prev => ({ ...prev, dashboard: value }))}
-                redirect={(value) => setState(prev => ({ ...prev, redirect: value }))}
-            />
-            <Dashboard
-                isDashboard={state.dashboard}
-                handleDashboard={(value) => setState(prev => ({ ...prev, dashboard: value }))}
-                redirect={(value) => setState(prev => ({ ...prev, redirect: value }))}
-            />
-            <section id='container'>
-                {cloneElement(children, {
-                    alert: (status, message, callback) => setAlert({ status, message, callback }),
-                    redirect: (value) => setState(prev => ({ ...prev, redirect: value }))
-                })}
-            </section>
-            <Manage
-                redirect={(value) => setState(prev => ({ ...prev, redirect: value }))}
-                alert={(status, message, callback) => setAlert({ status, message, callback })}
-            />
-            <Feedback
-                alert={(status, message, callback) => setAlert({ status, message, callback })}
-            />
-            <AlertPush
-                status={alert?.status}
-                message={alert?.message}
-                reset={() => setAlert(null)}
-                callback={alert?.callback}
-            />
-        </main>
+        <>
+            <main id='main'>
+                <Navbar
+                    handleDashboard={(value) => setState(prev => ({ ...prev, dashboard: value }))}
+                    redirect={(value) => setState(prev => ({ ...prev, redirect: value }))}
+                />
+                <Dashboard
+                    isDashboard={state.dashboard}
+                    handleDashboard={(value) => setState(prev => ({ ...prev, dashboard: value }))}
+                    redirect={(value) => setState(prev => ({ ...prev, redirect: value }))}
+                />
+                <section id='container'>
+                    {cloneElement(children, {
+                        alert: (status, message, callback) => setAlert({ status, message, callback }),
+                        redirect: (value) => setState(prev => ({ ...prev, redirect: value }))
+                    })}
+                </section>
+                <Manage
+                    redirect={(value) => setState(prev => ({ ...prev, redirect: value }))}
+                    alert={(status, message, callback) => setAlert({ status, message, callback })}
+                />
+                <Feedback
+                    alert={(status, message, callback) => setAlert({ status, message, callback })}
+                />
+                <AlertPush
+                    status={alert?.status}
+                    message={alert?.message}
+                    reset={() => setAlert(null)}
+                    callback={alert?.callback}
+                />
+                <Footer />
+            </main>
+        </>
 } 

@@ -921,7 +921,7 @@
 }
 
 .course-card .bookmark-btn.active {
-    color: #F97316;
+    color: var(--color_red);
 }
 
 .course-card .card-body {

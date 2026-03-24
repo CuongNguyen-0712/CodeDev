@@ -1,0 +1,224 @@
+/* ==================== FOOTER ==================== */
+
+#footer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    background: var(--color_white);
+    border-top: 1px solid var(--color_gray_light);
+    padding: 40px 24px;
+}
+
+.footer-wrapper {
+    width: 100%;
+    max-width: 1200px;
+}
+
+.footer-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 32px;
+    margin-bottom: 32px;
+}
+
+.footer-column {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.footer-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 16px;
+    background: var(--gradient_primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    width: fit-content;
+    transition: transform 0.2s ease;
+}
+
+.footer-brand:hover {
+    transform: translateY(-2px);
+}
+
+.footer-brand img {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+}
+
+.footer-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color_black);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0;
+}
+
+.footer-text {
+    font-size: 13px;
+    color: var(--color_text_secondary);
+    line-height: 1.6;
+    margin: 0;
+}
+
+.footer-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.footer-nav a {
+    font-size: 13px;
+    color: var(--color_text_secondary);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    width: fit-content;
+    position: relative;
+}
+
+.footer-nav a::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: var(--gradient_primary);
+    transition: width 0.2s ease;
+}
+
+.footer-nav a:hover {
+    color: var(--color_blue);
+}
+
+.footer-nav a:hover::after {
+    width: 100%;
+}
+
+.footer-socials {
+    display: flex;
+    gap: 12px;
+}
+
+.footer-socials a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--color_gray_light);
+    color: var(--color_blue);
+    transition: all 0.2s ease;
+    text-decoration: none;
+}
+
+.footer-socials a svg {
+    width: 18px;
+    height: 18px;
+}
+
+.footer-socials a:hover {
+    background: var(--gradient_primary);
+    color: var(--color_white);
+    transform: translateY(-2px);
+}
+
+.footer-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding-top: 24px;
+    border-top: 1px solid var(--color_gray_light);
+    flex-wrap: wrap;
+}
+
+.footer-bottom p {
+    font-size: 12px;
+    color: var(--color_text_muted);
+    margin: 0;
+}
+
+.footer-links {
+    display: flex;
+    gap: 16px;
+}
+
+.footer-links a {
+    font-size: 12px;
+    color: var(--color_text_secondary);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.footer-links a:hover {
+    color: var(--color_blue);
+}
+
+/* Responsive */
+@media screen and (max-width: 1024px) {
+    .footer-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 24px;
+    }
+}
+
+@media screen and (max-width: 768px) {
+    #footer {
+        padding: 32px 16px;
+    }
+
+    .footer-grid {
+        grid-template-columns: 1fr;
+        gap: 24px;
+        margin-bottom: 24px;
+    }
+
+    .footer-bottom {
+        flex-direction: column;
+        align-items: flex-start;
+        padding-top: 16px;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    #footer {
+        padding: 24px 12px;
+    }
+
+    .footer-grid {
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+
+    .footer-title,
+    .footer-text {
+        font-size: 12px;
+    }
+
+    .footer-brand {
+        font-size: 14px;
+    }
+
+    .footer-nav a {
+        font-size: 12px;
+    }
+
+    .footer-bottom {
+        padding-top: 12px;
+    }
+
+    .footer-bottom p,
+    .footer-links a {
+        font-size: 11px;
+    }
+}

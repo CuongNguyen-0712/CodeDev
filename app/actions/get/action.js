@@ -401,6 +401,8 @@ export async function getMyProject({
             );
         }
 
+        conditions.push(`r.is_deleted = false`);
+
         const whereSQL = conditions.length
             ? `WHERE ${conditions.join(" AND ")}`
             : "";
