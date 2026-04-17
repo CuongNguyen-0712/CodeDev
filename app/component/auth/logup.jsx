@@ -4,31 +4,36 @@ import Link from "next/link"
 import Form from "next/form"
 import Image from "next/image"
 
+import { useRouterActions } from "@/app/router/router"
+
 import { SignUpDefinition } from "@/app/lib/definition"
 import SignUpService from "@/app/services/authService/signUp"
 import { LoadingContent } from "../ui/loading"
 import { InputGroup } from "../ui/input"
 
-import { FaArrowRight, FaArrowLeft, FaPhone, FaGithub, FaGoogle, FaUser, FaLock } from "react-icons/fa6"
+import { FaArrowRight, FaArrowLeft, FaGithub, FaUser, FaLock } from "react-icons/fa6"
 import { MdModeEdit, MdAlternateEmail, MdOutlinePassword } from "react-icons/md"
 import { IoIosWarning, IoIosCheckmarkCircle } from "react-icons/io"
 
-export default function Logup({ active, changeForm, redirect, setAlert }) {
+export default function Logup({ active, changeForm, redirect, setAlert, callback }) {
+    const { navigateToHome } = useRouterActions()
+
     const [step, setStep] = useState(1)
 
-    const [formData, setFormData] = useState({
+    const defaultState = {
         surname: '',
         name: '',
         email: '',
-        phone: '',
         username: '',
         password: '',
         re_password: '',
         agree: false
-    })
+    }
+    const [formData, setFormData] = useState(defaultState)
 
     const [validation, setValidation] = useState({})
     const [isPending, setIsPending] = useState(false)
+    const [callbackPending, setCallbackPending] = useState(false)
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -45,10 +50,7 @@ export default function Logup({ active, changeForm, redirect, setAlert }) {
                 if (res.status === 200 && res.success) {
                     setAlert({ status: res.status, message: res.message })
                     setIsPending(false)
-                    setFormData({
-                        surname: '', name: '', email: '', phone: '',
-                        username: '', password: '', re_password: '', agree: false
-                    })
+                    setFormData(defaultState)
                     changeForm()
                 } else {
                     setIsPending(false)
@@ -84,6 +86,27 @@ export default function Logup({ active, changeForm, redirect, setAlert }) {
     const handleClear = (name) => {
         setFormData((prev) => ({ ...prev, [name]: '' }))
         handleValidation({ name })
+    }
+
+    const handleCallback = async () => {
+        setCallbackPending(true)
+        try {
+            const response = await callback()
+            if (response?.error) {
+                setAlert({ status: 500, message: response.error })
+            }
+            else {
+                setAlert({ status: 200, message: 'Authenticating...' })
+                setTimeout(() => {
+                    redirect()
+                    navigateToHome()
+                }, 2000)
+            }
+        } catch (err) {
+            setAlert({ status: 500, message: 'An error occurred during sign up, please try again' })
+        } finally {
+            setCallbackPending(false)
+        }
     }
 
     const canGoNext = step < 2
@@ -144,18 +167,6 @@ export default function Logup({ active, changeForm, redirect, setAlert }) {
                             onChange={handleChange}
                             error={validation?.email}
                             icon={<MdAlternateEmail className="icon" />}
-                            reset={handleClear}
-                            read={isPending}
-                            tabIndex={step === 1 ? 0 : -1}
-                        />
-                        <InputGroup
-                            name="phone"
-                            label="Phone Number"
-                            type="text"
-                            value={formData.phone}
-                            onChange={handleChange}
-                            error={validation?.phone}
-                            icon={<FaPhone className="icon" />}
                             reset={handleClear}
                             read={isPending}
                             tabIndex={step === 1 ? 0 : -1}
@@ -254,13 +265,22 @@ export default function Logup({ active, changeForm, redirect, setAlert }) {
                 </div>
 
                 <div className="social_buttons">
-                    <button type="button" className="social_btn">
-                        <FaGithub />
-                        <span>Github</span>
-                    </button>
-                    <button type="button" className="social_btn">
-                        <FaGoogle />
-                        <span>Google</span>
+                    <button
+                        type="button"
+                        className="social_btn"
+                        onClick={handleCallback}
+                        disabled={callbackPending}
+                    >
+                        {
+                            callbackPending ? (
+                                <LoadingContent scale={0.5} />
+                            )
+                                :
+                                <>
+                                    <FaGithub />
+                                    <span>Github</span>
+                                </>
+                        }
                     </button>
                 </div>
 

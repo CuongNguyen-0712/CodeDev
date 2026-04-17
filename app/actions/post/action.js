@@ -28,7 +28,7 @@ export async function postFeedback(data) {
     } catch (error) {
         return new Response(
             JSON.stringify({ message: "Internal server error" }),
-            { status: 500, headers: { "applicationContent-Type": "/json" } }
+            { status: 500, headers: { "Content-Type": "application/json" } }
         );
     }
 }
@@ -80,7 +80,12 @@ export async function postRegisterProject(data) {
 
         params.push(userId, projectId)
 
-        const query = `INSERT INTO project.register (userid, projectid) VALUES ($${params.length - 1}, $${params.length})`;
+        const query = `
+            INSERT INTO project.register (join_id, project_id) 
+            VALUES ($${params.length - 1}, $${params.length}) 
+            ON CONFLICT (join_id, project_id)
+            DO UPDATE SET is_deleted = false
+        `;
 
         await sql.query(query, params);
 
@@ -133,9 +138,16 @@ export async function postCreateTeam(data) {
 export async function postCommentCourse(data) {
     const { userId, courseId, comment } = data
 
-    if (!(userId || courseId || comment)) {
+    if (!(userId || courseId)) {
         return new Response(
             JSON.stringify({ message: "You missing something, check again" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+    }
+
+    if (!comment || comment.trim().length === 0) {
+        return new Response(
+            JSON.stringify({ message: "Your comment is empty" }),
             { status: 400, headers: { "Content-Type": "application/json" } }
         );
     }
@@ -145,12 +157,12 @@ export async function postCommentCourse(data) {
 
         params.push(userId, courseId, comment)
 
-        const query = `INSERT INTO public.comment (user_id, course_id, content) VALUES ($${params.length - 2}, $${params.length - 1}, $${params.length})`;
+        const query = `INSERT INTO course.comment (user_id, id, content) VALUES ($${params.length - 2}, $${params.length - 1}, $${params.length})`;
 
         await sql.query(query, params);
 
         return new Response(
-            JSON.stringify({ message: "Your comment has been posted" }),
+            JSON.stringify({ message: "Thanks for your comment !" }),
             { status: 200, headers: { "Content-Type": "application/json" } }
         );
     } catch (error) {

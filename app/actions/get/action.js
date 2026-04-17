@@ -21,7 +21,7 @@ export async function getOverview(data) {
         const query = `
             select c.id as id, 
             c.image as image, 
-            c.lesson as lesson, 
+            c.lessons as lesson, 
             r.status as status, 
             c.title as title, 
             c.subject as subject,
@@ -37,11 +37,11 @@ export async function getOverview(data) {
         const res = await sql.query(query, params);
 
         return new Response(
-            JSON.stringify({ data: res, message: "Get data successfully" }),
+            JSON.stringify({ data: res }),
             { status: 200, headers: { "Content-Type": "application/json" } }
         );
     } catch (error) {
-        console.error("Error saving feedback:", error);
+        console.error("Error load data:", error);
         return new Response(
             JSON.stringify({ data: 'Something went wrong', message: "Internal server error" }),
             { status: 500, headers: { "Content-Type": "application/json" } }
@@ -150,12 +150,16 @@ export async function getProject({
         params.push(limit, offset);
 
         const query = `
-            SELECT p.*
+            SELECT 
+            p.*
             FROM public.project p
-            LEFT JOIN project.register r
-                ON r.project_id = p.id
-                AND r.join_id = $1
             ${whereSQL}
+            AND p.id NOT IN (
+                SELECT r.project_id
+                FROM project.register r
+                WHERE r.join_id = $1
+                AND r.is_deleted = false
+            )
             ORDER BY p.id ASC
             LIMIT $${params.length - 1}
             OFFSET $${params.length}
@@ -411,14 +415,14 @@ export async function getMyProject({
 
         const query = `
             SELECT
-                p.id           AS id,
-                p.name         AS name,
-                p.method       AS method,
+                p.id AS id,
+                p.name AS name,
+                p.method AS method,
                 r.status AS status,
                 p.description  AS description
             FROM project.register r
             JOIN public.project p
-                ON r.project_id = p.id
+            ON r.project_id = p.id
             ${whereSQL}
             ORDER BY r.updated_at DESC
             LIMIT $${params.length - 1}
@@ -448,60 +452,67 @@ export async function getMySocial({ id, tab, search }) {
         return new Response(JSON.stringify({ message: "You missing something, check again" }), {
             status: 400,
             headers: { "Content-Type": "application/json" }
-        })
+        });
     }
 
     try {
-        const res = await (async () => {
-            switch (tab) {
-                case 'friend':
-                    return await sql`
-                        select 
-                            u.username as username, 
-                            i.image as image,
-                            i.nickname as nickname,
-                            i.level as level,
-                            i.rank as rank,
-                            i.star as star
-                        from social.friend f
-                        inner join private.info i on i.user_id = f.friend_id 
-                        inner join private.users u on u.id = i.user_id
-                        where f.user_id = ${id}
-                        and (${search}::text is null or lower(u.username) like '%' || lower(${search}) || '%') 
-                    `;
-                case 'team':
-                    return await sql`
-                        SELECT
-                            t1.team_id as team_id,
-                            t3.name as team_name,
-                            t3.size as team_size,
-                            t3.image as team_image,
-                            u2.username as host_name,
-                            (case when u2.id = ${id} then true else false end) as is_host,
-                            string_agg(u1.username, ',') AS members
-                        FROM social.team t1
-                        JOIN social.team t2 ON t1.team_id = t2.team_id
-                        JOIN private.users u1 ON t2.user_id = u1.id
-                        join public.team t3 on t3.id = t1.team_id
-                        join private.users u2 on u2.id = t3.host_id
-                        WHERE t1.user_id = ${id}
-                        AND (${search}::text is null or lower(t3.name) like '%' || lower(${search}) || '%')
-                        AND exists (
-                            select id
-                            from public.team
-                            where id = t1.team_id
-                        )
-                        GROUP BY t3.name, t3.size, u2.username, t3.image, u2.id, t1.team_id
-                    `;
-                default:
-                    return new Response(JSON.stringify({ message: "Something is wrong, try again" }), {
-                        status: 500,
-                        headers: { "Content-Type": "application/json" }
-                    })
-            }
-        })()
+        let query = '';
+        let params = [];
 
-        return new Response(JSON.stringify({ data: res, message: "Get data successfully" }), {
+        const searchValue = search ? `%${search.toLowerCase()}%` : null;
+
+        params.push(id, searchValue);
+
+        switch (tab) {
+            case 'friend':
+                query = `
+                    SELECT 
+                        u.username,
+                        i.image,
+                        i.nickname,
+                        i.level,
+                        i.rank,
+                        i.star
+                    FROM private.users u
+                    INNER JOIN private.info i ON i.user_id = u.id AND i.user_id != $1
+                    AND ($2::text IS NULL OR LOWER(u.username) LIKE $2)
+                `;
+                break;
+
+            case 'team':
+                query = `
+                    SELECT
+                        t1.team_id,
+                        t3.name AS team_name,
+                        t3.size AS team_size,
+                        t3.image AS team_image,
+                        u2.username AS host_name,
+                        (u2.id = $1) AS is_host,
+                        STRING_AGG(u1.username, ',') AS members
+                    FROM social.team t1
+                    JOIN social.team t2 ON t1.team_id = t2.team_id
+                    JOIN private.users u1 ON t2.user_id = u1.id
+                    JOIN public.team t3 ON t3.id = t1.team_id
+                    JOIN private.users u2 ON u2.id = t3.host_id
+                    WHERE t1.user_id = $1
+                    AND ($2::text IS NULL OR LOWER(t3.name) LIKE $2)
+                    GROUP BY t1.team_id, t3.name, t3.size, t3.image, u2.username, u2.id
+                `;
+                break;
+
+            default:
+                return new Response(JSON.stringify({ message: "Invalid tab" }), {
+                    status: 400,
+                    headers: { "Content-Type": "application/json" }
+                });
+        }
+
+        const res = await sql.query(query, params);
+
+        return new Response(JSON.stringify({
+            data: res,
+            message: "Get data successfully"
+        }), {
             status: 200,
             headers: { "Content-Type": "application/json" }
         });
@@ -517,63 +528,79 @@ export async function getMySocial({ id, tab, search }) {
 export async function getSocial({ id, search, offset = 0, limit = 20, filter }) {
     try {
         if (!id) {
-            return new Response(JSON.stringify({ message: "You missing something, check again" }), {
+            return new Response(JSON.stringify({ message: "Missing user id" }), {
                 status: 400,
                 headers: { "Content-Type": "application/json" }
-            })
+            });
         }
 
-        const res = await (async () => {
-            switch (filter) {
-                case 'user':
-                    return await sql`
-                    select 
-                        u.id as id,
-                        u.username as username, 
-                        i.image as image, 
-                        i.nickname as nickname,
-                        i.level as level,
-                        i.rank as rank,
-                        i.star as star
-                    from private.users u
-                    join private.info i on i.user_id = u.id
-                    where u.id not in (
-                    select friend_id
-                    from social.friend
-                    where user_id = ${id}
-                    )
-                    and u.id != ${id}
-                    and u.lockstatus = false
-                    and (${search}::text is null or lower(u.username) like '%' || lower(${search}::text) || '%')
-                    limit ${limit} offset ${offset}
-                `;
-                case 'team':
-                    return await sql`
-                    select *
-                    from public.team 
-                    where id not in (
-                        select team_id 
-                        from social.team
-                        where user_id = ${id}
-                    )
-                    and (${search}::text is null or lower(name) like '%' || lower(${search}::text) || '%')
-                    limit ${limit} offset ${offset}
-                    `
-                default:
-                    return new Response(JSON.stringify({ message: "Something is wrong, try again" }), {
-                        status: 500,
-                        headers: { "Content-Type": "application/json" }
-                    })
-            }
-        })()
+        const searchValue = search ? `%${search}%` : null;
 
-        return new Response(JSON.stringify({ data: res, message: "Get data successfully" }), {
+        let query = "";
+        const params = [id, searchValue, limit, offset];
+
+        switch (filter) {
+            case 'user':
+                query = `
+                    SELECT 
+                        u.id,
+                        u.username,
+                        i.image,
+                        i.nickname,
+                        i.level,
+                        i.rank,
+                        i.star
+                    FROM private.users u
+                    LEFT JOIN private.info i ON i.user_id = u.id
+                    LEFT JOIN private.friend f 
+                        ON (
+                            (f.sender_id = $1 AND f.receiver_id = u.id)
+                            OR 
+                            (f.receiver_id = $1 AND f.sender_id = u.id)
+                        )
+
+                    WHERE u.id != $1
+                    AND u.lockstatus = false
+                    AND f.sender_id IS NULL
+                    AND ($2::text IS NULL OR u.username ILIKE $2)
+
+                    LIMIT $3 OFFSET $4
+                `;
+                break;
+
+            case 'team':
+                query = `
+                    SELECT t.*
+                    FROM public.team t
+                    LEFT JOIN social.team st
+                        ON st.team_id = t.id AND st.user_id = $1
+                    WHERE st.team_id IS NULL
+                    AND ($2::text IS NULL OR t.name ILIKE $2)
+
+                    LIMIT $3 OFFSET $4
+                `;
+                break;
+
+            default:
+                return new Response(JSON.stringify({ message: "Invalid filter" }), {
+                    status: 400,
+                    headers: { "Content-Type": "application/json" }
+                });
+        }
+
+        const res = await sql.query(query, params);
+
+        return new Response(JSON.stringify({
+            data: res,
+            message: "Get data successfully"
+        }), {
             status: 200,
             headers: { "Content-Type": "application/json" }
         });
+
     } catch (err) {
         console.error(err);
-        return new Response(JSON.stringify({ message: 'Internal server error' }), {
+        return new Response(JSON.stringify({ message: "Internal server error" }), {
             status: 500,
             headers: { "Content-Type": "application/json" }
         });
@@ -741,8 +768,8 @@ export async function getLessonCourse({ course_id }) {
     }
 }
 
-export async function getCommentCourse({ course_id, offset = 0, limit = 20 }) {
-    if (!(course_id)) {
+export async function getCommentCourse({ course_id, user_id, offset = 0, limit = 20 }) {
+    if (!(course_id && user_id)) {
         return new Response(JSON.stringify({ message: "Missing something, check again" }), {
             status: 400,
             headers: { "Content-Type": "application/json" }
@@ -754,9 +781,9 @@ export async function getCommentCourse({ course_id, offset = 0, limit = 20 }) {
         const params = []
 
         params.push(course_id)
-        conditions.push(`m.course_id = $${params.length}`)
+        conditions.push(`m.id = $${params.length}`)
 
-        params.push(offset, limit)
+        params.push(user_id, offset, limit)
 
         const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -764,14 +791,17 @@ export async function getCommentCourse({ course_id, offset = 0, limit = 20 }) {
             SELECT 
                 u.username as username,
                 i.image as avatar,
-                m.id as id,
+                m.comment_id as id,
                 m.content as comment,
                 m.upvotes as upvotes,
                 m.downvotes as downvotes,
+				v.voting as voting,
                 m.created_at as created_at
-            FROM public.comment m
+            FROM course.comment m
             JOIN private.info i ON m.user_id = i.user_id
             JOIN private.users u on m.user_id = u.id
+			LEFT JOIN private.voting v on v.id = m.comment_id
+                AND v.user_id = $${params.length - 2}
             ${whereSQL}
             ORDER BY m.created_at DESC
             OFFSET $${params.length - 1} LIMIT $${params.length}

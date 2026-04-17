@@ -39,9 +39,9 @@ export default function Footer() {
                         <h4 className="footer-title">Resources</h4>
                         <nav className="footer-nav">
                             <Link href="/home?search=true">Search</Link>
-                            <Link href="/home?manage=true">My Learning</Link>
-                            <a href="#help">Help</a>
-                            <a href="#contact">Contact</a>
+                            <Link href="/home?tab=learning">My Learning</Link>
+                            <Link href="/help">Help</Link>
+                            <Link href="/contact">Contact</Link>
                         </nav>
                     </div>
 

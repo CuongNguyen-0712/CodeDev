@@ -215,3 +215,48 @@ export async function updateLesson(data) {
     }
 }
 
+export async function updateVotingCourse(data) {
+    const { id, userId, voting } = data;
+
+    if (!userId || !id) {
+        return new Response(JSON.stringify({ message: "You missing something, check again" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" }
+        });
+    }
+
+    try {
+        let normalizedVoting = null;
+
+        if (voting === true || voting === false) {
+            normalizedVoting = voting;
+        } else if (voting === "true") {
+            normalizedVoting = true;
+        } else if (voting === "false") {
+            normalizedVoting = false;
+        }
+
+        const query = `
+            INSERT INTO private.voting (id, user_id, voting)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (id, user_id)
+            DO UPDATE SET 
+                voting = EXCLUDED.voting,
+                updated_at = NOW();
+        `;
+
+        await sql.query(query, [id, userId, normalizedVoting]);
+
+        return new Response(JSON.stringify({ message: "Success" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+        });
+    } catch (err) {
+        console.error(err);
+        return new Response(JSON.stringify({ message: "Something went wrong, try again" }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" }
+        });
+    }
+}
+

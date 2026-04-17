@@ -221,13 +221,12 @@
 
 /* ==================== ERROR CONTAINER ==================== */
 .error-container {
+    grid-column: 1 / -1;
+    min-height: 300px;
+    width: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-direction: column;
-    width: 100%;
-    height: 100%;
-    min-height: 120px;
     padding: 24px;
 }
 
@@ -237,7 +236,7 @@
     align-items: center;
     text-align: center;
     padding: 32px 24px;
-    max-width: 360px;
+    width: 100%;
     gap: 16px;
 }
 
@@ -615,8 +614,9 @@
     position: fixed;
     flex-direction: column;
     left: 24px;
-    bottom: 24px;
+    top: 70px;
     max-width: 380px;
+    width: calc(100% - 48px);
     gap: 12px;
     z-index: 1000;
 }
@@ -1020,23 +1020,28 @@
     display: flex;
     border-radius: var(--radius_md);
     background: var(--color_gray_light);
-    padding: 10px 20px 20px 20px;
+    padding: 14px;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
 }
 
 .code_block_header {
     display: flex;
-    position: relative;
-    height: 35px;
+    height: 38px;
     width: 100%;
-    max-width: 200px;
     align-items: center;
-    justify-content: center;
-    border-radius: 50px;
-    outline: 1px solid var(--color_primary);
+    justify-content: space-between;
+    border-radius: var(--radius_md);
+    border: 1px solid var(--color_primary_light);
     background: var(--color_white);
-    flex-shrink: 0;
+    padding: 0 6px 0 12px;
+}
+
+.code_meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
 }
 
 .code_filename {
@@ -1045,27 +1050,49 @@
     color: var(--color_black);
     font-size: 13px;
     font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.code_language {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 42px;
+    height: 22px;
+    border-radius: 999px;
+    background: var(--color_bg_secondary);
+    color: var(--color_primary_dark);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 0 8px;
+    flex-shrink: 0;
 }
 
 .copy_code_button {
     display: flex;
-    position: absolute;
     align-items: center;
     justify-content: center;
-    height: 35px;
-    width: 35px;
-    top: 0;
-    right: 0;
+    height: 28px;
+    width: 28px;
     border-radius: 50%;
     background: transparent;
     color: var(--color_black);
     cursor: pointer;
     transition: 0.2s all ease;
+    flex-shrink: 0;
 }
 
 .copy_code_button:hover {
     background: var(--color_gray_light);
     transition: 0.2s all ease;
+}
+
+.copy_code_button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
 .code_block pre {

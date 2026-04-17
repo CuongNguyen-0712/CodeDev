@@ -13,34 +13,32 @@ import { ErrorReload } from "../ui/error";
 import Search from "../ui/searchBar";
 import AlertPush from "../ui/alert";
 
-import { filter, uniqWith } from "lodash";
+import { uniqWith } from "lodash";
 
 import { FaArrowRight, FaChevronDown, FaUsers, FaUser } from "react-icons/fa";
-import { FaUserGroup } from "react-icons/fa6";
-import { MdPushPin, MdInfoOutline, MdAccessTime } from "react-icons/md";
 import { HiOutlineClipboardDocumentList } from "react-icons/hi2";
 
 const statusConfig = {
-    Open: {
+    'Open': {
         color: "#10b981",
         bg: "rgba(16, 185, 129, 0.1)",
     },
-    Closed: {
+    'Closed': {
         color: "#f43f5e",
         bg: "rgba(244, 63, 94, 0.1)",
     },
-    "Comming soon": {
+    'Coming soon': {
         color: "#f97316",
         bg: "rgba(249, 115, 22, 0.1)",
     },
 };
 
 const difficultyConfig = {
-    Beginner: { color: "#10b981", bg: "rgba(16, 185, 129, 0.1)" },
-    Intermediate: { color: "#3b82f6", bg: "rgba(59, 130, 246, 0.1)" },
-    Advanced: { color: "#f97316", bg: "rgba(249, 115, 22, 0.1)" },
-    Expert: { color: "#ef4444", bg: "rgba(239, 68, 68, 0.1)" },
-    Master: { color: "#8b5cf6", bg: "rgba(139, 92, 246, 0.1)" },
+    'Beginner': { color: "#10b981", bg: "rgba(16, 185, 129, 0.1)" },
+    'Intermediate': { color: "#3b82f6", bg: "rgba(59, 130, 246, 0.1)" },
+    'Advanced': { color: "#f97316", bg: "rgba(249, 115, 22, 0.1)" },
+    'Expert': { color: "#ef4444", bg: "rgba(239, 68, 68, 0.1)" },
+    'Master': { color: "#8b5cf6", bg: "rgba(139, 92, 246, 0.1)" },
 };
 
 export function ProjectItem({
@@ -51,13 +49,21 @@ export function ProjectItem({
     const [expanded, setExpanded] = useState(false)
 
     const renderButtonText = () => {
-        if (item.status === "Closed") return "Closed";
-        if (item.status === "Comming soon") return "Coming Soon";
+        if (item.status === 'Closed') return "Closed";
+        if (item.status === 'Coming soon') return "Coming Soon";
         return isHandling ? (
             <LoadingContent scale={0.5} color="var(--color_white)" />
         ) : (
             <>
-                {item.method === 'Self' ? "Join Project" : "Add to Team"}
+                {
+                    item.is_deleted ?
+                        "Restore"
+                        :
+                        item.method === 'Self' ?
+                            "Join Project"
+                            :
+                            "Add to Team"
+                }
                 <FaArrowRight fontSize={12} />
             </>
         );
@@ -121,7 +127,9 @@ export function ProjectItem({
             <button
                 className={`action-btn ${item.status !== 'Open' ? 'disabled' : ''}`}
                 disabled={isHandling || item.status !== 'Open'}
-                onClick={() => onRegister({ id: item.id, name: item.name })}
+                onClick={() => {
+                    onRegister({ id: item.id, name: item.name })
+                }}
             >
                 {renderButtonText()}
             </button>
@@ -302,23 +310,17 @@ export default function ProjectContent({ redirect }) {
                 }))
                 setState((prev) => ({
                     ...prev,
-                    data: {
-                        ...prev,
-                        data: prev.data.filter((item) => item.id !== id)
-                    }
+                    data: prev.data.filter((item) => item.id !== id)
                 }));
                 setAlert({
                     status: res.status,
-                    message: res.message
+                    message: `Register project successfully: ${name}`
                 })
-                if (hasMore) {
-                    setApiQueue((prev) => [...prev, { type: "fetch" }]);
-                }
             }
             else {
                 setAlert({
                     status: res.status,
-                    message: res.message
+                    message: `Register project failed: ${name}`
                 })
             }
         }
@@ -361,10 +363,6 @@ export default function ProjectContent({ redirect }) {
     useEffect(() => {
         handleSubmitSearch();
     }, [state.search])
-
-    useEffect(() => {
-        setAlert(null)
-    }, [alert])
 
     const startHandling = (id) => {
         setHandlingMap(prev => ({ ...prev, [id]: true }))
@@ -432,6 +430,7 @@ export default function ProjectContent({ redirect }) {
             <AlertPush
                 message={alert?.message}
                 status={alert?.status}
+                reset={() => setAlert(null)}
             />
         </div>
     )

@@ -1,8 +1,12 @@
+import { getSession } from "@/app/lib/session";
+
 export default async function GetCommentCourseService(data) {
+    const userId = (await getSession())?.userId;
     const { course_id, offset, limit } = data
 
     const params = new URLSearchParams();
     params.set('course_id', course_id);
+    params.set('user_id', userId);
     params.set('offset', offset);
     params.set('limit', limit);
 

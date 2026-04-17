@@ -9,7 +9,7 @@ export function SignInDefinition(data) {
 
 export function SignUpDefinition(data) {
     const errors = {};
-    const { surname, name, email, phone, username, password, re_password, agree } = data;
+    const { surname, name, email, username, password, re_password, agree } = data;
 
     if (surname?.trim().length === 0) {
         errors.surname = 'Surname is required';
@@ -24,16 +24,6 @@ export function SignUpDefinition(data) {
     }
     else if (!email?.includes('@') || !email?.includes('.com')) {
         errors.email = 'Email must be contains @ and .com';
-    }
-
-    if (phone?.trim().length === 0) {
-        errors.phone = 'Phone is required';
-    }
-    else if (phone?.trim().length !== 10) {
-        errors.phone = 'Phone must be 10 digits';
-    }
-    else if (!(/^-?\d+$/.test(phone?.trim()))) {
-        errors.phone = 'Phone must be number';
     }
 
     if (username?.trim().length === 0) {

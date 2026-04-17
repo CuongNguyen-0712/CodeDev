@@ -3,10 +3,13 @@ import { useState } from "react"
 
 import Login from "./login"
 import Logup from "./logup"
+
 import { LoadingRedirect } from "../ui/loading"
 import AlertPush from "../ui/alert"
 
 import { HiSparkles } from "react-icons/hi2"
+
+import { signIn } from "next-auth/react"
 
 export default function Form() {
     const [activeForm, setActiveForm] = useState('login')
@@ -29,12 +32,14 @@ export default function Form() {
                                 changeForm={() => setActiveForm('signup')}
                                 redirect={() => setIsRedirecting(true)}
                                 setAlert={setAlert}
+                                callback={() => signIn('github', { callbackUrl: '/' })}
                             />
                             <Logup
                                 active={isSignup}
                                 changeForm={() => setActiveForm('login')}
                                 redirect={() => setIsRedirecting(true)}
                                 setAlert={setAlert}
+                                callback={() => signIn('github', { callbackUrl: '/' })}
                             />
                         </section>
 

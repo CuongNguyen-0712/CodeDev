@@ -174,8 +174,8 @@ export default function CoursePage({ params } = {}) {
     }
 
     useEffect(() => {
-        getStateCourse();
         getCourse();
+        getStateCourse();
     }, [])
 
     const getContentLesson = async (data) => {
@@ -404,7 +404,7 @@ export default function CoursePage({ params } = {}) {
                                                         </button>
                                                         <div
                                                             className="lessons"
-                                                            style={course.module === item.id ? { height: `${item.lessons.length * 45 + (item.lessons.length - 1) * 5 + 20}px` } : { height: '0px' }}
+                                                            style={course.module === item.id ? { height: `${item.lessons.length * 55 + (item.lessons.length - 1) * 5 + 20}px` } : { height: '0px' }}
                                                         >
                                                             {
                                                                 item.lessons.map((lesson, index) => (

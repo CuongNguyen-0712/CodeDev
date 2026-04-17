@@ -7,6 +7,7 @@ import useInfiniteScroll from '@/app/hooks/useInfiniteScroll'
 
 import { LoadingContent } from '../ui/loading'
 import { ErrorReload } from '../ui/error'
+import SearchBar from "../ui/searchBar";
 
 import { uniqWith, debounce } from "lodash";
 
@@ -41,7 +42,6 @@ export default function Contact({ redirect, state, setState }) {
     ]
 
     const [filter, setFilter] = useState('User');
-
     const [apiQueue, setApiQueue] = useState([]);
     const [isProcessing, setIsProcessing] = useState(false);
 
@@ -53,6 +53,7 @@ export default function Contact({ redirect, state, setState }) {
             }
         }
     })
+
     const fetchData = async () => {
         if (!social.hasMore) return;
 
@@ -119,7 +120,10 @@ export default function Contact({ redirect, state, setState }) {
         if (social.hasSearch && social.search.trim() === '') {
             setSocial((prev) => ({
                 ...prev,
-                data: [],
+                data: {
+                    user: [],
+                    team: []
+                },
                 offset: 0,
                 hasMore: true,
                 pending: true
@@ -130,7 +134,10 @@ export default function Contact({ redirect, state, setState }) {
 
         setSocial((prev) => ({
             ...prev,
-            data: [],
+            data: {
+                user: [],
+                team: []
+            },
             offset: 0,
             hasMore: true,
             hasSearch: true,
@@ -148,7 +155,11 @@ export default function Contact({ redirect, state, setState }) {
             ...prev,
             offset: 0,
             hasMore: true,
-            pending: true
+            pending: true,
+            data: {
+                user: [],
+                team: []
+            }
         }))
         setApiQueue((prev) => [
             ...prev,
@@ -163,25 +174,18 @@ export default function Contact({ redirect, state, setState }) {
         handleSubmitSearch();
     }
 
-    const handleDebounce = useMemo(() => {
-        return debounce((value) => {
-            setSocial((prev) => ({ ...prev, search: value }));
-        }, 500);
-    }, [])
-
-    useEffect(() => {
-        return () => {
-            handleDebounce.cancel();
-        }
-    }, [handleDebounce])
-
-    const handleChange = (e) => {
-        e.preventDefault();
-        handleDebounce(e.target.value);
-    }
-
     const refetchData = () => {
-        setSocial((prev) => ({ ...prev, error: null, data: [], pending: true }));
+        setSocial((prev) => ({
+            ...prev,
+            error: null,
+            data: {
+                user: [],
+                team: []
+            },
+            pending: true,
+            offset: 0,
+            hasMore: true
+        }));
         fetchData();
     }
 
@@ -192,32 +196,35 @@ export default function Contact({ redirect, state, setState }) {
                     (social.data.user?.length ?? 0) > 0 ?
                         social.data.user.map((item) => (
                             <div key={item.id} className='item_social'>
-                                <div className='tag_heading'>
-                                    <Image
-                                        src={item.image}
-                                        alt='my_avatar'
-                                        width={80}
-                                        height={80}
-                                        quality={100}
-                                    />
-                                    <div>
-                                        <h4>
-                                            {item.username}
-                                        </h4>
-                                        <p>
-                                            <FaHashtag />
-                                            {item.nickname}
-                                        </p>
+                                <div className='social_body'>
+                                    <div className='tag_heading'>
+                                        <Image
+                                            src={item.image}
+                                            alt='my_avatar'
+                                            width={64}
+                                            height={64}
+                                            quality={100}
+                                        />
+                                        <div className='social_identity'>
+                                            <h4>
+                                                {item.username}
+                                            </h4>
+                                            <p>
+                                                <FaHashtag />
+                                                {item.nickname}
+                                            </p>
+                                        </div>
                                     </div>
+                                    <span className='social_type'>User</span>
                                 </div>
-                                <button>
+                                <button type='button' className='social_action'>
                                     <IoPersonAdd fontSize={16} />
                                     Invite
                                 </button>
                             </div>
                         ))
                         :
-                        <p>No user can be found here !</p>
+                        <p className='social_empty'>No user can be found here !</p>
                 }
             </>
         ),
@@ -226,47 +233,54 @@ export default function Contact({ redirect, state, setState }) {
                 {
                     (social.data.team?.length ?? 0) > 0 ?
                         social.data.team.map((item) => (
-                            <div key={item.id}>
-                                {item.name}
+                            <div key={item.id} className='item_social'>
+                                <div className='social_body'>
+                                    <div className='tag_heading'>
+                                        <Image
+                                            src={item.image || '/image/static/default.svg'}
+                                            alt='team_avatar'
+                                            width={64}
+                                            height={64}
+                                            quality={100}
+                                        />
+                                        <div className='social_identity'>
+                                            <h4>{item.name}</h4>
+                                            <p>
+                                                <FaHashtag />
+                                                {item.nickname || 'Team'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <span className='social_type'>Team</span>
+                                </div>
+                                <button type='button' className='social_action'>
+                                    <IoPersonAdd fontSize={16} />
+                                    Join
+                                </button>
                             </div>
                         ))
                         :
-                        <p>No team can be found here !</p>
+                        <p className='social_empty'>No team can be found here !</p>
                 }
             </>
         )
     }
 
     return (
-        <div
-            className='main_social'
-            style={state ?
-                {
-                    top: '60px',
-                    opacity: 1,
-                    transition: '0.2s all ease'
-                }
-                :
-                {
-                    top: '100%',
-                    opacity: 0,
-                    transition: '0.2s all ease'
-                }
-            }
-        >
+        <div className={`main_social ${state ? 'is_open' : 'is_close'}`}>
             <div className='heading_view'>
-                <Form className='input_social' onSubmit={handleSubmit}>
-                    <input
-                        type="text"
-                        placeholder='Search'
-                        autoComplete='off'
-                        onChange={handleChange}
-                    />
-                </Form>
-                <button onClick={() => setState(false)}>
+                <h3>Connect</h3>
+                <button type='button' onClick={() => setState(false)} aria-label='Close social panel'>
                     <FaArrowDownShortWide fontSize={18} />
                 </button>
             </div>
+            <SearchBar
+                placeholder={`Search ${filter.toLowerCase()}...`}
+                setSearch={(data) => setSocial((prev) => ({ ...prev, search: data }))}
+                submit={handleSubmit}
+                pending={social.pending}
+                isFilter={false}
+            />
             {
                 state &&
                 <>
@@ -289,20 +303,6 @@ export default function Contact({ redirect, state, setState }) {
                                                 null
                                         )}
                                     </div>
-                        }
-                    </div>
-                    <div className='footer_view_social'>
-                        {
-                            roleSocial.map((item, index) => (
-                                <button
-                                    key={index}
-                                    className={`${filter === item.name ? 'active' : ''}`}
-                                    onClick={() => setFilter(item.name)}
-                                >
-                                    {item.icon}
-                                    {item.name}
-                                </button>
-                            ))
                         }
                     </div>
                 </>

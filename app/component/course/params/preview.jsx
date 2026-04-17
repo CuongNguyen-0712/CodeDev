@@ -9,6 +9,7 @@ import GetCommentCourseService from "@/app/services/getService/commentCourseServ
 import GetLessonCourseService from "@/app/services/getService/lessonCourse";
 import PostCommentCourseService from "@/app/services/postService/createCommentCourseService";
 import PostRegisterCourseService from "@/app/services/postService/registerCourseService";
+import UpdateVotingCourseService from "@/app/services/updateService/votingCourseService";
 
 import { useRouterActions } from "@/app/router/router";
 
@@ -33,15 +34,15 @@ import { LuAlarmClock } from "react-icons/lu";
 import { PiStudent } from "react-icons/pi";
 import { IoSend } from "react-icons/io5";
 
-const CommentItem = ({ data }) => {
+const CommentItem = ({ data, alert }) => {
     const [state, setState] = useState({
         upvotes: Number(data.upvotes),
         downvotes: Number(data.downvotes)
     })
 
     const [flag, setFlag] = useState({
-        upvotes: false,
-        downvotes: false,
+        upvotes: data.voting === true,
+        downvotes: data.voting === false,
     })
 
     const formatDate = (str) => {
@@ -54,36 +55,43 @@ const CommentItem = ({ data }) => {
         return `${day}/${month}/${year} ${hour}:${minute}`;
     };
 
-    const handleVoting = (e) => {
+    const handleVoting = async (e) => {
         const { name } = e.target;
-        const keyVote = Object.entries(flag)
-            .find(([_, value]) => value === true)?.[0] || null;
 
-        if (keyVote !== name) {
-            setState((prev) => ({
-                ...prev,
-                [name]: prev[name] + 1,
-                [keyVote]: prev[keyVote] - 1
-            }))
-            setFlag((prev) =>
-                Object.fromEntries(
-                    Object.entries(prev).map(([key, _]) => [
-                        key,
-                        key === name ? true : false
-                    ])
-                )
-            )
+        let newFlag = { ...flag };
+        let newState = { ...state };
+
+        const current = Object.entries(flag).find(([_, v]) => v)?.[0];
+
+        if (current !== name) {
+            newFlag = { upvotes: false, downvotes: false, [name]: true };
+            newState[name] += 1;
+            if (current) newState[current] -= 1;
         } else {
-            setState((prev) => ({
-                ...prev,
-                [name]: flag[name] ? prev[name] - 1 : prev[name] + 1
-            }))
-            setFlag((prev) => ({
-                ...prev,
-                [name]: !prev[name]
-            }))
+            newFlag[name] = !newFlag[name];
+            newState[name] += newFlag[name] ? 1 : -1;
         }
-    }
+
+        setFlag(newFlag);
+        setState(newState);
+
+        try {
+            const res = await UpdateVotingCourseService({
+                id: data.id,
+                voting: newFlag.upvotes ? true : newFlag.downvotes ? false : null
+            });
+
+            if (res.status !== 200) {
+                setFlag(flag);
+                setState(state);
+                alert({ status: res.status, message: res.message || 'Failed to update voting.' });
+            }
+        } catch {
+            setFlag(flag);
+            setState(state);
+            alert({ status: 500, message: 'Failed to update voting.' });
+        }
+    };
 
     return (
         <div className="comment-card">
@@ -172,6 +180,7 @@ export default function PreviewCourse({ params } = {}) {
                     ...state,
                     [key]: {
                         ...state[key],
+                        pending: true,
                         error: null,
                     },
                 };
@@ -412,10 +421,10 @@ export default function PreviewCourse({ params } = {}) {
                     }
                     finally {
                         setPending(false)
-                        setLoad((prev) => ({
-                            ...prev,
-                            handling: false
-                        }))
+                        dispatch({
+                            type: ACTIONS.END,
+                            key: 'comment'
+                        })
                     }
                 }
             }
@@ -460,6 +469,14 @@ export default function PreviewCourse({ params } = {}) {
                                 message: 'External server error'
                             }
                         })
+                    }
+                    finally {
+                        setPending(false)
+                        dispatch({
+                            type: ACTIONS.END,
+                            key: 'comment'
+                        })
+
                     }
                 }
             }
@@ -543,6 +560,10 @@ export default function PreviewCourse({ params } = {}) {
                     content: ''
                 }))
                 updateComment({ course_id: courseId })
+                setAlert({
+                    status: res.status || 200,
+                    message: res.message
+                })
             }
             else {
                 setAlert({
@@ -760,6 +781,7 @@ export default function PreviewCourse({ params } = {}) {
                                         <CommentItem
                                             key={item.id}
                                             data={item}
+                                            alert={(data) => setAlert(data)}
                                         />
                                     ))}
 

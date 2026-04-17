@@ -4,6 +4,7 @@ export async function GET(req) {
     const searchParams = req.nextUrl.searchParams;
     return getCommentCourse({
         course_id: searchParams.get('course_id'),
+        user_id: searchParams.get('user_id'),
         offset: searchParams.get('offset'),
         limit: searchParams.get('limit')
     })

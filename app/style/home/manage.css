@@ -82,7 +82,6 @@
 
 .heading_manage #cancel-manage:hover {
     background: rgba(255, 255, 255, 0.25);
-    transform: rotate(90deg);
 }
 
 /* Content Area */
@@ -779,7 +778,6 @@
 
 #zoom_overlay #close_zoom:hover {
     background: var(--color_red);
-    transform: rotate(90deg);
 }
 
 /* Responsive */

@@ -4,7 +4,6 @@ import Image from "next/image"
 import Form from "next/form"
 import Link from "next/link"
 
-import { useAuth } from "@/app/contexts/authContext"
 import { useRouterActions } from "@/app/router/router"
 import { SignInDefinition } from "@/app/lib/definition"
 import SignInService from "@/app/services/authService/signIn"
@@ -14,9 +13,8 @@ import { InputGroup } from "../ui/input"
 
 import { FaUser, FaLock, FaGithub, FaGoogle } from "react-icons/fa6"
 
-export default function Login({ active, changeForm, redirect, setAlert }) {
+export default function Login({ active, changeForm, redirect, setAlert, callback }) {
     const { navigateToHome } = useRouterActions()
-    const { refreshSession } = useAuth()
 
     const [formData, setFormData] = useState({
         name: '',
@@ -24,6 +22,7 @@ export default function Login({ active, changeForm, redirect, setAlert }) {
     })
     const [validation, setValidation] = useState({})
     const [isPending, setIsPending] = useState(false)
+    const [callbackPending, setCallbackPending] = useState(false)
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -74,6 +73,27 @@ export default function Login({ active, changeForm, redirect, setAlert }) {
     const handleClear = (name) => {
         setFormData((prev) => ({ ...prev, [name]: '' }))
         handleValidation({ name })
+    }
+
+    const handleCallback = async () => {
+        setCallbackPending(true)
+        try {
+            const response = await callback()
+            if (response?.error) {
+                setAlert({ status: 500, message: response.error })
+            }
+            else {
+                setAlert({ status: 200, message: 'Authenticating...' })
+                setTimeout(() => {
+                    redirect()
+                    navigateToHome()
+                }, 2000)
+            }
+        } catch (err) {
+            setAlert({ status: 500, message: 'An error occurred during login, please try again' })
+        } finally {
+            setCallbackPending(false)
+        }
     }
 
     return (
@@ -134,13 +154,21 @@ export default function Login({ active, changeForm, redirect, setAlert }) {
                 </div>
 
                 <div className="social_buttons">
-                    <button type="button" className="social_btn">
-                        <FaGithub />
-                        <span>Github</span>
-                    </button>
-                    <button type="button" className="social_btn">
-                        <FaGoogle />
-                        <span>Google</span>
+                    <button type="button"
+                        className="social_btn"
+                        onClick={handleCallback}
+                        disabled={callbackPending}
+                    >
+                        {
+                            callbackPending ? (
+                                <LoadingContent scale={0.5} />
+                            )
+                                :
+                                <>
+                                    <FaGithub />
+                                    <span>Github</span>
+                                </>
+                        }
                     </button>
                 </div>
 

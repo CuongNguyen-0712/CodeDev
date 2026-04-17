@@ -12,15 +12,15 @@ import useOutside from '@/app/hooks/useOutside'
 
 import { ErrorReload } from '../ui/error'
 import { LoadingContent } from '../ui/loading'
+import SearchBar from '../ui/searchBar'
 
 import { uniqWith, debounce } from 'lodash'
 
 import Contact from './contact'
 
 import { FaHashtag, FaRankingStar, FaRegUser, FaPlus, FaUser, FaUserGroup } from 'react-icons/fa6'
-import { IoWarningOutline, IoShareSocial } from "react-icons/io5";
+import { IoWarningOutline, IoShareSocial, IoSearch } from "react-icons/io5";
 import { IoMdMore } from "react-icons/io";
-import { FaCaretDown } from "react-icons/fa";
 import { MdDeleteForever, MdAdd, MdEdit } from "react-icons/md";
 import { PiSignOutBold } from "react-icons/pi";
 
@@ -211,23 +211,6 @@ export default function Social({ redirect }) {
         handleSubmitSearch();
     }
 
-    const handleDebounce = useMemo(() => {
-        return debounce((value) => {
-            setState((prev) => ({ ...prev, search: value }));
-        }, 500);
-    }, [])
-
-    useEffect(() => {
-        return () => {
-            handleDebounce.cancel();
-        }
-    }, [handleDebounce])
-
-    const handleChange = (e) => {
-        e.preventDefault();
-        handleDebounce(e.target.value);
-    }
-
     const refecthData = () => {
         setState((prev) => ({ ...prev, error: null, data: { ...state.data, [state.activeTab]: [] }, pending: true }));
         fetchData();
@@ -277,304 +260,360 @@ export default function Social({ redirect }) {
         }
     }, [])
 
-    const views = {
-        friend: (
-            <>
-                {
-                    (state.data.friend?.length ?? 0) > 0 ?
-                        state.data.friend.map((item, index) => (
-                            <div className='card_social' key={index}>
-                                <Image src={item.image || '/image/default.svg'} alt='avatar' width={100} height={100} />
-                                <div className='card_info'>
-                                    <div className='top_info'>
-                                        <div className='main_top'>
-                                            <h3>{item.username}</h3>
-                                            <span>
-                                                <FaHashtag />
-                                                {item.nickname}
-                                            </span>
-                                        </div>
-                                        <Image src={'/image/default.svg'} alt='avatar' width={100} height={100} />
-                                    </div>
-                                    <div className='tier'>
-                                        <span>
-                                            <FaRankingStar fontSize={20} />
-                                        </span>
-                                        <div className='tier_info'>
-                                            <p>
-                                                <strong>Level:</strong>
-                                                {item.level}
-                                            </p>
-                                            <p>
-                                                <strong>Rank:</strong>
-                                                {item.rank}
-                                            </p>
-                                            <p>
-                                                <strong>Star:</strong>
-                                                {item.star}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className='card_btns'>
-                                    <button>
-                                        Info
-                                    </button>
-                                    <button>
-                                        Contact
-                                    </button>
-                                </div>
-                            </div>
-                        ))
-                        :
-                        <p>No friend can be found here !</p>
-                }
-            </>
-        ),
-        team: (
-            <>
-                {
-                    (state.data.team?.length ?? 0) > 0 ?
-                        state.data.team.map((item, index) => (
-                            <div className='card_team' key={index}>
-                                <div className='header_team'>
-                                    <Image src={item.team_image || '/image/default.svg'} alt='' width={80} height={80} />
-                                    <div className='team_info'>
-                                        <h3>{item.team_name}</h3>
-                                        <div className='team_size'>
-                                            <strong>Size:</strong>
-                                            <p>{item.members.split(',').length}/{item.team_size}</p>
-                                        </div>
-                                        <div className='team_host'>
-                                            <strong>Host:</strong>
-                                            <p>{item.host_name}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className='team_members'>
-                                    <strong>Members</strong>
-                                    <p>
-                                        {
-                                            item.members.split(',').map((item, index) => (
-                                                <span key={index} data-name={item}>
-                                                    <FaRegUser />
-                                                </span>
-                                            ))
-                                        }
-                                    </p>
-                                </div>
-                                <div className="footer_team">
-                                    <button>
-                                        Join
-                                    </button>
-                                    <div className='team_btns'
-                                        ref={(el) => {
-                                            if (el) refDropdowns.current[index] = el
-                                            else delete refDropdowns.current[index];
-                                        }}>
-                                        <button
-                                            onClick={() => {
-                                                setDropdown((prev) => ({
-                                                    ...prev,
-                                                    id: index,
-                                                    isShown: prev.id === index ? !prev.isShown : true
-                                                }))
-                                            }}
-                                            style={(dropdown.id === index && dropdown.isShown) ? { background: 'var(--color_black)', color: 'var(--color_white)' } : { background: 'var(--color_gray_light)', color: 'var(--color_black)' }}
-                                        >
-                                            <IoMdMore fontSize={20} />
-                                        </button>
-                                        {
-                                            (dropdown.id === index && dropdown.isShown) &&
-                                            <div className='team_dropdown'>
-                                                {
-                                                    item.is_host ?
-                                                        <>
-                                                            <button className='team_edit_btn'>
-                                                                <MdEdit />
-                                                                Edit
-                                                            </button>
-                                                            {
-                                                                item.members.split(',').length < item.team_size &&
-                                                                <button className='team_invite_btn'>
-                                                                    <MdAdd />
-                                                                    Invite
-                                                                </button>
-                                                            }
-                                                            <span></span>
-                                                            <button className="team_delete_btn">
-                                                                <MdDeleteForever />
-                                                                Delete
-                                                            </button>
-                                                        </>
-                                                        :
-                                                        <button className="team_leave_btn">
-                                                            <PiSignOutBold />
-                                                            Leave
-                                                        </button>
-                                                }
-                                            </div>
-                                        }
-                                    </div>
-                                </div>
-                            </div>
-                        ))
-                        :
-                        <p>No team can be found here !</p>
-                }
-                <Form
-                    className={`form_create_team ${create.isShown ? 'shown' : ''}`}
-                    onSubmit={handleCreate}
-                >
-                    {
-                        create.isShown ?
-                            <>
-                                <div className='heading_create'>
-                                    <Image src={`/image/static/logo.svg`} alt='logo' width={25} height={25} />
-                                    <h3>Create team</h3>
-                                </div>
-                                <div className='content_create'>
-                                    <div className='create_input'>
-                                        <span>Name:</span>
-                                        <input
-                                            type="text"
-                                            name='name'
-                                            placeholder='Enter name'
-                                            value={create.name}
-                                            onChange={handleChangeCreate}
-                                            disabled={create.pending}
-                                            autoComplete='off'
-                                        />
-                                        {
-                                            (create.error && create.error.name) &&
-                                            <p className='error_create'>
-                                                <IoWarningOutline fontSize={12} />
-                                                {create.error.name}
-                                            </p>
-                                        }
-                                    </div>
-                                    <div className='create_input'>
-                                        <span>Size:</span>
-                                        <input
-                                            type="text"
-                                            name='size'
-                                            placeholder='Enter size'
-                                            inputMode='numeric'
-                                            value={create.size}
-                                            autoComplete='off'
-                                            onChange={handleChangeCreate}
-                                            disabled={create.pending}
-                                            maxLength={2}
-                                        />
-                                        {
-                                            (create.error && create.error.size) &&
-                                            <p className='error_create'>
-                                                <IoWarningOutline fontSize={12} />
-                                                {create.error.size}
-                                            </p>
-                                        }
-                                    </div>
-                                </div>
-                                <button type='submit' id='handle_create'>
-                                    {
-                                        create.pending ?
-                                            <LoadingContent scale={0.4} color={'var(--color_white)'} />
-                                            :
-                                            <>
-                                                Create
-                                            </>
-                                    }
-                                </button>
-                            </>
-                            :
-                            null
-                    }
-                    <button
-                        type='button'
-                        className='create_handler'
-                        onClick={() => setCreate((prev) => ({ ...prev, isShown: !prev.isShown }))}
-                    >
-                        <FaPlus fontSize={create.isShown ? 14 : 18} />
-                    </button>
-                </Form>
-            </>
-        )
-    };
+    const friendCount = state.data.friend?.length ?? 0
+    const teamCount = state.data.team?.length ?? 0
 
-    return (
-        <div id='social'>
-            <div className='my_social'>
-                <div className='heading'>
-                    <Form className='social_search' onSubmit={handleSubmit}>
-                        <input
-                            type="text"
-                            name='search'
-                            placeholder='Search'
-                            autoComplete='off'
-                            onChange={handleChange}
-                        />
+    const renderNoData = (type) => {
+        const isFriend = type === 'friend'
+
+        return (
+            <div className={`social_empty ${isFriend ? 'empty_friend' : 'empty_team'}`}>
+                <div className='empty_visual'>
+                    <span className='empty_orbit orbit_a'></span>
+                    <span className='empty_orbit orbit_b'></span>
+                    <div className='empty_icon'>
+                        {isFriend ? <FaUser /> : <FaUserGroup />}
+                    </div>
+                </div>
+                <div className='empty_text'>
+                    <h4>{isFriend ? 'No Friends Found' : 'No Teams Found'}</h4>
+                    <p>
+                        {isFriend
+                            ? 'Start building your network and keep your social circle active.'
+                            : 'Create your first team to collaborate and track group progress in one place.'}
+                    </p>
+                </div>
+                <div className='empty_actions'>
+                    {
+                        !isFriend &&
                         <button
                             type='button'
-                            className="status_btn"
-                            onClick={() => setShown(!shown)}
-                            disabled={state.pending}
+                            className='empty_btn empty_btn_main'
+                            onClick={() => setCreate((prev) => ({ ...prev, isShown: true, error: null }))}
                         >
-
-                            {state.activeTab}
-                            <FaCaretDown fontSize={18} />
+                            <FaPlus />
+                            Create Team
                         </button>
-                        <div
-                            className={`drop_down_options ${shown ? 'shown' : 'hidden'}`}
-                            ref={refDropdown}
-                        >
-                            <button
-                                type='button'
-                                className={`${state.activeTab === 'friend' ? 'active' : ''}`}
-                                onClick={() => setState((prev) => ({ ...prev, activeTab: 'friend' }))}
-                            >
-                                <FaUser />
-                                Friend
-                            </button>
-                            <button
-                                type='button'
-                                className={`${state.activeTab === 'team' ? 'active' : ''}`}
-                                onClick={() => setState((prev) => ({ ...prev, activeTab: 'team' }))}
-                            >
-                                <FaUserGroup />
-                                Team
-                            </button>
-                        </div>
-                    </Form>
-                    <button
-                        id="social_btn"
-                        onClick={() => setState((prev) => ({ ...prev, contact: !prev.contact }))}
-                    >
-                        <IoShareSocial fontSize={18} />
-                        Social
-                    </button>
-                </div>
-                <div className='content_social'>
-                    {
-                        state.pending ?
-                            <LoadingContent />
-                            :
-                            <div
-                                id='frame_social_content'
-                                style={state.activeTab === 'friend' ? { gap: '50px' } : { gap: '20px' }}
-                            >
-                                {
-                                    state.error ?
-                                        <ErrorReload data={state.error} refetch={refecthData} />
-                                        :
-                                        <>
-                                            {views[state.activeTab] || null}
-                                        </>
-                                }
-                            </div>
                     }
                 </div>
             </div>
+        )
+    }
+
+    const views = {
+        friend: (
+            <div className='social_grid'>
+                {
+                    (state.data.friend?.length ?? 0) > 0 ?
+                        state.data.friend.map((item, index) => (
+                            <article className='social_card friend_card' key={item.username || item.nickname || index}>
+                                <div className='card-header'>
+                                    <div className='friend_identity'>
+                                        <Image src={item.image || '/image/default.svg'} alt='avatar' width={64} height={64} />
+                                        <div className='friend_text'>
+                                            <h3>{item.username || 'Unknown user'}</h3>
+                                            <p>
+                                                <FaHashtag />
+                                                <span>{item.nickname || 'No nickname'}</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className='friend_status'>
+                                        <span className='friend_badge'>Friend</span>
+                                        <span className='friend_rank_tag'>Rank {item.rank || '-'}</span>
+                                    </div>
+                                </div>
+
+                                <div className='card-body'>
+                                    <div className='friend_metrics'>
+                                        <div className='metric_item'>
+                                            <small>Level</small>
+                                            <strong>{item.level || '-'}</strong>
+                                        </div>
+                                        <div className='metric_item'>
+                                            <small>Star</small>
+                                            <strong>
+                                                <FaRankingStar />
+                                                {item.star ?? 0}
+                                            </strong>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className='card-footer friend_footer'>
+                                    <button type='button' className='btn-main'>Info</button>
+                                    <button type='button' className='btn-sub'>Contact</button>
+                                </div>
+                            </article>
+                        ))
+                        :
+                        renderNoData('friend')
+                }
+            </div>
+        ),
+        team: (
+            <div className='social_grid'>
+                <article className={`social_create ${create.isShown ? 'expanded' : ''}`}>
+                    <div className='create_head'>
+                        <h3>Create Team</h3>
+                        <button
+                            type='button'
+                            className='create_toggle'
+                            onClick={() => setCreate((prev) => ({ ...prev, isShown: !prev.isShown, error: null }))}
+                        >
+                            <FaPlus fontSize={14} />
+                        </button>
+                    </div>
+
+                    {
+                        create.isShown &&
+                        <Form className='create_form' onSubmit={handleCreate}>
+                            <label className='create_input'>
+                                <span>Name</span>
+                                <input
+                                    type='text'
+                                    name='name'
+                                    placeholder='Enter team name'
+                                    value={create.name}
+                                    onChange={handleChangeCreate}
+                                    disabled={create.pending}
+                                    autoComplete='off'
+                                />
+                                {
+                                    (create.error && create.error.name) &&
+                                    <p className='error_create'>
+                                        <IoWarningOutline fontSize={12} />
+                                        {create.error.name}
+                                    </p>
+                                }
+                            </label>
+
+                            <label className='create_input'>
+                                <span>Size</span>
+                                <input
+                                    type='text'
+                                    name='size'
+                                    placeholder='Enter team size'
+                                    inputMode='numeric'
+                                    value={create.size}
+                                    autoComplete='off'
+                                    onChange={handleChangeCreate}
+                                    disabled={create.pending}
+                                    maxLength={2}
+                                />
+                                {
+                                    (create.error && create.error.size) &&
+                                    <p className='error_create'>
+                                        <IoWarningOutline fontSize={12} />
+                                        {create.error.size}
+                                    </p>
+                                }
+                                {
+                                    (create.error && create.error.message) &&
+                                    <p className='error_create'>
+                                        <IoWarningOutline fontSize={12} />
+                                        {create.error.message}
+                                    </p>
+                                }
+                            </label>
+
+                            <button type='submit' className='btn-main create_submit' disabled={create.pending}>
+                                {
+                                    create.pending
+                                        ? <LoadingContent scale={0.4} color={'var(--color_white)'} />
+                                        : <>Create Team</>
+                                }
+                            </button>
+                        </Form>
+                    }
+                </article>
+
+                {
+                    (state.data.team?.length ?? 0) > 0
+                        ? state.data.team.map((item, index) => {
+                            const memberList = item.members ? item.members.split(',').map((name) => name.trim()).filter(Boolean) : []
+                            const usedSlots = memberList.length
+                            const teamSize = Number(item.team_size) || 0
+                            const progress = teamSize > 0 ? Math.min(100, Math.round((usedSlots / teamSize) * 100)) : 0
+
+                            return (
+                                <article className='social_card team_card' key={item.team_id || item.team_name || index}>
+                                    <div className='card-header'>
+                                        <div className='team_identity'>
+                                            <Image src={item.team_image || '/image/default.svg'} alt='team' width={64} height={64} />
+                                            <div className='team_text'>
+                                                <h3>{item.team_name || 'Untitled team'}</h3>
+                                                <p><strong>Host:</strong> {item.host_name || '-'}</p>
+                                            </div>
+                                        </div>
+                                        <span className='team_badge'>{usedSlots}/{teamSize || '-'}</span>
+                                    </div>
+
+                                    <div className='card-body'>
+                                        <div className='team_progress'>
+                                            <span style={{ width: `${progress}%` }}></span>
+                                        </div>
+                                        <div className='team_members'>
+                                            <p>
+                                                {
+                                                    memberList.length > 0
+                                                        ? memberList.map((member, memberIndex) => (
+                                                            <span key={`${member}-${memberIndex}`} data-name={member}>
+                                                                <FaRegUser />
+                                                            </span>
+                                                        ))
+                                                        : <em>No members yet</em>
+                                                }
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className='card-footer'>
+                                        <button type='button' className='btn-main'>Join</button>
+                                        <div
+                                            className='team_btns'
+                                            ref={(el) => {
+                                                if (el) refDropdowns.current[index] = el
+                                                else delete refDropdowns.current[index]
+                                            }}
+                                        >
+                                            <button
+                                                type='button'
+                                                className='btn-sub icon_only'
+                                                onClick={() => {
+                                                    setDropdown((prev) => ({
+                                                        ...prev,
+                                                        id: index,
+                                                        isShown: prev.id === index ? !prev.isShown : true
+                                                    }))
+                                                }}
+                                            >
+                                                <IoMdMore fontSize={18} />
+                                            </button>
+                                            {
+                                                (dropdown.id === index && dropdown.isShown) &&
+                                                <div className='team_dropdown'>
+                                                    {
+                                                        item.is_host
+                                                            ? <>
+                                                                <button className='team_edit_btn' type='button'>
+                                                                    <MdEdit />
+                                                                    Edit
+                                                                </button>
+                                                                {
+                                                                    usedSlots < teamSize &&
+                                                                    <button className='team_invite_btn' type='button'>
+                                                                        <MdAdd />
+                                                                        Invite
+                                                                    </button>
+                                                                }
+                                                                <span></span>
+                                                                <button className='team_delete_btn' type='button'>
+                                                                    <MdDeleteForever />
+                                                                    Delete
+                                                                </button>
+                                                            </>
+                                                            : <button className='team_leave_btn' type='button'>
+                                                                <PiSignOutBold />
+                                                                Leave
+                                                            </button>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                </article>
+                            )
+                        })
+                        : renderNoData('team')
+                }
+            </div>
+        )
+    }
+
+    return (
+        <>
+            <section id='social' className='social-v2'>
+                <div className='social-header'>
+                    <div className='header-content'>
+                        <div className='header-text'>
+                            <span className='header-label'>
+                                <IoShareSocial />
+                                Social Hub
+                            </span>
+                            <h2>Social Workspace</h2>
+                            <p>Manage friends, teams, and collaboration quickly.</p>
+                        </div>
+                        <div className='header-actions'>
+                            <button
+                                type='button'
+                                className='social-cta'
+                                onClick={() => setState((prev) => ({ ...prev, contact: !prev.contact }))}
+                            >
+                                <IoShareSocial fontSize={18} />
+                                Open Social
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div className='social-toolbar'>
+                    <SearchBar
+                        placeholderText={state.activeTab === 'friend' ? 'Search friends...' : 'Search teams...'}
+                        data={state.activeTab === 'friend' ? state.data.friend : state.data.team}
+                        setSearch={(value) => setState((prev) => ({ ...prev, search: value }))}
+                        submit={handleSubmit}
+                        pending={state.pending}
+                        isFilter={false}
+                    />
+                    <div className='social-tabs-shell' role='tablist' aria-label='Social view switcher'>
+                        <button
+                            type='button'
+                            role='tab'
+                            aria-selected={state.activeTab === 'friend'}
+                            className={`tab-switch ${state.activeTab === 'friend' ? 'active' : ''}`}
+                            onClick={() => setState((prev) => ({ ...prev, activeTab: 'friend' }))}
+                        >
+                            <span className='tab-icon'>
+                                <FaUser />
+                            </span>
+                            <span className='tab-copy'>
+                                <strong>Friends</strong>
+                                <small>People in your network</small>
+                            </span>
+                            <span className='tab-pill'>{friendCount}</span>
+                        </button>
+
+                        <button
+                            type='button'
+                            role='tab'
+                            aria-selected={state.activeTab === 'team'}
+                            className={`tab-switch ${state.activeTab === 'team' ? 'active' : ''}`}
+                            onClick={() => setState((prev) => ({ ...prev, activeTab: 'team' }))}
+                        >
+                            <span className='tab-icon'>
+                                <FaUserGroup />
+                            </span>
+                            <span className='tab-copy'>
+                                <strong>Teams</strong>
+                                <small>Group and collaboration space</small>
+                            </span>
+                            <span className='tab-pill'>{teamCount}</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div className='social-content'>
+                    {
+                        state.pending
+                            ? <LoadingContent />
+                            : state.error
+                                ? <ErrorReload data={state.error} refetch={refecthData} />
+                                : views[state.activeTab] || null
+                    }
+                </div>
+            </section>
             <Contact redirect={redirect} state={state.contact} setState={(value) => setState(prev => ({ ...prev, contact: value }))} />
-        </div >
+        </>
     )
 }

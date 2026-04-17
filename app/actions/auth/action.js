@@ -67,8 +67,8 @@ export async function signIn(data) {
 }
 
 export async function signUp(data) {
-    const { surname, name, email, phone, username, password } = data
-    if (!surname || !name || !email || !phone || !username || !password) {
+    const { surname, name, email, username, password } = data
+    if (!surname || !name || !email || !username || !password) {
         return new Response(JSON.stringify({ success: false, message: "Missing credentials" }), {
             status: 400,
             headers: { "Content-Type": "application/json" }
@@ -79,11 +79,12 @@ export async function signUp(data) {
         const params = []
 
         const id = uuidv4();
-        const hashPassword = await bcrypt.hash(password, 10)
+        const salt = await bcrypt.genSalt()
+        const hashPassword = await bcrypt.hash(password, salt)
 
-        params.push(id, username, hashPassword, surname, name, email, phone)
+        params.push(id, username, hashPassword, surname, name, email)
 
-        const query = `call add_user($1, $2, $3, $4, $5, $6, $7)`
+        const query = `call add_user($1, $2, $3, $4, $5, $6)`
         await sql.query(query, params)
 
         return new Response(JSON.stringify({ success: true, message: "Sign up successfully, go to login" }), {

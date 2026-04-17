@@ -14,12 +14,12 @@ export async function encrypt(payload) {
         const token = await new SignJWT(payload)
             .setProtectedHeader({ alg: 'HS256' })
             .setIssuedAt()
-            .setExpirationTime('7d')
+            .setExpirationTime('1d')
             .sign(encodedKey);
         return token;
     } catch (error) {
         console.error('Encrypt error:', error.message);
-        throw error;
+        return null;
     }
 }
 
@@ -31,7 +31,7 @@ export async function decrypt(session) {
         return payload
     } catch (error) {
         console.error('Failed to verify session:', error.message)
-        throw error
+        return null;
     }
 }
 
@@ -42,11 +42,12 @@ export async function createSession(data) {
         || !username || typeof username !== 'string'
         || !email || typeof email !== 'string'
     ) {
-        throw new Error('Invalid session data');
+        console.error('Invalid session data:', data)
+        return false;
     }
 
     try {
-        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000) // 1 day
         const session = await encrypt({ userId, username, email, expiresAt });
         const cookieStore = await cookies();
 

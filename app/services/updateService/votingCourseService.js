@@ -1,12 +1,13 @@
 import { getSession } from "@/app/lib/session";
 
-export default async function PostCommentCourseService(data) {
-    const id = (await getSession())?.userId;
-    const req = { userId: id, ...data };
+export default async function UpdateVotingCourseService(data) {
+    const { id, voting } = data;
+    const userId = (await getSession())?.userId;
+    const req = { id, voting, userId }
 
     try {
-        const res = await fetch('/api/post/postCommentCourse', {
-            method: 'POST',
+        const res = await fetch('/api/update/updateVotingCourse', {
+            method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
             },
@@ -25,19 +26,17 @@ export default async function PostCommentCourseService(data) {
         if (res.ok) {
             return {
                 status: res.status,
-                message: raw.message || "Thanks for your comment !"
             };
         } else {
             return {
                 status: res.status,
-                message: raw.message || "Something is wrong !"
+                message: raw.message
             };
         }
-    }
-    catch (err) {
+    } catch (error) {
         return {
             status: 500,
-            message: "External server error !"
+            message: "Internal server error"
         };
     }
-} 
+}

@@ -10,11 +10,11 @@ import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
 
 import { LoadingContent } from "../ui/loading";
 import { ErrorReload } from "../ui/error";
-import Search from "../ui/searchBar";
+import SearchBar from "../ui/searchBar";
 
 import { uniqWith } from "lodash";
 
-import { FaCartShopping, FaPlay, FaChartLine, FaCode, FaGraduationCap } from "react-icons/fa6";
+import { FaCartShopping, FaPlay, FaCode, FaGraduationCap } from "react-icons/fa6";
 import { IoSettingsSharp, IoClose, IoTrashBin } from "react-icons/io5";
 import { GoHeartFill } from "react-icons/go";
 import { LuSearchX, LuExternalLink } from "react-icons/lu";
@@ -26,13 +26,36 @@ export function CourseItem({
     onPreview,
     onJoin,
     onWithdraw,
-    onMarked
+    setAlert,
 }) {
     const [openSetting, setOpenSetting] = useState(false)
     const [confirmWithdraw, setConfirmWithdraw] = useState(false)
     const [marked, setMarked] = useState(item.is_marked)
 
-    const progressPercent = ((item.progress / item.lesson) * 100).toFixed(0);
+    const progressPercent = item.lessons > 0
+        ? ((item.progress ?? 0) / item.lessons * 100).toFixed(0)
+        : 0;
+
+    const handleMarkedCourse = async ({ id, course }) => {
+        const newMarked = !marked
+        setMarked(newMarked)
+
+        try {
+            const res = await UpdateMarkedCourseService({ courseId: id, marked: newMarked });
+            if (res.status == 200) {
+                setAlert({ status: res.status, message: `${newMarked ? 'Marked' : 'Unmarked'} course: ${course} successfully` })
+            }
+            else {
+                setAlert({ status: res.status, message: res.message || `Failed to marked course: ${course}` })
+                setMarked(marked)
+            }
+        }
+        catch (err) {
+            setAlert({ status: err.status || 500, message: `Failed to marked course: ${course} ( Internal server error )` })
+            setMarked(marked)
+        }
+    }
+
 
     return (
         <div className="course-card">
@@ -47,7 +70,7 @@ export function CourseItem({
                     onClick={(e) => {
                         e.stopPropagation()
                         setMarked(!marked)
-                        onMarked({ id: item.id, status: !marked, course: item.title })
+                        handleMarkedCourse({ id: item.id, course: item.title })
                     }}
                 >
                     <GoHeartFill fontSize={16} />
@@ -82,7 +105,7 @@ export function CourseItem({
                             style={{ width: `${progressPercent}%` }}
                         />
                     </div>
-                    <span className="progress-detail">{item.progress}/{item.lesson} lessons</span>
+                    <span className="progress-detail">{item.progress}/{item.lessons} lessons</span>
                 </div>
             </div>
 
@@ -125,6 +148,12 @@ export function CourseItem({
                             disabled={isHandling}
                             onClick={(e) => {
                                 e.stopPropagation()
+
+                                if (item.lessons === 0) {
+                                    setAlert({ status: 400, message: "This course has no lessons available yet." })
+                                    return
+                                }
+
                                 onJoin(item.id)
                             }}
                         >
@@ -132,8 +161,18 @@ export function CourseItem({
                                 <LoadingContent scale={0.4} color={"var(--color_white)"} />
                             ) : (
                                 <>
-                                    <FaPlay />
-                                    Continue
+                                    {
+                                        item.progress > 0 ?
+                                            <>
+                                                <FaPlay />
+                                                Continue
+                                            </>
+                                            :
+                                            <>
+                                                <FaPlay />
+                                                Start
+                                            </>
+                                    }
                                 </>
                             )}
                         </button>
@@ -406,9 +445,7 @@ export default function MyCourse({ redirect, alert }) {
 
                             setApiQueue(prev => [...prev, { type: 'fetch' }])
 
-                            startTransition(() => {
-                                alert(res.status, `Successfully withdraw course: ${course}`)
-                            })
+                            alert(res.status, `Successfully withdraw course: ${course}`)
                         } else {
                             alert(res.status, res.message || `Failed to withdraw course: ${course}`)
                         }
@@ -420,34 +457,6 @@ export default function MyCourse({ redirect, alert }) {
                 }
             }
         ])
-    }
-
-
-    const handleMarkedCourse = async ({ id, course, status }) => {
-        setApiQueue((prev) => [
-            ...prev,
-            {
-                type: 'marked',
-                execute: async () => {
-
-                    try {
-                        const res = await UpdateMarkedCourseService({ courseId: id, marked: status });
-                        if (res.status == 200) {
-                            alert(res.status, `${status ? 'Marked' : 'Unmarked'} course: ${course} successfully`)
-                            setApiQueue((prev) => [...prev, { type: "fetch" }]);
-                        }
-                        else {
-                            alert(res.status, res.message || `Failed to marked course: ${course}`)
-                        }
-                    }
-                    catch (err) {
-                        alert(err.status || 500, `Failed to marked course: ${course} ( Internal server error )`)
-                    }
-                    finally {
-                        stopHandling(id)
-                    }
-                }
-            }])
     }
 
     const handleSubmitSearch = () => {
@@ -523,13 +532,14 @@ export default function MyCourse({ redirect, alert }) {
 
             {/* Search & Filter */}
             <section className="course-search">
-                <Search
+                <SearchBar
                     data={filterMapping}
                     setSearch={(data) => setState(prev => ({ ...prev, search: data }))}
                     setFilter={(data) => setState(prev => ({ ...prev, filter: data }))}
                     submit={handleSubmitSearch}
                     defaultFilter={defaultFilter}
                     pending={state.pending}
+                    placeholderText="Search courses..."
                 />
             </section>
 
@@ -547,7 +557,7 @@ export default function MyCourse({ redirect, alert }) {
                             onPreview={handlePreview}
                             onJoin={handleJoin}
                             onWithdraw={handleWithdrawCourse}
-                            onMarked={handleMarkedCourse}
+                            setAlert={(data) => alert(data.status, data.message)}
                             isHandling={!!handlingMap[item.id]}
                         />
                     ))

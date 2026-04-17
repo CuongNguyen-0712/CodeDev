@@ -271,6 +271,7 @@
 .module .lessons .lesson {
     display: flex;
     align-items: center;
+    flex-grow: 1;
     width: 100%;
     gap: 12px;
     padding: 4px;
@@ -398,7 +399,7 @@
     background: var(--color_white);
     padding: 32px 24px;
     flex-direction: column;
-    gap: 16px;
+    gap: 50px;
     overflow: auto;
 }
 
@@ -409,6 +410,13 @@
 .lesson_view #view::-webkit-scrollbar-thumb {
     background: var(--color_gray);
     border-radius: 6px;
+}
+
+#view .lesson_content {
+    display: flex;
+    flex-grow: 1;
+    gap: 16px;
+    flex-direction: column;
 }
 
 .lesson_view .footer_view {
@@ -427,7 +435,6 @@
     height: 40px;
     width: 100%;
     max-width: 240px;
-    margin-top: 24px;
     background: var(--gradient_primary);
     color: var(--color_white);
     font-weight: 600;
@@ -582,6 +589,8 @@
 @media screen and (max-width: 480px) {
     #course_param_content .slider.active {
         max-width: 100%;
+        border-top-left-radius: var(--radius_lg);
+        border-top-right-radius: var(--radius_lg);
     }
 
     #view_state {

@@ -1,13 +1,17 @@
 import { NextResponse } from 'next/server'
 import { getSession } from './app/lib/session'
 
-const protectedRoutes = ['/home', '/course', '/project']
-const publicRoutes = ['/auth', '/']
-const publicApis = ['/api/auth/signIn', '/api/auth/signUp']
-
 export default async function proxy(req) {
     const path = req.nextUrl.pathname
     const session = await getSession()
+
+    if (path.startsWith('/api/auth')) {
+        return NextResponse.next()
+    }
+
+    const protectedRoutes = ['/home', '/course', '/project']
+    const publicRoutes = ['/auth', '/']
+    const publicApis = ['/api/auth/signIn', '/api/auth/signUp']
 
     const isProtectedRoute = protectedRoutes.some(
         route => path === route || path.startsWith(`${route}/`)
@@ -34,8 +38,4 @@ export default async function proxy(req) {
     }
 
     return NextResponse.next()
-}
-
-export const config = {
-    matcher: ['/((?!_next/static|_next/image|.*\\.png$).*)']
 }

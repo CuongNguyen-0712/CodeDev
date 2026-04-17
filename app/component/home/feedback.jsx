@@ -183,7 +183,6 @@ export default function Feedback({ alert }) {
                         {state.handling ? (
                             <>
                                 <LoadingContent color="var(--color_white)" scale={0.5} />
-                                <span>Sending...</span>
                             </>
                         ) : (
                             <>

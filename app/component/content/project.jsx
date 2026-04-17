@@ -8,7 +8,7 @@ import { useRouterActions } from "@/app/router/router";
 
 import { ErrorReload } from "../ui/error";
 import { LoadingContent } from "../ui/loading";
-import Search from "../ui/searchBar";
+import SearchBar from "../ui/searchBar";
 
 import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
 
@@ -16,14 +16,11 @@ import { uniqWith } from "lodash";
 
 import { FaRegTrashAlt, FaPlus } from "react-icons/fa";
 import { FaUserGroup, FaUser, FaArrowRight, FaFolderOpen, FaCalendarDays } from "react-icons/fa6";
-import { LuSearchX } from "react-icons/lu";
-import { IoClose } from "react-icons/io5";
 import { HiSparkles } from "react-icons/hi2";
 import { VscProject } from "react-icons/vsc";
 
 export function ProjectItem({
     item,
-    statusColors,
     isHandling,
     onDelete
 }) {
@@ -138,13 +135,6 @@ export function ProjectItem({
 export default function Project({ redirect, alert }) {
     const { navigateToProject } = useRouterActions();
 
-    const status_colors = {
-        'Completed': 'var(--color_green)',
-        'Ongoing': 'var(--color_primary)',
-        'Not Started': 'var(--color_red)',
-        'Pending': 'var(--color_orange)',
-    };
-
     const filterMapping = [
         {
             name: 'status',
@@ -243,11 +233,11 @@ export default function Project({ redirect, alert }) {
                 setState((prev) => ({ ...prev, data: prev.data.filter((item) => item.id !== id) }));
                 setApiQueue((prev) => [...prev, { type: "fetch" }]);
                 startTransition(() => {
-                    alert(res.status, res.message || "Project " + project + " has been deleted successfully");
+                    alert(res.status, "Project " + project + " has been deleted successfully");
                 })
             }
             else {
-                alert(res.status || 500, res.message || "An error occurred while deleting project: " + project);
+                alert(res.status || 500, "An error occurred while deleting project: " + project);
             }
         }
         catch (err) {
@@ -411,7 +401,8 @@ export default function Project({ redirect, alert }) {
 
             {/* Search & Filter */}
             <section className="project-search">
-                <Search
+                <SearchBar
+                    placeholderText="Search projects..."
                     data={filterMapping}
                     submit={handleSubmitSearch}
                     setSearch={(value) => setState((prev) => ({ ...prev, search: value }))}
@@ -432,7 +423,6 @@ export default function Project({ redirect, alert }) {
                         <ProjectItem
                             key={item.id}
                             item={item}
-                            statusColors={status_colors}
                             isHandling={!!handlingMap[item.id]}
                             onDelete={handleDelete}
                         />

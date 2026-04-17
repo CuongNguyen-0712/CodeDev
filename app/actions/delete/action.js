@@ -32,8 +32,10 @@ export async function deleteMyCourse(data) {
         await sql.query(query, params);
 
         return new Response(
-            JSON.stringify({ message: "Deleted successfully" }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
+            JSON.stringify({
+                status: 200,
+                headers: { "Content-Type": "application/json" }
+            }),
         );
     } catch (error) {
         console.error("Error deleting course:", error);
@@ -75,8 +77,10 @@ export async function deleteMyProject(data) {
         await sql.query(query, params);
 
         return new Response(
-            JSON.stringify({ message: "Deleted successfully" }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
+            JSON.stringify({
+                status: 200,
+                headers: { "Content-Type": "application/json" }
+            }),
         );
     } catch (error) {
         console.error("Error deleting project:", error);

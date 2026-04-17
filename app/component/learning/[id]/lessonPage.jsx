@@ -71,11 +71,12 @@ export default function LessonPage({ id, status, submit, isHandling }) {
             <ErrorReload data={state.error} refetch={refetchLesson} />
             :
             state.data ?
-
                 <>
-                    <h2>{state.data.title}</h2>
-                    <p>{state.data.description}</p>
-                    <PortableTextRenderer value={state.data.content} />
+                    <div className="lesson_content">
+                        <h2>{state.data.title}</h2>
+                        <p>{state.data.description}</p>
+                        <PortableTextRenderer value={state.data.content} />
+                    </div>
                     {
                         status &&
                         <button
