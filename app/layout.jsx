@@ -1,10 +1,5 @@
 import './globals.css';
-import dynamic from 'next/dynamic';
 import Provider from './contexts/providers';
-
-const Search = dynamic(() => import('./component/home/search'), {
-  ssr: false,
-});
 
 export default async function RootLayout({ children }) {
   return (
@@ -24,7 +19,6 @@ export default async function RootLayout({ children }) {
       <body>
         <Provider>
           {children}
-          <Search />
         </Provider>
       </body>
     </html>
