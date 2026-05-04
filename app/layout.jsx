@@ -1,7 +1,10 @@
 import './globals.css';
+import dynamic from 'next/dynamic';
 import Provider from './contexts/providers';
 
-import Search from './component/home/search';
+const Search = dynamic(() => import('./component/home/search'), {
+  ssr: false,
+});
 
 export default async function RootLayout({ children }) {
   return (
