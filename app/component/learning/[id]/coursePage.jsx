@@ -7,7 +7,7 @@ import AlertPush from "../../ui/alert";
 
 import LessonPage from "./lessonPage";
 
-import { useRouterActions } from "@/app/router/router";
+import { useRouterActions } from "@/app/router/useRouterActions";
 
 import { api } from "@/app/lib/axios";
 

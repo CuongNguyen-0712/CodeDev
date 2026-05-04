@@ -5,7 +5,7 @@ import { useSearchParams, usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { LoadingContent } from '../ui/loading';
 import { ErrorReload } from '../ui/error';
-import { useQuery } from '@/app/router/router';
+import { useQuery } from '@/app/router/useQuery';
 
 import { api } from '@/app/lib/axios';
 

@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { usePathname, useSearchParams } from "next/navigation";
 
 import useKey from "@/app/hooks/useKey";
-import { useQuery } from "@/app/router/router";
+import { useQuery } from "@/app/router/useQuery";
 
 import { IoSearch, IoClose, IoTime, IoArrowBack } from "react-icons/io5";
 import { FaLink } from "react-icons/fa6";

@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { useSearchParams, usePathname } from "next/navigation";
 import Image from "next/image";
 
-import { useQuery } from "@/app/router/router";
+import { useQuery } from "@/app/router/useQuery";
 
 import { FaUsers, FaCrown } from "react-icons/fa";
 import { GoProjectRoadmap } from "react-icons/go";

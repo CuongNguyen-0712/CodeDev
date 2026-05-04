@@ -1,8 +1,7 @@
 'use client'
 import { useState, useEffect } from "react"
 
-import { useQuery } from "@/app/router/router";
-
+import { useQuery } from "@/app/router/useQuery";
 import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
 
 import { api } from "@/app/lib/axios";

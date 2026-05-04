@@ -1,6 +1,6 @@
 import { useState, useEffect, startTransition } from "react"
 
-import { useRouterActions } from "@/app/router/router";
+import { useRouterActions } from "@/app/router/useRouterActions";
 
 import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
 

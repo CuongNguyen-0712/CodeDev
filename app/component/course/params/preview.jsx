@@ -6,7 +6,7 @@ import { ErrorReload } from "../../ui/error";
 
 import { api } from "@/app/lib/axios";
 
-import { useRouterActions } from "@/app/router/router";
+import { useRouterActions } from "@/app/router/useRouterActions";
 
 import { uniqWith } from "lodash";
 

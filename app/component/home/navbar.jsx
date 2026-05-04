@@ -2,7 +2,9 @@
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 
-import { useQuery, useRouterActions } from "@/app/router/router";
+import { useRouterActions } from "@/app/router/useRouterActions";
+import { useQuery } from "@/app/router/useQuery";
+
 import { useAuth } from "@/app/contexts/authContext";
 
 import { signOut } from "next-auth/react";

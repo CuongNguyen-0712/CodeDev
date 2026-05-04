@@ -3,7 +3,7 @@ import { useState, useEffect } from "react"
 
 import { api } from "@/app/lib/axios";
 
-import { useQuery, useRouterActions } from "@/app/router/router";
+import { useQuery, useRouterActions } from "@/app/router/useRouterActions";
 
 import { ErrorReload } from "../ui/error";
 import { LoadingContent } from "../ui/loading";

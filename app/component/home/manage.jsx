@@ -8,7 +8,8 @@ import { FaTrophy, FaStar, FaLink } from "react-icons/fa6";
 
 import { usePathname, useSearchParams } from "next/navigation";
 
-import { useQuery, useRouterActions } from "@/app/router/router";
+import { useRouterActions } from "@/app/router/useRouterActions";
+import { useQuery } from "@/app/router/useQuery";
 
 import { useApp } from "@/app/contexts/appContext";
 

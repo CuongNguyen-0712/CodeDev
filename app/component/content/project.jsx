@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 
-import { useRouterActions } from "@/app/router/router";
+import { useRouterActions } from "@/app/router/useRouterActions";
 
 import { ErrorReload } from "../ui/error";
 import { LoadingContent } from "../ui/loading";

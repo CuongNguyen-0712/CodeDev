@@ -1,7 +1,7 @@
 'use client'
 import Image from 'next/image'
 
-import { useRouterActions } from '@/app/router/router';
+import { useRouterActions } from '@/app/router/useRouterActions';
 
 import { IoArrowBack, IoHome } from "react-icons/io5";
 import { HiOutlineExclamationCircle } from "react-icons/hi2";

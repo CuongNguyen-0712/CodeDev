@@ -10,8 +10,7 @@ import { BiMessageDetail } from "react-icons/bi";
 
 import { api } from "@/app/lib/axios";
 
-import { useQuery } from "@/app/router/router";
-
+import { useQuery } from "@/app/router/useQuery";
 import { FeedbackSchema } from "@/app/lib/definition";
 
 import { validate } from "@/app/helper/validate";

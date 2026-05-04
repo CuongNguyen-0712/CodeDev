@@ -1,4 +1,6 @@
+import { Suspense } from "react"
 import NotFound from "./component/ui/pageNotFound"
+import { LoadingContent } from "./component/ui/loading"
 
 export async function generateMetadata() {
     return {
@@ -8,5 +10,9 @@ export async function generateMetadata() {
 }
 
 export default function PageNotFound() {
-    return <NotFound />
+    return (
+        <Suspense fallback={<LoadingContent />}>
+            <NotFound />
+        </Suspense>
+    )
 }

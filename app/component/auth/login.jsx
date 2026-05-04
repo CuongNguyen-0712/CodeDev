@@ -4,7 +4,7 @@ import Image from "next/image"
 import Form from "next/form"
 import Link from "next/link"
 
-import { useRouterActions } from "@/app/router/router"
+import { useRouterActions } from "@/app/router/useRouterActions"
 
 import { validate } from "@/app/helper/validate"
 

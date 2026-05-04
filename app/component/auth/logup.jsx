@@ -4,7 +4,7 @@ import Link from "next/link"
 import Form from "next/form"
 import Image from "next/image"
 
-import { useRouterActions } from "@/app/router/router"
+import { useRouterActions } from "@/app/router/useRouterActions"
 
 import { api } from "@/app/lib/axios"
 
