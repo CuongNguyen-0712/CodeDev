@@ -1,175 +1,60 @@
 'use server'
 import { sql } from '@/app/lib/db';
-import { v4 as uuidv4 } from 'uuid';
 
-export async function postFeedback(data) {
-    const { title, feedback, sender } = data;
+export async function postFeedback({ sender, title, feedback }) {
+    const params = []
 
-    if (!title || !feedback || !sender) {
-        return new Response(
-            JSON.stringify({ message: "You missing something, check again" }),
-            { status: 400, headers: { "Content-Type": "application/json" } }
-        );
-    }
+    params.push(sender, title, feedback)
 
-    try {
-        const params = []
+    const query = `INSERT INTO public.feedback (sender, title, feedback) VALUES ($${params.length - 2}, $${params.length - 1}, $${params.length})`;
 
-        params.push(sender, title, feedback)
-
-        const query = `INSERT INTO public.feedback (sender, title, feedback) VALUES ($${params.length - 2}, $${params.length - 1}, $${params.length})`;
-
-        await sql.query(query, params);
-
-        return new Response(
-            JSON.stringify({ message: "Feedback saved successfully" }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-        );
-    } catch (error) {
-        return new Response(
-            JSON.stringify({ message: "Internal server error" }),
-            { status: 500, headers: { "Content-Type": "application/json" } }
-        );
-    }
+    return await sql.query(query, params);
 }
 
-export async function postRegisterCourse(data) {
-    const { userId, courseId } = data
+export async function postRegisterCourse({ userId, courseId }) {
+    const params = []
 
-    if (!userId || !courseId) {
-        return new Response(
-            JSON.stringify({ message: "You missing something, check again" }),
-            { status: 400, headers: { "Content-Type": "application/json" } }
-        );
-    }
+    params.push(userId, courseId)
 
-    try {
-        const params = []
+    const query = `select register_course($${params.length - 1}, $${params.length})`;
 
-        params.push(userId, courseId)
-
-        const query = `select register_course($${params.length - 1}, $${params.length})`;
-
-        await sql.query(query, params);
-
-        return new Response(
-            JSON.stringify({ message: 'Register course successfully: ' }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-        );
-    } catch (error) {
-        console.error("Error register course: ", error);
-        return new Response(
-            JSON.stringify({ message: "Internal server error" }),
-            { status: 500, headers: { "Content-Type": "application/json" } }
-        );
-    }
+    return await sql.query(query, params);
 }
 
-export async function postRegisterProject(data) {
-    const { userId, projectId } = data
+export async function postRegisterProject({ userId, projectId }) {
+    const params = []
 
-    if (!userId || !projectId) {
-        return new Response(
-            JSON.stringify({ message: "You missing something, check again" }),
-            { status: 400, headers: { "Content-Type": "application/json" } }
-        );
-    }
+    params.push(userId, projectId)
 
-    try {
-        const params = []
-
-        params.push(userId, projectId)
-
-        const query = `
+    const query = `
             INSERT INTO project.register (join_id, project_id) 
             VALUES ($${params.length - 1}, $${params.length}) 
             ON CONFLICT (join_id, project_id)
             DO UPDATE SET is_deleted = false
         `;
 
-        await sql.query(query, params);
-
-        return new Response(
-            JSON.stringify({ message: "Register project successfully: " }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-        );
-    } catch (error) {
-        console.error("Error register project: ", error);
-        return new Response(
-            JSON.stringify({ message: "Internal server error" }),
-            { status: 500, headers: { "Content-Type": "application/json" } }
-        );
-    }
+    return await sql.query(query, params);
 }
 
-export async function postCreateTeam(data) {
-    const { userId, name, size } = data;
-    const teamId = uuidv4();
+export async function postCreateTeam({ teamId, userId, name, size, description }) {
+    const params = []
 
-    if (!name || !size || !userId) {
-        return new Response(
-            JSON.stringify({ message: "You missing something, check again" }),
-            { status: 400, headers: { "Content-Type": "application/json" } }
-        );
-    }
+    params.push(teamId, userId, name, size, description)
 
-    try {
-        const params = []
+    const query = `
+            INSERT INTO public.team (id, host_id, name, size, description) 
+            VALUES ($${params.length - 4}, $${params.length - 3}, $${params.length - 2}, $${params.length - 1}, $${params.length})
+        `;
 
-        params.push(teamId, name, size, userId)
-
-        const query = `select create_team($${params.length - 3}, $${params.length - 2}, $${params.length - 1}, $${params.length})`;
-
-        await sql.query(query, params);
-
-        return new Response(
-            JSON.stringify({ message: "Create team successfully" }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-        );
-    } catch (error) {
-        console.error("Error create team:", error);
-        return new Response(
-            JSON.stringify({ message: "Internal server error" }),
-            { status: 500, headers: { "Content-Type": "application/json" } }
-        );
-    }
+    return await sql.query(query, params);
 }
 
-export async function postCommentCourse(data) {
-    const { userId, courseId, comment } = data
+export async function postCommentCourse({ userId, courseId, comment }) {
+    const params = []
 
-    if (!(userId || courseId)) {
-        return new Response(
-            JSON.stringify({ message: "You missing something, check again" }),
-            { status: 400, headers: { "Content-Type": "application/json" } }
-        );
-    }
+    params.push(userId, courseId, comment)
 
-    if (!comment || comment.trim().length === 0) {
-        return new Response(
-            JSON.stringify({ message: "Your comment is empty" }),
-            { status: 400, headers: { "Content-Type": "application/json" } }
-        );
-    }
+    const query = `INSERT INTO course.comment (user_id, id, content) VALUES ($${params.length - 2}, $${params.length - 1}, $${params.length})`;
 
-    try {
-        const params = []
-
-        params.push(userId, courseId, comment)
-
-        const query = `INSERT INTO course.comment (user_id, id, content) VALUES ($${params.length - 2}, $${params.length - 1}, $${params.length})`;
-
-        await sql.query(query, params);
-
-        return new Response(
-            JSON.stringify({ message: "Thanks for your comment !" }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-        );
-    } catch (error) {
-        console.error("Error post comment:", error);
-        return new Response(
-            JSON.stringify({ message: "Internal server error" }),
-            { status: 500, headers: { "Content-Type": "application/json" } }
-        );
-    }
+    return await sql.query(query, params);
 }

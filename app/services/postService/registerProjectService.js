@@ -1,42 +1,15 @@
-import { getSession } from "@/app/lib/session";
+import { postRegisterProject } from "@/app/actions/post/action";
+
+import { ApiError } from "@/app/lib/error/apiError";
 
 export default async function PostRegisterProjectService(data) {
-    const userId = (await getSession())?.userId;
-    const req = { ...data, userId: userId }
-    try {
-        const res = await fetch('/api/post/postRegisterProject', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(req)
-        });
+    const { userId, projectId } = data;
 
-        if (res.status == 404) {
-            return {
-                status: 404,
-                message: 'API not found'
-            }
-        }
+    const result = await postRegisterProject({ userId, projectId });
 
-        const raw = await res.json();
-        if (res.ok) {
-            return {
-                status: res.status,
-                message: raw.message || "Register project successfully"
-            }
-        }
-        else {
-            return {
-                status: res.status,
-                message: raw.message
-            }
-        }
+    if (!result) {
+        throw new ApiError("Failed to register project", 500);
     }
-    catch (err) {
-        return {
-            status: 500,
-            message: err.message || "Something is wrong"
-        }
-    }
+
+    return result;
 }

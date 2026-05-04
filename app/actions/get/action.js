@@ -1,24 +1,18 @@
 'use server'
 import { sql } from '@/app/lib/db';
 
+import { client } from '@/app/lib/sanity';
+
 export async function getOverview(data) {
-    if (!data) {
-        return new Response(JSON.stringify({ message: "You missing something, check again" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" }
-        });
-    }
+    const params = []
+    const conditions = []
 
-    try {
-        const params = []
-        const conditions = []
+    params.push(data)
+    conditions.push(`r.user_id = $${params.length}`)
 
-        params.push(data)
-        conditions.push(`r.user_id = $${params.length}`)
+    const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-        const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-        const query = `
+    const query = `
             select c.id as id, 
             c.image as image, 
             c.lessons as lesson, 
@@ -34,39 +28,19 @@ export async function getOverview(data) {
             ${whereSQL}
         `;
 
-        const res = await sql.query(query, params);
-
-        return new Response(
-            JSON.stringify({ data: res }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-        );
-    } catch (error) {
-        console.error("Error load data:", error);
-        return new Response(
-            JSON.stringify({ data: 'Something went wrong', message: "Internal server error" }),
-            { status: 500, headers: { "Content-Type": "application/json" } }
-        );
-    }
+    return await sql.query(query, params);
 }
 
 export async function getInfo(data) {
-    if (!data) {
-        return new Response(JSON.stringify({ message: "You missing something, check again" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" }
-        });
-    }
+    const params = []
+    const conditions = []
 
-    try {
-        const params = []
-        const conditions = []
+    params.push(data)
+    conditions.push(`i.user_id = $${params.length}`)
 
-        params.push(data)
-        conditions.push(`i.user_id = $${params.length}`)
+    const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-        const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-        const query = `
+    const query = `
             select i.surname as surname, i.name as name, i.email as email, i.image as image, i.bio as bio, i.nickname as nickname, i.rank as rank, i.star as star, i.level as level, u.username as username, i.phone as phone
             from private.users u
             join private.info i on u.id = i.user_id
@@ -74,140 +48,73 @@ export async function getInfo(data) {
             limit 1
         `;
 
-        const res = await sql.query(query, params);
-
-        if (res.length === 0) {
-            return new Response(
-                JSON.stringify({ message: "User not found" }),
-                { status: 404, headers: { "Content-Type": "application/json" } }
-            );
-        }
-
-        return new Response(
-            JSON.stringify({ data: res, message: "Get data successfully" }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-        );
-    } catch (error) {
-        console.error("Error get user information:", error);
-        return new Response(
-            JSON.stringify({ message: "Internal server error" }),
-            { status: 500, headers: { "Content-Type": "application/json" } }
-        );
-    }
+    return await sql.query(query, params);
 }
 
-export async function getProject({
-    id,
-    search,
-    limit = 20,
-    offset = 0,
-    method,
-    status,
-    difficulty,
-}) {
-    if (!id) {
-        return new Response(
-            JSON.stringify({ message: "Missing something, try again" }),
-            { status: 400 }
-        );
+export async function getProject({ userId, search, limit, offset, methods, statuses, difficulties }) {
+    const conditions = [];
+    const params = [];
+
+    params.push(userId);
+
+    if (methods && methods.length > 0) {
+        const methodsArray = methods.map(m => m.trim());
+        if (methodsArray.length === 1) {
+            params.push(methodsArray[0]);
+            conditions.push(`p.method = $${params.length}`);
+        }
     }
 
-    try {
-        const conditions = [];
-        const params = [];
+    if (statuses && statuses.length > 0) {
+        const statusesArray = statuses.map(s => s.trim());
+        params.push(statusesArray);
+        conditions.push(`p.status = ANY($${params.length}::statusproject[])`);
+    }
 
-        params.push(id);
+    if (difficulties && difficulties.length > 0) {
+        const difficultiesArray = difficulties.map(d => d.trim());
+        params.push(difficultiesArray);
+        conditions.push(`p.difficulty = ANY($${params.length}::levelenum[])`);
+    }
 
-        if (method) {
-            const methods = method.split(',').map(m => m.trim())
-            if (methods.length === 1) {
-                params.push(method);
-                conditions.push(`p.method = $${params.length}`);
-            }
-        }
+    if (search && search.trim()) {
+        params.push(`%${search.toLowerCase()}%`);
+        conditions.push(`LOWER(p.name) LIKE $${params.length}`);
+    }
 
-        if (status) {
-            const statuses = status.split(",").map(s => s.trim());
-            params.push(statuses);
-            conditions.push(`p.status = ANY($${params.length}::statusproject[])`);
-        }
+    conditions.push(`p.id NOT IN (
+            SELECT r.project_id
+            FROM project.register r
+            WHERE r.join_id = $1
+            AND r.is_deleted = false
+        )`);
 
-        if (difficulty) {
-            const difficulties = difficulty.split(",").map(d => d.trim());
-            params.push(difficulties);
-            conditions.push(`p.difficulty = ANY($${params.length}::levelenum[])`);
-        }
+    const whereSQL = conditions.length
+        ? `WHERE ${conditions.join(" AND ")}`
+        : "";
 
-        if (search && search.trim()) {
-            params.push(`%${search.toLowerCase()}%`);
-            conditions.push(`LOWER(p.name) LIKE $${params.length}`);
-        }
+    params.push(limit, offset);
 
-        const whereSQL = conditions.length
-            ? `WHERE ${conditions.join(" AND ")}`
-            : "";
-
-        params.push(limit, offset);
-
-        const query = `
+    const query = `
             SELECT 
             p.*
             FROM public.project p
             ${whereSQL}
-            AND p.id NOT IN (
-                SELECT r.project_id
-                FROM project.register r
-                WHERE r.join_id = $1
-                AND r.is_deleted = false
-            )
             ORDER BY p.id ASC
             LIMIT $${params.length - 1}
             OFFSET $${params.length}
         `;
 
-        const res = await sql.query(query, params);
-
-        return new Response(
-            JSON.stringify({
-                data: res,
-                message: "Get data successfully",
-            }),
-            { status: 200 }
-        );
-    } catch (err) {
-        console.error("Error get project:", err);
-        return new Response(
-            JSON.stringify({ message: "Internal server error" }),
-            {
-                status: 500,
-                headers: { "Content-Type": "application/json" }
-            }
-        );
-    }
+    return await sql.query(query, params);
 }
 
-export async function getCourse({
-    id,
-    search,
-    limit = 20,
-    offset = 0,
-    price,
-    level,
-    rating
-}) {
-    if (!id) {
-        return new Response(
-            JSON.stringify({ message: "Missing something, try again" }),
-            { status: 400 }
-        );
-    }
+export async function getCourse({ userId, search, limit, offset, prices, levels, ratings }) {
+    const conditions = [];
+    const params = [];
 
-    try {
-        const conditions = [];
-        const params = [];
+    params.push(userId);
 
-        params.push(id);
-        conditions.push(`
+    conditions.push(`
             c.id NOT IN (
                 SELECT c2.id
                 FROM course.register r
@@ -217,48 +124,42 @@ export async function getCourse({
             )
         `);
 
-        if (search) {
-            params.push(`%${search.toLowerCase()}%`);
-            conditions.push(`LOWER(c.title) LIKE $${params.length}`);
+    if (search) {
+        params.push(`%${search.toLowerCase()}%`);
+        conditions.push(`LOWER(c.title) LIKE $${params.length}`);
+    }
+
+    if (prices) {
+        const priceArray = prices.map(p => p.trim());
+
+        if (priceArray.length == 1) {
+            const isFree = priceArray[0] === false || priceArray[0] === "false";
+            conditions.push(isFree ? `c.cost = 0` : `c.cost <> 0`);
         }
+    }
 
-        if (price) {
-            const somePrice = price.split(',').map(s => s.trim())
+    if (levels && levels.length) {
+        const levelArray = levels.map(l => l.trim());
+        params.push(levelArray);
+        conditions.push(`c.level = ANY($${params.length}::levelenum[])`);
+    }
 
-            if (somePrice.length == 1) {
-                const isFree = price === false || price === "false";
-                conditions.push(isFree ? `c.cost = 0` : `c.cost <> 0`);
-            }
-        }
+    if (ratings && ratings.length) {
+        const ratingArray = ratings.map(r => parseInt(r.trim(), 10)).filter(Number.isInteger);
+        params.push(ratingArray);
+        conditions.push(`c.rating = ANY($${params.length}::integer[])`);
+    }
 
-        if (level) {
-            const levels = level.split(",").map(l => l.trim());
-            params.push(levels);
-            conditions.push(`c.level = ANY($${params.length}::levelenum[])`);
-        }
+    conditions.push(`c.is_hidden = false`);
+    conditions.push(`c.is_deleted = false`);
 
-        if (rating) {
-            const ratings = rating
-                .split(",")
-                .map(r => parseInt(r.trim(), 10))
-                .filter(Number.isInteger);
+    const whereSQL = conditions.length
+        ? `WHERE ${conditions.join(" AND ")}`
+        : "";
 
-            if (ratings.length) {
-                params.push(ratings);
-                conditions.push(`c.rating = ANY($${params.length}::integer[])`);
-            }
-        }
+    params.push(limit, offset);
 
-        conditions.push(`c.is_hidden = false`);
-        conditions.push(`c.is_deleted = false`);
-
-        const whereSQL = conditions.length
-            ? `WHERE ${conditions.join(" AND ")}`
-            : "";
-
-        params.push(limit, offset);
-
-        const query = `
+    const query = `
             SELECT c.*
             FROM public.course c
             ${whereSQL}
@@ -267,70 +168,48 @@ export async function getCourse({
             OFFSET $${params.length}
         `;
 
-        const res = await sql.query(query, params);
-
-        return new Response(
-            JSON.stringify({ data: res, message: "Get data successfully" }),
-            { status: 200 }
-        );
-    } catch (err) {
-        console.error(err);
-        return new Response(
-            JSON.stringify({ message: "Internal server error" }),
-            {
-                status: 500,
-                headers: { "Content-Type": "application/json" }
-            }
-        );
-    }
+    return await sql.query(query, params);
 }
 
-export async function getMyCourse({ id, search, limit = 20, offset = 0, marked, status, level }) {
-    if (!id) {
-        return new Response(JSON.stringify({ message: "Missing something, try again" }), { status: 400 });
+export async function getMyCourse({ userId, search, limit, offset, markeds, statuses, levels }) {
+    const conditions = [];
+    const params = [];
+
+    params.push(userId);
+    conditions.push(`r.user_id = $${params.length}`);
+
+    if (markeds && markeds.length > 0) {
+        const markedArray = markeds.map(s => s.trim());
+
+        if (markedArray.length == 1) {
+            const isMarked = markeds === true || markeds === "true";
+            params.push(isMarked);
+            conditions.push(`r.is_marked = $${params.length}`);
+        }
     }
 
-    try {
-        const conditions = [];
-        const params = [];
+    if (search) {
+        params.push(`%${search.toLowerCase()}%`);
+        conditions.push(`LOWER(c.title) LIKE $${params.length}`);
+    }
 
-        params.push(id);
-        conditions.push(`r.user_id = $${params.length}`);
+    if (statuses && statuses.length > 0) {
+        const statusesArray = statuses.map(s => s.trim());
+        params.push(statusesArray);
+        conditions.push(`r.status = ANY($${params.length}::status_course[])`);
+    }
 
-        if (marked) {
-            const someMarked = marked.split(',').map(s => s.trim())
+    if (levels && levels.length > 0) {
+        const levelsArray = levels.map(l => l.trim());
+        params.push(levelsArray);
+        conditions.push(`c.level = ANY($${params.length}::levelenum[])`);
+    }
 
-            if (someMarked.length == 1) {
-                const isMarked = marked === true || marked === "true";
-                params.push(isMarked);
-                conditions.push(`r.is_marked = $${params.length}`);
-            }
-        }
+    const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-        if (search) {
-            params.push(`%${search.toLowerCase()}%`);
-            conditions.push(`LOWER(c.title) LIKE $${params.length}`);
-        }
+    params.push(limit, offset);
 
-        if (status) {
-            const statuses = status.split(',').map(s => s.trim());
-            params.push(statuses);
-            conditions.push(`
-                r.status = ANY($${params.length}::status_course[])
-            `);
-        }
-
-        if (level) {
-            const levels = level.split(",").map(l => l.trim());
-            params.push(levels);
-            conditions.push(`c.level = ANY($${params.length}::levelenum[])`);
-        }
-
-        const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-
-        params.push(limit, offset);
-
-        const query = `
+    const query = `
             SELECT 
                 c.*, 
                 r.progress AS progress,
@@ -343,77 +222,44 @@ export async function getMyCourse({ id, search, limit = 20, offset = 0, marked, 
             LIMIT $${params.length - 1} OFFSET $${params.length}
         `;
 
-        const res = await sql.query(query, params);
-
-        return new Response(JSON.stringify({ data: res }), { status: 200 });
-    } catch (err) {
-        console.error(err);
-        return new Response(JSON.stringify({ message: "Internal server error" }), {
-            status: 500,
-            headers: { "Content-Type": "application/json" }
-        });
-    }
+    return await sql.query(query, params);
 }
 
-export async function getMyProject({
-    id,
-    search,
-    limit = 20,
-    offset = 0,
-    status,
-    method,
-    difficulty,
-}) {
-    if (!id) {
-        return new Response(
-            JSON.stringify({ message: "Missing something, try again" }),
-            { status: 400, headers: { "Content-Type": "application/json" } }
+export async function getMyProject({ userId, search, limit, offset, methods, statuses }) {
+    const conditions = [];
+    const params = [];
+
+    params.push(userId);
+    conditions.push(`r.join_id = $${params.length}`);
+
+    if (search && search.trim()) {
+        params.push(`%${search.toLowerCase()}%`);
+        conditions.push(`LOWER(p.name) LIKE $${params.length}`);
+    }
+
+    if (methods && methods.length > 0) {
+        const methodsArray = methods.map(m => m.trim());
+        params.push(methodsArray);
+        conditions.push(`p.method = ANY($${params.length}::methodproject[])`);
+    }
+
+    if (statuses && statuses.length > 0) {
+        const statusesArray = statuses.map(s => s.trim());
+        params.push(statusesArray);
+        conditions.push(
+            `r.status = ANY($${params.length}::status_project_progress[])`
         );
     }
 
-    try {
-        const conditions = [];
-        const params = [];
+    conditions.push(`r.is_deleted = false`);
 
-        params.push(id);
-        conditions.push(`r.join_id = $${params.length}`);
+    const whereSQL = conditions.length
+        ? `WHERE ${conditions.join(" AND ")}`
+        : "";
 
-        if (search && search.trim()) {
-            params.push(`%${search.toLowerCase()}%`);
-            conditions.push(`LOWER(p.name) LIKE $${params.length}`);
-        }
+    params.push(limit, offset);
 
-        if (method) {
-            const methods = method.split(",").map(s => s.trim());
-            params.push(methods);
-            conditions.push(`p.method = ANY($${params.length}::methodproject[])`);
-        }
-
-        if (status) {
-            const statuses = status.split(",").map(s => s.trim());
-            params.push(statuses);
-            conditions.push(
-                `r.status = ANY($${params.length}::status_project_progress[])`
-            );
-        }
-
-        if (difficulty) {
-            const difficulties = difficulty.split(",").map(d => d.trim());
-            params.push(difficulties);
-            conditions.push(
-                `p.difficulty = ANY($${params.length}::levelenum[])`
-            );
-        }
-
-        conditions.push(`r.is_deleted = false`);
-
-        const whereSQL = conditions.length
-            ? `WHERE ${conditions.join(" AND ")}`
-            : "";
-
-        params.push(limit, offset);
-
-        const query = `
+    const query = `
             SELECT
                 p.id AS id,
                 p.name AS name,
@@ -429,317 +275,207 @@ export async function getMyProject({
             OFFSET $${params.length}
         `;
 
-        const res = await sql.query(query, params);
-
-        return new Response(
-            JSON.stringify({
-                data: res,
-                message: "Get data successfully",
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-        );
-    } catch (err) {
-        console.error("Error:", err);
-        return new Response(
-            JSON.stringify({ message: "Failed to load content, try again" }),
-            { status: 500, headers: { "Content-Type": "application/json" } }
-        );
-    }
+    return await sql.query(query, params);
 }
 
-export async function getMySocial({ id, tab, search }) {
-    if (!id) {
-        return new Response(JSON.stringify({ message: "You missing something, check again" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" }
-        });
+export async function getMyFriends({ userId, search }) {
+    const params = [];
+    const conditions = [];
+
+    params.push(userId);
+
+    if (search && search.trim()) {
+        params.push(`%${search.toLowerCase()}%`);
+        conditions.push(`LOWER(u.username) LIKE $${params.length}`);
     }
 
-    try {
-        let query = '';
-        let params = [];
+    const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-        const searchValue = search ? `%${search.toLowerCase()}%` : null;
+    const query = `
+        SELECT
+                u.id,
+                u.username,
+                i.image,
+                i.nickname,
+                i.level,
+                i.rank,
+                i.star,
+                f.status
+            FROM private.users u
+            INNER JOIN private.info i ON i.user_id = u.id AND i.user_id != $1
+            INNER JOIN private.friend f ON (
+                (f.sender_id = $1 AND f.receiver_id = u.id)
+                OR
+                (f.receiver_id = $1 AND f.sender_id = u.id)
+            )
+            ${whereSQL}
+        `;
 
-        params.push(id, searchValue);
-
-        switch (tab) {
-            case 'friend':
-                query = `
-                    SELECT 
-                        u.username,
-                        i.image,
-                        i.nickname,
-                        i.level,
-                        i.rank,
-                        i.star
-                    FROM private.users u
-                    INNER JOIN private.info i ON i.user_id = u.id AND i.user_id != $1
-                    AND ($2::text IS NULL OR LOWER(u.username) LIKE $2)
-                `;
-                break;
-
-            case 'team':
-                query = `
-                    SELECT
-                        t1.team_id,
-                        t3.name AS team_name,
-                        t3.size AS team_size,
-                        t3.image AS team_image,
-                        u2.username AS host_name,
-                        (u2.id = $1) AS is_host,
-                        STRING_AGG(u1.username, ',') AS members
-                    FROM social.team t1
-                    JOIN social.team t2 ON t1.team_id = t2.team_id
-                    JOIN private.users u1 ON t2.user_id = u1.id
-                    JOIN public.team t3 ON t3.id = t1.team_id
-                    JOIN private.users u2 ON u2.id = t3.host_id
-                    WHERE t1.user_id = $1
-                    AND ($2::text IS NULL OR LOWER(t3.name) LIKE $2)
-                    GROUP BY t1.team_id, t3.name, t3.size, t3.image, u2.username, u2.id
-                `;
-                break;
-
-            default:
-                return new Response(JSON.stringify({ message: "Invalid tab" }), {
-                    status: 400,
-                    headers: { "Content-Type": "application/json" }
-                });
-        }
-
-        const res = await sql.query(query, params);
-
-        return new Response(JSON.stringify({
-            data: res,
-            message: "Get data successfully"
-        }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" }
-        });
-    } catch (err) {
-        console.error(err);
-        return new Response(JSON.stringify({ message: "Failed to load content, try again" }), {
-            status: 500,
-            headers: { "Content-Type": "application/json" }
-        });
-    }
+    return await sql.query(query, params);
 }
 
-export async function getSocial({ id, search, offset = 0, limit = 20, filter }) {
-    try {
-        if (!id) {
-            return new Response(JSON.stringify({ message: "Missing user id" }), {
-                status: 400,
-                headers: { "Content-Type": "application/json" }
-            });
-        }
 
-        const searchValue = search ? `%${search}%` : null;
+export async function getMyTeams({ userId, search }) {
+    const params = [];
+    const conditions = [];
 
-        let query = "";
-        const params = [id, searchValue, limit, offset];
+    params.push(userId);
 
-        switch (filter) {
-            case 'user':
-                query = `
-                    SELECT 
-                        u.id,
-                        u.username,
-                        i.image,
-                        i.nickname,
-                        i.level,
-                        i.rank,
-                        i.star
-                    FROM private.users u
-                    LEFT JOIN private.info i ON i.user_id = u.id
-                    LEFT JOIN private.friend f 
-                        ON (
-                            (f.sender_id = $1 AND f.receiver_id = u.id)
-                            OR 
-                            (f.receiver_id = $1 AND f.sender_id = u.id)
-                        )
+    conditions.push(`t1.host_id = $${params.length}`);
 
-                    WHERE u.id != $1
-                    AND u.lockstatus = false
-                    AND f.sender_id IS NULL
-                    AND ($2::text IS NULL OR u.username ILIKE $2)
-
-                    LIMIT $3 OFFSET $4
-                `;
-                break;
-
-            case 'team':
-                query = `
-                    SELECT t.*
-                    FROM public.team t
-                    LEFT JOIN social.team st
-                        ON st.team_id = t.id AND st.user_id = $1
-                    WHERE st.team_id IS NULL
-                    AND ($2::text IS NULL OR t.name ILIKE $2)
-
-                    LIMIT $3 OFFSET $4
-                `;
-                break;
-
-            default:
-                return new Response(JSON.stringify({ message: "Invalid filter" }), {
-                    status: 400,
-                    headers: { "Content-Type": "application/json" }
-                });
-        }
-
-        const res = await sql.query(query, params);
-
-        return new Response(JSON.stringify({
-            data: res,
-            message: "Get data successfully"
-        }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" }
-        });
-
-    } catch (err) {
-        console.error(err);
-        return new Response(JSON.stringify({ message: "Internal server error" }), {
-            status: 500,
-            headers: { "Content-Type": "application/json" }
-        });
+    if (search && search.trim()) {
+        params.push(`%${search.toLowerCase()}%`);
+        conditions.push(`LOWER(t3.name) LIKE $${params.length}`);
     }
+
+    const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    const query = `
+            SELECT
+                t1.id AS team_id,
+                t3.name AS team_name,
+                t3.size AS team_size,
+                t3.image AS team_image,
+                u2.username AS host_name,
+                (u2.id = $1) AS is_host,
+                STRING_AGG(u1.username, ',') AS members
+            FROM public.team t1
+            JOIN public.team t2 ON t1.id = t2.id
+            JOIN private.users u1 ON t2.host_id = u1.id
+            JOIN public.team t3 ON t3.id = t1.id
+            JOIN private.users u2 ON u2.id = t3.host_id
+            ${whereSQL}    
+            GROUP BY t1.id, t3.name, t3.size, t3.image, u2.username, u2.id
+        `;
+
+    return await sql.query(query, params);
 }
 
-export async function getContentCourse({ user_id, course_id }) {
-    if (!course_id) {
-        return new Response(JSON.stringify({ message: "Missing something, check again" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" }
-        })
+export async function getUsersSocial({ userId, search, limit, offset }) {
+    const params = [];
+    const conditions = [];
+
+    params.push(userId);
+
+    if (search && search.trim()) {
+        params.push(`%${search.toLowerCase()}%`);
+        conditions.push(`LOWER(u.username) LIKE $${params.length}`);
     }
 
-    try {
-        const params = []
+    params.push(limit, offset);
 
-        params.push(user_id, course_id)
+    conditions.push(`u.id != $1`);
+    conditions.push(`u.status = 'Active'`);
+    conditions.push(`f.sender_id IS NULL`);
 
-        const query = `select * from join_course($${params.length - 1}, $${params.length});`
+    const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-        const res = await sql.query(query, params);
+    const query = `
+        SELECT 
+            u.id,
+            u.username,
+            i.image,
+            i.nickname,
+            i.level,
+            i.rank,
+            i.star
+        FROM private.users u
+        LEFT JOIN private.info i ON i.user_id = u.id
+        LEFT JOIN private.friend f 
+            ON (
+                (f.sender_id = $1 AND f.receiver_id = u.id)
+                OR 
+                (f.receiver_id = $1 AND f.sender_id = u.id)
+            )
+        ${whereSQL}
+        LIMIT $${params.length - 1} OFFSET $${params.length}
+    `;
 
-        return new Response(JSON.stringify({ data: res }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" }
-        });
-    }
-    catch (err) {
-        console.error(err)
-        return new Response(JSON.stringify({ message: 'Internal server error' }), {
-            status: 500,
-            headers: { "Content-Type": "application/json" }
-        })
-    }
+    return await sql.query(query, params);
 }
 
-export async function getContentLesson({ user_id, lesson_id, course_id }) {
-    if (!(lesson_id || user_id || course_id)) {
-        return new Response(JSON.stringify({ message: "Missing something, check again" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" }
-        })
+export async function getTeamsSocial(userId, search, limit, offset) {
+    const conditions = [];
+    const params = [];
+
+    params.push(userId);
+    conditions.push(`t.id NOT IN (
+        SELECT team_id
+        FROM social.team
+        WHERE user_id = $1
+    )`);
+
+    if (search && search.trim()) {
+        params.push(`%${search.toLowerCase()}%`);
+        conditions.push(`LOWER(t.name) LIKE $${params.length}`);
     }
 
-    try {
-        const params = []
+    params.push(limit, offset);
 
-        params.push(user_id, course_id, lesson_id)
+    const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-        const query = `select * from get_lesson($${params.length - 2}, $${params.length - 1}, $${params.length});`
+    const query = `
+        SELECT t.*
+        FROM public.team t
+        LEFT JOIN social.team s
+            ON s.team_id = t.id AND s.user_id = $1
+        ${whereSQL}
+        LIMIT $${params.length - 1} OFFSET $${params.length}
+    `;
 
-        const res = await sql.query(query, params);
-
-        return new Response(JSON.stringify({ data: res }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" }
-        });
-    }
-    catch (err) {
-        console.error(err)
-        if (err.code === 'P2000') {
-            return new Response(JSON.stringify({ message: err.message || 'Please complete the previous lesson' }), {
-                status: 501,
-                headers: { "Content-Type": "application/json" }
-            })
-        }
-
-        return new Response(JSON.stringify({ message: "Internal server error" }), {
-            status: 500,
-            headers: { "Content-Type": "application/json" }
-        })
-    }
+    return await sql.query(query, params);
 }
 
-export async function getStateCourse({ user_id, course_id }) {
-    if (!course_id) {
-        return new Response(JSON.stringify({ message: "Missing something, check again" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" }
-        })
-    }
+export async function getContentCourse({ userId, courseId }) {
+    const params = []
 
-    try {
-        const conditions = []
-        const params = []
+    params.push(userId, courseId)
 
-        params.push(course_id, user_id)
-        conditions.push(`id = $${params.length - 1}`)
+    const query = `select * from join_course($${params.length - 1}, $${params.length});`
 
-        const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    return await sql.query(query, params);
+}
 
-        const query = `
-            SELECT *,
-            (
-                SELECT status
-                FROM course.register
-                WHERE course_id = $${params.length - 1} 
-                AND user_id = $${params.length}
-            ) AS status
+export async function getContentLesson({ userId, lessonId, courseId }) {
+    const params = []
+
+    params.push(userId, courseId, lessonId)
+
+    const query = `select * from get_lesson($${params.length - 2}, $${params.length - 1}, $${params.length});`
+
+    return await sql.query(query, params);
+}
+
+
+export async function getStateCourse(data) {
+    const conditions = []
+    const params = []
+
+    params.push(data)
+    conditions.push(`id = $${params.length}`)
+
+    const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const query = `
+            SELECT *
             FROM public.course
             ${whereSQL}
             LIMIT 1
         `
 
-        const res = await sql.query(query, params);
-
-        return new Response(JSON.stringify({ data: res[0] }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" }
-        });
-    }
-    catch (err) {
-        console.error(err)
-        return new Response(JSON.stringify({ message: "Internal server error" }), {
-            status: 500,
-            headers: { "Content-Type": "application/json" }
-        })
-    }
+    return await sql.query(query, params);
 }
 
-export async function getLessonCourse({ course_id }) {
-    if (!course_id) {
-        return new Response(JSON.stringify({ message: "Missing something, check again" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" }
-        })
-    }
+export async function getLessonCourse(data) {
+    const conditions = []
+    const params = []
 
-    try {
-        const conditions = []
-        const params = []
+    params.push(data)
+    conditions.push(`m.course_id = $${params.length}`)
 
-        params.push(course_id)
-        conditions.push(`m.course_id = $${params.length}`)
+    const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-        const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-        const query = `
+    const query = `
             SELECT 
                 m.id as module_id,
                 m.title as title,
@@ -752,42 +488,21 @@ export async function getLessonCourse({ course_id }) {
             ORDER BY m.order_index ASC, l.order_index ASC
         `
 
-        const res = await sql.query(query, params)
-
-        return new Response(JSON.stringify({ data: res }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" }
-        });
-    }
-    catch (err) {
-        console.error(err)
-        return new Response(JSON.stringify({ message: "Internal server error" }), {
-            status: 500,
-            headers: { "Content-Type": "application/json" }
-        })
-    }
+    return await sql.query(query, params)
 }
 
-export async function getCommentCourse({ course_id, user_id, offset = 0, limit = 20 }) {
-    if (!(course_id && user_id)) {
-        return new Response(JSON.stringify({ message: "Missing something, check again" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" }
-        })
-    }
+export async function getCommentCourse({ userId, courseId, offset, limit }) {
+    const conditions = []
+    const params = []
 
-    try {
-        const conditions = []
-        const params = []
+    params.push(courseId)
+    conditions.push(`m.id = $${params.length}`)
 
-        params.push(course_id)
-        conditions.push(`m.id = $${params.length}`)
+    params.push(userId, offset, limit)
 
-        params.push(user_id, offset, limit)
+    const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-        const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-        const query = `
+    const query = `
             SELECT 
                 u.username as username,
                 i.image as avatar,
@@ -807,15 +522,16 @@ export async function getCommentCourse({ course_id, user_id, offset = 0, limit =
             OFFSET $${params.length - 1} LIMIT $${params.length}
         `
 
-        const res = await sql.query(query, params);
+    return await sql.query(query, params);
+}
 
-        return new Response(JSON.stringify({ data: res }), { status: 200 });
-    }
-    catch (err) {
-        console.error(err)
-        return new Response(JSON.stringify({ message: "Internal server error" }), {
-            status: 500,
-            headers: { "Content-Type": "application/json" }
-        })
-    }
+export async function getLesson(data) {
+    const query = `*[_type == "lesson" && _id == $id][0]{
+            title,
+            slug,
+            description,
+            content
+        }`;
+
+    return await client.fetch(query, { id: data });
 }

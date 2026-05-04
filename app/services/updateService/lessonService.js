@@ -1,35 +1,14 @@
-import { getSession } from "@/app/lib/session";
+import { updateLesson } from "@/app/actions/patch/action";
+
+import { ApiError } from "@/app/lib/error/apiError";
 
 export default async function UpdateLessonService(data) {
-    const user_id = (await getSession())?.userId;
-    const req = { ...data, user_id: user_id }
-    try {
-        const res = await fetch(`/api/update/updateLesson`, {
-            method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(req),
-        });
+    const { userId, courseId, lessonId } = data;
+    const result = await updateLesson({ userId, courseId, lessonId });
 
-        if (res.status === 404) {
-            return {
-                status: 404,
-                message: 'API not found'
-            }
-        }
-
-        const raw = await res.json();
-
-        return {
-            status: res.status,
-            message: raw.message
-        }
-
-    } catch (err) {
-        return {
-            status: 500,
-            message: err.message
-        }
+    if (!result) {
+        throw new ApiError("Failed to update lesson, try again later", 500);
     }
+
+    return result;
 }

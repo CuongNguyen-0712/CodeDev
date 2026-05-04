@@ -4,12 +4,7 @@ import { useState, useReducer, useEffect, useRef } from "react"
 import { LoadingContent, LoadingRedirect } from "../../ui/loading";
 import { ErrorReload } from "../../ui/error";
 
-import GetStateCourseService from "@/app/services/getService/stateCourseService";
-import GetCommentCourseService from "@/app/services/getService/commentCourseService";
-import GetLessonCourseService from "@/app/services/getService/lessonCourse";
-import PostCommentCourseService from "@/app/services/postService/createCommentCourseService";
-import PostRegisterCourseService from "@/app/services/postService/registerCourseService";
-import UpdateVotingCourseService from "@/app/services/updateService/votingCourseService";
+import { api } from "@/app/lib/axios";
 
 import { useRouterActions } from "@/app/router/router";
 
@@ -76,15 +71,15 @@ const CommentItem = ({ data, alert }) => {
         setState(newState);
 
         try {
-            const res = await UpdateVotingCourseService({
-                id: data.id,
+            const response = await api.patch('update/updateVotingComment', {
+                commentId: data.id,
                 voting: newFlag.upvotes ? true : newFlag.downvotes ? false : null
             });
 
-            if (res.status !== 200) {
+            if (!response.data.success) {
                 setFlag(flag);
                 setState(state);
-                alert({ status: res.status, message: res.message || 'Failed to update voting.' });
+                alert({ status: response.status, message: response.data.message || 'Failed to update voting.' });
             }
         } catch {
             setFlag(flag);
@@ -147,17 +142,17 @@ export default function PreviewCourse({ params } = {}) {
 
     const initialState = {
         state: {
-            data: null,
+            data: {},
             error: null,
             pending: false,
         },
         lesson: {
-            data: null,
+            data: [],
             error: null,
             pending: false,
         },
         comment: {
-            data: null,
+            data: [],
             error: null,
             pending: false,
         },
@@ -207,11 +202,13 @@ export default function PreviewCourse({ params } = {}) {
                 };
 
             case ACTIONS.UPDATE:
+                if (key === 'state') return state;
+
                 return {
                     ...state,
                     [key]: {
                         ...state[key],
-                        data: uniqWith([...state[key].data ?? [], ...payload ?? []], (a, b) => a.id === b.id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
+                        data: uniqWith([...state[key].data, ...payload], (a, b) => a.id === b.id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
                     },
                 };
 
@@ -281,12 +278,17 @@ export default function PreviewCourse({ params } = {}) {
     const fetchState = async () => {
         try {
             const course_id = params.id
-            const res = await GetStateCourseService({ course_id })
-            if (res.status === 200) {
+            const response = await api.get('get/getStateCourse', {
+                params: {
+                    courseId: course_id
+                }
+            });
+            if (response.data.success) {
+                const data = Array.isArray(response.data.data) ? response.data.data[0] : {}
                 dispatch({
                     type: ACTIONS.SUCCESS,
                     key: 'state',
-                    payload: res.data
+                    payload: data
                 })
             }
             else {
@@ -294,8 +296,8 @@ export default function PreviewCourse({ params } = {}) {
                     type: ACTIONS.ERROR,
                     key: 'state',
                     payload: {
-                        status: res.status,
-                        message: res.message
+                        status: response.status,
+                        message: response.message
                     }
                 })
             }
@@ -318,9 +320,14 @@ export default function PreviewCourse({ params } = {}) {
     const fetchLesson = async () => {
         try {
             const course_id = params.id
-            const res = await GetLessonCourseService({ course_id })
-            if (res.status === 200) {
-                const payload = res.data.reduce((acc, { module_id, title, ...rest }) => {
+            const response = await api.get('get/getLessonCourse', {
+                params: {
+                    courseId: course_id
+                }
+            });
+            if (response.data.success) {
+                const data = Array.isArray(response.data.data) ? response.data.data : []
+                const payload = data.reduce((acc, { module_id, title, ...rest }) => {
                     if (!acc[module_id]) {
                         acc[module_id] = {
                             id: module_id,
@@ -345,8 +352,8 @@ export default function PreviewCourse({ params } = {}) {
                     type: ACTIONS.ERROR,
                     key: 'lesson',
                     payload: {
-                        status: res.status,
-                        message: res.message
+                        status: response.status,
+                        message: response.message
                     }
                 })
             }
@@ -378,23 +385,31 @@ export default function PreviewCourse({ params } = {}) {
                     try {
                         const course_id = params.id
                         const adjustedOffset = state.comment.data?.length || 0
-                        const res = await GetCommentCourseService({ course_id: course_id, offset: adjustedOffset, limit: load.limit.toString() })
-                        if (res.status === 200) {
+                        const response = await api.get('get/getCommentCourse', {
+                            params: {
+                                courseId: course_id,
+                                offset: adjustedOffset,
+                                limit: load.limit.toString()
+                            }
+                        });
+                        if (response.data.success) {
+                            const data = Array.isArray(response.data.data) ? response.data.data : [];
+                            console.log('Fetched comments:', data);
                             setLoad((prev) => ({
                                 ...prev,
-                                hasMore: res.data.length >= prev.limit
+                                hasMore: data.length >= prev.limit
                             }))
-                            if (Array.isArray(state.comment.data) && state.comment.data.length > 0) {
+                            if (data.length > 0) {
                                 dispatch({
                                     type: ACTIONS.UPDATE,
                                     key: 'comment',
-                                    payload: res.data
+                                    payload: data
                                 })
                             } else {
                                 dispatch({
                                     type: ACTIONS.SUCCESS,
                                     key: 'comment',
-                                    payload: res.data
+                                    payload: data
                                 })
                             }
                         }
@@ -403,8 +418,8 @@ export default function PreviewCourse({ params } = {}) {
                                 type: ACTIONS.ERROR,
                                 key: 'comment',
                                 payload: {
-                                    status: res.status,
-                                    message: res.message
+                                    status: response.status,
+                                    message: response.message
                                 }
                             })
                         }
@@ -414,8 +429,8 @@ export default function PreviewCourse({ params } = {}) {
                             type: ACTIONS.ERROR,
                             key: 'comment',
                             payload: {
-                                status: 500,
-                                message: 'External server error'
+                                status: err.response?.status || 500,
+                                message: err.response?.data?.message || 'External server error'
                             }
                         })
                     }
@@ -440,12 +455,20 @@ export default function PreviewCourse({ params } = {}) {
 
                     try {
                         const course_id = params.id
-                        const res = await GetCommentCourseService({ course_id: course_id, offset: 0, limit: load.limit.toString() })
-                        if (res.status === 200) {
+                        const adjustedOffset = Math.max((state.comment.data?.length - load.limit, 0)) || 0
+                        const response = await api.get('get/getCommentCourse', {
+                            params: {
+                                courseId: course_id,
+                                offset: adjustedOffset,
+                                limit: load.limit.toString()
+                            }
+                        });
+                        if (response.data.success) {
+                            const data = Array.isArray(response.data.data) ? response.data.data : [];
                             dispatch({
                                 type: ACTIONS.UPDATE,
                                 key: 'comment',
-                                payload: res.data
+                                payload: data
                             })
                             scrollToTop()
                         }
@@ -454,8 +477,8 @@ export default function PreviewCourse({ params } = {}) {
                                 type: ACTIONS.ERROR,
                                 key: 'comment',
                                 payload: {
-                                    status: res.status,
-                                    message: res.message
+                                    status: response.status,
+                                    message: response.message
                                 }
                             })
                         }
@@ -465,8 +488,8 @@ export default function PreviewCourse({ params } = {}) {
                             type: ACTIONS.ERROR,
                             key: 'comment',
                             payload: {
-                                status: 500,
-                                message: 'External server error'
+                                status: err.response?.status || 500,
+                                message: err.response?.data?.message || 'External server error'
                             }
                         })
                     }
@@ -552,30 +575,33 @@ export default function PreviewCourse({ params } = {}) {
 
         try {
             const courseId = params.id
-            const res = await PostCommentCourseService({ comment: comment.content, courseId: courseId })
+            const response = await api.post('post/postCommentCourse', {
+                courseId: courseId,
+                comment: comment.content
+            });
 
-            if (res.status === 200) {
+            if (response.data.success) {
                 setComment((prev) => ({
                     ...prev,
                     content: ''
                 }))
                 updateComment({ course_id: courseId })
                 setAlert({
-                    status: res.status || 200,
-                    message: res.message
+                    status: response.status,
+                    message: response.message
                 })
             }
             else {
                 setAlert({
-                    status: res.status,
-                    message: res.message
+                    status: response.status,
+                    message: response.message
                 })
             }
         }
         catch (err) {
             setAlert({
-                status: err.status || 500,
-                message: 'External server error'
+                status: err.response?.status || 500,
+                message: err.response?.data?.message || 'External server error'
             })
         }
         finally {
@@ -600,7 +626,7 @@ export default function PreviewCourse({ params } = {}) {
 
         await PostRegisterCourseService(state.state.data.id)
             .then(res => {
-                if (res.status === 200) {
+                if (res.data.success) {
                     alert("Submitting....")
                 }
                 else {
@@ -612,8 +638,8 @@ export default function PreviewCourse({ params } = {}) {
             })
             .catch(err => {
                 setAlert({
-                    status: err.status || 500,
-                    message: 'External server error'
+                    status: err.response?.status || 500,
+                    message: err.response?.data?.message || 'External server error'
                 })
             })
             .finally(() => {
@@ -696,21 +722,21 @@ export default function PreviewCourse({ params } = {}) {
                                             <MdPlayLesson className="stat-icon lessons" />
                                             <div className="stat-info">
                                                 <span className="stat-label">Lessons</span>
-                                                <strong className="stat-value">{state.state.data.lesson}</strong>
+                                                <strong className="stat-value">{state.state.data.lessons ?? 0}</strong>
                                             </div>
                                         </div>
                                         <div className="stat-card">
                                             <LuAlarmClock className="stat-icon duration" />
                                             <div className="stat-info">
                                                 <span className="stat-label">Duration</span>
-                                                <strong className="stat-value">{state.state.data.duration}h</strong>
+                                                <strong className="stat-value">{state.state.data.duration ?? 0}h</strong>
                                             </div>
                                         </div>
                                         <div className="stat-card">
                                             <PiStudent className="stat-icon students" />
                                             <div className="stat-info">
                                                 <span className="stat-label">Students</span>
-                                                <strong className="stat-value">{state.state.data.students}</strong>
+                                                <strong className="stat-value">{state.state.data.students ?? 0}</strong>
                                             </div>
                                         </div>
                                     </div>
@@ -775,7 +801,7 @@ export default function PreviewCourse({ params } = {}) {
                                     data={state.comment.error}
                                     refetch={() => refetchData('comment')}
                                 />
-                            ) : state.comment.data && state.comment.data.length > 0 ? (
+                            ) : Array.isArray(state.comment.data) && state.comment.data.length > 0 ? (
                                 <div className="comments-list">
                                     {state.comment.data.map((item) => (
                                         <CommentItem

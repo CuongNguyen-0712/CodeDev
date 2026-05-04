@@ -1,36 +1,15 @@
-import { getSession } from "@/app/lib/session";
+import { deleteMyCourse } from "@/app/actions/delete/action";
 
-export default async function DeleteMyCourseServive(data) {
-    const id = (await getSession())?.userId;
-    const req = { userId: id, courseId: data };
-    try {
-        const res = await fetch(`/api/delete/deleteMyCourse`, {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(req)
-        });
+import { ApiError } from "@/app/lib/error/apiError";
 
-        if (!res.ok) {
-            return {
-                status: 404,
-                message: 'API not found'
-            }
-        }
+export default async function DeleteMyCourseService(data) {
+    const { userId, courseId } = data;
 
-        const raw = await res.json();
+    const result = await deleteMyCourse({ userId, courseId });
 
-        return {
-            status: res.status,
-            message: raw.message
-        }
+    if (!result) {
+        throw new ApiError("Failed to delete course", 400);
     }
-    catch {
-        console.error(err);
-        return {
-            status: 500,
-            message: err.message
-        }
-    }
+
+    return result;
 }

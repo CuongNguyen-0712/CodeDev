@@ -1,9 +1,5 @@
 import { useState, useEffect, startTransition } from "react"
 
-import GetMyCourseService from "@/app/services/getService/myCourseService";
-import UpdateWithdrawCourseService from "@/app/services/updateService/withdrawCourseService";
-import UpdateMarkedCourseService from "@/app/services/updateService/markedCourseService";
-
 import { useRouterActions } from "@/app/router/router";
 
 import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
@@ -14,11 +10,14 @@ import SearchBar from "../ui/searchBar";
 
 import { uniqWith } from "lodash";
 
+import { api } from "@/app/lib/axios";
+
 import { FaCartShopping, FaPlay, FaCode, FaGraduationCap } from "react-icons/fa6";
-import { IoSettingsSharp, IoClose, IoTrashBin } from "react-icons/io5";
+import { IoSettingsSharp, IoClose, IoTrashBin, IoReload } from "react-icons/io5";
 import { GoHeartFill } from "react-icons/go";
 import { LuSearchX, LuExternalLink } from "react-icons/lu";
 import { HiSparkles } from "react-icons/hi2";
+import { VscDebugContinue } from "react-icons/vsc";
 
 export function CourseItem({
     item,
@@ -41,21 +40,20 @@ export function CourseItem({
         setMarked(newMarked)
 
         try {
-            const res = await UpdateMarkedCourseService({ courseId: id, marked: newMarked });
-            if (res.status == 200) {
-                setAlert({ status: res.status, message: `${newMarked ? 'Marked' : 'Unmarked'} course: ${course} successfully` })
+            const response = await api.patch('update/updateStatusCourse', { courseId: id, marked: newMarked });
+            if (response.data.success) {
+                setAlert({ status: response.status, message: `${newMarked ? 'Marked' : 'Unmarked'} course: ${course} successfully` })
             }
             else {
-                setAlert({ status: res.status, message: res.message || `Failed to marked course: ${course}` })
+                setAlert({ status: response.status, message: response.data?.message })
                 setMarked(marked)
             }
         }
         catch (err) {
-            setAlert({ status: err.status || 500, message: `Failed to marked course: ${course} ( Internal server error )` })
+            setAlert({ status: err.response?.status || 500, message: err.response?.data?.message || `Failed to marked course: ${course}` })
             setMarked(marked)
         }
     }
-
 
     return (
         <div className="course-card">
@@ -160,20 +158,33 @@ export function CourseItem({
                             {isHandling ? (
                                 <LoadingContent scale={0.4} color={"var(--color_white)"} />
                             ) : (
-                                <>
-                                    {
-                                        item.progress > 0 ?
-                                            <>
-                                                <FaPlay />
-                                                Continue
-                                            </>
-                                            :
-                                            <>
-                                                <FaPlay />
-                                                Start
-                                            </>
+                                (() => {
+                                    switch (parseInt(progressPercent)) {
+                                        case 0:
+                                            return (
+                                                <>
+                                                    <FaPlay />
+                                                    Start
+                                                </>
+                                            )
+
+                                        case 100:
+                                            return (
+                                                <>
+                                                    <IoReload />
+                                                    Review
+                                                </>
+                                            )
+
+                                        default:
+                                            return (
+                                                <>
+                                                    <VscDebugContinue />
+                                                    Continue
+                                                </>
+                                            )
                                     }
-                                </>
+                                })()
                             )}
                         </button>
                         <button
@@ -378,17 +389,27 @@ export default function MyCourse({ redirect, alert }) {
 
         try {
             const adjustedOffset = Math.max(0, load.offset - load.deletedCount) || 0;
-            const res = await GetMyCourseService({ search: state.search.trim(), limit: load.limit, offset: adjustedOffset.toString(), filter: state.filter ?? {} });
-            if (res.status === 200) {
+            const response = await api.get('get/getMyCourse', {
+                params: {
+                    search: state.search.trim(),
+                    offset: adjustedOffset.toString(),
+                    limit: load.limit,
+                    markeds: state.filter?.marked,
+                    statuses: state.filter?.status,
+                    levels: state.filter?.level,
+                },
+            })
+            if (response.data.success) {
+                const data = Array.isArray(response.data.data) ? response.data.data : [];
                 setLoad((prev) => ({
                     ...prev,
-                    hasMore: res.data.length >= load.limit,
+                    hasMore: data.length >= load.limit,
                     offset: prev.offset + prev.limit
                 }))
 
                 setState((prev) => ({
                     ...prev,
-                    data: uniqWith([...prev.data, ...res.data], (a, b) => a.id === b.id),
+                    data: uniqWith([...prev.data, ...data], (a, b) => a.id === b.id),
                     pending: false
                 }))
             }
@@ -396,8 +417,8 @@ export default function MyCourse({ redirect, alert }) {
                 setState((prev) => ({
                     ...prev,
                     error: {
-                        status: res.status,
-                        message: res.message
+                        status: response.status,
+                        message: response.message
                     },
                     pending: false
                 }))
@@ -407,8 +428,8 @@ export default function MyCourse({ redirect, alert }) {
             setState((prev) => ({
                 ...prev,
                 error: {
-                    status: err.status || 500,
-                    message: "Failed to load content, try again"
+                    status: err.response?.status || 500,
+                    message: err.response?.data?.message || "Failed to load content, try again"
                 },
                 pending: false
             }))
@@ -430,9 +451,9 @@ export default function MyCourse({ redirect, alert }) {
                 type: 'delete',
                 execute: async () => {
                     try {
-                        const res = await UpdateWithdrawCourseService(id)
+                        const response = await api.patch('update/updateWithdrawCourse', { courseId: id })
 
-                        if (res.status === 200) {
+                        if (response.data.success) {
                             setLoad(prev => ({
                                 ...prev,
                                 deletedCount: prev.deletedCount + 1
@@ -445,12 +466,12 @@ export default function MyCourse({ redirect, alert }) {
 
                             setApiQueue(prev => [...prev, { type: 'fetch' }])
 
-                            alert(res.status, `Successfully withdraw course: ${course}`)
+                            alert(response.status, `Successfully withdraw course: ${course}`)
                         } else {
-                            alert(res.status, res.message || `Failed to withdraw course: ${course}`)
+                            alert(response.status, `Failed to withdraw course: ${course}`)
                         }
                     } catch (err) {
-                        alert(err.status || 500, `Failed to withdraw course: ${course} ( Internal server error )`)
+                        alert(err.response?.status || 500, `Failed to withdraw course: ${course}`)
                     } finally {
                         stopHandling(id)
                     }
@@ -513,22 +534,20 @@ export default function MyCourse({ redirect, alert }) {
     return (
         <div id="myCourse">
             {/* Page Header */}
-            <section className="course-header">
-                <div className="header-content">
-                    <div className="header-text">
-                        <span className="header-label">
-                            <HiSparkles />
-                            My Learning
-                        </span>
-                        <h1>My Courses</h1>
-                        <p>Continue your learning journey and track progress</p>
-                    </div>
-                    <button className="btn-marketplace" onClick={handleNavigate}>
-                        <FaCartShopping />
-                        <span>Browse Marketplace</span>
-                    </button>
+            <div className="header-content">
+                <div className="header-text">
+                    <span className="header-label">
+                        <HiSparkles />
+                        Courses
+                    </span>
+                    <h1>My Learning </h1>
+                    <p>Continue your learning journey and track progress</p>
                 </div>
-            </section>
+                <button className="header-btn" id="marketplace_btn" onClick={handleNavigate}>
+                    <FaCartShopping />
+                    <span>Browse Marketplace</span>
+                </button>
+            </div>
 
             {/* Search & Filter */}
             <section className="course-search">

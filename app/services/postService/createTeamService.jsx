@@ -1,43 +1,15 @@
-import { getSession } from "@/app/lib/session";
+import { postCreateTeam } from "@/app/actions/post/action";
+import { v4 as uuidv4 } from "uuid";
 
 export default async function PostCreateTeamService(data) {
-    const id = (await getSession())?.userId;
-    const req = { userId: id, ...data };
+    const teamId = uuidv4();
+    const { userId, name, size, description } = data;
 
-    try {
-        const res = await fetch('/api/post/postCreateTeam', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(req)
-        });
+    const result = await postCreateTeam({ teamId, userId, name, size, description });
 
-        if (res.status === 404) {
-            return {
-                status: 404,
-                message: "API not found"
-            };
-        }
-
-        const raw = await res.json();
-
-        if (res.ok) {
-            return {
-                status: res.status,
-                message: raw.message || "Create team successfully"
-            };
-        } else {
-            return {
-                status: res.status,
-                message: raw.message || "Unknown server error"
-            };
-        }
+    if (!result) {
+        throw new ApiError("Failed to create team, try again later", 500);
     }
-    catch (err) {
-        return {
-            status: 500,
-            message: err.message || "Something is wrong !"
-        };
-    }
+
+    return true;
 } 

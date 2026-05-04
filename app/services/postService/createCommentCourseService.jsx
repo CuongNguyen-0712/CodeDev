@@ -1,43 +1,15 @@
-import { getSession } from "@/app/lib/session";
+import { postCommentCourse } from "@/app/actions/post/action";
+
+import { ApiError } from "@/app/lib/error/apiError";
 
 export default async function PostCommentCourseService(data) {
-    const id = (await getSession())?.userId;
-    const req = { userId: id, ...data };
+    const { userId, courseId, comment } = data;
 
-    try {
-        const res = await fetch('/api/post/postCommentCourse', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(req)
-        });
+    const result = await postCommentCourse({ userId, courseId, comment });
 
-        if (res.status === 404) {
-            return {
-                status: 404,
-                message: "API not found"
-            };
-        }
-
-        const raw = await res.json();
-
-        if (res.ok) {
-            return {
-                status: res.status,
-                message: raw.message || "Thanks for your comment !"
-            };
-        } else {
-            return {
-                status: res.status,
-                message: raw.message || "Something is wrong !"
-            };
-        }
+    if (!result) {
+        throw new ApiError("Failed to post comment, try again later", 500);
     }
-    catch (err) {
-        return {
-            status: 500,
-            message: "External server error !"
-        };
-    }
+
+    return true;
 } 

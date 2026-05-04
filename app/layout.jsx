@@ -1,14 +1,11 @@
 import './globals.css';
 import Provider from './contexts/providers';
-import { AuthProvider } from './contexts/authContext';
-import { getSession } from './lib/session';
 
 import Search from './component/home/search';
 
 export default async function RootLayout({ children }) {
-  const session = await getSession();
   return (
-    <html lang='en'>
+    <html lang='en' data-scroll-behavior="smooth">
       <head>
         <title>CodeDev</title>
         <link rel="icon" href='/image/static/logo.svg' />
@@ -22,12 +19,10 @@ export default async function RootLayout({ children }) {
         />
       </head>
       <body>
-        <AuthProvider initialSession={{ username: session?.username, email: session?.email }}>
-          <Provider>
-            {children}
-            <Search />
-          </Provider>
-        </AuthProvider>
+        <Provider>
+          {children}
+          <Search />
+        </Provider>
       </body>
     </html>
   )

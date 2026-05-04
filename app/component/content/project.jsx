@@ -1,8 +1,4 @@
-import { useState, useEffect, startTransition } from "react"
-
-import MyProjectService from "@/app/services/getService/myProjectService";
-import DeleteMyProjectService from "@/app/services/deleteService/myProjectService";
-import UpdateHideStatusProjectService from "@/app/services/updateService/hideStatusProjectService";
+import { useState, useEffect } from "react"
 
 import { useRouterActions } from "@/app/router/router";
 
@@ -13,6 +9,7 @@ import SearchBar from "../ui/searchBar";
 import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
 
 import { uniqWith } from "lodash";
+import { api } from "@/app/lib/axios";
 
 import { FaRegTrashAlt, FaPlus } from "react-icons/fa";
 import { FaUserGroup, FaUser, FaArrowRight, FaFolderOpen, FaCalendarDays } from "react-icons/fa6";
@@ -197,25 +194,35 @@ export default function Project({ redirect, alert }) {
 
         try {
             const adjustedOffset = Math.max(0, load.offset - load.deletedCount);
-            const res = await MyProjectService({ search: state.search.trim(), limit: load.limit, offset: adjustedOffset.toString(), filter: state.filter ?? {} });
-            if (res.status === 200) {
+            const response = await api.get('get/getMyProject', {
+                params: {
+                    search: state.search.trim(),
+                    limit: load.limit,
+                    offset: adjustedOffset.toString(),
+                    methods: state.filter?.method,
+                    statuses: state.filter?.status,
+                }
+            });
+
+            if (response.data.success) {
+                const data = Array.isArray(response.data.data) ? response.data.data : [];
                 setLoad((prev) => ({
                     ...prev,
-                    hasMore: res.data.length >= load.limit,
+                    hasMore: data.length >= load.limit,
                     offset: prev.offset + prev.limit
                 }))
                 setState((prev) => ({
                     ...prev,
-                    data: uniqWith([...prev.data, ...res.data], (a, b) => a.id === b.id),
+                    data: uniqWith([...prev.data, ...data], (a, b) => a.id === b.id),
                     pending: false
                 }))
             }
             else {
-                setState((prev) => ({ ...prev, error: { status: res.status, message: res.message }, pending: false }));
+                setState((prev) => ({ ...prev, error: { status: response.status, message: response.data.message }, pending: false }));
             }
         }
         catch (err) {
-            setState((prev) => ({ ...prev, error: { status: err.status || 500, message: "External server error, try again" }, pending: false }));
+            setState((prev) => ({ ...prev, error: { status: err.response?.status || 500, message: err.response?.data?.message || "External server error, try again" }, pending: false }));
         }
     }
 
@@ -225,23 +232,20 @@ export default function Project({ redirect, alert }) {
         startHandling(id);
 
         try {
+            const response = await api.delete('delete/deleteMyProject', { data: { projectId: id } });
 
-            const res = await DeleteMyProjectService(id);
-
-            if (res.status === 200) {
+            if (response.data.success) {
                 setLoad((prev) => ({ ...prev, deletedCount: prev.deletedCount + 1 }));
                 setState((prev) => ({ ...prev, data: prev.data.filter((item) => item.id !== id) }));
                 setApiQueue((prev) => [...prev, { type: "fetch" }]);
-                startTransition(() => {
-                    alert(res.status, "Project " + project + " has been deleted successfully");
-                })
+                alert(response.status, "Project " + project + " has been deleted successfully");
             }
             else {
-                alert(res.status || 500, "An error occurred while deleting project: " + project);
+                alert(response.status, "An error occurred while deleting project: " + project);
             }
         }
         catch (err) {
-            alert(err.status || 500, err.message || "An error occurred while deleting project: " + project);
+            alert(err.response?.status || 500, err.response?.data?.message || "An error occurred while deleting project: " + project);
         } finally {
             stopHandling(id);
         }
@@ -258,36 +262,35 @@ export default function Project({ redirect, alert }) {
     }
 
     const executeMarked = async (data) => {
-        const { id, hide } = data
+        const { id, is_marked } = data
 
         if (!id) return;
 
         setState(prev => ({ ...prev, handling: { ...prev.handling, hide: true } }));
 
         try {
-            const res = await UpdateHideStatusProjectService({ projectId: id, hide: hide });
-            if (res.status === 200) {
+            const response = await api.patch('update/updateStatusProject', { projectId: id, is_marked: !is_marked });
+
+            if (response.data.success) {
                 setState((prev) => ({ ...prev, data: prev.data.filter((item) => item.id !== id) }));
                 setApiQueue((prev) => [...prev, { type: "fetch" }]);
-                startTransition(() => {
-                    setConfirm((prev) => ({
-                        ...prev,
-                        show: false,
-                        hide: false,
-                        id: null,
-                    }))
-                    setState((prev) => ({
-                        ...prev,
-                        handling: {
-                            ...prev.handling,
-                            hide: false
-                        }
-                    }));
-                    alert(res.status, res.message || "Project has been updated successfully");
-                })
+                setConfirm((prev) => ({
+                    ...prev,
+                    show: false,
+                    hide: false,
+                    id: null,
+                }))
+                setState((prev) => ({
+                    ...prev,
+                    handling: {
+                        ...prev.handling,
+                        hide: false
+                    }
+                }));
+                alert(response.status, response.data.message || "Project has been updated successfully");
             }
             else {
-                alert(res.status || 500, res.message || "Something is wrong, try again");
+                alert(response.status || 500, response.data.message || "Something is wrong, try again");
                 setState((prev) => ({
                     ...prev,
                     handling: {
@@ -298,7 +301,7 @@ export default function Project({ redirect, alert }) {
             }
         }
         catch (err) {
-            alert(err.status || 500, err.message || "Something is wrong, try again");
+            alert(err.response?.status || 500, err.response?.data?.message || "Something is wrong, try again");
             setState((prev) => ({
                 ...prev,
                 handling: {
@@ -384,7 +387,7 @@ export default function Project({ redirect, alert }) {
     return (
         <div id="myProject">
             {/* Page Header */}
-            <section className="project-header">
+            <section className="header-content">
                 <div className="header-text">
                     <span className="header-label">
                         <HiSparkles />
@@ -393,7 +396,7 @@ export default function Project({ redirect, alert }) {
                     <h1>My Projects</h1>
                     <p>Manage and track your development projects</p>
                 </div>
-                <button className="btn-new-project" onClick={handleRedirect}>
+                <button className="header-btn" id="new_project_btn" onClick={handleRedirect}>
                     <FaPlus />
                     <span>New Project</span>
                 </button>

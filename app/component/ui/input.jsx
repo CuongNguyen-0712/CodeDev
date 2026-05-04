@@ -1,9 +1,11 @@
 import { useState } from "react";
 
+import { IoMdCloseCircle } from "react-icons/io";
 import { IoIosCloseCircle } from "react-icons/io";
 import { VscEye, VscEyeClosed } from "react-icons/vsc";
+import { BsTextareaResize } from "react-icons/bs";
 
-export function InputGroup({ name, label, type, value, onChange, error, icon, reset, read, tabIndex = 0, isPassword = false }) {
+export function InputGroup({ name, label, type, value, onChange, error, icon, reset, read, tabIndex = 0, isPassword = false, inputMode }) {
 
     const [shown, setShown] = useState(false);
     const handleClear = () => {
@@ -17,6 +19,7 @@ export function InputGroup({ name, label, type, value, onChange, error, icon, re
                 name={name}
                 value={value}
                 onChange={onChange}
+                inputMode={inputMode}
                 autoComplete="off"
                 readOnly={read}
                 tabIndex={tabIndex}
@@ -39,7 +42,10 @@ export function InputGroup({ name, label, type, value, onChange, error, icon, re
             }
             {
                 error &&
-                <p>{error}</p>
+                <p>
+                    <IoMdCloseCircle fontSize={16} />
+                    {error}
+                </p>
             }
             {
                 isPassword &&
@@ -56,6 +62,31 @@ export function InputGroup({ name, label, type, value, onChange, error, icon, re
                             <VscEye fontSize={16} color="var(--color_primary)" />
                     }
                 </button>
+            }
+        </div>
+    )
+}
+
+export function TextAreaGroup({ label, name, value, onChange, rows = 2, cols, error }) {
+    return (
+        <div className={`area_input ${value ? 'has-content' : ''}`}>
+            <label htmlFor={name}>
+                <BsTextareaResize fontSize={16} className="label_icon" />
+                {label}
+            </label>
+            <textarea
+                cols={cols}
+                rows={rows}
+                name={name}
+                value={value}
+                onChange={onChange}
+            />
+            {
+                error &&
+                <p>
+                    <IoMdCloseCircle fontSize={16} />
+                    {error}
+                </p>
             }
         </div>
     )

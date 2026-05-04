@@ -8,15 +8,20 @@ import { FaTrophy, FaStar, FaLink } from "react-icons/fa6";
 
 import { usePathname, useSearchParams } from "next/navigation";
 
-import GetInfoService from "@/app/services/getService/infoService";
-import UpdateInfoService from "@/app/services/updateService/infoService";
-import { useQuery } from "@/app/router/router";
-import { deleteSession } from "@/app/lib/session";
+import { useQuery, useRouterActions } from "@/app/router/router";
 
-import { LoadingContent } from "../ui/loading";
+import { useApp } from "@/app/contexts/appContext";
+
+import { api } from "@/app/lib/axios";
+
+import { signOut } from "next-auth/react";
+
 import { ErrorReload } from "../ui/error";
+import { LoadingContent } from "../ui/loading";
 
-import { UpdateInfoDefinition } from "@/app/lib/definition";
+import { validate } from "@/app/helper/validate";
+
+import { UpdateInfoSchema } from "@/app/lib/definition";
 
 import useKey from "@/app/hooks/useKey";
 import useImagesValidator from "@/app/hooks/useImageValidator";
@@ -24,8 +29,9 @@ import useImagesValidator from "@/app/hooks/useImageValidator";
 import Form from "next/form";
 import Image from "next/image";
 
-export default function Manage({ redirect, alert }) {
+export default function Manage() {
     useKey({ key: 'Escape', param: 'manage' });
+    const { setRedirect: redirect, showAlert: alert } = useApp();
     const rangeRef = useRef(null)
 
     const [state, setState] = useState({
@@ -53,38 +59,42 @@ export default function Manage({ redirect, alert }) {
     const manage = params.get('manage');
 
     const queryNavigate = useQuery();
+    const { navigateReplace } = useRouterActions();
 
     const { finalUrl } = useImagesValidator(state.data?.image ? [state.data.image] : [], '/image/static/default.svg')
 
     const handleLogout = async (e) => {
         e.preventDefault();
-
         try {
             redirect(true);
-            await deleteSession({ url: pathname });
+            await signOut({ redirect: false });
+            navigateReplace('auth')
         } catch (error) {
-            console.error(error)
             redirect(false);
+            startTransition(() => {
+                alert({ status: 500, message: 'An error occurred during logout, please try again' })
+            });
         }
     }
 
     const fetchData = async () => {
         try {
-            const res = await GetInfoService();
-            if (res.status === 200) {
+            const response = await api.get('get/getInfo')
+            if (response.data.success) {
+                const data = Array.isArray(response.data.data) ? response.data.data[0] : {};
                 setState((prev) => ({
                     ...prev,
-                    data: res.data[0],
-                    update: res.data[0],
+                    data: data,
+                    update: data,
                     pending: false
                 }))
             }
             else {
-                setState((prev) => ({ ...prev, error: { status: res.status || 500, message: res.message || 'Something is wrong !' }, pending: false }))
+                setState((prev) => ({ ...prev, error: { status: response.status || 500, message: response.data?.message || 'Failed to load your information !' }, pending: false }))
             }
         }
         catch (err) {
-            setState((prev) => ({ ...prev, error: { status: 500, message: err.message || 'Somthing is wrong !' }, pending: false }))
+            setState((prev) => ({ ...prev, error: { status: err.response?.status || 500, message: err?.response?.data?.message || 'Something is wrong, please try again' }, pending: false }))
         }
     }
 
@@ -100,16 +110,17 @@ export default function Manage({ redirect, alert }) {
             image: file.image ?? state.update.image
         }
 
-        if (JSON.stringify(state.data) === JSON.stringify(updateData)) {
-            setState((prev) => ({ ...prev, change: false, modify: false }))
-            alert(0, 'Nothing can be update')
+        if (Object.entries(state.definition).length > 0) {
+            alert(400, 'Please check the form for errors before saving')
             return;
         }
 
-        if (Object.entries(state.definition).length > 0) {
-            alert(0, 'Please fix the errors before submit')
-            return;
-        }
+        const validData = Object.entries(updateData).reduce((acc, [key, value]) => {
+            if (value !== state.data?.[key]) {
+                acc[key] = value;
+            }
+            return acc
+        }, {});
 
         setState((prev) => ({
             ...prev,
@@ -119,25 +130,25 @@ export default function Manage({ redirect, alert }) {
         }))
 
         try {
-            const res = await UpdateInfoService(updateData)
+            const response = await api.patch('update/updateInfo', validData)
 
-            if (res.status === 200) {
+            if (response.data.success) {
                 await fetchData();
                 startTransition(() => {
                     queryNavigate(pathname, { update: true })
                     setState((prev) => ({ ...prev, handling: false, modify: false }))
                     setFile({ file: null, preview: null })
-                    alert(200, res.message)
+                    alert(200, "Your information has been updated successfully")
                 })
             }
             else {
                 setState((prev) => ({ ...prev, handling: false }))
-                alert(res.status, res.message || 'Failed to update your information')
+                alert(response.status, response.data?.message || 'Failed to update your information')
             }
         }
         catch (err) {
             setState((prev) => ({ ...prev, handling: false }))
-            alert(500, err.message || 'Failed to update your information')
+            alert(err.response?.status || 500, err.response?.data?.message || 'Failed to update your information')
         }
     }
 
@@ -145,17 +156,23 @@ export default function Manage({ redirect, alert }) {
         e.preventDefault();
 
         const { name, value } = e.target;
-        const { errors } = UpdateInfoDefinition({ data: { [name]: state.data[name] }, dataUpdate: { [name]: value } })
+
+        const nextUpdate = {
+            ...state.update,
+            [name]: value
+        };
+
+        const { errors } = validate(
+            UpdateInfoSchema,
+            nextUpdate
+        );
 
         setState((prev) => {
             const { [name]: removed, ...rest } = prev.definition || {};
 
             return {
                 ...prev,
-                update: {
-                    ...prev.update,
-                    [name]: value
-                },
+                update: nextUpdate,
                 definition: errors?.[name] ?
                     { ...prev.definition, [name]: errors[name] }
                     :
@@ -262,7 +279,7 @@ export default function Manage({ redirect, alert }) {
                     <div className="heading_manage">
                         <img src={'/image/static/logo.svg'} alt='logo' />
                         <h2>Account Settings</h2>
-                        <button type="button" id="cancel-manage" onClick={() => queryNavigate(pathname, { manage: null, update: null })}>
+                        <button type="button" id="cancel-manage" onClick={() => queryNavigate(pathname, { manage: null })}>
                             <IoClose />
                         </button>
                     </div>

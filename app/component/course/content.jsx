@@ -1,8 +1,7 @@
 'use client'
 import { useState, useEffect } from "react"
 
-import RegisterCourseService from "@/app/services/postService/registerCourseService";
-import GetCourseService from "@/app/services/getService/courseService";
+import { api } from "@/app/lib/axios";
 
 import { useQuery, useRouterActions } from "@/app/router/router";
 
@@ -11,6 +10,8 @@ import { LoadingContent } from "../ui/loading";
 import Search from "../ui/searchBar";
 
 import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
+
+import { useApp } from "@/app/contexts/appContext";
 
 import { uniqWith } from "lodash";
 
@@ -118,7 +119,8 @@ const CourseItem = ({ item, handlePreview, handleRegister, startHandling, isHand
 }
 
 
-export default function CourseContent({ redirect, alert }) {
+export default function CourseContent() {
+    const { showAlert, setRedirect } = useApp();
     const queryNavigate = useQuery();
     const { navigateToLearning, navigateToCourse } = useRouterActions();
 
@@ -249,29 +251,39 @@ export default function CourseContent({ redirect, alert }) {
 
         try {
             const adjustedOffset = Math.max(0, load.offset - load.registerCount);
-            const res = await GetCourseService({ search: state.search.trim(), limit: load.limit, offset: adjustedOffset.toString(), filter: state.filter ?? {} });
-            if (res.status === 200) {
+            const response = await api.get('get/getCourse', {
+                params: {
+                    search: state.search.trim(),
+                    limit: load.limit,
+                    offset: adjustedOffset.toString(),
+                    prices: state.filter?.price,
+                    levels: state.filter?.level,
+                    ratings: state.filter?.rating
+                }
+            });
+            if (response.data.success) {
+                const data = Array.isArray(response.data.data) ? response.data.data : [];
                 setLoad((prev) => ({
                     ...prev,
-                    hasMore: res.data.length >= load.limit,
+                    hasMore: data.length >= load.limit,
                     offset: prev.offset + prev.limit
                 }))
                 setState((prev) => ({
                     ...prev,
-                    data: uniqWith([...prev.data, ...res.data], (a, b) => a.id === b.id),
+                    data: uniqWith([...prev.data, ...data], (a, b) => a.id === b.id),
                     pending: false
                 }))
             }
             else {
-                setState((prev) => ({ ...prev, error: { status: res.status, message: res.message || "Something is wrong" }, pending: false }))
+                setState((prev) => ({ ...prev, error: { status: response.status, message: response.data.message || "Something is wrong" }, pending: false }))
             }
         }
         catch (err) {
             setState((prev) => ({
                 ...prev,
                 error: {
-                    status: err.status || 500,
-                    message: "Internal server error"
+                    status: err.response?.status || 500,
+                    message: err.response?.data?.message || "Internal server error"
                 },
                 pending: false
             }))
@@ -315,8 +327,8 @@ export default function CourseContent({ redirect, alert }) {
 
     const handleRequest = async ({ id, course }) => {
         try {
-            const res = await RegisterCourseService(id);
-            if (res.status === 200) {
+            const response = await api.post('post/postRegisterCourse', { courseId: id });
+            if (response.data.success) {
                 setLoad((prev) => ({
                     ...prev,
                     registerCount: prev.registerCount + 1,
@@ -326,12 +338,12 @@ export default function CourseContent({ redirect, alert }) {
                     data: prev.data.filter((item) => item.id !== id),
                 }));
                 setApiQueue((prev) => [...prev, { type: "fetch" }]);
-                alert(200, `Successfully registered course: ${course}`, () => navigateToLearning(id));
+                showAlert(200, `Successfully registered course: ${course}`, () => navigateToLearning(id));
             } else {
-                alert(res.status, res.message || `Failed to register course: ${course}`);
+                showAlert(response.status, response.data?.message || `Failed to register course: ${course}`);
             }
         } catch (err) {
-            alert(err.status || 500, err.message || `An error occurred while registering course: ${course}`);
+            showAlert(err.response?.status || 500, err.response?.data?.message || `An error occurred while registering course: ${course}`);
         } finally {
             stopHandling(id);
         }
@@ -339,12 +351,12 @@ export default function CourseContent({ redirect, alert }) {
 
     const handlePreview = (id) => {
         if (state.handling) return;
-        redirect(true)
+        setRedirect(true)
         navigateToCourse(id);
     }
 
     const handleRedirect = () => {
-        redirect(true);
+        setRedirect(true);
         queryNavigate('/home', { tab: 'learning' });
     }
 

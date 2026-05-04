@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 
 import PortableTextRenderer from "../../ui/portableTextRenderer";
 
-import getLessonService from "@/app/services/getService/lessonService";
+import { api } from "@/app/lib/axios";
 
 import { LoadingContent } from "../../ui/loading";
 import { ErrorReload } from "../../ui/error";
@@ -16,10 +16,14 @@ export default function LessonPage({ id, status, submit, isHandling }) {
 
     const fetchLesson = async () => {
         try {
-            const res = await getLessonService(id);
-            if (res.status === 200) {
+            const response = await api.get(`get/getLesson`, {
+                params: {
+                    lessonId: id,
+                },
+            });
+            if (response.data.success) {
                 setState({
-                    data: res.data,
+                    data: response.data.data,
                     pending: false,
                     error: null,
                 });
@@ -28,8 +32,8 @@ export default function LessonPage({ id, status, submit, isHandling }) {
                     data: null,
                     pending: false,
                     error: {
-                        status: res.status,
-                        message: res.message,
+                        status: response.status,
+                        message: response.data.message,
                     },
                 });
             }
@@ -38,8 +42,8 @@ export default function LessonPage({ id, status, submit, isHandling }) {
                 data: null,
                 pending: false,
                 error: {
-                    status: 500,
-                    message: "Failed to import lesson data",
+                    status: error.response.status || 500,
+                    message: error.response.data.message || "Failed to import lesson data",
                 },
             });
         }

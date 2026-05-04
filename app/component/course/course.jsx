@@ -3,7 +3,8 @@ import BaseLayout from "@/app/layout/baseLayout";
 
 export default function Course() {
     return (
-        <BaseLayout children={<CourseContent />}>
+        <BaseLayout>
+            <CourseContent />
         </BaseLayout>
     )
 }

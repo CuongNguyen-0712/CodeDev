@@ -244,10 +244,11 @@
   align-items: center;
   height: 44px;
   padding: 6px 14px 6px 6px;
+  max-width: 150px;
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius_lg);
+  border-radius: var(--radius_md);
   gap: 10px;
   transition: all 0.2s ease;
   cursor: pointer;
@@ -269,6 +270,7 @@
   color: var(--color_white);
   font-size: 16px;
   box-shadow: 0 2px 8px rgba(48, 102, 190, 0.4);
+  flex-shrink: 0;
 }
 
 .account-info {
@@ -277,6 +279,7 @@
 }
 
 .account-name {
+  display: inline-block;
   font-size: 13px;
   font-weight: 600;
   color: var(--color_white);
@@ -287,8 +290,9 @@
 }
 
 .account-arrow {
-  font-size: 10px;
+  display: flex;
   color: rgba(255, 255, 255, 0.6);
+  flex-shrink: 0;
   transition: transform 0.25s ease;
 }
 

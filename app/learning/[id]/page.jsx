@@ -3,17 +3,18 @@ import { Suspense } from "react";
 
 import { LoadingRedirect } from "@/app/component/ui/loading";
 
-import { getStateCourse } from "@/app/actions/get/action";
+import GetStateCourseService from "@/app/services/getService/stateCourseService";
 
 export async function generateMetadata({ params }) {
     const { id: course_id } = await params
 
-    const payload = await getStateCourse({ course_id }).then(res => res.json())
+    const payload = await GetStateCourseService(course_id)
 
     if (payload) {
+        const data = payload[0]
         return {
-            title: `${payload.data?.title ?? 'Missing course'} | Learning`,
-            description: `${payload.data?.description || 'Sorry, something is error !'}`
+            title: `${data.title ?? 'Missing course'} | Learning`,
+            description: `${data.description || 'Sorry, something is error !'}`
         }
     }
 }

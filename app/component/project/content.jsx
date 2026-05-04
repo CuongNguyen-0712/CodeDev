@@ -1,12 +1,11 @@
 'use client'
 import { useState, useEffect } from "react"
 
-import GetProjectService from "@/app/services/getService/projectService";
-import PostRegisterProjectService from "@/app/services/postService/registerProjectService";
-
 import { useQuery } from "@/app/router/router";
 
 import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
+
+import { api } from "@/app/lib/axios";
 
 import { LoadingContent } from "../ui/loading";
 import { ErrorReload } from "../ui/error";
@@ -18,6 +17,8 @@ import { uniqWith } from "lodash";
 import { FaArrowRight, FaChevronDown, FaUsers, FaUser } from "react-icons/fa";
 import { HiOutlineClipboardDocumentList } from "react-icons/hi2";
 
+import { useApp } from "@/app/contexts/appContext";
+
 const statusConfig = {
     'Open': {
         color: "#10b981",
@@ -27,7 +28,7 @@ const statusConfig = {
         color: "#f43f5e",
         bg: "rgba(244, 63, 94, 0.1)",
     },
-    'Coming soon': {
+    'Comming soon': {
         color: "#f97316",
         bg: "rgba(249, 115, 22, 0.1)",
     },
@@ -137,7 +138,8 @@ export function ProjectItem({
     );
 }
 
-export default function ProjectContent({ redirect }) {
+export default function ProjectContent() {
+    const { setRedirect, showAlert } = useApp();
     const queryNavigate = useQuery();
 
     const filterMapping = [
@@ -260,25 +262,35 @@ export default function ProjectContent({ redirect }) {
 
         try {
             const adjustedOffset = Math.max(0, load.offset - load.countRequest);
-            const res = await GetProjectService({ search: state.search.trim(), limit: load.limit, offset: adjustedOffset.toString(), filter: state.filter ?? {} });
-            if (res.status === 200) {
+            const response = await api.get('get/getProject', {
+                params: {
+                    search: state.search.trim(),
+                    limit: load.limit,
+                    offset: adjustedOffset.toString(),
+                    methods: state.filter?.method,
+                    statuses: state.filter?.status,
+                    difficulties: state.filter?.difficulty
+                }
+            });
+            if (response.data.success) {
+                const data = Array.isArray(response.data.data) ? response.data.data : [];
                 setLoad((prev) => ({
                     ...prev,
-                    hasMore: res.data.length >= load.limit,
+                    hasMore: data.length >= load.limit,
                     offset: prev.offset + prev.limit
                 }))
                 setState((prev) => ({
                     ...prev,
-                    data: uniqWith([...prev.data, ...res.data], (a, b) => a.id === b.id),
+                    data: uniqWith([...prev.data, ...data], (a, b) => a.id === b.id),
                     pending: false
                 }))
             }
             else {
-                setState((prev) => ({ ...prev, error: { status: res.status, message: res.message || "Something is wrong" }, pending: false }))
+                setState((prev) => ({ ...prev, error: { status: response.status, message: response.data.message || "Something is wrong" }, pending: false }))
             }
         }
         catch (err) {
-            setState((prev) => ({ ...prev, error: { status: err.status || 500, message: 'External server error' }, pending: false }));
+            setState((prev) => ({ ...prev, error: { status: err.response?.status || 500, message: 'External server error' }, pending: false }));
         }
     }
 
@@ -302,8 +314,8 @@ export default function ProjectContent({ redirect }) {
         startHandling(id);
 
         try {
-            const res = await PostRegisterProjectService({ projectId: id });
-            if (res.status === 200) {
+            const reponse = await api.post('post/postRegisterProject', { projectId: id });
+            if (reponse.data.success) {
                 setLoad((prev) => ({
                     ...prev,
                     countRequest: prev.countRequest + 1
@@ -313,21 +325,21 @@ export default function ProjectContent({ redirect }) {
                     data: prev.data.filter((item) => item.id !== id)
                 }));
                 setAlert({
-                    status: res.status,
+                    status: reponse.status,
                     message: `Register project successfully: ${name}`
                 })
             }
             else {
                 setAlert({
-                    status: res.status,
+                    status: reponse.status,
                     message: `Register project failed: ${name}`
                 })
             }
         }
         catch (err) {
             setAlert({
-                status: err.status || 500,
-                message: "Internal server error"
+                status: err.response?.status || 500,
+                message: err.response?.data?.message || "Internal server error"
             })
         } finally {
             stopHandling(id);
@@ -342,7 +354,7 @@ export default function ProjectContent({ redirect }) {
 
     const handleRedirect = () => {
         queryNavigate('home', { tab: 'project' });
-        redirect(true)
+        setRedirect(true)
     }
 
     const handleSubmitSearch = () => {

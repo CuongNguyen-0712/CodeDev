@@ -1,40 +1,21 @@
+import bcrypt from "bcryptjs";
+import { v4 as uuidv4 } from "uuid";
+
+import { signUp } from "@/app/actions/auth/action";
+import { ApiError } from "@/app/lib/error/apiError";
+
 export default async function SignUpService(data) {
-    try {
-        const res = await fetch('/api/auth/signUp', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data),
-        })
+    const { surname, name, email, username, password } = data;
 
-        if (res.status === 404) {
-            return {
-                status: 404,
-                message: "Something is missing, try again"
-            }
-        }
+    const id = uuidv4();
+    const salt = await bcrypt.genSalt(10);
+    const hashPassword = await bcrypt.hash(password, salt);
 
-        const raw = await res.json();
+    const result = await signUp({ id, surname, name, email, username, password: hashPassword });
 
-        if (res.ok) {
-            return {
-                status: res.status,
-                success: raw.success,
-                message: raw.message
-            }
-        } else {
-            return {
-                status: res.status,
-                success: raw.success,
-                message: raw.message
-            }
-        }
+    if (!result) {
+        throw new ApiError("Failed to sign up user", 500);
     }
-    catch (err) {
-        return {
-            status: 500,
-            message: err.message
-        }
-    }
+
+    return true
 }

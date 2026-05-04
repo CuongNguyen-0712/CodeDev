@@ -1,7 +1,9 @@
 'use client'
 import dynamic from 'next/dynamic';
-
 import { useSearchParams } from 'next/navigation';
+
+import { useApp } from '@/app/contexts/appContext';
+
 import { PageError } from '../ui/error';
 
 const components = {
@@ -12,7 +14,8 @@ const components = {
 };
 
 
-export default function Content({ redirect, alert }) {
+export default function Content() {
+    const { showAlert, setRedirect } = useApp();
     const params = useSearchParams();
     const page = params.get('tab') || 'overview';
     const Page = components[page];
@@ -20,7 +23,7 @@ export default function Content({ redirect, alert }) {
     if (!Page) return <PageError />;
 
     return <Page
-        redirect={redirect}
-        alert={alert}
+        redirect={setRedirect}
+        alert={showAlert}
     />;
 }

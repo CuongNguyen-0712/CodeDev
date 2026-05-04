@@ -15,6 +15,7 @@
 @import "./style/project.css";
 @import "./style/ui.css";
 @import "./style/footer.css";
+@import "./style/roadmap.css";
 
 @font-face {
     font-family: 'myFont';
@@ -29,6 +30,7 @@
     padding: 0;
     box-sizing: border-box;
     scroll-behavior: smooth;
+    data-scroll-smooth: smooth;
     font-family: 'myFont', sans-serif;
 }
 

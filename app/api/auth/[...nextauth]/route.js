@@ -1,7 +1,12 @@
 import NextAuth from "next-auth";
 import GithubProvider from "next-auth/providers/github";
-import { createSession } from "@/app/lib/session";
+import CredentialsProvider from "next-auth/providers/credentials";
+
+import { ApiError } from "@/app/lib/error/apiError";
+
 import { sql } from "@/app/lib/db";
+
+import bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
 
 export const authOptions = {
@@ -14,77 +19,118 @@ export const authOptions = {
                     scope: "read:user user:email",
                 },
             },
-        })
+        }),
+
+        CredentialsProvider({
+            name: "credentials",
+            credentials: {
+                username: {},
+                password: {},
+            },
+            async authorize(credentials) {
+                const { username, password } = credentials;
+
+                if (!username || !password) {
+                    return null;
+                }
+
+                try {
+                    const data = await sql.query(
+                        `SELECT * FROM log_in($1)`,
+                        [username]
+                    );
+
+                    if (!data || data.length === 0) {
+                        return null;
+                    }
+
+                    const user = data[0];
+
+                    const isValid = await bcrypt.compare(password, user.password);
+
+                    if (!isValid) {
+                        return null;
+                    }
+
+                    return {
+                        id: user.id,
+                        name: user.username,
+                        email: user.email,
+                    };
+
+                } catch (err) {
+                    console.error(err);
+                    throw new Error("Internal server error");
+                }
+            }
+        }),
     ],
 
     callbacks: {
-        async signIn({ user, account, profile }) {
-            // user = [id, name, email, image]
-            // account = [provider, providerAccountId, type]
-            // profile = [login, id, node_id, avatar_url, gravatar_id, url, html_url, followers_url, following_url, gists_url, starred_url, subscriptions_url, organizations_url, repos_url, events_url, received_events_url, type, site_admin]
-            try {
-                if (!account || !account.provider) {
-                    console.error("Missing account info");
-                    return false;
+        async jwt({ token, user, account, profile }) {
+            if (account && user) {
+                try {
+                    const email =
+                        user.email ||
+                        profile?.emails?.[0]?.value;
+
+                    if (!email) {
+                        throw new ApiError("Email is required", 400);
+                    }
+
+                    const image = user.image || null;
+
+                    if (account.provider === "github") {
+
+                        const res = await sql.query(
+                            `SELECT auth_with_provider($1, $2, $3, $4, $5, $6) AS id`,
+                            [
+                                uuidv4(),
+                                user.name,
+                                email,
+                                image,
+                                account.provider,
+                                account.providerAccountId,
+                            ]
+                        );
+
+                        if (!res || res.length === 0) {
+                            throw new ApiError("Authentication failed", 401);
+                        }
+
+                        token.id = res[0].id;
+                    }
+
+                    if (account.provider === "credentials") {
+                        token.id = user.id;
+                    }
+
+                    token.username = user.name;
+                    token.email = email;
+                    token.provider = account.provider;
+
+                } catch (err) {
+                    console.error("JWT error:", err);
+                    throw new ApiError("Internal Server Error", 500);
                 }
-
-                const email = user.email || (profile.emails && profile.emails[0] && profile.emails[0].value);
-                if (!email) {
-                    console.error("Email not found in user or profile");
-                    return false;
-                }
-
-                const resImg = await fetch(user.image);
-
-                if (!resImg.ok) {
-                    console.error("Failed to fetch avatar");
-                    return false;
-                }
-
-                const arrayBuffer = await resImg.arrayBuffer();
-                const contentType = resImg.headers.get("content-type") || "image/jpeg";
-
-                const base64 = Buffer.from(arrayBuffer).toString("base64");
-                const image = `data:${contentType};base64,${base64}`;
-
-                const _id = uuidv4();
-
-                const query = `
-                    SELECT auth_with_provider($1, $2, $3, $4, $5, $6) AS id;
-                `;
-
-                const params = [
-                    _id,
-                    user.name,
-                    email,
-                    image,
-                    account.provider,
-                    account.providerAccountId,
-                ];
-
-                const res = await sql.query(query, params);
-
-                if (!res || res.length === 0) {
-                    console.error("Failed to create or retrieve user session");
-                    return false;
-                }
-
-                const userId = res[0].id;
-
-                const sessionData = {
-                    userId,
-                    username: user.name || profile.login,
-                    email: email
-                };
-
-                await createSession(sessionData);
-
-                return true;
-
-            } catch (error) {
-                console.error("Error during sign in:", error);
-                return false;
             }
+
+            return token;
+        },
+
+        async session({ session, token }) {
+            session.user.id = token.id;
+            session.user.username = token.username;
+            session.user.email = token.email;
+            session.user.provider = token.provider;
+
+            return session;
+        },
+
+        async redirect({ url, baseUrl }) {
+            if (url.startsWith("/")) return `${baseUrl}${url}`;
+            if (new URL(url).origin === baseUrl) return url;
+            return baseUrl;
         },
     },
 };

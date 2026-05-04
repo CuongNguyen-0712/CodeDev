@@ -30,12 +30,12 @@ export default function Dashboard({ isDashboard, handleDashboard }) {
   const [showOther, setShowOther] = useState(false);
 
   const menuList = [
-    { name: "Overview", icon: <MdSpaceDashboard />, badge: null },
-    { name: "Learning", icon: <FaCode />, badge: "5" },
-    { name: "Project", icon: <VscProject />, badge: null },
-    { name: "Social", icon: <FaUsers />, badge: "12" },
-    { name: "Roadmap", icon: <GoProjectRoadmap />, badge: null },
-    { name: "Event", icon: <MdEmojiEvents />, badge: "3" },
+    { name: "Overview", icon: <MdSpaceDashboard /> },
+    { name: "Learning", icon: <FaCode /> },
+    { name: "Project", icon: <VscProject /> },
+    { name: "Social", icon: <FaUsers /> },
+    { name: "Roadmap", icon: <GoProjectRoadmap /> },
+    { name: "Event", icon: <MdEmojiEvents /> },
   ];
 
   const refDashboard = (e) => {
@@ -80,7 +80,7 @@ export default function Dashboard({ isDashboard, handleDashboard }) {
           </div>
           <button className="dash-upgrade">
             <FaCrown />
-            <span>PRO</span>
+            <span>Upgrade</span>
           </button>
         </div>
 
@@ -109,9 +109,6 @@ export default function Dashboard({ isDashboard, handleDashboard }) {
                   >
                     <span className="link-icon">{item.icon}</span>
                     <span className="link-text">{item.name}</span>
-                    {item.badge && (
-                      <span className="link-badge">{item.badge}</span>
-                    )}
                   </button>
                 </li>
               ))}

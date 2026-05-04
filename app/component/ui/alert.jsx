@@ -5,6 +5,7 @@ import { IoWarning, IoCloseCircle, IoCheckmarkCircle, IoInformationCircle, IoClo
 const alertConfig = {
     0: { icon: IoInformationCircle, color: 'var(--color_primary)', bg: 'rgba(48, 102, 190, 0.1)', label: 'Info' },
     200: { icon: IoCheckmarkCircle, color: 'var(--color_green)', bg: 'rgba(16, 185, 129, 0.1)', label: 'Success' },
+    201: { icon: IoCheckmarkCircle, color: 'var(--color_green)', bg: 'rgba(16, 185, 129, 0.1)', label: 'Success' },
     500: { icon: IoCloseCircle, color: 'var(--color_red)', bg: 'rgba(244, 63, 94, 0.1)', label: 'Error' },
     default: { icon: IoWarning, color: 'var(--color_orange)', bg: 'rgba(249, 115, 22, 0.1)', label: 'Warning' }
 };

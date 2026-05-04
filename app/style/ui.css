@@ -101,7 +101,6 @@
     width: 100%;
     height: 100%;
     flex-grow: 1;
-    padding: 24px;
     gap: 16px;
 }
 
@@ -235,6 +234,8 @@
     flex-direction: column;
     align-items: center;
     text-align: center;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: var(--radius_md);
     padding: 32px 24px;
     width: 100%;
     gap: 16px;
@@ -1032,7 +1033,6 @@
     align-items: center;
     justify-content: space-between;
     border-radius: var(--radius_md);
-    border: 1px solid var(--color_primary_light);
     background: var(--color_white);
     padding: 0 6px 0 12px;
 }
@@ -1519,4 +1519,203 @@
     .code_block_header {
         max-width: none;
     }
+}
+
+/* Input */
+.field-input {
+    display: flex;
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    height: max-content;
+}
+
+.field-input>input {
+    display: flex;
+    height: 52px;
+    width: 100%;
+    padding: 22px 40px 8px 40px;
+    border: 2px solid var(--color_gray_light);
+    border-radius: var(--radius_md);
+    background: var(--color_white);
+    font-size: 15px;
+    outline: none;
+    transition: all 0.25s ease;
+}
+
+.field-input>input[name="password"],
+.field-input>input[name="re_password"],
+.field-input>input[name="pass"] {
+    padding-right: 80px;
+}
+
+.field-input>input:focus {
+    border-color: var(--color_primary);
+    box-shadow: 0 0 0 4px rgba(48, 102, 190, 0.1);
+}
+
+.field-input>input:read-only {
+    background: var(--color_gray_light);
+    cursor: not-allowed;
+}
+
+.field-input>label {
+    display: flex;
+    position: absolute;
+    top: 16px;
+    left: 40px;
+    font-size: 14px;
+    color: var(--color_gray);
+    pointer-events: none;
+    transition: all 0.2s ease;
+}
+
+.field-input>input:focus+label,
+.field-input.has-content>label {
+    top: 6px;
+    left: 40px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--color_primary);
+}
+
+.field-input .icon {
+    display: flex;
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%) scale(0);
+    color: var(--color_gray);
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.field-input>input:focus~.icon,
+.field-input.has-content .icon {
+    transform: translateY(-50%) scale(1);
+    color: var(--color_primary);
+}
+
+.field-input .clear {
+    display: flex;
+    position: absolute;
+    top: 50%;
+    right: 14px;
+    transform: translateY(-50%) scale(0);
+    background: transparent;
+    cursor: pointer;
+    pointer-events: none;
+    transition: all 0.2s ease;
+}
+
+.field-input.has-content .clear {
+    transform: translateY(-50%) scale(1);
+    pointer-events: all;
+}
+
+.field-input .eye_password {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    right: 40px;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 32px;
+    width: 32px;
+    border-radius: var(--radius_sm);
+    background: transparent;
+    color: var(--color_gray);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.field-input .eye_password:hover {
+    background: var(--color_gray_light);
+    color: var(--color_primary);
+}
+
+.field-input p {
+    display: flex;
+    position: absolute;
+    align-items: center;
+    top: 56px;
+    left: 14px;
+    font-size: 12px;
+    color: var(--color_red);
+    font-weight: 600;
+    gap: 5px;
+}
+
+/* Area */
+.area_input {
+    position: relative;
+}
+
+.area_input label {
+    display: flex;
+    position: absolute;
+    align-items: center;
+    top: 10px;
+    left: 6px;
+    font-size: 14px;
+    color: var(--color_gray);
+    background: transparent;
+    border-radius: var(--radius_sm);
+    padding: 5px 10px;
+    pointer-events: none;
+    gap: 5px;
+    transition: all 0.2s ease;
+}
+
+.area_input label .label_icon {
+    display: none;
+}
+
+.area_input.has-content label .label_icon {
+    display: flex;
+}
+
+.area_input textarea:focus+label,
+.area_input.has-content>label {
+    left: 20px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--color_primary);
+    background: var(--color_white);
+}
+
+.area_input textarea {
+    display: flex;
+    width: 100%;
+    padding: 14px 14px 8px 14px;
+    border: 2px solid var(--color_gray_light);
+    border-radius: var(--radius_md);
+    background: var(--color_white);
+    font-size: 15px;
+    outline: none;
+    transition: all 0.25s ease;
+    resize: none;
+    min-height: 150px;
+}
+
+.area_input.has-content textarea {
+    padding-top: 35px;
+}
+
+.area_input textarea:focus {
+    border-color: var(--color_primary);
+    box-shadow: 0 0 0 4px rgba(48, 102, 190, 0.1);
+}
+
+.area_input p {
+    display: flex;
+    position: absolute;
+    align-items: center;
+    bottom: -20px;
+    left: 14px;
+    font-size: 12px;
+    color: var(--color_red);
+    font-weight: 600;
+    gap: 5px;
 }

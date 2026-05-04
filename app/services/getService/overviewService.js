@@ -1,40 +1,13 @@
-import { getSession } from "@/app/lib/session";
+import { getOverview } from "@/app/actions/get/action";
 
-export default async function GetOverviewService() {
-    const id = (await getSession())?.userId;
-    try {
-        const res = await fetch(`/api/get/getOverview?id=${id}`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        });
+import { ApiError } from "@/app/lib/error/apiError";
 
-        if (res.status === 404) {
-            return {
-                status: 404,
-                message: "API not found"
-            }
-        }
+export default async function GetOverviewService(data) {
+    const result = await getOverview(data);
 
-        const raw = await res.json();
-        if (res.ok) {
-            return {
-                status: res.status,
-                data: raw.data
-            };
-        }
-        else {
-            return {
-                status: res.status,
-                message: raw.message
-            }
-        }
-
-    } catch (err) {
-        return {
-            status: 500,
-            message: err.message
-        }
+    if (!result) {
+        throw new ApiError(404, "Failed to load overview");
     }
+
+    return result;
 }

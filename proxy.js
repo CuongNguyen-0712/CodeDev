@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
-import { getSession } from './app/lib/session'
+import { getToken } from 'next-auth/jwt'
 
 export default async function proxy(req) {
     const path = req.nextUrl.pathname
-    const session = await getSession()
+    const token = await getToken({ req })
+
+    const isLoggedIn = !!token
 
     if (path.startsWith('/api/auth')) {
         return NextResponse.next()
@@ -22,19 +24,19 @@ export default async function proxy(req) {
     const isPublicApi = publicApis.some(api => path.startsWith(api))
 
     if (isApiRoute && isPublicApi) {
-        return NextResponse.next()
+        return NextResponse.next();
     }
 
-    if (isApiRoute && !session?.userId) {
-        return NextResponse.redirect(new URL('/auth', req.nextUrl))
+    if (isApiRoute && !isLoggedIn) {
+        return NextResponse.redirect(new URL('/auth', req.nextUrl));
     }
 
-    if (isProtectedRoute && !session?.userId) {
-        return NextResponse.redirect(new URL('/auth', req.nextUrl))
+    if (isProtectedRoute && !isLoggedIn) {
+        return NextResponse.redirect(new URL('/auth', req.nextUrl));
     }
 
-    if (isPublicRoute && session?.userId) {
-        return NextResponse.redirect(new URL('/home', req.nextUrl))
+    if (isPublicRoute && isLoggedIn) {
+        return NextResponse.redirect(new URL('/home', req.nextUrl));
     }
 
     return NextResponse.next()

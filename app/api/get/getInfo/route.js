@@ -1,7 +1,26 @@
-import { getInfo } from "@/app/actions/get/action";
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+
+import { ApiError } from "@/app/lib/error/apiError";
+
+import GetInfoService from "@/app/services/getService/infoService";
 
 export async function GET(req) {
-    const searchParams = req.nextUrl.searchParams;
-    const data = searchParams.get('id');
-    return await getInfo(data);
+    try {
+        const session = await getServerSession(authOptions);
+
+        if (!session) {
+            throw new ApiError("Unauthorized", 401);
+        }
+
+        const data = session.user.id;
+
+        const response = await GetInfoService(data);
+
+        return NextResponse.json({ success: true, data: response }, { status: 200 });
+    } catch (error) {
+
+        return NextResponse.json({ message: error.message || "Internal Server Error" }, { status: error.status || 500 });
+    }
 }

@@ -1,4 +1,10 @@
-import cloudinary from "@/app/lib/cloudinary";
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+
+import { ApiError } from "@/app/lib/error/apiError";
+
+import UploadService from "@/app/services/postService/uploadService";
 
 export async function POST(req) {
     try {
@@ -6,23 +12,18 @@ export async function POST(req) {
         const file = formData.get("file");
 
         if (!file || !file.type.startsWith("image/")) {
-            return new Response(JSON.stringify({ error: "Invalid file type" }), { status: 400 });
+            return NextResponse.json({ error: "Invalid file type" }, { status: 400 });
         }
 
         if (file.size > 5 * 1024 * 1024) {
-            return new Response(JSON.stringify({ error: "File too large" }), { status: 400 });
+            return NextResponse.json({ error: "File too large" }, { status: 400 });
         }
 
-        const arrayBuffer = await file.arrayBuffer();
-        const base64 = Buffer.from(arrayBuffer).toString("base64");
-        const dataUri = `data:${file.type};base64,${base64}`;
+        const url = await UploadService(file, "uploads");
 
-        const uploadResult = await cloudinary.uploader.upload(dataUri, { folder: "uploads" });
+        return NextResponse.json({ success: true, data: url }, { status: 200 });
+    } catch (error) {
 
-        return new Response(JSON.stringify({ url: uploadResult.secure_url }), { status: 200 });
-
-    } catch (err) {
-        console.error(err);
-        return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+        return NextResponse.json({ message: error.message || "Internal Server Error" }, { status: error.status || 500 });
     }
 }

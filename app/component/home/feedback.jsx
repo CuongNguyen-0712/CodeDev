@@ -7,13 +7,17 @@ import Form from "next/form";
 import { IoClose } from "react-icons/io5";
 import { HiSparkles, HiPaperAirplane } from "react-icons/hi2";
 import { BiMessageDetail } from "react-icons/bi";
-import { MdWarning } from "react-icons/md";
 
-import PostFeedbackService from "@/app/services/postService/feedbackService";
+import { api } from "@/app/lib/axios";
 
 import { useQuery } from "@/app/router/router";
-import { FeedbackDefinition } from "@/app/lib/definition";
+
+import { FeedbackSchema } from "@/app/lib/definition";
+
+import { validate } from "@/app/helper/validate";
+
 import { LoadingContent } from "../ui/loading";
+import { InputGroup, TextAreaGroup } from "../ui/input";
 
 import useKey from "@/app/hooks/useKey";
 
@@ -45,18 +49,9 @@ export default function Feedback({ alert }) {
             handling: true,
         }));
 
-        if (!FeedbackDefinition(dataForm).success) {
-            setState((prev) => ({
-                ...prev,
-                handling: false,
-                error: FeedbackDefinition(dataForm).errors,
-            }));
-            return;
-        }
-
         try {
-            const res = await PostFeedbackService(dataForm);
-            if (res.status === 200) {
+            const response = await api.post("post/postFeedback", dataForm);
+            if (response.data.success) {
                 alert(200, "Thank you for your contribution!");
                 setDataForm((prev) => ({
                     ...prev,
@@ -69,14 +64,14 @@ export default function Feedback({ alert }) {
                 }));
             }
             else {
-                alert(res.status, res.message);
+                alert(response.status, response.data.message);
                 setState((prev) => ({
                     ...prev,
                     handling: false,
                 }));
             }
         } catch (err) {
-            alert(500, err.message || "An error occurred while submitting feedback");
+            alert(err.response?.status || 500, err.response?.data?.message || "An error occurred while submitting feedback");
             setState((prev) => ({
                 ...prev,
                 handling: false,
@@ -87,17 +82,28 @@ export default function Feedback({ alert }) {
     const handleChange = (e) => {
         const { name, value } = e.target;
 
-        setDataForm((prev) => ({
-            ...prev,
-            [name]: value
-        }));
+        const nextUpdate = {
+            ...dataForm,
+            [name]: value,
+        }
 
-        setState((prev) => ({
-            ...prev,
-            error: Object.fromEntries(
-                Object.entries(prev.error || {}).filter(([key, _]) => key !== name)
-            )
-        }));
+        const { errors } = validate(FeedbackSchema, nextUpdate);
+
+        setDataForm(nextUpdate);
+
+        setState((prev) => {
+            const { [name]: removed, ...rest } = prev.error || {}
+            return errors?.[name] ?
+                {
+                    ...prev,
+                    error: { ...prev.error, [name]: errors[name] }
+                }
+                :
+                {
+                    ...prev,
+                    error: rest
+                }
+        });
     };
 
     const handleClose = () => queryNavigate(pathname, { feedback: null });
@@ -127,42 +133,25 @@ export default function Feedback({ alert }) {
 
                 {/* Form Fields */}
                 <div className="feedback-body">
-                    <div className="form-field">
-                        <label htmlFor="title">Title</label>
-                        <input
-                            type="text"
-                            id="title"
-                            name="title"
-                            value={dataForm.title}
-                            onChange={handleChange}
-                            placeholder="Brief summary of your feedback"
-                            disabled={state.handling}
-                        />
-                        {state.error?.title && (
-                            <span className="field-error">
-                                <MdWarning />
-                                {state.error.title}
-                            </span>
-                        )}
-                    </div>
+                    <InputGroup
+                        name="title"
+                        label="Brief summary of your feedback"
+                        type="text"
+                        value={dataForm.title}
+                        icon={<BiMessageDetail className="icon" />}
+                        onChange={handleChange}
+                        error={state.error?.title}
+                        reset={() => setDataForm((prev) => ({ ...prev, title: "" }))}
+                    />
 
-                    <div className="form-field">
-                        <label htmlFor="feedback">Your Feedback</label>
-                        <textarea
-                            id="feedback"
-                            name="feedback"
-                            value={dataForm.feedback}
-                            onChange={handleChange}
-                            placeholder="Tell us what's on your mind..."
-                            disabled={state.handling}
-                        />
-                        {state.error?.feedback && (
-                            <span className="field-error">
-                                <MdWarning />
-                                {state.error.feedback}
-                            </span>
-                        )}
-                    </div>
+                    <TextAreaGroup
+                        name="feedback"
+                        label="Describe your feedback in details"
+                        value={dataForm.feedback}
+                        onChange={handleChange}
+                        error={state.error?.feedback}
+                        reset={() => setDataForm((prev) => ({ ...prev, feedback: "" }))}
+                    />
                 </div>
 
                 {/* Footer Actions */}

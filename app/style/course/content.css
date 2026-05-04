@@ -132,6 +132,7 @@
     justify-content: flex-start;
     height: 100%;
     width: 100%;
+    padding-right: 10px;
     flex-direction: column;
     overflow-y: auto;
     overflow-x: hidden;
@@ -563,12 +564,10 @@
 
     #course_param_content .slider {
         position: absolute;
-        height: calc(100% - 64px);
         right: 0;
-        bottom: -100%;
-        width: 100%;
-        max-width: 320px;
+        max-width: 425px;
         border-right: none;
+        border-radius: 0;
         border-left: 1px solid var(--color_gray_light);
         box-shadow: var(--shadow_xl);
         z-index: 5;
@@ -577,8 +576,6 @@
     #course_param_content .slider.active {
         bottom: 0;
         width: 100%;
-        max-width: 320px;
-        border-top-left-radius: var(--radius_md);
     }
 
     .lesson_view #view {
@@ -587,12 +584,6 @@
 }
 
 @media screen and (max-width: 480px) {
-    #course_param_content .slider.active {
-        max-width: 100%;
-        border-top-left-radius: var(--radius_lg);
-        border-top-right-radius: var(--radius_lg);
-    }
-
     #view_state {
         max-width: 100%;
     }

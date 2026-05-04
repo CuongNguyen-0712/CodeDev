@@ -1,41 +1,13 @@
-import { getSession } from "@/app/lib/session";
+import { getInfo } from "@/app/actions/get/action";
 
-export default async function GetInfoService() {
-    const id = (await getSession())?.userId;
-    try {
-        const res = await fetch(`/api/get/getInfo?id=${id}`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        });
+import { ApiError } from "@/app/lib/error/apiError";
 
-        if (res.status === 404) {
-            return {
-                status: 404,
-                message: "API not found"
-            }
-        }
+export default async function GetInfoService(data) {
+    const result = await getInfo(data);
 
-        const raw = await res.json();
-
-        if (res.ok) {
-            return {
-                status: res.status || 200,
-                data: raw.data
-            }
-        }
-        else {
-            return {
-                status: res.status || 500,
-                message: raw.message
-            }
-        }
+    if (!result) {
+        throw new ApiError("Failed to load info", 500);
     }
-    catch (err) {
-        return {
-            status: 500,
-            message: err.message
-        }
-    }
+
+    return result;
 }

@@ -1,42 +1,13 @@
-import { getSession } from "@/app/lib/session";
+import { getStateCourse } from "@/app/actions/get/action";
 
-export default async function GetStateCourseService({ course_id }) {
-    const params = new URLSearchParams();
-    params.set('course_id', course_id);
-    params.set('user_id', (await getSession())?.userId);
+import { ApiError } from "@/app/lib/error/apiError";
 
-    try {
-        const res = await fetch(`/api/get/getStateCourse?${params.toString()}`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        });
+export default async function GetStateCourseService(data) {
+    const result = await getStateCourse(data);
 
-        if (res.status === 404) {
-            return {
-                status: 404,
-                message: "API not found"
-            }
-        }
-
-        const raw = await res.json();
-
-        if (res.ok) {
-            return {
-                status: res.status,
-                data: raw.data
-            };
-        } else {
-            return {
-                status: res.status,
-                message: raw.message
-            }
-        }
-    } catch (error) {
-        return {
-            status: 500,
-            message: error.message
-        }
+    if (!result) {
+        throw new ApiError("Failed to load course state, try again later", 500);
     }
+
+    return result;
 }

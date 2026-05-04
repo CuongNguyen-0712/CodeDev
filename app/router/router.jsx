@@ -6,15 +6,16 @@ export function useRouterActions() {
     const router = useRouter();
 
     return {
-        navigateToCurrent: () => router.push("/", { shallow: true }),
-        navigateToHome: () => router.push("/home", { shallow: true }),
-        navigateToAuth: () => router.push("/auth", { shallow: true }),
-        navigateToSocial: () => router.push("/social", { shallow: true }),
-        navigateToCourse: (param) => router.push(`/course/${param ?? ''}`, { shallow: true }),
-        navigateToProject: (param) => router.push(`/project/${param ?? ''}`, { shallow: true }),
-        navigateToLearning: (param) => router.push(`/learning/${param ?? ''}`, { shallow: true }),
-        navigateToEvent: () => router.push("/event", { shallow: true }),
-        navigateToTask: (param) => router.push(`/task/${param ?? ''}`, { shallow: true }),
+        navigateToCurrent: () => router.push("/"),
+        navigateToHome: () => router.push("/home"),
+        navigateToAuth: () => router.push("/auth"),
+        navigateToSocial: () => router.push("/social"),
+        navigateToCourse: (param) => router.push(`/course/${param ?? ''}`),
+        navigateToProject: (param) => router.push(`/project/${param ?? ''}`),
+        navigateToLearning: (param) => router.push(`/learning/${param ?? ''}`),
+        navigateToEvent: () => router.push("/event"),
+        navigateReplace: (path) => router.replace(path),
+        navigateToTask: (param) => router.push(`/task/${param ?? ''}`),
         navigateBack: () => router.back(),
         handleRefresh: () => router.refresh(),
     };

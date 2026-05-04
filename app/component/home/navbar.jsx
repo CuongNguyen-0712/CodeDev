@@ -4,11 +4,14 @@ import { usePathname } from "next/navigation";
 
 import { useQuery, useRouterActions } from "@/app/router/router";
 import { useAuth } from "@/app/contexts/authContext";
-import { deleteSession } from "@/app/lib/session";
+
+import { signOut } from "next-auth/react";
 
 import useOutside from "@/app/hooks/useOutside";
 
-import { FaListUl, FaChevronDown } from "react-icons/fa";
+import { LoadingContent } from "../ui/loading";
+
+import { FaListUl, FaChevronDown, FaChevronLeft } from "react-icons/fa";
 import { IoSearch, IoSettingsSharp, IoLogOut } from "react-icons/io5";
 import { MdEmail, MdNotifications } from "react-icons/md";
 import { FaPlus } from "react-icons/fa6";
@@ -22,7 +25,7 @@ export default function Navbar({ handleDashboard, redirect }) {
   const [dropdown, setDropdown] = useState(false);
 
   const queryNavigate = useQuery();
-  const { navigateToTask, navigateToAuth } = useRouterActions();
+  const { navigateToTask, navigateReplace, navigateBack, navigateToAuth } = useRouterActions();
 
   const ref = useOutside({
     stateOutside: dropdown,
@@ -32,7 +35,8 @@ export default function Navbar({ handleDashboard, redirect }) {
   const handleLogout = async () => {
     try {
       redirect(true);
-      await deleteSession();
+      await signOut({ redirect: false });
+      navigateReplace("/auth");
     } catch (error) {
       redirect(false);
     }
@@ -58,9 +62,13 @@ export default function Navbar({ handleDashboard, redirect }) {
       <nav id="navbar">
         {/* Left Section - Logo & Menu */}
         <div className="nav-left">
-          {(pathname === '/' || pathname === '/home') && (
+          {(pathname === '/' || pathname === '/home') ? (
             <button className="nav-icon-btn menu-btn" onClick={() => handleDashboard(true)}>
               <FaListUl />
+            </button>
+          ) : (
+            <button className="nav-icon-btn back-btn" onClick={navigateBack}>
+              <FaChevronLeft fontSize={16} />
             </button>
           )}
           <div className="nav-brand">
@@ -112,9 +120,16 @@ export default function Navbar({ handleDashboard, redirect }) {
                     <HiUser />
                   </div>
                   <div className="account-info">
-                    <span className="account-name">{session?.username || 'Account'}</span>
+                    {
+                      session ?
+                        <span className="account-name">
+                          {session?.username.length > 7 ? session.username.slice(0, 7) + '...' : session.username}
+                        </span>
+                        :
+                        <LoadingContent scale={0.5} color={'var(--color_white)'} />
+                    }
                   </div>
-                  <FaChevronDown className={`account-arrow ${dropdown ? 'rotated' : ''}`} />
+                  <FaChevronDown fontSize={14} className={`account-arrow ${dropdown ? 'rotated' : ''}`} />
                 </button>
 
                 <div className={`account-dropdown ${dropdown ? 'active' : ''}`}>
@@ -122,10 +137,14 @@ export default function Navbar({ handleDashboard, redirect }) {
                     <div className="dropdown-avatar">
                       <HiUser />
                     </div>
-                    <div className="dropdown-user">
-                      <h4>{session?.username || 'User'}</h4>
-                      <p>{session?.email || 'user@email.com'}</p>
-                    </div>
+                    {
+                      session ?
+                        <div className="dropdown-user">
+                          <h4>{session?.username || 'User'}</h4>
+                          <p>{session?.email || 'user@email.com'}</p>
+                        </div> :
+                        <LoadingContent scale={0.5} />
+                    }
                   </div>
 
                   <div className="dropdown-divider" />

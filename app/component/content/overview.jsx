@@ -7,8 +7,7 @@ import { LoadingContent } from '../ui/loading';
 import { ErrorReload } from '../ui/error';
 import { useQuery } from '@/app/router/router';
 
-import GetOverviewService from '@/app/services/getService/overviewService';
-import GetInfoService from '@/app/services/getService/infoService';
+import { api } from '@/app/lib/axios';
 
 import { FaAngleRight, FaStar, FaRankingStar, FaBook, FaGraduationCap, FaFire, FaChartLine } from 'react-icons/fa6';
 import { HiSparkles } from 'react-icons/hi2';
@@ -40,14 +39,15 @@ export default function Overview() {
 
     const fetchData = async () => {
         try {
-            const resData = await GetOverviewService();
+            const response = await api.get('/get/getOverview');
 
-            if (resData.status === 200) {
+            if (response.data.success) {
+                const data = response.data.data || [];
                 setState((prev) => ({
                     ...prev,
                     data: {
                         ...prev.data,
-                        data: resData.data,
+                        data: data,
                     },
                     load: {
                         ...prev.load,
@@ -63,8 +63,8 @@ export default function Overview() {
                         ...prev.error,
                         data:
                         {
-                            status: resData.status,
-                            message: resData.message ?? "Something is wrong !"
+                            status: response.status,
+                            message: response.message ?? "Something is wrong !"
                         }
                     },
                     load: {
@@ -81,7 +81,7 @@ export default function Overview() {
                 error: {
                     ...prev.error,
                     data: {
-                        status: 500,
+                        status: err.status ?? 500,
                         message: err.message ?? "Something is wrong !"
                     }
                 },
@@ -96,14 +96,14 @@ export default function Overview() {
 
     const fetchInfo = async () => {
         try {
-            const resInfo = await GetInfoService();
-
-            if (resInfo.status === 200) {
+            const response = await api.get('/get/getInfo');
+            if (response.data.success) {
+                const data = response.data.data[0] || [];
                 setState((prev) => ({
                     ...prev,
                     data: {
                         ...prev.data,
-                        info: resInfo.data[0] ?? [],
+                        info: data,
                     },
                     load: {
                         ...prev.load,
@@ -119,8 +119,8 @@ export default function Overview() {
                         ...prev.error,
                         info:
                         {
-                            status: resInfo.status,
-                            message: resInfo.message ?? "Something is wrong !"
+                            status: response.status,
+                            message: response.message ?? "Something is wrong !"
                         }
                     },
                     load: {
@@ -137,7 +137,7 @@ export default function Overview() {
                 error: {
                     ...prev.error,
                     info: {
-                        status: 500,
+                        status: err.status ?? 500,
                         message: err.message ?? "Something is wrong !"
                     }
                 },
@@ -165,13 +165,6 @@ export default function Overview() {
         fetchData();
     }, []);
 
-    useEffect(() => {
-        if (params.get('update')) {
-            fetchInfo();
-            queryNavigate(pathname, { update: false });
-        }
-    }, [params])
-
     const progressCourse = [
         { status: 'Enrolled', color: 'var(--color_primary)', icon: <FaBook /> },
         { status: 'In Progress', color: 'var(--color_orange)', icon: <FaFire /> },
@@ -180,29 +173,42 @@ export default function Overview() {
     ];
 
     const languageStats = useMemo(() => {
-        const groupedLanguages = state.data.data.filter((data) => data.status === 'In Progress').reduce((acc, item) => {
-            if (!acc[item.language]) {
-                acc[item.language] = {
-                    id: item.language,
-                    logo: item.logo,
-                    color: item.color,
-                    count: 1,
-                };
-            } else {
-                acc[item.language].count++;
-            }
-            return acc;
-        }, {});
+        const list = Array.isArray(state.data?.data) ? state.data.data : [];
 
-        return Object.values(groupedLanguages).sort((a, b) => b.count - a.count);
-    }, [state.data.data])
+        const groupedLanguages = list
+            .filter(item => item.status === 'In Progress')
+            .reduce((acc, item) => {
+                if (!acc[item.language]) {
+                    acc[item.language] = {
+                        id: item.language,
+                        logo: item.logo,
+                        color: item.color,
+                        count: 1,
+                    };
+                } else {
+                    acc[item.language].count++;
+                }
+                return acc;
+            }, {});
+
+        return Object.values(groupedLanguages);
+    }, [state.data]);
 
     const stats = useMemo(() => {
-        const total = state.data.data.length;
-        const inProgress = state.data.data.filter(c => c.status === 'In Progress').length;
-        const completed = state.data.data.filter(c => c.status === 'Completed').length;
-        return { total, inProgress, completed };
-    }, [state.data.data]);
+        const list = Array.isArray(state.data?.data) ? state.data.data : [];
+
+        return list.reduce(
+            (acc, c) => {
+                acc.total++;
+
+                if (c.status === 'In Progress') acc.inProgress++;
+                if (c.status === 'Completed') acc.completed++;
+
+                return acc;
+            },
+            { total: 0, inProgress: 0, completed: 0 }
+        );
+    }, [state.data?.data]);
 
     return state.pending ? (
         <LoadingContent />
@@ -226,7 +232,7 @@ export default function Overview() {
                                 <p>Track your progress and continue your learning journey</p>
                             </div>
                             <div className="welcome-avatar">
-                                <Image src={state.data.info.image.trim()} height={80} width={80} alt="avatar" priority />
+                                <Image src={state.data.info.image || '/image/static/default.svg'} height={80} width={80} alt="avatar" priority />
                                 <button className="edit-btn" onClick={() => queryNavigate(window.location.pathname, { manage: true })}>
                                     <MdEdit />
                                 </button>
@@ -311,10 +317,10 @@ export default function Overview() {
                                     <div className="skill-header">
                                         <img src={item.logo?.trim()} alt="icon_language" />
                                         <span className="skill-name">{item.id}</span>
-                                        <span className="skill-percent">{((item.count / languageStats.length) * 100).toFixed(0)}%</span>
+                                        <span className="skill-percent">{((item.count / stats.inProgress) * 100).toFixed(0)}%</span>
                                     </div>
                                     <div className="skill-bar">
-                                        <div className="skill-progress" style={{ background: item.color, width: `${((item.count / languageStats.length) * 100).toFixed(2)}%` }} />
+                                        <div className="skill-progress" style={{ background: item.color, width: `${((item.count / stats.inProgress) * 100).toFixed(2)}%` }} />
                                     </div>
                                 </div>
                             ))
@@ -344,7 +350,9 @@ export default function Overview() {
                         ) : (
                             <div className="progress-list">
                                 {progressCourse.map((item, index) => {
-                                    const filtered = state.data.data.filter(course => course.status === item.status);
+                                    const list = Array.isArray(state.data?.data) ? state.data.data : [];
+                                    const filtered = list.filter(course => course.status === item.status);
+
                                     return (
                                         <div className={`progress-item ${target === index ? 'active' : ''}`} key={index}>
                                             <div className="progress-header" onClick={() => setTarget(target === index ? null : index)}>
@@ -359,7 +367,7 @@ export default function Overview() {
                                             </div>
                                             <div className="progress-detail">
                                                 {filtered.length > 0 ? (
-                                                    filtered.slice(0, 3).map((course, key) => (
+                                                    filtered.map((course, key) => (
                                                         <div className="course-item" key={key}>
                                                             <img src={course.image?.trim()} alt="course" />
                                                             <div className="course-info">

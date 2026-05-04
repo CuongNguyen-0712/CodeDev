@@ -6,8 +6,12 @@ import Image from "next/image"
 
 import { useRouterActions } from "@/app/router/router"
 
-import { SignUpDefinition } from "@/app/lib/definition"
-import SignUpService from "@/app/services/authService/signUp"
+import { api } from "@/app/lib/axios"
+
+import { SignUpSchema } from "@/app/lib/definition"
+
+import { validate } from "@/app/helper/validate"
+
 import { LoadingContent } from "../ui/loading"
 import { InputGroup } from "../ui/input"
 
@@ -41,35 +45,38 @@ export default function Logup({ active, changeForm, redirect, setAlert, callback
 
         setIsPending(true)
 
-        const check = SignUpDefinition(formData)
-        if (check.success) {
+        const { success, errors } = validate(SignUpSchema, formData)
+        if (success) {
             try {
                 const { re_password, agree, ...data } = formData
-                const res = await SignUpService(data)
+                const response = await api.post("/auth/signUp", data)
 
-                if (res.status === 200 && res.success) {
-                    setAlert({ status: res.status, message: res.message })
-                    setIsPending(false)
+                if (response.data.success) {
+                    setAlert({ status: response.status, message: "Sign up successfully, please login" })
                     setFormData(defaultState)
+                    setIsPending(false)
                     changeForm()
                 } else {
+                    setAlert({ status: response.status, message: "An error occurred during sign up" })
                     setIsPending(false)
-                    setAlert({ status: res.status, message: res.message })
                 }
             } catch (err) {
                 setIsPending(false)
-                setAlert({ status: 500, message: err.message })
+                setAlert({ status: err.response?.status || 500, message: err.response?.data.message || "An error occurred during sign up" })
             }
         } else {
-            setValidation(check.errors)
+            setValidation(errors)
             setIsPending(false)
         }
     }
 
-    const handleValidation = ({ name, value = '' }) => {
-        const { errors } = (name === 're_password' || name === 'password')
-            ? SignUpDefinition({ ...formData, [name]: value })
-            : SignUpDefinition({ [name]: value })
+    const handleValidation = ({ name, value }) => {
+        const nextUpdate = {
+            ...formData,
+            [name]: value
+        }
+
+        const { errors } = validate(SignUpSchema, nextUpdate)
 
         setValidation((prev) => {
             const { [name]: removed, ...rest } = prev || {}
@@ -85,25 +92,25 @@ export default function Logup({ active, changeForm, redirect, setAlert, callback
 
     const handleClear = (name) => {
         setFormData((prev) => ({ ...prev, [name]: '' }))
-        handleValidation({ name })
+        handleValidation({ name, value: '' })
     }
 
     const handleCallback = async () => {
         setCallbackPending(true)
         try {
             const response = await callback()
+            redirect(true)
             if (response?.error) {
-                setAlert({ status: 500, message: response.error })
+                setAlert({ status: err.response?.status, message: err.response?.data.message || err.message || "An error occurred during authentication" })
+                redirect(false)
             }
             else {
                 setAlert({ status: 200, message: 'Authenticating...' })
-                setTimeout(() => {
-                    redirect()
-                    navigateToHome()
-                }, 2000)
+                navigateToHome()
             }
         } catch (err) {
-            setAlert({ status: 500, message: 'An error occurred during sign up, please try again' })
+            setAlert({ status: err.response?.status || 500, message: err.response?.data.message || err.message || "An error occurred during authentication" })
+            redirect(false)
         } finally {
             setCallbackPending(false)
         }
@@ -117,7 +124,7 @@ export default function Logup({ active, changeForm, redirect, setAlert, callback
             <header className="form_header">
                 <Image src="/image/static/logo.svg" width={48} height={48} alt="CodeDev Logo" />
                 <h2>Create Account</h2>
-                <p>Join <Link href="/" onClick={redirect}>CodeDev</Link> community</p>
+                <p>Join <Link href="/" onClick={() => redirect(true)}>CodeDev</Link> community</p>
             </header>
 
             <div className="step_indicator">

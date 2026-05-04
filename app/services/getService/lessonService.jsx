@@ -1,32 +1,13 @@
-import { client } from "@/app/lib/sanity";
+import { getLesson } from "@/app/actions/get/action";
 
-export default async function getLessonService(id) {
-    try {
-        const query = `*[_type == "lesson" && _id == $id][0]{
-            title,
-            slug,
-            description,
-            content
-        }`;
+import { ApiError } from "@/app/lib/error/apiError";
 
-        const lesson = await client.fetch(query, { id });
+export default async function getLessonService(data) {
+    const lesson = await getLesson(data);
 
-        if (!lesson) {
-            return {
-                status: 404,
-                message: "Lesson not found"
-            }
-        }
-        else {
-            return {
-                status: 200,
-                data: lesson
-            }
-        }
-    } catch (error) {
-        return {
-            status: 500,
-            message: "Failed to fetch lesson"
-        }
+    if (!lesson) {
+        throw new ApiError("Failed to load lesson, try again later", 500);
     }
+
+    return lesson;
 }

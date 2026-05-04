@@ -18,7 +18,7 @@ export default function useKey({ key = 'Escape', param }) {
 
         const queryString = currentParams.toString()
 
-        router.push(
+        router.replace(
             queryString ? `${pathname}?${queryString}` : pathname,
             { scroll: false }
         )

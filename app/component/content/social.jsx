@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+
 import Image from 'next/image'
 import Form from 'next/form'
 
-import GetMySocialService from '@/app/services/getService/mySocialService'
-import PostCreateTeamService from '@/app/services/postService/createTeamService'
+import { api } from '@/app/lib/axios'
 
-import { CreateTeamDefinition } from '@/app/lib/definition'
+import { validate } from '@/app/helper/validate'
+import { CreateTeamSchema } from '@/app/lib/definition'
 
 import useInfiniteScroll from '@/app/hooks/useInfiniteScroll'
 import useOutside from '@/app/hooks/useOutside'
@@ -13,19 +14,25 @@ import useOutside from '@/app/hooks/useOutside'
 import { ErrorReload } from '../ui/error'
 import { LoadingContent } from '../ui/loading'
 import SearchBar from '../ui/searchBar'
+import { InputGroup, TextAreaGroup } from '../ui/input'
 
-import { uniqWith, debounce } from 'lodash'
+import { startCase, uniqWith } from 'lodash'
 
 import Contact from './contact'
 
-import { FaHashtag, FaRankingStar, FaRegUser, FaPlus, FaUser, FaUserGroup } from 'react-icons/fa6'
-import { IoWarningOutline, IoShareSocial, IoSearch } from "react-icons/io5";
-import { IoMdMore } from "react-icons/io";
-import { MdDeleteForever, MdAdd, MdEdit } from "react-icons/md";
+import { FaHashtag, FaChevronLeft, FaRankingStar, FaRegUser, FaPlus, FaUser, FaUserGroup } from 'react-icons/fa6'
+import { IoShareSocial } from "react-icons/io5";
+import { IoMdMore, IoMdResize } from "react-icons/io";
+import { MdDeleteForever, MdAdd, MdEdit, MdGroupAdd } from "react-icons/md";
 import { PiSignOutBold } from "react-icons/pi";
 
-export default function Social({ redirect }) {
+export default function Social({ redirect, alert }) {
     const refDropdowns = useRef({})
+
+    const requestApi = {
+        friend: 'get/getMyFriends',
+        team: 'get/getMyTeams',
+    }
 
     const [state, setState] = useState({
         data: {
@@ -33,13 +40,22 @@ export default function Social({ redirect }) {
             team: [],
         },
         pending: true,
-        error: null,
+        error: {
+            friend: null,
+            team: null,
+        },
         activeTab: 'friend',
-        hasMore: true,
+        hasMore: {
+            friend: true,
+            team: true,
+        },
         hasSearch: false,
         contact: false,
-        limit: 5,
-        offset: 0,
+        limit: 20,
+        offset: {
+            friend: 0,
+            team: 0,
+        },
         search: '',
     })
 
@@ -53,15 +69,18 @@ export default function Social({ redirect }) {
     const [create, setCreate] = useState({
         isShown: false,
         pending: false,
-        error: null,
-        name: '',
-        size: 0,
+        definition: null,
+        data: {
+            name: '',
+            size: '2',
+            description: '',
+        }
     })
 
     const { setRef } = useInfiniteScroll({
         hasMore: state.hasMore,
         onLoadMore: () => {
-            if (!isProcessing && state.hasMore) {
+            if (!isProcessing && state.hasMore[state.activeTab]) {
                 setApiQueue((prev) => [...prev, { type: "fetch" }]);
             }
         }
@@ -78,77 +97,61 @@ export default function Social({ redirect }) {
     const [isProcessing, setIsProcessing] = useState(false);
 
     const fetchData = async () => {
-        if (!state.hasMore) return;
+        if (!state.hasMore[state.activeTab]) return;
 
-        setState(prev => ({ ...prev, error: null, pending: true }))
+        setState(prev => ({ ...prev, error: { ...prev.error, [state.activeTab]: null }, pending: true }))
 
         try {
-            const res = await GetMySocialService({ tab: state.activeTab, search: state.search })
-            if (res.status === 200) {
+            const response = await api.get(requestApi[state.activeTab], {
+                params: {
+                    search: state.search,
+                    offset: state.offset[state.activeTab].toString(),
+                    limit: state.limit,
+                }
+            })
+            if (response.data.success) {
+                const data = Array.isArray(response.data.data) ? response.data.data : [];
                 setState(prev => ({
                     ...prev,
                     data: {
                         ...prev.data,
-                        [state.activeTab]: uniqWith([...prev.data[state.activeTab], ...res.data], (a, b) => state.activeTab === 'friend' ? a.username === b.username : a.team_id === b.team_id)
+                        [state.activeTab]: uniqWith(
+                            [...prev.data[state.activeTab], ...data],
+                            (a, b) => a.team_id === b.team_id
+                        )
+                    },
+                    offset: {
+                        ...prev.offset,
+                        [state.activeTab]: prev.offset[state.activeTab] + data.length
+                    },
+                    hasMore: {
+                        ...prev.hasMore,
+                        [state.activeTab]: data.length === prev.limit
                     },
                     pending: false
                 }))
             }
             else {
-                setState((prev) => ({ ...prev, error: { status: res.status, message: res.message }, pending: false }))
+                setState((prev) => ({ ...prev, error: { ...prev.error, [state.activeTab]: { status: response.status, message: response.data.message } }, pending: false }))
             }
         }
         catch (err) {
-            setState((prev) => ({ ...prev, error: { status: 500, message: err.message }, pending: false }))
+            setState((prev) => ({ ...prev, error: { ...prev.error, [state.activeTab]: { status: err.response?.status || 500, message: err?.response?.data?.message || 'Something is wrong, please try again' } }, pending: false }))
         }
     }
 
     useEffect(() => {
         setState((prev) => ({
             ...prev,
-            hasMore: true
+            hasMore: {
+                ...state.hasMore,
+                [state.activeTab]: true
+            }
         }))
         setApiQueue((prev) => [...prev, { type: 'fetch' }])
     }, [state.activeTab])
 
-
-    const executeCreateTeam = async () => {
-        setCreate(prev => ({ ...prev, pending: true }))
-        try {
-            const res = await PostCreateTeamService({ name: create.name, size: create.size })
-            if (res.status === 200) {
-                setCreate(prev => ({
-                    ...prev,
-                    name: '',
-                    size: 0,
-                    pending: false
-                }))
-                await fetchData();
-            }
-            else {
-                setCreate(prev => ({
-                    ...prev,
-                    error: {
-                        status: res.status,
-                        message: res.message
-                    },
-                    pending: false
-                }))
-            }
-        }
-        catch (err) {
-            setCreate(prev => ({
-                ...prev,
-                error: {
-                    status: 500,
-                    message: err.message
-                },
-                pending: false
-            }))
-        }
-    }
-
-    const processQueue = () => {
+    const processQueue = async () => {
         if (isProcessing || apiQueue.length === 0) return;
 
         setIsProcessing(true);
@@ -156,15 +159,14 @@ export default function Social({ redirect }) {
         const task = apiQueue[0];
 
         if (task.type === "fetch") {
-            fetchData()
-        }
-        else {
-            task.execute()
+            await fetchData();
+        } else {
+            await task.execute();
         }
 
-        setApiQueue((prev) => prev.slice(1));
+        setApiQueue(prev => prev.slice(1));
         setIsProcessing(false);
-    }
+    };
 
     useEffect(() => {
         processQueue();
@@ -180,8 +182,15 @@ export default function Social({ redirect }) {
                     ...prev.data,
                     [prev.activeTab]: []
                 },
-                offset: 0,
-                hasMore: true,
+                error: {
+                    ...prev.error,
+                    [prev.activeTab]: null
+                },
+                hasMore: {
+                    ...prev.hasMore,
+                    [prev.activeTab]: true
+                },
+                hasSearch: false,
                 pending: true
             }))
             setApiQueue((prev) => [...prev, { type: "fetch" }]);
@@ -194,8 +203,14 @@ export default function Social({ redirect }) {
                 ...prev.data,
                 [prev.activeTab]: []
             },
-            offset: 0,
-            hasMore: true,
+            offset: {
+                ...prev.offset,
+                [prev.activeTab]: 0
+            },
+            hasMore: {
+                ...prev.hasMore,
+                [prev.activeTab]: true
+            },
             hasSearch: true,
             pending: true
         }))
@@ -211,31 +226,121 @@ export default function Social({ redirect }) {
         handleSubmitSearch();
     }
 
-    const refecthData = () => {
-        setState((prev) => ({ ...prev, error: null, data: { ...state.data, [state.activeTab]: [] }, pending: true }));
+    const refetchData = () => {
+        setState((prev) => ({
+            ...prev,
+            error: {
+                ...prev.error,
+                [state.activeTab]: null
+            },
+            data: {
+                ...state.data,
+                [state.activeTab]: []
+            },
+            pending: true
+        }));
         fetchData();
     }
 
-    const handleCreate = (e) => {
+    const handleCreate = async (e) => {
         e.preventDefault();
-        const check = CreateTeamDefinition({ name: create.name, size: create.size })
-        if (check.success) {
-            executeCreateTeam()
+
+        if (create.pending) return;
+
+        setCreate(prev => ({ ...prev, pending: true }))
+
+        try {
+            const { success, errors } = validate(CreateTeamSchema, create.data);
+
+            if (success) {
+                const response = await api.post('post/postCreateTeam', create.data)
+
+                if (response.data.success) {
+                    setCreate(prev => ({
+                        ...prev,
+                        data: {
+                            name: '',
+                            size: '2',
+                            description: '',
+                        },
+                        definition: null,
+                        pending: false
+                    }))
+                    setState((prev) => ({
+                        ...prev,
+                        data: {
+                            ...prev.data,
+                            team: []
+                        },
+                        offset: {
+                            ...prev.offset,
+                            team: 0
+                        },
+                        hasMore: {
+                            ...prev.hasMore,
+                            team: true
+                        },
+                        pending: true
+                    }))
+                    setApiQueue((prev) => [...prev, { type: "fetch" }]);
+                    alert(201, "Team created successfully")
+                }
+                else {
+                    alert(response.status, response.data.message)
+                }
+            }
+            else {
+                setCreate(prev => ({ ...prev, pending: false, definition: errors }))
+            }
         }
-        else {
-            setCreate((prev) => ({ ...prev, error: check.errors }))
+        catch (err) {
+            alert(err.response?.status || 500, err?.response?.data?.message || 'Something is wrong, please try again')
+        }
+        finally {
+            setCreate(prev => ({ ...prev, pending: false }))
         }
     }
 
     const handleChangeCreate = (e) => {
         const { name, value } = e.target
-        setCreate((prev) => ({
-            ...prev,
-            [name]: value,
-            error: Object.fromEntries(
-                Object.entries(prev.error || {}).filter(([key]) => key !== name)
-            ),
-        }))
+
+        const nextUpdate = {
+            ...create.data,
+            [name]: name === 'size' ? value.replace(/[^0-9]/g, "").slice(-1) : value
+        };
+
+        const { errors } = validate(
+            CreateTeamSchema,
+            nextUpdate
+        );
+
+        setCreate((prev) => {
+            const { [name]: removed, ...rest } = prev.definition || {};
+
+            return {
+                ...prev,
+                data: nextUpdate,
+                definition: errors?.[name] ?
+                    { ...prev.definition, [name]: errors[name] }
+                    :
+                    rest
+            }
+        })
+    }
+
+    const handleClearCreate = (name) => {
+        setCreate((prev) => {
+            const { [name]: removed, ...rest } = prev.definition || {};
+
+            return {
+                ...prev,
+                data: {
+                    ...prev.data,
+                    [name]: ''
+                },
+                definition: rest
+            }
+        })
     }
 
     const handleRefDropdown = (e) => {
@@ -288,7 +393,8 @@ export default function Social({ redirect }) {
                         !isFriend &&
                         <button
                             type='button'
-                            className='empty_btn empty_btn_main'
+                            className='btn-primary'
+                            style={{ width: 'max-content', padding: '0 24px' }}
                             onClick={() => setCreate((prev) => ({ ...prev, isShown: true, error: null }))}
                         >
                             <FaPlus />
@@ -307,42 +413,52 @@ export default function Social({ redirect }) {
                     (state.data.friend?.length ?? 0) > 0 ?
                         state.data.friend.map((item, index) => (
                             <article className='social_card friend_card' key={item.username || item.nickname || index}>
+                                <div className='card_glow'></div>
                                 <div className='card-header'>
                                     <div className='friend_identity'>
-                                        <Image src={item.image || '/image/default.svg'} alt='avatar' width={64} height={64} />
+                                        <div className='avatar_container'>
+                                            <Image src={item.image || '/image/static/default.svg'} alt='avatar' width={64} height={64} className='friend_avatar' />
+                                            <span className='online_status'></span>
+                                        </div>
                                         <div className='friend_text'>
                                             <h3>{item.username || 'Unknown user'}</h3>
-                                            <p>
+                                            <p className='friend_nickname'>
                                                 <FaHashtag />
                                                 <span>{item.nickname || 'No nickname'}</span>
                                             </p>
                                         </div>
                                     </div>
-                                    <div className='friend_status'>
-                                        <span className='friend_badge'>Friend</span>
-                                        <span className='friend_rank_tag'>Rank {item.rank || '-'}</span>
+                                    <div className='friend_badges'>
+                                        <span className='badge badge_friend'>Friend</span>
+                                        <div className='rank_pill'>
+                                            <FaRankingStar />
+                                            <span>Rank {item.rank || '-'}</span>
+                                        </div>
                                     </div>
                                 </div>
 
                                 <div className='card-body'>
                                     <div className='friend_metrics'>
-                                        <div className='metric_item'>
-                                            <small>Level</small>
-                                            <strong>{item.level || '-'}</strong>
+                                        <div className='metric_box'>
+                                            <div className='metric_icon'>LVL</div>
+                                            <div className='metric_content'>
+                                                <small>Level</small>
+                                                <strong>{item.level || '-'}</strong>
+                                            </div>
                                         </div>
-                                        <div className='metric_item'>
-                                            <small>Star</small>
-                                            <strong>
-                                                <FaRankingStar />
-                                                {item.star ?? 0}
-                                            </strong>
+                                        <div className='metric_box'>
+                                            <div className='metric_icon star'><FaRankingStar /></div>
+                                            <div className='metric_content'>
+                                                <small>Stars</small>
+                                                <strong>{item.star ?? 0}</strong>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
                                 <div className='card-footer friend_footer'>
-                                    <button type='button' className='btn-main'>Info</button>
-                                    <button type='button' className='btn-sub'>Contact</button>
+                                    <button type='button' className='btn-glass'>View Profile</button>
+                                    <button type='button' className='btn-primary'>Message</button>
                                 </div>
                             </article>
                         ))
@@ -353,81 +469,6 @@ export default function Social({ redirect }) {
         ),
         team: (
             <div className='social_grid'>
-                <article className={`social_create ${create.isShown ? 'expanded' : ''}`}>
-                    <div className='create_head'>
-                        <h3>Create Team</h3>
-                        <button
-                            type='button'
-                            className='create_toggle'
-                            onClick={() => setCreate((prev) => ({ ...prev, isShown: !prev.isShown, error: null }))}
-                        >
-                            <FaPlus fontSize={14} />
-                        </button>
-                    </div>
-
-                    {
-                        create.isShown &&
-                        <Form className='create_form' onSubmit={handleCreate}>
-                            <label className='create_input'>
-                                <span>Name</span>
-                                <input
-                                    type='text'
-                                    name='name'
-                                    placeholder='Enter team name'
-                                    value={create.name}
-                                    onChange={handleChangeCreate}
-                                    disabled={create.pending}
-                                    autoComplete='off'
-                                />
-                                {
-                                    (create.error && create.error.name) &&
-                                    <p className='error_create'>
-                                        <IoWarningOutline fontSize={12} />
-                                        {create.error.name}
-                                    </p>
-                                }
-                            </label>
-
-                            <label className='create_input'>
-                                <span>Size</span>
-                                <input
-                                    type='text'
-                                    name='size'
-                                    placeholder='Enter team size'
-                                    inputMode='numeric'
-                                    value={create.size}
-                                    autoComplete='off'
-                                    onChange={handleChangeCreate}
-                                    disabled={create.pending}
-                                    maxLength={2}
-                                />
-                                {
-                                    (create.error && create.error.size) &&
-                                    <p className='error_create'>
-                                        <IoWarningOutline fontSize={12} />
-                                        {create.error.size}
-                                    </p>
-                                }
-                                {
-                                    (create.error && create.error.message) &&
-                                    <p className='error_create'>
-                                        <IoWarningOutline fontSize={12} />
-                                        {create.error.message}
-                                    </p>
-                                }
-                            </label>
-
-                            <button type='submit' className='btn-main create_submit' disabled={create.pending}>
-                                {
-                                    create.pending
-                                        ? <LoadingContent scale={0.4} color={'var(--color_white)'} />
-                                        : <>Create Team</>
-                                }
-                            </button>
-                        </Form>
-                    }
-                </article>
-
                 {
                     (state.data.team?.length ?? 0) > 0
                         ? state.data.team.map((item, index) => {
@@ -437,41 +478,58 @@ export default function Social({ redirect }) {
                             const progress = teamSize > 0 ? Math.min(100, Math.round((usedSlots / teamSize) * 100)) : 0
 
                             return (
-                                <article className='social_card team_card' key={item.team_id || item.team_name || index}>
+                                <article className='social_card team_card' key={item.team_id}>
+                                    <div className='card_glow'></div>
                                     <div className='card-header'>
                                         <div className='team_identity'>
-                                            <Image src={item.team_image || '/image/default.svg'} alt='team' width={64} height={64} />
+                                            <div className='team_image_wrapper'>
+                                                <Image src={item.team_image || '/image/default.svg'} alt='team' width={60} height={60} className='team_image' />
+                                            </div>
                                             <div className='team_text'>
                                                 <h3>{item.team_name || 'Untitled team'}</h3>
-                                                <p><strong>Host:</strong> {item.host_name || '-'}</p>
+                                                <p>Hosted by <strong>{item.host_name || '-'}</strong></p>
                                             </div>
                                         </div>
-                                        <span className='team_badge'>{usedSlots}/{teamSize || '-'}</span>
+                                        <div className='team_slot_pill'>
+                                            <FaUserGroup />
+                                            <span>{usedSlots}/{teamSize || '-'}</span>
+                                        </div>
                                     </div>
 
                                     <div className='card-body'>
-                                        <div className='team_progress'>
-                                            <span style={{ width: `${progress}%` }}></span>
+                                        <div className='progress_section'>
+                                            <div className='progress_info'>
+                                                <small>Team Fill</small>
+                                                <span>{progress}%</span>
+                                            </div>
+                                            <div className='team_progress_bar'>
+                                                <div className='progress_fill' style={{ width: `${progress}%` }}>
+                                                    <div className='progress_shimmer'></div>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className='team_members'>
-                                            <p>
+                                        <div className='team_member_preview'>
+                                            <div className='avatar_stack'>
                                                 {
                                                     memberList.length > 0
-                                                        ? memberList.map((member, memberIndex) => (
-                                                            <span key={`${member}-${memberIndex}`} data-name={member}>
+                                                        ? memberList.slice(0, 5).map((member, memberIndex) => (
+                                                            <div key={`${member}-${memberIndex}`} className='stack_item' data-name={member} title={member}>
                                                                 <FaRegUser />
-                                                            </span>
+                                                            </div>
                                                         ))
-                                                        : <em>No members yet</em>
+                                                        : <em className='no_members'>Be the first to join</em>
                                                 }
-                                            </p>
+                                                {memberList.length > 5 && <div className='stack_more'>+{memberList.length - 5}</div>}
+                                            </div>
                                         </div>
                                     </div>
 
                                     <div className='card-footer'>
-                                        <button type='button' className='btn-main'>Join</button>
+                                        <button type='button' className='btn-primary btn-join-team'>
+                                            {item.is_member ? 'Open Team' : 'Join Team'}
+                                        </button>
                                         <div
-                                            className='team_btns'
+                                            className='team_options'
                                             ref={(el) => {
                                                 if (el) refDropdowns.current[index] = el
                                                 else delete refDropdowns.current[index]
@@ -479,7 +537,7 @@ export default function Social({ redirect }) {
                                         >
                                             <button
                                                 type='button'
-                                                className='btn-sub icon_only'
+                                                className='btn-icon-sub'
                                                 onClick={() => {
                                                     setDropdown((prev) => ({
                                                         ...prev,
@@ -488,34 +546,34 @@ export default function Social({ redirect }) {
                                                     }))
                                                 }}
                                             >
-                                                <IoMdMore fontSize={18} />
+                                                <IoMdMore />
                                             </button>
                                             {
                                                 (dropdown.id === index && dropdown.isShown) &&
-                                                <div className='team_dropdown'>
+                                                <div className='team_dropdown_menu'>
                                                     {
                                                         item.is_host
                                                             ? <>
-                                                                <button className='team_edit_btn' type='button'>
+                                                                <button className='menu_item' type='button'>
                                                                     <MdEdit />
-                                                                    Edit
+                                                                    <span>Edit Team</span>
                                                                 </button>
                                                                 {
                                                                     usedSlots < teamSize &&
-                                                                    <button className='team_invite_btn' type='button'>
+                                                                    <button className='menu_item' type='button'>
                                                                         <MdAdd />
-                                                                        Invite
+                                                                        <span>Invite Friends</span>
                                                                     </button>
                                                                 }
-                                                                <span></span>
-                                                                <button className='team_delete_btn' type='button'>
+                                                                <div className='menu_divider'></div>
+                                                                <button className='menu_item danger' type='button'>
                                                                     <MdDeleteForever />
-                                                                    Delete
+                                                                    <span>Delete Team</span>
                                                                 </button>
                                                             </>
-                                                            : <button className='team_leave_btn' type='button'>
+                                                            : <button className='menu_item danger' type='button'>
                                                                 <PiSignOutBold />
-                                                                Leave
+                                                                <span>Leave Team</span>
                                                             </button>
                                                     }
                                                 </div>
@@ -533,27 +591,26 @@ export default function Social({ redirect }) {
 
     return (
         <>
-            <section id='social' className='social-v2'>
-                <div className='social-header'>
-                    <div className='header-content'>
-                        <div className='header-text'>
-                            <span className='header-label'>
-                                <IoShareSocial />
-                                Social Hub
-                            </span>
-                            <h2>Social Workspace</h2>
-                            <p>Manage friends, teams, and collaboration quickly.</p>
-                        </div>
-                        <div className='header-actions'>
-                            <button
-                                type='button'
-                                className='social-cta'
-                                onClick={() => setState((prev) => ({ ...prev, contact: !prev.contact }))}
-                            >
-                                <IoShareSocial fontSize={18} />
-                                Open Social
-                            </button>
-                        </div>
+            <section id='social'>
+                <div className='header-content'>
+                    <div className='header-text'>
+                        <span className='header-label'>
+                            <IoShareSocial />
+                            Social
+                        </span>
+                        <h1>My Network</h1>
+                        <p>Manage friends, teams, and collaboration quickly.</p>
+                    </div>
+                    <div className='header-actions'>
+                        <button
+                            type='button'
+                            className='header-btn'
+                            id='contact_dialog_btn'
+                            onClick={() => setState((prev) => ({ ...prev, contact: !prev.contact }))}
+                        >
+                            <IoShareSocial fontSize={18} />
+                            Open Social
+                        </button>
                     </div>
                 </div>
 
@@ -579,7 +636,6 @@ export default function Social({ redirect }) {
                             </span>
                             <span className='tab-copy'>
                                 <strong>Friends</strong>
-                                <small>People in your network</small>
                             </span>
                             <span className='tab-pill'>{friendCount}</span>
                         </button>
@@ -596,7 +652,6 @@ export default function Social({ redirect }) {
                             </span>
                             <span className='tab-copy'>
                                 <strong>Teams</strong>
-                                <small>Group and collaboration space</small>
                             </span>
                             <span className='tab-pill'>{teamCount}</span>
                         </button>
@@ -607,13 +662,99 @@ export default function Social({ redirect }) {
                     {
                         state.pending
                             ? <LoadingContent />
-                            : state.error
-                                ? <ErrorReload data={state.error} refetch={refecthData} />
-                                : views[state.activeTab] || null
+                            : state.error?.[state.activeTab]
+                                ? <ErrorReload data={state.error[state.activeTab]} refetch={refetchData} />
+                                :
+                                views[state.activeTab]
                     }
                 </div>
             </section>
             <Contact redirect={redirect} state={state.contact} setState={(value) => setState(prev => ({ ...prev, contact: value }))} />
+            {
+                state.activeTab === 'team' &&
+                <button
+                    type='button'
+                    className={`floating_create_btn ${create.isShown ? 'active' : ''}`}
+                    onClick={() => setCreate((prev) => ({ ...prev, isShown: !prev.isShown, error: null }))}
+                    aria-label='Create team'
+                >
+                    <div className='btn_icon'>
+                        <FaPlus />
+                    </div>
+                    <span className='btn_label'>Create Team</span>
+                </button>
+            }
+            <Form className={`create_form ${create.isShown ? 'active' : ''}`} onSubmit={handleCreate}>
+                <div className='create_form_header'>
+                    <div className='header_icon'>
+                        <MdGroupAdd />
+                    </div>
+                    <div className='header_text'>
+                        <h2>Build Your Team</h2>
+                        <p>Set up a new space for your squad to grow.</p>
+                    </div>
+                    <button
+                        type='button'
+                        className='create_close'
+                        onClick={() => setCreate(prev => ({ ...prev, isShown: false, error: null }))}
+                    >
+                        <FaChevronLeft fontSize={16} />
+                    </button>
+                </div>
+
+                <div className='create_form_body'>
+                    <div className='input_section'>
+                        <InputGroup
+                            name='name'
+                            label='Team name'
+                            value={create.data?.name}
+                            error={create.definition?.name}
+                            icon={<FaUserGroup className='icon' />}
+                            reset={handleClearCreate}
+                            onChange={handleChangeCreate}
+                        />
+                        <InputGroup
+                            name='size'
+                            label='Team size'
+                            type='text'
+                            inputMode='numeric'
+                            value={create.data?.size}
+                            error={create.definition?.size}
+                            icon={<IoMdResize className='icon' />}
+                            reset={handleClearCreate}
+                            onChange={handleChangeCreate}
+                        />
+                        <TextAreaGroup
+                            name='description'
+                            label='What is your team about?'
+                            value={create.data?.description}
+                            reset={handleClearCreate}
+                            onChange={handleChangeCreate}
+                        />
+                    </div>
+                </div>
+
+                <div className='create_form_footer'>
+                    <button
+                        type='button'
+                        className='btn_cancel'
+                        onClick={() => setCreate(prev => ({ ...prev, definition: null, data: { name: '', size: '', description: '' } }))}
+                    >
+                        Discard
+                    </button>
+                    <button type='submit' className='btn_submit' disabled={create.pending}>
+                        {
+                            create.pending
+                                ?
+                                <LoadingContent scale={0.4} color={'var(--color_white)'} />
+                                :
+                                <>
+                                    Confirm & Create
+                                </>
+                        }
+                    </button>
+                </div>
+            </Form>
         </>
     )
 }

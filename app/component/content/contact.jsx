@@ -2,14 +2,14 @@ import { useState, useEffect, useMemo } from "react";
 import Form from "next/form";
 import Image from "next/image";
 
-import GetSocialService from '@/app/services/getService/socialService'
 import useInfiniteScroll from '@/app/hooks/useInfiniteScroll'
 
 import { LoadingContent } from '../ui/loading'
 import { ErrorReload } from '../ui/error'
 import SearchBar from "../ui/searchBar";
 
-import { uniqWith, debounce } from "lodash";
+import { uniqWith } from "lodash";
+import { api } from "@/app/lib/axios";
 
 import { IoPersonAdd } from "react-icons/io5";
 import { FaUser, FaUserGroup, FaHashtag, FaArrowDownShortWide } from "react-icons/fa6";
@@ -61,30 +61,32 @@ export default function Contact({ redirect, state, setState }) {
 
         try {
             const currentOffset = social.offset;
-            const res = await GetSocialService({
-                search: social.search.trim(),
-                offset: currentOffset.toString(),
-                limit: social.limit,
-                filter: role,
+            const response = await api.get('get/getUsersSocial', {
+                params: {
+                    search: social.search.trim(),
+                    offset: currentOffset.toString(),
+                    limit: social.limit,
+                }
             })
 
-            if (res.status === 200) {
+            if (response.data.success) {
+                const data = Array.isArray(response.data.data) ? response.data.data : [];
                 setSocial(prev => ({
                     ...prev,
                     data: {
                         ...prev.data,
-                        [role]: uniqWith([...prev.data[role] ?? [], ...res.data], (a, b) => a.id === b.id),
+                        [role]: uniqWith([...prev.data[role] ?? [], ...data], (a, b) => a.id === b.id),
                     },
-                    hasMore: res.data.length >= prev.limit,
+                    hasMore: data.length >= prev.limit,
                     offset: currentOffset + prev.limit,
                     pending: false
                 }))
             }
             else {
-                setSocial(prev => ({ ...prev, error: { status: res.status, message: res.message }, pending: false }))
+                setSocial(prev => ({ ...prev, error: { status: response.status, message: response.data.message }, pending: false }))
             }
         } catch (err) {
-            setSocial(prev => ({ ...prev, error: { status: 500, message: err.message }, pending: false }))
+            setSocial(prev => ({ ...prev, error: { status: 500, message: 'Something is wrong, please try again' }, pending: false }))
         }
     }
 
@@ -189,124 +191,119 @@ export default function Contact({ redirect, state, setState }) {
         fetchData();
     }
 
-    const view = {
-        User: (
-            <>
-                {
-                    (social.data.user?.length ?? 0) > 0 ?
-                        social.data.user.map((item) => (
-                            <div key={item.id} className='item_social'>
-                                <div className='social_body'>
-                                    <div className='tag_heading'>
-                                        <Image
-                                            src={item.image}
-                                            alt='my_avatar'
-                                            width={64}
-                                            height={64}
-                                            quality={100}
-                                        />
-                                        <div className='social_identity'>
-                                            <h4>
-                                                {item.username}
-                                            </h4>
-                                            <p>
-                                                <FaHashtag />
-                                                {item.nickname}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <span className='social_type'>User</span>
-                                </div>
-                                <button type='button' className='social_action'>
-                                    <IoPersonAdd fontSize={16} />
-                                    Invite
-                                </button>
-                            </div>
-                        ))
-                        :
-                        <p className='social_empty'>No user can be found here !</p>
-                }
-            </>
-        ),
-        Team: (
-            <>
-                {
-                    (social.data.team?.length ?? 0) > 0 ?
-                        social.data.team.map((item) => (
-                            <div key={item.id} className='item_social'>
-                                <div className='social_body'>
-                                    <div className='tag_heading'>
-                                        <Image
-                                            src={item.image || '/image/static/default.svg'}
-                                            alt='team_avatar'
-                                            width={64}
-                                            height={64}
-                                            quality={100}
-                                        />
-                                        <div className='social_identity'>
-                                            <h4>{item.name}</h4>
-                                            <p>
-                                                <FaHashtag />
-                                                {item.nickname || 'Team'}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <span className='social_type'>Team</span>
-                                </div>
-                                <button type='button' className='social_action'>
-                                    <IoPersonAdd fontSize={16} />
-                                    Join
-                                </button>
-                            </div>
-                        ))
-                        :
-                        <p className='social_empty'>No team can be found here !</p>
-                }
-            </>
-        )
-    }
 
     return (
         <div className={`main_social ${state ? 'is_open' : 'is_close'}`}>
-            <div className='heading_view'>
-                <h3>Connect</h3>
-                <button type='button' onClick={() => setState(false)} aria-label='Close social panel'>
-                    <FaArrowDownShortWide fontSize={18} />
-                </button>
+            <div className='social_header'>
+                <div className='heading_view'>
+                    <div className='title_group'>
+                        <h3>Connect</h3>
+                        <p>Find and connect with others</p>
+                    </div>
+                    <button
+                        type='button'
+                        className='close_btn'
+                        onClick={() => setState(false)}
+                        aria-label='Close social panel'
+                    >
+                        <FaArrowDownShortWide fontSize={18} />
+                    </button>
+                </div>
+
+                <div className='social_controls'>
+                    <div className='social_tabs'>
+                        {roleSocial.map((item) => (
+                            <button
+                                key={item.name}
+                                type='button'
+                                className={`tab_item ${filter === item.name ? 'active' : ''}`}
+                                onClick={() => setFilter(item.name)}
+                            >
+                                {item.icon}
+                                <span>{item.name}s</span>
+                                {filter === item.name && <span className='active_indicator' />}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className='search_wrapper'>
+                        <SearchBar
+                            placeholder={`Search ${filter.toLowerCase()}...`}
+                            setSearch={(data) => setSocial((prev) => ({ ...prev, search: data }))}
+                            submit={handleSubmit}
+                            pending={social.pending}
+                            isFilter={false}
+                        />
+                    </div>
+                </div>
             </div>
-            <SearchBar
-                placeholder={`Search ${filter.toLowerCase()}...`}
-                setSearch={(data) => setSocial((prev) => ({ ...prev, search: data }))}
-                submit={handleSubmit}
-                pending={social.pending}
-                isFilter={false}
-            />
-            {
-                state &&
-                <>
-                    <div className='view_social'>
-                        {
-                            social.pending ?
+
+            <div className='view_social'>
+                {
+                    state && (
+                        social.pending && social.offset === 0 ?
+                            <div className='loading_state'>
                                 <LoadingContent scale={0.8} />
+                            </div>
+                            :
+                            social.error ?
+                                <ErrorReload data={social.error} refetch={refetchData} />
                                 :
-                                social.error ?
-                                    <ErrorReload data={social.error} refetch={refetchData} />
-                                    :
-                                    <div className='frame_social'>
-                                        {view[filter] || null}
-                                        {!social.pending && !social.error && (
-                                            social.hasMore ?
+                                <div className='frame_social'>
+                                    {social.data[filter.toLowerCase()]?.length > 0 ? (
+                                        <>
+                                            {social.data[filter.toLowerCase()].map((item) => (
+                                                <div key={item.id} className='item_social_card'>
+                                                    <div className='card_main'>
+                                                        <div className='avatar_wrapper'>
+                                                            <Image
+                                                                src={item.image || (filter === 'Team' ? '/image/static/default.svg' : '/image/static/default_user.svg')}
+                                                                alt={item.username || item.name}
+                                                                width={56}
+                                                                height={56}
+                                                                quality={100}
+                                                                className='social_avatar'
+                                                            />
+                                                            <div className={`status_indicator ${filter === 'User' ? 'online' : ''}`} />
+                                                        </div>
+                                                        <div className='social_info'>
+                                                            <div className='name_row'>
+                                                                <h4>{item.username || item.name}</h4>
+                                                                <span className='type_badge'>{filter}</span>
+                                                            </div>
+                                                            <p className='nickname'>
+                                                                <FaHashtag />
+                                                                {item.nickname || (filter === 'Team' ? 'Team' : 'User')}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className='card_actions'>
+                                                        <button type='button' className='action_btn'>
+                                                            <IoPersonAdd fontSize={16} />
+                                                            <span>{filter === 'User' ? 'Invite' : 'Join'}</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {!social.pending && social.hasMore && (
                                                 <span ref={setRef} className="load_wrapper">
                                                     <LoadingContent scale={0.5} />
                                                 </span>
-                                                :
-                                                null
-                                        )}
-                                    </div>
-                        }
-                    </div>
-                </>
-            }
-        </ div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <div className='empty_state'>
+                                            <div className='empty_icon'>
+                                                {filter === 'User' ? <FaUser /> : <FaUserGroup />}
+                                            </div>
+                                            <p>No {filter.toLowerCase()}s found</p>
+                                            <span>Try adjusting your search or filter</span>
+                                        </div>
+                                    )}
+                                </div>
+                    )
+                }
+            </div>
+        </div>
     )
 }

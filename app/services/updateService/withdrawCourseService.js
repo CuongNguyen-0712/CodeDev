@@ -1,41 +1,15 @@
-import { getSession } from "@/app/lib/session";
+import { updateWithdrawCourse } from "@/app/actions/patch/action";
+
+import { ApiError } from "@/app/lib/error/apiError";
 
 export default async function UpdateWithdrawCourseService(data) {
-    const id = (await getSession())?.userId;
-    const req = { course_id: data, user_id: id }
+    const { userId, courseId } = data;
 
-    try {
-        const res = await fetch('/api/update/updateWithdrawCourse', {
-            method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(req)
-        });
+    const result = await updateWithdrawCourse({ userId, courseId });
 
-        if (res.status === 404) {
-            return {
-                status: 404,
-                message: "API not found"
-            };
-        }
-
-        const raw = res.json();
-
-        if (res.ok) {
-            return {
-                status: res.status,
-            };
-        } else {
-            return {
-                status: res.status,
-                message: raw.message
-            };
-        }
-    } catch (error) {
-        return {
-            status: 500,
-            message: "Internal server error"
-        };
+    if (!result) {
+        throw new ApiError("Failed to withdraw course", 500);
     }
+
+    return result;
 }

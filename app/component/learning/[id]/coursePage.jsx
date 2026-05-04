@@ -8,10 +8,8 @@ import AlertPush from "../../ui/alert";
 import LessonPage from "./lessonPage";
 
 import { useRouterActions } from "@/app/router/router";
-import GetContentCourseService from "@/app/services/getService/contentCourseService";
-import GetContentLessonService from "@/app/services/getService/contentLessonService";
-import GetStateCourseService from "@/app/services/getService/stateCourseService";
-import UpdateLessonService from "@/app/services/updateService/lessonService";
+
+import { api } from "@/app/lib/axios";
 
 import { FaAngleLeft, FaAngleRight, FaCheck } from "react-icons/fa6";
 import { MdInfoOutline } from "react-icons/md";
@@ -62,23 +60,28 @@ export default function CoursePage({ params } = {}) {
         };
 
         try {
-            const res = await GetStateCourseService({ course_id: params.course_id })
-            if (res.status === 200) {
+            const response = await api.get(`/get/getStateCourse`, {
+                params: {
+                    courseId: params.course_id
+                }
+            });
+            if (response.data.success) {
+                const data = Array.isArray(response.data.data) ? response.data.data[0] : []
                 setState((prev) => ({
                     ...prev,
-                    data: res.data
+                    data: data
                 }))
             }
             else {
                 setAlert({
-                    status: res.status || 500,
-                    message: res.message || 'Something is wrong, try again!'
+                    status: response.status || 500,
+                    message: response.data?.message || 'Something is wrong, try again!'
                 })
             }
         } catch (err) {
             setAlert({
-                status: 500,
-                message: err.message || 'External server error'
+                status: err.response?.status || 500,
+                message: err.response?.data?.message || 'External server error'
             })
         } finally {
             setState((prev) => ({
@@ -100,10 +103,13 @@ export default function CoursePage({ params } = {}) {
         };
 
         try {
-            const res = await GetContentCourseService({ course_id: params.course_id });
-            if (res.status === 200) {
-                const validData = Array.isArray(res.data) ? [...res.data] : [];
-
+            const response = await api.get('get/getContentCourse', {
+                params: {
+                    courseId: params.course_id
+                }
+            });
+            if (response.data.success) {
+                const validData = Array.isArray(response.data.data) ? [...response.data.data] : [];
                 const data =
                     (hasSubmit
                         ? validData.find((item) => item.status === 'In Progress')
@@ -155,8 +161,8 @@ export default function CoursePage({ params } = {}) {
                 setCourse((prev) => ({
                     ...prev,
                     error: {
-                        status: res.status ?? 500,
-                        message: res.message || 'External error server'
+                        status: response.status ?? 500,
+                        message: response.data?.message || 'External error server'
                     },
                     pending: false
                 }))
@@ -165,8 +171,8 @@ export default function CoursePage({ params } = {}) {
             setCourse((prev) => ({
                 ...prev,
                 error: {
-                    status: 500,
-                    message: error.message || 'Something is error, try again!'
+                    status: error.response?.status ?? 500,
+                    message: error.response?.data?.message || 'Something is error, try again!'
                 },
                 pending: false
             }))
@@ -190,41 +196,34 @@ export default function CoursePage({ params } = {}) {
         }))
 
         try {
-            const res = await GetContentLessonService({ course_id: params.course_id, lesson_id: data });
-            if (res.status === 200) {
+            const response = await api.get('get/getContentLesson', {
+                params: {
+                    courseId: params.course_id,
+                    lessonId: data
+                }
+            });
+            if (response.data.success) {
+                const data = Array.isArray(response.data.data) ? response.data.data[0] : {}
                 setLesson((prev) => ({
                     ...prev,
-                    data: res.data?.[0],
+                    data: data,
                 }))
             }
             else {
-                if (res.status === 501) {
-                    setAlert({
-                        status: 500,
-                        message: res.message
-                    })
-                    setCourse((prev) => ({
-                        ...prev,
-                        module: lesson.data.module_id,
-                        lesson: lesson.data.lesson_id
-                    }))
-                }
-                else {
-                    setLesson((prev) => ({
-                        ...prev,
-                        error: {
-                            status: res.status ?? 500,
-                            message: res.message || 'Something is error, try again!'
-                        },
-                    }))
-                }
+                setLesson((prev) => ({
+                    ...prev,
+                    error: {
+                        status: response.status ?? 500,
+                        message: response.data?.message || 'Something is error, try again!'
+                    },
+                }))
             }
         } catch (err) {
             setLesson((prev) => ({
                 ...prev,
                 error: {
-                    status: 500,
-                    message: err.message || 'External server error'
+                    status: err.response?.status ?? 500,
+                    message: err.response?.data?.message || 'External server error'
                 },
             }))
         } finally {
@@ -266,24 +265,27 @@ export default function CoursePage({ params } = {}) {
         }))
 
         try {
-            const res = await UpdateLessonService({ course_id: params.course_id, lesson_id: lesson_id })
-            if (res.status === 200) {
+            const response = await api.patch('update/updateLesson', {
+                courseId: params.course_id,
+                lessonId: lesson_id
+            })
+            if (response.data.success) {
                 await getCourse({ hasSubmit: true });
-                setAlert({ status: res.status || 200, message: res.message || 'Congratulations, learn next lesson' })
+                setAlert({ status: response.status || 200, message: response.data?.message || 'Submit lesson successfully' })
             }
             else {
                 setLesson((prev) => ({
                     ...prev,
                     handling: false
                 }))
-                setAlert({ status: res.status || 500, message: res.message || 'Something is wrong, try again' })
+                setAlert({ status: response.status || 500, message: response.data?.message || 'Something is wrong, try again' })
             }
         } catch (err) {
             setLesson((prev) => ({
                 ...prev,
                 handling: false
             }))
-            setAlert({ status: 500, message: err.message || 'External server error' })
+            setAlert({ status: err.response?.status ?? 500, message: err.response?.data?.message || 'External server error' })
         }
     }
 
