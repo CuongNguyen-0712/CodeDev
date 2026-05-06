@@ -3,7 +3,8 @@ import { useState, useEffect, startTransition } from "react"
 
 import { LoadingContent } from "../../ui/loading";
 import { ErrorReload } from "../../ui/error";
-import AlertPush from "../../ui/alert";
+
+import { useApp } from "@/app/contexts/appContext";
 
 import LessonPage from "./lessonPage";
 
@@ -29,6 +30,7 @@ export default function CoursePage({ params } = {}) {
 
     const [slider, setSlider] = useState(false)
     const [view, setView] = useState(false)
+    const { showAlert: alert } = useApp();
 
     const [course, setCourse] = useState({
         module: null,
@@ -46,9 +48,6 @@ export default function CoursePage({ params } = {}) {
     })
 
     const [redirect, setRedirect] = useState(false)
-
-    const [alert, setAlert] = useState(null)
-
     const getStateCourse = async () => {
         if (!params.course_id) {
             setState((prev) => ({
@@ -73,16 +72,10 @@ export default function CoursePage({ params } = {}) {
                 }))
             }
             else {
-                setAlert({
-                    status: response.status || 500,
-                    message: response.data?.message || 'Something is wrong, try again!'
-                })
+                alert(response.status, response.data?.message || 'Failed to load course data. Please try again.');
             }
         } catch (err) {
-            setAlert({
-                status: err.response?.status || 500,
-                message: err.response?.data?.message || 'External server error'
-            })
+            alert(err.response?.status || 500, err.response?.data?.message || 'External server error');
         } finally {
             setState((prev) => ({
                 ...prev,
@@ -270,22 +263,22 @@ export default function CoursePage({ params } = {}) {
                 lessonId: lesson_id
             })
             if (response.data.success) {
+                alert(200, 'Congratulations! You have successfully completed this lesson.');
                 await getCourse({ hasSubmit: true });
-                setAlert({ status: response.status || 200, message: response.data?.message || 'Submit lesson successfully' })
             }
             else {
                 setLesson((prev) => ({
                     ...prev,
                     handling: false
                 }))
-                setAlert({ status: response.status || 500, message: response.data?.message || 'Something is wrong, try again' })
+                alert(response.status, response.data?.message || 'Something is wrong, try again');
             }
         } catch (err) {
+            alert(err.response?.status ?? 500, err.response?.data?.message || 'External server error');
             setLesson((prev) => ({
                 ...prev,
                 handling: false
             }))
-            setAlert({ status: err.response?.status ?? 500, message: err.response?.data?.message || 'External server error' })
         }
     }
 
@@ -364,8 +357,6 @@ export default function CoursePage({ params } = {}) {
                                                 isHandling={lesson.handling}
                                             />
                                         </div>
-                                        {/* <footer className="footer_view">
-                                            </footer> */}
                                     </>
                                     :
                                     <p className='no_data'>Data can not be loaded, please try again!</p>
@@ -512,11 +503,6 @@ export default function CoursePage({ params } = {}) {
                     }
                 </div>
             </div>
-            <AlertPush
-                message={alert?.message}
-                status={alert?.status}
-                reset={() => setAlert(null)}
-            />
         </div>
     )
 }

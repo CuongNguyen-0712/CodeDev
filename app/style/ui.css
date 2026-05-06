@@ -1135,6 +1135,7 @@
 .search-bar {
     display: flex;
     flex-direction: column;
+    height: 48px;
     width: 100%;
     gap: 16px;
 }
@@ -1143,7 +1144,7 @@
 .search-input-wrapper {
     display: flex;
     align-items: center;
-    height: 48px;
+    height: 100%;
     width: 100%;
     max-width: 500px;
     background: var(--gradient_card);
@@ -1152,6 +1153,7 @@
     box-shadow: var(--shadow_sm);
     padding: 0 6px 0 16px;
     gap: 12px;
+    flex-shrink: 0;
     transition: all 0.2s ease;
 }
 

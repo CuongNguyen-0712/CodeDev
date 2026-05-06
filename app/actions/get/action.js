@@ -120,7 +120,7 @@ export async function getCourse({ userId, search, limit, offset, prices, levels,
                 FROM course.register r
                 JOIN public.course c2 ON r.course_id = c2.id
                 WHERE r.user_id = $${params.length}
-                AND r.status = ANY(ARRAY['Enrolled','In Progress','Completed']::status_course[])
+                AND r.is_deleted = false
             )
         `);
 
@@ -204,6 +204,8 @@ export async function getMyCourse({ userId, search, limit, offset, markeds, stat
         params.push(levelsArray);
         conditions.push(`c.level = ANY($${params.length}::levelenum[])`);
     }
+
+    conditions.push(`r.is_deleted = false`);
 
     const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
@@ -335,7 +337,7 @@ export async function getMyTeams({ userId, search }) {
                 t1.id AS team_id,
                 t3.name AS team_name,
                 t3.size AS team_size,
-                t3.image AS team_image,
+                t3.image_url AS team_image,
                 u2.username AS host_name,
                 (u2.id = $1) AS is_host,
                 STRING_AGG(u1.username, ',') AS members
@@ -345,7 +347,7 @@ export async function getMyTeams({ userId, search }) {
             JOIN public.team t3 ON t3.id = t1.id
             JOIN private.users u2 ON u2.id = t3.host_id
             ${whereSQL}    
-            GROUP BY t1.id, t3.name, t3.size, t3.image, u2.username, u2.id
+            GROUP BY t1.id, t3.name, t3.size, t3.image_url, u2.username, u2.id
         `;
 
     return await sql.query(query, params);

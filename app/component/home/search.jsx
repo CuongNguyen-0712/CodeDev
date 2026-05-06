@@ -1,8 +1,9 @@
 'use client'
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { usePathname, useSearchParams } from "next/navigation";
 
 import useKey from "@/app/hooks/useKey";
+import SearchBar from "@/app/component/ui/searchBar";
 import { useQuery } from "@/app/router/useQuery";
 
 import { IoSearch, IoClose, IoTime, IoArrowBack } from "react-icons/io5";
@@ -30,7 +31,6 @@ export default function Search() {
     const pathname = usePathname();
     const params = useSearchParams();
     const search = params.get('search');
-    const inputRef = useRef(null);
 
     const [state, setState] = useState({
         query: "",
@@ -43,11 +43,6 @@ export default function Search() {
     const closeSearch = useCallback(() => {
         queryNavigate(pathname, { search: null });
     }, [queryNavigate, pathname]);
-
-    const clearInput = () => {
-        setState(prev => ({ ...prev, query: "" }));
-        inputRef.current?.focus();
-    };
 
     const addToHistory = (term) => {
         if (!term.trim()) return;
@@ -71,11 +66,6 @@ export default function Search() {
         }
     };
 
-    const handleHistoryClick = (term) => {
-        setState(prev => ({ ...prev, query: term }));
-        inputRef.current?.focus();
-    };
-
     const filteredLinks = state.links.filter(link => {
         const matchesQuery = !state.query ||
             link.name?.toLowerCase().includes(state.query.toLowerCase()) ||
@@ -97,45 +87,25 @@ export default function Search() {
             });
     }, []);
 
-    useEffect(() => {
-        document.body.style.overflow = search ? 'hidden' : 'unset';
-        if (search) {
-            setTimeout(() => inputRef.current?.focus(), 100);
-        }
-    }, [search]);
-
     if (!search) return null;
 
     return (
         <div className="search-modal" onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div className="search-header">
-                <Form className="search-form" onSubmit={submitSearch}>
                     <button type="button" className="search-back" onClick={closeSearch}>
                         <IoArrowBack />
                     </button>
-                    <div className="search-input-wrapper">
-                        <IoSearch className="search-icon" />
-                        <input
-                            ref={inputRef}
-                            type="text"
-                            name="search"
-                            value={state.query}
-                            placeholder="Search pages, links, projects..."
-                            autoComplete="off"
-                            onChange={(e) => setState(prev => ({ ...prev, query: e.target.value }))}
+                    <SearchBar
+                        setSearch={(value) => setState(prev => ({ ...prev, query: value }))}
+                        onSubmit={submitSearch}
+                        placeholder="Search for pages, links, projects..."
+                        isFilter={false}
                         />
-                        {state.query && (
-                            <button type="button" className="search-clear" onClick={clearInput}>
-                                <IoClose />
-                            </button>
-                        )}
-                    </div>
                     <div className="search-shortcuts">
                         <kbd>Esc</kbd>
                         <span>to close</span>
                     </div>
-                </Form>
             </div>
 
             {/* Categories */}

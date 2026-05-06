@@ -4,6 +4,7 @@ import Dashboard from '../component/home/dashboard';
 import Manage from '../component/home/manage';
 import Feedback from '../component/home/feedback';
 import Footer from '../component/ui/footer';
+import Search from '../component/home/search';
 
 import { LoadingRedirect } from '@/app/component/ui/loading';
 
@@ -40,8 +41,9 @@ function LayoutContent({ children }) {
                 {children}
             </section>
 
-            <Manage redirect={setRedirect} />
+            <Manage />
             <Feedback />
+            <Search />
 
             <AlertPush
                 status={alert?.status}

@@ -292,7 +292,6 @@
 
     .feedback-modal {
         max-width: 100%;
-        max-height: 95vh;
         border-radius: var(--radius_xl) var(--radius_xl) 0 0;
     }
 
@@ -338,7 +337,7 @@
     display: flex;
     position: relative;
     height: max-content;
-    min-height: 100%;
+    max-height: 90%;
     width: 100%;
     max-width: 425px;
     background: var(--gradient_card);

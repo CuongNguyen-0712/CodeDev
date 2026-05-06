@@ -135,12 +135,9 @@ export default function Manage() {
 
             if (response.data.success) {
                 await fetchData();
-                startTransition(() => {
-                    queryNavigate(pathname, { update: true })
-                    setState((prev) => ({ ...prev, handling: false, modify: false }))
-                    setFile({ file: null, preview: null })
-                    alert(200, "Your information has been updated successfully")
-                })
+                setState((prev) => ({ ...prev, handling: false, modify: false }))
+                setFile({ file: null, preview: null })
+                alert(200, "Your information has been updated successfully")
             }
             else {
                 setState((prev) => ({ ...prev, handling: false }))

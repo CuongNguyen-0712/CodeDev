@@ -9,6 +9,12 @@ const nextConfig = {
                 port: '',
                 pathname: '/**',
             },
+            {
+                protocol: "https",
+                hostname: "avatars.githubusercontent.com",
+                port: "",
+                pathname: "/**"
+            }
         ],
         deviceSizes: [320, 480, 768, 1024, 1280, 1600, 1920],
         imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],

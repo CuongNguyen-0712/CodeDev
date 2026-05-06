@@ -133,6 +133,10 @@ export const authOptions = {
             return baseUrl;
         },
     },
+    pages: {
+        signIn: "/auth",
+        error: "/auth/error",
+    }
 };
 
 const handler = NextAuth(authOptions);

@@ -4,6 +4,8 @@ import PreviewCourse from "@/app/component/course/params/preview"
 
 import GetStateCourseService from "@/app/services/getService/stateCourseService";
 
+import DefaultLayout from "@/app/layout/defaultLayout";
+
 import { LoadingRedirect } from "@/app/component/ui/loading";
 
 export async function generateMetadata({ params }) {
@@ -25,9 +27,11 @@ export default async function Page({ params }) {
 
     return (
         <Suspense fallback={<LoadingRedirect />}>
-            <PreviewCourse
-                params={{ id: course_id }}
-            />
+            <DefaultLayout>
+                <PreviewCourse
+                    params={{ id: course_id }}
+                />
+            </DefaultLayout>
         </Suspense>
     )
 }

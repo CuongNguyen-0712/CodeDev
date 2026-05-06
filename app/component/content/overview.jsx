@@ -15,8 +15,6 @@ import { MdEdit } from 'react-icons/md';
 
 export default function Overview() {
     const queryNavigate = useQuery();
-    const params = useSearchParams();
-    const pathname = usePathname();
 
     const [state, setState] = useState({
         data: {

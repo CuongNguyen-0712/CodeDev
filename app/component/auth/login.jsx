@@ -106,16 +106,17 @@ export default function Login({ active, changeForm, redirect, setAlert, callback
     }
 
     const handleCallback = async () => {
+        redirect(true)
         setCallbackPending(true)
+        
         try {
             const response = await callback()
-            redirect(true)
             if (!response?.ok) {
                 setAlert({ status: 500, message: "An error occurred during authentication" })
                 redirect(false)
                 return;
             }
-
+            
             setAlert({ status: 200, message: 'Authenticating...' })
             navigateReplace("/home")
         } catch (err) {

@@ -76,28 +76,36 @@ export default function LessonPage({ id, status, submit, isHandling }) {
             :
             state.data ?
                 <>
-                    <div className="lesson_content">
-                        <h2>{state.data.title}</h2>
-                        <p>{state.data.description}</p>
-                        <PortableTextRenderer value={state.data.content} />
+                    <div className="lesson_container">
+                        <header className="lesson_header">
+                            <h1 className="lesson_main_title">{state.data.title}</h1>
+                            {state.data.description && (
+                                <div className="lesson_description_box">
+                                    <p className="lesson_description_text">{state.data.description}</p>
+                                </div>
+                            )}
+                        </header>
+
+                        <main className="lesson_content_area">
+                            <PortableTextRenderer value={state.data.content} />
+                        </main>
+
+                        {status && (
+                            <footer className="lesson_footer">
+                                <button
+                                    id="confirm_lesson"
+                                    onClick={() => submit()}
+                                    disabled={isHandling}
+                                >
+                                    {isHandling ? (
+                                        <LoadingContent scale={0.5} color={'var(--color_white)'} />
+                                    ) : (
+                                        "Mark as Done"
+                                    )}
+                                </button>
+                            </footer>
+                        )}
                     </div>
-                    {
-                        status &&
-                        <button
-                            id="confirm_lesson"
-                            onClick={() => submit()}
-                            disabled={isHandling}
-                        >
-                            {
-                                isHandling ?
-                                    <LoadingContent scale={0.5} color={'var(--color_white)'} />
-                                    :
-                                    <>
-                                        Done
-                                    </>
-                            }
-                        </button>
-                    }
                 </>
                 :
                 <p>

@@ -35,3 +35,6 @@ next-env.d.ts
 sanity.cli.js
 sanity.config.js
 /app/studio
+
+# Testing
+/tests

@@ -13,6 +13,8 @@ import { api } from "@/app/lib/axios";
 import { useQuery } from "@/app/router/useQuery";
 import { FeedbackSchema } from "@/app/lib/definition";
 
+import { useApp } from "@/app/contexts/appContext";
+
 import { validate } from "@/app/helper/validate";
 
 import { LoadingContent } from "../ui/loading";
@@ -20,8 +22,10 @@ import { InputGroup, TextAreaGroup } from "../ui/input";
 
 import useKey from "@/app/hooks/useKey";
 
-export default function Feedback({ alert }) {
+export default function Feedback() {
     useKey({ key: 'Escape', param: 'feedback' });
+
+    const { showAlert: alert } = useApp();
 
     const queryNavigate = useQuery();
     const params = useSearchParams();

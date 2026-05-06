@@ -118,7 +118,7 @@ export async function updateStatusProject({ userId, projectId, is_marked, is_del
 }
 
 export async function updateWithdrawCourse({ userId, courseId }) {
-    let params = []
+    const params = []
 
     params.push(userId, courseId)
 
@@ -127,7 +127,7 @@ export async function updateWithdrawCourse({ userId, courseId }) {
     return await sql.query(query, params);
 }
 export async function updateLesson({ userId, courseId, lessonId }) {
-    let params = []
+    const params = []
 
     params.push(userId, courseId, lessonId)
 

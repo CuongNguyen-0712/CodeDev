@@ -2438,6 +2438,7 @@
     box-shadow: 0 4px 12px rgba(48, 102, 190, 0.2);
     cursor: pointer;
     transition: all 0.3s ease;
+    gap: 10px;
     border: none;
 }
 

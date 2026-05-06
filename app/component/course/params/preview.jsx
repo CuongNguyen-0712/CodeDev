@@ -9,8 +9,7 @@ import { api } from "@/app/lib/axios";
 import { useRouterActions } from "@/app/router/useRouterActions";
 
 import { uniqWith } from "lodash";
-
-import AlertPush from "../../ui/alert";
+import { useApp } from "@/app/contexts/appContext";
 
 import Form from "next/form";
 
@@ -79,12 +78,12 @@ const CommentItem = ({ data, alert }) => {
             if (!response.data.success) {
                 setFlag(flag);
                 setState(state);
-                alert({ status: response.status, message: response.data.message || 'Failed to update voting.' });
+                alert(response.status, response.data.message || 'Failed to update voting.');
             }
         } catch {
             setFlag(flag);
             setState(state);
-            alert({ status: 500, message: 'Failed to update voting.' });
+            alert(500, 'An error occurred while updating voting. Please try again.');
         }
     };
 
@@ -137,6 +136,8 @@ const levelConfig = {
 }
 
 export default function PreviewCourse({ params } = {}) {
+    const { showAlert: alert } = useApp()
+
     const { navigateBack } = useRouterActions()
     const scrollRef = useRef(null)
 
@@ -240,7 +241,6 @@ export default function PreviewCourse({ params } = {}) {
 
     const [error, setError] = useState(null)
     const [pending, setPending] = useState(true)
-    const [alert, setAlert] = useState(null)
 
     const [apiQueue, setApiQueue] = useState([])
     const [isProcessing, setIsProcessing] = useState(false)
@@ -394,7 +394,6 @@ export default function PreviewCourse({ params } = {}) {
                         });
                         if (response.data.success) {
                             const data = Array.isArray(response.data.data) ? response.data.data : [];
-                            console.log('Fetched comments:', data);
                             setLoad((prev) => ({
                                 ...prev,
                                 hasMore: data.length >= prev.limit
@@ -562,10 +561,7 @@ export default function PreviewCourse({ params } = {}) {
         }))
 
         if (comment.content.trim().length === 0 || comment.content === '') {
-            setAlert({
-                status: 404,
-                message: 'No comment, please throw your new!'
-            })
+            alert(404, 'No comment, please throw your new!');
             setHandling((prev) => ({
                 ...prev,
                 comment: false
@@ -586,23 +582,14 @@ export default function PreviewCourse({ params } = {}) {
                     content: ''
                 }))
                 updateComment({ course_id: courseId })
-                setAlert({
-                    status: response.status,
-                    message: response.message
-                })
+                alert(response.status, response.message);
             }
             else {
-                setAlert({
-                    status: response.status,
-                    message: response.message
-                })
+                alert(response.status, response.message);
             }
         }
         catch (err) {
-            setAlert({
-                status: err.response?.status || 500,
-                message: err.response?.data?.message || 'External server error'
-            })
+            alert(err.response?.status || 500, err.response?.data?.message || 'External server error');
         }
         finally {
             setHandling((prev) => ({
@@ -627,20 +614,14 @@ export default function PreviewCourse({ params } = {}) {
         await PostRegisterCourseService(state.state.data.id)
             .then(res => {
                 if (res.data.success) {
-                    alert("Submitting....")
+                    alert(res.status, res.data.message);
                 }
                 else {
-                    setAlert({
-                        status: res.status,
-                        message: res.message
-                    })
+                    alert(res.status, res.message)
                 }
             })
             .catch(err => {
-                setAlert({
-                    status: err.response?.status || 500,
-                    message: err.response?.data?.message || 'External server error'
-                })
+                alert(err.response?.status || 500, err.response?.data?.message || 'External server error');
             })
             .finally(() => {
                 setHandling((prev) => ({
@@ -807,7 +788,7 @@ export default function PreviewCourse({ params } = {}) {
                                         <CommentItem
                                             key={item.id}
                                             data={item}
-                                            alert={(data) => setAlert(data)}
+                                            alert={(status, message) => alert(status, message)}
                                         />
                                     ))}
 
@@ -881,12 +862,6 @@ export default function PreviewCourse({ params } = {}) {
                     })()}
                 </button>
             </footer>
-
-            <AlertPush
-                status={alert?.status}
-                message={alert?.message}
-                reset={() => setAlert(null)}
-            />
         </section>
     )
 }
