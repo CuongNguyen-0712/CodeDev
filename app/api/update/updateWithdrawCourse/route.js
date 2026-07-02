@@ -15,7 +15,9 @@ export async function PATCH(req) {
         }
 
         const userId = session.user.id;
-        const { courseId } = await req.json();
+        const { id } = await req.json();
+
+        const courseId = id.split("_").slice(-1)[0];
 
         if (!courseId) {
             throw new ApiError("Missing credentials", 400);

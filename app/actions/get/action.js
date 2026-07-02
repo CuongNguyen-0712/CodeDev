@@ -8,25 +8,28 @@ export async function getOverview(data) {
     const conditions = []
 
     params.push(data)
-    conditions.push(`r.user_id = $${params.length}`)
+    conditions.push(`r.user_id = (select id from private.users where public_id = $${params.length})`)
+    conditions.push(`r.is_deleted = false`)
+    conditions.push(`c.is_hidden = false`)
+    conditions.push(`c.is_deleted = false`)
 
     const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const query = `
-            select c.id as id, 
-            c.image as image, 
-            c.lessons as lesson, 
-            r.status as status, 
-            c.title as title, 
-            c.subject as subject,
-            l.id as language,
-            l.logo as logo,
-            l.color as color
-            from public.course c
-            join course.register r on r.course_id = c.id
-            left join language l on c.language = l.id
-            ${whereSQL}
-        `;
+        select c.*,
+            l.id as language_id,
+            l.name as language_name,
+            l.logo as language_logo,
+            l.color as language_color,
+            cat.name as category_name,
+            r.progress AS progress,
+            r.status AS status
+        from public.course c
+        join course.register r on r.course_id = c.id
+        left join language l on c.language_id = l.id
+        left join category cat on c.category_id = cat.id
+        ${whereSQL}
+    `;
 
     return await sql.query(query, params);
 }
@@ -36,73 +39,29 @@ export async function getInfo(data) {
     const conditions = []
 
     params.push(data)
-    conditions.push(`i.user_id = $${params.length}`)
+    conditions.push(`i.user_id = (select id from private.users where public_id = $${params.length})`)
 
     const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const query = `
-            select i.surname as surname, i.name as name, i.email as email, i.image as image, i.bio as bio, i.nickname as nickname, i.rank as rank, i.star as star, i.level as level, u.username as username, i.phone as phone
+            select 
+                i.surname as surname,   
+                i.name as name, 
+                i.image as image, 
+                i.bio as bio, 
+                i.nickname as nickname, 
+                i.rank as rank, 
+                i.star as star, 
+                i.level as level, 
+                i.phone as phone,
+                i.points as points,
+                u.username as username, 
+                u.email as email,
+                u.email_verified as email_verified 
             from private.users u
             join private.info i on u.id = i.user_id
             ${whereSQL}
             limit 1
-        `;
-
-    return await sql.query(query, params);
-}
-
-export async function getProject({ userId, search, limit, offset, methods, statuses, difficulties }) {
-    const conditions = [];
-    const params = [];
-
-    params.push(userId);
-
-    if (methods && methods.length > 0) {
-        const methodsArray = methods.map(m => m.trim());
-        if (methodsArray.length === 1) {
-            params.push(methodsArray[0]);
-            conditions.push(`p.method = $${params.length}`);
-        }
-    }
-
-    if (statuses && statuses.length > 0) {
-        const statusesArray = statuses.map(s => s.trim());
-        params.push(statusesArray);
-        conditions.push(`p.status = ANY($${params.length}::statusproject[])`);
-    }
-
-    if (difficulties && difficulties.length > 0) {
-        const difficultiesArray = difficulties.map(d => d.trim());
-        params.push(difficultiesArray);
-        conditions.push(`p.difficulty = ANY($${params.length}::levelenum[])`);
-    }
-
-    if (search && search.trim()) {
-        params.push(`%${search.toLowerCase()}%`);
-        conditions.push(`LOWER(p.name) LIKE $${params.length}`);
-    }
-
-    conditions.push(`p.id NOT IN (
-            SELECT r.project_id
-            FROM project.register r
-            WHERE r.join_id = $1
-            AND r.is_deleted = false
-        )`);
-
-    const whereSQL = conditions.length
-        ? `WHERE ${conditions.join(" AND ")}`
-        : "";
-
-    params.push(limit, offset);
-
-    const query = `
-            SELECT 
-            p.*
-            FROM public.project p
-            ${whereSQL}
-            ORDER BY p.id ASC
-            LIMIT $${params.length - 1}
-            OFFSET $${params.length}
         `;
 
     return await sql.query(query, params);
@@ -119,7 +78,7 @@ export async function getCourse({ userId, search, limit, offset, prices, levels,
                 SELECT c2.id
                 FROM course.register r
                 JOIN public.course c2 ON r.course_id = c2.id
-                WHERE r.user_id = $${params.length}
+                WHERE r.user_id = (select id from private.users where public_id = $${params.length})
                 AND r.is_deleted = false
             )
         `);
@@ -141,7 +100,7 @@ export async function getCourse({ userId, search, limit, offset, prices, levels,
     if (levels && levels.length) {
         const levelArray = levels.map(l => l.trim());
         params.push(levelArray);
-        conditions.push(`c.level = ANY($${params.length}::levelenum[])`);
+        conditions.push(`c.level = ANY($${params.length}::level_enum[])`);
     }
 
     if (ratings && ratings.length) {
@@ -160,8 +119,29 @@ export async function getCourse({ userId, search, limit, offset, prices, levels,
     params.push(limit, offset);
 
     const query = `
-            SELECT c.*
+            SELECT 
+                c.public_id as id,
+                c.title,
+                c.description,
+                c.image,
+                c.rating,
+                c.modules,
+                c.lessons,
+                c.cost,
+                c.level,
+                c.concept,
+                c.duration,
+                c.instructor,
+                c.points,
+                c.reviews,
+                c.duration,
+                l.name as language_name,
+                l.logo as language_logo,
+                l.color as language_color,
+                cat.name as category_name
             FROM public.course c
+            JOIN public.language l ON c.language_id = l.id
+            JOIN public.category cat ON c.category_id = cat.id
             ${whereSQL}
             ORDER BY c.id DESC
             LIMIT $${params.length - 1}
@@ -176,13 +156,13 @@ export async function getMyCourse({ userId, search, limit, offset, markeds, stat
     const params = [];
 
     params.push(userId);
-    conditions.push(`r.user_id = $${params.length}`);
+    conditions.push(`r.user_id = (select id from private.users where public_id = $${params.length})`);
 
     if (markeds && markeds.length > 0) {
         const markedArray = markeds.map(s => s.trim());
 
         if (markedArray.length == 1) {
-            const isMarked = markeds === true || markeds === "true";
+            const isMarked = markedArray[0] === true || markedArray[0] === "true";
             params.push(isMarked);
             conditions.push(`r.is_marked = $${params.length}`);
         }
@@ -196,13 +176,13 @@ export async function getMyCourse({ userId, search, limit, offset, markeds, stat
     if (statuses && statuses.length > 0) {
         const statusesArray = statuses.map(s => s.trim());
         params.push(statusesArray);
-        conditions.push(`r.status = ANY($${params.length}::status_course[])`);
+        conditions.push(`r.status = ANY($${params.length}::status_course_enum[])`);
     }
 
     if (levels && levels.length > 0) {
         const levelsArray = levels.map(l => l.trim());
         params.push(levelsArray);
-        conditions.push(`c.level = ANY($${params.length}::levelenum[])`);
+        conditions.push(`c.level = ANY($${params.length}::level_enum[])`);
     }
 
     conditions.push(`r.is_deleted = false`);
@@ -213,68 +193,27 @@ export async function getMyCourse({ userId, search, limit, offset, markeds, stat
 
     const query = `
             SELECT 
-                c.*, 
+                c.public_id as id,
+                c.title,
+                c.concept,
+                c.image,
+                c.rating,
+                c.lessons,
+                c.level,
+                l.name as language_name,
+                l.logo as language_logo,
+                l.color as language_color,
+                cat.name as category_name,
                 r.progress AS progress,
                 r.status AS status,
                 r.is_marked AS is_marked
             FROM course.register r
             JOIN public.course c ON r.course_id = c.id
+            JOIN public.language l ON c.language_id = l.id
+            JOIN public.category cat ON c.category_id = cat.id
             ${whereSQL}
             ORDER BY r.last_at DESC
             LIMIT $${params.length - 1} OFFSET $${params.length}
-        `;
-
-    return await sql.query(query, params);
-}
-
-export async function getMyProject({ userId, search, limit, offset, methods, statuses }) {
-    const conditions = [];
-    const params = [];
-
-    params.push(userId);
-    conditions.push(`r.join_id = $${params.length}`);
-
-    if (search && search.trim()) {
-        params.push(`%${search.toLowerCase()}%`);
-        conditions.push(`LOWER(p.name) LIKE $${params.length}`);
-    }
-
-    if (methods && methods.length > 0) {
-        const methodsArray = methods.map(m => m.trim());
-        params.push(methodsArray);
-        conditions.push(`p.method = ANY($${params.length}::methodproject[])`);
-    }
-
-    if (statuses && statuses.length > 0) {
-        const statusesArray = statuses.map(s => s.trim());
-        params.push(statusesArray);
-        conditions.push(
-            `r.status = ANY($${params.length}::status_project_progress[])`
-        );
-    }
-
-    conditions.push(`r.is_deleted = false`);
-
-    const whereSQL = conditions.length
-        ? `WHERE ${conditions.join(" AND ")}`
-        : "";
-
-    params.push(limit, offset);
-
-    const query = `
-            SELECT
-                p.id AS id,
-                p.name AS name,
-                p.method AS method,
-                r.status AS status,
-                p.description  AS description
-            FROM project.register r
-            JOIN public.project p
-            ON r.project_id = p.id
-            ${whereSQL}
-            ORDER BY r.updated_at DESC
-            LIMIT $${params.length - 1}
-            OFFSET $${params.length}
         `;
 
     return await sql.query(query, params);
@@ -295,7 +234,7 @@ export async function getMyFriends({ userId, search }) {
 
     const query = `
         SELECT
-                u.id,
+                i.id as id,
                 u.username,
                 i.image,
                 i.nickname,
@@ -304,11 +243,11 @@ export async function getMyFriends({ userId, search }) {
                 i.star,
                 f.status
             FROM private.users u
-            INNER JOIN private.info i ON i.user_id = u.id AND i.user_id != $1
+            INNER JOIN private.info i ON i.user_id = u.id AND i.user_id != (select id from private.users where public_id = $1)
             INNER JOIN private.friend f ON (
-                (f.sender_id = $1 AND f.receiver_id = u.id)
+                (f.sender_id = (select id from private.users where public_id = $1) AND f.receiver_id = u.id)
                 OR
-                (f.receiver_id = $1 AND f.sender_id = u.id)
+                (f.receiver_id = (select id from private.users where public_id = $1) AND f.sender_id = u.id)
             )
             ${whereSQL}
         `;
@@ -449,21 +388,41 @@ export async function getContentLesson({ userId, lessonId, courseId }) {
 }
 
 
-export async function getStateCourse(data) {
+export async function getStateCourse({ userId, courseId }) {
     const conditions = []
     const params = []
 
-    params.push(data)
-    conditions.push(`id = $${params.length}`)
+    params.push(userId, courseId)
+
+    conditions.push(`c.id = $${params.length}`)
 
     const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const query = `
-            SELECT *
-            FROM public.course
-            ${whereSQL}
-            LIMIT 1
-        `
+        SELECT
+            c.*,
+            l.name AS language_name,
+            l.logo AS language_logo,
+            l.color AS language_color,
+            cat.name AS category_name,
+            r.status,
+            COALESCE(r.course_id IS NOT NULL, FALSE) AS is_registered
+        FROM public.course c
+        JOIN public.language l
+            ON c.language_id = l.id
+        JOIN public.category cat
+            ON c.category_id = cat.id
+        LEFT JOIN course.register r
+            ON r.course_id = c.id
+            AND r.user_id = (
+                SELECT id
+                FROM private.users
+                WHERE public_id = $1
+            )
+            AND r.is_deleted = false
+        ${whereSQL}
+        LIMIT 1
+    `
 
     return await sql.query(query, params);
 }
@@ -506,6 +465,7 @@ export async function getCommentCourse({ userId, courseId, offset, limit }) {
 
     const query = `
             SELECT 
+                u.public_id as user_id,
                 u.username as username,
                 i.image as avatar,
                 m.comment_id as id,
@@ -518,7 +478,7 @@ export async function getCommentCourse({ userId, courseId, offset, limit }) {
             JOIN private.info i ON m.user_id = i.user_id
             JOIN private.users u on m.user_id = u.id
 			LEFT JOIN private.voting v on v.id = m.comment_id
-                AND v.user_id = $${params.length - 2}
+                AND v.user_id = (select id from private.users where public_id = $${params.length - 2})
             ${whereSQL}
             ORDER BY m.created_at DESC
             OFFSET $${params.length - 1} LIMIT $${params.length}
@@ -536,4 +496,80 @@ export async function getLesson(data) {
         }`;
 
     return await client.fetch(query, { id: data });
+}
+
+export async function getRoadmap({ roadmapId }) {
+    const params = []
+    const condtions = []
+
+
+    if (roadmapId) {
+        params.push(roadmapId)
+        condtions.push(`r.id = $${params.length}`)
+    }
+
+    const whereSQL = condtions.length > 0 ? `WHERE ${condtions.join(' AND ')}` : '';
+
+    const query = `
+        SELECT
+            r.public_id as id,
+            r.title as title,
+            r.description as description,
+            COUNT(n.id) nodes
+        FROM public.roadmaps r
+        JOIN roadmap.nodes n ON n.roadmap_id = r.id
+        GROUP BY r.id
+        ${whereSQL}
+    `
+
+    return await sql.query(query, params);
+}
+
+export async function getRoadmapNodes({ userId, roadmapId }) {
+    const params = []
+    const conditions = []
+
+    params.push(userId, roadmapId)
+    conditions.push(`n.roadmap_id = (select id from public.roadmaps where public_id = $${params.length})`)
+
+    const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const query = `
+        SELECT 
+            n.id,
+            n.title,
+            n.description,
+            n.order_index,
+            COALESCE(
+                json_agg(
+                    json_build_object(
+                        'id', c.public_id,
+                        'title', c.title,
+                        'image', c.image,
+                        'rating', c.rating,
+                        'lessons', c.lessons,
+                        'progress', COALESCE(r.progress, 0),
+                        'cost', c.cost,
+                        'logo', l.logo,
+                        'color', l.color,
+                        'language', l.name,
+                        'category', cat.name,
+                        'reward', c.reward,
+                        'priority', nc.priority
+                    ) ORDER BY nc.priority ASC
+                ) FILTER (WHERE c.id IS NOT NULL),
+                '[]'
+            ) AS courses
+        FROM roadmap.nodes n
+        LEFT JOIN roadmap.node_course nc ON nc.node_id = n.id
+        LEFT JOIN public.course c ON c.id = nc.course_id
+        LEFT JOIN public.language l ON c.language_id = l.id
+        LEFT JOIN public.category cat ON c.category_id = cat.id
+        LEFT JOIN course.register r ON r.course_id = c.id AND r.user_id = (select id from private.users where public_id = $1) AND r.is_deleted = false
+        ${whereSQL}
+        GROUP BY n.id, n.title, n.description, n.order_index
+        ORDER BY n.order_index ASC
+    `
+
+    return await sql.query(query, params);
 }

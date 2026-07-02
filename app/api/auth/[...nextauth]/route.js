@@ -1,13 +1,15 @@
 import NextAuth from "next-auth";
 import GithubProvider from "next-auth/providers/github";
+import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 
 import { ApiError } from "@/app/lib/error/apiError";
-
+import { generateSonyflake } from "@/app/lib/sonyflake";
 import { sql } from "@/app/lib/db";
 
+import { ulid } from "ulid";
+
 import bcrypt from "bcryptjs";
-import { v4 as uuidv4 } from "uuid";
 
 export const authOptions = {
     providers: [
@@ -19,6 +21,16 @@ export const authOptions = {
                     scope: "read:user user:email",
                 },
             },
+        }),
+
+        GoogleProvider({
+            clientId: process.env.GOOGLE_ID,
+            clientSecret: process.env.GOOGLE_SECRET,
+            authorization: {
+                params: {
+                    scope: "openid email profile",
+                },
+            }
         }),
 
         CredentialsProvider({
@@ -54,8 +66,8 @@ export const authOptions = {
 
                     return {
                         id: user.id,
-                        name: user.username,
-                        email: user.email,
+                        username: user.username,
+                        provider: 'credentials',
                     };
 
                 } catch (err) {
@@ -70,8 +82,17 @@ export const authOptions = {
         async jwt({ token, user, account, profile }) {
             if (account && user) {
                 try {
+                    if (account.provider === "credentials") {
+                        token.id = user.id;
+                        token.username = user.username;
+                        token.provider = user.provider;
+
+                        return token;
+                    }
+
                     const email =
                         user.email ||
+                        profile?.email ||
                         profile?.emails?.[0]?.value;
 
                     if (!email) {
@@ -80,51 +101,48 @@ export const authOptions = {
 
                     const image = user.image || null;
 
-                    if (account.provider === "github") {
+                    const public_id = ulid();
+                    const id = generateSonyflake();
 
-                        const res = await sql.query(
-                            `SELECT auth_with_provider($1, $2, $3, $4, $5, $6) AS id`,
-                            [
-                                uuidv4(),
-                                user.name,
-                                email,
-                                image,
-                                account.provider,
-                                account.providerAccountId,
-                            ]
-                        );
+                    const response = await sql.query(
+                        `SELECT * FROM auth_with_provider($1, $2, $3, $4, $5, $6, $7)`,
+                        [
+                            id,
+                            public_id,
+                            user.username || user.name,
+                            email,
+                            image,
+                            account.provider,
+                            account.providerAccountId,
+                        ]
+                    );
 
-                        if (!res || res.length === 0) {
-                            throw new ApiError("Authentication failed", 401);
-                        }
-
-                        token.id = res[0].id;
+                    if (!response || response.length === 0) {
+                        throw new ApiError("Authentication failed", 401);
                     }
 
-                    if (account.provider === "credentials") {
-                        token.id = user.id;
-                    }
+                    const result = response[0];
 
-                    token.username = user.name;
-                    token.email = email;
-                    token.provider = account.provider;
+                    token.id = result.id;
+                    token.username = result.username;
+                    token.provider = result.provider;
 
                 } catch (err) {
                     console.error("JWT error:", err);
-                    throw new ApiError("Internal Server Error", 500);
+                    throw new Error("Internal Server Error");
                 }
             }
 
             return token;
         },
-
         async session({ session, token }) {
-            session.user.id = token.id;
-            session.user.username = token.username;
-            session.user.email = token.email;
-            session.user.provider = token.provider;
-
-            return session;
+            return {
+                user: {
+                    id: token.id,
+                    username: token.username,
+                    provider: token.provider
+                }
+            };
         },
 
         async redirect({ url, baseUrl }) {
@@ -140,4 +158,4 @@ export const authOptions = {
 };
 
 const handler = NextAuth(authOptions);
-export { handler as GET, handler as POST };
+export { handler as GET, handler as POST }; 

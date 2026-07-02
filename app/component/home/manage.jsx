@@ -3,7 +3,7 @@ import { useState, useEffect, startTransition, useRef } from "react";
 
 import { IoClose } from "react-icons/io5";
 import { FaSave, FaHashtag } from "react-icons/fa";
-import { MdFileDownload, MdErrorOutline, MdOutlineZoomOutMap } from "react-icons/md";
+import { MdFileUpload, MdErrorOutline, MdOutlineZoomOutMap } from "react-icons/md";
 import { FaTrophy, FaStar, FaLink } from "react-icons/fa6";
 
 import { usePathname, useSearchParams } from "next/navigation";
@@ -29,6 +29,7 @@ import useImagesValidator from "@/app/hooks/useImageValidator";
 
 import Form from "next/form";
 import Image from "next/image";
+import { form } from "sanity/desk";
 
 export default function Manage() {
     useKey({ key: 'Escape', param: 'manage' });
@@ -108,7 +109,7 @@ export default function Manage() {
 
         const updateData = {
             ...state.update,
-            image: file.image ?? state.update.image
+            image: file.image ? file.image : state.data?.image
         }
 
         if (Object.entries(state.definition).length > 0) {
@@ -131,12 +132,37 @@ export default function Manage() {
         }))
 
         try {
+            if (validData?.image) {
+                const formData = new FormData();
+                formData.append('file', validData.image);
+                formData.append('folder', 'uploads');
+
+                const uploadResponse = await api.post('post/uploadCloudinary', formData, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data'
+                    }
+                });
+
+                if (!uploadResponse.data.success) {
+                    alert(uploadResponse.status, uploadResponse.data?.message || 'Failed to upload image, try again later');
+                    return
+                }
+                else {
+                    validData.image = uploadResponse.data.data;
+                }
+            }
+
             const response = await api.patch('update/updateInfo', validData)
 
             if (response.data.success) {
                 await fetchData();
                 setState((prev) => ({ ...prev, handling: false, modify: false }))
-                setFile({ file: null, preview: null })
+                setFile((prev) => ({
+                    ...prev,
+                    image: null,
+                    preview: null,
+                    zoom_value: 1
+                }))
                 alert(200, "Your information has been updated successfully")
             }
             else {
@@ -192,18 +218,24 @@ export default function Manage() {
             }));
         }
         else {
-            setFile({
+            setFile((prev) => ({
+                ...prev,
                 image: null,
                 preview: null,
                 zoom_value: 1
-            });
+            }));
             setState((prev) => ({ ...prev, change: false }))
         }
     }
 
     const handleCancelPreview = () => {
-        setFile({ image: null, preview: null, zoom_value: 1 });
-        setState((prev) => ({ ...prev, change: false }))
+        setFile((prev) => ({
+            ...prev,
+            image: null,
+            preview: null,
+            zoom_value: 1
+        }));
+        setState((prev) => ({ ...prev, error: null, change: false }))
     }
 
     const handleModify = () => {
@@ -307,7 +339,7 @@ export default function Manage() {
                                                                             state.modify &&
                                                                             <div className="image_import">
                                                                                 <button type="button" id="import_image">
-                                                                                    <MdFileDownload fontSize={18} />
+                                                                                    <MdFileUpload fontSize={18} />
                                                                                 </button>
                                                                                 <input
                                                                                     type="file"

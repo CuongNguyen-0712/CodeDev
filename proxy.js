@@ -11,7 +11,7 @@ export default async function proxy(req) {
         return NextResponse.next()
     }
 
-    const protectedRoutes = ['/home', '/course', '/project']
+    const protectedRoutes = ['/home', '/course', '/project', '/learning', '/task', '/roadmap', '/event', '/profile', '/settings']
     const publicRoutes = ['/auth', '/']
     const publicApis = ['/api/auth/signIn', '/api/auth/signUp']
 
@@ -28,7 +28,11 @@ export default async function proxy(req) {
     }
 
     if (isApiRoute && !isLoggedIn) {
-        return NextResponse.redirect(new URL('/auth', req.nextUrl));
+        // API consumers expect JSON, not redirect HTML.
+        return NextResponse.json(
+            { success: false, message: 'Unauthorized' },
+            { status: 401 }
+        );
     }
 
     if (isProtectedRoute && !isLoggedIn) {
@@ -40,4 +44,10 @@ export default async function proxy(req) {
     }
 
     return NextResponse.next()
+}
+
+export const config = {
+    matcher: [
+        '/((?!_next/static|_next/image|favicon.ico|image/|font/).*)',
+    ],
 }

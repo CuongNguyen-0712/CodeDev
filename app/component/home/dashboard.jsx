@@ -1,24 +1,27 @@
 import { useState, useRef, useEffect } from "react";
-
 import { useSearchParams, usePathname } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
+
+import { LoadingContent } from "../ui/loading";
+
+import { useAuth } from "@/app/contexts/authContext";
 
 import { useQuery } from "@/app/router/useQuery";
 
-import { FaUsers, FaCrown } from "react-icons/fa";
-import { GoProjectRoadmap } from "react-icons/go";
+import { FaUsers, FaChevronLeft, FaTasks } from "react-icons/fa";
 import { FaCode } from "react-icons/fa6";
-import { IoSettingsSharp, IoSearch, IoClose } from "react-icons/io5";
+import { IoSettingsSharp, IoSearch } from "react-icons/io5";
 import {
   MdHelpCenter,
   MdSpaceDashboard,
-  MdEmojiEvents,
-  MdOutlineFeedback
+  MdOutlineFeedback,
 } from "react-icons/md";
-import { VscProject } from "react-icons/vsc";
 import { HiChevronDown, HiSparkles } from "react-icons/hi2";
 
 export default function Dashboard({ isDashboard, handleDashboard }) {
+  const { session, status } = useAuth();
+
   const dashBoardRef = useRef(null);
   const pathnameRef = useRef(null);
 
@@ -30,12 +33,10 @@ export default function Dashboard({ isDashboard, handleDashboard }) {
   const [showOther, setShowOther] = useState(false);
 
   const menuList = [
-    { name: "Overview", icon: <MdSpaceDashboard /> },
-    { name: "Learning", icon: <FaCode /> },
-    { name: "Project", icon: <VscProject /> },
-    { name: "Social", icon: <FaUsers /> },
-    { name: "Roadmap", icon: <GoProjectRoadmap /> },
-    { name: "Event", icon: <MdEmojiEvents /> },
+    { name: "Overview", value: 'overview', icon: <MdSpaceDashboard />, isAuth: true },
+    { name: "Learning", value: 'learning', icon: <FaCode />, isAuth: true },
+    { name: "Task", value: 'task', icon: <FaTasks />, isAuth: true },
+    { name: "Connection", value: 'connection', icon: <FaUsers />, isAuth: true },
   ];
 
   const refDashboard = (e) => {
@@ -55,16 +56,16 @@ export default function Dashboard({ isDashboard, handleDashboard }) {
 
   useEffect(() => {
     const tab = params.get('tab')?.toLowerCase();
-    const index = menuList.findIndex(item => item.name.toLowerCase() === tab);
+    const index = menuList.findIndex(item => item.value === tab);
     setActiveIndex(index >= 0 ? index : 0);
     pathnameRef.current = pathname;
     handleDashboard(false);
   }, [params]);
 
-  const handleNavigation = (index, name) => {
+  const handleNavigation = (index, value) => {
     scrollTo(0, 0);
     setActiveIndex(index);
-    queryNavigate(pathnameRef.current, { tab: name.toLowerCase() });
+    queryNavigate(pathnameRef.current, { tab: value });
   };
 
   return (
@@ -73,20 +74,17 @@ export default function Dashboard({ isDashboard, handleDashboard }) {
         {/* Header */}
         <div className="dash-header">
           <div className="dash-brand">
-            <div className="brand-icon">
-              <Image src="/image/static/logo.svg" alt="logo" width={24} height={24} />
-            </div>
+            <Image src="/image/static/logo.svg" alt="logo" width={35} height={35} />
             <span className="brand-name">CodeDev</span>
           </div>
-          <button className="dash-upgrade">
-            <FaCrown />
-            <span>Upgrade</span>
+          <button className="dash-close" onClick={() => handleDashboard(false)}>
+            <FaChevronLeft fontSize={16} />
           </button>
         </div>
 
         {/* Quick Search */}
         <div className="dash-search">
-          <button className="search-trigger" onClick={() => queryNavigate(pathname, { search: true })}>
+          <button className="search-trigger" onClick={() => queryNavigate(pathnameRef.current)}>
             <span className="search-icon"><IoSearch /></span>
             <span className="search-placeholder">Quick search...</span>
             <span className="search-keys">
@@ -101,17 +99,20 @@ export default function Dashboard({ isDashboard, handleDashboard }) {
           <div className="nav-section">
             <span className="nav-title">Menu</span>
             <ul className="nav-menu">
-              {menuList.map((item, index) => (
-                <li key={index}>
-                  <button
-                    className={`nav-link ${activeIndex === index ? 'active' : ''}`}
-                    onClick={() => handleNavigation(index, item.name)}
-                  >
-                    <span className="link-icon">{item.icon}</span>
-                    <span className="link-text">{item.name}</span>
-                  </button>
-                </li>
-              ))}
+              {status === 'loading' ?
+                <LoadingContent scale={0.5} />
+                :
+                menuList.filter(item => session ? item.isAuth : !item.isAuth).map((item, index) => (
+                  <li key={index}>
+                    <button
+                      className={`nav-link ${activeIndex === index ? 'active' : ''}`}
+                      onClick={() => handleNavigation(index, item.value)}
+                    >
+                      <span className="link-icon">{item.icon}</span>
+                      <span className="link-text">{item.name}</span>
+                    </button>
+                  </li>
+                ))}
             </ul>
           </div>
         </nav>
@@ -132,32 +133,28 @@ export default function Dashboard({ isDashboard, handleDashboard }) {
         </div>
 
         {/* Footer */}
-        <div className={`dash-footer ${showOther ? 'expanded' : ''}`}>
-          <button className="footer-toggle" onClick={() => setShowOther(!showOther)}>
-            <span className="toggle-text">More Options</span>
-            <HiChevronDown className={`toggle-arrow ${showOther ? 'rotated' : ''}`} />
-          </button>
-
-          {showOther && (
-            <div className="footer-content">
-              <button className="footer-link help">
-                <span className="link-icon"><MdHelpCenter /></span>
-                <span className="link-text">Help Center</span>
-              </button>
-              <button className="footer-link settings">
-                <span className="link-icon"><IoSettingsSharp /></span>
-                <span className="link-text">Settings</span>
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Mobile Close */}
-        {isDashboard && (
-          <button className="dash-close" onClick={() => handleDashboard(false)}>
-            <IoClose />
-          </button>
-        )}
+        {
+          session &&
+          <div className={`dash-footer ${showOther ? 'expanded' : ''}`}>
+            <button className="footer-toggle" onClick={() => setShowOther(!showOther)}>
+              <span className="toggle-text">More Options</span>
+              <HiChevronDown className={`toggle-arrow ${showOther ? 'rotated' : ''}`} />
+            </button>
+            {
+              showOther &&
+              <div className="footer-content">
+                <Link href={'/help'} className="footer-link help">
+                  <span className="link-icon"><MdHelpCenter /></span>
+                  <span className="link-text">Help Center</span>
+                </Link>
+                <Link href={'/settings'} className="footer-link settings">
+                  <span className="link-icon"><IoSettingsSharp /></span>
+                  <span className="link-text">Settings</span>
+                </Link>
+              </div>
+            }
+          </div>
+        }
       </div>
     </aside>
   );

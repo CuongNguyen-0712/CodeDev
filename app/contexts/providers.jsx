@@ -1,15 +1,21 @@
 'use client'
-import { ThemeProvider } from "./themeContext"
 import { SessionProvider } from "next-auth/react"
+import { ThemeProvider } from "./themeContext"
 import { AuthProvider } from "./authContext"
+import QueryProvider from "./queryContext"
 
 export default function Provider({ children }) {
     return (
-        <SessionProvider>
+        <SessionProvider
+            refetchOnWindowFocus={false}
+            refetchInterval={0}
+        >
             <AuthProvider>
-                <ThemeProvider>
-                    {children}
-                </ThemeProvider>
+                <QueryProvider>
+                    <ThemeProvider>
+                        {children}
+                    </ThemeProvider>
+                </QueryProvider>
             </AuthProvider>
         </SessionProvider>
     )

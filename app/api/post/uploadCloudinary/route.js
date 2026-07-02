@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 import { ApiError } from "@/app/lib/error/apiError";
 
@@ -10,20 +8,22 @@ export async function POST(req) {
     try {
         const formData = await req.formData();
         const file = formData.get("file");
+        const folder = formData.get("folder");
 
         if (!file || !file.type.startsWith("image/")) {
-            return NextResponse.json({ error: "Invalid file type" }, { status: 400 });
+            throw new ApiError("Invalid file type", 400);
         }
 
         if (file.size > 5 * 1024 * 1024) {
-            return NextResponse.json({ error: "File too large" }, { status: 400 });
+            throw new ApiError("File too large", 400);
         }
 
-        const url = await UploadService(file, "uploads");
+        const data = { file, folder };
+
+        const url = await UploadService(data);
 
         return NextResponse.json({ success: true, data: url }, { status: 200 });
     } catch (error) {
-
         return NextResponse.json({ message: error.message || "Internal Server Error" }, { status: error.status || 500 });
     }
 }

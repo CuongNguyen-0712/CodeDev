@@ -5,17 +5,18 @@ export function useRouterActions() {
     const router = useRouter();
 
     return {
-        navigateToCurrent: () => router.push("/"),
-        navigateToHome: () => router.push("/home"),
-        navigateToAuth: () => router.push("/auth"),
-        navigateToSocial: () => router.push("/social"),
-        navigateToCourse: (param) => router.push(`/course/${param ?? ''}`),
-        navigateToProject: (param) => router.push(`/project/${param ?? ''}`),
-        navigateToLearning: (param) => router.push(`/learning/${param ?? ''}`),
-        navigateToEvent: () => router.push("/event"),
+        navigate: (path) => router.push(path),
         navigateReplace: (path) => router.replace(path),
-        navigateToTask: (param) => router.push(`/task/${param ?? ''}`),
-        navigateBack: () => router.back(),
-        handleRefresh: () => router.refresh(),
+        navigateBack: (fallback = "/home") => {
+            const fallbackPath = typeof fallback === "string" ? fallback : "/home";
+
+            if (typeof window !== "undefined" && window.history.length <= 1) {
+                router.replace(fallbackPath);
+                return;
+            }
+
+            router.back();
+        },
+        refresh: () => router.refresh(),
     };
 }

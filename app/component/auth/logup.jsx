@@ -15,12 +15,12 @@ import { validate } from "@/app/helper/validate"
 import { LoadingContent } from "../ui/loading"
 import { InputGroup } from "../ui/input"
 
-import { FaArrowRight, FaArrowLeft, FaGithub, FaUser, FaLock } from "react-icons/fa6"
+import { FaArrowRight, FaArrowLeft, FaGithub, FaUser, FaLock, FaGoogle } from "react-icons/fa6"
 import { MdModeEdit, MdAlternateEmail, MdOutlinePassword } from "react-icons/md"
 import { IoIosWarning, IoIosCheckmarkCircle } from "react-icons/io"
 
 export default function Logup({ active, changeForm, redirect, setAlert, callback }) {
-    const { navigateToHome } = useRouterActions()
+    const { navigate } = useRouterActions()
 
     const [step, setStep] = useState(1)
 
@@ -37,7 +37,7 @@ export default function Logup({ active, changeForm, redirect, setAlert, callback
 
     const [validation, setValidation] = useState({})
     const [isPending, setIsPending] = useState(false)
-    const [callbackPending, setCallbackPending] = useState(false)
+    const [callbackPending, setCallbackPending] = useState(null)
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -95,10 +95,10 @@ export default function Logup({ active, changeForm, redirect, setAlert, callback
         handleValidation({ name, value: '' })
     }
 
-    const handleCallback = async () => {
-        setCallbackPending(true)
+    const handleCallback = async (value) => {
+        setCallbackPending(value)
         try {
-            const response = await callback()
+            const response = await callback(value)
             redirect(true)
             if (response?.error) {
                 setAlert({ status: err.response?.status, message: err.response?.data.message || err.message || "An error occurred during authentication" })
@@ -106,13 +106,13 @@ export default function Logup({ active, changeForm, redirect, setAlert, callback
             }
             else {
                 setAlert({ status: 200, message: 'Authenticating...' })
-                navigateToHome()
+                navigate('/home')
             }
         } catch (err) {
             setAlert({ status: err.response?.status || 500, message: err.response?.data.message || err.message || "An error occurred during authentication" })
             redirect(false)
         } finally {
-            setCallbackPending(false)
+            setCallbackPending(null)
         }
     }
 
@@ -275,17 +275,34 @@ export default function Logup({ active, changeForm, redirect, setAlert, callback
                     <button
                         type="button"
                         className="social_btn"
-                        onClick={handleCallback}
+                        onClick={() => handleCallback('github')}
                         disabled={callbackPending}
                     >
                         {
-                            callbackPending ? (
+                            callbackPending === 'github' ? (
                                 <LoadingContent scale={0.5} />
                             )
                                 :
                                 <>
                                     <FaGithub />
                                     <span>Github</span>
+                                </>
+                        }
+                    </button>
+                    <button
+                        type="button"
+                        className="social_btn"
+                        onClick={() => handleCallback('google')}
+                        disabled={callbackPending}
+                    >
+                        {
+                            callbackPending === 'google' ? (
+                                <LoadingContent scale={0.5} />
+                            )
+                                :
+                                <>
+                                    <FaGoogle />
+                                    <span>Google</span>
                                 </>
                         }
                     </button>

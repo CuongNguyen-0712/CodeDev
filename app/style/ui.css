@@ -220,24 +220,25 @@
 
 /* ==================== ERROR CONTAINER ==================== */
 .error-container {
+    display: flex;
     grid-column: 1 / -1;
     min-height: 300px;
+    height: 100%;
     width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
+    flex-grow: 1;
 }
 
 .error-content {
     display: flex;
     flex-direction: column;
+    justify-content: center;
     align-items: center;
     text-align: center;
     background: rgba(255, 255, 255, 0.5);
     border-radius: var(--radius_md);
-    padding: 32px 24px;
+    height: 100%;
     width: 100%;
+    padding: 24px;
     gap: 16px;
 }
 
@@ -886,21 +887,15 @@
     max-width: 360px;
 }
 
-.not-found-actions {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.not-found-actions .btn-back {
+.not-found-content .btn-back {
     display: flex;
     align-items: center;
     justify-content: center;
     height: 48px;
     padding: 0 24px;
     background: var(--color_white);
-    border: 2px solid rgba(48, 102, 190, 0.2);
-    border-radius: var(--radius_lg);
+    border: 2px solid rgba(48, 102, 190, 0.1);
+    border-radius: var(--radius_md);
     color: var(--color_black);
     font-size: 14px;
     font-weight: 600;
@@ -909,40 +904,9 @@
     transition: all 0.2s ease;
 }
 
-.not-found-actions .btn-back:hover {
+.not-found-content .btn-back:hover {
     background: var(--color_gray_light);
     border-color: rgba(48, 102, 190, 0.3);
-}
-
-.not-found-actions .btn-back svg {
-    font-size: 18px;
-}
-
-.not-found-actions .btn-home {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 48px;
-    padding: 0 28px;
-    background: var(--gradient_primary);
-    border: none;
-    border-radius: var(--radius_lg);
-    color: var(--color_white);
-    font-size: 14px;
-    font-weight: 600;
-    gap: 10px;
-    box-shadow: var(--shadow_md);
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.not-found-actions .btn-home:hover {
-    box-shadow: var(--shadow_lg), var(--shadow_glow);
-    transform: translateY(-2px);
-}
-
-.not-found-actions .btn-home svg {
-    font-size: 18px;
 }
 
 /* Responsive */
@@ -956,13 +920,7 @@
         font-size: 28px;
     }
 
-    .not-found-actions {
-        flex-direction: column;
-        width: 100%;
-    }
-
-    .not-found-actions .btn-back,
-    .not-found-actions .btn-home {
+    .not-found-content .btn-back {
         width: 100%;
     }
 }
@@ -1134,9 +1092,8 @@
 /* ==================== Search Bar ==================== */
 .search-bar {
     display: flex;
-    flex-direction: column;
-    height: 48px;
     width: 100%;
+    flex-wrap: wrap;
     gap: 16px;
 }
 
@@ -1144,14 +1101,13 @@
 .search-input-wrapper {
     display: flex;
     align-items: center;
-    height: 100%;
     width: 100%;
     max-width: 500px;
     background: var(--gradient_card);
     border-radius: var(--radius_lg);
     border: 1px solid rgba(48, 102, 190, 0.15);
     box-shadow: var(--shadow_sm);
-    padding: 0 6px 0 16px;
+    padding: 5px 10px 5px 15px;
     gap: 12px;
     flex-shrink: 0;
     transition: all 0.2s ease;
@@ -1173,7 +1129,7 @@
 
 .search-input-wrapper input {
     width: 100%;
-    height: 100%;
+    height: 40px;
     border: none;
     outline: none;
     background: transparent;
@@ -1251,21 +1207,21 @@
 .filter-panel {
     display: none;
     align-items: center;
-    gap: 16px;
+    gap: 20px;
     opacity: 0;
+    flex-wrap: wrap;
     transition: opacity 0.3s ease;
 }
 
 .filter-panel.active {
     display: flex;
     opacity: 1;
-    padding-top: 8px;
 }
 
 .filter-groups {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 15px;
     flex: 1;
 }
 
@@ -1402,20 +1358,26 @@
 /* Filter Actions */
 .filter-actions {
     display: flex;
-    gap: 8px;
+    height: max-content;
     flex-shrink: 0;
+    gap: 10px;
 }
 
-.filter-actions .btn-apply {
+.filter-actions::before {
+    content: '';
+    width: 2px;
+    height: 36px;
+    background: var(--color_black);
+    margin-right: 10px;
+}
+
+.filter-actions button {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
     height: 36px;
     padding: 0 20px;
-    width: 100px;
-    background: var(--gradient_primary);
-    color: var(--color_white);
     font-size: 14px;
     font-weight: 600;
     border-radius: var(--radius_md);
@@ -1424,73 +1386,27 @@
     transition: all 0.2s ease;
 }
 
+.filter-actions .btn-apply {
+    background: var(--gradient_primary);
+    color: var(--color_white);
+}
+
+.filter-actions .btn-reset {
+    background: var(--color_gray_light);
+    color: var(--color_black);
+}
+
 .filter-actions .btn-apply:hover {
     box-shadow: var(--shadow_md), var(--shadow_glow);
     transform: translateY(-1px);
 }
 
-.filter-actions .btn-reset {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    background: rgba(48, 102, 190, 0.08);
-    color: var(--color_primary);
-    font-size: 16px;
-    border-radius: 50%;
-    cursor: pointer;
+.filter-actions .btn-reset:hover {
+    background: var(--color_gray);
     transition: all 0.2s ease;
 }
 
-.filter-actions .btn-reset:hover {
-    background: rgba(48, 102, 190, 0.15);
-}
-
 /* Responsive */
-@media (max-width: 768px) {
-    .search-input-wrapper {
-        max-width: 100%;
-    }
-
-    .filter-panel {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .filter-panel.active {
-        max-height: 200px;
-    }
-
-    .filter-groups {
-        width: 100%;
-        overflow-x: auto;
-        flex-wrap: nowrap;
-        padding-bottom: 8px;
-    }
-
-    .filter-groups::-webkit-scrollbar {
-        height: 4px;
-    }
-
-    .filter-groups::-webkit-scrollbar-track {
-        background: transparent;
-    }
-
-    .filter-groups::-webkit-scrollbar-thumb {
-        background: var(--color_gray_light);
-        border-radius: 2px;
-    }
-
-    .filter-actions {
-        width: 100%;
-    }
-
-    .filter-actions .btn-apply {
-        flex: 1;
-    }
-}
-
 /* No-data */
 .no_data {
     display: flex;

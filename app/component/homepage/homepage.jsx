@@ -1,11 +1,10 @@
-import BaseLayout from '@/app/layout/baseLayout';
+import HomeLayout from '@/app/layout/homeLayout';
 import Content from './content';
 
 export default function HomePage() {
     return (
-        <BaseLayout children={
+        <HomeLayout>
             <Content />
-        }>
-        </BaseLayout>
+        </HomeLayout>
     )
 } 

@@ -9,10 +9,11 @@ function normalizeSession(session) {
     if (!session?.user) return null;
 
     return {
-        userId: session.user.userId,
-        username: session.user.username || session.user.name,
-        email: session.user.email,
-        provider: session.user.provider,
+        id: session.user.id ?? null,
+        username: session.user.username || "User",
+        image: session.user.image || null,
+        email: session.user.email || "",
+        provider: session.user.provider || null,
     };
 }
 

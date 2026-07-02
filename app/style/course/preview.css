@@ -87,6 +87,7 @@
 /* Course Hero Section */
 .course-hero {
     display: flex;
+    position: relative;
     flex-direction: column;
     gap: 16px;
     padding: 24px;
@@ -94,6 +95,23 @@
     border-radius: var(--radius_lg);
     border: 1px solid rgba(48, 102, 190, 0.08);
     box-shadow: var(--shadow_md);
+}
+
+.course-hero .image_preview {
+    display: flex;
+    width: 100%;
+    height: 200px;
+    border-radius: var(--radius_lg);
+    overflow: hidden;
+}
+
+.course-hero .image_preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background-size: cover;
+    background-position: center;
+    border-radius: var(--radius_lg);
 }
 
 .hero-header {
@@ -134,8 +152,7 @@
     flex-wrap: wrap;
 }
 
-.level-badge,
-.rating-badge {
+.course-badge {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -145,9 +162,20 @@
     font-weight: 600;
 }
 
+.level-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: var(--radius_sm);
+    font-size: 14px;
+    font-weight: 600;
+}
+
 .rating-badge {
-    background: var(--color_gray_light);
-    color: var(--color_black);
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .course-concept {
@@ -189,18 +217,27 @@
     line-height: 1.7;
 }
 
-.instructor-info {
+.detail-meta {
     display: flex;
-    align-items: center;
-    gap: 10px;
-    padding-top: 12px;
-    border-top: 1px solid var(--color_gray_light);
-    font-size: 14px;
-    color: var(--color_black_light);
+    flex-wrap: wrap;
+    gap: 12px;
 }
 
-.instructor-info strong {
-    color: var(--color_black);
+.detail-meta .detail-tag {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: var(--radius_sm);
+    border: 1px solid rgba(48, 102, 190, 0.08);
+    color: var(--color_primary);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.detail-meta .detail-tag .meta-icon {
+    font-size: 16px;
 }
 
 /* Stats Grid */
@@ -225,10 +262,6 @@
 .stat-card:hover {
     box-shadow: var(--shadow_md);
     transform: translateY(-2px);
-}
-
-.stat-icon {
-    font-size: 24px;
 }
 
 .stat-icon.lessons {
@@ -289,10 +322,12 @@
 }
 
 .module-card {
+    display: flex;
     background: var(--color_white);
     border-radius: var(--radius_lg);
     border: 2px solid var(--color_white);
     box-shadow: var(--shadow_sm);
+    flex-direction: column;
     overflow: hidden;
 }
 
@@ -301,7 +336,8 @@
     align-items: center;
     gap: 16px;
     padding: 16px 20px;
-    background: var(--color_gray_light);
+    background: transparent;
+    border-bottom: 1px solid var(--color_black);
     flex-wrap: wrap;
 }
 
@@ -434,7 +470,17 @@
 .comment-header {
     display: flex;
     align-items: center;
+    background: transparent;
+    padding: 5px;
+    border-radius: var(--radius_md);
+    text-decoration: none;
+    color: var(--color_black);
     gap: 12px;
+}
+
+.comment-header:hover {
+    background: rgba(48, 102, 190, 0.05);
+    transition: all 0.2s ease;
 }
 
 .comment-avatar {
@@ -562,6 +608,10 @@
     box-shadow: inset 0 0 0 2px var(--color_primary);
 }
 
+.form-input-wrapper textarea::-webkit-scrollbar {
+    display: none;
+}
+
 .form-input-wrapper .submit-btn {
     display: flex;
     align-items: center;
@@ -618,17 +668,17 @@
     z-index: 10;
 }
 
-.enroll-btn {
+.preview-footer .join_btn {
     display: flex;
     align-items: center;
     justify-content: center;
     width: 100%;
     max-width: 320px;
     height: 48px;
-    background: var(--gradient_primary);
-    color: var(--color_white);
     font-size: 14px;
     font-weight: 700;
+    background: transparent;
+    color: var(--color_white);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     border-radius: var(--radius_md);
@@ -637,13 +687,12 @@
     transition: all 0.2s ease;
 }
 
-.enroll-btn:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow_xl);
+.preview-footer .join_btn.free {
+    background: var(--gradient_primary);
 }
 
-.enroll-btn:disabled {
-    cursor: not-allowed;
+.preview-footer .join_btn.paid {
+    background: var(--color_black);
 }
 
 /* Responsive */

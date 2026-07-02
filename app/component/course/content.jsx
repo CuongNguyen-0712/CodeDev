@@ -1,10 +1,11 @@
 'use client'
 import { useState, useEffect } from "react"
 
+import Link from "next/link";
+
 import { api } from "@/app/lib/axios";
 
 import { useRouterActions } from "@/app/router/useRouterActions";
-import { useQuery } from "@/app/router/useQuery";
 
 import { ErrorReload } from "../ui/error";
 import { LoadingContent } from "../ui/loading";
@@ -16,41 +17,68 @@ import { useApp } from "@/app/contexts/appContext";
 
 import { uniqWith } from "lodash";
 
-import { FaStar, FaArrowRight, FaUser, FaBookOpen } from "react-icons/fa";
-import { HiOutlineExternalLink } from "react-icons/hi";
+import { FaStar, FaArrowRight, FaUser, FaBookOpen, FaCode, FaCoins } from "react-icons/fa";
+import { BiDetail } from "react-icons/bi";
+import { MdCategory } from "react-icons/md";
 
-const levelConfig = {
-    'Beginner': {
+const levelMapping = {
+    'beginner': {
+        tag: 'Beginner',
         color: 'var(--color_green)',
-        bg: 'rgba(16, 185, 129, 0.1)',
+        bg: 'rgba(34, 197, 94, 0.1)',
     },
-    'Intermediate': {
+    'intermediate': {
+        tag: 'Intermediate',
         color: 'var(--color_primary)',
         bg: 'rgba(48, 102, 190, 0.1)',
     },
-    'Advanced': {
+    'advanced': {
+        tag: 'Advanced',
         color: 'var(--color_orange)',
         bg: 'rgba(245, 158, 11, 0.1)',
     },
-    'Expert': {
+    'expert': {
+        tag: 'Expert',
         color: 'var(--color_purple)',
-        bg: 'rgba(139, 92, 246, 0.1)',
+        bg: 'rgba(168, 85, 247, 0.1)',
     },
-    'Master': {
+    'master': {
+        tag: 'Master',
         color: 'var(--color_red_dark)',
         bg: 'rgba(239, 68, 68, 0.1)',
     }
 }
 
 const CourseItem = ({ item, handlePreview, handleRegister, startHandling, isHandling }) => {
-    const level = levelConfig[item.level] || levelConfig['Beginner']
+    const level = levelMapping[item.level] || levelMapping['beginner']
+    const cost = Number(item.cost);
+    const points = Number(item.points);
 
     return (
         <div className="course-card">
             <div className="course-card-header">
-                <div className="course-image-wrapper">
-                    <img src={item.image?.trim()} alt={item.title} className="course-image" />
-                </div>
+                <img
+                    src={item.image || '/image/static/no_image.png'}
+                    alt={item.title}
+                    className="placeholder-image"
+                    loading="lazy"
+                    onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = '/image/static/no_image.png';
+                    }}
+                />
+
+                <img
+                    src={item.language_logo || '/image/static/no_image.png'}
+                    alt={item.title}
+                    height={60}
+                    width={60}
+                    className="language-logo"
+                    onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = '/image/static/no_image.png';
+                    }}
+                />
 
                 <div className="course-rating">
                     <FaStar className="star-icon" />
@@ -64,37 +92,47 @@ const CourseItem = ({ item, handlePreview, handleRegister, startHandling, isHand
                         background: level.bg
                     }}
                 >
-                    {item.level}
+                    {level.tag}
                 </div>
             </div>
 
             <div className="course-card-body">
                 <h3 className="course-title">{item.title}</h3>
-                <p className="course-concept">{item.concept}</p>
-                <p className="course-description">{item.description}</p>
-
+                <p className="course-properties">{`${item.modules} modules - ${item.lessons} lessons - ${item.duration} minutes`}</p>
                 <div className="course-meta">
-                    <div className="meta-item">
-                        <FaBookOpen className="meta-icon" />
-                        <span>{item.subject}</span>
-                    </div>
-                    <div className="meta-item">
-                        <FaUser className="meta-icon" />
+                    <Link href={'#'} className="meta-item language">
+                        <FaCode />
+                        <span>{item.language_name}</span>
+                    </Link>
+                    <Link href={'#'} className="meta-item category">
+                        <MdCategory />
+                        <span>{item.category_name}</span>
+                    </Link>
+                    <Link href={'#'} className="meta-item instructor">
+                        <FaUser />
                         <span>{item.instructor}</span>
-                    </div>
+                    </Link>
                 </div>
             </div>
 
             <div className="course-card-footer">
+                {
+                    points > 0 && (
+                        <div className="course-points">
+                            <FaCoins fontSize={14} color="var(--color_yellow)" />
+                            <span>{points}</span>
+                        </div>
+                    )
+                }
                 <button
-                    className={`course-enroll-btn ${Math.round(item.cost) !== 0 ? 'paid' : ''}`}
+                    className={`course-enroll-btn ${cost > 0 ? 'paid' : ''}`}
                     onClick={(e) => {
                         e.stopPropagation()
-                        if (Math.round(item.cost) !== 0) return
+                        if (cost > 0) return
                         startHandling(item.id)
                         handleRegister({
                             id: item.id,
-                            isCost: Math.round(item.cost) !== 0,
+                            isCost: cost > 0,
                             course: item.title
                         })
                     }}
@@ -103,7 +141,7 @@ const CourseItem = ({ item, handlePreview, handleRegister, startHandling, isHand
                     {isHandling ? (
                         <LoadingContent scale={0.5} color="var(--color_white)" />
                     ) : (
-                        Math.round(item.cost) === 0 ? 'Enroll Free' : `$${item.cost}`
+                        cost === 0 ? 'Enroll Free' : `$${cost.toFixed(2)}`
                     )}
                 </button>
                 <button
@@ -112,7 +150,7 @@ const CourseItem = ({ item, handlePreview, handleRegister, startHandling, isHand
                     onClick={() => handlePreview(item.id)}
                     title="View Details"
                 >
-                    <HiOutlineExternalLink fontSize={18} />
+                    <BiDetail fontSize={18} />
                 </button>
             </div>
         </div>
@@ -122,8 +160,7 @@ const CourseItem = ({ item, handlePreview, handleRegister, startHandling, isHand
 
 export default function CourseContent() {
     const { showAlert, setRedirect } = useApp();
-    const queryNavigate = useQuery();
-    const { navigateToLearning, navigateToCourse } = useRouterActions();
+    const { navigate } = useRouterActions();
 
     const filterMapping = [
         {
@@ -131,23 +168,23 @@ export default function CourseContent() {
             items: [
                 {
                     name: 'Beginner',
-                    value: 'Beginner'
+                    value: 'beginner'
                 },
                 {
                     name: 'Intermediate',
-                    value: 'Intermediate'
+                    value: 'intermediate'
                 },
                 {
                     name: 'Advanced',
-                    value: 'Advanced'
+                    value: 'advanced'
                 },
                 {
                     name: 'Expert',
-                    value: 'Expert'
+                    value: 'expert'
                 },
                 {
                     name: 'Master',
-                    value: 'Master'
+                    value: 'master'
                 }
             ]
         },
@@ -159,7 +196,7 @@ export default function CourseContent() {
                     value: 'false'
                 },
                 {
-                    name: 'Cost',
+                    name: 'Paid',
                     value: 'true'
                 }
             ]
@@ -192,7 +229,6 @@ export default function CourseContent() {
     ]
 
     const defaultFilter = {
-        price: ['false']
     }
 
     const [state, setState] = useState({
@@ -315,6 +351,7 @@ export default function CourseContent() {
     }, [state.search])
 
     const handleRegister = ({ id, isCost, course }) => {
+        if (!id) return
         if (isCost) return
 
         setApiQueue((prev) => [
@@ -328,7 +365,7 @@ export default function CourseContent() {
 
     const handleRequest = async ({ id, course }) => {
         try {
-            const response = await api.post('post/postRegisterCourse', { courseId: id });
+            const response = await api.post('post/postRegisterCourse', { id: id });
             if (response.data.success) {
                 setLoad((prev) => ({
                     ...prev,
@@ -339,7 +376,7 @@ export default function CourseContent() {
                     data: prev.data.filter((item) => item.id !== id),
                 }));
                 setApiQueue((prev) => [...prev, { type: "fetch" }]);
-                showAlert(200, `Successfully registered course: ${course}`, () => navigateToLearning(id));
+                showAlert(200, `Successfully registered course: ${course}`, () => navigate(`/learning/${id}`));
             } else {
                 showAlert(response.status, response.data?.message || `Failed to register course: ${course}`);
             }
@@ -353,13 +390,14 @@ export default function CourseContent() {
     const handlePreview = (id) => {
         if (state.handling) return;
         setRedirect(true)
-        navigateToCourse(id);
+        navigate(`/course/${id}`);
     }
 
     const handleRedirect = () => {
         setRedirect(true);
-        queryNavigate('/home', { tab: 'learning' });
+        navigate('/home?tab=learning');
     }
+
 
     const refetchData = () => {
         setState(prev => ({ ...prev, pending: true }))

@@ -13,21 +13,9 @@ const pageTitles = {
         title: "Learning",
         description: "Discover courses to enhance your skills",
     },
-    project: {
-        title: "Project",
-        description: "Discover projects to enhance your skills",
-    },
-    social: {
-        title: "Social",
-        description: "Connect with like-minded individuals",
-    },
-    roadmap: {
-        title: "Roadmap",
-        description: "Discover your coding journey",
-    },
-    event: {
-        title: "Event",
-        description: "Join us for exciting coding events",
+    connection: {
+        title: "Connection",
+        description: "Keep your social circle active and grow your network.",
     }
 };
 
@@ -50,13 +38,6 @@ export async function generateMetadata(context) {
         return {
             title: "Feedback | CodeDev",
             description: "Share your feedback with us",
-        };
-    }
-
-    if (searchParams?.manage) {
-        return {
-            title: "Manage account | CodeDev",
-            description: "Manage your account settings",
         };
     }
 

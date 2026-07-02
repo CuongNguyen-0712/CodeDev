@@ -1,8 +1,8 @@
 import { postCreateTeam } from "@/app/actions/post/action";
-import { v4 as uuidv4 } from "uuid";
+import { ulid } from "ulid";
 
 export default async function PostCreateTeamService(data) {
-    const teamId = uuidv4();
+    const teamId = ulid();
     const { userId, name, size, description } = data;
 
     const result = await postCreateTeam({ teamId, userId, name, size, description });

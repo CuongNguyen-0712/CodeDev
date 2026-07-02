@@ -10,12 +10,17 @@
 @import "./style/course/content.css";
 @import "./style/course/preview.css";
 
+@import "./style/layout/navigate.css";
+
 @import "./style/event.css";
 @import "./style/auth.css";
-@import "./style/project.css";
 @import "./style/ui.css";
 @import "./style/footer.css";
 @import "./style/roadmap.css";
+@import "./style/slider.css";
+@import "./style/settings.css";
+
+@import "./style/roadmap/roadmap.css";
 
 @font-face {
     font-family: 'myFont';
@@ -30,7 +35,6 @@
     padding: 0;
     box-sizing: border-box;
     scroll-behavior: smooth;
-    data-scroll-smooth: smooth;
     font-family: 'myFont', sans-serif;
 }
 
@@ -44,7 +48,7 @@ body {
     flex-direction: column;
     -webkit-touch-callout: none;
     font-family: 'myFont', sans-serif;
-    overflow-y: scroll;
+    overflow-y: auto;
 }
 
 :root {
@@ -97,9 +101,9 @@ body {
     --color_orange: #F97316;
     --color_orange_dark: #EA580C;
 
-    --color_purple_light: #aeecef;
-    --color_purple: #80ded9;
-    --color_purple_dark: #119da4;
+    --color_purple_light: #D8B4FE;
+    --color_purple: #8B5CF6;
+    --color_purple_dark: #7C3AED;
 
     --color_violet: #6d9dc5;
     --color_cyan: #80ded9;
@@ -136,10 +140,6 @@ body {
 
     input::placeholder,
     textarea::placeholder {
-        font-size: 14px !important;
-    }
-
-    p {
         font-size: 14px !important;
     }
 }

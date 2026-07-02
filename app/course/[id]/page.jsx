@@ -9,21 +9,23 @@ import DefaultLayout from "@/app/layout/defaultLayout";
 import { LoadingRedirect } from "@/app/component/ui/loading";
 
 export async function generateMetadata({ params }) {
-    const { id: course_id } = await params
+    const { id } = await params
 
-    const payload = await GetStateCourseService(course_id)
+    const course_id = id.split('_').slice(-1).at(0)
 
-    if (payload) {
-        const data = payload[0]
-        return {
-            title: `${data.title ?? 'Missing course'} | Course`,
-            description: `${data.description || 'Sorry, something is error !'}`
-        }
+    const payload = await GetStateCourseService({ courseId: course_id })
+    const data = payload[0]
+
+    return {
+        title: `${data?.title || 'Missing course'} | Course`,
+        description: `${data?.description || 'Sorry, something is error !'}`
     }
 }
 
 export default async function Page({ params }) {
-    const { id: course_id } = await params
+    const { id } = await params
+
+    const course_id = id.split('_').slice(-1).at(0)
 
     return (
         <Suspense fallback={<LoadingRedirect />}>

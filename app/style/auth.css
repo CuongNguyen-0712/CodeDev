@@ -553,10 +553,6 @@
     transform: scale(0.9);
   }
 
-  #auth .social_buttons {
-    flex-direction: column;
-  }
-
   #auth .form_step {
     padding-right: 10px;
   }

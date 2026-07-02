@@ -1,10 +1,18 @@
-'use client'
+import Settings from "../component/settings/settings"
 
-export default function Settings() {
+import NavigateLayout from "../layout/navigateLayout"
+
+export async function generateMetadata() {
+    return {
+        title: "Settings | CodeDev",
+        description: "Manage your account settings and preferences",
+    }
+}
+
+export default function Page() {
     return (
-        <main id="main">
-            <h1>Hello</h1>
-            <button onClick={() => router.push('/main')}>Back</button>
-        </main>
+        <NavigateLayout>
+            <Settings />
+        </NavigateLayout>
     )
 }

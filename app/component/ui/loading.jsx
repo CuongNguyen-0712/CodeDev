@@ -2,9 +2,8 @@
 import { useState, useEffect } from "react"
 
 export function LoadingRedirect({ scale }) {
-
     const [message, setMessage] = useState(null);
-    const [onChange, setOnChange] = useState(true);
+    const [onChange, setOnChange] = useState(false);
 
     const message_timer = (message, delay) => {
         const timer = setTimeout(() => {
@@ -61,7 +60,7 @@ export function LoadingRedirect({ scale }) {
                     {message ?? ''}
                 </p>
             </div>
-        </div>
+        </div >
     )
 }
 

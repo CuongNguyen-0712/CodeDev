@@ -14,7 +14,7 @@ export async function POST(req) {
             throw new ApiError("Unauthorized", 401);
         }
 
-        const sender = session.user.id;
+        const sender = session.user.id || 'anonymous';
         const { title, feedback } = await req.json();
 
         if (!title || !feedback) {

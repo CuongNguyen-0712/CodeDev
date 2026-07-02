@@ -64,7 +64,7 @@ export const SignUpSchema = z.object({
     if (!data.re_password || data.re_password.trim().length === 0) {
         ctx.addIssue({
             path: ["re_password"],
-            message: "Re-password is required",
+            message: "Confirm password is required",
         });
         return;
     }
@@ -72,7 +72,7 @@ export const SignUpSchema = z.object({
     if (data.re_password !== data.password) {
         ctx.addIssue({
             path: ["re_password"],
-            message: "Re-password must be same with password",
+            message: "Confirm password must match password",
         });
     }
 });

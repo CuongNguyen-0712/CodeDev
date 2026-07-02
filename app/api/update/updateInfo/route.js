@@ -5,7 +5,6 @@ import { authOptions } from "../../auth/[...nextauth]/route";
 import { ApiError } from "@/app/lib/error/apiError";
 
 import UpdateInfoService from "@/app/services/updateService/infoService";
-import UploadService from "@/app/services/postService/uploadService";
 
 export async function PATCH(req) {
     try {
@@ -32,16 +31,6 @@ export async function PATCH(req) {
             throw new ApiError("No data to update", 400);
         }
 
-        let imageUrl = null;
-
-        if (image) {
-            imageUrl = await UploadService(image, "uploads");
-
-            if (!imageUrl) {
-                throw new ApiError("Failed to upload image, try again later", 500);
-            }
-        }
-
         const data = {
             userId,
             nickname,
@@ -50,7 +39,7 @@ export async function PATCH(req) {
             name,
             email,
             bio,
-            ...(imageUrl && { url: imageUrl })
+            image
         };
 
         const response = await UpdateInfoService(data);
@@ -63,7 +52,6 @@ export async function PATCH(req) {
             {
                 success: true,
                 message: "Updated successfully",
-                data: response
             },
             { status: 200 }
         );

@@ -42,7 +42,7 @@ export function InputGroup({ name, label, type, value, onChange, error, icon, re
             }
             {
                 error &&
-                <p>
+                <p className="input_error">
                     <IoMdCloseCircle fontSize={16} />
                     {error}
                 </p>
@@ -83,7 +83,7 @@ export function TextAreaGroup({ label, name, value, onChange, rows = 2, cols, er
             />
             {
                 error &&
-                <p>
+                <p className="input_error">
                     <IoMdCloseCircle fontSize={16} />
                     {error}
                 </p>

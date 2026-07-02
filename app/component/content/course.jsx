@@ -1,4 +1,4 @@
-import { useState, useEffect, startTransition } from "react"
+import { useState, useEffect, useTransition } from "react"
 
 import { useRouterActions } from "@/app/router/useRouterActions";
 
@@ -13,9 +13,11 @@ import { uniqWith } from "lodash";
 import { api } from "@/app/lib/axios";
 
 import { FaCartShopping, FaPlay, FaCode, FaGraduationCap } from "react-icons/fa6";
-import { IoSettingsSharp, IoClose, IoTrashBin, IoReload } from "react-icons/io5";
+import { IoSettingsSharp, IoClose, IoTrashBin, IoReload, IoArchive } from "react-icons/io5";
+import { MdCategory } from "react-icons/md";
 import { GoHeartFill } from "react-icons/go";
-import { LuSearchX, LuExternalLink } from "react-icons/lu";
+import { BiDetail } from "react-icons/bi";
+import { LuSearchX } from "react-icons/lu";
 import { HiSparkles } from "react-icons/hi2";
 import { VscDebugContinue } from "react-icons/vsc";
 
@@ -27,6 +29,14 @@ export function CourseItem({
     onWithdraw,
     setAlert,
 }) {
+    const levelMapping = {
+        'beginner': 'Beginner',
+        'intermediate': 'Intermediate',
+        'advanced': 'Advanced',
+        'expert': 'Expert',
+        'master': 'Master'
+    }
+
     const [openSetting, setOpenSetting] = useState(false)
     const [confirmWithdraw, setConfirmWithdraw] = useState(false)
     const [marked, setMarked] = useState(item.is_marked)
@@ -35,12 +45,14 @@ export function CourseItem({
         ? ((item.progress ?? 0) / item.lessons * 100).toFixed(0)
         : 0;
 
+    const isArchived = progressPercent > 0
+
     const handleMarkedCourse = async ({ id, course }) => {
         const newMarked = !marked
         setMarked(newMarked)
 
         try {
-            const response = await api.patch('update/updateStatusCourse', { courseId: id, marked: newMarked });
+            const response = await api.patch('update/updateStatusCourse', { id: id, marked: newMarked });
             if (response.data.success) {
                 setAlert({ status: response.status, message: `${newMarked ? 'Marked' : 'Unmarked'} course: ${course} successfully` })
             }
@@ -60,7 +72,14 @@ export function CourseItem({
             {/* Card Header */}
             <div className="card-header">
                 <div className="course-icon">
-                    <img src={item.image?.trim()} alt="course_image" />
+                    <img
+                        src={item.language_logo || '/image/static/no_image.png'}
+                        alt={item.language_name || 'No Image'}
+                        onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = '/image/static/no_image.png';
+                        }}
+                    />
                 </div>
                 <button
                     className={`bookmark-btn ${marked ? 'active' : ''}`}
@@ -83,11 +102,15 @@ export function CourseItem({
                 <div className="course-meta">
                     <span className="meta-item level">
                         <FaGraduationCap />
-                        {item.level}
+                        {levelMapping[item.level] || '__'}
                     </span>
                     <span className="meta-item language">
                         <FaCode />
-                        {item.language}
+                        {item.language_name || '__'}
+                    </span>
+                    <span className="meta-item category">
+                        <MdCategory />
+                        {item.category_name || '__'}
                     </span>
                 </div>
 
@@ -111,23 +134,43 @@ export function CourseItem({
             <div className="card-footer">
                 {openSetting ? (
                     <div className="setting-actions">
-                        <button
-                            className="btn-withdraw"
-                            disabled={isHandling}
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                setConfirmWithdraw(true)
-                            }}
-                        >
-                            {isHandling ? (
-                                <LoadingContent scale={0.4} color={"var(--color_white)"} />
-                            ) : (
-                                <>
-                                    <IoTrashBin />
-                                    Withdraw
-                                </>
-                            )}
-                        </button>
+                        {
+                            isArchived ?
+                                <button
+                                    className="btn_action btn-archived"
+                                    disabled={isHandling}
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                    }}
+                                >
+                                    {isHandling ? (
+                                        <LoadingContent scale={0.4} color={"var(--color_white)"} />
+                                    ) : (
+                                        <>
+                                            <IoArchive />
+                                            Archive
+                                        </>
+                                    )}
+                                </button>
+                                :
+                                <button
+                                    className="btn_action btn-withdraw"
+                                    disabled={isHandling}
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        setConfirmWithdraw(true)
+                                    }}
+                                >
+                                    {isHandling ? (
+                                        <LoadingContent scale={0.4} color={"var(--color_white)"} />
+                                    ) : (
+                                        <>
+                                            <IoTrashBin />
+                                            Withdraw
+                                        </>
+                                    )}
+                                </button>
+                        }
                         <button
                             className="btn-close"
                             onClick={(e) => {
@@ -194,7 +237,7 @@ export function CourseItem({
                                 onPreview(item.id)
                             }}
                         >
-                            <LuExternalLink />
+                            <BiDetail />
                         </button>
                         <button
                             className="btn-settings"
@@ -255,7 +298,7 @@ export function CourseItem({
 }
 
 export default function MyCourse({ redirect, alert }) {
-    const { navigateToLearning, navigateToCourse } = useRouterActions();
+    const { navigate } = useRouterActions();
 
     const filterMapping = [
         {
@@ -263,23 +306,23 @@ export default function MyCourse({ redirect, alert }) {
             items: [
                 {
                     name: 'Beginner',
-                    value: 'Beginner'
+                    value: 'beginner'
                 },
                 {
                     name: 'Intermediate',
-                    value: 'Intermediate'
+                    value: 'intermediate'
                 },
                 {
                     name: 'Advanced',
-                    value: 'Advanced'
+                    value: 'advanced'
                 },
                 {
                     name: 'Expert',
-                    value: 'Expert'
+                    value: 'expert'
                 },
                 {
                     name: 'Master',
-                    value: 'Master'
+                    value: 'master'
                 }
             ]
         },
@@ -288,23 +331,23 @@ export default function MyCourse({ redirect, alert }) {
             items: [
                 {
                     name: 'Enrolled',
-                    value: 'Enrolled',
+                    value: 'enrolled',
                 },
                 {
                     name: 'In Progress',
-                    value: 'In Progress',
+                    value: 'in_progress',
                 },
                 {
                     name: 'Completed',
-                    value: 'Completed',
+                    value: 'completed',
                 },
                 {
-                    name: 'Cancelled',
-                    value: 'Cancelled',
+                    name: 'Paused',
+                    value: 'paused',
                 },
                 {
-                    name: 'Refunded',
-                    value: 'Refunded',
+                    name: 'Dropped',
+                    value: 'dropped',
                 }
             ]
         },
@@ -324,7 +367,7 @@ export default function MyCourse({ redirect, alert }) {
     ]
 
     const defaultFilter = {
-        status: ['Enrolled', 'In Progress', 'Completed'],
+        status: ['enrolled', 'in_progress'],
     }
 
     const [state, setState] = useState({
@@ -379,7 +422,7 @@ export default function MyCourse({ redirect, alert }) {
     }, [apiQueue, isProcessing]);
 
     const handleNavigate = () => {
-        navigateToCourse()
+        navigate('/course');
         redirect(true);
     }
     const fetchData = async () => {
@@ -451,7 +494,7 @@ export default function MyCourse({ redirect, alert }) {
                 type: 'delete',
                 execute: async () => {
                     try {
-                        const response = await api.patch('update/updateWithdrawCourse', { courseId: id })
+                        const response = await api.patch('update/updateWithdrawCourse', { id: id });
 
                         if (response.data.success) {
                             setLoad(prev => ({
@@ -492,9 +535,7 @@ export default function MyCourse({ redirect, alert }) {
 
         setState(prev => ({ ...prev, data: [], pending: true }));
         setLoad(prev => ({ ...prev, offset: 0, hasMore: true, hasSearch: true }));
-        startTransition(() => {
-            setApiQueue((prev) => [...prev, { type: "fetch" }]);
-        })
+        setApiQueue((prev) => [...prev, { type: "fetch" }]);
     }
 
     useEffect(() => {
@@ -510,13 +551,13 @@ export default function MyCourse({ redirect, alert }) {
     const handleJoin = (id) => {
         if (!id) return;
         startHandling(id);
-        navigateToLearning(id);
+        navigate(`/learning/${id}`);
         redirect(true);
     }
 
     const handlePreview = (id) => {
         redirect(true)
-        navigateToCourse(id);
+        navigate(`/course/${id}`);
     }
 
     const startHandling = (id) => {

@@ -1,11 +1,10 @@
 'use client'
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
 import { usePathname } from "next/navigation";
+import Link from "next/link";
 
 import { useRouterActions } from "@/app/router/useRouterActions";
-import { useQuery } from "@/app/router/useQuery";
-
-import { useAuth } from "@/app/contexts/authContext";
 
 import { signOut } from "next-auth/react";
 
@@ -13,21 +12,35 @@ import useOutside from "@/app/hooks/useOutside";
 
 import { LoadingContent } from "../ui/loading";
 
-import { FaListUl, FaChevronDown, FaChevronLeft } from "react-icons/fa";
-import { IoSearch, IoSettingsSharp, IoLogOut } from "react-icons/io5";
+import { useAuth } from "@/app/contexts/authContext";
+import { useApp } from "@/app/contexts/appContext";
+
+import { useUser } from '@/hooks/use-user';
+
+import { FaChevronDown, FaChevronLeft, FaCoins } from "react-icons/fa";
+import { PiListBold } from "react-icons/pi";
+import { IoSettingsSharp, IoLogOut } from "react-icons/io5";
 import { MdEmail, MdNotifications } from "react-icons/md";
-import { FaPlus } from "react-icons/fa6";
 import { HiUser } from "react-icons/hi2";
 import { LuSparkles } from "react-icons/lu";
 
 export default function Navbar({ handleDashboard, redirect }) {
   const pathname = usePathname();
-  const { session } = useAuth();
+  const { showAlert: alert } = useApp();
+  const { session, status } = useAuth();
+  const { data, isLoading, error } = useUser()
 
   const [dropdown, setDropdown] = useState(false);
 
-  const queryNavigate = useQuery();
-  const { navigateToTask, navigateReplace, navigateBack, navigateToAuth } = useRouterActions();
+  const { navigateReplace, navigateBack, navigate } = useRouterActions();
+
+  const linkMapping = [
+    { label: 'Home', path: '/home', isAuth: true },
+    { label: 'Course', path: '/course', isAuth: true },
+    { label: 'Roadmap', path: '/roadmap', isAuth: true },
+    { label: 'Blog', path: '/blog', isAuth: true },
+    { label: 'About', path: '/about', isAuth: false },
+  ]
 
   const ref = useOutside({
     stateOutside: dropdown,
@@ -46,18 +59,18 @@ export default function Navbar({ handleDashboard, redirect }) {
 
   const handleAuth = () => {
     redirect(true);
-    navigateToAuth();
-  }
-
-  const handleTask = () => {
-    redirect(true);
-    navigateToTask();
+    navigate("/auth");
   }
 
   const toggleDropdown = (e) => {
     e.stopPropagation();
     setDropdown(prev => !prev);
   };
+
+  useEffect(() => {
+    if (!error) return;
+    alert(error?.status || 500, error?.message || 'Failed to fetch user data.');
+  }, [error]);
 
   return (
     <section id='header'>
@@ -66,10 +79,10 @@ export default function Navbar({ handleDashboard, redirect }) {
         <div className="nav-left">
           {(pathname === '/' || pathname === '/home') ? (
             <button className="nav-icon-btn menu-btn" onClick={() => handleDashboard(true)}>
-              <FaListUl />
+              <PiListBold fontSize={22} />
             </button>
           ) : (
-            <button className="nav-icon-btn back-btn" onClick={navigateBack}>
+            <button className="nav-icon-btn back-btn" onClick={() => navigateBack('/home')}>
               <FaChevronLeft fontSize={16} />
             </button>
           )}
@@ -83,15 +96,21 @@ export default function Navbar({ handleDashboard, redirect }) {
           </div>
         </div>
 
-        {/* Search Bar */}
-        <button className="nav-search" onClick={() => queryNavigate(pathname, { search: true })}>
-          <span className="search-icon"><IoSearch /></span>
-          <span className="search-text">Search anything...</span>
-          <span className="search-shortcut">
-            <kbd>⌘</kbd>
-            <kbd>K</kbd>
-          </span>
-        </button>
+        <div className="nav_center">
+          {status === "loading" ?
+            <LoadingContent scale={0.5} color={'var(--color_white)'} />
+            :
+            linkMapping.filter((link) => session ? link.isAuth : !link.isAuth).map((link, index) => (
+              <Link
+                key={index}
+                href={link.path}
+                className={`nav_links ${pathname === link.path ? 'active' : ''}`}
+              >
+                {link.label}
+              </Link>
+            ))
+          }
+        </div>
 
         {/* Right Section - Actions */}
         <div className="nav-right">
@@ -102,17 +121,9 @@ export default function Navbar({ handleDashboard, redirect }) {
             </button>
           ) : (
             <>
-              <button className="nav-icon-btn search-mobile" onClick={() => queryNavigate(pathname, { search: true })}>
-                <IoSearch />
-              </button>
-
-              <button className="nav-icon-btn add-btn" onClick={handleTask}>
-                <FaPlus />
-              </button>
-
-              <button className="nav-icon-btn notification-btn">
-                <MdNotifications />
-                <span className="notification-dot" />
+              <button className="nav_coins_btn">
+                <span>{data?.points || 0}</span>
+                <FaCoins fontSize={16} color="var(--color_yellow)" />
               </button>
 
               {/* Account Dropdown */}
@@ -123,31 +134,48 @@ export default function Navbar({ handleDashboard, redirect }) {
                   </div>
                   <div className="account-info">
                     {
-                      session ?
-                        <span className="account-name">
-                          {session?.username.length > 7 ? session.username.slice(0, 7) + '...' : session.username}
-                        </span>
-                        :
+                      isLoading ?
                         <LoadingContent scale={0.5} color={'var(--color_white)'} />
+                        :
+                        (
+                          <span className="account-name">
+                            {data?.username?.length > 7 ? `${data?.username.substring(0, 7)}...` : data?.username || "______"}
+                          </span>
+                        )
                     }
                   </div>
                   <FaChevronDown fontSize={14} className={`account-arrow ${dropdown ? 'rotated' : ''}`} />
                 </button>
 
                 <div className={`account-dropdown ${dropdown ? 'active' : ''}`}>
-                  <div className="dropdown-header">
-                    <div className="dropdown-avatar">
-                      <HiUser />
-                    </div>
-                    {
-                      session ?
-                        <div className="dropdown-user">
-                          <h4>{session?.username || 'User'}</h4>
-                          <p>{session?.email || 'user@email.com'}</p>
-                        </div> :
-                        <LoadingContent scale={0.5} />
-                    }
-                  </div>
+                  {status === "loading" ?
+                    <Link href="/auth" className="dropdown-item authenticated">
+                      Please log in again
+                    </Link>
+                    :
+                    <Link href="/profile" className="dropdown-header">
+                      <img
+                        className="dropdown-avatar"
+                        src={data?.image || '/image/static/no_image.png'}
+                        alt="Avatar"
+                        width={50}
+                        height={50}
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = '/image/static/no_image.png';
+                        }}
+                      />
+                      {
+                        isLoading ?
+                          <LoadingContent scale={0.5} />
+                          :
+                          <div className="dropdown-user">
+                            <h4>{data?.username.length > 15 ? `${data?.username.substring(0, 15)}...` : data?.username || "Unknown"}</h4>
+                            <p>{data?.email || 'user@email.com'}</p>
+                          </div>
+                      }
+                    </Link>
+                  }
 
                   <div className="dropdown-divider" />
 
@@ -167,10 +195,10 @@ export default function Navbar({ handleDashboard, redirect }) {
                   <div className="dropdown-divider" />
 
                   <div className="dropdown-group">
-                    <button className="dropdown-item highlight" onClick={() => queryNavigate(pathname, { manage: true })}>
+                    <Link href="/settings" className="dropdown-item highlight">
                       <span className="item-icon"><IoSettingsSharp /></span>
                       <span className="item-label">Settings</span>
-                    </button>
+                    </Link>
                     <button className="dropdown-item danger" onClick={handleLogout}>
                       <span className="item-icon"><IoLogOut /></span>
                       <span className="item-label">Log out</span>

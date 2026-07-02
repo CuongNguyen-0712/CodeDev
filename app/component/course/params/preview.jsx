@@ -1,8 +1,10 @@
 'use client'
-import { useState, useReducer, useEffect, useRef } from "react"
+import { useState, useReducer, useEffect, useRef, useTransition } from "react"
 
 import { LoadingContent, LoadingRedirect } from "../../ui/loading";
 import { ErrorReload } from "../../ui/error";
+
+import Link from "next/link";
 
 import { api } from "@/app/lib/axios";
 
@@ -16,14 +18,12 @@ import Form from "next/form";
 import {
     FaArrowLeft,
     FaStar,
-    FaCheckCircle,
     FaThumbsUp,
     FaThumbsDown,
     FaGraduationCap,
     FaPlayCircle
 } from "react-icons/fa";
-import { BiDetail } from "react-icons/bi";
-import { MdPlayLesson } from "react-icons/md";
+import { MdPlayLesson, MdPerson, MdLanguage, MdCategory } from "react-icons/md";
 import { LuAlarmClock } from "react-icons/lu";
 import { PiStudent } from "react-icons/pi";
 import { IoSend } from "react-icons/io5";
@@ -40,13 +40,25 @@ const CommentItem = ({ data, alert }) => {
     })
 
     const formatDate = (str) => {
-        const d = new Date(str);
-        const day = String(d.getDate()).padStart(2, "0");
-        const month = String(d.getMonth() + 1).padStart(2, "0");
-        const year = d.getFullYear();
-        const hour = String(d.getHours()).padStart(2, "0");
-        const minute = String(d.getMinutes()).padStart(2, "0");
-        return `${day}/${month}/${year} ${hour}:${minute}`;
+        const now = new Date();
+        const date = new Date(str);
+        const diffInSeconds = Math.floor((now - date) / 1000);
+
+        if (diffInSeconds < 5) {
+            return 'Just now';
+        } else if (diffInSeconds < 60) {
+            return `${diffInSeconds} seconds ago`;
+        } else if (diffInSeconds < 3600) {
+            const minutes = Math.floor(diffInSeconds / 60);
+            return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
+        } else if (diffInSeconds < 86400) {
+            const hours = Math.floor(diffInSeconds / 3600);
+            return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+        }
+        else {
+            const days = Math.floor(diffInSeconds / 86400);
+            return `${days} day${days !== 1 ? 's' : ''} ago`;
+        }
     };
 
     const handleVoting = async (e) => {
@@ -89,19 +101,23 @@ const CommentItem = ({ data, alert }) => {
 
     return (
         <div className="comment-card">
-            <div className="comment-header">
+            <Link className="comment-header" href={`/profile/${data.user_id}`} title={data.username}>
                 <img
                     className="comment-avatar"
                     src={data.avatar}
                     alt={data.username}
                     height={44}
                     width={44}
+                    onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = '/image/static/no_image.png';
+                    }}
                 />
                 <div className="comment-user-info">
                     <h4 className="comment-username">{data.username}</h4>
                     <span className="comment-date">{formatDate(data.created_at)}</span>
                 </div>
-            </div>
+            </Link>
             <div className="comment-body">
                 <p className="comment-text">{data.comment}</p>
                 <div className="comment-actions">
@@ -127,18 +143,18 @@ const CommentItem = ({ data, alert }) => {
     )
 }
 
-const levelConfig = {
-    'Beginner': { color: 'var(--color_green)', bg: 'rgba(16, 185, 129, 0.1)' },
-    'Intermediate': { color: 'var(--color_primary)', bg: 'rgba(48, 102, 190, 0.1)' },
-    'Advanced': { color: 'var(--color_orange)', bg: 'rgba(245, 158, 11, 0.1)' },
-    'Expert': { color: 'var(--color_purple)', bg: 'rgba(139, 92, 246, 0.1)' },
-    'Master': { color: 'var(--color_red_dark)', bg: 'rgba(239, 68, 68, 0.1)' }
+const levelMapping = {
+    'beginner': { tag: 'Beginner', color: 'var(--color_green)', bg: 'rgba(16, 185, 129, 0.1)' },
+    'intermediate': { tag: 'Intermediate', color: 'var(--color_primary)', bg: 'rgba(48, 102, 190, 0.1)' },
+    'advanced': { tag: 'Advanced', color: 'var(--color_orange)', bg: 'rgba(245, 158, 11, 0.1)' },
+    'expert': { tag: 'Expert', color: 'var(--color_purple)', bg: 'rgba(139, 92, 246, 0.1)' },
+    'master': { tag: 'Master', color: 'var(--color_red_dark)', bg: 'rgba(239, 68, 68, 0.1)' }
 }
 
 export default function PreviewCourse({ params } = {}) {
     const { showAlert: alert } = useApp()
 
-    const { navigateBack } = useRouterActions()
+    const { navigateBack, navigate } = useRouterActions()
     const scrollRef = useRef(null)
 
     const initialState = {
@@ -229,14 +245,12 @@ export default function PreviewCourse({ params } = {}) {
 
     const [state, dispatch] = useReducer(reducer, initialState)
 
+    const [isPending, startTransition] = useTransition()
+
     const [comment, setComment] = useState({
         content: '',
         rating: null,
-    })
-
-    const [handling, setHandling] = useState({
-        comment: false,
-        submit: false,
+        handling: false
     })
 
     const [error, setError] = useState(null)
@@ -267,6 +281,15 @@ export default function PreviewCourse({ params } = {}) {
 
         run();
     }, [apiQueue, isProcessing]);
+
+    useEffect(() => {
+        if (load.handling && !state.comment.pending && !isProcessing && apiQueue.length === 0) {
+            setLoad((prev) => ({
+                ...prev,
+                handling: false
+            }));
+        }
+    }, [apiQueue.length, isProcessing, load.handling, state.comment.pending]);
 
     const scrollToTop = () => {
         scrollRef.current?.scrollTo({
@@ -325,11 +348,15 @@ export default function PreviewCourse({ params } = {}) {
                     courseId: course_id
                 }
             });
+
             if (response.data.success) {
                 const data = Array.isArray(response.data.data) ? response.data.data : []
+
+                let index = 0;
                 const payload = data.reduce((acc, { module_id, title, ...rest }) => {
                     if (!acc[module_id]) {
                         acc[module_id] = {
+                            index: index++,
                             id: module_id,
                             title: title,
                             lessons: []
@@ -340,11 +367,12 @@ export default function PreviewCourse({ params } = {}) {
                     return acc
                 }, {})
 
+                const sortedPayload = Object.values(payload).sort((a, b) => a.index - b.index)
 
                 dispatch({
                     type: ACTIONS.SUCCESS,
                     key: 'lesson',
-                    payload: payload
+                    payload: sortedPayload
                 })
             }
             else {
@@ -435,6 +463,10 @@ export default function PreviewCourse({ params } = {}) {
                     }
                     finally {
                         setPending(false)
+                        setLoad((prev) => ({
+                            ...prev,
+                            handling: false
+                        }))
                         dispatch({
                             type: ACTIONS.END,
                             key: 'comment'
@@ -494,6 +526,10 @@ export default function PreviewCourse({ params } = {}) {
                     }
                     finally {
                         setPending(false)
+                        setLoad((prev) => ({
+                            ...prev,
+                            handling: false
+                        }))
                         dispatch({
                             type: ACTIONS.END,
                             key: 'comment'
@@ -555,19 +591,21 @@ export default function PreviewCourse({ params } = {}) {
     const submitComment = async (e) => {
         e.preventDefault();
 
-        setHandling((prev) => ({
-            ...prev,
-            comment: true
-        }))
+        if (comment.handling) return;
 
         if (comment.content.trim().length === 0 || comment.content === '') {
             alert(404, 'No comment, please throw your new!');
-            setHandling((prev) => ({
+            setComment((prev) => ({
                 ...prev,
-                comment: false
+                handling: false
             }))
             return;
         }
+
+        setComment((prev) => ({
+            ...prev,
+            handling: true
+        }))
 
         try {
             const courseId = params.id
@@ -592,9 +630,9 @@ export default function PreviewCourse({ params } = {}) {
             alert(err.response?.status || 500, err.response?.data?.message || 'External server error');
         }
         finally {
-            setHandling((prev) => ({
+            setComment((prev) => ({
                 ...prev,
-                comment: false
+                handling: false
             }))
         }
     }
@@ -604,31 +642,35 @@ export default function PreviewCourse({ params } = {}) {
     }, [])
 
     const submitCourse = async () => {
-        if (!state.state.data) return;
+        if (state.state.pending || isPending) return;
 
-        setHandling((prev) => ({
-            ...prev,
-            submit: true,
-        }))
+        if (Math.round(state.state.data?.cost) !== 0) return;
 
-        await PostRegisterCourseService(state.state.data.id)
-            .then(res => {
-                if (res.data.success) {
-                    alert(res.status, res.data.message);
+        if (state.state.data.is_registered) {
+            startTransition(() => {
+                navigate(`/learning/${params.id}`)
+            })
+        }
+        else {
+            try {
+                const response = await api.post('post/postRegisterCourse', {
+                    id: params.id
+                });
+
+                if (response.data.success) {
+                    alert(response.status, response.message);
+                    startTransition(() => {
+                        navigate(`/learning/${params.id}`)
+                    });
                 }
                 else {
-                    alert(res.status, res.message)
+                    alert(response.status, response.message);
                 }
-            })
-            .catch(err => {
+            }
+            catch (err) {
                 alert(err.response?.status || 500, err.response?.data?.message || 'External server error');
-            })
-            .finally(() => {
-                setHandling((prev) => ({
-                    ...prev,
-                    submit: false,
-                }))
-            })
+            }
+        }
     }
 
     return (
@@ -657,30 +699,57 @@ export default function PreviewCourse({ params } = {}) {
                                 data={state.state.error || { status: 500, message: "Something is wrong" }}
                                 refetch={() => refetchData('state')}
                             />
-                        ) : state.state.data ? (
+                        ) : state.state.data ?
                             <>
                                 <div className="course-hero">
+                                    <div className="image_preview">
+                                        <img
+                                            src={state.state.data.image || '/image/static/no_image.png'}
+                                            alt={state.state.data.title}
+                                            className="preview-image"
+                                            width={800}
+                                            height={450}
+                                            loading="lazy"
+                                            onError={(e) => {
+                                                e.target.onerror = null;
+                                                e.target.src = '/image/static/no_image.png';
+                                            }}
+                                        />
+                                    </div>
                                     <div className="hero-header">
                                         <img
-                                            src={state.state.data.image || '/image/static/logo.svg'}
+                                            src={state.state.data.language_logo || '/image/static/no_image.png'}
                                             alt={state.state.data.title}
                                             className="course-logo"
+                                            width={100}
+                                            height={100}
+                                            onError={(e) => {
+                                                e.target.onerror = null;
+                                                e.target.src = '/image/static/no_image.png';
+                                            }}
                                         />
                                         <div className="hero-info">
                                             <h1 className="course-title">{state.state.data.title}</h1>
                                             <div className="course-badges">
                                                 <span
-                                                    className="level-badge"
+                                                    className="course-badge level-badge"
                                                     style={{
-                                                        color: levelConfig?.[state.state.data.level]?.color,
-                                                        background: levelConfig?.[state.state.data.level]?.bg
+                                                        color: levelMapping?.[state.state.data.level]?.color,
+                                                        background: levelMapping?.[state.state.data.level]?.bg
                                                     }}
                                                 >
-                                                    {state.state.data.level}
+                                                    {levelMapping?.[state.state.data.level]?.tag}
                                                 </span>
-                                                <span className="rating-badge">
+                                                <span className="course-badge rating-badge">
+                                                    <FaStar color="var(--color_yellow)" />
+                                                    <FaStar color="var(--color_yellow)" />
+                                                    <FaStar color="var(--color_yellow)" />
+                                                    <FaStar color="var(--color_yellow)" />
                                                     <FaStar color="var(--color_yellow)" />
                                                     {state.state.data.rating}
+                                                    <span>
+                                                        ({state.state.data.reviews})
+                                                    </span>
                                                 </span>
                                             </div>
                                         </div>
@@ -690,31 +759,40 @@ export default function PreviewCourse({ params } = {}) {
 
                                 <div className="course-details">
                                     <div className="detail-card">
-                                        <BiDetail className="detail-icon" />
                                         <p className="detail-text">{state.state.data.description}</p>
-                                        <div className="instructor-info">
-                                            <FaCheckCircle color="var(--color_primary)" />
-                                            <span>Instructor: <strong>{state.state.data.instructor}</strong></span>
+                                        <div className="detail-meta">
+                                            <Link href={'#'} className="detail-tag instructor" title='Instructor'>
+                                                <MdPerson className="meta-icon" />
+                                                <span className="meta-text">{state.state.data.instructor}</span>
+                                            </Link>
+                                            <Link href={'#'} className="detail-tag category" title='Category'>
+                                                <MdCategory className="meta-icon" />
+                                                <span className="meta-text">{state.state.data.category_name}</span>
+                                            </Link>
+                                            <Link href={'#'} className="detail-tag language" title='Language'>
+                                                <MdLanguage className="meta-icon" />
+                                                <span className="meta-text">{state.state.data.language_name}</span>
+                                            </Link>
                                         </div>
                                     </div>
 
                                     <div className="stats-grid">
                                         <div className="stat-card">
-                                            <MdPlayLesson className="stat-icon lessons" />
+                                            <MdPlayLesson className="stat-icon lessons" fontSize={20} />
                                             <div className="stat-info">
                                                 <span className="stat-label">Lessons</span>
                                                 <strong className="stat-value">{state.state.data.lessons ?? 0}</strong>
                                             </div>
                                         </div>
                                         <div className="stat-card">
-                                            <LuAlarmClock className="stat-icon duration" />
+                                            <LuAlarmClock className="stat-icon duration" fontSize={20} />
                                             <div className="stat-info">
                                                 <span className="stat-label">Duration</span>
-                                                <strong className="stat-value">{state.state.data.duration ?? 0}h</strong>
+                                                <strong className="stat-value">{state.state.data.duration ?? 0} min</strong>
                                             </div>
                                         </div>
                                         <div className="stat-card">
-                                            <PiStudent className="stat-icon students" />
+                                            <PiStudent className="stat-icon students" fontSize={20} />
                                             <div className="stat-info">
                                                 <span className="stat-label">Students</span>
                                                 <strong className="stat-value">{state.state.data.students ?? 0}</strong>
@@ -723,9 +801,9 @@ export default function PreviewCourse({ params } = {}) {
                                     </div>
                                 </div>
                             </>
-                        ) : (
+                            :
                             <p className="error-text">Something is wrong, try again!</p>
-                        )}
+                        }
 
                         {state.lesson.pending ? (
                             <LoadingContent />
@@ -819,7 +897,7 @@ export default function PreviewCourse({ params } = {}) {
                                     rows="3"
                                     placeholder="Share your thoughts..."
                                     value={comment.content}
-                                    readOnly={handling.comment}
+                                    readOnly={comment.handling}
                                     onChange={(e) =>
                                         setComment(prev => ({
                                             ...prev,
@@ -830,9 +908,9 @@ export default function PreviewCourse({ params } = {}) {
                                 <button
                                     type="submit"
                                     className="submit-btn"
-                                    disabled={handling.comment || comment.content.length === 0}
+                                    disabled={comment.handling || comment.content.length === 0}
                                 >
-                                    {handling.comment ? (
+                                    {comment.handling ? (
                                         <LoadingContent scale={0.4} color="var(--color_white)" />
                                     ) : (
                                         <IoSend fontSize={16} />
@@ -846,20 +924,26 @@ export default function PreviewCourse({ params } = {}) {
 
             <footer className="preview-footer">
                 <button
-                    className="enroll-btn"
-                    disabled={!state.state.data || handling.submit}
+                    className={`join_btn ${Math.round(state.state.data?.cost) === 0 ? 'free' : 'paid'}`}
+                    disabled={isPending}
                     onClick={submitCourse}
                 >
-                    {!state.state.data || handling.submit ? (
+                    {state.state.pending || isPending ?
                         <LoadingContent scale={0.5} color="var(--color_white)" />
-                    ) : (() => {
-                        switch (state.state.data?.status ?? 'Not Enrolled') {
-                            case 'Enrolled': return "Start Learning"
-                            case 'In Progress': return "Continue Learning"
-                            case 'Completed': return "Review Course"
-                            default: return "Enroll Now"
-                        }
-                    })()}
+                        :
+                        Math.round(state.state.data?.cost) === 0 ?
+                            (() => {
+                                switch (state.state.data?.status) {
+                                    case 'enrolled': return "Start learning"
+                                    case 'in_progress': return "Continue learning"
+                                    case 'completed': return "Review course"
+                                    case null: return "Join course"
+                                    default: return <LoadingContent scale={0.5} color="var(--color_white)" />
+                                }
+                            })()
+                            :
+                            state.state.data?.cost
+                    }
                 </button>
             </footer>
         </section>

@@ -179,12 +179,24 @@
     border-radius: var(--radius_lg);
     flex-direction: column;
     overflow: hidden;
-    border: 1px solid var(--color_gray_light);
+    border: 2px solid var(--color_gray_light);
     transition: all 0.2s ease;
 }
 
 .course_slider .module:hover {
     border-color: rgba(48, 102, 190, 0.2);
+}
+
+.course_slider .module.target {
+    border-color: var(--color_primary);
+}
+
+.course_slider .module.selected {
+    border-color: var(--color_black);
+}
+
+.course_slider .module.continue {
+    border-color: var(--color_orange);
 }
 
 .module .module_heading {
@@ -199,10 +211,6 @@
     color: var(--color_black);
     cursor: pointer;
     transition: all 0.2s ease;
-}
-
-.module.active .module_heading {
-    background: linear-gradient(135deg, rgba(48, 102, 190, 0.05) 0%, rgba(17, 157, 164, 0.05) 100%);
 }
 
 .module .module_heading .module_header {
@@ -238,7 +246,7 @@
     transition: all 0.2s ease;
 }
 
-.module.active .module_heading .module_header .icon_module {
+.module.target .module_heading .module_header .icon_module {
     transform: rotate(90deg);
     background: var(--color_primary);
     color: var(--color_white);
@@ -264,7 +272,7 @@
     transition: all 0.3s ease;
 }
 
-.module.active .lessons {
+.module.target .lessons {
     padding: 12px;
     border-top: 1px solid var(--color_gray_light);
 }
@@ -484,6 +492,7 @@
 }
 
 .view_course img {
+    padding: 5px;
     border-radius: var(--radius_lg);
     box-shadow: var(--shadow_md);
 }
@@ -768,7 +777,6 @@
 
 .code_content_wrapper pre {
     scrollbar-width: thin;
-    scrollbar-color: #444 #1e1e1e;
 }
 
 /* Callout Styles */

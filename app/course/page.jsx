@@ -1,5 +1,7 @@
-import Course from "@/app/component/course/course";
 import { Suspense } from "react";
+
+import HomeLayout from "../layout/homeLayout";
+import CourseContent from "../component/course/content";
 
 import { LoadingRedirect } from "@/app/component/ui/loading";
 
@@ -13,7 +15,9 @@ export async function generateMetadata() {
 export default function Page() {
     return (
         <Suspense fallback={<LoadingRedirect />}>
-            <Course />
+            <HomeLayout>
+                <CourseContent />
+            </HomeLayout>
         </Suspense>
     )
 }

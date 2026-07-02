@@ -21,21 +21,6 @@ export async function postRegisterCourse({ userId, courseId }) {
     return await sql.query(query, params);
 }
 
-export async function postRegisterProject({ userId, projectId }) {
-    const params = []
-
-    params.push(userId, projectId)
-
-    const query = `
-            INSERT INTO project.register (join_id, project_id) 
-            VALUES ($${params.length - 1}, $${params.length}) 
-            ON CONFLICT (join_id, project_id)
-            DO UPDATE SET is_deleted = false
-        `;
-
-    return await sql.query(query, params);
-}
-
 export async function postCreateTeam({ teamId, userId, name, size, description }) {
     const params = []
 
@@ -54,7 +39,11 @@ export async function postCommentCourse({ userId, courseId, comment }) {
 
     params.push(userId, courseId, comment)
 
-    const query = `INSERT INTO course.comment (user_id, id, content) VALUES ($${params.length - 2}, $${params.length - 1}, $${params.length})`;
+    const query = `INSERT INTO course.comment (user_id, id, content) 
+    VALUES (
+        (select id from private.users where public_id = $${params.length - 2}),
+        $${params.length - 1}, 
+        $${params.length})`;
 
     return await sql.query(query, params);
 }

@@ -1,12 +1,12 @@
 'use server'
 import { sql } from '@/app/lib/db';
 
-export async function updateInfo({ userId, nickname = null, surname = null, phone = null, name = null, email = null, url = null, bio = null }) {
+export async function updateInfo({ userId, nickname = null, surname = null, phone = null, name = null, email = null, image = null, bio = null }) {
     const params = []
     const conditions = []
 
     params.push(userId)
-    conditions.push(`user_id = $${params.length}`)
+    conditions.push(`user_id = (select id from private.users where public_id = $${params.length})`)
 
     const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
@@ -37,8 +37,8 @@ export async function updateInfo({ userId, nickname = null, surname = null, phon
         setQuery.push(`email = case when $${params.length} is distinct from email then $${params.length} else email end`)
     }
 
-    if (url !== null) {
-        params.push(url)
+    if (image !== null) {
+        params.push(image)
         setQuery.push(`image = case when $${params.length} is distinct from image then $${params.length} else image end`)
     }
 
@@ -54,7 +54,7 @@ export async function updateInfo({ userId, nickname = null, surname = null, phon
         ${setSQL},
         update_at = now()
         ${whereSQL}
-        `
+    `
 
     return await sql.query(query, params);
 }
@@ -64,7 +64,7 @@ export async function updateStatusCourse({ userId, courseId, is_marked }) {
     const conditions = []
 
     params.push(userId)
-    conditions.push(`user_id = $${params.length}`)
+    conditions.push(`user_id = (select id from private.users where public_id = $${params.length})`)
 
     params.push(courseId)
     conditions.push(`course_id = $${params.length}`)
@@ -82,47 +82,23 @@ export async function updateStatusCourse({ userId, courseId, is_marked }) {
     return await sql.query(query, params);
 }
 
-export async function updateStatusProject({ userId, projectId, is_marked, is_deleted }) {
-    let params = []
-    let conditions = []
+export async function updateWithdrawCourse({ userId, courseId }) {
+    const params = []
+    const conditions = []
 
     params.push(userId)
-    conditions.push(`userid = $${params.length}`)
+    conditions.push(`user_id = (select id from private.users where public_id = $${params.length})`)
 
-    params.push(projectId)
-    conditions.push(`projectid = $${params.length}`)
+    params.push(courseId)
+    conditions.push(`course_id = $${params.length}`)
 
     const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
-    let setQuery = [];
-
-    if (is_marked !== undefined) {
-        params.push(is_marked);
-        setQuery.push(`is_marked = $${params.length}`);
-    }
-
-    if (is_deleted !== undefined) {
-        params.push(is_deleted);
-        setQuery.push(`is_deleted = $${params.length}`);
-    }
-
-    const setSQL = setQuery.length > 0 ? `SET ${setQuery.join(', ')}` : '';
-
     const query = `
-            update project.register
-            ${setSQL}
-            ${whereSQL}
-        `
-
-    return await sql.query(query, params);
-}
-
-export async function updateWithdrawCourse({ userId, courseId }) {
-    const params = []
-
-    params.push(userId, courseId)
-
-    const query = `select withdraw_course($${params.length - 1}, $${params.length});`;
+        update course.register
+        set is_deleted = true
+        ${whereSQL}
+    `
 
     return await sql.query(query, params);
 }
@@ -143,7 +119,11 @@ export async function updateVotingComment({ userId, commentId, isVoted }) {
 
     const query = `
             INSERT INTO private.voting (id, user_id, voting)
-            VALUES ($1, $2, $3)
+            VALUES (
+                $1, 
+                (select id from private.users where public_id = $2),
+                $3
+            )
             ON CONFLICT (id, user_id)
             DO UPDATE SET 
                 voting = EXCLUDED.voting,

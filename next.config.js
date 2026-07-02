@@ -14,6 +14,12 @@ const nextConfig = {
                 hostname: "avatars.githubusercontent.com",
                 port: "",
                 pathname: "/**"
+            },
+            {
+                protocol: "https",
+                hostname: "lh3.googleusercontent.com",
+                port: "",
+                pathname: "/**"
             }
         ],
         deviceSizes: [320, 480, 768, 1024, 1280, 1600, 1920],

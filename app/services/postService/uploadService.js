@@ -2,7 +2,8 @@ import cloudinary from "@/app/lib/cloudinary";
 
 import { ApiError } from "@/app/lib/error/apiError";
 
-export default async function UploadService(file, folder) {
+export default async function UploadService(data) {
+    const { file, folder } = data;
     const arrayBuffer = await file.arrayBuffer();
     const base64 = Buffer.from(arrayBuffer).toString("base64");
     const dataUri = `data:${file.type};base64,${base64}`;

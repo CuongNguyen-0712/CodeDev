@@ -1,5 +1,7 @@
 'use client';
 
+import { Suspense } from "react";
+
 import { AppProvider, useApp } from "../contexts/appContext";
 
 import AlertPush from "../component/ui/alert";
@@ -7,9 +9,11 @@ import AlertPush from "../component/ui/alert";
 import { LoadingRedirect } from "../component/ui/loading";
 
 function LayoutContent({ children }) {
-    const { redirect, setRedirect, alert, clearAlert } = useApp();
+    const { redirect, alert, clearAlert } = useApp();
 
-    if (redirect) return <LoadingRedirect />;
+    if (redirect) {
+        return <LoadingRedirect />
+    }
 
     return (
         <>
@@ -27,10 +31,12 @@ function LayoutContent({ children }) {
 export default function DefaultLayout({ children }) {
 
     return (
-        <AppProvider>
-            <LayoutContent>
-                {children}
-            </LayoutContent>
-        </AppProvider>
+        <Suspense fallback={<LoadingRedirect />}>
+            <AppProvider>
+                <LayoutContent>
+                    {children}
+                </LayoutContent>
+            </AppProvider>
+        </Suspense>
     );
 }

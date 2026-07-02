@@ -15,8 +15,7 @@ import { signIn } from "next-auth/react"
 import { LoadingContent } from "../ui/loading"
 import { InputGroup } from "../ui/input"
 
-import { FaUser, FaLock, FaGithub } from "react-icons/fa6"
-import { form } from "sanity/structure"
+import { FaUser, FaLock, FaGithub, FaGoogle } from "react-icons/fa6"
 
 export default function Login({ active, changeForm, redirect, setAlert, callback }) {
     const { navigateReplace } = useRouterActions()
@@ -27,7 +26,7 @@ export default function Login({ active, changeForm, redirect, setAlert, callback
     })
     const [validation, setValidation] = useState({})
     const [isPending, setIsPending] = useState(false)
-    const [callbackPending, setCallbackPending] = useState(false)
+    const [callbackPending, setCallbackPending] = useState(null)
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -63,7 +62,7 @@ export default function Login({ active, changeForm, redirect, setAlert, callback
             } catch (err) {
                 setAlert({
                     status: 500,
-                    message: "Server error"
+                    message: "Login failed, please try again"
                 });
             } finally {
                 setIsPending(false);
@@ -105,25 +104,25 @@ export default function Login({ active, changeForm, redirect, setAlert, callback
         handleValidation({ name, value: '' })
     }
 
-    const handleCallback = async () => {
+    const handleCallback = async (value) => {
         redirect(true)
-        setCallbackPending(true)
-        
+        setCallbackPending(value)
+
         try {
-            const response = await callback()
+            const response = await callback(value)
             if (!response?.ok) {
                 setAlert({ status: 500, message: "An error occurred during authentication" })
                 redirect(false)
                 return;
             }
-            
+
             setAlert({ status: 200, message: 'Authenticating...' })
             navigateReplace("/home")
         } catch (err) {
             setAlert({ status: 500, message: 'An error occurred during login, please try again' })
             redirect(false)
         } finally {
-            setCallbackPending(false)
+            setCallbackPending(null)
         }
     }
 
@@ -187,17 +186,33 @@ export default function Login({ active, changeForm, redirect, setAlert, callback
                 <div className="social_buttons">
                     <button type="button"
                         className="social_btn"
-                        onClick={handleCallback}
+                        onClick={() => handleCallback('github')}
                         disabled={callbackPending}
                     >
                         {
-                            callbackPending ? (
+                            callbackPending === 'github' ? (
                                 <LoadingContent scale={0.5} />
                             )
                                 :
                                 <>
                                     <FaGithub />
                                     <span>Github</span>
+                                </>
+                        }
+                    </button>
+                    <button type="button"
+                        className="social_btn"
+                        onClick={() => handleCallback('google')}
+                        disabled={callbackPending}
+                    >
+                        {
+                            callbackPending === 'google' ? (
+                                <LoadingContent scale={0.5} />
+                            )
+                                :
+                                <>
+                                    <FaGoogle />
+                                    <span>Google</span>
                                 </>
                         }
                     </button>

@@ -32,14 +32,14 @@ export default function Form() {
                                 changeForm={() => setActiveForm('signup')}
                                 redirect={() => setIsRedirecting(true)}
                                 setAlert={setAlert}
-                                callback={() => signIn('github', { callbackUrl: '/' })}
+                                callback={(value) => signIn(value, { callbackUrl: '/' })}
                             />
                             <Logup
                                 active={isSignup}
                                 changeForm={() => setActiveForm('login')}
                                 redirect={() => setIsRedirecting(true)}
                                 setAlert={setAlert}
-                                callback={() => signIn('github', { callbackUrl: '/' })}
+                                callback={(value) => signIn(value, { callbackUrl: '/' })}
                             />
                         </section>
 

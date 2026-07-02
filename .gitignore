@@ -17,6 +17,12 @@
 .DS_Store
 *.pem
 
+# vscode
+.vscode/*
+
+# vercel
+/.vercel
+
 # debug
 npm-debug.log*
 yarn-debug.log*
@@ -38,3 +44,6 @@ sanity.config.js
 
 # Testing
 /tests
+
+# Design
+design.pen

@@ -1,0 +1,6 @@
+.navigate_layout {
+    display: flex;
+    height: 100dvh;
+    width: 100%;
+    overflow: hidden;
+}

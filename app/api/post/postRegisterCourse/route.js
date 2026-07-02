@@ -15,7 +15,9 @@ export async function POST(req) {
         }
 
         const userId = session.user.id;
-        const { courseId } = await req.json();
+        const { id } = await req.json();
+
+        const courseId = id.split('_').slice(-1)[0];
 
         if (!courseId) {
             throw new ApiError("Missing credentials", 400);
@@ -27,8 +29,6 @@ export async function POST(req) {
 
         return NextResponse.json({ success: response }, { status: 201 });
     } catch (error) {
-
-
         return NextResponse.json({ message: error.message || "Internal Server Error" }, { status: error.status || 500 });
     }
 }

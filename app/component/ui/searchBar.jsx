@@ -37,17 +37,30 @@ export default function SearchBar({ data = [], submit, setSearch, setFilter, pen
         setState((prev) => {
             const currentValues = prev.filter[name] || [];
 
-            const updatedValues = currentValues.includes(value)
-                ? currentValues.filter((v) => v !== value)
-                : [...currentValues, value];
+            if (name === 'price') {
+                const updateValues = currentValues.includes(value) ? [] : [value];
+                return {
+                    ...prev,
+                    filter: {
+                        ...prev.filter,
+                        [name]: updateValues,
+                    },
+                };
+            }
+            else {
+                const updatedValues = currentValues.includes(value)
 
-            return {
-                ...prev,
-                filter: {
-                    ...prev.filter,
-                    [name]: updatedValues,
-                },
-            };
+                    ? currentValues.filter((v) => v !== value)
+                    : [...currentValues, value];
+
+                return {
+                    ...prev,
+                    filter: {
+                        ...prev.filter,
+                        [name]: updatedValues,
+                    },
+                };
+            }
         });
     };
 
@@ -131,8 +144,6 @@ export default function SearchBar({ data = [], submit, setSearch, setFilter, pen
                     </button>
                 }
             </div>
-
-            {/* Filter Panel */}
             {
                 isFilter ?
                     <div className={`filter-panel ${state.showFilter ? 'active' : ''}`}>
@@ -181,7 +192,7 @@ export default function SearchBar({ data = [], submit, setSearch, setFilter, pen
                                     <LoadingContent scale={0.4} color='var(--color_white)' />
                                 ) : (
                                     <>
-                                        <IoCheckmark />
+                                        <IoCheckmark fontSize={20} />
                                         Apply
                                     </>
                                 )}
@@ -195,7 +206,7 @@ export default function SearchBar({ data = [], submit, setSearch, setFilter, pen
                                 }))}
                                 disabled={pending}
                             >
-                                <GrPowerReset />
+                                Clear
                             </button>
                         </div>
                     </div>

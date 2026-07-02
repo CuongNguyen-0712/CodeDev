@@ -9,8 +9,7 @@ import { PageError } from '../ui/error';
 const components = {
     'overview': dynamic(() => import('../content/overview'), { ssr: true }),
     'learning': dynamic(() => import('../content/course'), { ssr: true }),
-    'project': dynamic(() => import('../content/project'), { ssr: true }),
-    'social': dynamic(() => import('../content/social'), { ssr: true }),
+    'connection': dynamic(() => import('../content/connection'), { ssr: true }),
 };
 
 
