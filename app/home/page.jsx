@@ -1,8 +1,10 @@
-import Home from "../component/home/home";
-
 import { Suspense } from "react";
 
 import { LoadingRedirect } from "../component/ui/loading";
+
+import Content from "../component/home/content";
+
+import HomeLayout from "../layout/homeLayout";
 
 const pageTitles = {
     overview: {
@@ -53,7 +55,9 @@ export async function generateMetadata(context) {
 export default function Page() {
     return (
         <Suspense fallback={<LoadingRedirect />}>
-            <Home />
+            <HomeLayout>
+                <Content />
+            </HomeLayout>
         </Suspense>
     );
 }

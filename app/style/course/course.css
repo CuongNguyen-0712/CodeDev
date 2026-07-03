@@ -27,7 +27,7 @@
   flex-wrap: wrap;
 }
 
-.marketplace-header .back-btn {
+.marketplace-header .my-courses-link {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -40,12 +40,12 @@
   font-weight: 600;
   font-size: 14px;
   gap: 10px;
-  cursor: pointer;
+  text-decoration: none;
   transition: all 0.2s ease;
   flex-shrink: 0;
 }
 
-.marketplace-header .back-btn:hover {
+.marketplace-header .my-courses-link:hover {
   background: var(--color_primary);
   border-color: var(--color_primary);
   color: var(--color_white);
@@ -356,7 +356,7 @@
     align-items: stretch;
   }
 
-  .marketplace-header .back-btn {
+  .marketplace-header .my-courses-link {
     width: 100%;
   }
 

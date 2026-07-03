@@ -19,7 +19,7 @@ import { FaArrowRight, FaArrowLeft, FaGithub, FaUser, FaLock, FaGoogle } from "r
 import { MdModeEdit, MdAlternateEmail, MdOutlinePassword } from "react-icons/md"
 import { IoIosWarning, IoIosCheckmarkCircle } from "react-icons/io"
 
-export default function Logup({ active, changeForm, redirect, setAlert, callback }) {
+export default function Logup({ active, changeForm, setAlert, callback }) {
     const { navigate } = useRouterActions()
 
     const [step, setStep] = useState(1)
@@ -36,14 +36,13 @@ export default function Logup({ active, changeForm, redirect, setAlert, callback
     const [formData, setFormData] = useState(defaultState)
 
     const [validation, setValidation] = useState({})
-    const [isPending, setIsPending] = useState(false)
-    const [callbackPending, setCallbackPending] = useState(null)
+    const [isPending, setIsPending] = useState(null)
 
     const handleSubmit = async (e) => {
         e.preventDefault()
         if (Object.keys(validation).length > 0) return
 
-        setIsPending(true)
+        setIsPending('credentials')
 
         const { success, errors } = validate(SignUpSchema, formData)
         if (success) {
@@ -54,19 +53,19 @@ export default function Logup({ active, changeForm, redirect, setAlert, callback
                 if (response.data.success) {
                     setAlert({ status: response.status, message: "Sign up successfully, please login" })
                     setFormData(defaultState)
-                    setIsPending(false)
+                    setIsPending(null)
                     changeForm()
                 } else {
                     setAlert({ status: response.status, message: "An error occurred during sign up" })
-                    setIsPending(false)
+                    setIsPending(null)
                 }
             } catch (err) {
-                setIsPending(false)
+                setIsPending(null)
                 setAlert({ status: err.response?.status || 500, message: err.response?.data.message || "An error occurred during sign up" })
             }
         } else {
             setValidation(errors)
-            setIsPending(false)
+            setIsPending(null)
         }
     }
 
@@ -96,23 +95,15 @@ export default function Logup({ active, changeForm, redirect, setAlert, callback
     }
 
     const handleCallback = async (value) => {
-        setCallbackPending(value)
+        setIsPending(value)
         try {
-            const response = await callback(value)
-            redirect(true)
-            if (response?.error) {
-                setAlert({ status: err.response?.status, message: err.response?.data.message || err.message || "An error occurred during authentication" })
-                redirect(false)
-            }
-            else {
-                setAlert({ status: 200, message: 'Authenticating...' })
-                navigate('/home')
-            }
+            await callback(value)
         } catch (err) {
-            setAlert({ status: err.response?.status || 500, message: err.response?.data.message || err.message || "An error occurred during authentication" })
-            redirect(false)
-        } finally {
-            setCallbackPending(null)
+            setAlert({
+                status: err.response?.status || 500,
+                message: 'Authentication failed, try again'
+            })
+            setIsPending(null)
         }
     }
 
@@ -124,7 +115,7 @@ export default function Logup({ active, changeForm, redirect, setAlert, callback
             <header className="form_header">
                 <Image src="/image/static/logo.svg" width={48} height={48} alt="CodeDev Logo" />
                 <h2>Create Account</h2>
-                <p>Join <Link href="/" onClick={() => redirect(true)}>CodeDev</Link> community</p>
+                <p>Join <Link href="/">CodeDev</Link> community</p>
             </header>
 
             <div className="step_indicator">
@@ -257,11 +248,11 @@ export default function Logup({ active, changeForm, redirect, setAlert, callback
 
                 {step === 2 && (
                     <button type="submit" className="btn_submit" disabled={isPending} tabIndex={step === 2 ? 0 : -1}>
-                        {isPending ? (
+                        {isPending === 'credentials' ?
                             <LoadingContent scale={0.5} color="var(--color_white)" />
-                        ) : (
-                            'Create Account'
-                        )}
+                            : (
+                                'Create Account'
+                            )}
                     </button>
                 )}
             </div>
@@ -276,10 +267,10 @@ export default function Logup({ active, changeForm, redirect, setAlert, callback
                         type="button"
                         className="social_btn"
                         onClick={() => handleCallback('github')}
-                        disabled={callbackPending}
+                        disabled={isPending}
                     >
                         {
-                            callbackPending === 'github' ? (
+                            isPending === 'github' ? (
                                 <LoadingContent scale={0.5} />
                             )
                                 :
@@ -293,10 +284,10 @@ export default function Logup({ active, changeForm, redirect, setAlert, callback
                         type="button"
                         className="social_btn"
                         onClick={() => handleCallback('google')}
-                        disabled={callbackPending}
+                        disabled={isPending}
                     >
                         {
-                            callbackPending === 'google' ? (
+                            isPending === 'google' ? (
                                 <LoadingContent scale={0.5} />
                             )
                                 :

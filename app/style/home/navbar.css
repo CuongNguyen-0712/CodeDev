@@ -175,9 +175,9 @@
   font-size: 14px;
   font-weight: 600;
   gap: 8px;
+  text-decoration: none;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
   transition: all 0.25s ease;
-  cursor: pointer;
 }
 
 .nav-cta:hover {

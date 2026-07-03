@@ -1,7 +1,7 @@
 'use client'
 import { useState, useReducer, useEffect, useRef, useTransition } from "react"
 
-import { LoadingContent, LoadingRedirect } from "../../ui/loading";
+import { LoadingContent } from "../../ui/loading";
 import { ErrorReload } from "../../ui/error";
 
 import Link from "next/link";

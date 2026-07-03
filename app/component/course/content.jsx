@@ -17,7 +17,7 @@ import { useApp } from "@/app/contexts/appContext";
 
 import { uniqWith } from "lodash";
 
-import { FaStar, FaArrowRight, FaUser, FaBookOpen, FaCode, FaCoins } from "react-icons/fa";
+import { FaStar, FaArrowLeft, FaUser, FaBookOpen, FaCode, FaCoins } from "react-icons/fa";
 import { BiDetail } from "react-icons/bi";
 import { MdCategory } from "react-icons/md";
 
@@ -159,7 +159,7 @@ const CourseItem = ({ item, handlePreview, handleRegister, startHandling, isHand
 
 
 export default function CourseContent() {
-    const { showAlert, setRedirect } = useApp();
+    const { showAlert } = useApp();
     const { navigate } = useRouterActions();
 
     const filterMapping = [
@@ -389,15 +389,8 @@ export default function CourseContent() {
 
     const handlePreview = (id) => {
         if (state.handling) return;
-        setRedirect(true)
         navigate(`/course/${id}`);
     }
-
-    const handleRedirect = () => {
-        setRedirect(true);
-        navigate('/home?tab=learning');
-    }
-
 
     const refetchData = () => {
         setState(prev => ({ ...prev, pending: true }))
@@ -428,10 +421,10 @@ export default function CourseContent() {
                     defaultFilter={defaultFilter}
                     pending={state.pending}
                 />
-                <button onClick={handleRedirect} className="back-btn">
-                    <span>My Courses</span>
-                    <FaArrowRight />
-                </button>
+                <Link href="/home?tab=learning" className="my-courses-link">
+                    <FaArrowLeft />
+                    <span>Learning</span>
+                </Link>
             </div>
 
             <div className="courses-grid">

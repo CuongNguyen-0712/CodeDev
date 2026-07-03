@@ -1,5 +1,7 @@
 import { useState, useEffect, useTransition } from "react"
 
+import Link from "next/link"
+
 import { useRouterActions } from "@/app/router/useRouterActions";
 
 import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
@@ -24,7 +26,6 @@ import { VscDebugContinue } from "react-icons/vsc";
 export function CourseItem({
     item,
     isHandling,
-    onPreview,
     onJoin,
     onWithdraw,
     setAlert,
@@ -118,7 +119,7 @@ export function CourseItem({
                 <div className="course-progress">
                     <div className="progress-header">
                         <span className="progress-label">Progress</span>
-                        <span className="progress-value">{progressPercent}%</span>
+                        <span className="progress-value">{progressPercent == 100 ? 'Completed' : `${progressPercent}%`}</span>
                     </div>
                     <div className="progress-bar">
                         <div
@@ -230,15 +231,12 @@ export function CourseItem({
                                 })()
                             )}
                         </button>
-                        <button
+                        <Link
+                            href={`/course/${item.id}`}
                             className="btn-preview"
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                onPreview(item.id)
-                            }}
                         >
                             <BiDetail />
-                        </button>
+                        </Link>
                         <button
                             className="btn-settings"
                             disabled={isHandling}
@@ -297,7 +295,7 @@ export function CourseItem({
     )
 }
 
-export default function MyCourse({ redirect, alert }) {
+export default function MyCourse({ alert }) {
     const { navigate } = useRouterActions();
 
     const filterMapping = [
@@ -423,7 +421,6 @@ export default function MyCourse({ redirect, alert }) {
 
     const handleNavigate = () => {
         navigate('/course');
-        redirect(true);
     }
     const fetchData = async () => {
         if (!load.hasMore) return;
@@ -552,12 +549,6 @@ export default function MyCourse({ redirect, alert }) {
         if (!id) return;
         startHandling(id);
         navigate(`/learning/${id}`);
-        redirect(true);
-    }
-
-    const handlePreview = (id) => {
-        redirect(true)
-        navigate(`/course/${id}`);
     }
 
     const startHandling = (id) => {
@@ -584,10 +575,10 @@ export default function MyCourse({ redirect, alert }) {
                     <h1>My Learning </h1>
                     <p>Continue your learning journey and track progress</p>
                 </div>
-                <button className="header-btn" id="marketplace_btn" onClick={handleNavigate}>
+                <Link className="header-btn" id="marketplace_btn" href="/course">
                     <FaCartShopping />
-                    <span>Browse Marketplace</span>
-                </button>
+                    <span>Courses Marketplace</span>
+                </Link>
             </div>
 
             {/* Search & Filter */}
@@ -614,7 +605,6 @@ export default function MyCourse({ redirect, alert }) {
                         <CourseItem
                             key={item.id}
                             item={item}
-                            onPreview={handlePreview}
                             onJoin={handleJoin}
                             onWithdraw={handleWithdrawCourse}
                             setAlert={(data) => alert(data.status, data.message)}

@@ -17,59 +17,43 @@ import { InputGroup } from "../ui/input"
 
 import { FaUser, FaLock, FaGithub, FaGoogle } from "react-icons/fa6"
 
-export default function Login({ active, changeForm, redirect, setAlert, callback }) {
+export default function Login({ active, changeForm, setAlert, callback }) {
     const { navigateReplace } = useRouterActions()
 
     const [formData, setFormData] = useState({
         name: '',
         pass: '',
     })
+
     const [validation, setValidation] = useState({})
-    const [isPending, setIsPending] = useState(false)
-    const [callbackPending, setCallbackPending] = useState(null)
+    const [isPending, setIsPending] = useState(null)
 
     const handleSubmit = async (e) => {
         e.preventDefault()
 
         if (Object.keys(validation).length > 0) return
 
-        setIsPending(true)
+        setIsPending('credentials')
 
         const { success, errors } = validate(SignInSchema, formData)
 
         if (success) {
             try {
-                const response = await signIn("credentials", {
+                await signIn("credentials", {
                     username: formData.name.trim(),
                     password: formData.pass,
-                    redirect: false,
+                    callbackUrl: '/home',
                 })
-
-                if (!response?.ok) {
-                    setAlert({
-                        status: 401,
-                        message: "Invalid username or password"
-                    });
-                    return;
-                }
-
-                setAlert({
-                    status: 200,
-                    message: "Login successful"
-                });
-
-                navigateReplace("/home");
             } catch (err) {
                 setAlert({
-                    status: 500,
+                    status: err.response?.status || 500,
                     message: "Login failed, please try again"
                 });
-            } finally {
-                setIsPending(false);
+                setIsPending(null)
             }
         } else {
             setValidation(errors)
-            setIsPending(false)
+            setIsPending(null)
         }
     }
 
@@ -105,24 +89,16 @@ export default function Login({ active, changeForm, redirect, setAlert, callback
     }
 
     const handleCallback = async (value) => {
-        redirect(true)
-        setCallbackPending(value)
+        setIsPending(value)
 
         try {
-            const response = await callback(value)
-            if (!response?.ok) {
-                setAlert({ status: 500, message: "An error occurred during authentication" })
-                redirect(false)
-                return;
-            }
-
-            setAlert({ status: 200, message: 'Authenticating...' })
-            navigateReplace("/home")
+            await callback(value)
         } catch (err) {
-            setAlert({ status: 500, message: 'An error occurred during login, please try again' })
-            redirect(false)
-        } finally {
-            setCallbackPending(null)
+            setAlert({
+                status: err.response?.status || 500,
+                message: 'Authentication failed, try again'
+            })
+            setIsPending(null)
         }
     }
 
@@ -131,7 +107,7 @@ export default function Login({ active, changeForm, redirect, setAlert, callback
             <header className="form_header">
                 <Image src="/image/static/logo.svg" width={48} height={48} alt="CodeDev Logo" />
                 <h2>Welcome Back</h2>
-                <p>Sign in to continue to <Link href="/" onClick={() => redirect(true)}>CodeDev</Link></p>
+                <p>Sign in to continue to <Link href="/">CodeDev</Link></p>
             </header>
 
             <div className="form_body">
@@ -170,7 +146,7 @@ export default function Login({ active, changeForm, redirect, setAlert, callback
                 </div>
 
                 <button type="submit" className="btn_submit" disabled={isPending}>
-                    {isPending ? (
+                    {isPending === 'credentials' ? (
                         <LoadingContent scale={0.5} color="var(--color_white)" />
                     ) : (
                         'Sign In'
@@ -187,12 +163,12 @@ export default function Login({ active, changeForm, redirect, setAlert, callback
                     <button type="button"
                         className="social_btn"
                         onClick={() => handleCallback('github')}
-                        disabled={callbackPending}
+                        disabled={isPending}
                     >
                         {
-                            callbackPending === 'github' ? (
+                            isPending === 'github' ?
                                 <LoadingContent scale={0.5} />
-                            )
+
                                 :
                                 <>
                                     <FaGithub />
@@ -203,12 +179,11 @@ export default function Login({ active, changeForm, redirect, setAlert, callback
                     <button type="button"
                         className="social_btn"
                         onClick={() => handleCallback('google')}
-                        disabled={callbackPending}
+                        disabled={isPending}
                     >
                         {
-                            callbackPending === 'google' ? (
+                            isPending === 'google' ?
                                 <LoadingContent scale={0.5} />
-                            )
                                 :
                                 <>
                                     <FaGoogle />

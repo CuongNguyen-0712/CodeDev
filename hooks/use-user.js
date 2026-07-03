@@ -3,10 +3,11 @@ import { userService } from '../app/services/user.service'
 import { useSession } from 'next-auth/react'
 
 export function useUser() {
-    const { status } = useSession()
+    const { status, session } = useSession()
+    const userId = session?.user?.id
 
     return useQuery({
-        queryKey: ['me'],
+        queryKey: ['me', userId],
 
         queryFn: userService.getMe,
 

@@ -4,13 +4,13 @@ import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 
+import { LoadingContent } from "../ui/loading";
+
 import { useRouterActions } from "@/app/router/useRouterActions";
 
 import { signOut } from "next-auth/react";
 
 import useOutside from "@/app/hooks/useOutside";
-
-import { LoadingContent } from "../ui/loading";
 
 import { useAuth } from "@/app/contexts/authContext";
 import { useApp } from "@/app/contexts/appContext";
@@ -24,15 +24,16 @@ import { MdEmail, MdNotifications } from "react-icons/md";
 import { HiUser } from "react-icons/hi2";
 import { LuSparkles } from "react-icons/lu";
 
-export default function Navbar({ handleDashboard, redirect }) {
+export default function Navbar({ handleDashboard }) {
   const pathname = usePathname();
   const { showAlert: alert } = useApp();
   const { session, status } = useAuth();
   const { data, isLoading, error } = useUser()
 
+  const [isPending, setIsPending] = useState(null);
   const [dropdown, setDropdown] = useState(false);
 
-  const { navigateReplace, navigateBack, navigate } = useRouterActions();
+  const { navigateBack } = useRouterActions();
 
   const linkMapping = [
     { label: 'Home', path: '/home', isAuth: true },
@@ -48,19 +49,14 @@ export default function Navbar({ handleDashboard, redirect }) {
   });
 
   const handleLogout = async () => {
+    setIsPending('logout');
     try {
-      redirect(true);
-      await signOut({ redirect: false });
-      navigateReplace("/auth");
+      await signOut({ redirect: '/auth' });
     } catch (error) {
-      redirect(false);
+      alert(error?.status || 500, error?.message || 'Logout failed, please try again.');
+      setIsPending(null);
     }
   };
-
-  const handleAuth = () => {
-    redirect(true);
-    navigate("/auth");
-  }
 
   const toggleDropdown = (e) => {
     e.stopPropagation();
@@ -82,7 +78,7 @@ export default function Navbar({ handleDashboard, redirect }) {
               <PiListBold fontSize={22} />
             </button>
           ) : (
-            <button className="nav-icon-btn back-btn" onClick={() => navigateBack('/home')}>
+            <button className="nav-icon-btn back-btn" onClick={() => navigateBack}>
               <FaChevronLeft fontSize={16} />
             </button>
           )}
@@ -115,10 +111,10 @@ export default function Navbar({ handleDashboard, redirect }) {
         {/* Right Section - Actions */}
         <div className="nav-right">
           {pathname === '/' ? (
-            <button className="nav-cta" onClick={handleAuth}>
+            <Link className="nav-cta" href="/auth" title="Get Started">
               <LuSparkles />
               <span>Get Started</span>
-            </button>
+            </Link>
           ) : (
             <>
               <button className="nav_coins_btn">
@@ -180,12 +176,12 @@ export default function Navbar({ handleDashboard, redirect }) {
                   <div className="dropdown-divider" />
 
                   <div className="dropdown-group">
-                    <button className="dropdown-item">
+                    <button className="dropdown-item" disabled={isPending}>
                       <span className="item-icon"><MdEmail /></span>
                       <span className="item-label">Messages</span>
                       <span className="item-badge">0</span>
                     </button>
-                    <button className="dropdown-item">
+                    <button className="dropdown-item" disabled={isPending}>
                       <span className="item-icon"><MdNotifications /></span>
                       <span className="item-label">Notifications</span>
                       <span className="item-badge">0</span>
@@ -199,9 +195,16 @@ export default function Navbar({ handleDashboard, redirect }) {
                       <span className="item-icon"><IoSettingsSharp /></span>
                       <span className="item-label">Settings</span>
                     </Link>
-                    <button className="dropdown-item danger" onClick={handleLogout}>
-                      <span className="item-icon"><IoLogOut /></span>
-                      <span className="item-label">Log out</span>
+                    <button className="dropdown-item danger" onClick={handleLogout} disabled={isPending}>
+                      {
+                        isPending === 'logout' ?
+                          <LoadingContent scale={0.5} />
+                          :
+                          <>
+                            <span className="item-icon"><IoLogOut /></span>
+                            <span className="item-label">Log out</span>
+                          </>
+                      }
                     </button>
                   </div>
                 </div>

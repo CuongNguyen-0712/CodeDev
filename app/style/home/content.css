@@ -2635,6 +2635,7 @@
     background: var(--color_white);
     color: var(--color_primary);
     cursor: pointer;
+    text-decoration: none;
     flex-shrink: 0;
     transition: all 0.2s ease;
 }
