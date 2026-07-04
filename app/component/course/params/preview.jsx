@@ -648,7 +648,7 @@ export default function PreviewCourse({ params } = {}) {
 
         if (state.state.data.is_registered) {
             startTransition(() => {
-                navigate(`/learning/${params.id}`)
+                navigate({ path: `learning/${params.id}` })
             })
         }
         else {
@@ -660,7 +660,7 @@ export default function PreviewCourse({ params } = {}) {
                 if (response.data.success) {
                     alert(response.status, response.message);
                     startTransition(() => {
-                        navigate(`/learning/${params.id}`)
+                        navigate({ path: `learning/${params.id}` })
                     });
                 }
                 else {

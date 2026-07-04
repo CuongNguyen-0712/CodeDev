@@ -376,7 +376,7 @@ export default function CourseContent() {
                     data: prev.data.filter((item) => item.id !== id),
                 }));
                 setApiQueue((prev) => [...prev, { type: "fetch" }]);
-                showAlert(200, `Successfully registered course: ${course}`, () => navigate(`/learning/${id}`));
+                showAlert(200, `Successfully registered course: ${course}`, () => navigate({ path: `learning/${id}` }));
             } else {
                 showAlert(response.status, response.data?.message || `Failed to register course: ${course}`);
             }
@@ -389,7 +389,7 @@ export default function CourseContent() {
 
     const handlePreview = (id) => {
         if (state.handling) return;
-        navigate(`/course/${id}`);
+        navigate({ path: `course/${id}` });
     }
 
     const refetchData = () => {

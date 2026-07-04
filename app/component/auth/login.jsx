@@ -4,8 +4,6 @@ import Image from "next/image"
 import Form from "next/form"
 import Link from "next/link"
 
-import { useRouterActions } from "@/app/router/useRouterActions"
-
 import { validate } from "@/app/helper/validate"
 
 import { SignInSchema } from "@/app/lib/definition"
@@ -18,8 +16,6 @@ import { InputGroup } from "../ui/input"
 import { FaUser, FaLock, FaGithub, FaGoogle } from "react-icons/fa6"
 
 export default function Login({ active, changeForm, setAlert, callback }) {
-    const { navigateReplace } = useRouterActions()
-
     const [formData, setFormData] = useState({
         name: '',
         pass: '',

@@ -1,17 +1,16 @@
 'use client'
 import { useState, useEffect, useCallback } from "react"
-import { usePathname, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import useKey from "@/app/hooks/useKey";
 import SearchBar from "@/app/component/ui/searchBar";
-import { useQuery } from "@/app/router/useQuery";
+import { useQueryParams } from "@/app/router/useQueryParams";
 
 import { IoSearch, IoClose, IoTime, IoArrowBack } from "react-icons/io5";
 import { FaLink } from "react-icons/fa6";
 import { HiOutlineDocumentText, HiOutlineFolder, HiOutlineGlobeAlt } from "react-icons/hi2";
 import { RiCommandLine } from "react-icons/ri";
 
-import Form from "next/form"
 import Link from "next/link";
 
 const STORAGE_KEY = 'search_history';
@@ -27,8 +26,7 @@ const categories = [
 export default function Search() {
     useKey({ key: 'Escape', param: 'search' });
 
-    const queryNavigate = useQuery();
-    const pathname = usePathname();
+    const updateQuery = useQueryParams();
     const params = useSearchParams();
     const search = params.get('search');
 
@@ -41,8 +39,8 @@ export default function Search() {
     });
 
     const closeSearch = useCallback(() => {
-        queryNavigate(pathname, { search: null });
-    }, [queryNavigate, pathname]);
+        updateQuery({ search: null });
+    }, [updateQuery]);
 
     const addToHistory = (term) => {
         if (!term.trim()) return;
@@ -93,19 +91,19 @@ export default function Search() {
         <div className="search-modal" onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div className="search-header">
-                    <button type="button" className="search-back" onClick={closeSearch}>
-                        <IoArrowBack />
-                    </button>
-                    <SearchBar
-                        setSearch={(value) => setState(prev => ({ ...prev, query: value }))}
-                        onSubmit={submitSearch}
-                        placeholder="Search for pages, links, projects..."
-                        isFilter={false}
-                        />
-                    <div className="search-shortcuts">
-                        <kbd>Esc</kbd>
-                        <span>to close</span>
-                    </div>
+                <button type="button" className="search-back" onClick={closeSearch}>
+                    <IoArrowBack />
+                </button>
+                <SearchBar
+                    setSearch={(value) => setState(prev => ({ ...prev, query: value }))}
+                    onSubmit={submitSearch}
+                    placeholder="Search for pages, links, projects..."
+                    isFilter={false}
+                />
+                <div className="search-shortcuts">
+                    <kbd>Esc</kbd>
+                    <span>to close</span>
+                </div>
             </div>
 
             {/* Categories */}

@@ -132,7 +132,7 @@ export default function Roadmap() {
     }
 
     const handleRoadmapClick = (roadmapId) => {
-        navigate(`/roadmap?id=${roadmapId}`);
+        navigate({ path: 'roadmap', query: { id: roadmapId } });
     };
 
     useEffect(() => {

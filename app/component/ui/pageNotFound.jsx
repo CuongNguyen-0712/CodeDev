@@ -3,12 +3,11 @@ import Image from 'next/image'
 
 import { useRouterActions } from '@/app/router/useRouterActions';
 
-import { IoHome } from "react-icons/io5";
 import { HiOutlineExclamationCircle } from "react-icons/hi2";
 import { FaChevronLeft } from "react-icons/fa";
 
 export default function NotFound() {
-    const { navigate, navigateBack } = useRouterActions();
+    const { navigateBack } = useRouterActions();
 
     return (
         <div className="not-found-page">

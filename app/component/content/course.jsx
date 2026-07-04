@@ -420,7 +420,7 @@ export default function MyCourse({ alert }) {
     }, [apiQueue, isProcessing]);
 
     const handleNavigate = () => {
-        navigate('/course');
+        navigate({ path: 'course' });
     }
     const fetchData = async () => {
         if (!load.hasMore) return;
@@ -548,7 +548,7 @@ export default function MyCourse({ alert }) {
     const handleJoin = (id) => {
         if (!id) return;
         startHandling(id);
-        navigate(`/learning/${id}`);
+        navigate({ path: `learning/${id}` });
     }
 
     const startHandling = (id) => {

@@ -9,7 +9,7 @@ import { FaTrophy, FaStar, FaLink } from "react-icons/fa6";
 import { usePathname, useSearchParams } from "next/navigation";
 
 import { useRouterActions } from "@/app/router/useRouterActions";
-import { useQuery } from "@/app/router/useQuery";
+import { useQueryParams } from "@/app/router/useQueryParams";
 
 import { useApp } from "@/app/contexts/appContext";
 
@@ -29,7 +29,6 @@ import useImagesValidator from "@/app/hooks/useImageValidator";
 
 import Form from "next/form";
 import Image from "next/image";
-import { form } from "sanity/desk";
 
 export default function Manage() {
     useKey({ key: 'Escape', param: 'manage' });
@@ -60,7 +59,7 @@ export default function Manage() {
     const params = useSearchParams();
     const manage = params.get('manage');
 
-    const queryNavigate = useQuery();
+    const updateQuery = useQueryParams();
     const { navigateReplace } = useRouterActions();
 
     const { finalUrl } = useImagesValidator(state.data?.image ? [state.data.image] : [], '/image/static/default.svg')
@@ -309,7 +308,7 @@ export default function Manage() {
                     <div className="heading_manage">
                         <img src={'/image/static/logo.svg'} alt='logo' />
                         <h2>Account Settings</h2>
-                        <button type="button" id="cancel-manage" onClick={() => queryNavigate(pathname, { manage: null })}>
+                        <button type="button" id="cancel-manage" onClick={() => updateQuery({ modal: null })}>
                             <IoClose />
                         </button>
                     </div>

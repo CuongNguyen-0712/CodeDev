@@ -238,9 +238,8 @@ export default function CoursePage({ params } = {}) {
 
     const redirectToDetailCourse = ({ id }) => {
         if (!id) return;
-
         setRedirect(true)
-        navigate(`/course/${id}`)
+        navigate({ path: `course/${id}` });
     }
 
     useEffect(() => {

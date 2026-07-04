@@ -17,7 +17,7 @@ export default function Slider() {
         <section id="slider">
             <button
                 className="return_btn"
-                onClick={() => navigate('/home')}
+                onClick={() => navigate({ path: 'home' })}
             >
                 <FaHome fontSize={16} />
                 <span>

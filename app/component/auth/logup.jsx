@@ -4,8 +4,6 @@ import Link from "next/link"
 import Form from "next/form"
 import Image from "next/image"
 
-import { useRouterActions } from "@/app/router/useRouterActions"
-
 import { api } from "@/app/lib/axios"
 
 import { SignUpSchema } from "@/app/lib/definition"
@@ -20,8 +18,6 @@ import { MdModeEdit, MdAlternateEmail, MdOutlinePassword } from "react-icons/md"
 import { IoIosWarning, IoIosCheckmarkCircle } from "react-icons/io"
 
 export default function Logup({ active, changeForm, setAlert, callback }) {
-    const { navigate } = useRouterActions()
-
     const [step, setStep] = useState(1)
 
     const defaultState = {

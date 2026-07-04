@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { LoadingContent } from '../ui/loading';
 import { ErrorReload } from '../ui/error';
 
-import { useQuery } from '@/app/router/useQuery';
+import { useQueryParams } from '@/app/router/useQueryParams';
 import { useRouterActions } from '@/app/router/useRouterActions';
 
 import { api } from '@/app/lib/axios';
@@ -16,7 +16,7 @@ import { HiSparkles } from 'react-icons/hi2';
 import { MdEdit } from 'react-icons/md';
 
 export default function Overview() {
-    const queryNavigate = useQuery();
+    const updateQuery = useQueryParams();
     const { navigate } = useRouterActions();
 
     const initialState = {
@@ -313,7 +313,7 @@ export default function Overview() {
                                                 e.target.src = '/image/static/no_image.png';
                                             }}
                                         />
-                                        <button className="edit-btn" onClick={() => navigate('/profile')}>
+                                        <button className="edit-btn" onClick={() => navigate({ path: 'profile' })}>
                                             <MdEdit />
                                         </button>
                                     </div>
@@ -363,7 +363,7 @@ export default function Overview() {
                                         </span>
                                     </div>
                             }
-                            <button onClick={() => queryNavigate('home', { tab: 'learning' })}>
+                            <button onClick={() => updateQuery({ tab: 'learning' })}>
                                 View All
                                 <FaAngleRight />
                             </button>

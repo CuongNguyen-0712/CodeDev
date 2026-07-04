@@ -1,6 +1,6 @@
 'use client'
 import { useState } from "react";
-import { useSearchParams, usePathname } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import Form from "next/form";
 
@@ -10,7 +10,7 @@ import { BiMessageDetail } from "react-icons/bi";
 
 import { api } from "@/app/lib/axios";
 
-import { useQuery } from "@/app/router/useQuery";
+import { useQueryParams } from "@/app/router/useQueryParams";
 import { FeedbackSchema } from "@/app/lib/definition";
 
 import { useApp } from "@/app/contexts/appContext";
@@ -27,10 +27,9 @@ export default function Feedback() {
 
     const { showAlert: alert } = useApp();
 
-    const queryNavigate = useQuery();
+    const updateQuery = useQueryParams();
     const params = useSearchParams();
-    const pathname = usePathname();
-    const feedback = params.get('feedback');
+    const feedback = params.get('modal');
 
     const [state, setState] = useState({
         error: null,
@@ -109,7 +108,7 @@ export default function Feedback() {
         });
     };
 
-    const handleClose = () => queryNavigate(pathname, { feedback: null });
+    const handleClose = () => updateQuery({ modal: null });
 
     return feedback && (
         <div className="feedback-overlay">

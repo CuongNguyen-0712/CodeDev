@@ -11,13 +11,13 @@ export const AppProvider = ({ children }) => {
     const [alert, setAlert] = useState(null);
 
     // query params
-    const feedback = params.get('feedback');
+    const modal = params.get('modal');
 
     // overlay logic
     useEffect(() => {
-        const isOverlay = dashboard || feedback;
+        const isOverlay = dashboard || modal;
         document.body.classList.toggle('overlay', !!isOverlay);
-    }, [dashboard, feedback]);
+    }, [dashboard, modal]);
 
     // exposed API
     const value = {

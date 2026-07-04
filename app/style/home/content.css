@@ -11,8 +11,8 @@
 #overview_sidebar {
     display: flex;
     max-width: 400px;
+    min-width: 300px;
     flex-grow: 1;
-    flex-shrink: 0;
     flex-direction: column;
     gap: 24px;
 }
@@ -20,7 +20,7 @@
 #overview_content {
     display: flex;
     flex-direction: column;
-    flex-grow: 2;
+    flex-grow: 1;
     gap: 24px;
 }
 
@@ -2646,6 +2646,10 @@
 }
 
 @media screen and (max-width: 768px) {
+    #overview {
+        flex-direction: column;
+    }
+
     .header-text h1 {
         font-size: 24px;
     }

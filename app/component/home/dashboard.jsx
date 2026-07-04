@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+
 import { useSearchParams, usePathname } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -7,36 +8,46 @@ import { LoadingContent } from "../ui/loading";
 
 import { useAuth } from "@/app/contexts/authContext";
 
-import { useQuery } from "@/app/router/useQuery";
+import { useRouterActions } from "@/app/router/useRouterActions";
+import { useQueryParams } from "@/app/router/useQueryParams";
 
-import { FaUsers, FaChevronLeft, FaTasks } from "react-icons/fa";
+import { FaUsers, FaChevronLeft, FaTasks, FaBookOpen, FaRegQuestionCircle } from "react-icons/fa";
 import { FaCode } from "react-icons/fa6";
-import { IoSettingsSharp, IoSearch } from "react-icons/io5";
+import { IoSettingsSharp } from "react-icons/io5";
 import {
   MdHelpCenter,
   MdSpaceDashboard,
   MdOutlineFeedback,
 } from "react-icons/md";
-import { HiChevronDown, HiSparkles } from "react-icons/hi2";
+import { HiChevronDown } from "react-icons/hi2";
+import { RiRoadMapFill } from "react-icons/ri";
+import { MdQuestionAnswer } from "react-icons/md";
 
 export default function Dashboard({ isDashboard, handleDashboard }) {
   const { session, status } = useAuth();
 
   const dashBoardRef = useRef(null);
-  const pathnameRef = useRef(null);
 
-  const params = useSearchParams();
+  const updateQuery = useQueryParams();
   const pathname = usePathname();
-  const queryNavigate = useQuery();
+  const params = useSearchParams();
+  const { navigate } = useRouterActions();
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [showOther, setShowOther] = useState(false);
 
   const menuList = [
-    { name: "Overview", value: 'overview', icon: <MdSpaceDashboard />, isAuth: true },
-    { name: "Learning", value: 'learning', icon: <FaCode />, isAuth: true },
-    { name: "Task", value: 'task', icon: <FaTasks />, isAuth: true },
-    { name: "Connection", value: 'connection', icon: <FaUsers />, isAuth: true },
+    { name: "Overview", path: 'home', value: 'overview', icon: <MdSpaceDashboard />, color: 'var(--color_primary)' },
+    { name: "Learning", path: 'home', value: 'learning', icon: <FaCode />, color: 'var(--color_red)' },
+    { name: "Task", path: 'home', value: 'task', icon: <FaTasks />, color: 'var(--color_blue)' },
+    { name: "Connection", path: 'home', value: 'connection', icon: <FaUsers />, color: 'var(--color_green)' },
+  ];
+
+  const navigationList = [
+    { name: 'Course', value: 'course', icon: <FaBookOpen />, color: 'var(--color_purple)' },
+    { name: 'Roadmap', value: 'roadmap', icon: <RiRoadMapFill />, color: 'var(--color_cyan)' },
+    { name: 'Blog', value: 'blog', icon: <MdQuestionAnswer />, color: 'var(--color_teal)' },
+    { name: 'About', value: 'about', icon: <FaRegQuestionCircle />, color: 'var(--color_pink)' },
   ];
 
   const refDashboard = (e) => {
@@ -58,15 +69,20 @@ export default function Dashboard({ isDashboard, handleDashboard }) {
     const tab = params.get('tab')?.toLowerCase();
     const index = menuList.findIndex(item => item.value === tab);
     setActiveIndex(index >= 0 ? index : 0);
-    pathnameRef.current = pathname;
     handleDashboard(false);
   }, [params]);
 
-  const handleNavigation = (index, value) => {
-    scrollTo(0, 0);
+  const handleQuery = (index, path, value) => {
     setActiveIndex(index);
-    queryNavigate(pathnameRef.current, { tab: value });
+    scrollTo(0, 0);
+    navigate({ path: path, query: { tab: value } });
   };
+
+  const handleRouter = (value) => {
+    handleDashboard(false);
+    scrollTo(0, 0);
+    navigate({ path: value });
+  }
 
   return (
     <aside id="aside" className={isDashboard ? "active" : ""} ref={dashBoardRef}>
@@ -82,33 +98,43 @@ export default function Dashboard({ isDashboard, handleDashboard }) {
           </button>
         </div>
 
-        {/* Quick Search */}
-        <div className="dash-search">
-          <button className="search-trigger" onClick={() => queryNavigate(pathnameRef.current)}>
-            <span className="search-icon"><IoSearch /></span>
-            <span className="search-placeholder">Quick search...</span>
-            <span className="search-keys">
-              <kbd>⌘</kbd>
-              <kbd>K</kbd>
-            </span>
-          </button>
-        </div>
-
         {/* Navigation */}
         <nav className="dash-nav">
-          <div className="nav-section">
-            <span className="nav-title">Menu</span>
+          {
+            session &&
+            <div className="nav-section home">
+              <span className="nav-title">Home</span>
+              <ul className="nav-menu">
+                {status === 'loading' ?
+                  <LoadingContent scale={0.5} />
+                  :
+                  menuList.map((item, index) => (
+                    <li key={index}>
+                      <button
+                        className={`nav-link ${activeIndex === index ? 'active' : ''}`}
+                        onClick={() => handleQuery(index, item.path, item.value)}
+                      >
+                        <span className="link-icon" style={{ color: item.color }}>{item.icon}</span>
+                        <span className="link-text">{item.name}</span>
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          }
+          <div className="nav-section navigation">
+            <span className="nav-title">Navigation</span>
             <ul className="nav-menu">
               {status === 'loading' ?
                 <LoadingContent scale={0.5} />
                 :
-                menuList.filter(item => session ? item.isAuth : !item.isAuth).map((item, index) => (
+                navigationList.map((item, index) => (
                   <li key={index}>
                     <button
-                      className={`nav-link ${activeIndex === index ? 'active' : ''}`}
-                      onClick={() => handleNavigation(index, item.value)}
+                      className={`nav-link ${pathname.includes(item.value) ? 'active' : ''}`}
+                      onClick={() => handleRouter(item.value)}
                     >
-                      <span className="link-icon">{item.icon}</span>
+                      <span className="link-icon" style={{ color: item.color }}>{item.icon}</span>
                       <span className="link-text">{item.name}</span>
                     </button>
                   </li>
@@ -116,21 +142,6 @@ export default function Dashboard({ isDashboard, handleDashboard }) {
             </ul>
           </div>
         </nav>
-
-        {/* Feedback Card */}
-        <div className="dash-feedback">
-          <div className="feedback-card">
-            <span className="feedback-icon"><HiSparkles /></span>
-            <p className="feedback-text">Share your thoughts</p>
-            <button
-              className="feedback-btn"
-              onClick={() => queryNavigate(pathnameRef.current, { feedback: true })}
-            >
-              <MdOutlineFeedback />
-              <span>Send Feedback</span>
-            </button>
-          </div>
-        </div>
 
         {/* Footer */}
         {
@@ -143,6 +154,10 @@ export default function Dashboard({ isDashboard, handleDashboard }) {
             {
               showOther &&
               <div className="footer-content">
+                <button className="footer-link feedback" onClick={() => updateQuery({ modal: 'feedback' })}>
+                  <span className="link-icon"><MdOutlineFeedback /></span>
+                  <span className="link-text">Send Feedback</span>
+                </button>
                 <Link href={'/help'} className="footer-link help">
                   <span className="link-icon"><MdHelpCenter /></span>
                   <span className="link-text">Help Center</span>
