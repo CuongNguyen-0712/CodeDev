@@ -19,11 +19,11 @@
   height: 60px;
   top: 0;
   left: 0;
-  background: var(--gradient_header);
+  background: var(--gradient-header);
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: var(--shadow_lg);
+  box-shadow: var(--shadow-lg);
   z-index: 2;
 }
 
@@ -33,10 +33,10 @@
   height: 100%;
   width: 280px;
   inset: 0;
-  background: var(--color_white);
+  background: var(--white);
   will-change: transform;
   flex-shrink: 0;
-  box-shadow: var(--shadow_lg);
+  box-shadow: var(--shadow-lg);
   transform: translateX(-100%);
   transition: 0.3s all cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 4;

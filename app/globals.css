@@ -52,83 +52,182 @@ body {
 }
 
 :root {
-    /* Background & Base */
-    --color_bg: #F0F7FA;
-    --color_bg_secondary: #E5F2F5;
+    /* ==========================================================
+       BASE PALETTE
+       ========================================================== */
 
-    --color_white_light: #FFFFFF80;
-    --color_white: #FFFFFF;
-    --color_white_soft: #F8FCFD;
+    /* White */
+    --white: #FFFFFF;
+    --white-soft: #F8FCFD;
+    --white-light: #FFFFFF80;
 
-    /* Text Colors */
-    --color_black: #1A3A4A;
-    --color_black_dark: #0D2535;
-    --color_text_secondary: #5A7A8A;
-    --color_text_muted: #8BA5B5;
+    /* Black */
+    --black: #1A3A4A;
+    --black-dark: #0D2535;
 
-    /* Gray Scale */
-    --color_gray_light: #EDF4F7;
-    --color_gray: #C5D8E0;
-    --color_gray_dark: #8BA5B5;
+    /* Gray */
+    --gray-50: #F8FCFD;
+    --gray-100: #F0F7FA;
+    --gray-200: #EDF4F7;
+    --gray-300: #E5F2F5;
+    --gray-400: #C5D8E0;
+    --gray-500: #8BA5B5;
+    --gray-600: #5A7A8A;
 
-    /* Success - Modern Emerald */
-    --color_green_light: #D1FAE5;
-    --color_green: #10B981;
-    --color_green_dark: #059669;
+    /* Blue */
+    --blue-100: #6D9DC5;
+    --blue-500: #3066BE;
+    --blue-700: #254FA0;
 
-    /* Warning - Vibrant Amber */
-    --color_yellow_light: #FEF3C7;
-    --color_yellow: #F59E0B;
-    --color_yellow_dark: #D97706;
+    /* Teal */
+    --teal-100: #80DED9;
+    --teal-500: #119DA4;
+    --teal-700: #0D7A80;
 
-    /* Error - Modern Rose */
-    --color_red_light: #FFE4E6;
-    --color_red: #F43F5E;
-    --color_red_dark: #E11D48;
+    /* Emerald */
+    --emerald-100: #D1FAE5;
+    --emerald-500: #10B981;
+    --emerald-700: #059669;
 
-    /* Primary - Smart Blue */
-    --color_primary_light: #6d9dc5;
-    --color_primary: #3066be;
-    --color_primary_dark: #254fa0;
+    /* Amber */
+    --amber-100: #FEF3C7;
+    --amber-500: #F59E0B;
+    --amber-700: #B45309;
 
-    /* Secondary - Dark Cyan */
-    --color_blue_light: #80ded9;
-    --color_blue: #119da4;
-    --color_blue_dark: #0d7a80;
+    /* Rose */
+    --rose-100: #FFE4E6;
+    --rose-500: #F43F5E;
+    --rose-700: #E11D48;
 
-    /* Accent Colors - Aqua Palette */
-    --color_orange_light: #FED7AA;
-    --color_orange: #F97316;
-    --color_orange_dark: #EA580C;
+    /* Orange */
+    --orange-100: #FED7AA;
+    --orange-500: #F97316;
+    --orange-700: #EA580C;
 
-    --color_purple_light: #D8B4FE;
-    --color_purple: #8B5CF6;
-    --color_purple_dark: #7C3AED;
+    /* Purple */
+    --purple-100: #D8B4FE;
+    --purple-500: #8B5CF6;
+    --purple-700: #7C3AED;
 
-    --color_violet: #6d9dc5;
-    --color_cyan: #80ded9;
-    --color_pink: #F472B6;
-    --color_teal: #119da4;
+    /* Pink */
+    --pink-500: #F472B6;
 
-    /* Gradients */
-    --gradient_primary: linear-gradient(135deg, #3066be 0%, #119da4 50%, #80ded9 100%);
-    --gradient_header: linear-gradient(135deg, #3066be 0%, #119da4 100%);
-    --gradient_accent: linear-gradient(135deg, #119da4 0%, #80ded9 100%);
-    --gradient_success: linear-gradient(135deg, #10B981 0%, #119da4 100%);
-    --gradient_card: linear-gradient(145deg, #FFFFFF 0%, #F0F7FA 100%);
+    /* ==========================================================
+       SEMANTIC TOKENS
+       ========================================================== */
 
-    /* Shadows */
-    --shadow_sm: 0 1px 2px 0 rgba(48, 102, 190, 0.05);
-    --shadow_md: 0 4px 6px -1px rgba(48, 102, 190, 0.1), 0 2px 4px -2px rgba(48, 102, 190, 0.1);
-    --shadow_lg: 0 10px 15px -3px rgba(48, 102, 190, 0.1), 0 4px 6px -4px rgba(48, 102, 190, 0.1);
-    --shadow_xl: 0 20px 25px -5px rgba(48, 102, 190, 0.15), 0 8px 10px -6px rgba(48, 102, 190, 0.1);
-    --shadow_glow: 0 0 20px rgba(48, 102, 190, 0.3);
+    /* Brand */
+    --color-primary: var(--blue-500);
+    --color-primary-light: var(--blue-100);
+    --color-primary-dark: var(--blue-700);
 
-    /* Border Radius */
-    --radius_sm: 6px;
-    --radius_md: 10px;
-    --radius_lg: 16px;
-    --radius_xl: 24px;
+    --color-secondary: var(--teal-500);
+    --color-secondary-light: var(--teal-100);
+    --color-secondary-dark: var(--teal-700);
+
+    /* Status */
+    --color-success: var(--emerald-500);
+    --color-success-light: var(--emerald-100);
+    --color-success-dark: var(--emerald-700);
+
+    --color-warning: var(--amber-500);
+    --color-warning-light: var(--amber-100);
+    --color-warning-dark: var(--amber-700);
+
+    --color-danger: var(--rose-500);
+    --color-danger-light: var(--rose-100);
+    --color-danger-dark: var(--rose-700);
+
+    --color-info: var(--teal-500);
+
+    /* Background */
+    --color-bg: var(--gray-100);
+    --color-bg-secondary: var(--gray-300);
+
+    --color-surface: var(--white);
+    --color-surface-soft: var(--white-soft);
+
+    /* Text */
+    --color-text: var(--black);
+    --color-text-heading: var(--black-dark);
+    --color-text-secondary: var(--gray-600);
+    --color-text-muted: var(--gray-500);
+    --color-text-inverse: var(--white);
+
+    /* Border */
+    --color-border: var(--gray-400);
+    --color-border-light: var(--gray-200);
+
+    /* State */
+    --color-hover: var(--blue-700);
+    --color-active: var(--teal-700);
+    --color-disabled: var(--gray-400);
+
+    /* Accent */
+    --color-accent-orange: var(--orange-500);
+    --color-accent-purple: var(--purple-500);
+    --color-accent-pink: var(--pink-500);
+
+    /* ==========================================================
+       GRADIENTS
+       ========================================================== */
+
+    --gradient-primary:
+        linear-gradient(135deg,
+            var(--color-primary) 0%,
+            var(--color-secondary) 50%,
+            var(--teal-100) 100%);
+
+    --gradient-header:
+        linear-gradient(135deg,
+            var(--color-primary) 0%,
+            var(--color-secondary) 100%);
+
+    --gradient-accent:
+        linear-gradient(135deg,
+            var(--color-secondary) 0%,
+            var(--teal-100) 100%);
+
+    --gradient-success:
+        linear-gradient(135deg,
+            var(--color-success) 0%,
+            var(--color-secondary) 100%);
+
+    --gradient-card:
+        linear-gradient(145deg,
+            var(--color-surface) 0%,
+            var(--color-bg) 100%);
+
+    /* ==========================================================
+       SHADOWS
+       ========================================================== */
+
+    --shadow-sm:
+        0 1px 2px rgba(48, 102, 190, .05);
+
+    --shadow-md:
+        0 4px 6px -1px rgba(48, 102, 190, .10),
+        0 2px 4px -2px rgba(48, 102, 190, .10);
+
+    --shadow-lg:
+        0 10px 15px -3px rgba(48, 102, 190, .10),
+        0 4px 6px -4px rgba(48, 102, 190, .10);
+
+    --shadow-xl:
+        0 20px 25px -5px rgba(48, 102, 190, .15),
+        0 8px 10px -6px rgba(48, 102, 190, .10);
+
+    --shadow-glow:
+        0 0 20px rgba(48, 102, 190, .30);
+
+    /* ==========================================================
+       RADIUS
+       ========================================================== */
+
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
 }
 
 @media screen and (max-width: 425px) {

@@ -1,7 +1,7 @@
 #slider {
     display: flex;
     width: 280px;
-    background: var(--color_bg);
+    background: var(--color-bg);
     flex-direction: column;
     flex-shrink: 0;
 }
@@ -11,13 +11,13 @@
     align-items: center;
     justify-content: center;
     padding: 12px 20px;
-    background: var(--color_white);
-    color: var(--color_black);
+    background: var(--white);
+    color: var(--black);
     font-weight: 600;
-    border-radius: var(--radius_md);
+    border-radius: var(--radius-md);
     font-size: 14px;
     margin: 20px;
-    border: 1px solid var(--color_gray);
+    border: 1px solid var(--gray-400);
     gap: 10px;
     cursor: pointer;
     flex-shrink: 0;
@@ -48,19 +48,19 @@
     background: transparent;
     gap: 10px;
     font-size: 14px;
-    border-radius: var(--radius_md);
+    border-radius: var(--radius-md);
     transition: all 0.3s ease;
 }
 
 #slider .menu_btns .menu_btn.active {
-    background: var(--gradient_primary);
-    color: var(--color_white);
+    background: var(--gradient-primary);
+    color: var(--white);
     font-weight: 600;
 }
 
 #slider .menu_btns .menu_btn:not(.active):hover {
     background: rgba(255, 255, 255, 0.8);
-    color: var(--color_black);
+    color: var(--black);
     transition: all 0.3s ease;
 }
 

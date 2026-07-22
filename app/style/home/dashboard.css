@@ -4,7 +4,7 @@
   flex-direction: column;
   width: 100%;
   height: 100%;
-  background: var(--gradient_card);
+  background: var(--gradient-card);
   border-right: 1px solid rgba(48, 102, 190, 0.08);
   user-select: none;
   overflow: hidden;
@@ -30,7 +30,7 @@
 .brand-name {
   font-size: 20px;
   font-weight: 700;
-  color: var(--color_black);
+  color: var(--black);
   letter-spacing: -0.4px;
 }
 
@@ -40,20 +40,20 @@
   justify-content: center;
   width: 40px;
   height: 40px;
-  background: var(--color_gray_light);
-  color: var(--color_black);
-  border-radius: var(--radius_md);
+  background: var(--gray-200);
+  color: var(--black);
+  border-radius: var(--radius-md);
   transition: all 0.2s ease;
   cursor: pointer;
 }
 
 .dash-close svg {
-  color: var(--color_gray_dark);
+  color: var(--gray-600);
   transition: all 0.2s ease;
 }
 
 .dash-close:hover svg {
-  color: var(--color_black);
+  color: var(--black);
   transition: all 0.2s ease;
 }
 
@@ -61,8 +61,6 @@
 .dash-nav {
   display: flex;
   flex: 1;
-  padding: 8px 12px;
-  gap: 12px;
   flex-direction: column;
   overflow-y: auto;
 }
@@ -76,7 +74,7 @@
 }
 
 .dash-nav::-webkit-scrollbar-thumb {
-  background: var(--color_gray_light);
+  background: var(--gray-200);
   border-radius: 4px;
 }
 
@@ -84,31 +82,30 @@
   display: flex;
   position: relative;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
 }
 
 .nav-title {
   display: flex;
-  justify-content: center;
-  width: 120px;
-  padding: 6px 10px;
-  font-size: 12px;
-  font-weight: 700;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 15px;
+  font-size: 14px;
   text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gray-600);
   letter-spacing: 0.8px;
-  background: var(--gradient_primary);
-  border-radius: var(--radius_sm);
-  color: var(--color_white);
+  flex-shrink: 0;
 }
 
-.nav-title::before {
-  content: "";
-  position: absolute;
-  width: 2px;
-  height: calc(100% - 35px);
-  background: var(--color_gray_dark);
-  top: 35px;
-  left: 15px;
+.nav-title::after {
+  display: flex;
+  content: '';
+  height: 1px;
+  flex-grow: 1;
+  margin-left: 12px;
+  background: var(--gray-200);
 }
 
 .nav-menu {
@@ -116,6 +113,7 @@
   flex-direction: column;
   list-style: none;
   margin-left: 30px;
+  padding-right: 20px;
   gap: 4px;
 }
 
@@ -128,7 +126,7 @@
   padding: 0 14px;
   background: transparent;
   gap: 12px;
-  border-radius: var(--radius_md);
+  border-radius: var(--radius-md);
   transition: all 0.15s ease;
   cursor: pointer;
 }
@@ -159,7 +157,7 @@
   flex-grow: 1;
   font-size: 14px;
   font-weight: 500;
-  color: var(--color_black);
+  color: var(--black);
   transition: color 0.15s ease;
 }
 
@@ -178,12 +176,12 @@
   border-radius: 100px;
   font-size: 11px;
   font-weight: 700;
-  color: var(--color_primary);
+  color: var(--color-primary);
 }
 
 /* .nav-link.active .link-badge {
   background: rgba(255, 255, 255, 0.2);
-  color: var(--color_white);
+  color: var(--white);
 } */
 
 /* ==================== FOOTER ==================== */
@@ -211,12 +209,12 @@
 .footer-toggle .toggle-text {
   font-size: 13px;
   font-weight: 600;
-  color: var(--color_gray_dark);
+  color: var(--gray-600);
 }
 
 .footer-toggle .toggle-arrow {
   font-size: 18px;
-  color: var(--color_gray_dark);
+  color: var(--gray-600);
   transition: transform 0.25s ease;
 }
 
@@ -251,7 +249,7 @@
   height: 42px;
   padding: 0 12px;
   background: transparent;
-  border-radius: var(--radius_md);
+  border-radius: var(--radius-md);
   text-decoration: none;
   gap: 12px;
   transition: all 0.15s ease;
@@ -269,9 +267,9 @@
   width: 32px;
   height: 32px;
   background: rgba(48, 102, 190, 0.08);
-  border-radius: var(--radius_sm);
+  border-radius: var(--radius-sm);
   font-size: 16px;
-  color: var(--color_primary);
+  color: var(--color-primary);
   transition: all 0.15s ease;
 }
 
@@ -282,12 +280,12 @@
 .footer-link .link-text {
   font-size: 13px;
   font-weight: 500;
-  color: var(--color_black);
+  color: var(--black);
 }
 
 .footer-link.help .link-icon {
   background: rgba(16, 185, 129, 0.1);
-  color: var(--color_green);
+  color: var(--color-success);
 }
 
 .footer-link.help:hover .link-icon {
@@ -296,7 +294,7 @@
 
 .footer-link.settings .link-icon {
   background: rgba(107, 114, 128, 0.1);
-  color: var(--color_gray_dark);
+  color: var(--gray-600);
 }
 
 .footer-link.settings:hover .link-icon {
@@ -316,7 +314,7 @@
   font-size: 14px;
   font-weight: 500;
   text-align: center;
-  color: var(--color_gray_dark);
+  color: var(--gray-600);
   line-height: 1.5;
 }
 
@@ -326,17 +324,17 @@
   justify-content: center;
   width: 100%;
   height: 44px;
-  background: var(--gradient_primary);
-  color: var(--color_white);
-  border-radius: var(--radius_md);
+  background: var(--gradient-primary);
+  color: var(--white);
+  border-radius: var(--radius-md);
   font-size: 14px;
   font-weight: 600;
-  box-shadow: var(--shadow_md), var(--shadow_glow);
+  box-shadow: var(--shadow-md), var(--shadow-glow);
   transition: all 0.2s ease;
   cursor: pointer;
 }
 
 .navigate-auth button:hover {
   transform: translateY(-2px);
-  box-shadow: var(--shadow_lg), var(--shadow_glow);
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
 }

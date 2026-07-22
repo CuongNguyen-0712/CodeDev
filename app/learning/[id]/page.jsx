@@ -1,35 +1,41 @@
-import CoursePage from "@/app/component/learning/[id]/coursePage";
 import { Suspense } from "react";
 
 import { LoadingRedirect } from "@/app/component/ui/loading";
 
 import DefaultLayout from "@/app/layout/defaultLayout";
 
-import GetStateCourseService from "@/app/services/getService/stateCourseService";
+import StydyingPage from "@/app/component/learning/[id]/studyingPage";
+
+import { courseService } from "@/app/services/course.service";
 
 export async function generateMetadata({ params }) {
-    const { id } = await params
+    const { id } = await params;
 
-    const course_id = id.split('_').slice(-1)[0]
+    const data = await courseService.getDetails(id);
+    const course = data[0];
 
-    const payload = await GetStateCourseService({ courseId: course_id })
-    const data = payload[0]
+    if (!course) {
+        return {
+            title: "Course not found",
+        };
+    }
 
     return {
-        title: `${data?.title || 'Missing course'} | Learning`,
-        description: `${data?.description || 'Sorry, something is error !'}`
-    }
+        title: `${course.title} | Course`,
+        description: course.description,
+    };
 }
 
 export default async function Page({ params }) {
     const { id } = await params
-    const course_id = id.split('_').slice(-1)[0]
 
     return (
-        <Suspense fallback={<LoadingRedirect />}>
-            <DefaultLayout>
-                <CoursePage params={{ course_id: course_id }} />
-            </DefaultLayout>
-        </Suspense>
+        <DefaultLayout>
+            <Suspense fallback={<LoadingRedirect />}>
+                <StydyingPage
+                    params={{ id }}
+                />
+            </Suspense>
+        </DefaultLayout>
     )
 }

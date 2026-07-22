@@ -15,7 +15,7 @@
     "@pusher/push-notifications-web": "^1.1.0",
     "@react-email/components": "^1.0.12",
     "@sanity/image-url": "^2.1.1",
-    "@sanity/vision": "^6.3.0",
+    "@sanity/vision": "^6.4.0",
     "@tanstack/react-query": "^5.101.2",
     "@vercel/postgres": "^0.10.0",
     "axios": "^1.18.1",
@@ -35,12 +35,12 @@
     "react-dom": "^19.2.7",
     "react-icons": "^5.7.0",
     "react-syntax-highlighter": "^16.1.1",
-    "sanity": "^6.3.0",
+    "sanity": "^6.4.0",
     "styled-components": "^6.4.3",
     "ulid": "^3.0.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "baseline-browser-mapping": "^2.10.40"
+    "baseline-browser-mapping": "^2.10.43"
   }
 }

@@ -5,8 +5,8 @@
     justify-content: center;
     align-items: center;
     width: 100%;
-    background: var(--color_white);
-    border-top: 1px solid var(--color_gray_light);
+    background: var(--white);
+    border-top: 1px solid var(--gray-200);
     padding: 40px 24px;
     z-index: 0;
 }
@@ -36,7 +36,7 @@
     text-decoration: none;
     font-weight: 700;
     font-size: 16px;
-    background: var(--gradient_primary);
+    background: var(--gradient-primary);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -57,7 +57,7 @@
 .footer-title {
     font-size: 13px;
     font-weight: 600;
-    color: var(--color_black);
+    color: var(--black);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin: 0;
@@ -65,7 +65,7 @@
 
 .footer-text {
     font-size: 13px;
-    color: var(--color_text_secondary);
+    color: var(--color-text-secondary);
     line-height: 1.6;
     margin: 0;
 }
@@ -78,7 +78,7 @@
 
 .footer-nav a {
     font-size: 13px;
-    color: var(--color_text_secondary);
+    color: var(--color-text-secondary);
     text-decoration: none;
     transition: all 0.2s ease;
     width: fit-content;
@@ -92,12 +92,12 @@
     left: 0;
     width: 0;
     height: 2px;
-    background: var(--gradient_primary);
+    background: var(--gradient-primary);
     transition: width 0.2s ease;
 }
 
 .footer-nav a:hover {
-    color: var(--color_blue);
+    color: var(--blue-500);
 }
 
 .footer-nav a:hover::after {
@@ -116,8 +116,8 @@
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: var(--color_gray_light);
-    color: var(--color_blue);
+    background: var(--gray-200);
+    color: var(--blue-500);
     transition: all 0.2s ease;
     text-decoration: none;
 }
@@ -128,8 +128,8 @@
 }
 
 .footer-socials a:hover {
-    background: var(--gradient_primary);
-    color: var(--color_white);
+    background: var(--gradient-primary);
+    color: var(--white);
     transform: translateY(-2px);
 }
 
@@ -139,13 +139,13 @@
     align-items: center;
     gap: 16px;
     padding-top: 24px;
-    border-top: 1px solid var(--color_gray_light);
+    border-top: 1px solid var(--gray-200);
     flex-wrap: wrap;
 }
 
 .footer-bottom p {
     font-size: 12px;
-    color: var(--color_text_muted);
+    color: var(--color-text-muted);
     margin: 0;
 }
 
@@ -156,13 +156,13 @@
 
 .footer-links a {
     font-size: 12px;
-    color: var(--color_text_secondary);
+    color: var(--color-text-secondary);
     text-decoration: none;
     transition: color 0.2s ease;
 }
 
 .footer-links a:hover {
-    color: var(--color_blue);
+    color: var(--blue-500);
 }
 
 /* Responsive */

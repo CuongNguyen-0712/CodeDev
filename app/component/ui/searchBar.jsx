@@ -10,7 +10,7 @@ import { LoadingContent } from './loading';
 
 import { debounce } from 'lodash';
 
-export default function SearchBar({ data = [], submit, setSearch, setFilter, pending, defaultFilter = {}, placeholderText = 'Search...', isFilter = true }) {
+export default function SearchBar({ data = [], setSearch, setFilter, pending, defaultFilter = {}, placeholderText = 'Search...', isFilter = true }) {
     const initialFilter = data.reduce((acc, field) => {
         acc[field.name] = defaultFilter?.[field.name] || [];
         return acc;
@@ -77,7 +77,6 @@ export default function SearchBar({ data = [], submit, setSearch, setFilter, pen
         if (isFilter) {
             setFilter(state.filter);
         }
-        submit();
     }
 
     const handleDebounce = useMemo(() =>
@@ -189,7 +188,7 @@ export default function SearchBar({ data = [], submit, setSearch, setFilter, pen
                                 disabled={pending}
                             >
                                 {pending ? (
-                                    <LoadingContent scale={0.4} color='var(--color_white)' />
+                                    <LoadingContent scale={0.4} color='var(--white)' />
                                 ) : (
                                     <>
                                         <IoCheckmark fontSize={20} />

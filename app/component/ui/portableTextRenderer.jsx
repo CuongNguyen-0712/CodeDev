@@ -82,7 +82,7 @@ function CodeBlock({ value }) {
             </div>
 
             <div className="code_content_wrapper">
-                <SyntaxHighlighter 
+                <SyntaxHighlighter
                     language={language || "text"}
                     useInlineStyles={true}
                     customStyle={{
@@ -118,27 +118,25 @@ function Callout({ value }) {
 
 export default function PortableTextRenderer({ value }) {
     return (
-        <div className="portable_text_container">
-            <PortableText
-                value={value}
-                components={{
-                    types: {
-                        codeBlock: ({ value }) => <CodeBlock value={value} />,
-                        callout: ({ value }) => <Callout value={value} />,
-                    },
-                    block: {
-                        h1: ({ children }) => <h1 className="lesson_h1">{children}</h1>,
-                        h2: ({ children }) => <h2 className="lesson_h2">{children}</h2>,
-                        h3: ({ children }) => <h3 className="lesson_h3">{children}</h3>,
-                        normal: ({ children }) => <p className="lesson_p">{children}</p>,
-                        blockquote: ({ children }) => <blockquote className="lesson_quote">{children}</blockquote>,
-                    },
-                    list: {
-                        bullet: ({ children }) => <ul className="lesson_ul">{children}</ul>,
-                        number: ({ children }) => <ol className="lesson_ol">{children}</ol>,
-                    },
-                }}
-            />
-        </div>
+        <PortableText
+            value={value}
+            components={{
+                types: {
+                    codeBlock: ({ value }) => <CodeBlock value={value} />,
+                    callout: ({ value }) => <Callout value={value} />,
+                },
+                block: {
+                    h1: ({ children }) => <h1 className="lesson_h1">{children}</h1>,
+                    h2: ({ children }) => <h2 className="lesson_h2">{children}</h2>,
+                    h3: ({ children }) => <h3 className="lesson_h3">{children}</h3>,
+                    normal: ({ children }) => <p className="lesson_p">{children}</p>,
+                    blockquote: ({ children }) => <blockquote className="lesson_quote">{children}</blockquote>,
+                },
+                list: {
+                    bullet: ({ children }) => <ul className="lesson_ul">{children}</ul>,
+                    number: ({ children }) => <ol className="lesson_ol">{children}</ol>,
+                },
+            }}
+        />
     );
 }

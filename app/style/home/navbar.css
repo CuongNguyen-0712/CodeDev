@@ -37,7 +37,7 @@
   width: 4px;
   top: 8px;
   right: 4px;
-  background: var(--color_white);
+  background: var(--white);
   border-radius: 50%;
   animation: pulse 2s ease-in-out infinite;
 }
@@ -63,7 +63,7 @@
 
 .brand-logo polygon {
   fill: transparent;
-  stroke: var(--color_white);
+  stroke: var(--white);
   stroke-width: 12;
   stroke-linejoin: round;
   stroke-dasharray: 250 50;
@@ -73,7 +73,7 @@
 .brand-text {
   font-size: 18px;
   font-weight: 700;
-  color: var(--color_white);
+  color: var(--white);
   letter-spacing: -0.5px;
 }
 
@@ -87,8 +87,8 @@
   width: 40px;
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
-  color: var(--color_white);
-  border-radius: var(--radius_md);
+  color: var(--white);
+  border-radius: var(--radius-md);
   font-size: 17px;
   transition: all 0.2s ease;
   cursor: pointer;
@@ -101,7 +101,7 @@
 
 .nav-icon-btn.menu-btn {
   background: transparent;
-  color: var(--color_white);
+  color: var(--white);
 }
 
 .nav-icon-btn.menu-btn:hover {
@@ -109,8 +109,8 @@
 }
 
 .nav-icon-btn.add-btn {
-  background: var(--color_white);
-  color: var(--color_primary);
+  background: var(--white);
+  color: var(--color-primary);
   box-shadow: 0 2px 8px rgba(48, 102, 190, 0.3);
 }
 
@@ -132,9 +132,9 @@
   justify-content: center;
   height: 42px;
   padding: 0 22px;
-  background: var(--color_white);
-  color: var(--color_primary);
-  border-radius: var(--radius_md);
+  background: var(--white);
+  color: var(--color-primary);
+  border-radius: var(--radius-md);
   font-size: 14px;
   font-weight: 600;
   gap: 8px;
@@ -158,9 +158,9 @@
   justify-content: center;
   height: 42px;
   padding: 0 16px;
-  background: var(--color_white);
-  color: var(--color_primary);
-  border-radius: var(--radius_md);
+  background: var(--white);
+  color: var(--color-primary);
+  border-radius: var(--radius-md);
   font-weight: 600;
   font-size: 16px;
   gap: 10px;
@@ -183,7 +183,7 @@
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius_md);
+  border-radius: var(--radius-md);
   gap: 10px;
   transition: all 0.2s ease;
   cursor: pointer;
@@ -200,9 +200,9 @@
   justify-content: center;
   height: 32px;
   width: 32px;
-  background: var(--gradient_primary);
-  border-radius: var(--radius_md);
-  color: var(--color_white);
+  background: var(--gradient-primary);
+  border-radius: var(--radius-md);
+  color: var(--white);
   font-size: 16px;
   box-shadow: 0 2px 8px rgba(48, 102, 190, 0.4);
   flex-shrink: 0;
@@ -217,7 +217,7 @@
   display: inline-block;
   font-size: 13px;
   font-weight: 600;
-  color: var(--color_white);
+  color: var(--white);
   max-width: 100px;
   white-space: nowrap;
   overflow: hidden;
@@ -242,11 +242,11 @@
   right: 0;
   width: 280px;
   padding: 8px;
-  background: var(--gradient_card);
+  background: var(--gradient-card);
   backdrop-filter: blur(20px);
   border: 1px solid rgba(48, 102, 190, 0.1);
-  border-radius: var(--radius_xl);
-  box-shadow: var(--shadow_xl);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
   opacity: 0;
   visibility: hidden;
   transform: translateY(-10px) scale(0.96);
@@ -272,7 +272,7 @@
 }
 
 .dropdown-header:hover {
-  border-radius: var(--radius_md);
+  border-radius: var(--radius-md);
   background: rgba(48, 102, 190, 0.06);
 }
 
@@ -280,10 +280,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius_lg);
-  color: var(--color_white);
+  border-radius: var(--radius-lg);
+  color: var(--white);
   flex-shrink: 0;
-  box-shadow: var(--shadow_glow);
+  box-shadow: var(--shadow-glow);
 }
 
 .dropdown-user {
@@ -295,7 +295,7 @@
 .dropdown-user h4 {
   font-size: 15px;
   font-weight: 700;
-  color: var(--color_black);
+  color: var(--black);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -303,7 +303,7 @@
 
 .dropdown-user p {
   font-size: 12px;
-  color: var(--color_gray_dark);
+  color: var(--gray-600);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -331,7 +331,7 @@
   height: 44px;
   width: 100%;
   padding: 0 14px;
-  border-radius: var(--radius_md);
+  border-radius: var(--radius-md);
   gap: 12px;
   text-decoration: none;
   transition: all 0.15s ease;
@@ -349,16 +349,16 @@
   height: 32px;
   width: 32px;
   background: rgba(48, 102, 190, 0.08);
-  border-radius: var(--radius_sm);
+  border-radius: var(--radius-sm);
   font-size: 16px;
-  color: var(--color_gray_dark);
+  color: var(--gray-600);
   flex-shrink: 0;
   transition: all 0.15s ease;
 }
 
 .dropdown-item:hover .item-icon {
   background: rgba(48, 102, 190, 0.12);
-  color: var(--color_primary);
+  color: var(--color-primary);
 }
 
 .dropdown-item .item-label {
@@ -367,7 +367,7 @@
   justify-content: center;
   font-size: 14px;
   font-weight: 500;
-  color: var(--color_black);
+  color: var(--black);
 }
 
 .dropdown-item .item-badge {
@@ -381,39 +381,39 @@
   border-radius: 100px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--color_gray_dark);
+  color: var(--gray-600);
 }
 
 /* Highlight Item */
 .dropdown-item.highlight {
-  background: var(--gradient_primary);
+  background: var(--gradient-primary);
 }
 
 .dropdown-item.feedback {
-  background: var(--color_black);
+  background: var(--black);
 }
 
 .dropdown-item.highlight .item-icon {
   background: rgba(255, 255, 255, 0.2);
-  color: var(--color_white);
+  color: var(--white);
 }
 
 .dropdown-item.feedback .item-icon {
-  color: var(--color_white);
+  color: var(--white);
 }
 
 .dropdown-item.highlight .item-label {
-  color: var(--color_white);
+  color: var(--white);
   font-weight: 600;
 }
 
 .dropdown-item.feedback .item-label {
-  color: var(--color_white);
+  color: var(--white);
   font-weight: 600;
 }
 
 .dropdown-item.highlight:hover {
-  box-shadow: var(--shadow_glow);
+  box-shadow: var(--shadow-glow);
   transform: translateY(-1px);
 }
 
@@ -424,19 +424,19 @@
 
 .dropdown-item.danger:hover .item-icon {
   background: rgba(244, 63, 94, 0.12);
-  color: var(--color_red);
+  color: var(--color-danger);
 }
 
 .dropdown-item.danger:hover .item-label {
-  color: var(--color_red);
+  color: var(--color-danger);
 }
 
 .dropdown-item.authenticated {
   justify-content: center;
-  background: var(--color_gray_light);
+  background: var(--gray-200);
   font-size: 14px;
   font-weight: 600;
-  color: var(--color_black);
+  color: var(--black);
   text-decoration: none;
 }
 

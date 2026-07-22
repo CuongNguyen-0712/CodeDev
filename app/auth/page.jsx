@@ -1,8 +1,10 @@
 import { Suspense } from 'react'
 
-import Form from "../component/auth/form"
+import AuthPage from "../component/auth/authPage"
 
 import { LoadingRedirect } from '../component/ui/loading'
+
+import DefaultLayout from '@/app/layout/defaultLayout'
 
 export async function generateMetadata() {
     return {
@@ -13,8 +15,10 @@ export async function generateMetadata() {
 
 export default function Page() {
     return (
-        <Suspense fallback={<LoadingRedirect />}>
-            <Form />
-        </Suspense>
+        <DefaultLayout>
+            <Suspense fallback={<LoadingRedirect />}>
+                <AuthPage />
+            </Suspense>
+        </DefaultLayout>
     )
 }

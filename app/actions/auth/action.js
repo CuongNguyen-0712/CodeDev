@@ -6,7 +6,7 @@ export async function signUp({ id, public_id, surname, name, email, username, pa
 
     params.push(id, public_id, surname, name, email, username, password);
 
-    const query = `call add_user($1, $2, $3, $4, $5, $6, $7)`;
+    const query = `call sign_up($1, $2, $3, $4, $5, $6, $7)`;
 
     return await sql.query(query, params)
 }

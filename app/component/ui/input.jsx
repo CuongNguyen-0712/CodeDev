@@ -5,12 +5,9 @@ import { IoIosCloseCircle } from "react-icons/io";
 import { VscEye, VscEyeClosed } from "react-icons/vsc";
 import { BsTextareaResize } from "react-icons/bs";
 
-export function InputGroup({ name, label, type, value, onChange, error, icon, reset, read, tabIndex = 0, isPassword = false, inputMode }) {
+export function InputGroup({ name, label, type, value, onChange, error, icon, reset, read, tabIndex = 0, isPassword = false, inputMode, onBlur, onFocus }) {
 
     const [shown, setShown] = useState(false);
-    const handleClear = () => {
-        reset(name);
-    }
 
     return (
         <div className={`field-input ${value ? 'has-content' : ''}`}>
@@ -21,8 +18,10 @@ export function InputGroup({ name, label, type, value, onChange, error, icon, re
                 onChange={onChange}
                 inputMode={inputMode}
                 autoComplete="off"
+                onBlur={onBlur}
                 readOnly={read}
                 tabIndex={tabIndex}
+                onFocus={onFocus}
             />
             <label htmlFor={name}>{label}</label>
             {icon}
@@ -32,10 +31,10 @@ export function InputGroup({ name, label, type, value, onChange, error, icon, re
                     type="button"
                     className='clear'
                     tabIndex={-1}
-                    onClick={handleClear}
+                    onClick={() => reset(name)}
                 >
                     <IoIosCloseCircle
-                        color="var(--color_gray)"
+                        color="var(--gray-400)"
                         fontSize={18}
                     />
                 </button>
@@ -57,9 +56,9 @@ export function InputGroup({ name, label, type, value, onChange, error, icon, re
                 >
                     {
                         shown ?
-                            <VscEyeClosed fontSize={16} color="var(--color_black)" />
+                            <VscEyeClosed fontSize={16} color="var(--black)" />
                             :
-                            <VscEye fontSize={16} color="var(--color_primary)" />
+                            <VscEye fontSize={16} color="var(--color-primary)" />
                     }
                 </button>
             }

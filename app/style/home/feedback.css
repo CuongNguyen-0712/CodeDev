@@ -28,10 +28,10 @@
     width: 100%;
     max-width: 480px;
     max-height: 90vh;
-    background: var(--gradient_card);
+    background: var(--gradient-card);
     border: 1px solid rgba(48, 102, 190, 0.15);
-    border-radius: var(--radius_xl);
-    box-shadow: var(--shadow_xl);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-xl);
     overflow: hidden;
     animation: modalSlideIn 0.25s ease;
 }
@@ -61,7 +61,7 @@
     background: rgba(48, 102, 190, 0.08);
     border: none;
     border-radius: 50%;
-    color: var(--color_gray_dark);
+    color: var(--gray-600);
     font-size: 20px;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -69,8 +69,8 @@
 }
 
 .feedback-modal .btn-close:hover {
-    background: var(--color_gray_light);
-    color: var(--color_black);
+    background: var(--gray-200);
+    color: var(--black);
 }
 
 /* Modal Header */
@@ -89,23 +89,23 @@
     justify-content: center;
     width: 64px;
     height: 64px;
-    background: var(--gradient_primary);
+    background: var(--gradient-primary);
     border-radius: 50%;
     font-size: 28px;
-    color: var(--color_white);
-    box-shadow: var(--shadow_md), var(--shadow_glow);
+    color: var(--white);
+    box-shadow: var(--shadow-md), var(--shadow-glow);
 }
 
 .feedback-header h2 {
     font-size: 24px;
     font-weight: 800;
-    color: var(--color_black);
+    color: var(--black);
     letter-spacing: -0.5px;
 }
 
 .feedback-header p {
     font-size: 14px;
-    color: var(--color_gray_dark);
+    color: var(--gray-600);
     max-width: 280px;
 }
 
@@ -117,18 +117,18 @@
     margin: 0 24px;
     padding: 14px 16px;
     background: rgba(48, 102, 190, 0.08);
-    border-radius: var(--radius_md);
+    border-radius: var(--radius-md);
 }
 
 .feedback-info svg {
     font-size: 18px;
-    color: var(--color_primary);
+    color: var(--color-primary);
     flex-shrink: 0;
 }
 
 .feedback-info span {
     font-size: 13px;
-    color: var(--color_gray_dark);
+    color: var(--gray-600);
     line-height: 1.5;
 }
 
@@ -151,38 +151,38 @@
 .feedback-body .form-field label {
     font-size: 14px;
     font-weight: 600;
-    color: var(--color_black);
+    color: var(--black);
 }
 
 .feedback-body .form-field input {
     height: 46px;
     padding: 0 16px;
-    background: var(--color_white);
+    background: var(--white);
     border: 2px solid rgba(48, 102, 190, 0.15);
-    border-radius: var(--radius_md);
+    border-radius: var(--radius-md);
     font-size: 14px;
-    color: var(--color_black);
+    color: var(--black);
     transition: all 0.2s ease;
 }
 
 .feedback-body .form-field input:focus {
     outline: none;
-    border-color: var(--color_primary);
+    border-color: var(--color-primary);
     box-shadow: 0 0 0 4px rgba(48, 102, 190, 0.1);
 }
 
 .feedback-body .form-field input::placeholder {
-    color: var(--color_gray);
+    color: var(--gray-400);
 }
 
 .feedback-body .form-field textarea {
     min-height: 140px;
     padding: 14px 16px;
-    background: var(--color_white);
+    background: var(--white);
     border: 2px solid rgba(48, 102, 190, 0.15);
-    border-radius: var(--radius_md);
+    border-radius: var(--radius-md);
     font-size: 14px;
-    color: var(--color_black);
+    color: var(--black);
     line-height: 1.6;
     resize: none;
     transition: all 0.2s ease;
@@ -190,12 +190,12 @@
 
 .feedback-body .form-field textarea:focus {
     outline: none;
-    border-color: var(--color_primary);
+    border-color: var(--color-primary);
     box-shadow: 0 0 0 4px rgba(48, 102, 190, 0.1);
 }
 
 .feedback-body .form-field textarea::placeholder {
-    color: var(--color_gray);
+    color: var(--gray-400);
 }
 
 .feedback-body .field-error {
@@ -203,7 +203,7 @@
     align-items: center;
     gap: 6px;
     font-size: 13px;
-    color: var(--color_red);
+    color: var(--color-danger);
 }
 
 .feedback-body .field-error svg {
@@ -226,18 +226,18 @@
     justify-content: center;
     height: 46px;
     padding: 0 24px;
-    background: var(--color_gray_light);
+    background: var(--gray-200);
     border: none;
-    border-radius: var(--radius_md);
+    border-radius: var(--radius-md);
     font-size: 14px;
     font-weight: 600;
-    color: var(--color_black);
+    color: var(--black);
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
 .feedback-footer .btn-reset:hover {
-    background: var(--color_gray);
+    background: var(--gray-400);
 }
 
 .feedback-footer .btn-reset:disabled {
@@ -251,20 +251,20 @@
     justify-content: center;
     flex: 1;
     height: 46px;
-    background: var(--gradient_primary);
+    background: var(--gradient-primary);
     border: none;
-    border-radius: var(--radius_md);
+    border-radius: var(--radius-md);
     font-size: 14px;
     font-weight: 600;
-    color: var(--color_white);
+    color: var(--white);
     gap: 10px;
-    box-shadow: var(--shadow_md);
+    box-shadow: var(--shadow-md);
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
 .feedback-footer .btn-submit:hover {
-    box-shadow: var(--shadow_lg), var(--shadow_glow);
+    box-shadow: var(--shadow-lg), var(--shadow-glow);
     transform: translateY(-2px);
 }
 
@@ -292,7 +292,7 @@
 
     .feedback-modal {
         max-width: 100%;
-        border-radius: var(--radius_xl) var(--radius_xl) 0 0;
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     }
 
     .feedback-header {
@@ -340,9 +340,9 @@
     max-height: 90%;
     width: 100%;
     max-width: 425px;
-    background: var(--gradient_card);
-    border-radius: var(--radius_xl);
-    box-shadow: var(--shadow_xl);
+    background: var(--gradient-card);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-xl);
     border: 1px solid rgba(48, 102, 190, 0.1);
     flex-direction: column;
     gap: 20px;

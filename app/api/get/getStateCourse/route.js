@@ -9,7 +9,7 @@ import GetStateCourseService from "@/app/services/getService/stateCourseService"
 export async function GET(req) {
     try {
         const session = await getServerSession(authOptions);
-        const userId = session.user.id || null;
+        const userId = session?.user?.id || null;
 
         const { searchParams } = new URL(req.url);
 

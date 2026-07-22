@@ -8,10 +8,10 @@ import Blog from "../component/blog/blog"
 
 export default function Page() {
     return (
-        <Suspense fallback={<LoadingRedirect />}>
-            <HomeLayout>
+        <HomeLayout>
+            <Suspense fallback={<LoadingRedirect />}>
                 <Blog />
-            </HomeLayout>
-        </Suspense>
+            </Suspense>
+        </HomeLayout>
     );
 }

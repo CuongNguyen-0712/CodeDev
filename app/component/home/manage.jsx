@@ -13,7 +13,6 @@ import { useQueryParams } from "@/app/router/useQueryParams";
 
 import { useApp } from "@/app/contexts/appContext";
 
-import { api } from "@/app/lib/axios";
 
 import { signOut } from "next-auth/react";
 
@@ -77,31 +76,6 @@ export default function Manage() {
             });
         }
     }
-
-    const fetchData = async () => {
-        try {
-            const response = await api.get('get/getInfo')
-            if (response.data.success) {
-                const data = Array.isArray(response.data.data) ? response.data.data[0] : {};
-                setState((prev) => ({
-                    ...prev,
-                    data: data,
-                    update: data,
-                    pending: false
-                }))
-            }
-            else {
-                setState((prev) => ({ ...prev, error: { status: response.status || 500, message: response.data?.message || 'Failed to load your information !' }, pending: false }))
-            }
-        }
-        catch (err) {
-            setState((prev) => ({ ...prev, error: { status: err.response?.status || 500, message: err?.response?.data?.message || 'Something is wrong, please try again' }, pending: false }))
-        }
-    }
-
-    useEffect(() => {
-        fetchData();
-    }, [])
 
     const handleUpdate = async (e) => {
         e.preventDefault();
@@ -272,7 +246,7 @@ export default function Manage() {
         const range = rangeRef.current;
         if (range) {
             const percentage = ((file.zoom_value - range.min) / (range.max - range.min)) * 100;
-            range.style.background = `linear-gradient(to right, var(--color_black) 0%, var(--color_black) ${percentage}%, var(--color_white) ${percentage}%, var(--color_white) 100%)`;
+            range.style.background = `linear-gradient(to right, var(--black) 0%, var(--black) ${percentage}%, var(--white) ${percentage}%, var(--white) 100%)`;
         }
     }, [file.zoom_value, file.zoom]);
 
@@ -389,14 +363,14 @@ export default function Manage() {
 
                                                 <div className="profile_stats">
                                                     <div className="stat_item">
-                                                        <FaStar fontSize={16} color="var(--color_yellow)" />
+                                                        <FaStar fontSize={16} color="var(--color-warning)" />
                                                         <div className="stat_content">
                                                             <span className="stat_value">{state.data?.star ?? "-"}</span>
                                                             <span className="stat_label">Stars</span>
                                                         </div>
                                                     </div>
                                                     <div className="stat_item">
-                                                        <FaTrophy fontSize={16} color="var(--color_orange)" />
+                                                        <FaTrophy fontSize={16} color="var(--color-accent-orange)" />
                                                         <div className="stat_content">
                                                             <span className="stat_value">{state.data?.rank ?? "-"}</span>
                                                             <span className="stat_label">Rank</span>
@@ -425,7 +399,7 @@ export default function Manage() {
                                                         >
                                                             {
                                                                 state.handling ?
-                                                                    <LoadingContent scale={0.4} color="var(--color_white)" />
+                                                                    <LoadingContent scale={0.4} color="var(--white)" />
                                                                     :
                                                                     <>
                                                                         <FaSave fontSize={14} />
@@ -452,7 +426,7 @@ export default function Manage() {
                                                             {
                                                                 state.definition?.surname &&
                                                                 <div className="error_tooltip">
-                                                                    <MdErrorOutline fontSize={18} color='var(--color_red)' />
+                                                                    <MdErrorOutline fontSize={18} color='var(--color-danger)' />
                                                                     <span>{state.definition.surname}</span>
                                                                 </div>
                                                             }
@@ -474,7 +448,7 @@ export default function Manage() {
                                                             {
                                                                 state.definition?.name &&
                                                                 <div className="error_tooltip">
-                                                                    <MdErrorOutline fontSize={18} color='var(--color_red)' />
+                                                                    <MdErrorOutline fontSize={18} color='var(--color-danger)' />
                                                                     <span>{state.definition.name}</span>
                                                                 </div>
                                                             }
@@ -496,7 +470,7 @@ export default function Manage() {
                                                             {
                                                                 state.definition?.email &&
                                                                 <div className="error_tooltip">
-                                                                    <MdErrorOutline fontSize={18} color='var(--color_red)' />
+                                                                    <MdErrorOutline fontSize={18} color='var(--color-danger)' />
                                                                     <span>{state.definition.email}</span>
                                                                 </div>
                                                             }
@@ -518,7 +492,7 @@ export default function Manage() {
                                                             {
                                                                 state.definition?.phone &&
                                                                 <div className="error_tooltip">
-                                                                    <MdErrorOutline fontSize={18} color='var(--color_red)' />
+                                                                    <MdErrorOutline fontSize={18} color='var(--color-danger)' />
                                                                     <span>{state.definition.phone}</span>
                                                                 </div>
                                                             }
@@ -567,7 +541,7 @@ export default function Manage() {
                         />
                     </div>
                     <button type="button" id="close_zoom" onClick={() => setFile((prev) => ({ ...prev, zoom: false }))}>
-                        <IoClose fontSize={30} color="var(--color_white)" />
+                        <IoClose fontSize={30} color="var(--white)" />
                     </button>
                     <input
                         type="range"

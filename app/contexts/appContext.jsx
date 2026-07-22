@@ -10,16 +10,13 @@ export const AppProvider = ({ children }) => {
     const [dashboard, setDashboard] = useState(false);
     const [alert, setAlert] = useState(null);
 
-    // query params
     const modal = params.get('modal');
 
-    // overlay logic
     useEffect(() => {
         const isOverlay = dashboard || modal;
         document.body.classList.toggle('overlay', !!isOverlay);
     }, [dashboard, modal]);
 
-    // exposed API
     const value = {
         dashboard,
         setDashboard,

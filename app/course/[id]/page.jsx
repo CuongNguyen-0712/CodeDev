@@ -2,38 +2,48 @@ import { Suspense } from "react"
 
 import PreviewCourse from "@/app/component/course/params/preview"
 
-import GetStateCourseService from "@/app/services/getService/stateCourseService";
+import { courseService } from "@/app/services/course.service"
 
 import DefaultLayout from "@/app/layout/defaultLayout";
 
 import { LoadingRedirect } from "@/app/component/ui/loading";
 
+import { HydrationBoundary, QueryClient, dehydrate } from "@tanstack/react-query";
+import { courseQueries } from "@/app/query/course.query";
+
 export async function generateMetadata({ params }) {
-    const { id } = await params
+    const { id } = await params;
 
-    const course_id = id.split('_').slice(-1).at(0)
+    const data = await courseService.getDetails(id);
+    const course = data[0];
 
-    const payload = await GetStateCourseService({ courseId: course_id })
-    const data = payload[0]
+    if (!course) {
+        return {
+            title: "Course not found",
+        };
+    }
 
     return {
-        title: `${data?.title || 'Missing course'} | Course`,
-        description: `${data?.description || 'Sorry, something is error !'}`
-    }
+        title: `${course.title} | Course`,
+        description: course.description,
+    };
 }
 
 export default async function Page({ params }) {
     const { id } = await params
 
-    const course_id = id.split('_').slice(-1).at(0)
+    const queryClient = new QueryClient();
+    await queryClient.ensureQueryData(courseQueries.details(id));
 
     return (
-        <Suspense fallback={<LoadingRedirect />}>
-            <DefaultLayout>
-                <PreviewCourse
-                    params={{ id: course_id }}
-                />
-            </DefaultLayout>
-        </Suspense>
+        <DefaultLayout>
+            <Suspense fallback={<LoadingRedirect />}>
+                <HydrationBoundary state={dehydrate(queryClient)}>
+                    <PreviewCourse
+                        params={{ id }}
+                    />
+                </HydrationBoundary>
+            </Suspense>
+        </DefaultLayout>
     )
 }

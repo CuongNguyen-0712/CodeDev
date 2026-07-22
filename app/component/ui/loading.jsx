@@ -64,7 +64,7 @@ export function LoadingRedirect({ scale }) {
     )
 }
 
-export function LoadingContent({ scale = 1, color = 'var(--color_primary)', message = null }) {
+export function LoadingContent({ scale = 1, color = 'var(--color-primary)', message = null }) {
     return (
         <div className="loading-container">
             <div className="loading-spinner" style={{ transform: `scale(${scale})` }}>

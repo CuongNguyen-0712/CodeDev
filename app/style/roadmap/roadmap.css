@@ -23,7 +23,7 @@
 .roadmap-header h1 {
     font-size: 38px;
     font-weight: 800;
-    background: var(--gradient_primary);
+    background: var(--gradient-primary);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     text-transform: uppercase;
@@ -32,7 +32,7 @@
 
 .roadmap-header p {
     font-size: 16px;
-    color: var(--color_text_secondary);
+    color: var(--color-text-secondary);
     max-width: 600px;
     line-height: 1.6;
 }
@@ -51,12 +51,12 @@
     height: 200px;
     width: 100%;
     padding: 24px;
-    background: var(--color_white);
-    border-radius: var(--radius_lg);
+    background: var(--white);
+    border-radius: var(--radius-lg);
     text-align: left;
     flex-direction: column;
     border: 1px solid rgba(48, 102, 190, 0.08);
-    box-shadow: var(--shadow_sm);
+    box-shadow: var(--shadow-sm);
     cursor: pointer;
     overflow: hidden;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -65,7 +65,7 @@
 
 #roadmap_list .roadmap_card:hover {
     transform: translateY(-6px);
-    box-shadow: var(--shadow_xl);
+    box-shadow: var(--shadow-xl);
     border-color: rgba(48, 102, 190, 0.2);
 }
 
@@ -75,7 +75,7 @@
     left: 0;
     right: 0;
     height: 4px;
-    background: var(--gradient_primary);
+    background: var(--gradient-primary);
 }
 
 .roadmap_card .card_header {
@@ -92,22 +92,22 @@
     gap: 6px;
     font-size: 13px;
     font-weight: 600;
-    color: var(--color_primary);
+    color: var(--color-primary);
     background: rgba(48, 102, 190, 0.08);
     padding: 6px 12px;
-    border-radius: var(--radius_sm);
+    border-radius: var(--radius-sm);
     flex-shrink: 0;
 }
 
 .card_header h3 {
     font-size: 18px;
     font-weight: 700;
-    color: var(--color_black);
+    color: var(--black);
 }
 
 .roadmap_card p {
     font-size: 14px;
-    color: var(--color_text_secondary);
+    color: var(--color-text-secondary);
     line-height: 1.5;
     display: -webkit-box;
     -webkit-line-clamp: 3;
@@ -143,22 +143,22 @@
     align-items: center;
     font-size: 14px;
     padding-bottom: 20px;
-    border-bottom: 1px solid var(--color_gray_light);
+    border-bottom: 1px solid var(--gray-200);
     gap: 6px;
 }
 
 .roadmap_breadcrumb .prev_breadcrumb_link {
-    color: var(--color_gray_dark);
+    color: var(--gray-600);
     transition: all 0.2s ease;
 }
 
 .roadmap_breadcrumb .prev_breadcrumb_link:hover {
-    color: var(--color_dark);
+    color: var(--black-dark);
     transition: all 0.2s ease;
 }
 
 .roadmap_breadcrumb .current_breadcrumb_link {
-    color: var(--color_primary);
+    color: var(--color-primary);
     font-weight: 700;
 }
 
@@ -172,10 +172,10 @@
     align-items: center;
     text-align: center;
     padding: 30px 24px;
-    background: var(--gradient_card);
-    border-radius: var(--radius_lg);
+    background: var(--gradient-card);
+    border-radius: var(--radius-lg);
     border: 1px solid rgba(48, 102, 190, 0.1);
-    box-shadow: var(--shadow_lg);
+    box-shadow: var(--shadow-lg);
 }
 
 .badge_icon {
@@ -186,13 +186,13 @@
 .badge_title {
     font-size: 20px;
     font-weight: 800;
-    color: var(--color_black);
+    color: var(--black);
     margin-bottom: 12px;
 }
 
 .badge_desc {
     font-size: 14px;
-    color: var(--color_text_secondary);
+    color: var(--color-text-secondary);
     line-height: 1.6;
     margin-bottom: 24px;
 }
@@ -202,7 +202,7 @@
     grid-template-columns: 1fr 1fr;
     gap: 16px;
     width: 100%;
-    border-top: 1px solid var(--color_gray_light);
+    border-top: 1px solid var(--gray-200);
     padding-top: 20px;
 }
 
@@ -215,12 +215,12 @@
 .stat_val {
     font-size: 16px;
     font-weight: 700;
-    color: var(--color_primary);
+    color: var(--color-primary);
 }
 
 .stat_lbl {
     font-size: 12px;
-    color: var(--color_text_muted);
+    color: var(--color-text-muted);
     font-weight: 600;
 }
 
@@ -244,8 +244,8 @@
 }
 
 .node:hover {
-    border-radius: var(--radius_md);
-    box-shadow: var(--shadow_glow);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-glow);
     transition: all 0.2s ease;
 }
 
@@ -265,20 +265,20 @@
     height: 36px;
     align-items: center;
     justify-content: center;
-    background: var(--color_white);
-    border: 4px solid var(--color_primary);
+    background: var(--white);
+    border: 4px solid var(--color-primary);
     border-radius: 50%;
     font-size: 13px;
     font-weight: 700;
-    color: var(--color_primary);
-    box-shadow: var(--shadow_md);
+    color: var(--color-primary);
+    box-shadow: var(--shadow-md);
 }
 
 .node .node_line .line {
     display: flex;
     flex-grow: 1;
     width: 4px;
-    background: var(--color_gray);
+    background: var(--gray-400);
 }
 
 .node .node_content {
@@ -300,12 +300,12 @@
 .node_header h3 {
     font-size: 18px;
     font-weight: 700;
-    color: var(--color_black);
+    color: var(--black);
 }
 
 .node_header p {
     font-size: 14px;
-    color: var(--color_text_secondary);
+    color: var(--color-text-secondary);
     line-height: 1.6;
 }
 
@@ -314,7 +314,7 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    border-top: 1px solid var(--color_gray_light);
+    border-top: 1px solid var(--gray-200);
     padding-top: 16px;
 }
 
@@ -324,7 +324,7 @@
     gap: 8px;
     font-size: 14px;
     font-weight: 700;
-    color: var(--color_black);
+    color: var(--black);
 }
 
 .suggested_courses_navigation {
@@ -339,8 +339,8 @@
     justify-content: center;
     width: 40px;
     height: 40px;
-    background: var(--color_gray_light);
-    color: var(--color_primary);
+    background: var(--gray-200);
+    color: var(--color-primary);
     font-size: 16px;
     font-weight: 700;
     border-radius: 50%;
@@ -351,10 +351,10 @@
 }
 
 .suggested_courses_navigation button:hover {
-    background: var(--color_primary);
-    color: var(--color_white);
+    background: var(--color-primary);
+    color: var(--white);
     transform: translateY(-2px);
-    box-shadow: var(--shadow_md);
+    box-shadow: var(--shadow-md);
 }
 
 .suggested_courses_list {
@@ -381,9 +381,9 @@
     height: 100%;
     padding: 10px;
     border: 1px solid rgba(48, 102, 190, 0.08);
-    border-radius: var(--radius_md);
-    background: var(--color_white);
-    color: var(--color_black);
+    border-radius: var(--radius-md);
+    background: var(--white);
+    color: var(--black);
     flex-direction: column;
     margin: 0 10px;
     text-decoration: none;
@@ -394,7 +394,7 @@
 
 .suggested_course_card:hover {
     transform: translateY(-2px);
-    box-shadow: var(--shadow_md);
+    box-shadow: var(--shadow-md);
     border-color: rgba(48, 102, 190, 0.15);
 }
 
@@ -424,7 +424,7 @@
 
 .suggested_course_card .course_details .course_header .course_info p {
     font-size: 12px;
-    color: var(--color_text_secondary);
+    color: var(--color-text-secondary);
     line-height: 1.4;
 }
 
@@ -441,7 +441,7 @@
     display: flex;
     width: 100%;
     height: 5px;
-    border-radius: var(--radius_sm);
+    border-radius: var(--radius-sm);
 }
 
 .suggested_course_card .course_details .course_progress span {
@@ -450,11 +450,11 @@
     width: 100%;
     gap: 10px;
     font-size: 12px;
-    color: var(--color_text_secondary);
+    color: var(--color-text-secondary);
 }
 
 .suggested_course_card .course_details .course_progress span.completed {
-    color: var(--color_green);
+    color: var(--color-success);
     font-weight: 700;
 }
 
@@ -465,19 +465,19 @@
     font-size: 10px;
     font-weight: 700;
     padding: 3px 8px;
-    border-radius: var(--radius_sm);
+    border-radius: var(--radius-sm);
     text-transform: uppercase;
     z-index: 1;
 }
 
 .suggested_course_card.core .course_badge {
-    background: var(--color_yellow_light);
-    color: var(--color_yellow_dark);
+    background: var(--amber-100);
+    color: var(--amber-700);
 }
 
 .suggested_course_card.recommended .course_badge {
-    background: var(--color_green_light);
-    color: var(--color_green_dark);
+    background: var(--emerald-100);
+    color: var(--emerald-700);
 }
 
 .course_image_container {
@@ -485,7 +485,7 @@
     align-items: center;
     justify-content: center;
     padding: 16px;
-    background: var(--color_white);
+    background: var(--white);
     height: 100px;
 }
 
@@ -504,14 +504,14 @@
     flex-direction: column;
     padding: 12px;
     flex-grow: 1;
-    background: var(--color_white);
-    border-top: 1px solid var(--color_gray_light);
+    background: var(--white);
+    border-top: 1px solid var(--gray-200);
 }
 
 .course_name {
     font-size: 13px;
     font-weight: 600;
-    color: var(--color_black);
+    color: var(--black);
     line-height: 1.4;
     height: 36px;
     display: -webkit-box;
@@ -535,17 +535,17 @@
     gap: 4px;
     font-size: 11px;
     font-weight: 600;
-    color: var(--color_black);
+    color: var(--black);
 }
 
 .course_rating .star_icon {
-    color: var(--color_yellow);
+    color: var(--color-warning);
 }
 
 .course_price {
     font-size: 11px;
     font-weight: 700;
-    color: var(--color_primary);
+    color: var(--color-primary);
 }
 
 .course_action_btn {
@@ -554,19 +554,19 @@
     justify-content: center;
     width: 100%;
     padding: 8px 12px;
-    background: var(--color_gray_light);
-    color: var(--color_primary);
+    background: var(--gray-200);
+    color: var(--color-primary);
     font-size: 12px;
     font-weight: 700;
-    border-radius: var(--radius_sm);
+    border-radius: var(--radius-sm);
     text-decoration: none;
     transition: all 0.2s ease;
     text-align: center;
 }
 
 .course_action_btn:hover {
-    background: var(--color_primary);
-    color: var(--color_white);
+    background: var(--color-primary);
+    color: var(--white);
 }
 
 /* ==================== Responsive ==================== */

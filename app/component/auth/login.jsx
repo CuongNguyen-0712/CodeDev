@@ -4,56 +4,71 @@ import Image from "next/image"
 import Form from "next/form"
 import Link from "next/link"
 
+import { useApp } from "@/app/contexts/appContext"
+
 import { validate } from "@/app/helper/validate"
 
 import { SignInSchema } from "@/app/lib/definition"
 
-import { signIn } from "next-auth/react"
+import { authClient } from "@/app/clients/auth.client"
+
+import { useRouterActions } from "@/app/router/useRouterActions"
+
+import { useLogin } from "@/app/mutation/auth.mutation"
 
 import { LoadingContent } from "../ui/loading"
 import { InputGroup } from "../ui/input"
 
 import { FaUser, FaLock, FaGithub, FaGoogle } from "react-icons/fa6"
 
-export default function Login({ active, changeForm, setAlert, callback }) {
+export default function Login({ active, changeForm }) {
     const [formData, setFormData] = useState({
-        name: '',
-        pass: '',
+        username: '',
+        password: '',
     })
 
     const [validation, setValidation] = useState({})
     const [isPending, setIsPending] = useState(null)
+
+    const { navigateReplace } = useRouterActions()
+
+    const { showAlert: alert } = useApp()
+
+    const loginMutation = useLogin()
 
     const handleSubmit = async (e) => {
         e.preventDefault()
 
         if (Object.keys(validation).length > 0) return
 
-        setIsPending('credentials')
+        if (loginMutation.isPending || isPending) return
 
         const { success, errors } = validate(SignInSchema, formData)
 
-        if (success) {
-            try {
-                await signIn("credentials", {
-                    username: formData.name.trim(),
-                    password: formData.pass,
-                    callbackUrl: '/home',
-                })
-            } catch (err) {
-                setAlert({
-                    status: err.response?.status || 500,
-                    message: "Login failed, please try again"
-                });
-                setIsPending(null)
-            }
-        } else {
+        if (!success) {
             setValidation(errors)
-            setIsPending(null)
+            return
         }
+
+        loginMutation.mutate(
+            {
+                username: formData.username,
+                password: formData.password,
+                authType: "credentials",
+            },
+            {
+                onSuccess: () => {
+                    navigateReplace('/home')
+                },
+                onError: (error) => {
+                    alert(error.status, error.message);
+                },
+            }
+        );
     }
 
-    const handleValidation = ({ name, value }) => {
+    const handleValidation = (e) => {
+        const { name, value } = e.target
         const nextUpdate = {
             ...formData,
             [name]: value
@@ -76,26 +91,30 @@ export default function Login({ active, changeForm, setAlert, callback }) {
     const handleChange = (e) => {
         const { name, value } = e.target
         setFormData((prev) => ({ ...prev, [name]: value }))
-        handleValidation({ name, value })
     }
 
-    const handleClear = (name) => {
+    const handleClearInput = (name) => {
         setFormData((prev) => ({ ...prev, [name]: '' }))
-        handleValidation({ name, value: '' })
+
+        setValidation((prev) => {
+            const { [name]: removed, ...rest } = prev || {}
+            return rest
+        })
+    }
+
+    const handleClearValidation = (e) => {
+        const { name } = e.target
+
+        setValidation((prev) => {
+            const { [name]: removed, ...rest } = prev || {}
+            return rest
+        })
     }
 
     const handleCallback = async (value) => {
         setIsPending(value)
 
-        try {
-            await callback(value)
-        } catch (err) {
-            setAlert({
-                status: err.response?.status || 500,
-                message: 'Authentication failed, try again'
-            })
-            setIsPending(null)
-        }
+        await authClient.loginWithProvider(value)
     }
 
     return (
@@ -109,47 +128,51 @@ export default function Login({ active, changeForm, setAlert, callback }) {
             <div className="form_body">
                 <div className="form_inputs">
                     <InputGroup
-                        name="name"
+                        name="username"
                         label="Username"
                         type="text"
-                        value={formData.name}
+                        value={formData.username}
                         onChange={handleChange}
-                        error={validation?.name}
+                        error={validation?.username}
                         icon={<FaUser className="icon" />}
-                        reset={handleClear}
+                        reset={(name) => handleClearInput(name)}
                         read={isPending}
+                        onBlur={handleValidation}
+                        onFocus={handleClearValidation}
                     />
                     <InputGroup
-                        name="pass"
+                        name="password"
                         label="Password"
                         type="password"
-                        value={formData.pass}
+                        value={formData.password}
                         onChange={handleChange}
-                        error={validation?.pass}
+                        error={validation?.password}
                         icon={<FaLock className="icon" />}
-                        reset={handleClear}
+                        reset={(name) => handleClearInput(name)}
                         read={isPending}
                         isPassword={true}
+                        onBlur={handleValidation}
+                        onFocus={handleClearValidation}
                     />
                 </div>
-
+            </div>
+            <div className="form_actions">
                 <div className="form_options">
                     <label className="remember_me">
                         <input type="checkbox" tabIndex={1} />
                         <span>Remember me</span>
                     </label>
-                    <Link href="/auth" className="forgot_link">Forgot password?</Link>
+                    {/* <Link href="/auth" className="forgot_link">Forgot password?</Link> */}
                 </div>
 
-                <button type="submit" className="btn_submit" disabled={isPending}>
-                    {isPending === 'credentials' ? (
-                        <LoadingContent scale={0.5} color="var(--color_white)" />
+                <button type="submit" className="btn_submit" disabled={loginMutation.isPending || isPending}>
+                    {loginMutation.isPending ? (
+                        <LoadingContent scale={0.5} color="var(--white)" />
                     ) : (
                         'Sign In'
                     )}
                 </button>
             </div>
-
             <footer className="form_footer">
                 <div className="divider">
                     <span>or continue with</span>
@@ -159,7 +182,7 @@ export default function Login({ active, changeForm, setAlert, callback }) {
                     <button type="button"
                         className="social_btn"
                         onClick={() => handleCallback('github')}
-                        disabled={isPending}
+                        disabled={loginMutation.isPending || isPending}
                     >
                         {
                             isPending === 'github' ?
@@ -175,7 +198,7 @@ export default function Login({ active, changeForm, setAlert, callback }) {
                     <button type="button"
                         className="social_btn"
                         onClick={() => handleCallback('google')}
-                        disabled={isPending}
+                        disabled={loginMutation.isPending || isPending}
                     >
                         {
                             isPending === 'google' ?

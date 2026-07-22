@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 export const SignInSchema = z.object({
-    name: z.string().trim().min(1, "Username is required"),
-    pass: z.string().superRefine((val, ctx) => {
+    username: z.string().trim().min(1, "Username is required"),
+    password: z.string().superRefine((val, ctx) => {
         if (!val || val.trim().length === 0) {
             ctx.addIssue({
                 message: "Password is required",

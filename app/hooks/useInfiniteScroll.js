@@ -1,33 +1,28 @@
 import { useEffect, useState, useRef } from "react";
 
-export default function useInfiniteScroll({ hasMore, onLoadMore, threshold = 0 }) {
+export default function useInfiniteScroll({ hasMore, onLoadMore, threshold = 0.5 }) {
     const [observerNode, setObserverNode] = useState(null);
-    const ref = useRef(null);
+    const loaderRef = useRef(null);
 
     useEffect(() => {
         if (!observerNode || !hasMore) return;
 
         const observer = new IntersectionObserver(
-            (entries) => {
-                if (entries[0].isIntersecting) {
+            ([entry]) => {
+                if (entry.isIntersecting) {
                     onLoadMore();
                 }
             },
-            {
-                threshold,
-                rootMargin: `0px 0px 1000px 0px`
-            }
+            { threshold }
         );
 
         observer.observe(observerNode);
 
-        return () => {
-            observer.disconnect();
-        };
-    }, [observerNode, hasMore, threshold]);
+        return () => observer.disconnect();
+    }, [observerNode, hasMore, threshold, onLoadMore]);
 
     const setRef = (node) => {
-        ref.current = node;
+        loaderRef.current = node;
         setObserverNode(node);
     };
 

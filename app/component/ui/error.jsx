@@ -1,7 +1,6 @@
 import Image from "next/image"
 import { useRouterActions } from "@/app/router/useRouterActions"
 
-import { BiSolidMessageAltError } from "react-icons/bi";
 import { IoReload, IoClose } from "react-icons/io5";
 import { HiExclamationTriangle } from "react-icons/hi2";
 

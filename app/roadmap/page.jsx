@@ -2,7 +2,7 @@ import { Suspense } from "react";
 
 import { LoadingRedirect } from "@/app/component/ui/loading";
 
-import Roadmap from "../component/roadmap/roadmap";
+import RoadmapPage from "../component/roadmap/roadmapPage";
 import HomeLayout from "../layout/homeLayout";
 
 export const metadata = {
@@ -12,10 +12,10 @@ export const metadata = {
 
 export default function Page() {
 	return (
-		<Suspense fallback={<LoadingRedirect />}>
-			<HomeLayout>
-				<Roadmap />
-			</HomeLayout>
-		</Suspense>
+		<HomeLayout>
+			<Suspense fallback={<LoadingRedirect />}>
+				<RoadmapPage />
+			</Suspense>
+		</HomeLayout>
 	)
 }

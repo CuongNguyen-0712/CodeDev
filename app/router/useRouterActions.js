@@ -7,7 +7,7 @@ export function useRouterActions() {
     return {
         navigate: ({ path, query = {} }) => {
             const searchParams = new URLSearchParams(query);
-            router.push(`/${path}?${searchParams.toString()}`);
+            router.push(`${path}?${searchParams.toString()}`);
         },
         navigateReplace: (path) => router.replace(path),
         navigateBack: (fallback = "/home") => {

@@ -1,7 +1,7 @@
 'use client'
-import Navbar from '../component/home/navbar';
-import Dashboard from '../component/home/dashboard';
-import Feedback from '../component/home/feedback';
+import Navbar from '../component/ui/navbar';
+import Dashboard from '../component/ui/dashboard';
+import Feedback from '../component/ui/feedback';
 import Footer from '../component/ui/footer';
 
 import AlertPush from '../component/ui/alert';

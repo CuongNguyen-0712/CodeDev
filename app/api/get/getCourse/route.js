@@ -9,13 +9,9 @@ import GetCourseService from "@/app/services/getService/courseService";
 export async function GET(req) {
     try {
 
-        const session = await getServerSession(authOptions);
+        const session = await getServerSession(authOptions)
 
-        if (!session) {
-            throw new ApiError("Unauthorized", 401);
-        }
-
-        const userId = session.user.id;
+        const userId = session?.user?.id || null;
 
         const { searchParams } = new URL(req.url);
 

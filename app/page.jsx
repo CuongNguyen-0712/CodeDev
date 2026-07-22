@@ -1,4 +1,5 @@
-import HomePage from "./component/homepage/content"
+import IndexPage from "@/app/component/index"
+
 import { Suspense } from "react"
 
 import HomeLayout from "./layout/homeLayout"
@@ -9,7 +10,7 @@ export default function Page() {
     return (
         <Suspense fallback={<LoadingRedirect />}>
             <HomeLayout>
-                <HomePage />
+                <IndexPage />
             </HomeLayout>
         </Suspense>
     )

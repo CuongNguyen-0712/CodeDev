@@ -4,14 +4,14 @@ import { LoadingRedirect } from "@/app/component/ui/loading";
 
 import NavigateLayout from "../layout/navigateLayout";
 
-import Help from "../component/help/help";
+import HelpPage from "../component/help/helpPage";
 
 export default function Page() {
     return (
-        <Suspense fallback={<LoadingRedirect />}>
-            <NavigateLayout>
-                <Help />
-            </NavigateLayout>
-        </Suspense>
+        <NavigateLayout>
+            <Suspense fallback={<LoadingRedirect />}>
+                <HelpPage />
+            </Suspense>
+        </NavigateLayout>
     );
 }
