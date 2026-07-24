@@ -220,37 +220,6 @@
   color: var(--purple-500);
 }
 
-/* ==================== Terms Checkbox ==================== */
-#auth .terms_checkbox {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-}
-
-#auth .terms_checkbox input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--color-primary);
-  cursor: pointer;
-}
-
-#auth .terms_checkbox span {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--gray-400);
-}
-
-#auth .terms_checkbox .warning_icon {
-  color: var(--color-accent-orange);
-  font-size: 18px;
-}
-
-#auth .terms_checkbox .check_icon {
-  color: var(--color-success);
-  font-size: 18px;
-}
-
 /* ==================== Submit Button ==================== */
 #auth .btn_submit {
   display: flex;

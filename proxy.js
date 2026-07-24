@@ -10,10 +10,6 @@ export default async function proxy(req) {
     const allowed = canAccessRoute({ pathname, user: token })
 
     if (!allowed) {
-        if (!token) {
-            return NextResponse.redirect(new URL('/auth', req.url))
-        }
-
         return NextResponse.redirect(new URL('/403', req.url))
     }
 

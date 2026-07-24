@@ -55,11 +55,7 @@ export const SignUpSchema = z.object({
         }
     }),
 
-    re_password: z.string(),
-
-    agree: z.boolean().refine(val => val === true, {
-        message: "You must agree"
-    })
+    re_password: z.string()
 }).superRefine((data, ctx) => {
     if (!data.re_password || data.re_password.trim().length === 0) {
         ctx.addIssue({

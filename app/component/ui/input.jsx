@@ -5,7 +5,7 @@ import { IoIosCloseCircle } from "react-icons/io";
 import { VscEye, VscEyeClosed } from "react-icons/vsc";
 import { BsTextareaResize } from "react-icons/bs";
 
-export function InputGroup({ name, label, type, value, onChange, error, icon, reset, read, tabIndex = 0, isPassword = false, inputMode, onBlur, onFocus }) {
+export function InputGroup({ name, label, type, value, onChange, error, icon, reset, disabled, tabIndex = 0, isPassword = false, inputMode, onBlur, onFocus }) {
 
     const [shown, setShown] = useState(false);
 
@@ -19,14 +19,14 @@ export function InputGroup({ name, label, type, value, onChange, error, icon, re
                 inputMode={inputMode}
                 autoComplete="off"
                 onBlur={onBlur}
-                readOnly={read}
+                disabled={disabled}
                 tabIndex={tabIndex}
                 onFocus={onFocus}
             />
             <label htmlFor={name}>{label}</label>
             {icon}
             {
-                !read &&
+                !disabled &&
                 <button
                     type="button"
                     className='clear'

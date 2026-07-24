@@ -1,6 +1,8 @@
 import { routeConfig } from "./route.config";
 import { policies } from "./policy";
 
+import { match } from "path-to-regexp";
+
 export function hasPermission(user, permission) {
     if (!user)
         return false;
@@ -12,10 +14,8 @@ export function hasPermission(user, permission) {
 }
 
 function findRoute(pathname) {
-    const routes = Object.values(routeConfig).flat();
-    return routes.find(route => (
-        pathname === route.path ||
-        pathname.startsWith(`${route.path}/`)
+    return routeConfig.find(route => (
+        match(route.path, { decode: decodeURIComponent })(pathname)
     ));
 }
 

@@ -4,21 +4,28 @@ import Link from "next/link"
 import Form from "next/form"
 import Image from "next/image"
 
-import { api } from "@/app/lib/axios"
+import { useSignUp } from "@/app/mutation/auth.mutation"
 
 import { SignUpSchema } from "@/app/lib/definition"
 
 import { validate } from "@/app/helper/validate"
+
+import { useApp } from "@/app/contexts/appContext"
+
+import { authClient } from "@/app/clients/auth.client"
 
 import { LoadingContent } from "../ui/loading"
 import { InputGroup } from "../ui/input"
 
 import { FaArrowRight, FaArrowLeft, FaGithub, FaUser, FaLock, FaGoogle } from "react-icons/fa6"
 import { MdModeEdit, MdAlternateEmail, MdOutlinePassword } from "react-icons/md"
-import { IoIosWarning, IoIosCheckmarkCircle } from "react-icons/io"
 
-export default function Signup({ active, changeForm, setAlert, callback }) {
+export default function Signup({ active, changeForm }) {
     const [step, setStep] = useState(0)
+
+    const { showAlert: alert } = useApp()
+
+    const signUpMutation = useSignUp()
 
     const defaultState = {
         surname: '',
@@ -27,7 +34,6 @@ export default function Signup({ active, changeForm, setAlert, callback }) {
         username: '',
         password: '',
         re_password: '',
-        agree: false
     }
     const [formData, setFormData] = useState(defaultState)
 
@@ -36,31 +42,23 @@ export default function Signup({ active, changeForm, setAlert, callback }) {
 
     const handleSubmit = async (e) => {
         e.preventDefault()
-        if (Object.keys(validation).length > 0) return
-
-        setIsPending('credentials')
 
         const { success, errors } = validate(SignUpSchema, formData)
-        if (success) {
-            try {
-                const { re_password, agree, ...data } = formData
-                const response = await api.post("/auth/signUp", data)
 
-                if (response.data.success) {
-                    setAlert({ status: response.status, message: "Sign up successfully, please login" })
-                    setFormData(defaultState)
-                    setIsPending(null)
-                    changeForm()
-                } else {
-                    setAlert({ status: response.status, message: "An error occurred during sign up" })
-                    setIsPending(null)
-                }
-            } catch (err) {
-                setIsPending(null)
-                setAlert({ status: err.response?.status || 500, message: err.response?.data.message || "An error occurred during sign up" })
-            }
-        } else {
+        if (!success) {
             setValidation(errors)
+            setIsPending(null)
+            return
+        }
+
+        try {
+            await signUpMutation.mutateAsync(formData)
+
+            alert(201, "Account created successfully, please login")
+            changeForm()
+        } catch (err) {
+            alert(err.status || 500, err.message || "Sign up failed, try again")
+        } finally {
             setIsPending(null)
         }
     }
@@ -103,31 +101,11 @@ export default function Signup({ active, changeForm, setAlert, callback }) {
 
     const handleCallback = async (value) => {
         setIsPending(value)
-        try {
-            const response = await callback(value)
 
-            if (response?.error) {
-                if (response.error === "MissingCredentials") {
-                    setAlert({
-                        status: 401,
-                        message: 'Missing credentials, try again'
-                    })
-                }
-                else {
-                    setAlert({
-                        status: 500,
-                        message: response.error
-                    })
-                }
-                setIsPending(null)
-                return
-            }
-            navigateReplace('/home')
-        } catch (err) {
-            setAlert({
-                status: err.response?.status || 500,
-                message: 'Authentication failed, try again'
-            })
+        try {
+            await authClient.loginWithProvider(value)
+        }
+        catch (error) {
             setIsPending(null)
         }
     }
@@ -169,7 +147,7 @@ export default function Signup({ active, changeForm, setAlert, callback }) {
                             error={validation?.surname}
                             icon={<MdModeEdit className="icon" />}
                             reset={(name) => handleClearInput(name)}
-                            read={isPending}
+                            disabled={isPending}
                             tabIndex={step === 0 ? 0 : -1}
                         />
                         <InputGroup
@@ -183,7 +161,7 @@ export default function Signup({ active, changeForm, setAlert, callback }) {
                             error={validation?.name}
                             icon={<MdModeEdit className="icon" />}
                             reset={(name) => handleClearInput(name)}
-                            read={isPending}
+                            disabled={isPending}
                             tabIndex={step === 0 ? 0 : -1}
                         />
                         <InputGroup
@@ -197,7 +175,7 @@ export default function Signup({ active, changeForm, setAlert, callback }) {
                             error={validation?.email}
                             icon={<MdAlternateEmail className="icon" />}
                             reset={(name) => handleClearInput(name)}
-                            read={isPending}
+                            disabled={isPending}
                             tabIndex={step === 0 ? 0 : -1}
                         />
                     </div>
@@ -214,7 +192,7 @@ export default function Signup({ active, changeForm, setAlert, callback }) {
                             error={validation?.username}
                             icon={<FaUser className="icon" />}
                             reset={handleClearInput}
-                            read={isPending}
+                            disabled={isPending}
                             tabIndex={step === 1 ? 0 : -1}
                         />
                         <InputGroup
@@ -228,7 +206,7 @@ export default function Signup({ active, changeForm, setAlert, callback }) {
                             error={validation?.password}
                             icon={<MdOutlinePassword className="icon" />}
                             reset={handleClearInput}
-                            read={isPending}
+                            disabled={isPending}
                             tabIndex={step === 1 ? 0 : -1}
                             isPassword={true}
                         />
@@ -243,24 +221,10 @@ export default function Signup({ active, changeForm, setAlert, callback }) {
                             error={validation?.re_password}
                             icon={<FaLock className="icon" />}
                             reset={handleClearInput}
-                            read={isPending}
+                            disabled={isPending}
                             tabIndex={step === 1 ? 0 : -1}
                             isPassword={true}
                         />
-                        <label className="terms_checkbox">
-                            <input
-                                type="checkbox"
-                                checked={formData.agree}
-                                name="agree"
-                                onChange={handleChange}
-                                onBlur={handleValidation}
-                                onFocus={handleClearValidation}
-                                tabIndex={step === 1 ? 0 : -1}
-                            />
-                            <span>I agree to the Terms & Conditions</span>
-                            {validation?.agree && <IoIosWarning className="warning_icon" />}
-                            {formData.agree && !validation?.agree && <IoIosCheckmarkCircle className="check_icon" />}
-                        </label>
                     </div>
                 </div>
             </div>
@@ -286,8 +250,8 @@ export default function Signup({ active, changeForm, setAlert, callback }) {
                 </div>
 
                 {step === 1 && (
-                    <button type="submit" className="btn_submit" disabled={isPending} tabIndex={step === 2 ? 0 : -1}>
-                        {isPending === 'credentials' ?
+                    <button type="submit" className="btn_submit" disabled={signUpMutation.isPending} tabIndex={step === 1 ? 0 : -1}>
+                        {signUpMutation.isPending ?
                             <LoadingContent scale={0.5} color="var(--white)" />
                             : (
                                 'Create Account'

@@ -1,8 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
 
-import { useSearchParams } from 'next/navigation';
-
 import { LoadingContent } from '../ui/loading';
 import { ErrorReload } from '../ui/error';
 
@@ -14,7 +12,6 @@ import { FaChevronRight, FaRoute } from 'react-icons/fa';
 import Link from 'next/link';
 
 export default function RoadmapPage() {
-    const params = useSearchParams();
     const { navigate } = useRouterActions();
 
     const [roadmaps, setRoadmap] = useState({
@@ -29,7 +26,6 @@ export default function RoadmapPage() {
         pending: true,
     });
 
-    const [target, setTarget] = useState(0);
 
     const fetchRoadmap = async () => {
         try {
@@ -74,60 +70,6 @@ export default function RoadmapPage() {
         }
     };
 
-    const fetchRoadmapNodes = async () => {
-        if (!isSelected) return;
-        setNode(prev => ({ ...prev, pending: true }));
-
-        try {
-            const response = await api.get('/get/getRoadmapNodes', {
-                params: {
-                    roadmapId: isSelected,
-                },
-            });
-
-            if (response.data.success) {
-                const data = Array.isArray(response.data.data) ? response.data.data : [];
-
-                if (data.length === 0) {
-                    setNode({
-                        data: [],
-                        error: {
-                            status: response.status,
-                            message: 'No node data available',
-                        },
-                    });
-                } else {
-                    setNode({
-                        data: data,
-                        error: null,
-                    });
-                }
-            } else {
-                setNode({
-                    data: [],
-                    error: {
-                        status: response.status,
-                        message: response.data.message || 'Failed to fetch roadmap nodes',
-                    },
-                });
-            }
-        } catch (error) {
-            setNode({
-                data: [],
-                error: {
-                    status: error.response?.status || 500,
-                    message: error.response?.data?.message || error.message || 'Internal Server Error',
-                },
-            });
-        } finally {
-            setNode(prev => ({ ...prev, pending: false }));
-        }
-    };
-
-    const handleNodeClick = (index) => {
-        setTarget(index);
-    }
-
     const handleRoadmapClick = (roadmapId) => {
         navigate({ path: 'roadmap', query: { id: roadmapId } });
     };
@@ -136,44 +78,36 @@ export default function RoadmapPage() {
         fetchRoadmap();
     }, []);
 
-    useEffect(() => {
-        if (!isSelected) return;
-        fetchRoadmapNodes();
-    }, [isSelected]);
-
-    const selectedRoadmap = roadmaps.data.find(r => r.id === isSelected);
-
-    return isSelected ? (
-        <div id="roadmap_details">
-            <div id="roadmap_badge">
-                <div className="roadmap_breadcrumb">
-                    <Link href="/roadmap" className="prev_breadcrumb_link" >Roadmaps</Link>
-                    <FaChevronRight fontSize={12} />
-                    <Link href={`/roadmap?id=${isSelected}`} className="current_breadcrumb_link" >
-                        {selectedRoadmap?.title}
-                    </Link>
-                </div>
-                {selectedRoadmap && (
-                    <div className="badge_card">
-                        <span>
-                            {target + 1}
-                        </span>
-                        <div className="badge_stats">
-                        </div>
-                    </div>
-                )}
-            </div>
-            <div id="roadmap_nodes">
-                {nodes.pending ? (
-                    <LoadingContent color={'var(--color-primary)'} />
-                ) : nodes.error ? (
-                    <ErrorReload data={nodes.error} />
-                ) : (
-                    nodes.data.map((node, index) => <Node key={index} data={node} handleNodeClick={() => handleNodeClick(index)} />)
-                )}
-            </div>
-        </div>
-    ) : (
+    return (
+        // <div id="roadmap_details">
+        //     <div id="roadmap_badge">
+        //         <div className="roadmap_breadcrumb">
+        //             <Link href="/roadmap" className="prev_breadcrumb_link" >Roadmaps</Link>
+        //             <FaChevronRight fontSize={12} />
+        //             <Link href={`/roadmap?id=${isSelected}`} className="current_breadcrumb_link" >
+        //                 {selectedRoadmap?.title}
+        //             </Link>
+        //         </div>
+        //         {selectedRoadmap && (
+        //             <div className="badge_card">
+        //                 <span>
+        //                     {target + 1}
+        //                 </span>
+        //                 <div className="badge_stats">
+        //                 </div>
+        //             </div>
+        //         )}
+        //     </div>
+        //     <div id="roadmap_nodes">
+        //         {nodes.pending ? (
+        //             <LoadingContent color={'var(--color-primary)'} />
+        //         ) : nodes.error ? (
+        //             <ErrorReload data={nodes.error} />
+        //         ) : (
+        //             nodes.data.map((node, index) => <Node key={index} data={node} handleNodeClick={() => handleNodeClick(index)} />)
+        //         )}
+        //     </div>
+        // </div>
         <section id="roadmap">
             <div className="roadmap-header">
                 <h1>Developer Roadmaps</h1>

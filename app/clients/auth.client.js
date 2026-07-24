@@ -1,5 +1,7 @@
 import { signIn, signOut } from 'next-auth/react';
 
+import { api } from "@/app/lib/axios";
+
 export const authClient = {
     login: async (data) => {
         const { username, password, authType } = data;
@@ -9,18 +11,9 @@ export const authClient = {
             redirect: false,
         });
 
-
-        if (response.error === "MissingCredentials" ||
-            response.error === "InvalidCredentials") {
-
-            const error = new Error("Invalid credentials");
-            error.status = 401;
-            throw error;
-        }
-
         if (response.error) {
-            const error = new Error("Authentication failed");
-            error.status = 500;
+            const error = new Error(response.error || "Login failed, please try again.");
+            error.status = response.status || 500;
             throw error;
         }
 
@@ -31,12 +24,24 @@ export const authClient = {
         return await signIn(provider, { callbackUrl: '/home' });
     },
 
+    signUp: async (data) => {
+        const response = await api.post('/auth/signup', data);
+
+        if (response.error) {
+            const error = new Error(response.error || "Sign up failed, please try again.");
+            error.status = response.status || 500;
+            throw error;
+        }
+
+        return response
+    },
+
     logout: async () => {
         const response = await signOut({ redirect: false });
 
         if (response.error) {
-            const error = new Error("Logout failed, please try again.");
-            error.status = 500;
+            const error = new Error(response.error || "Logout failed, please try again.");
+            error.status = response.status || 500;
             throw error;
         }
 

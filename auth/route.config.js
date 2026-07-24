@@ -6,12 +6,12 @@ import blog from './route/blog.route'
 import roadmap from './route/roadmap.route'
 import settings from './route/settings.route'
 
-export const routeConfig = {
+export const routeConfig = [
     ...index,
     ...home,
     ...course,
     ...learning,
     ...blog,
     ...roadmap,
-    ...settings
-}
+    ...settings,
+]

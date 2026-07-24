@@ -39,8 +39,6 @@ export default function Login({ active, changeForm }) {
     const handleSubmit = async (e) => {
         e.preventDefault()
 
-        if (Object.keys(validation).length > 0) return
-
         if (loginMutation.isPending || isPending) return
 
         const { success, errors } = validate(SignInSchema, formData)
@@ -50,21 +48,17 @@ export default function Login({ active, changeForm }) {
             return
         }
 
-        loginMutation.mutate(
-            {
+        try {
+            await loginMutation.mutateAsync({
                 username: formData.username,
                 password: formData.password,
                 authType: "credentials",
-            },
-            {
-                onSuccess: () => {
-                    navigateReplace('/home')
-                },
-                onError: (error) => {
-                    alert(error.status, error.message);
-                },
-            }
-        );
+            });
+
+            navigateReplace("/home");
+        } catch (error) {
+            alert(error.status, error.message);
+        }
     }
 
     const handleValidation = (e) => {
@@ -114,7 +108,12 @@ export default function Login({ active, changeForm }) {
     const handleCallback = async (value) => {
         setIsPending(value)
 
-        await authClient.loginWithProvider(value)
+        try {
+            await authClient.loginWithProvider(value)
+        }
+        catch (error) {
+            setIsPending(null)
+        }
     }
 
     return (
@@ -136,7 +135,7 @@ export default function Login({ active, changeForm }) {
                         error={validation?.username}
                         icon={<FaUser className="icon" />}
                         reset={(name) => handleClearInput(name)}
-                        read={isPending}
+                        disabled={isPending}
                         onBlur={handleValidation}
                         onFocus={handleClearValidation}
                     />
@@ -149,7 +148,7 @@ export default function Login({ active, changeForm }) {
                         error={validation?.password}
                         icon={<FaLock className="icon" />}
                         reset={(name) => handleClearInput(name)}
-                        read={isPending}
+                        disabled={isPending}
                         isPassword={true}
                         onBlur={handleValidation}
                         onFocus={handleClearValidation}

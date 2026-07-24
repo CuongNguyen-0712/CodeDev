@@ -13,5 +13,11 @@ export default [
         action: ACTION.READ,
         resource: RESOURCE.COURSE,
         isPublic: true
+    },
+    {
+        path: '/api/course/learning',
+        action: ACTION.LEARN,
+        resource: RESOURCE.COURSE,
+        isPublic: false
     }
 ]

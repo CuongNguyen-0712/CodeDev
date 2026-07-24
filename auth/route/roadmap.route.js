@@ -7,5 +7,12 @@ export default [
         action: ACTION.LIST,
         resource: RESOURCE.ROADMAP,
         isPublic: true
+    },
+
+    {
+        path: "/roadmap/:id",
+        action: ACTION.READ,
+        resource: RESOURCE.ROADMAP,
+        isPublic: true
     }
 ]

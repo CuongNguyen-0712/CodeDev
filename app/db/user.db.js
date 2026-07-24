@@ -1,6 +1,62 @@
 import { sql } from "@/app/lib/db";
 
 export const userDb = {
+    signUp: async (data) => {
+        const { id, public_id, surname, name, email, username, password } = data;
+
+        const params = [];
+
+        params.push(id, public_id, surname, name, email, username, password);
+
+        const query = `call sign_up($1, $2, $3, $4, $5, $6, $7);`;
+
+        return await sql.query(query, params);
+    },
+
+    login: async (data) => {
+        const { username } = data;
+
+        const params = [];
+
+        params.push(username);
+
+        const query = `select * from log_in($1);`;
+
+        return await sql.query(query, params);
+    },
+
+
+    signUpWithProvider: async (data) => {
+        const { id, public_id, username, email, image, accountProvider, providerAccountId } = data;
+
+        const params = [];
+
+        params.push(id, public_id, username, email, image, accountProvider, providerAccountId);
+
+        const query = `SELECT * FROM auth_with_provider($1, $2, $3, $4, $5, $6, $7)`
+
+        return await sql.query(query, params);
+    },
+    getPermissions: async (data) => {
+        const { userId } = data;
+
+        const params = [];
+
+        params.push(userId);
+
+        const query =
+            `SELECT 
+                distinct (p.resource || '.' || p.action) as permissions
+            FROM private.permissions p
+            JOIN private.role_permissions rp ON rp.permission_id = p.id 
+            JOIN private.roles r ON rp.role_id = r.id
+            JOIN private.user_roles ur ON r.id = ur.role_id
+            JOIN private.users u ON u.id = ur.user_id
+            WHERE u.public_id = $1`
+
+        return await sql.query(query, params);
+    },
+
     getMe: async (userId) => {
         const params = []
         const conditions = []

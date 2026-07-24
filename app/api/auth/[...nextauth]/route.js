@@ -3,12 +3,9 @@ import GithubProvider from "next-auth/providers/github";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 
-import { generateSonyflake } from "@/app/lib/sonyflake";
-import { sql } from "@/app/lib/db";
+import { ApiError } from "@/app/lib/error/apiError";
 
-import { ulid } from "ulid";
-
-import bcrypt from "bcryptjs";
+import { authService } from "@/app/services/auth.service";
 
 export const authOptions = {
     providers: [
@@ -42,42 +39,19 @@ export const authOptions = {
                 const { username, password } = credentials;
 
                 if (!username || !password) {
-                    throw new Error('MissingCredentials');
+                    throw new ApiError("Missing credentials, try again", 400);
                 }
 
                 try {
-                    const data = await sql.query(
-                        `SELECT * FROM log_in($1)`,
-                        [username]
-                    );
+                    const response = await authService.login({ username, password });
 
-                    if (!data || data.length === 0) {
-                        throw new Error('InvalidCredentials');
+                    if (!response) {
+                        throw new ApiError("Authentication failed, try again", 500);
                     }
 
-                    const user = data[0];
-
-                    const isValid = await bcrypt.compare(password, user.password);
-
-                    if (!isValid) {
-                        throw new Error('InvalidCredentials');
-                    }
-
-                    return {
-                        id: user.id,
-                        username: user.username,
-                        email: user.email,
-                        image: user.image,
-                        role: user.role,
-                        provider: 'credentials',
-                    };
-
+                    return response;
                 } catch (err) {
-                    console.error(err);
-                    if (err.message === "InvalidCredentials" || err.message === "MissingCredentials") {
-                        throw err;
-                    }
-                    throw new Error('Authentication failed, try again');
+                    throw new ApiError(err.message || "Authentication failed, try again", err.status || 500);
                 }
             }
         }),
@@ -94,20 +68,7 @@ export const authOptions = {
                         token.image = user.image;
                         token.email = user.email;
                         token.role = user.role;
-
-                        const permissions = await sql.query(
-                            `SELECT 
-                                distinct (p.resource || '.' || p.action) as permissions
-                            FROM private.permissions p
-                            JOIN private.role_permissions rp ON rp.permission_id = p.id 
-                            JOIN private.roles r ON rp.role_id = r.id
-                            JOIN private.user_roles ur ON r.id = ur.role_id
-                            JOIN private.users u ON u.id = ur.user_id
-                            WHERE u.public_id = $1`,
-                            [user.id]
-                        );
-
-                        token.permissions = permissions.map(p => p.permissions);
+                        token.permissions = user.permissions;
 
                         return token;
                     }
@@ -118,59 +79,25 @@ export const authOptions = {
                         profile?.emails?.[0]?.value;
 
                     if (!email) {
-                        throw new Error('MissingCredentials');
+                        throw new ApiError("Missing credentials, try again", 400);
                     }
 
                     const image = user.image || null;
+                    const username = user.username || user.name;
+                    const accountProvider = account.provider;
+                    const providerAccountId = account.providerAccountId;
 
-                    const public_id = ulid();
-                    const id = generateSonyflake();
+                    const response = await authService.signUpWithProvider({ username, email, image, accountProvider, providerAccountId });
 
-                    const response = await sql.query(
-                        `SELECT * FROM auth_with_provider($1, $2, $3, $4, $5, $6, $7)`,
-                        [
-                            id,
-                            public_id,
-                            user.username || user.name,
-                            email,
-                            image,
-                            account.provider,
-                            account.providerAccountId,
-                        ]
-                    );
-
-                    if (!response || response.length === 0) {
-                        throw new Error('Authentication failed, try again');
-                    }
-
-                    const result = response[0];
-
-                    token.id = result.id;
-                    token.username = result.username;
-                    token.provider = result.provider;
-                    token.email = result.email;
-                    token.image = result.image;
-                    token.role = result.role;
-
-                    const permissions = await sql.query(
-                        `SELECT 
-                            distinct (p.resource || '.' || p.action) as permissions
-                        FROM private.permissions p
-                        JOIN private.role_permissions rp ON rp.permission_id = p.id
-                        JOIN private.roles r ON rp.role_id = r.id
-                        JOIN private.user_roles ur ON r.id = ur.role_id
-                        JOIN private.users u ON u.id = ur.user_id
-                        WHERE u.public_id = $1`,
-                        [result.public_id]
-                    );
-
-                    token.permissions = permissions.map(p => p.permissions);
+                    token.id = response.id;
+                    token.username = response.username;
+                    token.provider = response.provider;
+                    token.email = response.email;
+                    token.image = response.image;
+                    token.role = response.role;
+                    token.permissions = response.permissions;
                 } catch (err) {
-                    console.error(err);
-                    if (err.message === "MissingCredentials") {
-                        throw err;
-                    }
-                    throw new Error('Authentication failed, try again');
+                    throw new ApiError("Authentication failed, try again", 500);
                 }
             }
             return token;
@@ -180,11 +107,10 @@ export const authOptions = {
                 user: {
                     id: token.id,
                     username: token.username,
-                    provider: token.provider,
-                    roles: token.role,
                     image: token.image,
                     email: token.email,
-                    permissions: token.permissions,
+                    provider: token.provider,
+                    role: token.role,
                 }
             };
         },
