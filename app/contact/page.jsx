@@ -8,10 +8,10 @@ import ContactPage from "@/app/component/contact/contactPage";
 
 export default function Page() {
     return (
-        <HomeLayout>
-            <Suspense fallback={<LoadingRedirect />}>
+        <Suspense fallback={<LoadingRedirect />}>
+            <HomeLayout>
                 <ContactPage />
-            </Suspense>
-        </HomeLayout>
+            </HomeLayout>
+        </Suspense>
     )
 }

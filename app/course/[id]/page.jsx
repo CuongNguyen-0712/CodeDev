@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 
-import PreviewCourse from "@/app/component/course/params/preview"
+import PreviewPage from "@/app/component/course/params/previewPage"
 
 import { courseService } from "@/app/services/course.service"
 
@@ -36,14 +36,14 @@ export default async function Page({ params }) {
     await queryClient.ensureQueryData(courseQueries.details(id));
 
     return (
-        <DefaultLayout>
-            <Suspense fallback={<LoadingRedirect />}>
+        <Suspense fallback={<LoadingRedirect />}>
+            <DefaultLayout>
                 <HydrationBoundary state={dehydrate(queryClient)}>
-                    <PreviewCourse
+                    <PreviewPage
                         params={{ id }}
                     />
                 </HydrationBoundary>
-            </Suspense>
-        </DefaultLayout>
+            </DefaultLayout>
+        </Suspense>
     )
 }

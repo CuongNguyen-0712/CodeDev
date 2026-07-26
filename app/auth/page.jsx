@@ -15,10 +15,10 @@ export async function generateMetadata() {
 
 export default function Page() {
     return (
-        <DefaultLayout>
-            <Suspense fallback={<LoadingRedirect />}>
+        <Suspense fallback={<LoadingRedirect />}>
+            <DefaultLayout>
                 <AuthPage />
-            </Suspense>
-        </DefaultLayout>
+            </DefaultLayout>
+        </Suspense>
     )
 }

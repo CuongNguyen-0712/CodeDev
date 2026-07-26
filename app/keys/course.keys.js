@@ -5,4 +5,5 @@ export const courseKeys = {
     register: () => [...courseKeys.all, 'register'],
     withdraw: () => [...courseKeys.all, 'withdraw'],
     learning: (lessonId) => [...courseKeys.all, 'learning', lessonId],
+    comments: (courseId) => [...courseKeys.all, 'comments', courseId],
 }

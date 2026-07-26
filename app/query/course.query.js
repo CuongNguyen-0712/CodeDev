@@ -45,5 +45,16 @@ export const courseQueries = {
             cacheTime: 1000 * 30, // 30 seconds
             gcTime: 1000 * 30, // 30 seconds
         };
+    },
+
+    comments(courseId) {
+        return {
+            queryKey: courseKeys.comments(courseId),
+            queryFn: () => courseClient.getComments({ courseId }),
+            enabled: !!courseId,
+            staleTime: 0,
+            cacheTime: 1000 * 30, // 30 seconds
+            gcTime: 1000 * 30, // 30 seconds
+        };
     }
 }

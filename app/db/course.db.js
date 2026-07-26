@@ -225,5 +225,45 @@ export const courseDb = {
         `;
 
         return await sql.query(query, params);
+    },
+
+    getComments: async (data) => {
+        const { userId, courseId, lastCreated } = data;
+
+        const conditions = [];
+        const params = [];
+
+        params.push(courseId);
+        conditions.push(`m.course_id = $${params.length}`);
+
+        if (lastCreated) {
+            params.push(lastCreated);
+            conditions.push(`m.created_at < $${params.length}`);
+        }
+
+        const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        const query = `
+            SELECT 
+                u.public_id as user_id,
+                u.username as username,
+                i.image as avatar,
+                m.comment_id as id,
+                m.content as comment,
+                m.upvotes as upvotes,
+                m.downvotes as downvotes,
+                v.voting as voting,
+                m.created_at as created_at
+            FROM course.comment m
+            JOIN private.info i ON m.user_id = i.user_id
+            JOIN private.users u on m.user_id = u.id
+            LEFT JOIN private.voting v on v.id = m.comment_id
+                AND v.user_id = (select id from private.users where public_id = $${params.length - 2})
+            ${whereSQL}
+            ORDER BY m.created_at DESC
+            LIMIT 21
+        `
+
+        return await sql.query(query, params);
     }
 }

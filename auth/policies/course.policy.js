@@ -19,6 +19,10 @@ export default {
         return user.id === resource.author_id;
     },
 
+    [ACTION.LEARN]({ user }) {
+        return !!user
+    },
+
     [ACTION.DELETE]({ user }) {
         return !!user
     },

@@ -21,10 +21,10 @@ export default async function Page() {
     await queryClient.ensureQueryData(courseQueries.list());
 
     return (
-        <HomeLayout>
-            <Suspense fallback={<LoadingRedirect />}>
+        <Suspense fallback={<LoadingRedirect />}>
+            <HomeLayout>
                 <CoursePage />
-            </Suspense>
-        </HomeLayout>
+            </HomeLayout>
+        </Suspense>
     )
 }

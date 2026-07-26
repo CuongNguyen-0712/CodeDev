@@ -12,10 +12,10 @@ export const metadata = {
 
 export default function Page() {
 	return (
-		<HomeLayout>
-			<Suspense fallback={<LoadingRedirect />}>
+		<Suspense fallback={<LoadingRedirect />}>
+			<HomeLayout>
 				<RoadmapPage />
-			</Suspense>
-		</HomeLayout>
+			</HomeLayout>
+		</Suspense>
 	)
 }

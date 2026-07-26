@@ -71,5 +71,16 @@ export const courseClient = {
         }
 
         return res.success
+    },
+
+    getComments: async ({ courseId }) => {
+
+        const res = await api.get('/course/commentList', { params: { courseId } })
+
+        if (!res.success) {
+            throw new Error('Failed to fetch comments, try again later')
+        }
+
+        return res.data
     }
 }

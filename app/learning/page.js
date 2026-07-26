@@ -15,10 +15,10 @@ export async function generateMetadata() {
 
 export default async function Page() {
     return (
-        <HomeLayout>
-            <Suspense fallback={<LoadingRedirect />}>
+        <Suspense fallback={<LoadingRedirect />}>
+            <HomeLayout>
                 <LearngingPage />
-            </Suspense>
-        </HomeLayout>
+            </HomeLayout>
+        </Suspense>
     )
 }

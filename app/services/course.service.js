@@ -77,5 +77,15 @@ export const courseService = {
         }
 
         return response;
+    },
+
+    getComments: async (data) => {
+        const response = await courseDb.getComments(data);
+
+        if (!response) {
+            throw new Error('Failed to fetch comments, try again later');
+        }
+
+        return response;
     }
 }

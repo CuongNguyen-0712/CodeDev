@@ -30,12 +30,12 @@ export default async function Page({ params }) {
     const { id } = await params
 
     return (
-        <DefaultLayout>
-            <Suspense fallback={<LoadingRedirect />}>
+        <Suspense fallback={<LoadingRedirect />}>
+            <DefaultLayout>
                 <StydyingPage
                     params={{ id }}
                 />
-            </Suspense>
-        </DefaultLayout>
+            </DefaultLayout>
+        </Suspense>
     )
 }

@@ -1,8 +1,6 @@
 'use client'
 import { useState } from "react"
 
-import Link from "next/link";
-
 import { courseQueries } from "@/app/query/course.query";
 import { useInfiniteQuery } from "@tanstack/react-query";
 
