@@ -91,13 +91,20 @@ export const userDb = {
     },
 
     getCourseProgress: async (data) => {
-        const { userId, search, levels, statuses, markeds } = data;
+        const { userId, courseId, search, levels, statuses, markeds } = data;
 
         const params = []
         const conditions = []
 
         params.push(userId)
-        conditions.push(`r.user_id = (select id from private.users where public_id = $${params.length})`)
+
+        if (courseId) {
+            params.push(courseId)
+            conditions.push(`c.id = (select id from public.course where public_id = $${params.length})`)
+        }
+        else {
+            conditions.push(`r.user_id = (select id from private.users where public_id = $${params.length})`)
+        }
 
         if (markeds && markeds.length > 0) {
             const markedArray = markeds.map(s => s.trim());
@@ -126,7 +133,6 @@ export const userDb = {
             conditions.push(`c.level = ANY($${params.length}::level_enum[])`);
         }
 
-        conditions.push(`r.is_deleted = false`)
         conditions.push(`c.is_hidden = false`)
         conditions.push(`c.is_deleted = false`)
 
@@ -158,11 +164,15 @@ export const userDb = {
             r.status AS status,
             coalesce(f.id, null) as is_favorite
         from public.course c
-        join course.register r on r.course_id = c.id
+        left join course.register r on r.course_id = c.id 
+            and r.user_id = (select id from private.users where public_id = $1)
+            and r.is_deleted = false
         left join language l on c.language_id = l.id
         left join category cat on c.category_id = cat.id
-        left join course.favorite f on f.course_id = c.id and f.user_id = (select id from private.users where public_id = $1)
+        left join course.favorite f on f.course_id = c.id 
+            and f.user_id = (select id from private.users where public_id = $1)
         ${whereSQL}
+        order by f.id asc, r.last_at desc
     `;
 
         return await sql.query(query, params);

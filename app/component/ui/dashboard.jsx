@@ -95,7 +95,7 @@ export default function Dashboard({ isDashboard, handleDashboard }) {
             <span className="brand-name">CodeDev</span>
           </div>
           <button className="dash-close" onClick={() => handleDashboard(false)}>
-            <FaChevronLeft fontSize={16} />
+            <FaChevronLeft fontSize={14} />
           </button>
         </div>
 

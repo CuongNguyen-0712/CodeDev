@@ -1,12 +1,60 @@
+import { useState } from "react";
+
 import { useInfiniteQuery } from "@tanstack/react-query";
 
+import Form from 'next/form';
+
+import { LoadingContent } from "@/app/component/ui/loading";
+import { ErrorReload } from "@/app/component/ui/error";
+
 import { courseQueries } from "@/app/query/course.query";
+import { IoSend } from "react-icons/io5";
+
+import { useApp } from "@/app/contexts/appContext";
+
+import { useCourseComment } from "@/app/mutation/course.mutation";
+
+import CommentItem from "./commentItem";
 
 export default function CommentPage({ courseId }) {
-    const { data, isLoading, isError, refetch, hasNextPage, fetchNextPage, error } = useInfiniteQuery(courseQueries.comments({ courseId: courseId }))
+    const [comment, setComment] = useState({
+        content: '',
+    })
+
+    const { showAlert: alert } = useApp()
+
+    const useComment = useCourseComment()
+
+    const { data, isLoading, isError, refetch, hasNextPage, fetchNextPage, error } = useInfiniteQuery(courseQueries.comments(courseId))
+
+    const comments = data?.pages?.flatMap(page => page) || [];
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+
+        if (useComment.isPending) return
+
+        if (comment.content.length === 0) {
+            return;
+        }
+
+        try {
+            await useComment.mutateAsync({
+                courseId,
+                content: comment.content
+            });
+
+            setComment({
+                content: '',
+            });
+        }
+        catch (error) {
+            alert(500, "Failed to submit comment. Please try again later.");
+        }
+    }
 
     return (
-        <section className="comments-sidebar" id="comments" >
+        <div className="comments-sidebar" id="comments" >
             <div className="comments-container">
                 {
                     isLoading ?
@@ -18,28 +66,29 @@ export default function CommentPage({ courseId }) {
                                 refetch={() => refetch()}
                             />
                             :
-                            data && data.length > 0 ?
+                            comments && comments.length > 0 ?
                                 <div className="comments-list">
-                                    {data.map((item) => (
+                                    {comments.map((item) => (
                                         <CommentItem
                                             key={item.id}
                                             data={item}
-                                            alert={(status, message) => alert(status, message)}
                                         />
                                     ))}
-                                    {/* 
-                                    {load.hasMore && (
+                                    {hasNextPage && (
                                         <button
                                             className="load-more-btn"
-                                            onClick={handleLoadComment}
+                                            onClick={fetchNextPage}
                                         >
-                                            {load.handling ? (
-                                                <LoadingContent scale={0.5} />
-                                            ) : (
-                                                <>Load more comments</>
-                                            )}
+                                            {
+                                                isLoading ?
+                                                    <LoadingContent scale={0.5} />
+                                                    :
+                                                    <>
+                                                        Load more comments
+                                                    </>
+                                            }
                                         </button>
-                                    )} */}
+                                    )}
                                 </div>
                                 :
                                 <div className="empty-comments">
@@ -48,14 +97,14 @@ export default function CommentPage({ courseId }) {
                 }
             </div>
 
-            <Form onSubmit={submitComment} className="comment-form">
+            <Form onSubmit={handleSubmit} className="comment-form">
                 <div className="form-input-wrapper">
                     <textarea
                         name="comment"
                         rows="3"
                         placeholder="Share your thoughts..."
                         value={comment.content}
-                        readOnly={comment.handling}
+                        readOnly={useComment.isPending}
                         onChange={(e) =>
                             setComment(prev => ({
                                 ...prev,
@@ -66,9 +115,9 @@ export default function CommentPage({ courseId }) {
                     <button
                         type="submit"
                         className="submit-btn"
-                        disabled={comment.handling || comment.content.length === 0}
+                        disabled={useComment.isPending || comment.content.length === 0}
                     >
-                        {comment.handling ? (
+                        {useComment.isPending ? (
                             <LoadingContent scale={0.4} color="var(--white)" />
                         ) : (
                             <IoSend fontSize={16} />
@@ -76,6 +125,6 @@ export default function CommentPage({ courseId }) {
                     </button>
                 </div>
             </Form>
-        </section>
+        </div>
     )
 }

@@ -82,5 +82,15 @@ export const courseClient = {
         }
 
         return res.data
+    },
+
+    postComment: async ({ courseId, content }) => {
+        const res = await api.post('/course/comment', { courseId, content })
+
+        if (!res.success) {
+            throw new Error('Failed to post comment, try again later')
+        }
+
+        return res.success
     }
 }

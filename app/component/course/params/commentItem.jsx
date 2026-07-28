@@ -1,4 +1,9 @@
-const CommentItem = ({ data, alert }) => {
+import { useState } from "react";
+
+import Link from "next/link";
+
+import { FaThumbsUp, FaThumbsDown } from "react-icons/fa";
+export default function CommentItem({ data }) {
     const [state, setState] = useState({
         upvotes: Number(data.upvotes),
         downvotes: Number(data.downvotes)
@@ -70,29 +75,6 @@ const CommentItem = ({ data, alert }) => {
 
         setFlag(newFlag);
         setState(newState);
-
-        try {
-            const response = await api.patch(
-                "update/updateVotingComment",
-                {
-                    commentId: data.id,
-                    voting:
-                        newFlag.upvotes
-                            ? true
-                            : newFlag.downvotes
-                                ? false
-                                : null,
-                }
-            );
-
-            if (!response.data.success) {
-                setFlag(previousFlag);
-                setState(previousState);
-            }
-        } catch {
-            setFlag(previousFlag);
-            setState(previousState);
-        }
     };
 
     return (
@@ -102,8 +84,8 @@ const CommentItem = ({ data, alert }) => {
                     className="comment-avatar"
                     src={data.avatar}
                     alt={data.username}
-                    height={44}
-                    width={44}
+                    height={50}
+                    width={50}
                     onError={(e) => {
                         e.target.onerror = null;
                         e.target.src = '/image/static/no_image.png';

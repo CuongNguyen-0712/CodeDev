@@ -16,6 +16,7 @@ export async function GET(req) {
 
         const { searchParams } = new URL(req.url);
 
+        const courseId = searchParams.get('courseId');
         const search = searchParams.get('search');
         const levels = searchParams.getAll('level[]');
         const statuses = searchParams.getAll('status[]');
@@ -23,7 +24,7 @@ export async function GET(req) {
 
         const userId = session.user.id;
 
-        const data = { userId, search, levels, statuses, markeds };
+        const data = { userId, courseId, search, levels, statuses, markeds };
 
         const response = await userService.getCourseProgress(data);
 

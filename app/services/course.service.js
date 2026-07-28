@@ -87,5 +87,15 @@ export const courseService = {
         }
 
         return response;
-    }
+    },
+
+    postComment: async (data) => {
+        const response = await courseDb.postComment(data);
+
+        if (!response) {
+            throw new Error('Failed to post comment, try again later');
+        }
+
+        return response;
+    },
 }

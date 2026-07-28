@@ -50,11 +50,22 @@ export const courseQueries = {
     comments(courseId) {
         return {
             queryKey: courseKeys.comments(courseId),
-            queryFn: () => courseClient.getComments({ courseId }),
+            initialPageParam: null,
+            queryFn: ({ pageParam }) =>
+                courseClient.getComments({
+                    courseId,
+                    lastCreated: pageParam
+                }),
+            getNextPageParam: (lastPage) => {
+                if (!lastPage.hasMore) return undefined;
+
+                return lastPage.lastCreated;
+            },
             enabled: !!courseId,
             staleTime: 0,
             cacheTime: 1000 * 30, // 30 seconds
             gcTime: 1000 * 30, // 30 seconds
+            refetchOnWindowFocus: true,
         };
     }
 }

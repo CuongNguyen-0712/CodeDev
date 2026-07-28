@@ -11,16 +11,6 @@ export async function postFeedback({ sender, title, feedback }) {
     return await sql.query(query, params);
 }
 
-export async function postRegisterCourse({ userId, courseId }) {
-    const params = []
-
-    params.push(userId, courseId)
-
-    const query = `select register_course($${params.length - 1}, $${params.length})`;
-
-    return await sql.query(query, params);
-}
-
 export async function postCreateTeam({ teamId, userId, name, size, description }) {
     const params = []
 

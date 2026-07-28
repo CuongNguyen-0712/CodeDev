@@ -52,6 +52,11 @@
   transition: all 0.2s ease;
 }
 
+.dash-close:hover {
+  background: var(--gray-300);
+  transition: all 0.2s ease;
+}
+
 .dash-close:hover svg {
   color: var(--black);
   transition: all 0.2s ease;
@@ -62,6 +67,7 @@
   display: flex;
   flex: 1;
   flex-direction: column;
+  padding-bottom: 12px;
   overflow-y: auto;
 }
 

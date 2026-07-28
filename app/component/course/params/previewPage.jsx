@@ -1,164 +1,39 @@
 'use client'
-import { useState, useReducer, useEffect, useRef, useTransition } from "react"
-
-import { LoadingContent } from "../../ui/loading";
-import { ErrorReload } from "../../ui/error";
-
 import Link from "next/link";
 
+import { ErrorReload } from "../../ui/error";
+import { LoadingContent } from "../../ui/loading";
+
 import { useRouterActions } from "@/app/router/useRouterActions";
+
+import FooterPreview from "./footerPreview";
 
 import { useApp } from "@/app/contexts/appContext";
 
 import { useQuery } from "@tanstack/react-query";
 import { courseQueries } from "@/app/query/course.query";
 
+import CommentPage from "./commentPage";
+
+import { levelMapping } from "@/app/utils/constants";
+
 import {
     FaArrowLeft,
     FaStar,
-    FaThumbsUp,
-    FaThumbsDown,
     FaGraduationCap,
     FaPlayCircle
 } from "react-icons/fa";
 import { MdPlayLesson, MdPerson, MdLanguage, MdCategory } from "react-icons/md";
 import { LuAlarmClock } from "react-icons/lu";
 import { PiStudent } from "react-icons/pi";
-import { IoSend } from "react-icons/io5";
 
-
-const levelMapping = {
-    'beginner': { tag: 'Beginner', color: 'var(--color-success)', bg: 'rgba(16, 185, 129, 0.1)' },
-    'intermediate': { tag: 'Intermediate', color: 'var(--color-primary)', bg: 'rgba(48, 102, 190, 0.1)' },
-    'advanced': { tag: 'Advanced', color: 'var(--color-accent-orange)', bg: 'rgba(245, 158, 11, 0.1)' },
-    'expert': { tag: 'Expert', color: 'var(--purple-500)', bg: 'rgba(139, 92, 246, 0.1)' },
-    'master': { tag: 'Master', color: 'var(--rose-700)', bg: 'rgba(239, 68, 68, 0.1)' }
-}
 
 export default function PreviewPage({ params } = {}) {
     const { showAlert: alert } = useApp()
 
     const { navigateBack, navigate } = useRouterActions()
-    const scrollRef = useRef(null)
 
     const { data, isLoading, error, refetch } = useQuery(courseQueries.details(params.id))
-
-    const [details, setDetails] = useState(data)
-
-    const [apiQueue, setApiQueue] = useState([]);
-
-    const updateComment = () => {
-        setApiQueue((prev) => [
-            ...prev,
-            {
-                type: 'update',
-                execute: async () => {
-
-                    try {
-                        const course_id = params.id
-                        const adjustedOffset = Math.max((state.comment.data?.length - load.limit, 0)) || 0
-                        const response = await api.get('get/getCommentCourse', {
-                            params: {
-                                courseId: course_id,
-                                offset: adjustedOffset,
-                                limit: load.limit.toString()
-                            }
-                        });
-                        if (response.data.success) {
-                            const data = Array.isArray(response.data.data) ? response.data.data : [];
-                            dispatch({
-                                type: ACTIONS.UPDATE,
-                                key: 'comment',
-                                payload: data
-                            })
-                            scrollToTop()
-                        }
-                        else {
-                            dispatch({
-                                type: ACTIONS.ERROR,
-                                key: 'comment',
-                                payload: {
-                                    status: response.status,
-                                    message: response.message
-                                }
-                            })
-                        }
-                    }
-                    catch (err) {
-                        dispatch({
-                            type: ACTIONS.ERROR,
-                            key: 'comment',
-                            payload: {
-                                status: err.response?.status || 500,
-                                message: err.response?.data?.message || 'External server error'
-                            }
-                        })
-                    }
-                    finally {
-                        setPending(false)
-                        setLoad((prev) => ({
-                            ...prev,
-                            handling: false
-                        }))
-                        dispatch({
-                            type: ACTIONS.END,
-                            key: 'comment'
-                        })
-
-                    }
-                }
-            }
-        ])
-    }
-
-    const submitComment = async (e) => {
-        e.preventDefault();
-
-        if (comment.handling) return;
-
-        if (comment.content.trim().length === 0 || comment.content === '') {
-            alert(404, 'No comment, please throw your new!');
-            setComment((prev) => ({
-                ...prev,
-                handling: false
-            }))
-            return;
-        }
-
-        setComment((prev) => ({
-            ...prev,
-            handling: true
-        }))
-
-        try {
-            const courseId = params.id
-            const response = await api.post('post/postCommentCourse', {
-                courseId: courseId,
-                comment: comment.content
-            });
-
-            if (response.data.success) {
-                setComment((prev) => ({
-                    ...prev,
-                    content: ''
-                }))
-                updateComment({ course_id: courseId })
-                alert(response.status, response.message);
-            }
-            else {
-                alert(response.status, response.message);
-            }
-        }
-        catch (err) {
-            alert(err.response?.status || 500, err.response?.data?.message || 'External server error');
-        }
-        finally {
-            setComment((prev) => ({
-                ...prev,
-                handling: false
-            }))
-        }
-    }
 
     return (
         <section id="course-preview">
@@ -171,15 +46,15 @@ export default function PreviewPage({ params } = {}) {
                     <FaArrowLeft fontSize={16} />
                 </button>
             </header>
-
-            <div className="preview-content">
+            <section className="preview-content">
                 <div className="preview-main">
                     {isLoading ?
                         <LoadingContent />
                         :
                         error ?
                             <ErrorReload
-                                data={error || { status: 500, message: "An unexpected error occurred" }}
+                                data={error || { status: 500, message: "An unexpected error occurred, try again later" }}
+                                refetch={() => refetch()}
                             />
                             :
                             data ?
@@ -221,7 +96,7 @@ export default function PreviewPage({ params } = {}) {
                                                             background: levelMapping?.[data.level]?.bg
                                                         }}
                                                     >
-                                                        {levelMapping?.[data.level]?.tag}
+                                                        {levelMapping?.[data.level]?.label}
                                                     </span>
                                                     <span className="course-badge rating-badge">
                                                         <FaStar color="var(--color-warning)" />
@@ -293,61 +168,42 @@ export default function PreviewPage({ params } = {}) {
                             Course Curriculum
                         </h2>
                         <div className="modules-list">
-                            {data.modules && data.modules.length > 0 ? (
-                                data.modules.map((item, index) => (
-                                    <div key={index} className="module-card">
-                                        <div className="module-header">
-                                            <span className="chapter-badge">Chapter {index + 1}</span>
-                                            <h3 className="module-title">{item.title}</h3>
-                                        </div>
-                                        <div className="lessons-list">
-                                            {item.lessons.map((child, idx) => (
-                                                <div
-                                                    key={idx}
-                                                    className="lesson-item"
-                                                >
-                                                    <FaPlayCircle className="lesson-icon" />
-                                                    <span className="lesson-name">
-                                                        {index + 1}.{idx + 1} - {child.title}
-                                                    </span>
-                                                    <span className="lesson-type">{child.content_type}</span>
+                            {
+                                isLoading ?
+                                    <LoadingContent />
+                                    :
+                                    data?.modules && data.modules.length > 0 ? (
+                                        data.modules.map((item, index) => (
+                                            <div key={index} className="module-card">
+                                                <div className="module-header">
+                                                    <span className="chapter-badge">Chapter {index + 1}</span>
+                                                    <h3 className="module-title">{item.title}</h3>
                                                 </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )))
-                                :
-                                <p>No modules available yet</p>
+                                                <div className="lessons-list">
+                                                    {item.lessons.map((child, idx) => (
+                                                        <div
+                                                            key={idx}
+                                                            className="lesson-item"
+                                                        >
+                                                            <FaPlayCircle className="lesson-icon" />
+                                                            <span className="lesson-name">
+                                                                {index + 1}.{idx + 1} - {child.title}
+                                                            </span>
+                                                            <span className="lesson-type">{child.content_type}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )))
+                                        :
+                                        <p>No modules available yet</p>
                             }
                         </div>
                     </div>
                 </div>
-            </div>
-            {/* 
-            <footer className="preview-footer">
-                <button
-                    className={`join_btn ${Math.round(state.state.data?.cost) === 0 ? 'free' : 'paid'}`}
-                    disabled={isPending}
-                    onClick={submitCourse}
-                >
-                    {state.state.pending || isPending ?
-                        <LoadingContent scale={0.5} color="var(--white)" />
-                        :
-                        Math.round(state.state.data?.cost) === 0 ?
-                            (() => {
-                                switch (state.state.data?.status) {
-                                    case 'enrolled': return "Start learning"
-                                    case 'in_progress': return "Continue learning"
-                                    case 'completed': return "Review course"
-                                    case null: return "Join course"
-                                    default: return <LoadingContent scale={0.5} color="var(--white)" />
-                                }
-                            })()
-                            :
-                            state.state.data?.cost
-                    }
-                </button>
-            </footer> */}
+                <CommentPage courseId={params.id} />
+            </section>
+            <FooterPreview courseId={params.id} />
         </section>
     )
 }

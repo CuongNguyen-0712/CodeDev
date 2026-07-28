@@ -103,3 +103,18 @@ export const useCourseFavorite = () => {
         }
     });
 }
+
+export const useCourseComment = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (data) => courseClient.postComment(data),
+
+        onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: courseKeys.comments(variables.courseId),
+            });
+        }
+
+    });
+}

@@ -233,8 +233,8 @@ export const courseDb = {
         const conditions = [];
         const params = [];
 
-        params.push(courseId);
-        conditions.push(`m.course_id = $${params.length}`);
+        params.push(userId, courseId);
+        conditions.push(`m.id = (select id from public.course where public_id = $${params.length})`);
 
         if (lastCreated) {
             params.push(lastCreated);
@@ -258,11 +258,30 @@ export const courseDb = {
             JOIN private.info i ON m.user_id = i.user_id
             JOIN private.users u on m.user_id = u.id
             LEFT JOIN private.voting v on v.id = m.comment_id
-                AND v.user_id = (select id from private.users where public_id = $${params.length - 2})
+                AND v.user_id = (select id from private.users where public_id = $${1})
             ${whereSQL}
             ORDER BY m.created_at DESC
             LIMIT 21
         `
+
+        return await sql.query(query, params);
+    },
+
+    postComment: async (data) => {
+        const { userId, courseId, content } = data;
+
+        const params = [];
+
+        params.push(userId, courseId, content);
+
+        const query = `
+            INSERT INTO course.comment (user_id, id, content)
+            VALUES (
+                (SELECT id FROM private.users WHERE public_id = $1),
+                (SELECT id FROM public.course WHERE public_id = $2),
+                $3
+            )
+        `;
 
         return await sql.query(query, params);
     }
