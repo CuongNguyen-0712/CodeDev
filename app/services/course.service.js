@@ -98,4 +98,14 @@ export const courseService = {
 
         return response;
     },
+
+    postVotingComment: async (data) => {
+        const response = await courseDb.postVotingComment(data);
+
+        if (!response) {
+            throw new Error('Failed to vote on comment, try again later');
+        }
+
+        return response;
+    }
 }

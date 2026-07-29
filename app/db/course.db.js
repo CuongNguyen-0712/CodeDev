@@ -234,7 +234,7 @@ export const courseDb = {
         const params = [];
 
         params.push(userId, courseId);
-        conditions.push(`m.id = (select id from public.course where public_id = $${params.length})`);
+        conditions.push(`m.reference_id = (select id from public.course where public_id = $${params.length})`);
 
         if (lastCreated) {
             params.push(lastCreated);
@@ -248,16 +248,16 @@ export const courseDb = {
                 u.public_id as user_id,
                 u.username as username,
                 i.image as avatar,
-                m.comment_id as id,
+                m.public_id as id,
                 m.content as comment,
                 m.upvotes as upvotes,
                 m.downvotes as downvotes,
-                v.voting as voting,
+                coalesce(v.voting, null) as vote,
                 m.created_at as created_at
-            FROM course.comment m
+            FROM public.comment m
             JOIN private.info i ON m.user_id = i.user_id
             JOIN private.users u on m.user_id = u.id
-            LEFT JOIN private.voting v on v.id = m.comment_id
+            LEFT JOIN private.voting v on v.reference_id = m.id
                 AND v.user_id = (select id from private.users where public_id = $${1})
             ${whereSQL}
             ORDER BY m.created_at DESC
@@ -275,13 +275,25 @@ export const courseDb = {
         params.push(userId, courseId, content);
 
         const query = `
-            INSERT INTO course.comment (user_id, id, content)
+            INSERT INTO public.comment (user_id, reference_id, content)
             VALUES (
                 (SELECT id FROM private.users WHERE public_id = $1),
                 (SELECT id FROM public.course WHERE public_id = $2),
                 $3
             )
         `;
+
+        return await sql.query(query, params);
+    },
+
+    postVotingComment: async (data) => {
+        const { userId, commentId, vote } = data;
+
+        const params = [];
+
+        params.push(userId, commentId, vote);
+
+        const query = `select * from voting_comment($${params.length - 2}, $${params.length - 1}, $${params.length});`;
 
         return await sql.query(query, params);
     }

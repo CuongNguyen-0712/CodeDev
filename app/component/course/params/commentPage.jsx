@@ -25,7 +25,7 @@ export default function CommentPage({ courseId }) {
 
     const useComment = useCourseComment()
 
-    const { data, isLoading, isError, refetch, hasNextPage, fetchNextPage, error } = useInfiniteQuery(courseQueries.comments(courseId))
+    const { data, isLoading, isError, refetch, hasNextPage, fetchNextPage, error, isFetchingNextPage } = useInfiniteQuery(courseQueries.comments(courseId))
 
     const comments = data?.pages?.flatMap(page => page) || [];
 
@@ -53,6 +53,16 @@ export default function CommentPage({ courseId }) {
         }
     }
 
+    const handleChange = (e) => {
+        e.preventDefault();
+
+        const { name, value } = e.target;
+        setComment({
+            ...comment,
+            [name]: value,
+        });
+    }
+
     return (
         <div className="comments-sidebar" id="comments" >
             <div className="comments-container">
@@ -66,51 +76,44 @@ export default function CommentPage({ courseId }) {
                                 refetch={() => refetch()}
                             />
                             :
-                            comments && comments.length > 0 ?
-                                <div className="comments-list">
-                                    {comments.map((item) => (
-                                        <CommentItem
-                                            key={item.id}
-                                            data={item}
-                                        />
-                                    ))}
-                                    {hasNextPage && (
-                                        <button
-                                            className="load-more-btn"
-                                            onClick={fetchNextPage}
-                                        >
-                                            {
-                                                isLoading ?
-                                                    <LoadingContent scale={0.5} />
-                                                    :
-                                                    <>
-                                                        Load more comments
-                                                    </>
-                                            }
-                                        </button>
-                                    )}
-                                </div>
-                                :
-                                <div className="empty-comments">
-                                    <p>No comments yet. Be the first!</p>
-                                </div>
+                            <div className="comments-list">
+                                {
+                                    comments && comments.length > 0 ?
+                                        comments.map((item) => (
+                                            <CommentItem
+                                                key={item.id}
+                                                data={item}
+                                                courseId={courseId}
+                                            />
+                                        ))
+                                        :
+                                        <div className="empty-comments">
+                                            <p>No comments yet. Be the first!</p>
+                                        </div>
+                                }
+                                {
+                                    hasNextPage &&
+                                    <button
+                                        className="load-more-btn"
+                                        onClick={fetchNextPage}
+                                        disabled={isFetchingNextPage || !hasNextPage}
+                                    >
+                                        {isFetchingNextPage ? <LoadingContent scale={0.5} /> : "Load more comments"}
+                                    </button>
+                                }
+                            </div>
                 }
             </div>
 
             <Form onSubmit={handleSubmit} className="comment-form">
                 <div className="form-input-wrapper">
                     <textarea
-                        name="comment"
+                        name="content"
                         rows="3"
                         placeholder="Share your thoughts..."
                         value={comment.content}
                         readOnly={useComment.isPending}
-                        onChange={(e) =>
-                            setComment(prev => ({
-                                ...prev,
-                                content: e.target.value
-                            }))
-                        }
+                        onChange={handleChange}
                     />
                     <button
                         type="submit"

@@ -8,8 +8,6 @@ import { useRouterActions } from "@/app/router/useRouterActions";
 
 import FooterPreview from "./footerPreview";
 
-import { useApp } from "@/app/contexts/appContext";
-
 import { useQuery } from "@tanstack/react-query";
 import { courseQueries } from "@/app/query/course.query";
 
@@ -29,9 +27,7 @@ import { PiStudent } from "react-icons/pi";
 
 
 export default function PreviewPage({ params } = {}) {
-    const { showAlert: alert } = useApp()
-
-    const { navigateBack, navigate } = useRouterActions()
+    const { navigateBack } = useRouterActions()
 
     const { data, isLoading, error, refetch } = useQuery(courseQueries.details(params.id))
 

@@ -118,3 +118,18 @@ export const useCourseComment = () => {
 
     });
 }
+
+export const useCourseVotingComment = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (data) => courseClient.postVotingComment(data),
+
+        onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: courseKeys.comments(variables.courseId),
+            });
+        }
+
+    });
+}

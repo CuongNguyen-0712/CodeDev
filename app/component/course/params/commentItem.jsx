@@ -1,80 +1,48 @@
-import { useState } from "react";
+import { memo, useMemo } from "react";
 
 import Link from "next/link";
 
 import { FaThumbsUp, FaThumbsDown } from "react-icons/fa";
-export default function CommentItem({ data }) {
-    const [state, setState] = useState({
-        upvotes: Number(data.upvotes),
-        downvotes: Number(data.downvotes)
-    })
 
-    const [flag, setFlag] = useState({
-        upvotes: data.voting === true,
-        downvotes: data.voting === false,
-    })
+import { useCourseVotingComment } from "@/app/mutation/course.mutation";
 
-    const formatDate = (str) => {
-        const now = new Date();
-        const date = new Date(str);
-        const diffInSeconds = Math.floor((now - date) / 1000);
+const formatDate = (str) => {
+    const now = new Date();
+    const date = new Date(str);
+    const diffInSeconds = Math.floor((now - date) / 1000);
 
-        if (diffInSeconds < 5) {
-            return 'Just now';
-        } else if (diffInSeconds < 60) {
-            return `${diffInSeconds} seconds ago`;
-        } else if (diffInSeconds < 3600) {
-            const minutes = Math.floor(diffInSeconds / 60);
-            return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
-        } else if (diffInSeconds < 86400) {
-            const hours = Math.floor(diffInSeconds / 3600);
-            return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
-        }
-        else {
-            const days = Math.floor(diffInSeconds / 86400);
-            return `${days} day${days !== 1 ? 's' : ''} ago`;
-        }
-    };
+    if (diffInSeconds < 5) {
+        return 'Just now';
+    } else if (diffInSeconds < 60) {
+        return `${diffInSeconds} seconds ago`;
+    } else if (diffInSeconds < 3600) {
+        const minutes = Math.floor(diffInSeconds / 60);
+        return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
+    } else if (diffInSeconds < 86400) {
+        const hours = Math.floor(diffInSeconds / 3600);
+        return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+    }
+    else {
+        const days = Math.floor(diffInSeconds / 86400);
+        return `${days} day${days !== 1 ? 's' : ''} ago`;
+    }
+};
+
+const CommentItem = ({ data, courseId }) => {
+    const useVoting = useCourseVotingComment();
+
+    const formattedDate = useMemo(() => formatDate(data.created_at), [data.created_at]);
 
     const handleVoting = async (e) => {
-        e.stopPropagation();
+        e.preventDefault();
 
-        const name = e.currentTarget.name;
+        const voteType = e.currentTarget.name;
 
-        const previousFlag = flag;
-        const previousState = state;
-
-        let newFlag = { ...flag };
-        let newState = { ...state };
-
-        const current =
-            flag.upvotes
-                ? "upvotes"
-                : flag.downvotes
-                    ? "downvotes"
-                    : null;
-
-        if (current !== name) {
-            newFlag = {
-                upvotes: false,
-                downvotes: false,
-                [name]: true,
-            };
-
-            newState[name] = (newState[name] || 0) + 1;
-
-            if (current) {
-                newState[current] = (newState[current] || 0) - 1;
-            }
-        } else {
-            newFlag[name] = !newFlag[name];
-
-            newState[name] =
-                (newState[name] || 0) + (newFlag[name] ? 1 : -1);
-        }
-
-        setFlag(newFlag);
-        setState(newState);
+        await useVoting.mutateAsync({
+            commentId: data.id,
+            courseId: courseId,
+            vote: voteType === data.vote ? null : voteType,
+        });
     };
 
     return (
@@ -93,30 +61,32 @@ export default function CommentItem({ data }) {
                 />
                 <div className="comment-user-info">
                     <h4 className="comment-username">{data.username}</h4>
-                    <span className="comment-date">{formatDate(data.created_at)}</span>
+                    <span className="comment-date">{formattedDate}</span>
                 </div>
             </Link>
             <div className="comment-body">
                 <p className="comment-text">{data.comment}</p>
                 <div className="comment-actions">
                     <button
-                        name="upvotes"
+                        name="upvote"
                         onClick={handleVoting}
-                        className={`vote-btn upvote ${flag.upvotes ? 'active' : ''}`}
+                        className={`vote-btn upvote ${data.vote === 'upvote' ? 'active' : ''}`}
                     >
                         <FaThumbsUp fontSize={14} />
-                        <span>{state.upvotes}</span>
+                        <span>{data.upvotes}</span>
                     </button>
                     <button
-                        name="downvotes"
+                        name="downvote"
                         onClick={handleVoting}
-                        className={`vote-btn downvote ${flag.downvotes ? 'active' : ''}`}
+                        className={`vote-btn downvote ${data.vote === 'downvote' ? 'active' : ''}`}
                     >
                         <FaThumbsDown fontSize={14} />
-                        <span>{state.downvotes}</span>
+                        <span>{data.downvotes}</span>
                     </button>
                 </div>
             </div>
         </div>
     )
 }
+
+export default memo(CommentItem);
