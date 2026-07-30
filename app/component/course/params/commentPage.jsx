@@ -14,6 +14,8 @@ import { useApp } from "@/app/contexts/appContext";
 
 import { useCourseComment } from "@/app/mutation/course.mutation";
 
+import { TextAreaGroup } from "@/app/component/ui/input";
+
 import CommentItem from "./commentItem";
 
 export default function CommentPage({ courseId }) {
@@ -106,25 +108,34 @@ export default function CommentPage({ courseId }) {
             </div>
 
             <Form onSubmit={handleSubmit} className="comment-form">
-                <div className="form-input-wrapper">
-                    <textarea
-                        name="content"
-                        rows="3"
-                        placeholder="Share your thoughts..."
-                        value={comment.content}
-                        readOnly={useComment.isPending}
-                        onChange={handleChange}
-                    />
+                <TextAreaGroup
+                    label='Share your thoughts...'
+                    name="content"
+                    rows="4"
+                    value={comment.content}
+                    onChange={handleChange}
+                    readOnly={useComment.isPending}
+                />
+                <div className="form_actions">
+                    <div className="option_actions">
+                        <span className={`char-count ${comment.content.length > 200 ? 'exceed' : ''}`}>
+                            {comment.content.length}/200
+                        </span>
+                    </div>
                     <button
                         type="submit"
-                        className="submit-btn"
+                        className={`submit-btn ${comment.content.length > 0 ? 'active' : ''}`}
                         disabled={useComment.isPending || comment.content.length === 0}
                     >
-                        {useComment.isPending ? (
-                            <LoadingContent scale={0.4} color="var(--white)" />
-                        ) : (
-                            <IoSend fontSize={16} />
-                        )}
+                        {
+                            useComment.isPending ?
+                                <LoadingContent scale={0.4} color="var(--white)" />
+                                :
+                                <>
+                                    <span>Send</span>
+                                    <IoSend fontSize={16} />
+                                </>
+                        }
                     </button>
                 </div>
             </Form>

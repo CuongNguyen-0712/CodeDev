@@ -110,9 +110,9 @@ export default function LearningPage() {
                 <div className="header-text">
                     <span className="header-label">
                         <HiSparkles />
-                        Courses
+                        <span>Learning</span>
                     </span>
-                    <h1>My Learning </h1>
+                    <h1>My Learning</h1>
                     <p>Continue your learning journey and track progress</p>
                 </div>
                 <Link className="header-btn" id="marketplace_btn" href="/course">

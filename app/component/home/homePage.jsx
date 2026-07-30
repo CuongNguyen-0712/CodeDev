@@ -6,9 +6,7 @@ export default function HomePage() {
 
     return (
         <div id="overview">
-            <div id="overview_content">
-                <HomeOverview />
-            </div>
+            <HomeOverview />
             <HomeLearning />
         </div>
     )

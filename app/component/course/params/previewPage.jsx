@@ -4,8 +4,6 @@ import Link from "next/link";
 import { ErrorReload } from "../../ui/error";
 import { LoadingContent } from "../../ui/loading";
 
-import { useRouterActions } from "@/app/router/useRouterActions";
-
 import FooterPreview from "./footerPreview";
 
 import { useQuery } from "@tanstack/react-query";
@@ -16,7 +14,6 @@ import CommentPage from "./commentPage";
 import { levelMapping } from "@/app/utils/constants";
 
 import {
-    FaArrowLeft,
     FaStar,
     FaGraduationCap,
     FaPlayCircle
@@ -27,21 +24,10 @@ import { PiStudent } from "react-icons/pi";
 
 
 export default function PreviewPage({ params } = {}) {
-    const { navigateBack } = useRouterActions()
-
     const { data, isLoading, error, refetch } = useQuery(courseQueries.details(params.id))
 
     return (
         <section id="course-preview">
-            <header className="preview-header">
-                <button
-                    type="button"
-                    className="back-btn"
-                    onClick={navigateBack}
-                >
-                    <FaArrowLeft fontSize={16} />
-                </button>
-            </header>
             <section className="preview-content">
                 <div className="preview-main">
                     {isLoading ?

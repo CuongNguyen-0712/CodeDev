@@ -2,7 +2,7 @@ import { useState, useTransition } from "react"
 
 import { useRouterActions } from "@/app/router/useRouterActions"
 
-import { useCourseWithdraw, useCourseFavorite } from "@/app/mutation/course.mutation"
+import { useCourseWithdraw, useCourseFavorite, useCourseUnfavorite } from "@/app/mutation/course.mutation"
 
 import { LoadingContent } from "../ui/loading"
 
@@ -29,6 +29,7 @@ export default function LearningCourse({ item }) {
 
     const withdrawMutation = useCourseWithdraw()
     const favoriteMutation = useCourseFavorite()
+    const unfavoriteMutation = useCourseUnfavorite()
 
     const progressPercent = item.lessons > 0
         ? ((item.progress ?? 0) / item.lessons * 100).toFixed(0)
@@ -48,11 +49,15 @@ export default function LearningCourse({ item }) {
         }
     }
 
-    const handleFavoriteCourse = async ({ id, isFavorited }) => {
+    const handleFavoriteCourse = async (e) => {
+        e.preventDefault();
 
         try {
-            await favoriteMutation.mutateAsync({ courseId: id })
-
+            if (isFavorited) {
+                await unfavoriteMutation.mutateAsync({ courseId: item.id })
+            } else {
+                await favoriteMutation.mutateAsync({ courseId: item.id })
+            }
         }
         catch (error) {
             alert(500, "An error occurred while updating favorite status.");
@@ -85,10 +90,7 @@ export default function LearningCourse({ item }) {
                 </div>
                 <button
                     className={`bookmark-btn ${isFavorited ? 'active' : ''}`}
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        handleFavoriteCourse({ id: item.id, isFavorited: !isFavorited })
-                    }}
+                    onClick={handleFavoriteCourse}
                 >
                     <GoHeartFill fontSize={16} />
                 </button>

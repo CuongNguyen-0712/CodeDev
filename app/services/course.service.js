@@ -107,5 +107,15 @@ export const courseService = {
         }
 
         return response;
-    }
+    },
+
+    deleteFavorite: async (data) => {
+        const response = await courseDb.deleteFavorite(data);
+
+        if (!response) {
+            throw new Error('Failed to delete favorite status, try again later');
+        }
+
+        return response;
+    },
 }

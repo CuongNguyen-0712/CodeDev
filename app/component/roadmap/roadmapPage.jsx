@@ -1,82 +1,20 @@
 'use client';
-import { useState, useEffect } from 'react';
-
 import { LoadingContent } from '../ui/loading';
 import { ErrorReload } from '../ui/error';
 
-import { api } from '@/app/lib/axios';
-
 import { useRouterActions } from '@/app/router/useRouterActions';
 
-import { FaChevronRight, FaRoute } from 'react-icons/fa';
-import Link from 'next/link';
+import { HiSparkles } from 'react-icons/hi2';
+
+import { useQuery } from "@tanstack/react-query";
+import { roadmapQueries } from "@/app/query/roadmap.query";
+
+import { FaRoute } from 'react-icons/fa';
 
 export default function RoadmapPage() {
     const { navigate } = useRouterActions();
 
-    const [roadmaps, setRoadmap] = useState({
-        data: [],
-        error: null,
-        pending: true,
-    });
-
-    const [nodes, setNode] = useState({
-        data: [],
-        error: null,
-        pending: true,
-    });
-
-
-    const fetchRoadmap = async () => {
-        try {
-            const response = await api.get('/get/getRoadmap');
-
-            if (response.data.success) {
-                const data = Array.isArray(response.data.data) ? response.data.data : [];
-
-                if (data.length === 0) {
-                    setRoadmap({
-                        data: [],
-                        error: {
-                            status: response.status,
-                            message: 'No roadmap data available',
-                        },
-                    });
-                } else {
-                    setRoadmap({
-                        data: data,
-                        error: null,
-                    });
-                }
-            } else {
-                setRoadmap({
-                    data: [],
-                    error: {
-                        status: response.status,
-                        message: response.data.message || 'Failed to fetch roadmap',
-                    },
-                });
-            }
-        } catch (error) {
-            setRoadmap({
-                data: [],
-                error: {
-                    status: error.response?.status || 500,
-                    message: error.response?.data?.message || error.message || 'Internal Server Error',
-                },
-            });
-        } finally {
-            setRoadmap(prev => ({ ...prev, pending: false }));
-        }
-    };
-
-    const handleRoadmapClick = (roadmapId) => {
-        navigate({ path: 'roadmap', query: { id: roadmapId } });
-    };
-
-    useEffect(() => {
-        fetchRoadmap();
-    }, []);
+    const { data, isLoading, isError, error, refetch } = useQuery(roadmapQueries.list());
 
     return (
         // <div id="roadmap_details">
@@ -109,37 +47,41 @@ export default function RoadmapPage() {
         //     </div>
         // </div>
         <section id="roadmap">
-            <div className="roadmap-header">
-                <h1>Developer Roadmaps</h1>
-                <p>
-                    Follow these career paths to structure your learning journey, master core technologies, and
-                    discover recommended courses.
-                </p>
-            </div>
-            {roadmaps.pending ? (
-                <LoadingContent color={'var(--color-primary)'} />
-            ) : roadmaps.error ? (
-                <ErrorReload data={roadmaps.error} />
-            ) : (
-                <div id="roadmap_list">
-                    {roadmaps.data.map((roadmap, index) => (
-                        <div
-                            key={index}
-                            className="roadmap_card"
-                            onClick={() => handleRoadmapClick(roadmap.id)}
-                        >
-                            <div className="card_decor_line"></div>
-                            <div className="card_header">
-                                <h3>{roadmap.title}</h3>
-                                <span className="card_nodes_count">
-                                    <FaRoute /> {roadmap.nodes} steps
-                                </span>
-                            </div>
-                            <p>{roadmap.description}</p>
-                        </div>
-                    ))}
+            <div className="header-content">
+                <div className="header-text">
+                    <span className="header-label">
+                        <HiSparkles />
+                        <span>Roadmaps</span>
+                    </span>
+                    <h1>Developr Roadmaps</h1>
+                    <p>Follow these career paths to structure your learning journey, master core technologies, and discover recommended courses.</p>
                 </div>
-            )}
+            </div>
+
+            {
+                isLoading ?
+                    <LoadingContent color={'var(--color-primary)'} />
+                    : isError ?
+                        <ErrorReload data={error} refetch={() => refetch()} />
+                        :
+                        <div id="roadmap_list">
+                            {data.map((roadmap, index) => (
+                                <div
+                                    key={index}
+                                    className="roadmap_card"
+                                >
+                                    <div className="card_decor_line"></div>
+                                    <div className="card_header">
+                                        <h3>{roadmap.title}</h3>
+                                        <span className="card_nodes_count">
+                                            <FaRoute /> {roadmap.nodes} steps
+                                        </span>
+                                    </div>
+                                    <p>{roadmap.description}</p>
+                                </div>
+                            ))}
+                        </div>
+            }
         </section>
     );
 }

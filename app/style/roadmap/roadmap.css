@@ -3,43 +3,15 @@
     display: flex;
     flex-grow: 1;
     width: 100%;
-    padding: 100px 24px 40px 24px;
+    padding: 80px 24px 40px;
     background: transparent;
     flex-direction: column;
-    gap: 40px;
-    max-width: 1200px;
-    margin: 0 auto;
-}
-
-.roadmap-header {
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 20px;
-}
-
-.roadmap-header h1 {
-    font-size: 38px;
-    font-weight: 800;
-    background: var(--gradient-primary);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-}
-
-.roadmap-header p {
-    font-size: 16px;
-    color: var(--color-text-secondary);
-    max-width: 600px;
-    line-height: 1.6;
+    gap: 20px;
 }
 
 #roadmap_list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
     width: 100%;
     gap: 24px;
 }

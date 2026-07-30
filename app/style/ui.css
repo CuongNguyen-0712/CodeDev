@@ -108,8 +108,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 48px;
     height: 48px;
+    width: 48px;
 }
 
 .loading-spinner svg {
@@ -1614,7 +1614,7 @@
     outline: none;
     transition: all 0.25s ease;
     resize: none;
-    min-height: 150px;
+    min-height: 100px;
 }
 
 .area_input.has-content textarea {

@@ -104,6 +104,20 @@ export const useCourseFavorite = () => {
     });
 }
 
+export const useCourseUnfavorite = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (data) => courseClient.deleteFavorite(data),
+
+        onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: userKeys.courseProgress(),
+            });
+        }
+    });
+}
+
 export const useCourseComment = () => {
     const queryClient = useQueryClient();
 

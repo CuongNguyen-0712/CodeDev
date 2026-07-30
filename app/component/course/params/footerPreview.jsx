@@ -14,13 +14,16 @@ import { LoadingContent } from "@/app/component/ui/loading";
 
 import { useApp } from "@/app/contexts/appContext";
 
+import { FaArrowLeft } from "react-icons/fa";
+import { IoSettingsSharp } from "react-icons/io5";
+
 export default function FooterPreview({ courseId }) {
     const [isPending, startTransition] = useTransition();
 
     const { status } = useSession()
 
     const { showAlert: alert } = useApp();
-    const { navigate } = useRouterActions();
+    const { navigate, navigateBack } = useRouterActions();
 
     const useRegister = useCourseRegister();
     const { data, isLoading, isError, error } = useQuery(userQueries.courseProgress(status, { courseId: courseId }));
@@ -57,6 +60,15 @@ export default function FooterPreview({ courseId }) {
     return (
         <footer className="preview-footer">
             <button
+                className="back-btn"
+                onClick={navigateBack}
+            >
+                <FaArrowLeft fontSize={14} />
+                <span>
+                    Back
+                </span>
+            </button>
+            <button
                 className={`join_btn ${Math.round(course?.cost) === 0 ? 'free' : 'paid'}`}
                 disabled={isLoading || isError || useRegister.isPending || isPending}
                 onClick={handleSubmit}
@@ -78,6 +90,11 @@ export default function FooterPreview({ courseId }) {
                             :
                             course?.cost
                 }
+            </button>
+            <button
+                className="settings-btn"
+            >
+                <IoSettingsSharp fontSize={16} />
             </button>
         </footer>
     )

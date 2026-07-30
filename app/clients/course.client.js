@@ -102,5 +102,15 @@ export const courseClient = {
         }
 
         return res.data
+    },
+
+    deleteFavorite: async ({ courseId }) => {
+        const res = await api.delete('/course/unfavorite', { params: { courseId } })
+
+        if (!res.success) {
+            throw new Error('Failed to delete favorite status, try again later')
+        }
+
+        return res.success
     }
 }

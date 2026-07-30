@@ -296,5 +296,21 @@ export const courseDb = {
         const query = `select * from voting_comment($${params.length - 2}, $${params.length - 1}, $${params.length});`;
 
         return await sql.query(query, params);
+    },
+
+    deleteFavorite: async (data) => {
+        const { userId, courseId } = data;
+
+        const params = [];
+
+        params.push(userId, courseId);
+
+        const query = `
+            DELETE FROM course.favorite
+            WHERE user_id = (SELECT id FROM private.users WHERE public_id = $1)
+            AND course_id = (SELECT id FROM public.course WHERE public_id = $2)
+        `;
+
+        return await sql.query(query, params);
     }
 }

@@ -25,25 +25,22 @@ export default function Footer() {
                         <p className="footer-text">Learn, create, and grow with CodeDev.</p>
                     </div>
 
-                    {/* Quick Links */}
                     <div className="footer-column">
-                        <h4 className="footer-title">Navigation</h4>
+                        <h4 className="footer-title">Resources</h4>
                         <nav className="footer-nav">
                             <Link href="/home">Home</Link>
                             <Link href="/course">Course</Link>
                             <Link href="/roadmap">Roadmap</Link>
-                            <Link href="/event">Event</Link>
+                            <Link href="/learning">Learning</Link>
+                            <Link href="/blog">Blog</Link>
                         </nav>
                     </div>
 
-                    {/* Resources */}
                     <div className="footer-column">
-                        <h4 className="footer-title">Resources</h4>
+                        <h4 className="footer-title">Community</h4>
                         <nav className="footer-nav">
-                            <Link href="/home?tab=overview">Overview</Link>
-                            <Link href="/home?tab=learning">Learning</Link>
-                            <Link href="/home?tab=connection">Connection</Link>
-                            <Link href="/help">Help</Link>
+                            <Link href="/contact">Contact</Link>
+                            <Link href="/connect">Connect</Link>
                         </nav>
                     </div>
 

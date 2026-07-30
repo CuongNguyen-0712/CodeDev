@@ -5,14 +5,15 @@
     width: 100%;
     padding: 80px 24px 40px 24px;
     background: transparent;
+    flex-wrap: wrap;
     gap: 24px;
 }
 
 #overview_sidebar {
     display: flex;
-    max-width: 400px;
-    min-width: 300px;
-    flex-grow: 1;
+    width: 40%;
+    min-width: 320px;
+    max-width: 450px;
     flex-direction: column;
     gap: 24px;
 }
@@ -21,6 +22,7 @@
     display: flex;
     flex-direction: column;
     flex-grow: 1;
+    flex-basis: 0;
     gap: 24px;
 }
 
@@ -31,7 +33,7 @@
     justify-content: center;
     min-height: 250px;
     width: 100%;
-    padding: 32px;
+    padding: 16px 24px;
     border-radius: var(--radius-xl);
     background: var(--gradient-primary);
     box-shadow: var(--shadow-lg), 0 8px 32px rgba(48, 102, 190, 0.3);
@@ -60,12 +62,12 @@
     align-items: center;
     width: max-content;
     gap: 8px;
-    font-size: 13px;
-    padding: 8px 10px;
+    font-size: 12px;
+    padding: 10px 16px;
     font-weight: 600;
-    color: var(--white);
-    background: rgba(255, 255, 255, 0.15);
-    border-radius: var(--radius-sm);
+    color: var(--color-primary);
+    background: var(--white);
+    border-radius: var(--radius-md);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -235,6 +237,7 @@
 /* ==================== Skills Card ==================== */
 .overview-skills {
     display: flex;
+    width: 100%;
     flex-direction: column;
     border-radius: var(--radius-xl);
     background: var(--gradient-card);
@@ -396,13 +399,14 @@
 /* ==================== Progress Card ==================== */
 .overview-progress {
     display: flex;
+    width: 100%;
     border-radius: var(--radius-xl);
     background: var(--gradient-card);
     box-shadow: var(--shadow-lg);
     border: 1px solid rgba(48, 102, 190, 0.15);
-    overflow: hidden;
     flex-direction: column;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
 }
 
 .overview-progress:hover {
@@ -413,10 +417,6 @@
 .progress-content {
     display: flex;
     height: 350px;
-    width: 200%;
-    padding: 20px 10px 20px 20px;
-    transform: translateX(0);
-    gap: 40px;
     transition: transform 0.3s ease;
     overflow: hidden;
 }
@@ -428,7 +428,8 @@
 .progress-list {
     display: flex;
     flex-grow: 1;
-    width: calc(50% - 20px);
+    padding: 16px;
+    flex-basis: 100%;
     flex-direction: column;
     gap: 12px;
 }
@@ -502,10 +503,11 @@
     transition: 0.2s all ease;
 }
 
-.progress-detail {
+.progress-content .progress-detail {
+    display: flex;
+    padding: 16px;
     flex-grow: 1;
-    width: calc(50% - 20px);
-    padding-right: 10px;
+    flex-basis: 100%;
     overflow-y: auto;
 }
 
@@ -524,6 +526,8 @@
 
 .progress_detail_frame {
     display: flex;
+    height: max-content;
+    width: 100%;
     flex-direction: column;
     gap: 12px
 }
@@ -531,13 +535,14 @@
 .course-item {
     display: flex;
     align-items: center;
-    gap: 12px;
     padding: 12px;
+    width: 100%;
     border-radius: var(--radius-sm);
     background: rgba(255, 255, 255, 0.8);
     border: 1px solid rgba(48, 102, 190, 0.1);
     text-decoration: none;
     transition: all 0.2s ease;
+    gap: 12px;
 }
 
 .course-item:hover {
@@ -584,13 +589,9 @@
     }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 425px) {
     #overview {
-        padding: 70px 16px 32px 16px;
-    }
-
-    .overview-welcome {
-        padding: 24px;
+        padding: 70px 16px 20px 16px;
     }
 
     .welcome-text h1 {
@@ -830,6 +831,7 @@
 
 .course-card .card-body {
     display: flex;
+    justify-content: space-between;
     flex-direction: column;
     padding: 24px 20px;
     gap: 16px;
@@ -903,8 +905,7 @@
 .course-card .course-progress {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    margin-top: auto;
+    gap: 12px;
 }
 
 .course-card .progress-header {
@@ -2567,7 +2568,8 @@
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    padding: 28px 30px;
+    min-height: 200px;
+    padding: 16px 24px;
     border-radius: var(--radius-xl);
     background: var(--gradient-primary);
     box-shadow: var(--shadow-lg);
@@ -2579,7 +2581,7 @@
 .header-text {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 16px;
 }
 
 .header-text .header-label {
@@ -2587,13 +2589,12 @@
     align-items: center;
     width: max-content;
     gap: 8px;
-    font-size: 13px;
-    font-weight: 500;
-    padding: 8px 10px;
+    font-size: 12px;
+    padding: 10px 16px;
     font-weight: 600;
-    color: var(--white);
-    background: rgba(255, 255, 255, 0.15);
-    border-radius: var(--radius-sm);
+    color: var(--color-primary);
+    background: var(--white);
+    border-radius: var(--radius-md);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -2639,6 +2640,12 @@
 @media screen and (max-width: 768px) {
     #overview {
         flex-direction: column;
+    }
+
+    #overview_sidebar {
+        width: 100%;
+        min-width: 0;
+        max-width: none;
     }
 
     .header-text h1 {
