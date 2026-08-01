@@ -1,17 +1,7 @@
 /* ==================== Roadmap Grid View ==================== */
-#roadmap {
-    display: flex;
-    flex-grow: 1;
-    width: 100%;
-    padding: 80px 24px 40px;
-    background: transparent;
-    flex-direction: column;
-    gap: 20px;
-}
-
 #roadmap_list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     width: 100%;
     gap: 24px;
 }
@@ -27,7 +17,7 @@
     border-radius: var(--radius-lg);
     text-align: left;
     flex-direction: column;
-    border: 1px solid rgba(48, 102, 190, 0.08);
+    border: 1px solid var(--gray-200);
     box-shadow: var(--shadow-sm);
     cursor: pointer;
     overflow: hidden;
@@ -38,7 +28,7 @@
 #roadmap_list .roadmap_card:hover {
     transform: translateY(-6px);
     box-shadow: var(--shadow-xl);
-    border-color: rgba(48, 102, 190, 0.2);
+    border-color: var(--gray-400);
 }
 
 .card_decor_line {

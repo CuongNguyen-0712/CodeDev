@@ -1,0 +1,39 @@
+#auth .form_options {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+#auth .remember_me {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+#auth .remember_me input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+}
+
+#auth .remember_me span {
+    font-size: 13px;
+    color: var(--gray-400);
+    font-weight: 500;
+}
+
+#auth .forgot_link {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-primary);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+#auth .forgot_link:hover {
+    color: var(--purple-500);
+}

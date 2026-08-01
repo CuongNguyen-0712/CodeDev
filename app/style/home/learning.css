@@ -1,0 +1,490 @@
+#overview_sidebar {
+    display: flex;
+    width: 40%;
+    min-width: 320px;
+    max-width: 450px;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.overview-analytics {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+/* Skill */
+.overview-skills {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    border-radius: var(--radius-xl);
+    background: var(--gradient-card);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid rgba(48, 102, 190, 0.15);
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.overview-skills:hover {
+    box-shadow: var(--shadow-xl), 0 0 40px rgba(48, 102, 190, 0.1);
+    border-color: rgba(48, 102, 190, 0.25);
+}
+
+#overview .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid rgba(48, 102, 190, 0.1);
+}
+
+#overview .card-header .header-title {
+    display: flex;
+    align-items: center;
+    cursor: default;
+    gap: 12px;
+}
+
+#overview .card-header .header-title svg {
+    color: var(--color-primary);
+}
+
+#overview .card-header .header-title span {
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+}
+
+#overview .card-header .header-title span h5 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    color: var(--black);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+#overview .card-header .header-title span p {
+    font-size: 12px;
+    color: var(--black);
+}
+
+#overview .card-header button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    font-weight: 600;
+    color: var(--color-primary);
+    background: rgba(48, 102, 190, 0.1);
+    border-radius: 100px;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.card-header button:hover {
+    background: rgba(48, 102, 190, 0.15);
+}
+
+.card-header button svg {
+    transition: transform 0.2s ease;
+}
+
+.skills-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 20px 24px;
+    overflow-y: auto;
+    transition: max-height 0.3s ease;
+}
+
+.skills-content::-webkit-scrollbar {
+    width: 4px;
+}
+
+.skills-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.skills-content::-webkit-scrollbar-thumb {
+    background: var(--gray-200);
+    border-radius: 2px;
+}
+
+.skill-item {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+    background: rgba(48, 102, 190, 0.04);
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(48, 102, 190, 0.08);
+    transition: all 0.2s ease;
+}
+
+.skill-item:hover {
+    background: rgba(48, 102, 190, 0.08);
+    border-color: rgba(48, 102, 190, 0.15);
+}
+
+.skill-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.skill-header img {
+    border-radius: var(--radius-sm);
+}
+
+.skill-name {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--black);
+}
+
+.skill-percent {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-primary);
+}
+
+.skill-bar {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--gray-200);
+    overflow: hidden;
+}
+
+.skill-progress {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    text-align: center;
+    font-size: 14px;
+    color: var(--gray-400);
+}
+
+/* Learning Progress */
+.overview-progress {
+    display: flex;
+    width: 100%;
+    border-radius: var(--radius-xl);
+    background: var(--gradient-card);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid rgba(48, 102, 190, 0.15);
+    flex-direction: column;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+}
+
+.overview-progress:hover {
+    box-shadow: var(--shadow-xl), 0 0 40px rgba(48, 102, 190, 0.1);
+    border-color: rgba(48, 102, 190, 0.25);
+}
+
+.progress-content {
+    display: flex;
+    height: 350px;
+    transition: transform 0.3s ease;
+    overflow: hidden;
+}
+
+.progress-content.active {
+    transform: translateX(-50%);
+}
+
+.progress-list {
+    display: flex;
+    flex-grow: 1;
+    padding: 16px;
+    flex-basis: 100%;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.progress-item {
+    display: flex;
+    align-items: center;
+    flex-grow: 1;
+    gap: 14px;
+    padding: 16px 30px 16px 16px;
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    background: rgba(48, 102, 190, 0.04);
+    border: 1px solid rgba(48, 102, 190, 0.08);
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.progress-item:hover {
+    background: rgba(48, 102, 190, 0.06);
+    border-color: rgba(48, 102, 190, 0.12);
+}
+
+.progress-item.active {
+    background: rgba(48, 102, 190, 0.08);
+    border-color: rgba(48, 102, 190, 0.2);
+}
+
+.progress-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    background: rgba(48, 102, 190, 0.08);
+    font-size: 18px;
+}
+
+.progress-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.progress-status {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.progress-count {
+    font-size: 12px;
+    color: var(--gray-400);
+    transition: 0.2s all ease;
+}
+
+.progress-item:hover .progress-count {
+    color: var(--black);
+    transition: 0.2s all ease;
+}
+
+.progress-item .arrow {
+    color: var(--gray-400);
+    transition: 0.2s all ease;
+}
+
+.progress-item:hover .arrow {
+    color: var(--color-primary);
+    transition: 0.2s all ease;
+}
+
+.progress-content .progress-detail {
+    display: flex;
+    padding: 16px;
+    flex-grow: 1;
+    flex-basis: 100%;
+    overflow-y: auto;
+}
+
+.progress-detail::-webkit-scrollbar {
+    width: 4px;
+}
+
+.progress-detail::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.progress-detail::-webkit-scrollbar-thumb {
+    background: var(--gray-400);
+    border-radius: 2px;
+}
+
+.progress_detail_frame {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+    gap: 12px
+}
+
+.course-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    width: 100%;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(48, 102, 190, 0.1);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    gap: 12px;
+}
+
+.course-item:hover {
+    background: var(--white);
+    box-shadow: var(--shadow-sm);
+}
+
+.course-item img {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+    border-radius: var(--radius-sm);
+}
+
+.course-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.course-info h5 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--black);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.course-info span {
+    font-size: 11px;
+    color: var(--gray-400);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.course .course-recently,
+.course .course-enrolled {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+}
+
+.course-recently h3,
+.course-enrolled h3 {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    height: max-content;
+    width: 100%;
+    padding: 10px 0;
+}
+
+.list-course {
+    display: flex;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.list-course .course-item {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    height: 100%;
+    padding: 10px 20px;
+    border-radius: 10px;
+    border: 1px solid var(--black);
+    flex-grow: 1;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.course-item .item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    height: max-content;
+    width: 100%;
+    gap: 20px;
+}
+
+.course-item .item>span {
+    display: flex;
+    height: max-content;
+    width: max-content;
+    margin-top: 5px;
+    font-size: 30px;
+}
+
+.course-item .item .info {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: max-content;
+    width: 100%;
+    flex-direction: column;
+}
+
+.course-item .info span {
+    display: flex;
+    flex-direction: row;
+    gap: 5px;
+}
+
+.course-item .info .progress-bar {
+    display: flex;
+    align-items: flex-start;
+    height: max-content;
+    width: 100%;
+    margin-top: 10px;
+    gap: 10px;
+    flex-direction: column;
+}
+
+.progress-bar .bar {
+    display: flex;
+    align-items: center;
+    height: max-content;
+    width: 100%;
+    gap: 10px;
+}
+
+.progress-bar .bar p {
+    display: flex;
+    height: 10px;
+    width: 70%;
+    border-radius: 5px;
+    outline: 1px solid #ccc;
+    overflow: hidden;
+}
+
+.course-btn {
+    display: flex;
+    justify-content: flex-end;
+    height: max-content;
+    width: 100%;
+}
+
+.course-btn button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: max-content;
+    width: max-content;
+    padding: 10px 15px;
+    background: var(--black);
+    color: #fff;
+    font-weight: 500;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+@media screen and (max-width: 768px) {
+    #overview_sidebar {
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+    }
+}

@@ -1,0 +1,45 @@
+.step_navigation {
+    display: flex;
+    gap: 20px;
+}
+
+.nav_btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-md);
+    background: var(--gray-200);
+    color: var(--gray-400);
+    font-size: 16px;
+    cursor: not-allowed;
+    transition: all 0.3s ease;
+}
+
+.nav_btn.active {
+    background: var(--gradient-primary);
+    color: var(--white);
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+}
+
+.nav_btn.active:hover {
+    transform: scale(1.05);
+    box-shadow: var(--shadow-md);
+}
+
+.form_steps {
+    display: flex;
+    width: 200%;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.form_step {
+    display: flex;
+    justify-content: space-evenly;
+    flex-direction: column;
+    flex: 0 0 50%;
+    padding: 35px 10px;
+    gap: 30px;
+}
