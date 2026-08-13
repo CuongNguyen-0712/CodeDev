@@ -1,12 +1,17 @@
 import { sql } from "@/app/lib/db";
 
 export const courseDb = {
-    getCourseDetails: async (courseId) => {
+    getCourseDetails: async (data) => {
+        const { userId, courseId } = data;
+
         const conditions = []
         const params = []
 
-        params.push(courseId)
+        if (userId) {
+            params.push(userId)
+        }
 
+        params.push(courseId)
         conditions.push(`c.id = (select id from public.course where public_id = $${params.length})`)
 
         const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -18,6 +23,9 @@ export const courseDb = {
             lang.logo  AS language_logo,
             lang.color AS language_color,
             cat.name   AS category_name,
+            COALESCE(f.id, null) AS is_favorite,
+            ${userId ? `COALESCE(r.status, null) AS status,` : ''}
+            ${userId ? `COALESCE(r.progress, 0) AS progress,` : ''}
             (
                 SELECT json_agg(
                     json_build_object(
@@ -45,12 +53,15 @@ export const courseDb = {
                 WHERE m.course_id = c.id
                 AND m.is_deleted = false
             ) AS modules
-
         FROM public.course c
         JOIN public.language lang
             ON lang.id = c.language_id
         JOIN public.category cat
             ON cat.id = c.category_id
+        LEFT JOIN course.favorite f
+            ON f.course_id = c.id
+            AND f.user_id = (SELECT id FROM private.users WHERE public_id = $1)
+        ${userId ? `LEFT JOIN course.register r ON r.course_id = c.id AND r.user_id = (SELECT id FROM private.users WHERE public_id = $1) AND r.is_deleted = false` : ''}
         ${whereSQL}
         LIMIT 1;
     `
@@ -64,19 +75,8 @@ export const courseDb = {
         const conditions = [];
         const params = [];
 
-        if (userId) {
-            params.push(userId);
+        params.push(userId);
 
-            conditions.push(`
-            c.id NOT IN (
-                SELECT c2.id
-                FROM course.register r
-                JOIN public.course c2 ON r.course_id = c2.id
-                    WHERE r.user_id = (select id from private.users where public_id = $${params.length})
-                    AND r.is_deleted = false
-                    )
-            `);
-        }
         if (search) {
             params.push(`%${search.toLowerCase()}%`);
             conditions.push(`LOWER(c.title) LIKE $${params.length}`);
@@ -91,13 +91,12 @@ export const courseDb = {
             }
         }
 
-        if (levels && levels.length) {
-            const levelArray = levels.map(l => l.trim());
-            params.push(levelArray);
+        if (levels.length > 0) {
+            params.push(levels);
             conditions.push(`c.level = ANY($${params.length}::level_enum[])`);
         }
 
-        if (ratings && ratings.length) {
+        if (ratings.length > 0) {
             const ratingArray = ratings.map(r => parseInt(r.trim(), 10)).filter(Number.isInteger);
             params.push(ratingArray);
             conditions.push(`c.rating = ANY($${params.length}::integer[])`);
@@ -119,29 +118,31 @@ export const courseDb = {
             SELECT 
                 c.public_id as id,
                 c.title,
-                c.description,
                 c.image,
                 c.rating,
                 c.modules,
                 c.lessons,
                 c.cost,
                 c.level,
-                c.concept,
                 c.duration,
                 c.instructor,
                 c.points,
-                c.reviews,
                 c.duration,
                 l.name as language_name,
                 l.logo as language_logo,
                 l.color as language_color,
-                cat.name as category_name
+                cat.name as category_name,
+                COALESCE(r.status, null) as is_registered
             FROM public.course c
             JOIN public.language l ON c.language_id = l.id
             JOIN public.category cat ON c.category_id = cat.id
+            LEFT JOIN course.register r ON r.course_id = c.id 
+                AND r.user_id = (SELECT id FROM private.users WHERE public_id = $1)
+                AND r.is_deleted = false
             ${whereSQL}
+            ${!search ? 'AND c.id not in (select course_id from course.register where user_id = (select id from private.users where public_id = $1) and is_deleted = false)' : ''}
             ORDER BY c.id DESC
-            LIMIT 21
+            LIMIT 21;
         `;
 
         return await sql.query(query, params);
@@ -233,7 +234,11 @@ export const courseDb = {
         const conditions = [];
         const params = [];
 
-        params.push(userId, courseId);
+        if (userId) {
+            params.push(userId);
+        }
+
+        params.push(courseId);
         conditions.push(`m.reference_id = (select id from public.course where public_id = $${params.length})`);
 
         if (lastCreated) {
@@ -252,13 +257,17 @@ export const courseDb = {
                 m.content as comment,
                 m.upvotes as upvotes,
                 m.downvotes as downvotes,
-                coalesce(v.voting, null) as vote,
+                ${userId ? `coalesce(v.voting, null) as vote,` : ''}
                 m.created_at as created_at
             FROM public.comment m
             JOIN private.info i ON m.user_id = i.user_id
             JOIN private.users u on m.user_id = u.id
-            LEFT JOIN private.voting v on v.reference_id = m.id
-                AND v.user_id = (select id from private.users where public_id = $${1})
+            ${userId ?
+                `LEFT JOIN private.voting v on v.reference_id = m.id
+                    AND v.user_id = (select id from private.users where public_id = $1)`
+                :
+                ''
+            }
             ${whereSQL}
             ORDER BY m.created_at DESC
             LIMIT 21

@@ -1955,6 +1955,7 @@ input:-webkit-autofill {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    position: relative;
     height: 100%;
     width: 100%;
     padding: 0 24px;
@@ -2220,7 +2221,6 @@ input:-webkit-autofill {
     padding: 12px;
     background: transparent;
     text-decoration: none;
-    gap: 14px;
 }
 
 .dropdown-header:hover {
@@ -2242,10 +2242,10 @@ input:-webkit-autofill {
     height: max-content;
     min-width: 0;
     flex: 1;
+    padding: 10px 12px;
 }
 
 .dropdown-user h4 {
-    font-size: 15px;
     font-weight: 700;
     color: var(--black);
     white-space: nowrap;
@@ -2255,6 +2255,7 @@ input:-webkit-autofill {
 
 .dropdown-user p {
     font-size: 12px;
+    line-height: 1.4;
     color: var(--gray-600);
     white-space: nowrap;
     overflow: hidden;
@@ -2409,7 +2410,7 @@ input:-webkit-autofill {
     }
 }
 
-@media screen and (max-width: 480px) {
+@media screen and (max-width: 425px) {
     #navbar {
         padding: 0 12px;
     }
@@ -2441,13 +2442,21 @@ input:-webkit-autofill {
     }
 
     .account-dropdown {
-        width: 260px;
-    }
-}
-
-@media screen and (max-width: 375px) {
-    .nav-brand {
         display: none;
+    }
+
+    .account-arrow {
+        display: none;
+    }
+
+    .account-trigger {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+    }
+
+    .account-avatar {
+        border-radius: 50%;
     }
 }
 
@@ -3216,9 +3225,9 @@ input:-webkit-autofill {
 /* Load More */
 .load-more-wrapper {
     display: flex;
-    align-items: center;
-    justify-content: center;
     width: 100%;
-    padding: 32px 20px;
+    grid-column: 1 / -1;
+    width: 100%;
+    padding: 20px 0;
     gap: 12px;
 }

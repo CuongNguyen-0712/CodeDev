@@ -14,6 +14,8 @@ import { CourseItem } from "./courseItem";
 
 import { FaBookOpen } from "react-icons/fa";
 
+import "@/app/style/course/course.css"
+
 export default function CoursePage() {
     const filterMapping = [
         {
@@ -105,8 +107,8 @@ export default function CoursePage() {
     const courses = data?.pages?.flatMap(page => page.data) ?? [];
 
     return (
-        <section id="course-marketplace">
-            <div className="marketplace-header">
+        <section className='shared_section' id="course">
+            <div className="course_header">
                 <SearchBar
                     data={filterMapping}
                     setSearch={(data) => setState(prev => ({ ...prev, search: data }))}
@@ -145,7 +147,7 @@ export default function CoursePage() {
             {hasNextPage && (
                 <div className="load-more-wrapper" ref={setRef}>
                     <LoadingContent
-                        scale={0.5}
+                        scale={0.6}
                         message={isError && (error?.message || "Something is wrong, check your connection")}
                     />
                 </div>

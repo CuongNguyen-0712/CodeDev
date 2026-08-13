@@ -1,21 +1,21 @@
 'use client';
+import { Suspense } from 'react';
 
-import {Suspense} from 'react';
 import { useSearchParams } from 'next/navigation';
-import AuthError from '@/app/component/auth/error';
+
+import ErrorPage from '@/app/component/auth/errorPage';
+
 import { LoadingContent } from "@/app/component/ui/loading";
 
-const ErrorContent = () => {
+import '@/app/style/auth/error.css';
+
+export default function AuthErrorPage() {
   const searchParams = useSearchParams();
   const error = searchParams.get('error');
 
-  return <AuthError error={error} />;
-};
-
-export default function AuthErrorPage() {
   return (
     <Suspense fallback={<LoadingContent />}>
-      <ErrorContent />
+      <ErrorPage error={error} />
     </Suspense>
   );
 };

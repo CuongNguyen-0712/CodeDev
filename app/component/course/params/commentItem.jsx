@@ -2,9 +2,14 @@ import { memo, useMemo } from "react";
 
 import Link from "next/link";
 
-import { FaThumbsUp, FaThumbsDown } from "react-icons/fa";
+import { useSession } from 'next-auth/react';
+
+
+import { IoHeart, IoHeartDislike } from "react-icons/io5";
 
 import { useCourseVotingComment } from "@/app/mutation/course.mutation";
+
+import "@/app/style/course/[id]/item.css";
 
 const formatDate = (str) => {
     const now = new Date();
@@ -29,12 +34,15 @@ const formatDate = (str) => {
 };
 
 const CommentItem = ({ data, courseId }) => {
+    const { data: session } = useSession();
     const useVoting = useCourseVotingComment();
 
     const formattedDate = useMemo(() => formatDate(data.created_at), [data.created_at]);
 
     const handleVoting = async (e) => {
         e.preventDefault();
+
+        if (!session || useVoting.isPending) return;
 
         const voteType = e.currentTarget.name;
 
@@ -72,7 +80,7 @@ const CommentItem = ({ data, courseId }) => {
                         onClick={handleVoting}
                         className={`vote-btn upvote ${data.vote === 'upvote' ? 'active' : ''}`}
                     >
-                        <FaThumbsUp fontSize={14} />
+                        <IoHeart fontSize={18} />
                         <span>{data.upvotes}</span>
                     </button>
                     <button
@@ -80,7 +88,7 @@ const CommentItem = ({ data, courseId }) => {
                         onClick={handleVoting}
                         className={`vote-btn downvote ${data.vote === 'downvote' ? 'active' : ''}`}
                     >
-                        <FaThumbsDown fontSize={14} />
+                        <IoHeartDislike fontSize={18} />
                         <span>{data.downvotes}</span>
                     </button>
                 </div>

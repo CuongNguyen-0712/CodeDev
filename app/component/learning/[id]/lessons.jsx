@@ -13,6 +13,8 @@ import { courseQueries } from "@/app/query/course.query";
 
 import { ErrorReload } from "../../ui/error";
 
+import "@/app/style/learning/[id]/lesson.css"
+
 export function SubmitLessonButton({ lessonId, courseId, isSubmit }) {
     const submitLesson = useCourseSubmitLesson();
 

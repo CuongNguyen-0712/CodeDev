@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 
 import { usePathname } from "next/navigation";
 import Image from "next/image";
@@ -10,6 +10,8 @@ import { useAuth } from "@/app/contexts/authContext";
 
 import { useRouterActions } from "@/app/router/useRouterActions";
 
+import useOutside from "@/app/hooks/useOutside";
+
 import { FaHome, FaChevronLeft, FaBookOpen, FaRegQuestionCircle, FaCode } from "react-icons/fa";
 import { IoSettingsSharp } from "react-icons/io5";
 import { MdHelpCenter, MdOutlineFeedback } from "react-icons/md";
@@ -20,8 +22,6 @@ import { IoMdContacts } from "react-icons/io";
 
 export default function Dashboard({ isDashboard, handleDashboard }) {
   const { session, status } = useAuth();
-
-  const dashBoardRef = useRef(null);
 
   const pathname = usePathname();
   const { navigate } = useRouterActions();
@@ -64,20 +64,10 @@ export default function Dashboard({ isDashboard, handleDashboard }) {
     items: section.items.filter(item => item.access === 'public')
   }));
 
-  const refDashboard = (e) => {
-    e.stopPropagation();
-    if (!dashBoardRef.current || !isDashboard) return;
-
-    if (!dashBoardRef.current.contains(e.target)) {
-      handleDashboard(false);
-      document.body.classList.remove('overlay');
-    }
-  };
-
-  useEffect(() => {
-    document.addEventListener('mousedown', refDashboard);
-    return () => document.removeEventListener('mousedown', refDashboard);
-  }, [isDashboard, handleDashboard]);
+  const ref = useOutside({
+    stateOutside: isDashboard,
+    setStateOutside: () => handleDashboard(false)
+  });
 
   const handleRouter = (value) => {
     handleDashboard(false);
@@ -86,7 +76,7 @@ export default function Dashboard({ isDashboard, handleDashboard }) {
   }
 
   return (
-    <aside id="aside" className={isDashboard ? "active" : ""} ref={dashBoardRef}>
+    <aside id="aside" className={isDashboard ? "active" : ""} ref={ref}>
       <div id="dashboard">
         {/* Header */}
         <div className="dash-header">

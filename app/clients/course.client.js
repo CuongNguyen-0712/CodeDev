@@ -2,11 +2,7 @@ import { api } from '@/app/lib/axios'
 
 export const courseClient = {
     getDetails: async (courseId) => {
-        const res = await api.get('/course/courseDetails', {
-            params: {
-                courseId
-            }
-        })
+        const res = await api.get('/course/course-details', { params: { courseId } })
         if (!res.success) {
             throw new Error('Failed to fetch course details, try again later')
         }
@@ -16,7 +12,7 @@ export const courseClient = {
     },
 
     getList: async (params) => {
-        const res = await api.get('/course/courseList', { params })
+        const res = await api.get('/course/courses', { params })
         if (!res.success) {
             throw new Error('Failed to fetch course list, try again later')
         }
@@ -54,7 +50,7 @@ export const courseClient = {
     },
 
     postSubmitLesson: async ({ courseId, lessonId }) => {
-        const res = await api.post('/course/submitLesson', { courseId, lessonId })
+        const res = await api.post('/course/submit-lesson', { courseId, lessonId })
 
         if (!res.success) {
             throw new Error('Failed to submit lesson, try again later')
@@ -73,9 +69,9 @@ export const courseClient = {
         return res.success
     },
 
-    getComments: async ({ courseId }) => {
+    getComments: async (params) => {
 
-        const res = await api.get('/course/commentList', { params: { courseId } })
+        const res = await api.get('/course/comments', { params })
 
         if (!res.success) {
             throw new Error('Failed to fetch comments, try again later')
@@ -95,7 +91,7 @@ export const courseClient = {
     },
 
     postVotingComment: async ({ commentId, vote }) => {
-        const res = await api.post('/course/votingComment', { commentId, vote })
+        const res = await api.post('/course/vote-comment', { commentId, vote })
 
         if (!res.success) {
             throw new Error('Failed to vote on comment, try again later')

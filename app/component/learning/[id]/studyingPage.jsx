@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef, useTransition } from "react"
+import { useState, useEffect, useTransition } from "react"
 
 import { LoadingContent } from "../../ui/loading";
 import { ErrorReload } from "../../ui/error";
@@ -20,6 +20,8 @@ import { MdInfoOutline } from "react-icons/md";
 import { TbLayoutSidebarLeftCollapseFilled, TbReload } from "react-icons/tb";
 import { IoMdList } from "react-icons/io";
 import { BiMessageSquareDetail } from "react-icons/bi";
+
+import "@/app/style/learning/[id]/study.css"
 
 export default function StudyingPage({ params }) {
     const { navigateBack, navigate } = useRouterActions();
@@ -66,7 +68,7 @@ export default function StudyingPage({ params }) {
     }
 
     return (
-        <div id="course_page_layout">
+        <div id="studying_page_layout">
             <nav className="nav_layout_params">
                 <div className="nav_layout_heading">
                     <button onClick={navigateBack}>

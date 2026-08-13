@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { LuArrowLeft } from 'react-icons/lu';
 
-export default function AuthError({ error = "Configuration" }) {
+export default function ErrorPage({ error = "Configuration" }) {
 
   const errorMessages = {
     Configuration: "A server configuration error has occurred. Please try again later.",

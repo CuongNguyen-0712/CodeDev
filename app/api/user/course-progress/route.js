@@ -14,17 +14,18 @@ export async function GET(req) {
             throw new ApiError("Unauthorized", 401);
         }
 
+        const userId = session.user.id;
+
         const { searchParams } = new URL(req.url);
 
-        const courseId = searchParams.get('courseId');
         const search = searchParams.get('search');
         const levels = searchParams.getAll('level[]');
         const statuses = searchParams.getAll('status[]');
-        const markeds = searchParams.getAll('marked[]');
 
-        const userId = session.user.id;
+        const cursor = searchParams.get('nextCursor');
+        const nextCursor = cursor ? JSON.parse(Buffer.from(cursor, 'base64url').toString('utf-8')) : null;
 
-        const data = { userId, courseId, search, levels, statuses, markeds };
+        const data = { userId, search, levels, statuses, nextCursor };
 
         const response = await userService.getCourseProgress(data);
 

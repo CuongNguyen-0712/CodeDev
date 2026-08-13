@@ -20,6 +20,8 @@ import { InputGroup } from "../ui/input"
 import { FaArrowRight, FaArrowLeft, FaGithub, FaUser, FaLock, FaGoogle } from "react-icons/fa6"
 import { MdModeEdit, MdAlternateEmail, MdOutlinePassword } from "react-icons/md"
 
+import '@/app/style/auth/signup.css'
+
 export default function Signup({ active, changeForm }) {
     const [step, setStep] = useState(0)
 

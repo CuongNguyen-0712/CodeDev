@@ -11,7 +11,7 @@ import { courseService } from "@/app/services/course.service";
 export async function generateMetadata({ params }) {
     const { id } = await params;
 
-    const data = await courseService.getDetails(id);
+    const data = await courseService.getDetails({ courseId: id });
     const course = data[0];
 
     if (!course) {

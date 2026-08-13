@@ -1,8 +1,8 @@
 import { courseDb } from "@/app/db/course.db";
 
 export const courseService = {
-    getDetails: async (courseId) => {
-        const response = await courseDb.getCourseDetails(courseId);
+    getDetails: async (data) => {
+        const response = await courseDb.getCourseDetails(data);
 
         if (!response) {
             throw new Error('Failed to fetch course details, try again later');
@@ -20,12 +20,12 @@ export const courseService = {
 
         const LIMIT = 20
         const hasMore = response.length > LIMIT
-        const lastId = hasMore ? response[response.length - 1].id : null
+        const data = response.slice(0, LIMIT)
 
         return {
-            data: response.slice(0, LIMIT),
+            data,
             hasMore,
-            lastId
+            lastId: hasMore ? data[data.length - 1].id : null
         }
     },
 
@@ -79,14 +79,23 @@ export const courseService = {
         return response;
     },
 
-    getComments: async (data) => {
-        const response = await courseDb.getComments(data);
+    getComments: async (params) => {
+        const response = await courseDb.getComments(params);
 
         if (!response) {
             throw new Error('Failed to fetch comments, try again later');
         }
 
-        return response;
+        const LIMIT = 20
+        const hasMore = response.length > LIMIT
+        const data = response.slice(0, LIMIT)
+        const lastCreated = hasMore ? data[data.length - 1].created_at : null
+
+        return {
+            data: response.slice(0, LIMIT),
+            hasMore,
+            lastCreated
+        }
     },
 
     postComment: async (data) => {

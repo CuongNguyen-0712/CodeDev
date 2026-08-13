@@ -19,6 +19,8 @@ import { IoSettingsSharp, IoTrashBin, IoClose, IoReload, IoArchive } from "react
 import { VscDebugContinue } from "react-icons/vsc"
 import { BiDetail } from "react-icons/bi"
 
+import "@/app/style/learning/course.css"
+
 export default function LearningCourse({ item }) {
     const [openSetting, setOpenSetting] = useState(false)
     const [formConfirm, setFormConfirm] = useState(null)
@@ -38,11 +40,13 @@ export default function LearningCourse({ item }) {
     const isArchived = item.status !== 'enrolled'
     const isFavorited = item.is_favorite ?? false
 
-    const handleWithdrawCourse = async ({ id, course }) => {
-        try {
-            await withdrawMutation.mutateAsync(id)
+    const handleWithdrawCourse = async (e) => {
+        e.preventDefault();
 
-            alert(200, `Successfully withdrew the course: ${course}.`)
+        try {
+            await withdrawMutation.mutateAsync(item.id)
+
+            alert(200, `Successfully withdrew the course: ${item.title}.`)
         }
         catch (error) {
             alert(500, "An error occurred while withdrawing the course.");
@@ -76,9 +80,9 @@ export default function LearningCourse({ item }) {
     }
 
     return (
-        <div className="course-card">
+        <div className="learning-card">
             <div className="card-header">
-                <div className="course-icon">
+                <div className="learning-icon">
                     <img
                         src={item.language_logo || '/image/static/no_image.png'}
                         alt={item.language_name || 'No Image'}
@@ -98,26 +102,28 @@ export default function LearningCourse({ item }) {
 
             {/* Card Body */}
             <div className="card-body">
-                <h3 className="course-title">{item.title}</h3>
-                <p className="course-concept">{item.concept}</p>
+                <div className="learning-info">
+                    <h3 className="learning-title">{item.title}</h3>
+                    <p className="learning-concept">{item.concept}</p>
 
-                <div className="course-meta">
-                    <span className="meta-item level">
-                        <FaGraduationCap />
-                        {levelMapping[item.level].label || '__'}
-                    </span>
-                    <span className="meta-item language">
-                        <FaCode />
-                        {item.language_name || '__'}
-                    </span>
-                    <span className="meta-item category">
-                        <MdCategory />
-                        {item.category_name || '__'}
-                    </span>
+                    <div className="learning-meta">
+                        <span className="meta-item level">
+                            <FaGraduationCap />
+                            {levelMapping[item.level].label || '__'}
+                        </span>
+                        <span className="meta-item language">
+                            <FaCode />
+                            {item.language_name || '__'}
+                        </span>
+                        <span className="meta-item category">
+                            <MdCategory />
+                            {item.category_name || '__'}
+                        </span>
+                    </div>
                 </div>
 
                 {/* Progress */}
-                <div className="course-progress">
+                <div className="learning-progress">
                     <div className="progress-header">
                         <span className="progress-label">Progress</span>
                         <span className="progress-value">{progressPercent == 100 ? 'Completed' : `${progressPercent}%`}</span>
@@ -190,37 +196,38 @@ export default function LearningCourse({ item }) {
                             disabled={withdrawMutation.isLoading}
                             onClick={handleNavigate}
                         >
-                            {isNavigating ? (
-                                <LoadingContent scale={0.5} color={"var(--white)"} />
-                            ) : (
-                                (() => {
-                                    switch (parseInt(progressPercent)) {
-                                        case 0:
-                                            return (
-                                                <>
-                                                    <FaPlay />
-                                                    Start
-                                                </>
-                                            )
+                            {
+                                isNavigating ?
+                                    <LoadingContent scale={0.5} color={"var(--white)"} />
+                                    : (
+                                        (() => {
+                                            switch (parseInt(progressPercent)) {
+                                                case 0:
+                                                    return (
+                                                        <>
+                                                            <FaPlay />
+                                                            Start
+                                                        </>
+                                                    )
 
-                                        case 100:
-                                            return (
-                                                <>
-                                                    <IoReload />
-                                                    Review
-                                                </>
-                                            )
+                                                case 100:
+                                                    return (
+                                                        <>
+                                                            <IoReload />
+                                                            Review
+                                                        </>
+                                                    )
 
-                                        default:
-                                            return (
-                                                <>
-                                                    <VscDebugContinue />
-                                                    Continue
-                                                </>
-                                            )
-                                    }
-                                })()
-                            )}
+                                                default:
+                                                    return (
+                                                        <>
+                                                            <VscDebugContinue />
+                                                            Continue
+                                                        </>
+                                                    )
+                                            }
+                                        })()
+                                    )}
                         </button>
                         <Link
                             href={`/course/${item.id}`}
@@ -259,7 +266,7 @@ export default function LearningCourse({ item }) {
                                 <button
                                     className="btn-confirm"
                                     disabled={withdrawMutation.isPending}
-                                    onClick={() => handleWithdrawCourse({ id: item.id, course: item.title })}
+                                    onClick={handleWithdrawCourse}
                                 >
                                     Withdraw
                                 </button>

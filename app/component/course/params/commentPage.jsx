@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 import { useInfiniteQuery } from "@tanstack/react-query";
 
 import Form from 'next/form';
+
+import { useSession } from "next-auth/react";
 
 import { LoadingContent } from "@/app/component/ui/loading";
 import { ErrorReload } from "@/app/component/ui/error";
@@ -18,25 +20,44 @@ import { TextAreaGroup } from "@/app/component/ui/input";
 
 import CommentItem from "./commentItem";
 
+import "@/app/style/course/[id]/comment.css";
+
 export default function CommentPage({ courseId }) {
+    const inputRef = useRef(null);
+    const scrollRef = useRef(null);
+
     const [comment, setComment] = useState({
         content: '',
     })
 
+    const { data: session } = useSession();
     const { showAlert: alert } = useApp()
-
     const useComment = useCourseComment()
 
     const { data, isLoading, isError, refetch, hasNextPage, fetchNextPage, error, isFetchingNextPage } = useInfiniteQuery(courseQueries.comments(courseId))
 
-    const comments = data?.pages?.flatMap(page => page) || [];
+    const comments = data?.pages?.flatMap(page => page.data) || [];
+
+    const scrollToTop = () => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
 
+        if (!session) {
+            alert(401, "You must be logged in to submit a comment.");
+            return
+        }
+
         if (useComment.isPending) return
 
-        if (comment.content.length === 0) {
+        if (comment.content.trim().length === 0) {
             return;
         }
 
@@ -49,6 +70,9 @@ export default function CommentPage({ courseId }) {
             setComment({
                 content: '',
             });
+
+            inputRef.current.focus();
+            scrollToTop();
         }
         catch (error) {
             alert(500, "Failed to submit comment. Please try again later.");
@@ -67,7 +91,7 @@ export default function CommentPage({ courseId }) {
 
     return (
         <div className="comments-sidebar" id="comments" >
-            <div className="comments-container">
+            <div className="comments-container" ref={scrollRef}>
                 {
                     isLoading ?
                         <LoadingContent />
@@ -100,7 +124,7 @@ export default function CommentPage({ courseId }) {
                                         onClick={fetchNextPage}
                                         disabled={isFetchingNextPage || !hasNextPage}
                                     >
-                                        {isFetchingNextPage ? <LoadingContent scale={0.5} /> : "Load more comments"}
+                                        {isFetchingNextPage ? <LoadingContent scale={0.5} /> : "Load more"}
                                     </button>
                                 }
                             </div>
@@ -115,6 +139,7 @@ export default function CommentPage({ courseId }) {
                     value={comment.content}
                     onChange={handleChange}
                     readOnly={useComment.isPending}
+                    ref={inputRef}
                 />
                 <div className="form_actions">
                     <div className="option_actions">
@@ -124,8 +149,8 @@ export default function CommentPage({ courseId }) {
                     </div>
                     <button
                         type="submit"
-                        className={`submit-btn ${comment.content.length > 0 ? 'active' : ''}`}
-                        disabled={useComment.isPending || comment.content.length === 0}
+                        className={`submit-btn ${comment.content.trim().length > 0 ? 'active' : ''}`}
+                        disabled={useComment.isPending || comment.content.trim().length === 0 || comment.content.length > 200}
                     >
                         {
                             useComment.isPending ?

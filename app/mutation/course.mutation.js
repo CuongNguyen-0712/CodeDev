@@ -29,7 +29,7 @@ export const useCourseWithdraw = () => {
         mutationFn: (courseId) => courseClient.postWithdraw(courseId),
 
         //Optimistic Update
-        onMutate: async ({ courseId }) => {
+        onMutate: async (courseId) => {
             await queryClient.cancelQueries({
                 queryKey: userKeys.courseProgress(),
             });
@@ -38,13 +38,30 @@ export const useCourseWithdraw = () => {
                 queryKey: userKeys.courseProgress(),
             });
 
-            previousQueries.forEach(([queryKey, data]) => {
-                if (!data) return;
+            previousQueries.forEach(([queryKey, oldData]) => {
+                if (!oldData) return;
 
-                queryClient.setQueryData(
-                    queryKey,
-                    data.filter(course => course.id !== courseId)
-                );
+                queryClient.setQueryData(queryKey, (old) => {
+                    if (!old) return old;
+
+                    if (old.pages && Array.isArray(old.pages)) {
+                        return {
+                            ...old,
+                            pages: old.pages.map((page) => ({
+                                ...page,
+                                data: Array.isArray(page?.data)
+                                    ? page.data.filter((item) => item.id !== courseId)
+                                    : page?.data || [],
+                            })),
+                        };
+                    }
+
+                    if (Array.isArray(old)) {
+                        return old.filter((item) => item.id !== courseId);
+                    }
+
+                    return old;
+                });
             });
 
             return { previousQueries };
@@ -100,6 +117,10 @@ export const useCourseFavorite = () => {
             queryClient.invalidateQueries({
                 queryKey: userKeys.courseProgress(),
             });
+
+            queryClient.invalidateQueries({
+                queryKey: courseKeys.details(variables.courseId),
+            });
         }
     });
 }
@@ -113,6 +134,10 @@ export const useCourseUnfavorite = () => {
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({
                 queryKey: userKeys.courseProgress(),
+            });
+
+            queryClient.invalidateQueries({
+                queryKey: courseKeys.details(variables.courseId),
             });
         }
     });

@@ -66,7 +66,7 @@ export function InputGroup({ name, label, type, value, onChange, error, icon, re
     )
 }
 
-export function TextAreaGroup({ label, name, value, onChange, rows = 2, cols, error }) {
+export function TextAreaGroup({ label, name, value, onChange, rows = 2, cols, error, ref }) {
     return (
         <div className={`area_input ${value ? 'has-content' : ''}`}>
             <label htmlFor={name}>
@@ -79,6 +79,7 @@ export function TextAreaGroup({ label, name, value, onChange, rows = 2, cols, er
                 name={name}
                 value={value}
                 onChange={onChange}
+                ref={ref}
             />
             {
                 error &&

@@ -7,19 +7,19 @@ const AppContext = createContext(null);
 export const AppProvider = ({ children }) => {
     const params = useSearchParams();
 
-    const [dashboard, setDashboard] = useState(false);
+    const [overlay, setOverlay] = useState(false);
     const [alert, setAlert] = useState(null);
 
     const modal = params.get('modal');
 
     useEffect(() => {
-        const isOverlay = dashboard || modal;
+        const isOverlay = overlay || modal;
         document.body.classList.toggle('overlay', !!isOverlay);
-    }, [dashboard, modal]);
+    }, [overlay, modal]);
 
     const value = {
-        dashboard,
-        setDashboard,
+        overlay,
+        setOverlay,
 
         alert,
         showAlert: (status, message, callback) =>

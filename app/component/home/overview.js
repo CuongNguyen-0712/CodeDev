@@ -14,6 +14,9 @@ import { HiSparkles } from "react-icons/hi2";
 import { FaStar, FaChartLine } from "react-icons/fa";
 import { FaRankingStar } from "react-icons/fa6";
 import { MdEdit } from "react-icons/md";
+
+import "@/app/style/home/welcome.css";
+
 export default function HomeOverview() {
     const { navigate } = useRouterActions();
     const { status } = useSession();
@@ -22,7 +25,6 @@ export default function HomeOverview() {
 
     return (
         <div id="overview_content">
-
             <section className="overview-welcome">
                 {isLoading ?
                     <LoadingContent color={'var(--white)'} />

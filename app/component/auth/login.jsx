@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useTransition } from "react"
 
 import Image from "next/image"
 import Form from "next/form"
@@ -21,6 +21,8 @@ import { InputGroup } from "../ui/input"
 
 import { FaUser, FaLock, FaGithub, FaGoogle } from "react-icons/fa6"
 
+import '@/app/style/auth/login.css'
+
 export default function Login({ active, changeForm }) {
     const [formData, setFormData] = useState({
         username: '',
@@ -29,6 +31,8 @@ export default function Login({ active, changeForm }) {
 
     const [validation, setValidation] = useState({})
     const [isPending, setIsPending] = useState(null)
+
+    const [isNavigating, startTransition] = useTransition()
 
     const { navigateReplace } = useRouterActions()
 
@@ -55,7 +59,9 @@ export default function Login({ active, changeForm }) {
                 authType: "credentials",
             });
 
-            navigateReplace("/home");
+            startTransition(() => {
+                navigateReplace("/home");
+            })
         } catch (error) {
             alert(error.status, error.message);
         }
@@ -165,7 +171,7 @@ export default function Login({ active, changeForm }) {
                 </div>
 
                 <button type="submit" className="btn_submit" disabled={loginMutation.isPending || isPending}>
-                    {loginMutation.isPending ? (
+                    {loginMutation.isPending || isNavigating ? (
                         <LoadingContent scale={0.5} color="var(--white)" />
                     ) : (
                         'Sign In'

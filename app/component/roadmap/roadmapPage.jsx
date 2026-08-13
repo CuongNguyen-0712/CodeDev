@@ -11,6 +11,8 @@ import { roadmapQueries } from "@/app/query/roadmap.query";
 
 import { FaRoute } from 'react-icons/fa';
 
+import "@/app/style/roadmap/roadmap.css";
+
 export default function RoadmapPage() {
     const { navigate } = useRouterActions();
 
@@ -46,7 +48,7 @@ export default function RoadmapPage() {
         //         )}
         //     </div>
         // </div>
-        <section id="roadmap">
+        <section className="shared_section" id="roadmap">
             <div className="header-content">
                 <div className="header-text">
                     <span className="header-label">

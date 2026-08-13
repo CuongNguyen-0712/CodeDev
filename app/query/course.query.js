@@ -7,8 +7,9 @@ export const courseQueries = {
         return {
             queryKey: courseKeys.details(courseId),
             queryFn: () => courseClient.getDetails(courseId),
-            staleTime: 1000 * 60 * 5, // 5 minutes
+            staleTime: 0,
             cacheTime: 1000 * 60 * 10, // 10 minutes
+            gcTime: 1000 * 60 * 5, // 5 minutes
         }
     },
 

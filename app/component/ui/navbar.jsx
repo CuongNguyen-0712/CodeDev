@@ -40,9 +40,15 @@ export default function Navbar({ handleDashboard }) {
   const logoutMutation = useLogOut();
   const queryClient = useQueryClient();
 
+  const handleOusideClick = () => {
+    if (dropdown) {
+      setDropdown(false);
+    }
+  };
+
   const ref = useOutside({
     stateOutside: dropdown,
-    setStateOutside: () => setDropdown(false)
+    setStateOutside: () => handleOusideClick(),
   });
 
   const handleLogout = async () => {
@@ -72,7 +78,6 @@ export default function Navbar({ handleDashboard }) {
   return (
     <section id='header'>
       <nav id="navbar">
-        {/* Left Section - Logo & Menu */}
         <div className="nav-left">
           <button className="nav-icon-btn menu-btn" onClick={() => handleDashboard(true)}>
             <PiListBold fontSize={22} />
@@ -87,7 +92,6 @@ export default function Navbar({ handleDashboard }) {
           </div>
         </div>
 
-        {/* Right Section - Actions */}
         <div className="nav-right">
           {
             status === 'loading' ?

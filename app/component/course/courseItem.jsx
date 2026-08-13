@@ -18,6 +18,8 @@ import { FaStar, FaUser, FaCode, FaCoins } from "react-icons/fa";
 import { BiDetail } from "react-icons/bi";
 import { MdCategory } from "react-icons/md";
 
+import "@/app/style/course/item.css"
+
 export const CourseItem = ({ item }) => {
     const level = levelMapping[item.level] || levelMapping['beginner']
     const cost = Number(item.cost);
@@ -33,7 +35,7 @@ export const CourseItem = ({ item }) => {
 
     const registerMutation = useCourseRegister();
 
-    const handleRegister = async ({ id, isCost }) => {
+    const handleSubmit = async ({ id, isCost }) => {
         if (!session) {
             alert(401, 'Please log in to continue.');
             return;
@@ -44,7 +46,7 @@ export const CourseItem = ({ item }) => {
             return;
         }
 
-        if (dataRegistered.includes(id)) {
+        if (dataRegistered.includes(id) || item?.is_registered) {
             startTransition(() => {
                 navigate({ path: `learning/${id}` });
             });
@@ -134,13 +136,13 @@ export const CourseItem = ({ item }) => {
                 }
                 <button
                     className={`course-enroll-btn ${cost > 0 ? 'paid' : ''}`}
-                    onClick={() => handleRegister({ id: item.id, isCost: cost > 0 })}
+                    onClick={() => handleSubmit({ id: item.id, isCost: cost > 0 })}
                     disabled={registerMutation.isPending}
                 >
                     {registerMutation.isPending || isNavigating ?
                         <LoadingContent scale={0.5} color="var(--white)" />
                         :
-                        dataRegistered.includes(item.id) ?
+                        dataRegistered.includes(item.id) || item?.is_registered ?
                             'Learning'
                             :
                             cost === 0 ? 'Enroll Free' : `$${cost.toFixed(2)}`

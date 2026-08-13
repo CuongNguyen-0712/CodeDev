@@ -10,20 +10,17 @@ export async function GET(req) {
     try {
         const session = await getServerSession(authOptions);
 
-        if (!session) {
-            throw new ApiError("Unauthorized", 401);
-        }
-
         const userId = session?.user?.id || null;
 
         const { searchParams } = new URL(req.url);
         const courseId = searchParams.get('courseId');
+        const lastCreated = searchParams.get('lastCreated');
 
         if (!courseId) {
             throw new ApiError("Missing credentials", 400);
         }
 
-        const data = { userId, courseId };
+        const data = { userId, courseId, lastCreated };
 
         const response = await courseService.getComments(data);
 

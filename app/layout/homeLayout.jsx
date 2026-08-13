@@ -10,21 +10,21 @@ import { AppProvider, useApp } from "../contexts/appContext";
 
 function LayoutContent({ children }) {
     const {
-        dashboard,
-        setDashboard,
+        overlay,
+        setOverlay,
         alert,
-        clearAlert
+        clearAlert,
     } = useApp();
 
     return (
         <main id='main'>
             <Navbar
-                handleDashboard={setDashboard}
+                handleDashboard={setOverlay}
             />
 
             <Dashboard
-                isDashboard={dashboard}
-                handleDashboard={setDashboard}
+                isDashboard={overlay}
+                handleDashboard={setOverlay}
             />
 
             <section id='container'>

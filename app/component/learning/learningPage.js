@@ -9,16 +9,20 @@ import { LoadingContent } from "../ui/loading";
 import { ErrorReload } from "../ui/error";
 import SearchBar from "../ui/searchBar";
 
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { userQueries } from "@/app/query/user.query";
 
 import { useSession } from "next-auth/react";
+
+import useInfiniteScroll from "@/app/hooks/useInfiniteScroll";
 
 import LearningCourse from "./course";
 
 import { FaCartShopping } from "react-icons/fa6";
 import { LuSearchX } from "react-icons/lu";
 import { HiSparkles } from "react-icons/hi2";
+
+import "@/app/style/learning/learning.css";
 
 export default function LearningPage() {
     const { navigate } = useRouterActions();
@@ -74,19 +78,6 @@ export default function LearningPage() {
                 }
             ]
         },
-        {
-            name: "marked",
-            items: [
-                {
-                    name: "Marked",
-                    value: 'true',
-                },
-                {
-                    name: "Unmarked",
-                    value: 'false',
-                }
-            ]
-        },
     ]
 
     const defaultFilter = {
@@ -102,10 +93,21 @@ export default function LearningPage() {
 
     const { status } = useSession();
 
-    const { data, isLoading, isPending, error, isError, refetch } = useQuery(userQueries.courseProgress(status, { ...state.filter, search: state.search }));
+    const { data, isLoading, isPending, error, isError, refetch, hasNextPage, fetchNextPage } = useInfiniteQuery(userQueries.courseProgress(status, { ...state.filter, search: state.search }));
+
+    const courses = data?.pages?.flatMap(page => page.data) || [];
+
+    const { setRef } = useInfiniteScroll({
+        hasMore: hasNextPage,
+        onLoadMore: () => {
+            if (hasNextPage) {
+                fetchNextPage();
+            }
+        },
+    })
 
     return (
-        <div id="myCourse">
+        <div className="shared_section" id="learning">
             <div className="header-content">
                 <div className="header-text">
                     <span className="header-label">
@@ -121,7 +123,7 @@ export default function LearningPage() {
                 </Link>
             </div>
 
-            <section className="course-search">
+            <section className="learning-search">
                 <SearchBar
                     data={filterMapping}
                     setSearch={(data) => setState(prev => ({ ...prev, search: data }))}
@@ -132,15 +134,15 @@ export default function LearningPage() {
                 />
             </section>
 
-            <section className="course-grid">
+            <section className="learning-grid">
                 {
                     isLoading ?
                         <LoadingContent />
                         :
-                        isError ?
+                        !courses && isError ?
                             <ErrorReload data={error} refetch={refetch} />
-                            : data && data.length > 0 ? (
-                                data.map(item => (
+                            : courses && courses.length > 0 ? (
+                                courses.map(item => (
                                     <LearningCourse
                                         key={item.id}
                                         item={item}
@@ -156,6 +158,15 @@ export default function LearningPage() {
                                         Browse Marketplace
                                     </button>
                                 </div>
+                }
+                {
+                    hasNextPage &&
+                    <div className="load-more-wrapper" ref={setRef}>
+                        <LoadingContent
+                            scale={0.6}
+                            message={isError && (error?.message || "Something is wrong, check your connection")}
+                        />
+                    </div>
                 }
             </section>
         </div>

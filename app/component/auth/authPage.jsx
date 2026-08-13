@@ -8,6 +8,8 @@ import AlertPush from "../ui/alert"
 
 import { HiSparkles } from "react-icons/hi2"
 
+import '@/app/style/auth/auth.css'
+
 export default function AuthPage() {
     const [activeForm, setActiveForm] = useState('login')
     const [alert, setAlert] = useState(null)

@@ -68,6 +68,7 @@ export const userDb = {
 
         const query = `
             select 
+                u.public_id as id,
                 i.surname as surname,   
                 i.name as name, 
                 i.image as image, 
@@ -90,90 +91,219 @@ export const userDb = {
         return await sql.query(query, params);
     },
 
-    getCourseProgress: async (data) => {
-        const { userId, courseId, search, levels, statuses, markeds } = data;
+    getOverview: async (userId) => {
+        const params = []
 
+        params.push(userId)
+
+        const query = `
+            WITH base AS (
+                SELECT
+                    id,
+                    title,
+                    status,
+                    progress,
+                    last_seen,
+                    language_name,
+                    language_logo,
+                    language_color,
+                    category_name
+                FROM user_progress
+                WHERE user_id = $${params.length}
+                AND c_deleted = false
+                AND r_deleted = false
+            ),
+
+            ranked AS (
+                SELECT
+                    *,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY status
+                        ORDER BY last_seen DESC NULLS LAST
+                    ) AS rn
+                FROM base
+            ),
+
+            summary AS (
+                SELECT
+                    s.status,
+                    COUNT(b.id) AS total
+                FROM unnest(
+                    enum_range(NULL::status_course_enum)
+                ) AS s(status)
+                LEFT JOIN base b
+                    ON b.status = s.status
+                GROUP BY s.status
+            ),
+
+            languages AS (
+                SELECT
+                    language_name AS name,
+                    language_color AS color,
+                    language_logo AS logo,
+                    COUNT(*) AS total,
+                    ROUND(
+                        COUNT(*) * 100.0
+                        / SUM(COUNT(*)) OVER (),
+                        2
+                    ) AS percentage
+                FROM base
+                WHERE status IN ('in_progress', 'completed')
+                GROUP BY language_name, language_color, language_logo
+                ORDER BY total DESC
+            ),
+
+            courses AS (
+                SELECT
+                    status,
+                    JSONB_AGG(
+                        JSONB_BUILD_OBJECT(
+                            'id', id,
+                            'title', title,
+                            'language_name', language_name,
+                            'language_logo', language_logo,
+                            'language_color', language_color,
+                            'category_name', category_name,
+                            'progress', progress
+                        )
+                        ORDER BY rn
+                    ) FILTER (WHERE rn <= 10) AS courses
+                FROM ranked
+                GROUP BY status
+            )
+
+            SELECT JSONB_BUILD_OBJECT(
+
+                'summary',
+                JSONB_BUILD_OBJECT(
+                    'total',
+                    (
+                        SELECT COUNT(*)
+                        FROM base
+                    ),
+
+                    'by_status',
+                    (
+                        SELECT JSONB_OBJECT_AGG(
+                            status,
+                            total
+                            ORDER BY status
+                        )
+                        FROM summary
+                    )
+                ),
+
+                'languages',
+                COALESCE(
+                    (
+                        SELECT JSONB_AGG(
+                            JSONB_BUILD_OBJECT(
+                                'name', name,
+                                'total', total,
+                                'color', color,
+                                'logo', logo,
+                                'percentage', percentage
+                            )
+                            ORDER BY total DESC
+                        )
+                        FROM languages
+                    ),
+                    '[]'::jsonb
+                ),
+
+                'courses',
+                COALESCE(
+                    (
+                        SELECT JSONB_OBJECT_AGG(
+                            status,
+                            courses
+                        )
+                        FROM courses
+                    ),
+                    '{}'::jsonb
+                )
+
+            ) AS data;
+        `
+        return await sql.query(query, params);
+    },
+
+    getCourseProgress: async (data) => {
+        const { userId, search, levels, statuses, nextCursor } = data;
         const params = []
         const conditions = []
 
         params.push(userId)
-
-        if (courseId) {
-            params.push(courseId)
-            conditions.push(`c.id = (select id from public.course where public_id = $${params.length})`)
-        }
-        else {
-            conditions.push(`r.user_id = (select id from private.users where public_id = $${params.length})`)
-        }
-
-        if (markeds && markeds.length > 0) {
-            const markedArray = markeds.map(s => s.trim());
-
-            if (markedArray.length == 1) {
-                const isMarked = markedArray[0] === true || markedArray[0] === "true";
-                params.push(isMarked);
-                conditions.push(`r.is_marked = $${params.length}`);
-            }
-        }
+        conditions.push(`r.user_id = (select id from private.users where public_id = $${params.length})`)
 
         if (search) {
-            params.push(`%${search.toLowerCase()}%`);
-            conditions.push(`LOWER(c.title) LIKE $${params.length}`);
+            params.push(`%${search}%`);
+            conditions.push(`c.title ilike $${params.length}`);
         }
 
-        if (statuses && statuses.length > 0) {
-            const statusesArray = statuses.map(s => s.trim());
-            params.push(statusesArray);
-            conditions.push(`r.status = ANY($${params.length}::status_course_enum[])`);
+        if (levels.length > 0) {
+            params.push(levels);
+            conditions.push(`c.level = any($${params.length}::level_enum[])`);
         }
 
-        if (levels && levels.length > 0) {
-            const levelsArray = levels.map(l => l.trim());
-            params.push(levelsArray);
-            conditions.push(`c.level = ANY($${params.length}::level_enum[])`);
+        if (statuses.length > 0) {
+            params.push(statuses);
+            conditions.push(`r.status = any($${params.length}::status_course_enum[])`);
         }
 
-        conditions.push(`c.is_hidden = false`)
-        conditions.push(`c.is_deleted = false`)
+        if (nextCursor) {
+            const { sortTime, id } = nextCursor;
+
+            params.push(sortTime);
+            const sortTimeParam = `$${params.length}`;
+
+            params.push(id);
+            const idParam = `$${params.length}`;
+
+            conditions.push(`
+                (
+                    COALESCE(r.last_seen, r.created_at) < ${sortTimeParam}
+
+                    OR (
+                        COALESCE(r.last_seen, r.created_at) = ${sortTimeParam}
+                        AND c.public_id < ${idParam}
+                    )
+                )
+            `);
+        }
+
+        conditions.push(`c.is_deleted = false`);
+        conditions.push(`r.is_deleted = false`);
 
         const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
         const query = `
-        select 
-            c.public_id as id,
-            c.title,
-            c.description,
-            c.image,
-            c.rating,
-            c.modules,
-            c.lessons,
-            c.cost,
-            c.level,
-            c.concept,
-            c.duration,
-            c.instructor,
-            c.points,
-            c.reviews,
-            c.duration,
-            l.id as language_id,
-            l.name as language_name,
-            l.logo as language_logo,
-            l.color as language_color,
-            cat.name as category_name,
-            r.progress AS progress,
-            r.status AS status,
-            coalesce(f.id, null) as is_favorite
-        from public.course c
-        left join course.register r on r.course_id = c.id 
-            and r.user_id = (select id from private.users where public_id = $1)
-            and r.is_deleted = false
-        left join language l on c.language_id = l.id
-        left join category cat on c.category_id = cat.id
-        left join course.favorite f on f.course_id = c.id 
-            and f.user_id = (select id from private.users where public_id = $1)
-        ${whereSQL}
-        order by f.id asc, r.last_at desc
-    `;
+            select 
+                c.public_id as id,
+                c.title,
+                c.lessons,
+                c.level,
+                c.concept,
+                l.name as language_name,
+                l.logo as language_logo,
+                l.color as language_color,
+                cat.name as category_name,
+                r.progress,
+                r.status,
+                r.course_id,
+                COALESCE(r.last_seen, r.created_at) as sort_time,
+                COALESCE(f.id, null) as is_favorite
+            from course.register r
+            join public.course c on r.course_id = c.id
+            left join course.favorite f on f.course_id = c.id and f.user_id = r.user_id
+            join public.language l on c.language_id = l.id
+            join public.category cat on c.category_id = cat.id
+            ${whereSQL}
+            ORDER BY
+                sort_time DESC,
+                r.course_id DESC
+            limit 21
+        `;
 
         return await sql.query(query, params);
     },

@@ -1,11 +1,5 @@
 import { useTransition } from "react";
 
-import { useQuery } from "@tanstack/react-query";
-
-import { userQueries } from "@/app/query/user.query";
-
-import { useSession } from "next-auth/react";
-
 import { useRouterActions } from "@/app/router/useRouterActions";
 
 import { useCourseRegister } from "@/app/mutation/course.mutation";
@@ -17,31 +11,28 @@ import { useApp } from "@/app/contexts/appContext";
 import { FaArrowLeft } from "react-icons/fa";
 import { IoSettingsSharp } from "react-icons/io5";
 
-export default function FooterPreview({ courseId }) {
-    const [isPending, startTransition] = useTransition();
+import "@/app/style/course/[id]/footer.css";
 
-    const { status } = useSession()
+export default function FooterPreview({ courseId, cost, status, loading }) {
+    const [isPending, startTransition] = useTransition();
 
     const { showAlert: alert } = useApp();
     const { navigate, navigateBack } = useRouterActions();
 
     const useRegister = useCourseRegister();
-    const { data, isLoading, isError, error } = useQuery(userQueries.courseProgress(status, { courseId: courseId }));
-
-    const course = data?.[0]
 
     const handleSubmit = async () => {
-        if (!course) return
+        if (!courseId) return
 
-        if (isLoading || isError || useRegister.isPending || isPending) return;
+        if (useRegister.isPending || isPending) return;
 
-        if (Math.round(course?.cost) > 0) {
+        if (Math.round(cost) > 0) {
             alert(400, "The payment feature is not supported yet. Please try again later.");
             return;
         }
 
         try {
-            if (course.status === null) {
+            if (status === 'not_enrolled') {
                 await useRegister.mutateAsync(courseId);
             }
 
@@ -51,10 +42,6 @@ export default function FooterPreview({ courseId }) {
         } catch (error) {
             alert(500, error.message || "An error occurred while registering for the course.");
         }
-    }
-
-    if (error) {
-        alert(500, error.message || "An error occurred while fetching course progress.");
     }
 
     return (
@@ -69,26 +56,28 @@ export default function FooterPreview({ courseId }) {
                 </span>
             </button>
             <button
-                className={`join_btn ${Math.round(course?.cost) === 0 ? 'free' : 'paid'}`}
-                disabled={isLoading || isError || useRegister.isPending || isPending}
+                className={`join_btn ${Math.round(cost) === 0 ? 'free' : 'paid'}`}
+                disabled={useRegister.isPending || isPending}
                 onClick={handleSubmit}
             >
                 {
-                    (isLoading || useRegister.isPending || isPending) ?
+                    (useRegister.isPending || isPending || loading) ?
                         <LoadingContent scale={0.5} color="var(--white)" />
                         :
-                        Math.round(course?.cost) === 0 ?
+                        status !== 'not_enrolled' ?
                             (() => {
-                                switch (course?.status) {
-                                    case 'enrolled': return "Start learning"
-                                    case 'in_progress': return "Continue learning"
-                                    case 'completed': return "Review course"
-                                    case null: return "Join course"
+                                switch (status) {
+                                    case 'enrolled': return "Start"
+                                    case 'in_progress': return "Continue"
+                                    case 'completed': return "Review"
                                     default: return <LoadingContent scale={0.5} color="var(--white)" />
                                 }
                             })()
                             :
-                            course?.cost
+                            Math.round(cost) === 0 ?
+                                "Join for free"
+                                :
+                                cost
                 }
             </button>
             <button

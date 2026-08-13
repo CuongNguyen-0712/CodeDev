@@ -18,6 +18,8 @@ import { progressMapping } from "@/app/utils/constants";
 import { FaAngleRight, FaAngleLeft, FaChartLine } from "react-icons/fa6";
 import { HiSparkles } from "react-icons/hi2";
 
+import "@/app/style/home/learning.css";
+
 export default function HomeLearning() {
     const { navigate } = useRouterActions();
     const { status } = useSession();
@@ -25,67 +27,7 @@ export default function HomeLearning() {
     const [target, setTarget] = useState(null);
     const [visible, setVisible] = useState(false);
 
-    const { data, isLoading, error, isError, refetch } = useQuery(userQueries.courseProgress(status, {}));
-
-    const languageStats = useMemo(() => {
-        const list = Array.isArray(data) ? data : [];
-
-        const groupedLanguages = list
-            .filter(item => item.status !== 'enrolled' && item.language_id)
-            .reduce((acc, item) => {
-                if (!acc[item.language_id]) {
-                    acc[item.language_id] = {
-                        language_name: item.language_name,
-                        language_logo: item.language_logo,
-                        language_color: item.language_color,
-                        count: 1,
-                    };
-                } else {
-                    acc[item.language_id].count++;
-                }
-                return acc;
-            }, {});
-
-        return Object.values(groupedLanguages);
-    }, [data]);
-
-    const courseProgress = useMemo(() => {
-        const list = Array.isArray(data) ? data : [];
-
-        const initialValue = Object.entries(progressMapping).reduce(
-            (acc, [key, _]) => {
-                acc[key] = {
-                    count: 0,
-                    courses: [],
-                };
-
-                return acc;
-            },
-            { total: 0 }
-        );
-
-        const progress = list.reduce((acc, item) => {
-            acc.total++;
-
-            const key = item.status;
-
-            if (acc[key]) {
-                acc[key].count++;
-
-                acc[key].courses.push({
-                    id: item.id,
-                    title: item.title,
-                    language_name: item.language_name,
-                    language_logo: item.language_logo,
-                    category_name: item.category_name,
-                });
-            }
-
-            return acc;
-        }, initialValue);
-
-        return progress;
-    }, [data]);
+    const { data, isLoading, error, isError, refetch } = useQuery(userQueries.overview(status));
 
     return (
         <aside id="overview_sidebar">
@@ -106,7 +48,7 @@ export default function HomeLearning() {
                                             Course Progress
                                         </h5>
                                         <p>
-                                            {courseProgress.total} courses
+                                            {data?.summary?.total} courses
                                         </p>
                                     </span>
                                 </div>
@@ -126,19 +68,19 @@ export default function HomeLearning() {
                                 <ErrorReload data={error || { status: 500, message: "Something is wrong !" }} refetch={refetch} />
                                 :
                                 <div className="progress-list">
-                                    {Object.values(progressMapping).map((item, index) => {
+                                    {data?.summary?.by_status && Object.entries(data.summary.by_status).filter(([status, _]) => progressMapping[status]).map(([status, count]) => {
                                         return (
                                             <div
                                                 className='progress-item'
-                                                key={index}
-                                                onClick={() => setTarget(item.value)}
+                                                key={status}
+                                                onClick={() => setTarget(status)}
                                             >
-                                                <div className="progress-icon" style={{ color: item.color }}>
-                                                    {item.icon}
+                                                <div className="progress-icon" style={{ color: progressMapping[status]?.color }}>
+                                                    {progressMapping[status]?.icon}
                                                 </div>
                                                 <div className="progress-info">
-                                                    <span className="progress-status" style={{ color: item.color }}>{item.label}</span>
-                                                    <span className="progress-count">{courseProgress[item.value].count} courses</span>
+                                                    <span className="progress-status" style={{ color: progressMapping[status]?.color }}>{progressMapping[status]?.label}</span>
+                                                    <span className="progress-count">{count} courses</span>
                                                 </div>
                                                 <FaAngleRight fontSize={16} className="arrow" />
                                             </div>
@@ -149,29 +91,37 @@ export default function HomeLearning() {
                         {
                             (!isLoading && !isError) &&
                             <div className='progress-detail'>
-                                {courseProgress[target]?.count > 0 ?
+                                {data?.courses?.[target]?.length > 0 ?
                                     <div className='progress_detail_frame'>
-                                        {courseProgress[target].courses.map((course, key) => (
-                                            <Link
-                                                href={`/course/${course.id}`}
-                                                className="course-item"
-                                                key={key}
-                                            >
-                                                <img src={course.language_logo || '/image/static/no_image.png'}
-                                                    width={40}
-                                                    height={40}
-                                                    alt={course.language_name || 'course_logo'}
-                                                    onError={(e) => {
-                                                        e.target.onerror = null;
-                                                        e.target.src = '/image/static/no_image.png';
-                                                    }}
-                                                />
-                                                <div className="course-info">
-                                                    <h5>{course.title}</h5>
-                                                    <span>{course.category_name}</span>
-                                                </div>
-                                            </Link>
-                                        ))}
+                                        <>
+                                            {data.courses[target].map((course, key) => (
+                                                <Link
+                                                    href={`/course/${course.id}`}
+                                                    className="course-item"
+                                                    key={key}
+                                                >
+                                                    <img src={course.language_logo || '/image/static/no_image.png'}
+                                                        width={40}
+                                                        height={40}
+                                                        alt={course.language_name || 'course_logo'}
+                                                        onError={(e) => {
+                                                            e.target.onerror = null;
+                                                            e.target.src = '/image/static/no_image.png';
+                                                        }}
+                                                    />
+                                                    <div className="course-info">
+                                                        <h5>{course.title}</h5>
+                                                        <span>{course.category_name}</span>
+                                                    </div>
+                                                </Link>
+                                            ))}
+                                            {
+                                                data.courses[target].length > 10 &&
+                                                <Link href={`/courses/${target}`} className="course-item more">
+                                                    <span>More</span>
+                                                </Link>
+                                            }
+                                        </>
                                     </div>
                                     :
                                     <p className="empty-state">No courses in this category</p>
@@ -189,7 +139,7 @@ export default function HomeLearning() {
                                     Language Skills
                                 </h5>
                                 <p>
-                                    {languageStats.length} languages
+                                    {data?.languages?.length || 0} languages
                                 </p>
                             </span>
                         </div>
@@ -199,13 +149,13 @@ export default function HomeLearning() {
                         </button>
                     </div>
                     <div className="skills-content" style={{ maxHeight: visible ? '500px' : '200px' }}>
-                        {languageStats.length > 0 ? (
-                            languageStats.map((item, index) => (
+                        {data?.languages?.length > 0 ? (
+                            data.languages.map((item, index) => (
                                 <div className="skill-item" key={index}>
                                     <div className="skill-header">
                                         <img
-                                            src={item.language_logo || '/image/static/no_image.png'}
-                                            alt={item.language_name || 'icon_language'}
+                                            src={item.logo || '/image/static/no_image.png'}
+                                            alt={item.name || 'icon_language'}
                                             width={20}
                                             height={20}
                                             onError={(e) => {
@@ -213,11 +163,11 @@ export default function HomeLearning() {
                                                 e.target.src = '/image/static/no_image.png';
                                             }}
                                         />
-                                        <span className="skill-name">{item.language_name}</span>
-                                        <span className="skill-percent">{((item.count / (courseProgress.in_progress.count + courseProgress.completed.count)) * 100).toFixed(0)}%</span>
+                                        <span className="skill-name">{item.name}</span>
+                                        <span className="skill-percent">{item.percentage}%</span>
                                     </div>
                                     <div className="skill-bar">
-                                        <div className="skill-progress" style={{ background: item.language_color, width: `${((item.count / (courseProgress.in_progress.count + courseProgress.completed.count)) * 100).toFixed(2)}%` }} />
+                                        <div className="skill-progress" style={{ background: item.color, width: `${item.percentage}%` }} />
                                     </div>
                                 </div>
                             ))
