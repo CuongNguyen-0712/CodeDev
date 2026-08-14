@@ -267,6 +267,7 @@ input:-webkit-autofill {
     flex-direction: column;
     background: transparent;
     overflow: hidden;
+    z-index: 4;
 }
 
 #redrect_loader {

@@ -158,3 +158,12 @@
     color: var(--white);
     transition: all 0.2s ease;
 }
+
+@media screen and (max-width: 768px) {
+    .comments-sidebar {
+        position: relative;
+        flex-basis: auto;
+        height: auto;
+        top: 0;
+    }
+}

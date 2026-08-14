@@ -117,8 +117,8 @@ export default function HomeLearning() {
                                                 </Link>
                                             ))}
                                             {
-                                                data.courses[target].length > 10 &&
-                                                <Link href={`/courses/${target}`} className="course-item more">
+                                                data?.summary?.by_status?.[target] &&
+                                                <Link href={`/learning`} className="more-courses">
                                                     <span>More</span>
                                                 </Link>
                                             }
