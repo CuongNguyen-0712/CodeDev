@@ -1,23 +1,23 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef } from 'react';
 
-export default function useOutside({ setStateOutside, stateOutside }) {
-    const ref = useRef(null)
-
-    const handleRefOutside = (e) => {
-        if (!ref.current) return;
-
-        if (ref.current && !ref.current.contains(e.target)) {
-            setStateOutside()
-        }
-    }
+export default function useOutside({ stateOutside, setStateOutside }) {
+    const ref = useRef(null);
 
     useEffect(() => {
-        document.addEventListener('click', handleRefOutside)
+        if (!stateOutside) return;
+
+        const handleClickOutside = (event) => {
+            if (!ref.current?.contains(event.target)) {
+                setStateOutside(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
 
         return () => {
-            document.removeEventListener('click', handleRefOutside)
-        }
-    }, [stateOutside])
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [stateOutside, setStateOutside]);
 
-    return ref
+    return ref;
 }

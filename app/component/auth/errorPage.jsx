@@ -1,11 +1,12 @@
-'use client';
-
-import React from 'react';
 import Link from 'next/link';
+
 import Image from 'next/image';
+
+import { useSearchParams } from 'next/navigation';
+
 import { LuArrowLeft } from 'react-icons/lu';
 
-export default function ErrorPage({ error = "Configuration" }) {
+export default function ErrorPage() {
 
   const errorMessages = {
     Configuration: "A server configuration error has occurred. Please try again later.",
@@ -13,6 +14,9 @@ export default function ErrorPage({ error = "Configuration" }) {
     Verification: "The authentication link has expired or has already been used.",
     Default: "An unknown error occurred during the authentication process."
   };
+
+  const searchParams = useSearchParams();
+  const error = searchParams.get('error');
 
   const message = errorMessages[error] || errorMessages.Default;
 

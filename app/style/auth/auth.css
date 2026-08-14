@@ -71,7 +71,7 @@
 
 .form_header p {
   font-size: 14px;
-  color: var(--gray-400);
+  color: var(--gray-500);
 }
 
 .form_header p a {
@@ -120,8 +120,8 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: var(--gray-200);
-  color: var(--gray-400);
+  background: var(--gray-100);
+  color: var(--gray-500);
   font-size: 12px;
   flex-shrink: 0;
   font-weight: 600;
@@ -136,7 +136,7 @@
 .step_label {
   font-size: 13px;
   font-weight: 500;
-  color: var(--gray-400);
+  color: var(--gray-500);
 }
 
 .step.active .step_label {
@@ -224,7 +224,7 @@
 
 .divider span {
   font-size: 13px;
-  color: var(--gray-400);
+  color: var(--gray-500);
   white-space: nowrap;
 }
 
@@ -239,14 +239,13 @@
   align-items: center;
   justify-content: center;
   height: 44px;
+  width: 50%;
   border-radius: var(--radius-md);
   background: var(--white);
-  border: 2px solid var(--gray-200);
+  border: 2px solid var(--gray-400);
   color: var(--black);
   font-size: 14px;
   font-weight: 500;
-  flex-shrink: 0;
-  flex-grow: 1;
   cursor: pointer;
   gap: 10px;
   transition: all 0.25s ease;
@@ -258,13 +257,13 @@
 
 .social_btn:hover {
   border-color: var(--color-primary);
-  background: rgba(48, 102, 190, 0.05);
+  background: var(--gray-100);
   box-shadow: var(--shadow-sm);
 }
 
 .switch_form {
   font-size: 13px;
-  color: var(--gray-400);
+  color: var(--gray-500);
 }
 
 .switch_form a {
@@ -409,17 +408,5 @@
 
   #auth .form_step {
     padding-right: 10px;
-  }
-}
-
-@media screen and (max-width: 380px) {
-  #auth .social_btn {
-    justify-content: center;
-    width: 50px;
-  }
-
-  #auth .social_buttons {
-    flex-direction: row;
-    justify-content: center;
   }
 }

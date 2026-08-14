@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from "react";
+import { useState, useEffect, useTransition } from "react";
 
 import Link from "next/link";
 
@@ -12,6 +12,7 @@ import { useRouterActions } from "@/app/router/useRouterActions";
 import { useSession } from "next-auth/react";
 
 import useOutside from "@/app/hooks/useOutside";
+import useViewport from "@/app/hooks/useViewport";
 
 import { useApp } from "@/app/contexts/appContext";
 
@@ -28,28 +29,25 @@ import { MdEmail, MdNotifications } from "react-icons/md";
 import { HiUser } from "react-icons/hi2";
 import { LuSparkles } from "react-icons/lu";
 
-export default function Navbar({ handleDashboard }) {
+export default function Navbar({ handleDashboard, handleAccountMobile }) {
   const { showAlert: alert } = useApp();
   const { status } = useSession();
 
   const { data, isLoading, error, isError } = useQuery(userQueries.me(status));
   const { navigateReplace } = useRouterActions();
 
+  const [isNavigating, startTransition] = useTransition();
   const [dropdown, setDropdown] = useState(false);
 
   const logoutMutation = useLogOut();
   const queryClient = useQueryClient();
 
-  const handleOusideClick = () => {
-    if (dropdown) {
-      setDropdown(false);
-    }
-  };
-
   const ref = useOutside({
     stateOutside: dropdown,
-    setStateOutside: () => handleOusideClick(),
+    setStateOutside: setDropdown,
   });
+
+  const viewport = useViewport();
 
   const handleLogout = async () => {
     if (logoutMutation.isPending) return;
@@ -57,7 +55,9 @@ export default function Navbar({ handleDashboard }) {
     logoutMutation.mutate(null, {
       onSuccess: () => {
         queryClient.clear();
-        navigateReplace('/auth');
+        startTransition(() => {
+          navigateReplace('/auth');
+        });
       },
       onError: (error) => {
         alert(error.status, error.message);
@@ -65,10 +65,24 @@ export default function Navbar({ handleDashboard }) {
     });
   };
 
-  const toggleDropdown = (e) => {
-    e.stopPropagation();
-    setDropdown(prev => !prev);
+  const toggleDropdown = () => {
+    if (viewport.width < 425) {
+      handleAccountMobile(true);
+    }
+    else {
+      setDropdown(!dropdown);
+    }
   };
+
+  useEffect(() => {
+    if (viewport.width < 425) {
+      setDropdown(false);
+      if (dropdown) handleAccountMobile(true);
+    }
+    else {
+      handleAccountMobile(false);
+    }
+  }, [viewport.width]);
 
   useEffect(() => {
     if (!isError) return;
@@ -142,8 +156,8 @@ export default function Navbar({ handleDashboard }) {
                             <LoadingContent scale={0.5} />
                             :
                             <div className="dropdown-user">
-                              <h4>{data?.username.length > 15 ? `${data?.username.substring(0, 15)}...` : data?.username || "Unknown"}</h4>
-                              <p>{data?.email || 'user@email.com'}</p>
+                              <h4>{data?.username.length > 15 ? `${data?.username.substring(0, 15)}...` : data?.username || "_"}</h4>
+                              <p>{data?.email || '_'}</p>
                             </div>
                         }
                       </Link>
@@ -175,9 +189,9 @@ export default function Navbar({ handleDashboard }) {
                         <span className="item-icon"><IoSettingsSharp /></span>
                         <span className="item-label">Settings</span>
                       </Link>
-                      <button className="dropdown-item danger" onClick={handleLogout} disabled={logoutMutation.isPending}>
+                      <button className="dropdown-item danger" onClick={handleLogout} disabled={logoutMutation.isPending || isNavigating}>
                         {
-                          logoutMutation.isPending ?
+                          logoutMutation.isPending || isNavigating ?
                             <LoadingContent scale={0.5} />
                             :
                             <>

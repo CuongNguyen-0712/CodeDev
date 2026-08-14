@@ -66,7 +66,7 @@ export default function Dashboard({ isDashboard, handleDashboard }) {
 
   const ref = useOutside({
     stateOutside: isDashboard,
-    setStateOutside: () => handleDashboard(false)
+    setStateOutside: handleDashboard
   });
 
   const handleRouter = (value) => {

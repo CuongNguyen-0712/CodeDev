@@ -48,7 +48,7 @@ export default function HomeLearning() {
                                             Course Progress
                                         </h5>
                                         <p>
-                                            {data?.summary?.total} courses
+                                            {data?.summary?.total ?? 0} courses
                                         </p>
                                     </span>
                                 </div>
@@ -62,31 +62,32 @@ export default function HomeLearning() {
                         className={`progress-content ${target ? 'active' : ''}`}
                         style={(isLoading || isError) ? { width: '100%' } : { width: '200%' }}
                     >
-                        {isLoading ?
-                            <LoadingContent scale={0.6} />
-                            : isError ?
-                                <ErrorReload data={error || { status: 500, message: "Something is wrong !" }} refetch={refetch} />
-                                :
-                                <div className="progress-list">
-                                    {data?.summary?.by_status && Object.entries(data.summary.by_status).filter(([status, _]) => progressMapping[status]).map(([status, count]) => {
-                                        return (
-                                            <div
-                                                className='progress-item'
-                                                key={status}
-                                                onClick={() => setTarget(status)}
-                                            >
-                                                <div className="progress-icon" style={{ color: progressMapping[status]?.color }}>
-                                                    {progressMapping[status]?.icon}
+                        {
+                            isLoading ?
+                                <LoadingContent scale={0.6} />
+                                : isError ?
+                                    <ErrorReload data={error || { status: 500, message: "Something is wrong !" }} refetch={refetch} />
+                                    :
+                                    <div className="progress-list">
+                                        {data?.summary?.by_status && Object.entries(data.summary.by_status).filter(([status, _]) => progressMapping[status]).map(([status, count]) => {
+                                            return (
+                                                <div
+                                                    className='progress-item'
+                                                    key={status}
+                                                    onClick={() => setTarget(status)}
+                                                >
+                                                    <div className="progress-icon" style={{ color: progressMapping[status]?.color }}>
+                                                        {progressMapping[status]?.icon}
+                                                    </div>
+                                                    <div className="progress-info">
+                                                        <span className="progress-status" style={{ color: progressMapping[status]?.color }}>{progressMapping[status]?.label}</span>
+                                                        <span className="progress-count">{count} courses</span>
+                                                    </div>
+                                                    <FaAngleRight fontSize={16} className="arrow" />
                                                 </div>
-                                                <div className="progress-info">
-                                                    <span className="progress-status" style={{ color: progressMapping[status]?.color }}>{progressMapping[status]?.label}</span>
-                                                    <span className="progress-count">{count} courses</span>
-                                                </div>
-                                                <FaAngleRight fontSize={16} className="arrow" />
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                                            );
+                                        })}
+                                    </div>
                         }
                         {
                             (!isLoading && !isError) &&

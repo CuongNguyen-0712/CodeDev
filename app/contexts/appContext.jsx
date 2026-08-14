@@ -7,20 +7,22 @@ const AppContext = createContext(null);
 export const AppProvider = ({ children }) => {
     const params = useSearchParams();
 
-    const [overlay, setOverlay] = useState(false);
+    const [isDashboard, setDashboard] = useState(false);
+    const [isAccountMobile, setAccountMobile] = useState(false);
     const [alert, setAlert] = useState(null);
 
     const modal = params.get('modal');
 
     useEffect(() => {
-        const isOverlay = overlay || modal;
+        const isOverlay = isDashboard || isAccountMobile || modal;
         document.body.classList.toggle('overlay', !!isOverlay);
-    }, [overlay, modal]);
+    }, [isDashboard, isAccountMobile, modal]);
 
     const value = {
-        overlay,
-        setOverlay,
-
+        isDashboard,
+        setDashboard,
+        isAccountMobile,
+        setAccountMobile,
         alert,
         showAlert: (status, message, callback) =>
             setAlert({ status, message, callback }),
