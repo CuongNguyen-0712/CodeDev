@@ -43,7 +43,7 @@
 
 .title_group h3 {
     font-size: 24px;
-    font-weight: 800;
+    font-weight: 600;
     color: var(--black);
     letter-spacing: -0.5px;
     margin-bottom: 4px;
@@ -565,7 +565,7 @@
 #social .friend_text h3,
 #social .team_text h3 {
     font-size: 18px;
-    font-weight: 800;
+    font-weight: 600;
     color: var(--black);
     margin-bottom: 2px;
     white-space: nowrap;
@@ -603,7 +603,7 @@
     background: rgba(16, 185, 129, 0.12);
     color: #059669;
     font-size: 10px;
-    font-weight: 800;
+    font-weight: 600;
     text-transform: uppercase;
     border-radius: 8px;
     letter-spacing: 0.5px;
@@ -664,7 +664,7 @@
     background: var(--white);
     border-radius: 10px;
     font-size: 10px;
-    font-weight: 800;
+    font-weight: 600;
     color: var(--color-primary);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
 }
@@ -689,7 +689,7 @@
 
 .metric_content strong {
     font-size: 16px;
-    font-weight: 800;
+    font-weight: 600;
     color: var(--black);
 }
 
@@ -715,7 +715,7 @@
 
 .progress_info span {
     font-size: 13px;
-    font-weight: 800;
+    font-weight: 600;
     color: var(--color-primary);
 }
 
@@ -1073,7 +1073,7 @@
 
 .create_form_header h2 {
     font-size: 20px;
-    font-weight: 800;
+    font-weight: 600;
     color: var(--black);
     letter-spacing: -0.5px;
 }

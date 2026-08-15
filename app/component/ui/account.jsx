@@ -73,7 +73,7 @@ export default function Account({ isAccountMobile, handleAccountMobile }) {
             </div>
             <footer className="account_footer">
                 <button onClick={() => handleAccountMobile(false)} className="close">
-                    <FaArrowDown />
+                    <FaArrowDown fontSize={16} />
                 </button>
                 <button
                     onClick={handleLogout}

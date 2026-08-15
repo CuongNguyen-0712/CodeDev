@@ -1,10 +1,12 @@
 import './globals.css';
 import Provider from './contexts/providers';
-import { Open_Sans } from 'next/font/google'
+import { Plus_Jakarta_Sans } from 'next/font/google';
 
-const openSans = Open_Sans({
+const jakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
-})
+  variable: '--font-jakarta',
+  display: 'swap',
+});
 
 export default async function RootLayout({ children }) {
   return (
@@ -14,7 +16,7 @@ export default async function RootLayout({ children }) {
         <link rel="icon" href='/image/static/logo.svg' />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       </head>
-      <body className={openSans.className}>
+      <body className={jakarta.className}>
         <Provider>
           {children}
         </Provider>

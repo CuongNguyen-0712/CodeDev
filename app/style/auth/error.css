@@ -64,7 +64,7 @@
 
 .auth_error_card h1 {
     font-size: 32px;
-    font-weight: 800;
+    font-weight: 600;
     color: var(--black);
     letter-spacing: -0.5px;
 }

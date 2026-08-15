@@ -1,17 +1,9 @@
-@font-face {
-    font-family: 'myFont';
-    src: url(../public/font/OpenSans-VariableFont_wdth\,wght.ttf) format('truetype');
-    font-style: normal;
-    font-weight: normal;
-}
-
 * {
     margin: 0;
     border: 0;
     padding: 0;
     box-sizing: border-box;
     scroll-behavior: smooth;
-    font-family: 'myFont', sans-serif;
 }
 
 body {
@@ -23,8 +15,8 @@ body {
     width: 100%;
     flex-direction: column;
     -webkit-touch-callout: none;
-    font-family: 'myFont', sans-serif;
     overflow-y: auto;
+    font-family: var(--font-jakarta), sans-serif;
 }
 
 :root {
@@ -1135,7 +1127,7 @@ input:-webkit-autofill {
 
 .not-found-text h1 {
     font-size: 36px;
-    font-weight: 800;
+    font-weight: 600;
     color: var(--black);
     letter-spacing: -0.5px;
 }
@@ -2901,7 +2893,7 @@ input:-webkit-autofill {
 
 .header-text h1 {
     font-size: 32px;
-    font-weight: 800;
+    font-weight: 600;
     color: var(--white);
     letter-spacing: -0.5px;
 }

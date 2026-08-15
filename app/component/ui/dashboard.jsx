@@ -126,10 +126,10 @@ export default function Dashboard({ isDashboard, handleDashboard }) {
             {
               showOther &&
               <div className="footer-content">
-                <button className="footer-link feedback" onClick={() => updateQuery({ modal: 'feedback' })}>
+                <Link href={`#`} className="footer-link feedback">
                   <span className="link-icon"><MdOutlineFeedback /></span>
                   <span className="link-text">Send Feedback</span>
-                </button>
+                </Link>
                 <Link href={'/help'} className="footer-link help">
                   <span className="link-icon"><MdHelpCenter /></span>
                   <span className="link-text">Help Center</span>

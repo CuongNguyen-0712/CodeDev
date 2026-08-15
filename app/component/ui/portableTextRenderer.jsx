@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { PortableText } from "@portabletext/react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 import { MdOutlineContentCopy } from "react-icons/md";
 import { FaCheck } from "react-icons/fa6";
@@ -84,13 +85,20 @@ function CodeBlock({ value }) {
             <div className="code_content_wrapper">
                 <SyntaxHighlighter
                     language={language || "text"}
+                    style={vscDarkPlus}
                     useInlineStyles={true}
                     customStyle={{
                         margin: 0,
-                        padding: '16px',
+                        padding: '20px',
                         background: 'transparent',
-                        fontSize: '13px',
-                        lineHeight: '1.6',
+                        fontSize: '13.5px',
+                        lineHeight: '1.65',
+                        fontFamily: 'Consolas, Monaco, "Cascadia Code", "Fira Code", "Courier New", monospace',
+                    }}
+                    codeTagProps={{
+                        style: {
+                            fontFamily: 'Consolas, Monaco, "Cascadia Code", "Fira Code", "Courier New", monospace',
+                        }
                     }}
                 >
                     {code || ""}
