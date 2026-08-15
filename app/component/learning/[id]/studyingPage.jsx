@@ -40,7 +40,7 @@ export default function StudyingPage({ params }) {
         const lesson = data?.modules
             ?.flatMap(module => module.lessons)
             .filter(lesson => lesson.status !== 'enrolled')
-            .sort((a, b) => new Date(b.last_at) - new Date(a.last_at))[0];
+            .sort((a, b) => new Date(b.last_seen) - new Date(a.last_seen))[0];
 
         return {
             module: lesson?.module_id ?? null,

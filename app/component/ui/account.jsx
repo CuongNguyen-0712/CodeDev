@@ -61,7 +61,7 @@ export default function Account({ isAccountMobile, handleAccountMobile }) {
                     }}
                 />
                 <div className="account_info">
-                    <h4>{session?.user?.username ?? "_"}</h4>
+                    <h3>{session?.user?.username ?? "_"}</h3>
                     <p>{session?.user?.email ?? "_"}</p>
                     <button className="view_profile" onClick={() => navigate({ path: '/profile' })}>
                         <span>View Profile</span>
@@ -82,7 +82,7 @@ export default function Account({ isAccountMobile, handleAccountMobile }) {
                 >
                     {
                         logoutMutation.isPending || isNavigating ?
-                            <LoadingContent scale={0.5} />
+                            <LoadingContent scale={0.5} color="var(--white)" />
                             :
                             <>
                                 <IoLogOut fontSize={16} />

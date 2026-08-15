@@ -1234,121 +1234,6 @@ input:-webkit-autofill {
     box-shadow: var(--shadow-sm);
 }
 
-/* Portable */
-.code_block {
-    display: flex;
-    border-radius: var(--radius-md);
-    background: var(--gray-200);
-    padding: 14px;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.code_block_header {
-    display: flex;
-    height: 38px;
-    width: 100%;
-    align-items: center;
-    justify-content: space-between;
-    border-radius: var(--radius-md);
-    background: var(--white);
-    padding: 0 6px 0 12px;
-}
-
-.code_meta {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-}
-
-.code_filename {
-    display: flex;
-    background: transparent;
-    color: var(--black);
-    font-size: 13px;
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.code_language {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 42px;
-    height: 22px;
-    border-radius: 999px;
-    background: var(--color-bg-secondary);
-    color: var(--color-primary-dark);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    padding: 0 8px;
-    flex-shrink: 0;
-}
-
-.copy_code_button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 28px;
-    width: 28px;
-    border-radius: 50%;
-    background: transparent;
-    color: var(--black);
-    cursor: pointer;
-    transition: 0.2s all ease;
-    flex-shrink: 0;
-}
-
-.copy_code_button:hover {
-    background: var(--gray-200);
-    transition: 0.2s all ease;
-}
-
-.copy_code_button:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-.code_block pre {
-    display: flex;
-    width: 100%;
-    margin: 0 !important;
-    padding: 10px !important;
-    background: transparent !important;
-}
-
-#view h3 {
-    margin-top: 20px;
-}
-
-#view ol {
-    display: flex;
-    padding-left: 30px;
-    flex-direction: column;
-    gap: 5px;
-}
-
-#view ul {
-    display: flex;
-    padding-left: 30px;
-    flex-direction: column;
-    gap: 5px;
-}
-
-#view ul li::marker {
-    color: var(--color-primary);
-}
-
-@keyframes timeTransition {
-    100% {
-        width: 100%;
-    }
-}
-
 /* Search Input */
 .search-input-wrapper {
     display: flex;
@@ -2466,9 +2351,10 @@ input:-webkit-autofill {
     .account.mobile {
         display: flex;
         position: fixed;
-        top: 120px;
+        bottom: 0;
         left: 0;
-        height: calc(100dvh - 120px);
+        height: calc((100% / 3) * 2);
+        min-height: 300px;
         width: 100%;
         background: var(--white);
         transform: translateY(100%);
@@ -2498,6 +2384,7 @@ input:-webkit-autofill {
 
     .account.mobile .account_header img {
         border-radius: var(--radius-md);
+        border: 1px solid var(--gray-200);
     }
 
     .account.mobile .account_header .account_info {
@@ -2509,12 +2396,20 @@ input:-webkit-autofill {
         gap: 2px;
     }
 
+    .account.mobile .account_header .account_info h3 {
+        min-width: 0;
+        color: var(--black);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
     .account.mobile .account_header .account_info p {
         min-width: 0;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        font-size: 12px;
+        font-size: 14px;
         color: var(--gray-600);
     }
 
@@ -2522,14 +2417,15 @@ input:-webkit-autofill {
         display: flex;
         align-items: center;
         justify-content: center;
+        height: 40px;
         flex-grow: 1;
         font-weight: 600;
         background: var(--color-primary);
         color: var(--white);
         border-radius: var(--radius-md);
-        margin-top: 4px;
-        font-size: 12px;
-        max-width: 120px;
+        margin-top: 10px;
+        font-size: 14px;
+        max-width: 150px;
         gap: 4px;
         cursor: pointer;
     }
@@ -2581,12 +2477,15 @@ input:-webkit-autofill {
         justify-content: center;
         height: 42px;
         flex-grow: 1;
-        color: var(--black);
-        background: var(--gray-200);
+        color: var(--white);
+        background: var(--color-danger);
         border-radius: var(--radius-md);
-        border: 2px solid var(--gray-400);
-        font-weight: 600;
         gap: 8px;
+    }
+
+    .account.mobile .account_footer .danger span {
+        font-size: 14px;
+        font-weight: 600;
     }
 }
 

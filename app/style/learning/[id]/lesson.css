@@ -1,243 +1,494 @@
+/* ==========================================================
+   LESSON CONTAINER & LAYOUT
+   ========================================================== */
 .lesson_container {
     display: flex;
     flex-direction: column;
     width: 100%;
-    max-width: 900px;
+    max-width: 920px;
     margin: 0 auto;
+    animation: lessonFadeIn 0.4s ease-out forwards;
 }
 
+@keyframes lessonFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ==========================================================
+   LESSON HEADER & DESCRIPTION
+   ========================================================== */
 .lesson_header {
-    margin-bottom: 40px;
+    margin-bottom: 36px;
+    padding-bottom: 28px;
     border-bottom: 1px solid var(--gray-200);
-    padding-bottom: 24px;
 }
 
 .lesson_main_title {
-    font-size: 32px;
+    font-size: 34px;
     font-weight: 800;
-    color: var(--black);
-    margin-bottom: 16px;
-    letter-spacing: -0.5px;
+    color: var(--black-dark);
+    line-height: 1.25;
+    margin-bottom: 20px;
+    letter-spacing: -0.6px;
     background: var(--gradient-primary);
+    -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
 .lesson_description_box {
-    height: max-content;
     width: 100%;
-    min-height: 100px;
-    padding: 16px 20px;
-    background: var(--color-bg);
-    border-radius: var(--radius-md);
+    min-height: 80px;
+    padding: 20px 24px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(240, 247, 250, 0.85));
+    backdrop-filter: blur(12px);
+    border-radius: var(--radius-lg);
     border-left: 4px solid var(--color-primary);
+    box-shadow: var(--shadow-md);
+    transition: all 0.3s ease;
+}
+
+.lesson_description_box:hover {
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-1px);
 }
 
 .lesson_description_text {
     font-size: 15px;
-    line-height: 1.6;
-    color: var(--gray-500);
-    font-style: italic;
+    line-height: 1.7;
+    color: var(--gray-600);
+    font-weight: 500;
 }
 
-/* Portable Text Elements */
+/* ==========================================================
+   PORTABLE TEXT TYPOGRAPHY & ELEMENTS
+   ========================================================== */
 .portable_text_container {
     display: flex;
-    min-height: 500px;
     flex-direction: column;
-    gap: 20px;
+    gap: 22px;
+    min-height: 400px;
 }
 
 .lesson_h1 {
-    font-size: 28px;
-    font-weight: 700;
-    color: var(--black);
-    margin-top: 32px;
-    margin-bottom: 8px;
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--black-dark);
+    margin-top: 36px;
+    margin-bottom: 12px;
+    letter-spacing: -0.4px;
+    line-height: 1.3;
 }
 
 .lesson_h2 {
-    font-size: 22px;
-    font-weight: 600;
+    font-size: 21px;
+    font-weight: 700;
     color: var(--black);
-    margin-top: 24px;
-    margin-bottom: 8px;
+    margin-top: 28px;
+    margin-bottom: 12px;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
+    line-height: 1.35;
 }
 
 .lesson_h2::before {
     content: '';
     display: block;
     width: 4px;
-    height: 24px;
-    background: var(--color-primary);
-    border-radius: 2px;
+    height: 22px;
+    background: var(--gradient-primary);
+    border-radius: 4px;
+    box-shadow: 0 0 10px rgba(48, 102, 190, 0.3);
+    flex-shrink: 0;
 }
 
 .lesson_h3 {
-    font-size: 18px;
+    font-size: 17px;
     font-weight: 600;
-    color: var(--gray-500);
-    margin-top: 16px;
+    color: var(--gray-600);
+    margin-top: 20px;
+    margin-bottom: 8px;
+    line-height: 1.4;
 }
 
 .lesson_p {
     font-size: 16px;
-    line-height: 1.7;
-    color: var(--gray-500);
+    line-height: 1.75;
+    color: var(--black);
+    letter-spacing: -0.1px;
 }
 
+.lesson_p code {
+    font-size: 14px;
+    background: rgba(48, 102, 190, 0.08);
+    color: var(--color-primary-dark);
+    padding: 3px 8px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(48, 102, 190, 0.15);
+}
+
+.lesson_p a {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: 600;
+    border-bottom: 1px dashed var(--color-primary);
+    transition: all 0.2s ease;
+}
+
+.lesson_p a:hover {
+    color: var(--color-primary-dark);
+    border-bottom-style: solid;
+}
+
+/* Lists */
 .lesson_ul,
 .lesson_ol {
-    padding-left: 24px;
+    padding-left: 20px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    margin: 12px 0;
+    gap: 10px;
+    margin: 14px 0;
 }
 
 .lesson_ul li,
 .lesson_ol li {
     font-size: 15px;
-    line-height: 1.6;
-    color: var(--gray-500);
+    line-height: 1.65;
+    color: var(--black);
+    position: relative;
 }
 
+.lesson_ul {
+    list-style: none;
+}
+
+.lesson_ul li {
+    padding-left: 20px;
+}
+
+.lesson_ul li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 10px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    box-shadow: 0 0 6px rgba(48, 102, 190, 0.4);
+}
+
+.lesson_ol li {
+    padding-left: 6px;
+}
+
+/* Blockquote */
 .lesson_quote {
-    padding: 20px;
-    background: var(--color-bg);
+    padding: 22px 26px;
+    background: linear-gradient(135deg, rgba(240, 247, 250, 0.7), rgba(255, 255, 255, 0.9));
     border-radius: var(--radius-md);
-    border-left: 4px solid var(--gray-400);
+    border-left: 4px solid var(--color-secondary);
     font-style: italic;
-    color: var(--gray-500);
-    margin: 20px 0;
+    color: var(--gray-600);
+    margin: 24px 0;
+    box-shadow: var(--shadow-sm);
+    position: relative;
 }
 
-/* Code Block Styles */
+.lesson_quote::before {
+    content: '“';
+    position: absolute;
+    top: -10px;
+    right: 20px;
+    font-size: 60px;
+    font-family: Georgia, serif;
+    color: var(--color-secondary-light);
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+/* ==========================================================
+   CODE BLOCK STYLES (IDE LOOK)
+   ========================================================== */
 .code_block {
-    height: max-content;
     width: 100%;
-    min-height: 200px;
-    margin: 24px 0;
-    background: #1e1e1e;
-    border-radius: 12px;
+    margin: 28px 0;
+    background: #13181E;
+    border-radius: 16px;
     overflow: hidden;
-    box-shadow: var(--shadow-lg);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 12px 32px -8px rgba(13, 37, 53, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: all 0.3s ease;
+}
+
+.code_block:hover {
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 16px 40px -8px rgba(13, 37, 53, 0.35);
 }
 
 .code_block_header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 16px;
-    background: #2d2d2d;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 12px 20px;
+    background: #1C242E;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    position: relative;
+    gap: 12px;
 }
 
 .code_meta {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 12px;
 }
 
 .code_filename {
-    font-size: 12px;
-    color: #a0a0a0;
-    font-family: var(--font-mono);
+    font-size: 13px;
+    color: #94A3B8;
+    font-weight: 500;
+    letter-spacing: -0.2px;
 }
 
 .code_language {
     font-size: 10px;
-    font-weight: 700;
-    color: var(--color-primary);
-    background: rgba(48, 102, 190, 0.2);
-    padding: 2px 8px;
-    border-radius: 4px;
+    font-weight: 800;
+    color: #80DED9;
+    background: rgba(17, 157, 164, 0.2);
+    border: 1px solid rgba(128, 222, 217, 0.3);
+    padding: 3px 10px;
+    border-radius: 6px;
     text-transform: uppercase;
+    letter-spacing: 0.6px;
 }
 
 .copy_code_button {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 6px;
-    color: #a0a0a0;
-    background: transparent;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    color: #94A3B8;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     cursor: pointer;
+    flex-shrink: 0;
     transition: all 0.2s ease;
 }
 
 .copy_code_button:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--color-primary);
+    background: rgba(255, 255, 255, 0.15);
+    color: #FFFFFF;
+    transform: scale(1.05);
+}
+
+.copy_code_button:active {
+    transform: scale(0.95);
+}
+
+.code_content_wrapper {
+    background: #13181E;
+    overflow-x: auto;
 }
 
 .code_content_wrapper pre {
+    margin: 0 !important;
+    padding: 20px !important;
+    background: transparent !important;
+    font-size: 13.5px !important;
+    line-height: 1.65 !important;
     scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
-/* Callout Styles */
+.code_content_wrapper pre::-webkit-scrollbar {
+    height: 6px;
+    width: 6px;
+}
+
+.code_content_wrapper pre::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+}
+
+.code_content_wrapper pre::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* ==========================================================
+   CALLOUT STYLES (GLASSMORPHIC CARDS)
+   ========================================================== */
 .callout {
     display: flex;
     gap: 16px;
-    padding: 20px;
-    border-radius: 12px;
+    padding: 20px 24px;
+    border-radius: var(--radius-lg);
     margin: 24px 0;
-    border-left: 6px solid;
+    border-left: 5px solid;
+    box-shadow: var(--shadow-md);
+    transition: all 0.3s ease;
+}
+
+.callout:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
 }
 
 .callout_icon {
-    font-size: 24px;
+    font-size: 26px;
+    line-height: 1;
     flex-shrink: 0;
 }
 
 .callout_content {
     font-size: 15px;
-    line-height: 1.6;
+    line-height: 1.65;
     font-weight: 500;
+    align-self: center;
 }
 
 .callout_info {
-    height: max-content;
-    width: 100%;
-    min-height: 100px;
-    background: rgba(48, 102, 190, 0.08);
+    background: linear-gradient(135deg, rgba(48, 102, 190, 0.08) 0%, rgba(128, 222, 217, 0.12) 100%);
     border-color: var(--color-primary);
-    color: #1a4b8c;
+    color: var(--black-dark);
 }
 
 .callout_warning {
-    height: max-content;
-    width: 100%;
-    min-height: 100px;
-    background: rgba(255, 152, 0, 0.08);
-    border-color: #ff9800;
-    color: #856404;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(254, 243, 199, 0.3) 100%);
+    border-color: var(--amber-500);
+    color: #78350F;
 }
 
 .callout_success {
-    background: rgba(76, 175, 80, 0.08);
-    border-color: #4caf50;
-    color: #1b5e20;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(209, 250, 229, 0.3) 100%);
+    border-color: var(--emerald-500);
+    color: #065F46;
 }
 
+/* ==========================================================
+   LESSON FOOTER & SUBMIT BUTTON
+   ========================================================== */
 .lesson_footer {
-    height: max-content;
-    min-height: 100px;
-    margin-top: 60px;
-    padding-top: 32px;
-    border-top: 1px solid var(--gray-200);
+    width: 100%;
+    margin-top: 64px;
+    padding-top: 36px;
+    border-top: 1px dashed var(--gray-300);
     display: flex;
     justify-content: center;
 }
 
 .lesson_footer #confirm_lesson {
-    max-width: 300px;
-    height: 48px;
-    font-size: 15px;
+    width: 100%;
+    max-width: 320px;
+    height: 52px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--white);
+    background: var(--gradient-primary);
     border-radius: var(--radius-lg);
+    border: none;
+    box-shadow: var(--shadow-md);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.lesson_footer #confirm_lesson:hover:not(:disabled) {
+    box-shadow: var(--shadow-lg), 0 0 24px rgba(48, 102, 190, 0.4);
+    transform: translateY(-2px) scale(1.01);
+}
+
+.lesson_footer #confirm_lesson:active:not(:disabled) {
+    transform: translateY(0) scale(0.99);
+}
+
+.lesson_footer #confirm_lesson:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+
+/* ==========================================================
+   RESPONSIVE DESIGN
+   ========================================================== */
+@media screen and (max-width: 768px) {
+    .lesson_header {
+        margin-bottom: 28px;
+        padding-bottom: 20px;
+    }
+
+    .lesson_main_title {
+        font-size: 26px;
+        margin-bottom: 14px;
+    }
+
+    .lesson_description_box {
+        padding: 16px 18px;
+    }
+
+    .lesson_description_text {
+        font-size: 14px;
+    }
+
+    .lesson_h1 {
+        font-size: 22px;
+        margin-top: 28px;
+    }
+
+    .lesson_h2 {
+        font-size: 18px;
+        margin-top: 22px;
+    }
+
+    .lesson_p {
+        font-size: 15px;
+        line-height: 1.7;
+    }
+
+    .code_block {
+        margin: 20px 0;
+        border-radius: 12px;
+    }
+
+    .code_block_header {
+        padding: 10px 14px;
+    }
+
+    .callout {
+        padding: 16px;
+        gap: 12px;
+    }
+
+    .callout_icon {
+        font-size: 22px;
+    }
+
+    .callout_content {
+        font-size: 14px;
+    }
+
+    .lesson_footer {
+        margin-top: 40px;
+        padding-top: 24px;
+    }
+
+    .lesson_footer #confirm_lesson {
+        max-width: 100%;
+        height: 48px;
+    }
 }
