@@ -2,13 +2,13 @@ import { sql } from "@/app/lib/db";
 
 export const userDb = {
     signUp: async (data) => {
-        const { id, public_id, surname, name, email, username, password } = data;
+        const { id, public_id, username, email, surname, name, password } = data;
 
         const params = [];
 
-        params.push(id, public_id, surname, name, email, username, password);
+        params.push(id, public_id, username, email, surname, name, password);
 
-        const query = `call sign_up($1, $2, $3, $4, $5, $6, $7);`;
+        const query = `select public_id from sign_up($1, $2, $3, $4, $5, $6, $7);`;
 
         return await sql.query(query, params);
     },

@@ -13,14 +13,14 @@ export const authService = {
         const id = generateSonyflake();
         const public_id = ulid();
 
-        const { surname, name, email, username, password } = data;
+        const { username, email, surname, name, password } = data;
 
         const salt = await bycrypt.genSalt(10);
         const hashedPassword = await bycrypt.hash(password, salt);
 
-        await userDb.signUp({ id, public_id, surname, name, email, username, password: hashedPassword });
+        const userData = await userDb.signUp({ id, public_id, username, email, surname, name, password: hashedPassword });
 
-        return true;
+        return userData;
     },
 
 

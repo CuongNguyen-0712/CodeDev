@@ -162,7 +162,11 @@
     .comments-sidebar {
         position: relative;
         max-width: 100%;
-        height: auto;
+        height: max-content;
         top: 0;
+    }
+
+    .comments-container {
+        max-height: 400px;
     }
 }
