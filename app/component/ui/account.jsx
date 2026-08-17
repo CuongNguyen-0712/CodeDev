@@ -16,7 +16,7 @@ import { FaArrowDown } from "react-icons/fa";
 import { IoLogOut } from "react-icons/io5";
 
 export default function Account({ isAccountMobile, handleAccountMobile }) {
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
 
     const [isNavigating, startTransition] = useTransition();
 
@@ -47,8 +47,8 @@ export default function Account({ isAccountMobile, handleAccountMobile }) {
         });
     };
 
-    return (
-        <section className={`account mobile ${isAccountMobile ? 'open' : ''}`} ref={ref}>
+    return status === 'authenticated' &&
+        <section className={`account mobile ${isAccountMobile ? 'open' : 'closed'}`} ref={ref}>
             <header className="account_header">
                 <img
                     src={session?.user?.image}
@@ -92,5 +92,4 @@ export default function Account({ isAccountMobile, handleAccountMobile }) {
                 </button>
             </footer>
         </section>
-    );
 }

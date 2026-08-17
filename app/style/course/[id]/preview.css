@@ -1,5 +1,6 @@
 #course-preview {
     display: flex;
+    align-items: center;
     flex-direction: column;
     min-height: 100dvh;
     width: 100%;
@@ -28,13 +29,10 @@
 /* Main Content */
 .preview-content {
     display: flex;
-    flex-wrap: wrap;
-    gap: 32px;
     padding: 20px 16px 100px;
     max-width: 1400px;
-    margin: 0 auto;
     width: 100%;
-    flex-basis: 0
+    gap: 32px;
 }
 
 .preview-main {

@@ -22,43 +22,43 @@ export default function IndexPage() {
 
     const codeSnippets = {
         js: `// Welcome to CodeDev Interactive Platform
-const developer = {
-  name: "Alex",
-  level: "Fullstack Engineer",
-  skills: ["React", "Next.js", "Node.js", "PostgreSQL"],
-  streak: "14 Days"
-};
+                const developer = {
+                name: "Alex",
+                level: "Fullstack Engineer",
+                skills: ["React", "Next.js", "Node.js", "PostgreSQL"],
+                streak: "14 Days"
+                };
 
-function startLearning(track) {
-  console.log(\`🚀 Launching career track: \${track}\`);
-  return { status: "Active", progress: "100%" };
-}
+                function startLearning(track) {
+                console.log(\`🚀 Launching career track: \${track}\`);
+                return { status: "Active", progress: "100%" };
+                }
 
-startLearning("Fullstack Mastery");`,
+                startLearning("Fullstack Mastery");`,
         python: `# CodeDev Python Data & Backend Track
-class Developer:
-    def __init__(self, name, track):
-        self.name = name
-        self.track = track
-        self.points = 1250
+                class Developer:
+                    def __init__(self, name, track):
+                        self.name = name
+                        self.track = track
+                        self.points = 1250
 
-    def complete_lesson(self, lesson_id):
-        self.points += 50
-        print(f"✅ Mastered {lesson_id}! XP: {self.points}")
+                    def complete_lesson(self, lesson_id):
+                        self.points += 50
+                        print(f"✅ Mastered {lesson_id}! XP: {self.points}")
 
-dev = Developer("Sarah", "Backend Systems")
-dev.complete_lesson("Asyncio Microservices")`,
+                dev = Developer("Sarah", "Backend Systems")
+                dev.complete_lesson("Asyncio Microservices")`,
         sql: `-- Real-time Database Queries
-SELECT 
-    u.username,
-    r.name AS role,
-    COUNT(c.id) AS completed_courses
-FROM private.users u
-JOIN private.user_roles ur ON u.id = ur.user_id
-JOIN private.roles r ON ur.role_id = r.id
-LEFT JOIN course.register c ON u.public_id = c.user_id
-GROUP BY u.username, r.name
-ORDER BY completed_courses DESC;`
+                SELECT 
+                    u.username,
+                    r.name AS role,
+                    COUNT(c.id) AS completed_courses
+                FROM private.users u
+                JOIN private.user_roles ur ON u.id = ur.user_id
+                JOIN private.roles r ON ur.role_id = r.id
+                LEFT JOIN course.register c ON u.public_id = c.user_id
+                GROUP BY u.username, r.name
+                ORDER BY completed_courses DESC;`
     };
 
     return (
@@ -67,26 +67,26 @@ ORDER BY completed_courses DESC;`
             <section className="hero_section">
                 <div className="hero_badge">
                     <FaFire className="badge_icon" />
-                    <span>Nền tảng Lập trình Tương tác Thế hệ Mới</span>
+                    <span>Next-Gen Interactive Developer Platform</span>
                 </div>
 
                 <h1 className="hero_title">
-                    Học Lập Trình Thực Chiến & Xây Dựng <span className="text_gradient">Sự Nghiệp Lập Trình Viên</span>
+                    Master Modern Coding & Build <span className="text_gradient">Real Engineering Careers</span>
                 </h1>
 
                 <p className="hero_description">
-                    Cung cấp lộ trình học bài bản, khóa học tương tác thực hành trực tiếp trên trình duyệt, hệ thống chạy code thời gian thực và cộng đồng kết nối lập trình viên.
+                    Empowering developers with structured career roadmaps, interactive coding courses, real-time code runners, and an active developer community.
                 </p>
 
                 <div className="hero_actions">
                     <button className="btn_primary" onClick={() => navigate({ path: '/course' })}>
-                        <FaRocket /> Khám Phá Khóa Học <FaArrowRight />
+                        <FaRocket /> Explore Courses <FaArrowRight />
                     </button>
                     <button className="btn_secondary" onClick={() => navigate({ path: '/roadmap' })}>
-                        <TbRoute /> Lộ Trình Sự Nghiệp
+                        <TbRoute /> Career Roadmaps
                     </button>
                     <button className="btn_tertiary" onClick={() => navigate({ path: '/auth' })}>
-                        <FaLaptopCode /> Đăng Ký Miễn Phí
+                        <FaLaptopCode /> Get Started Free
                     </button>
                 </div>
 
@@ -123,7 +123,7 @@ ORDER BY completed_courses DESC;`
                                 </button>
                             </div>
                             <span className="ide_status_badge">
-                                <span className="pulse_dot"></span> Trình chạy Trực tiếp
+                                <span className="pulse_dot"></span> Live Runner
                             </span>
                         </div>
                         <div className="ide_body">
@@ -134,7 +134,7 @@ ORDER BY completed_courses DESC;`
                         <div className="ide_footer">
                             <div className="ide_output">
                                 <FaTerminal className="term_icon" />
-                                <span>Output: Tiến trình hoàn tất 0 lỗi</span>
+                                <span>Output: Process executed successfully with 0 errors</span>
                             </div>
                             <span className="ide_lang">{activeTab.toUpperCase()}</span>
                         </div>
@@ -145,32 +145,32 @@ ORDER BY completed_courses DESC;`
             {/* STATS STRIP */}
             <section className="stats_section">
                 <div className="stat_item">
-                    <h3>15.000+</h3>
-                    <p>Học viên Hoạt động</p>
+                    <h3>15,000+</h3>
+                    <p>Active Learners</p>
                 </div>
                 <div className="stat_divider"></div>
                 <div className="stat_item">
                     <h3>50+</h3>
-                    <p>Khóa học Tương tác</p>
+                    <p>Interactive Courses</p>
                 </div>
                 <div className="stat_divider"></div>
                 <div className="stat_item">
                     <h3>120+</h3>
-                    <p>Bài học Thực hành</p>
+                    <p>Practical Lessons</p>
                 </div>
                 <div className="stat_divider"></div>
                 <div className="stat_item">
                     <h3>99.4%</h3>
-                    <p>Đánh giá Hài lòng</p>
+                    <p>Satisfaction Rate</p>
                 </div>
             </section>
 
             {/* FEATURES GRID */}
             <section className="features_section">
                 <div className="section_header">
-                    <span className="section_tag">TẠI SAO CHỌN CODEDEV</span>
-                    <h2>Tất Cả Công Cụ Giúp Bạn Thành Công</h2>
-                    <p>Hệ sinh thái học tập tối ưu cho lập trình viên từ cơ bản đến nâng cao.</p>
+                    <span className="section_tag">WHY CHOOSE CODEDEV</span>
+                    <h2>Everything You Need to Succeed in Tech</h2>
+                    <p>An all-in-one learning ecosystem optimized for developers from beginner to senior.</p>
                 </div>
 
                 <div className="features_grid">
@@ -178,48 +178,48 @@ ORDER BY completed_courses DESC;`
                         <div className="feature_icon_box icon_blue">
                             <TbSourceCode />
                         </div>
-                        <h3>Chạy Code Trực Tiếp</h3>
-                        <p>Viết, thực thi và kiểm tra code ngay trên trình duyệt với phản hồi tự động tức thì mà không cần cài đặt môi trường phức tạp.</p>
+                        <h3>Interactive Code Runner</h3>
+                        <p>Write, execute, and test code directly in your browser with instant automated feedback — zero local setup required.</p>
                     </div>
 
                     <div className="feature_card">
                         <div className="feature_icon_box icon_teal">
                             <TbRoute />
                         </div>
-                        <h3>Lộ Trình Bài Bản</h3>
-                        <p>Theo đuổi các đường hướng rõ ràng dành riêng cho Frontend, Backend, Fullstack và Cloud Engineering.</p>
+                        <h3>Guided Career Roadmaps</h3>
+                        <p>Follow clear, step-by-step learning paths tailored for Frontend, Backend, Fullstack, and Cloud Engineering.</p>
                     </div>
 
                     <div className="feature_card">
                         <div className="feature_icon_box icon_purple">
                             <TbUsersGroup />
                         </div>
-                        <h3>Cộng Đồng Kết Nối</h3>
-                        <p>Giao lưu cùng các lập trình viên khác, lập đội nhóm làm dự án, chia sẻ kinh nghiệm và tham gia thử thách code.</p>
+                        <h3>Dev Community & Teams</h3>
+                        <p>Connect with fellow developers, form project teams, share insights, and join interactive coding challenges.</p>
                     </div>
 
                     <div className="feature_card">
                         <div className="feature_icon_box icon_amber">
                             <FaTrophy />
                         </div>
-                        <h3>Thành Tích & Huy Hiệu</h3>
-                        <p>Tích lũy điểm XP, mở khóa thành tựu, duy trì chuỗi ngày học tập và thăng hạng trên bảng xếp hạng toàn cầu.</p>
+                        <h3>Gamified Progress & Badges</h3>
+                        <p>Earn XP points, unlock achievements, maintain study streaks, and rank on the global leaderboard.</p>
                     </div>
 
                     <div className="feature_card">
                         <div className="feature_icon_box icon_emerald">
                             <FaLaptopCode />
                         </div>
-                        <h3>Dự Án Thực Tế</h3>
-                        <p>Xây dựng các ứng dụng Web, API RESTful và cơ sở dữ liệu hoàn chỉnh sẵn sàng đưa vào Portfolio công việc.</p>
+                        <h3>Real-World Projects</h3>
+                        <p>Build portfolio-ready web apps, REST APIs, and database schemas with production-grade tools.</p>
                     </div>
 
                     <div className="feature_card">
                         <div className="feature_icon_box icon_rose">
                             <TbCertificate />
                         </div>
-                        <h3>Chứng Nhận Hoàn Thành</h3>
-                        <p>Khẳng định năng lực với chứng chỉ và huy hiệu hoàn thành khóa học có thể xác thực với nhà tuyển dụng.</p>
+                        <h3>Verified Certificates</h3>
+                        <p>Validate your skills with shareable certificates and completion badges recognized by top employers.</p>
                     </div>
                 </div>
             </section>
@@ -227,9 +227,9 @@ ORDER BY completed_courses DESC;`
             {/* ROADMAP PREVIEW */}
             <section className="roadmaps_preview_section">
                 <div className="section_header">
-                    <span className="section_tag">LỘ TRÌNH NỔI BẬT</span>
-                    <h2>Định Hướng Sự Nghiệp Rõ Ràng</h2>
-                    <p>Lựa chọn lộ trình phù hợp để làm chủ các kỹ năng doanh nghiệp đang tìm kiếm.</p>
+                    <span className="section_tag">STRUCTURED LEARNING</span>
+                    <h2>Popular Career Roadmaps</h2>
+                    <p>Choose your track and master the exact skills top tech companies look for.</p>
                 </div>
 
                 <div className="roadmap_cards_grid">
@@ -239,10 +239,10 @@ ORDER BY completed_courses DESC;`
                             <FaStar className="star_icon" />
                         </div>
                         <h3>Frontend Web Engineer</h3>
-                        <p>Làm chủ giao diện web hiện đại với HTML5, CSS3, JavaScript ES6+, React, Next.js và tối ưu hiệu năng Web.</p>
+                        <p>Master modern web interfaces with HTML5, CSS3, JavaScript ES6+, React, Next.js, and Web Performance.</p>
                         <div className="roadmap_card_footer">
-                            <span>12 Chương • 45 Bài học</span>
-                            <span className="link_text">Xem Lộ Trình <FaArrowRight /></span>
+                            <span>12 Chapters • 45 Lessons</span>
+                            <span className="link_text">View Path <FaArrowRight /></span>
                         </div>
                     </div>
 
@@ -252,10 +252,10 @@ ORDER BY completed_courses DESC;`
                             <FaStar className="star_icon" />
                         </div>
                         <h3>Backend Systems & APIs</h3>
-                        <p>Xây dựng máy chủ hiệu năng cao, kiến trúc cơ sở dữ liệu, REST & GraphQL APIs với Node.js, Express và PostgreSQL.</p>
+                        <p>Build high-performance servers, database architectures, REST & GraphQL APIs with Node.js, Express, and PostgreSQL.</p>
                         <div className="roadmap_card_footer">
-                            <span>14 Chương • 52 Bài học</span>
-                            <span className="link_text">Xem Lộ Trình <FaArrowRight /></span>
+                            <span>14 Chapters • 52 Lessons</span>
+                            <span className="link_text">View Path <FaArrowRight /></span>
                         </div>
                     </div>
 
@@ -265,10 +265,10 @@ ORDER BY completed_courses DESC;`
                             <FaStar className="star_icon" />
                         </div>
                         <h3>Fullstack Web Specialist</h3>
-                        <p>Kết hợp sức mạnh giao diện và xử lý hệ thống. Triển khai ứng dụng hoàn chỉnh từ A-Z lên môi trường Cloud.</p>
+                        <p>Combine frontend UI elegance with backend power. Deploy end-to-end applications to Vercel and Cloud environments.</p>
                         <div className="roadmap_card_footer">
-                            <span>18 Chương • 70 Bài học</span>
-                            <span className="link_text">Xem Lộ Trình <FaArrowRight /></span>
+                            <span>18 Chapters • 70 Lessons</span>
+                            <span className="link_text">View Path <FaArrowRight /></span>
                         </div>
                     </div>
                 </div>
@@ -278,14 +278,14 @@ ORDER BY completed_courses DESC;`
             <section className="cta_section">
                 <div className="cta_card">
                     <div className="cta_content">
-                        <h2>Sẵn Sàng Bắt Đầu Hành Trình Lập Trình?</h2>
-                        <p>Tham gia CodeDev ngay hôm nay hoàn toàn miễn phí và nâng tầm kỹ năng của bạn.</p>
+                        <h2>Ready to Elevate Your Developer Career?</h2>
+                        <p>Join CodeDev today for free and start building software that matters.</p>
                         <div className="cta_buttons">
                             <button className="btn_primary_white" onClick={() => navigate({ path: '/auth' })}>
-                                <FaRocket /> Tạo Tài Khoản Miễn Phí
+                                <FaRocket /> Create Free Account
                             </button>
                             <button className="btn_outline_white" onClick={() => navigate({ path: '/course' })}>
-                                <FaGraduationCap /> Xem Danh Sách Khóa Học
+                                <FaGraduationCap /> Browse All Courses
                             </button>
                         </div>
                     </div>

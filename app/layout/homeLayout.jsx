@@ -7,13 +7,9 @@ import Account from '../component/ui/account';
 
 import AlertPush from '../component/ui/alert';
 
-import useViewport from '../hooks/useViewport';
-
 import { AppProvider, useApp } from "../contexts/appContext";
 
 function LayoutContent({ children }) {
-    const viewport = useViewport();
-
     const {
         isDashboard,
         setDashboard,
@@ -39,13 +35,10 @@ function LayoutContent({ children }) {
                 {children}
             </section>
 
-            {
-                viewport.width < 425 &&
-                <Account
-                    isAccountMobile={isAccountMobile}
-                    handleAccountMobile={setAccountMobile}
-                />
-            }
+            <Account
+                isAccountMobile={isAccountMobile}
+                handleAccountMobile={setAccountMobile}
+            />
 
             <Feedback />
 

@@ -143,7 +143,7 @@ export default function SearchBar({ data = [], setSearch, setFilter, pending, de
                     </button>
                 }
             </div>
-            {
+            {/* {
                 isFilter ?
                     <div className={`filter-panel ${state.showFilter ? 'active' : ''}`}>
                         <div className="filter-groups">
@@ -211,7 +211,7 @@ export default function SearchBar({ data = [], setSearch, setFilter, pending, de
                     </div>
                     :
                     null
-            }
+            } */}
         </Form>
     )
 }

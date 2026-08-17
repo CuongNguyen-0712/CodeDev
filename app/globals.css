@@ -2481,6 +2481,14 @@ input:-webkit-autofill {
     }
 }
 
+@media screen and (min-width: 426px) {
+    .account.mobile.closed {
+        display: none;
+        opacity: 0;
+        visibility: hidden;
+    }
+}
+
 /* ==================== DASHBOARD CONTAINER ==================== */
 #dashboard {
     display: flex;
@@ -2833,6 +2841,8 @@ input:-webkit-autofill {
     display: flex;
     height: max-content;
     width: 100%;
+    min-height: 100dvh;
+    max-width: 1440px;
     padding: 80px 24px 40px 24px;
     background: transparent;
     flex-wrap: wrap;
