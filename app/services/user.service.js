@@ -1,6 +1,26 @@
 import { userDb } from "@/app/db/user.db";
 
+import bycrypt from "bcryptjs";
+
+import { generateSonyflake } from "@/app/lib/sonyflake";
+
+import { ulid } from "ulid";
+
 export const userService = {
+    signUp: async (data) => {
+        const id = generateSonyflake();
+        const public_id = ulid();
+
+        const { username, email, surname, name, password } = data;
+
+        const salt = await bycrypt.genSalt(10);
+        const hashedPassword = await bycrypt.hash(password, salt);
+
+        const userData = await userDb.signUp({ id, public_id, username, email, surname, name, password: hashedPassword });
+
+        return userData;
+    },
+
     getMe: async (userId) => {
         const response = await userDb.getMe(userId);
 

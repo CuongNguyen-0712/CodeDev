@@ -102,7 +102,9 @@ export default function Navbar({ handleDashboard, handleAccountMobile }) {
                 <polygon points="50,0 0,85 100,85" />
               </svg>
             </div>
-            <span className="brand-text">CodeDev</span>
+            <Link href="/" className="brand-text">
+              CodeDev
+            </Link>
           </div>
         </div>
 

@@ -4,7 +4,7 @@ import Link from "next/link"
 import Form from "next/form"
 import Image from "next/image"
 
-import { useSignUp } from "@/app/mutation/auth.mutation"
+import { useSignUp } from "@/app/mutation/user.mutation"
 
 import { SignUpSchema } from "@/app/lib/definition"
 

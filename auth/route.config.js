@@ -1,4 +1,5 @@
 import index from './route/index.route'
+import auth from './route/auth.route'
 import home from './route/home.route'
 import course from './route/course.route'
 import learning from './route/learning.route'
@@ -8,6 +9,7 @@ import settings from './route/settings.route'
 
 export const routeConfig = [
     ...index,
+    ...auth,
     ...home,
     ...course,
     ...learning,

@@ -1,11 +1,12 @@
 import { ACTION } from '../actions';
 import { RESOURCE } from '../resource';
+import { ACCESS } from '../access';
 
 export default [
     {
         path: "/settings",
-        action: ACTION.LIST,
+        action: ACTION.READ,
         resource: RESOURCE.SETTINGS,
-        isPublic: true
+        access: ACCESS.PRIVATE
     },
 ]

@@ -19,8 +19,6 @@ export async function GET(req) {
             throw new ApiError("Missing credentials", 400);
         }
 
-        console.log(courseId, userId);
-
         const data = { userId, courseId: decodeURIComponent(courseId) };
 
         const response = await courseService.getDetails(data);

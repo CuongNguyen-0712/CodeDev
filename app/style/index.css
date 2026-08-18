@@ -38,8 +38,6 @@
 .hero_badge {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 8px;
     padding: 6px 16px;
     background: rgba(48, 102, 190, 0.08);
     border: 1px solid rgba(48, 102, 190, 0.2);
@@ -48,12 +46,8 @@
     font-size: 13px;
     font-weight: 700;
     margin-bottom: 24px;
+    gap: 8px;
     box-shadow: var(--shadow-sm);
-}
-
-.hero_badge .badge_icon {
-    color: var(--orange-500);
-    font-size: 16px;
 }
 
 .hero_title {

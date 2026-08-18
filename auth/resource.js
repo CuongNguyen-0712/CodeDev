@@ -1,5 +1,7 @@
 export const RESOURCE = {
-    INDEX: 'index',
+    AUTH: "auth",
+
+    INDEX: "index",
 
     HOME: "home",
 

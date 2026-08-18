@@ -22,43 +22,43 @@ export default function IndexPage() {
 
     const codeSnippets = {
         js: `// Welcome to CodeDev Interactive Platform
-                const developer = {
-                name: "Alex",
-                level: "Fullstack Engineer",
-                skills: ["React", "Next.js", "Node.js", "PostgreSQL"],
-                streak: "14 Days"
-                };
+const developer = {
+name: "Alex",
+level: "Fullstack Engineer",
+skills: ["React", "Next.js", "Node.js", "PostgreSQL"],
+streak: "14 Days"
+};
 
-                function startLearning(track) {
-                console.log(\`🚀 Launching career track: \${track}\`);
-                return { status: "Active", progress: "100%" };
-                }
+function startLearning(track) {
+console.log(\`🚀 Launching career track: \${track}\`);
+return { status: "Active", progress: "100%" };
+}
 
-                startLearning("Fullstack Mastery");`,
+startLearning("Fullstack Mastery");`,
         python: `# CodeDev Python Data & Backend Track
-                class Developer:
-                    def __init__(self, name, track):
-                        self.name = name
-                        self.track = track
-                        self.points = 1250
+class Developer:
+    def __init__(self, name, track):
+        self.name = name
+        self.track = track
+        self.points = 1250
 
-                    def complete_lesson(self, lesson_id):
-                        self.points += 50
-                        print(f"✅ Mastered {lesson_id}! XP: {self.points}")
+    def complete_lesson(self, lesson_id):
+        self.points += 50
+        print(f"✅ Mastered {lesson_id}! XP: {self.points}")
 
-                dev = Developer("Sarah", "Backend Systems")
-                dev.complete_lesson("Asyncio Microservices")`,
+dev = Developer("Sarah", "Backend Systems")
+dev.complete_lesson("Asyncio Microservices")`,
         sql: `-- Real-time Database Queries
-                SELECT 
-                    u.username,
-                    r.name AS role,
-                    COUNT(c.id) AS completed_courses
-                FROM private.users u
-                JOIN private.user_roles ur ON u.id = ur.user_id
-                JOIN private.roles r ON ur.role_id = r.id
-                LEFT JOIN course.register c ON u.public_id = c.user_id
-                GROUP BY u.username, r.name
-                ORDER BY completed_courses DESC;`
+SELECT 
+    u.username,
+    r.name AS role,
+    COUNT(c.id) AS completed_courses
+FROM private.users u
+JOIN private.user_roles ur ON u.id = ur.user_id
+JOIN private.roles r ON ur.role_id = r.id
+LEFT JOIN course.register c ON u.public_id = c.user_id
+GROUP BY u.username, r.name
+ORDER BY completed_courses DESC;`
     };
 
     return (
@@ -66,7 +66,9 @@ export default function IndexPage() {
             {/* HERO SECTION */}
             <section className="hero_section">
                 <div className="hero_badge">
-                    <FaFire className="badge_icon" />
+                    <span className="badge_icon">
+                        <FaFire fontSize={16} color={'var(--orange-500)'} />
+                    </span>
                     <span>Next-Gen Interactive Developer Platform</span>
                 </div>
 

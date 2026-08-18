@@ -8,12 +8,6 @@ export function useLogin() {
     });
 }
 
-export function useSignUp() {
-    return useMutation({
-        mutationFn: authClient.signUp,
-    });
-}
-
 export function useLogOut() {
     return useMutation({
         mutationFn: authClient.logout,

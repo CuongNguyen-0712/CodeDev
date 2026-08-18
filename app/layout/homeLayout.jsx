@@ -16,7 +16,8 @@ function LayoutContent({ children }) {
         isAccountMobile,
         setAccountMobile,
         alert,
-        clearAlert,
+        showAlert,
+        clearAlert
     } = useApp();
 
     return (
@@ -38,6 +39,7 @@ function LayoutContent({ children }) {
             <Account
                 isAccountMobile={isAccountMobile}
                 handleAccountMobile={setAccountMobile}
+                alert={showAlert}
             />
 
             <Feedback />

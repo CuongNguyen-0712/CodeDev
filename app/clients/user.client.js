@@ -1,6 +1,17 @@
 import { api } from '@/app/lib/axios'
 
 export const userClient = {
+    signUp: async (data) => {
+        const response = await api.post('/user/signup', data);
+
+        if (response.error) {
+            const error = new Error(response.error || "Sign up failed, please try again.");
+            error.status = response.status || 500;
+            throw error;
+        }
+
+        return response
+    },
     getMe: async () => {
         const res = await api.get('/user/me');
 

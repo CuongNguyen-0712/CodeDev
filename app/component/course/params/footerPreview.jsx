@@ -7,6 +7,7 @@ import { useCourseRegister } from "@/app/mutation/course.mutation";
 import { LoadingContent } from "@/app/component/ui/loading";
 
 import { useApp } from "@/app/contexts/appContext";
+import { useSession } from 'next-auth/react'
 
 import { FaArrowLeft } from "react-icons/fa";
 import { IoSettingsSharp } from "react-icons/io5";
@@ -19,12 +20,19 @@ export default function FooterPreview({ courseId, cost, status, loading }) {
     const { showAlert: alert } = useApp();
     const { navigate, navigateBack } = useRouterActions();
 
+    const { data: session } = useSession();
+
     const useRegister = useCourseRegister();
 
     const handleSubmit = async () => {
         if (!courseId) return
 
         if (useRegister.isPending || isPending) return;
+
+        if (!session || !session.user) {
+            alert(401, "You must be logged in to register for this course.");
+            return;
+        }
 
         if (Math.round(cost) > 0) {
             alert(400, "The payment feature is not supported yet. Please try again later.");

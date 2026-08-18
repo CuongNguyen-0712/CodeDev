@@ -4,9 +4,9 @@ import { ACCESS } from '../access'
 
 export default [
     {
-        path: "/home",
+        path: "/auth",
         action: ACTION.READ,
-        resource: RESOURCE.HOME,
-        access: ACCESS.PRIVATE
-    }
+        resource: RESOURCE.AUTH,
+        access: ACCESS.AUTH
+    },
 ]

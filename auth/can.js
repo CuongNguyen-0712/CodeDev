@@ -22,12 +22,6 @@ function findRoute(pathname) {
 export function canAccessRoute(ctx) {
     const route = findRoute(ctx.pathname);
 
-    if (!route)
-        return true;
-
-    if (route.isPublic)
-        return true;
-
     const permission = `${route.resource}.${route.action}`;
 
     if (!hasPermission(ctx.user, permission))

@@ -1,3 +1,4 @@
+import index from './permissions/index.permission.js';
 import home from './permissions/home.permission.js';
 import course from './permissions/course.permission.js';
 import blog from './permissions/blog.permission.js';

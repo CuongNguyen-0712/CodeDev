@@ -15,7 +15,7 @@ import { useLogOut } from "@/app/mutation/auth.mutation";
 import { FaArrowDown } from "react-icons/fa";
 import { IoLogOut } from "react-icons/io5";
 
-export default function Account({ isAccountMobile, handleAccountMobile }) {
+export default function Account({ isAccountMobile, handleAccountMobile, alert }) {
     const { data: session, status } = useSession();
 
     const [isNavigating, startTransition] = useTransition();
@@ -37,6 +37,7 @@ export default function Account({ isAccountMobile, handleAccountMobile }) {
         logoutMutation.mutate(null, {
             onSuccess: () => {
                 queryClient.clear();
+                handleAccountMobile(false);
                 startTransition(() => {
                     navigateReplace('/auth');
                 });

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { ApiError } from "@/app/lib/error/apiError";
 
-import { authService } from "@/app/services/auth.service";
+import { userService } from "@/app/services/user.service";
 
 export async function POST(req) {
     try {
@@ -14,7 +14,7 @@ export async function POST(req) {
 
         const data = { surname, name, email, username, password };
 
-        const response = await authService.signUp(data);
+        const response = await userService.signUp(data);
 
         return NextResponse.json({ success: response }, { status: 201 });
     }
