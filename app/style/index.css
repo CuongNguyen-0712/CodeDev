@@ -38,6 +38,8 @@
 .hero_badge {
     display: flex;
     align-items: center;
+    height: max-content;
+    min-height: 40px;
     padding: 6px 16px;
     background: rgba(48, 102, 190, 0.08);
     border: 1px solid rgba(48, 102, 190, 0.2);

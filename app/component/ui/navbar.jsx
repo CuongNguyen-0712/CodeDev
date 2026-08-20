@@ -56,7 +56,7 @@ export default function Navbar({ handleDashboard, handleAccountMobile }) {
       onSuccess: () => {
         queryClient.clear();
         startTransition(() => {
-          navigateReplace('/auth');
+          navigateReplace('/');
         });
       },
       onError: (error) => {

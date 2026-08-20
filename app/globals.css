@@ -1921,6 +1921,9 @@ input:-webkit-autofill {
     border-radius: var(--radius-md);
     background: var(--white);
     font-size: 15px;
+    font-weight: 500;
+    color: var(--black);
+    line-height: 1.4;
     outline: none;
     transition: all 0.25s ease;
     resize: none;

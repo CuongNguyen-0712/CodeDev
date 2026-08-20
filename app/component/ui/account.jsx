@@ -39,7 +39,7 @@ export default function Account({ isAccountMobile, handleAccountMobile, alert })
                 queryClient.clear();
                 handleAccountMobile(false);
                 startTransition(() => {
-                    navigateReplace('/auth');
+                    navigateReplace('/');
                 });
             },
             onError: (error) => {

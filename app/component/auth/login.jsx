@@ -52,6 +52,8 @@ export default function Login({ active, changeForm }) {
             return
         }
 
+        setValidation({})
+
         try {
             await loginMutation.mutateAsync({
                 username: formData.username,
