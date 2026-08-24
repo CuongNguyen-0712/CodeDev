@@ -58,8 +58,6 @@
     line-height: 1.2;
     letter-spacing: -1.2px;
     color: var(--black-dark);
-    max-width: 920px;
-    margin-bottom: 20px;
 }
 
 .text_gradient {
@@ -263,6 +261,15 @@
     padding: 20px;
     background: #13181E;
     overflow-x: auto;
+}
+
+.ide_body::-webkit-scrollbar {
+    height: 4px;
+}
+
+.ide_body::-webkit-scrollbar-thumb {
+    background: var(--gray-400);
+    border-radius: 4px;
 }
 
 .ide_code {

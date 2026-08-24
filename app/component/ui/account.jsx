@@ -10,6 +10,8 @@ import { LoadingContent } from "./loading";
 
 import { useQueryClient } from "@tanstack/react-query";
 
+import { signOut } from "next-auth/react";
+
 import { useLogOut } from "@/app/mutation/auth.mutation";
 
 import { FaArrowDown } from "react-icons/fa";
@@ -20,7 +22,7 @@ export default function Account({ isAccountMobile, handleAccountMobile, alert })
 
     const [isNavigating, startTransition] = useTransition();
 
-    const { navigateReplace, navigate } = useRouterActions();
+    const { navigateReplace, navigate, refresh } = useRouterActions();
 
     const queryClient = useQueryClient();
 
@@ -35,9 +37,15 @@ export default function Account({ isAccountMobile, handleAccountMobile, alert })
         if (logoutMutation.isPending) return;
 
         logoutMutation.mutate(null, {
-            onSuccess: () => {
+            onSuccess: async () => {
                 queryClient.clear();
+
+                await signOut({ redirect: false });
+
                 handleAccountMobile(false);
+
+                refresh();
+
                 startTransition(() => {
                     navigateReplace('/');
                 });

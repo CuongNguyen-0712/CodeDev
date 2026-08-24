@@ -4,15 +4,15 @@
     position: relative;
     background: var(--white);
     border-radius: var(--radius-xl);
-    box-shadow: var(--shadow-lg);
     border: 1px solid var(--gray-200);
+    box-shadow: var(--shadow-sm);
     overflow: hidden;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .learning-card:hover {
     transform: translateY(-6px);
-    box-shadow: var(--shadow-xl), 0 12px 40px var(--shadow-glow);
+    box-shadow: var(--shadow-xl), var(--shadow-glow);
     border-color: var(--gray-400);
 }
 

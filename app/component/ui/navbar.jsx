@@ -16,11 +16,12 @@ import useViewport from "@/app/hooks/useViewport";
 
 import { useApp } from "@/app/contexts/appContext";
 
-import { useQuery } from "@tanstack/react-query";
-
 import { userQueries } from "@/app/query/user.query";
 
+import { useQuery } from "@tanstack/react-query";
 import { useQueryClient } from "@tanstack/react-query";
+
+import { signOut } from "next-auth/react";
 
 import { FaChevronDown, FaCoins } from "react-icons/fa";
 import { PiListBold } from "react-icons/pi";
@@ -34,13 +35,13 @@ export default function Navbar({ handleDashboard, handleAccountMobile }) {
   const { status } = useSession();
 
   const { data, isLoading, error, isError } = useQuery(userQueries.me(status));
-  const { navigateReplace } = useRouterActions();
+  const { navigateReplace, refresh } = useRouterActions();
 
   const [isNavigating, startTransition] = useTransition();
   const [dropdown, setDropdown] = useState(false);
 
-  const logoutMutation = useLogOut();
   const queryClient = useQueryClient();
+  const logoutMutation = useLogOut();
 
   const ref = useOutside({
     stateOutside: dropdown,
@@ -49,14 +50,19 @@ export default function Navbar({ handleDashboard, handleAccountMobile }) {
 
   const viewport = useViewport();
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     if (logoutMutation.isPending) return;
 
     logoutMutation.mutate(null, {
-      onSuccess: () => {
+      onSuccess: async () => {
         queryClient.clear();
+
+        await signOut({ redirect: false });
+
+        refresh();
+
         startTransition(() => {
-          navigateReplace('/');
+          navigateReplace("/");
         });
       },
       onError: (error) => {

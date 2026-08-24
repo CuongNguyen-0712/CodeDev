@@ -25,6 +25,25 @@ export const userDb = {
         return await sql.query(query, params);
     },
 
+    logout: async (data) => {
+        const { userId, sessionId } = data;
+
+        const params = [];
+
+        params.push(userId, sessionId);
+
+        const query = `
+            UPDATE private.sessions
+            SET 
+                is_revoked = TRUE,
+                revoked_at = now()
+            WHERE user_id = (SELECT id FROM private.users WHERE public_id = $${params.length - 1})
+            AND id = $${params.length}
+            RETURNING id;
+        `;
+
+        return await sql.query(query, params);
+    },
 
     signUpWithProvider: async (data) => {
         const { id, public_id, username, email, image, accountProvider, providerAccountId } = data;
@@ -37,6 +56,43 @@ export const userDb = {
 
         return await sql.query(query, params);
     },
+
+    createSession: async (data) => {
+        const { id, userId, refresh_token_hash, expires_at } = data;
+
+        const params = [];
+
+        params.push(id, userId, refresh_token_hash, expires_at);
+
+        const query = `select * from create_session($1, $2, $3, $4);`;
+
+        return await sql.query(query, params);
+    },
+
+    refreshSession: async (data) => {
+        const { session_id, userId, old_refresh_token_hash, new_refresh_token_hash } = data;
+
+        const params = [];
+
+        params.push(new_refresh_token_hash, session_id, userId, old_refresh_token_hash);
+
+        const query = `
+                UPDATE private.sessions
+                SET 
+                    refresh_token_hash = $${params.length - 3},
+                    updated_at = NOW()
+                WHERE id = $${params.length - 2}
+                AND user_id = (SELECT id FROM private.users WHERE public_id = $${params.length - 1})
+                AND refresh_token_hash = $${params.length}
+                AND is_revoked = FALSE
+                AND expires_at > NOW()
+                RETURNING id;
+            `
+            ;
+
+        return await sql.query(query, params);
+    },
+
     getPermissions: async (data) => {
         const { userId } = data;
 
@@ -53,6 +109,17 @@ export const userDb = {
             JOIN private.user_roles ur ON r.id = ur.role_id
             JOIN private.users u ON u.id = ur.user_id
             WHERE u.public_id = $1`
+
+        return await sql.query(query, params);
+    },
+
+    refreshToken: async (data) => {
+        const { session_id, refresh_token } = data;
+        const params = [];
+
+        params.push(session_id, refresh_token);
+
+        const query = `select * from refresh_token($1, $2);`;
 
         return await sql.query(query, params);
     },

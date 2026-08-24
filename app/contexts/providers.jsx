@@ -2,13 +2,13 @@
 import { SessionProvider } from "next-auth/react"
 import { ThemeProvider } from "./themeContext"
 import { AuthProvider } from "./authContext"
-import QueryProvider from "./queryContext"
+import { QueryProvider } from "./queryContext"
 
-export default function Provider({ children }) {
+export function Provider({ children }) {
     return (
         <SessionProvider
-            refetchOnWindowFocus={false}
-            refetchInterval={0}
+            refetchInterval={60}
+            refetchOnWindowFocus={true}
         >
             <AuthProvider>
                 <QueryProvider>

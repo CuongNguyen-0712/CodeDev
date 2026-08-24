@@ -7,7 +7,15 @@ import { ApiError } from "@/app/lib/error/apiError";
 
 import { authService } from "@/app/services/auth.service";
 
+const ACCESS_TOKEN_LIFETIME = 15 * 60 * 1000;
+const ACCESS_TOKEN_REFRESH_BUFFER = 60 * 1000;
+
 export const authOptions = {
+    session: {
+        strategy: "jwt",
+        maxAge: 30 * 24 * 60 * 60, // 30 days
+    },
+
     providers: [
         GithubProvider({
             clientId: process.env.GITHUB_ID,
@@ -69,6 +77,10 @@ export const authOptions = {
                         token.email = user.email;
                         token.role = user.role;
                         token.permissions = user.permissions;
+                        token.session_id = user.session_id;
+                        token.refresh_token = user.refresh_token;
+                        token.expires_at = Date.now() + ACCESS_TOKEN_LIFETIME; // 15 minutes
+                        token.error = undefined;
 
                         return token;
                     }
@@ -96,11 +108,52 @@ export const authOptions = {
                     token.image = response.image;
                     token.role = response.role;
                     token.permissions = response.permissions;
+                    token.session_id = response.session_id;
+                    token.refresh_token = response.refresh_token;
+                    token.expires_at = Date.now() + ACCESS_TOKEN_LIFETIME; // 15 minutes
+                    token.error = undefined;
                 } catch (err) {
                     throw new ApiError("Authentication failed, try again", 500);
                 }
             }
-            return token;
+
+            if (!token.session_id || !token.refresh_token) {
+                return {
+                    ...token,
+                    error: "SessionInvalid",
+                };
+            }
+
+            const expiresAt = Number(token.expires_at);
+
+            if (expiresAt && Date.now() < (expiresAt - ACCESS_TOKEN_REFRESH_BUFFER)) {
+                return token;
+            }
+
+            try {
+                const response = await authService.refreshSession({
+                    session_id: token.session_id,
+                    userId: token.id,
+                    refresh_token: token.refresh_token
+                });
+
+                if (!response) {
+                    throw new ApiError("Session refresh failed, try again", 500);
+                }
+
+                return {
+                    ...token,
+                    session_id: response.session_id,
+                    refresh_token: response.refresh_token,
+                    expires_at: Date.now() + ACCESS_TOKEN_LIFETIME, // 15 minutes
+                    error: undefined,
+                };
+            } catch (err) {
+                return {
+                    ...token,
+                    error: "SessionInvalid",
+                };
+            }
         },
         async session({ token }) {
             return {
@@ -111,14 +164,11 @@ export const authOptions = {
                     email: token.email,
                     provider: token.provider,
                     role: token.role,
-                }
+                    permissions: token.permissions,
+                    session_id: token.session_id
+                },
+                error: token.error,
             };
-        },
-
-        async redirect({ url, baseUrl }) {
-            if (url.startsWith("/")) return `${baseUrl}${url}`;
-            if (new URL(url).origin === baseUrl) return url;
-            return baseUrl;
         },
     },
     pages: {

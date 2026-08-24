@@ -1,6 +1,9 @@
 import './globals.css';
-import Provider from './contexts/providers';
 import { Plus_Jakarta_Sans } from 'next/font/google';
+
+import { Provider } from './contexts/providers';
+
+import { AuthSessionWatcher } from './component/auth/sessionWatcher';
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -18,6 +21,7 @@ export default async function RootLayout({ children }) {
       </head>
       <body className={jakarta.className}>
         <Provider>
+          <AuthSessionWatcher />
           {children}
         </Provider>
       </body>

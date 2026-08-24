@@ -1,6 +1,5 @@
 import { FaBook, FaFire, FaGraduationCap } from "react-icons/fa";
 
-
 export const levelMapping = {
     'beginner': { label: 'Beginner', color: 'var(--color-success)', bg: 'rgba(34, 197, 94, 0.1)' },
     'intermediate': { label: 'Intermediate', color: 'var(--color-warning)', bg: 'rgba(245, 158, 11, 0.1)' },
