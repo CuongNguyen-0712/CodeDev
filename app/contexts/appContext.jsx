@@ -1,17 +1,25 @@
 'use client'
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 const AppContext = createContext(null);
 
-export const AppProvider = ({ children }) => {
+function SearchParamsListener({ onModalChange }) {
     const params = useSearchParams();
+    const modal = params.get('modal');
 
+    useEffect(() => {
+        onModalChange(modal);
+    }, [modal, onModalChange]);
+
+    return null;
+}
+
+export const AppProvider = ({ children }) => {
     const [isDashboard, setDashboard] = useState(false);
     const [isAccountMobile, setAccountMobile] = useState(false);
     const [alert, setAlert] = useState(null);
-
-    const modal = params.get('modal');
+    const [modal, setModal] = useState(null);
 
     useEffect(() => {
         const isOverlay = isDashboard || isAccountMobile || modal;
@@ -32,6 +40,9 @@ export const AppProvider = ({ children }) => {
 
     return (
         <AppContext.Provider value={value}>
+            <Suspense fallback={null}>
+                <SearchParamsListener onModalChange={setModal} />
+            </Suspense>
             {children}
         </AppContext.Provider>
     );

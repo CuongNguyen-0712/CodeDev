@@ -1,4 +1,5 @@
 'use client'
+import { Suspense } from 'react';
 import Navbar from '../component/ui/navbar';
 import Dashboard from '../component/ui/dashboard';
 import Feedback from '../component/ui/feedback';
@@ -42,7 +43,9 @@ function LayoutContent({ children }) {
                 alert={showAlert}
             />
 
-            <Feedback />
+            <Suspense fallback={null}>
+                <Feedback />
+            </Suspense>
 
             <AlertPush
                 status={alert?.status}
