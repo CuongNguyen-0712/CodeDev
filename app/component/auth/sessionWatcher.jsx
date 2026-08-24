@@ -7,14 +7,11 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { useLogOut } from "@/app/mutation/auth.mutation";
 
-import { useRouterActions } from "@/app/router/useRouterActions";
-
 import DefaultLayout from "@/app/layout/defaultLayout";
 
 import { useApp } from "@/app/contexts/appContext";
 
 export function SessionWatcher() {
-    const { navigateReplace, refresh } = useRouterActions();
     const { showAlert: alert } = useApp();
 
     const handlingValidSessionRef = useRef(false);
@@ -33,11 +30,7 @@ export function SessionWatcher() {
             onSuccess: async () => {
                 queryClient.clear();
 
-                await signOut({ redirect: false });
-
-                refresh();
-
-                navigateReplace("/auth?error=SessionInvalid");
+                await signOut({ callbackUrl: '/auth?error=SessionInvalid' });
             },
 
             onError: (error) => {

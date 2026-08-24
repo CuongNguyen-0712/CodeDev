@@ -8,7 +8,7 @@ import { ApiError } from "@/app/lib/error/apiError";
 import { authService } from "@/app/services/auth.service";
 
 const ACCESS_TOKEN_LIFETIME = 15 * 60 * 1000;
-const ACCESS_TOKEN_REFRESH_BUFFER = 60 * 1000;
+const ACCESS_TOKEN_REFRESH_BUFFER = 10 * 1000;
 
 export const authOptions = {
     session: {
@@ -112,6 +112,8 @@ export const authOptions = {
                     token.refresh_token = response.refresh_token;
                     token.expires_at = Date.now() + ACCESS_TOKEN_LIFETIME; // 15 minutes
                     token.error = undefined;
+
+                    return token;
                 } catch (err) {
                     throw new ApiError("Authentication failed, try again", 500);
                 }
@@ -124,7 +126,7 @@ export const authOptions = {
                 };
             }
 
-            const expiresAt = Number(token.expires_at);
+            const expiresAt = Number(token.expires_at) || 0;
 
             if (expiresAt && Date.now() < (expiresAt - ACCESS_TOKEN_REFRESH_BUFFER)) {
                 return token;

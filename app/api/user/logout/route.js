@@ -17,13 +17,11 @@ export async function PATCH() {
         const userId = session.user.id;
         const sessionId = session.user.session_id;
 
-        if (!userId || !sessionId) {
-            throw new ApiError("Unauthorized", 401);
+        if (userId && sessionId) {
+            await authService.logout({ userId, sessionId });
         }
 
-        const response = await authService.logout({ userId, sessionId });
-
-        return NextResponse.json({ success: response }, { status: 200 });
+        return NextResponse.json({ success: true }, { status: 200 });
     } catch (error) {
         return NextResponse.json({ success: false, message: error.message }, { status: error.status || 500 });
     }

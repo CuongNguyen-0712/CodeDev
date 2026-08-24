@@ -1,13 +1,11 @@
 'use client'
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect } from "react";
 
 import Link from "next/link";
 
 import { LoadingContent } from "./loading";
 
 import { useLogOut } from "@/app/mutation/auth.mutation";
-
-import { useRouterActions } from "@/app/router/useRouterActions";
 
 import { useSession } from "next-auth/react";
 
@@ -35,9 +33,7 @@ export default function Navbar({ handleDashboard, handleAccountMobile }) {
   const { status } = useSession();
 
   const { data, isLoading, error, isError } = useQuery(userQueries.me(status));
-  const { navigateReplace, refresh } = useRouterActions();
 
-  const [isNavigating, startTransition] = useTransition();
   const [dropdown, setDropdown] = useState(false);
 
   const queryClient = useQueryClient();
@@ -57,13 +53,7 @@ export default function Navbar({ handleDashboard, handleAccountMobile }) {
       onSuccess: async () => {
         queryClient.clear();
 
-        await signOut({ redirect: false });
-
-        refresh();
-
-        startTransition(() => {
-          navigateReplace("/");
-        });
+        await signOut({ callbackUrl: '/' });
       },
       onError: (error) => {
         alert(error.status, error.message);
@@ -197,9 +187,9 @@ export default function Navbar({ handleDashboard, handleAccountMobile }) {
                         <span className="item-icon"><IoSettingsSharp /></span>
                         <span className="item-label">Settings</span>
                       </Link>
-                      <button className="dropdown-item danger" onClick={handleLogout} disabled={logoutMutation.isPending || isNavigating}>
+                      <button className="dropdown-item danger" onClick={handleLogout} disabled={logoutMutation.isPending}>
                         {
-                          logoutMutation.isPending || isNavigating ?
+                          logoutMutation.isPending ?
                             <LoadingContent scale={0.5} />
                             :
                             <>

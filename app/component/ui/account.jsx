@@ -1,5 +1,3 @@
-import { useTransition } from "react";
-
 import { useSession } from "next-auth/react";
 
 import useOutside from "@/app/hooks/useOutside";
@@ -20,9 +18,7 @@ import { IoLogOut } from "react-icons/io5";
 export default function Account({ isAccountMobile, handleAccountMobile, alert }) {
     const { data: session, status } = useSession();
 
-    const [isNavigating, startTransition] = useTransition();
-
-    const { navigateReplace, navigate, refresh } = useRouterActions();
+    const { navigate } = useRouterActions();
 
     const queryClient = useQueryClient();
 
@@ -39,16 +35,9 @@ export default function Account({ isAccountMobile, handleAccountMobile, alert })
         logoutMutation.mutate(null, {
             onSuccess: async () => {
                 queryClient.clear();
-
-                await signOut({ redirect: false });
-
                 handleAccountMobile(false);
 
-                refresh();
-
-                startTransition(() => {
-                    navigateReplace('/');
-                });
+                await signOut({ callbackUrl: '/' });
             },
             onError: (error) => {
                 alert(error.status, error.message);
@@ -86,11 +75,11 @@ export default function Account({ isAccountMobile, handleAccountMobile, alert })
                 </button>
                 <button
                     onClick={handleLogout}
-                    disabled={logoutMutation.isPending || isNavigating}
+                    disabled={logoutMutation.isPending}
                     className="danger"
                 >
                     {
-                        logoutMutation.isPending || isNavigating ?
+                        logoutMutation.isPending ?
                             <LoadingContent scale={0.5} color="var(--white)" />
                             :
                             <>
