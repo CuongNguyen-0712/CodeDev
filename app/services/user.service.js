@@ -28,7 +28,7 @@ export const userService = {
             throw new Error('Failed to fetch user details, try again later');
         }
 
-        return response;
+        return response.rows[0];
     },
 
     getOverview: async (userId) => {
@@ -38,7 +38,7 @@ export const userService = {
             throw new Error('Failed to fetch user details, try again later');
         }
 
-        return response?.[0].data || {};
+        return response.rows[0]?.data || {};
     },
 
     getCourseProgress: async (params) => {
@@ -49,9 +49,9 @@ export const userService = {
         }
 
         const LIMIT = 20;
-        const hasMore = response.length > LIMIT;
-        const data = response.slice(0, LIMIT);
-        const lastItem = data[data.length - 1];
+        const hasMore = response.rowCount > LIMIT;
+        const data = response.rows.slice(0, LIMIT);
+        const lastItem = data[response.rowCount - 1];
         const nextCursor = hasMore
             ?
             Buffer.from(
@@ -77,6 +77,6 @@ export const userService = {
             throw new Error('Failed to fetch learning progress, try again later');
         }
 
-        return response[0]?.learning_progress || {};
+        return response.rows[0]?.learning_progress || {};
     }
 }

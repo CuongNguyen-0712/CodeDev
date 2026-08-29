@@ -1,5 +1,4 @@
 'use server'
-import { sql } from '@/app/lib/db';
 
 export async function updateInfo({ userId, nickname = null, surname = null, phone = null, name = null, email = null, image = null, bio = null }) {
     const params = []

@@ -8,6 +8,6 @@ export const roadmapService = {
             throw new Error('Failed to fetch roadmap list, try again later');
         }
 
-        return response;
+        return response.rows;
     }
 }

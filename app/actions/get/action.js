@@ -1,5 +1,4 @@
 'use server'
-import { sql } from '@/app/lib/db';
 
 import { client } from '@/app/lib/sanity';
 

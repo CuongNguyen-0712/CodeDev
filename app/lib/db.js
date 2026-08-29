@@ -1,4 +1,8 @@
-import { neon, Pool as NeonPool } from "@neondatabase/serverless";
+import {
+    neon,
+    Pool as NeonPool,
+} from "@neondatabase/serverless";
+
 import { Pool as PgPool } from "pg";
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -9,29 +13,32 @@ if (!DATABASE_URL) {
 
 const isProd = process.env.NODE_ENV === "production";
 
-const neonSql = neon(DATABASE_URL);
-
 const devPool = new PgPool({
     connectionString: DATABASE_URL,
     max: 10,
 });
 
+const neonSql = neon(DATABASE_URL);
+
 const prodPool = new NeonPool({
     connectionString: DATABASE_URL,
 });
 
-export const sql = async (text, params = []) => {
+
+export async function sql(text, params = []) {
     if (isProd) {
-        return neonSql(text, params);
+        const result = await neonSql.query(text, params);
+        return {
+            rows: result,
+            rowCount: result.length,
+        };
     }
 
-    const result = await devPool.query(
-        text,
-        params
-    );
+    const result = await devPool.query(text, params);
 
-    return result.rows;
-};
+    return result;
+}
+
 
 export const dbPool = isProd
     ? prodPool

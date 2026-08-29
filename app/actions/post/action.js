@@ -1,5 +1,4 @@
 'use server'
-import { sql } from '@/app/lib/db';
 
 export async function postFeedback({ sender, title, feedback }) {
     const params = []

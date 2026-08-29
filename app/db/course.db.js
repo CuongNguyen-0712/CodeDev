@@ -66,7 +66,7 @@ export const courseDb = {
         LIMIT 1;
     `
 
-        return await sql(query, params);
+        return await sql(query, params)
     },
 
     getCourseList: async (data) => {

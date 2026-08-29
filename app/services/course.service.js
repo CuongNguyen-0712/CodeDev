@@ -8,7 +8,7 @@ export const courseService = {
             throw new Error('Failed to fetch course details, try again later');
         }
 
-        return response;
+        return response.rows[0];
     },
 
     getList: async (params) => {
@@ -19,20 +19,20 @@ export const courseService = {
         }
 
         const LIMIT = 20
-        const hasMore = response.length > LIMIT
-        const data = response.slice(0, LIMIT)
+        const hasMore = response.rowCount > LIMIT
+        const data = response.rows.slice(0, LIMIT)
 
         return {
             data,
             hasMore,
-            lastId: hasMore ? data[data.length - 1].id : null
+            lastId: hasMore ? data[LIMIT - 1]?.id : null
         }
     },
 
     postRegister: async (data) => {
         const response = await courseDb.postRegister(data);
 
-        if (!response) {
+        if (!response || response.rowCount === 0) {
             throw new Error('Failed to register for the course, try again later');
         }
 
@@ -42,7 +42,7 @@ export const courseService = {
     postWithdraw: async (data) => {
         const response = await courseDb.postWithdraw(data);
 
-        if (!response) {
+        if (!response || response.rowCount === 0) {
             throw new Error('Failed to withdraw from the course, try again later');
         }
 
@@ -52,17 +52,17 @@ export const courseService = {
     getLearning: async (data) => {
         const response = await courseDb.getLearning(data);
 
-        if (!response) {
+        if (!response || response.rowCount === 0) {
             throw new Error('Failed to fetch learning, try again later');
         }
 
-        return response;
+        return response.rows[0];
     },
 
     postSubmitLesson: async (data) => {
         const response = await courseDb.postSubmitLesson(data);
 
-        if (!response) {
+        if (!response || response.rowCount === 0) {
             throw new Error('Failed to submit lesson, try again later');
         }
 
@@ -72,7 +72,7 @@ export const courseService = {
     postFavorite: async (data) => {
         const response = await courseDb.postFavorite(data);
 
-        if (!response) {
+        if (!response || response.rowCount === 0) {
             throw new Error('Failed to favorite course, try again later');
         }
 
@@ -82,26 +82,25 @@ export const courseService = {
     getComments: async (params) => {
         const response = await courseDb.getComments(params);
 
-        if (!response) {
+        if (!response || response.rowCount === 0) {
             throw new Error('Failed to fetch comments, try again later');
         }
 
         const LIMIT = 20
-        const hasMore = response.length > LIMIT
-        const data = response.slice(0, LIMIT)
-        const lastCreated = hasMore ? data[data.length - 1].created_at : null
+        const hasMore = response.rowCount > LIMIT
+        const data = response.rows.slice(0, LIMIT)
 
         return {
-            data: response.slice(0, LIMIT),
+            data,
             hasMore,
-            lastCreated
+            lastCreated: hasMore ? data[LIMIT - 1]?.created_at : null
         }
     },
 
     postComment: async (data) => {
         const response = await courseDb.postComment(data);
 
-        if (!response) {
+        if (!response || response.rowCount === 0) {
             throw new Error('Failed to post comment, try again later');
         }
 
@@ -111,7 +110,7 @@ export const courseService = {
     postVotingComment: async (data) => {
         const response = await courseDb.postVotingComment(data);
 
-        if (!response) {
+        if (!response || response.rowCount === 0) {
             throw new Error('Failed to vote on comment, try again later');
         }
 
@@ -121,7 +120,7 @@ export const courseService = {
     deleteFavorite: async (data) => {
         const response = await courseDb.deleteFavorite(data);
 
-        if (!response) {
+        if (!response || response.rowCount === 0) {
             throw new Error('Failed to delete favorite status, try again later');
         }
 

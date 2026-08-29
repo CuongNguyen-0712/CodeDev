@@ -16,11 +16,11 @@ export const authService = {
 
         const response = await userDb.login({ username });
 
-        if (!response || response.length === 0) {
+        if (!response || response.rowCount === 0) {
             throw new ApiError("Invalid credentials, try again", 401);
         }
 
-        const user = response[0];
+        const user = response.rows[0];
 
         const isValid = await bycrypt.compare(password, user.password);
 
@@ -30,11 +30,11 @@ export const authService = {
 
         const permissions = await userDb.getPermissions({ userId: user.id });
 
-        if (!permissions || permissions.length === 0) {
+        if (!permissions || permissions.rowCount === 0) {
             throw new ApiError("No permissions found for the user", 403);
         }
 
-        user.permissions = permissions.map(p => p.permissions);
+        user.permissions = permissions.rows.map(p => p.permissions);
 
         const session = await authService.createSession({ userId: user.id });
 
@@ -51,19 +51,19 @@ export const authService = {
 
         const response = await userDb.signUpWithProvider({ ...data, id, public_id });
 
-        if (!response || response.length === 0) {
+        if (!response || response.rowCount === 0) {
             throw new ApiError("Authentication failed, try again", 500);
         }
 
-        const user = response[0];
+        const user = response.rows[0];
 
         const permissions = await userDb.getPermissions({ userId: user.id });
 
-        if (!permissions || permissions.length === 0) {
+        if (!permissions || permissions.rowCount === 0) {
             throw new ApiError("No permissions found for the user", 403);
         }
 
-        user.permissions = permissions.map(p => p.permissions);
+        user.permissions = permissions.rows.map(p => p.permissions);
 
         const session = await authService.createSession({ userId: user.id });
 
@@ -86,11 +86,11 @@ export const authService = {
 
         const response = await userDb.createSession({ sessionId, tokenId, userId, refreshTokenHash, expiresAt });
 
-        if (!response || response.length === 0) {
+        if (!response || response.rowCount === 0) {
             throw new ApiError("Failed to create session, try again", 500);
         }
 
-        const session = response[0];
+        const session = response.rows[0];
 
         return {
             sessionId: session.sessionId,
@@ -117,11 +117,11 @@ export const authService = {
 
         const response = await userDb.logout({ userId, sessionId });
 
-        if (!response || response.length === 0) {
+        if (!response || response.rowCount === 0) {
             throw new ApiError("Invalid session, try again", 401);
         }
 
-        const session = response[0];
+        const session = response.rows[0];
 
         return session;
     }

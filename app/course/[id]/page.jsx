@@ -14,8 +14,7 @@ import { HydrationBoundary, QueryClient, dehydrate } from "@tanstack/react-query
 export async function generateMetadata({ params }) {
     const { id } = await params;
 
-    const data = await courseService.getDetails({ courseId: id });
-    const course = data[0];
+    const course = await courseService.getDetails({ courseId: id });
 
     if (!course) {
         return {
@@ -35,7 +34,7 @@ export default async function Page({ params }) {
     const queryClient = new QueryClient();
     const data = await courseService.getDetails(id);
 
-    queryClient.setQueryData(courseQueries.details(id).queryKey, data[0]);
+    queryClient.setQueryData(courseQueries.details(id).queryKey, data);
 
     return (
         <Suspense fallback={<LoadingRedirect />}>
