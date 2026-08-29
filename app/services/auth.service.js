@@ -118,7 +118,7 @@ export const authService = {
         const response = await userDb.logout({ userId, sessionId });
 
         if (!response || response.rowCount === 0) {
-            throw new ApiError("Invalid session, try again", 401);
+            return null
         }
 
         const session = response.rows[0];

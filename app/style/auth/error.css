@@ -89,7 +89,7 @@
     font-weight: 700;
     border-radius: var(--radius-lg);
     text-decoration: none;
-    box-shadow: 0 10px 25px -5px rgba(48, 102, 190, 0.4);
+    box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.2);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     margin-top: 40px;
     border: none;
@@ -98,7 +98,7 @@
 
 .btn_redirect:hover {
     transform: translateY(-3px) scale(1.02);
-    box-shadow: 0 20px 40px -10px rgba(48, 102, 190, 0.5), var(--shadow-glow);
+    box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.3);
 }
 
 .btn_redirect:active {

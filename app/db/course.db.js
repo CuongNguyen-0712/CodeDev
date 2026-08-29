@@ -290,6 +290,7 @@ export const courseDb = {
                 (SELECT id FROM public.course WHERE public_id = $2),
                 $3
             )
+            RETURNING *;
         `;
 
         return await sql(query, params);
@@ -318,6 +319,7 @@ export const courseDb = {
             DELETE FROM course.favorite
             WHERE user_id = (SELECT id FROM private.users WHERE public_id = $1)
             AND course_id = (SELECT id FROM public.course WHERE public_id = $2)
+            RETURNING *;
         `;
 
         return await sql(query, params);

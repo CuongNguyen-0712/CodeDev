@@ -29,7 +29,7 @@ export async function GET(req) {
 
         const response = await courseService.getLearning(data);
 
-        const source = response[0]?.source;
+        const source = response?.source;
 
         if (!source) {
             throw new ApiError("Lesson not available", 404);

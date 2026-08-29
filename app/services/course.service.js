@@ -82,7 +82,7 @@ export const courseService = {
     getComments: async (params) => {
         const response = await courseDb.getComments(params);
 
-        if (!response || response.rowCount === 0) {
+        if (!response) {
             throw new Error('Failed to fetch comments, try again later');
         }
 

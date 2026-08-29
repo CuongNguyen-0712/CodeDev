@@ -18,13 +18,8 @@ export async function PATCH() {
         const sessionId = session.user.sessionId;
 
         if (userId && sessionId) {
-            const response = await authService.logout({ userId, sessionId });
-
-            if (!response) {
-                throw new ApiError("Logout failed, try again", 500);
-            }
+            await authService.logout({ userId, sessionId });
         }
-
 
         return NextResponse.json({ success: true }, { status: 200 });
     } catch (error) {
