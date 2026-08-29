@@ -21,7 +21,7 @@ export function SessionWatcher() {
     const queryClient = useQueryClient();
     const logoutMutation = useLogOut();
 
-    const handleSessionInvalid = () => {
+    const handleSessionInvalid = (error) => {
         if (logoutMutation.isPending || handlingValidSessionRef.current) return;
 
         handlingValidSessionRef.current = true;
@@ -30,7 +30,7 @@ export function SessionWatcher() {
             onSuccess: async () => {
                 queryClient.clear();
 
-                await signOut({ callbackUrl: '/auth?error=SessionInvalid' });
+                await signOut({ callbackUrl: `/auth/error?error=${error}` });
             },
 
             onError: (error) => {
@@ -43,8 +43,8 @@ export function SessionWatcher() {
     useEffect(() => {
         if (status === "loading" || status === "unauthenticated") return;
 
-        if (session?.error === "SessionInvalid") {
-            handleSessionInvalid();
+        if (session?.error) {
+            handleSessionInvalid(session.error);
         }
     }, [session?.error, status]);
 

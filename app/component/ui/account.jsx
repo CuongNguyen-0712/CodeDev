@@ -1,4 +1,7 @@
+import Link from "next/link";
+
 import { useSession } from "next-auth/react";
+import { signOut } from "next-auth/react";
 
 import useOutside from "@/app/hooks/useOutside";
 
@@ -7,13 +10,10 @@ import { useRouterActions } from "@/app/router/useRouterActions";
 import { LoadingContent } from "./loading";
 
 import { useQueryClient } from "@tanstack/react-query";
-
-import { signOut } from "next-auth/react";
-
 import { useLogOut } from "@/app/mutation/auth.mutation";
 
-import { FaArrowDown } from "react-icons/fa";
 import { IoLogOut } from "react-icons/io5";
+import { IoMdSettings } from "react-icons/io";
 
 export default function Account({ isAccountMobile, handleAccountMobile, alert }) {
     const { data: session, status } = useSession();
@@ -29,7 +29,7 @@ export default function Account({ isAccountMobile, handleAccountMobile, alert })
         setStateOutside: handleAccountMobile,
     });
 
-    const handleLogout = async () => {
+    const handleLogout = () => {
         if (logoutMutation.isPending) return;
 
         logoutMutation.mutate(null, {
@@ -70,9 +70,10 @@ export default function Account({ isAccountMobile, handleAccountMobile, alert })
                 <p>Waiting for updates...</p>
             </div>
             <footer className="account_footer">
-                <button onClick={() => handleAccountMobile(false)} className="close">
-                    <FaArrowDown fontSize={16} />
-                </button>
+                <Link href="/settings" className="settings">
+                    <IoMdSettings fontSize={16} />
+                    Settings
+                </Link>
                 <button
                     onClick={handleLogout}
                     disabled={logoutMutation.isPending}

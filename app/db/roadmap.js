@@ -14,6 +14,6 @@ export const roadmapDb = {
             GROUP BY r.id
         `
 
-        return await sql.query(query, params)
+        return await sql(query, params)
     }
 }        

@@ -1,6 +1,6 @@
 export const ACCESS = {
+    GUEST: "guest",
     PUBLIC: "public",
-    AUTH: "auth",
     PROTECTED: "protected",
     PRIVATE: "private",
 }

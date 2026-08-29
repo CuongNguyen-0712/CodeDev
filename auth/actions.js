@@ -11,6 +11,10 @@ export const ACTION = {
 
     ENROLL: 'enroll',
 
+    FAVORITE: 'favorite',
+
+    UNFAVORITE: 'unfavorite',
+
     LEARN: 'learn',
 
     COMMENT: 'comment',

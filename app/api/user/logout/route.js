@@ -15,11 +15,16 @@ export async function PATCH() {
         }
 
         const userId = session.user.id;
-        const sessionId = session.user.session_id;
+        const sessionId = session.user.sessionId;
 
         if (userId && sessionId) {
-            await authService.logout({ userId, sessionId });
+            const response = await authService.logout({ userId, sessionId });
+
+            if (!response) {
+                throw new ApiError("Logout failed, try again", 500);
+            }
         }
+
 
         return NextResponse.json({ success: true }, { status: 200 });
     } catch (error) {

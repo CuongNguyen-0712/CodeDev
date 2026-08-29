@@ -37,7 +37,7 @@ export async function getMyFriends({ userId, search }) {
             ${whereSQL}
         `;
 
-    return await sql.query(query, params);
+    return await sql(query, params);
 }
 
 
@@ -74,7 +74,7 @@ export async function getMyTeams({ userId, search }) {
             GROUP BY t1.id, t3.name, t3.size, t3.image_url, u2.username, u2.id
         `;
 
-    return await sql.query(query, params);
+    return await sql(query, params);
 }
 
 export async function getUsersSocial({ userId, search, limit, offset }) {
@@ -117,7 +117,7 @@ export async function getUsersSocial({ userId, search, limit, offset }) {
         LIMIT $${params.length - 1} OFFSET $${params.length}
     `;
 
-    return await sql.query(query, params);
+    return await sql(query, params);
 }
 
 export async function getTeamsSocial(userId, search, limit, offset) {
@@ -149,7 +149,7 @@ export async function getTeamsSocial(userId, search, limit, offset) {
         LIMIT $${params.length - 1} OFFSET $${params.length}
     `;
 
-    return await sql.query(query, params);
+    return await sql(query, params);
 }
 
 export async function getContentCourse({ userId, courseId }) {
@@ -159,7 +159,7 @@ export async function getContentCourse({ userId, courseId }) {
 
     const query = `select * from join_course($${params.length - 1}, $${params.length});`
 
-    return await sql.query(query, params);
+    return await sql(query, params);
 }
 
 export async function getContentLesson({ userId, lessonId, courseId }) {
@@ -169,7 +169,7 @@ export async function getContentLesson({ userId, lessonId, courseId }) {
 
     const query = `select * from get_lesson($${params.length - 2}, $${params.length - 1}, $${params.length});`
 
-    return await sql.query(query, params);
+    return await sql(query, params);
 }
 
 export async function getLessonCourse(data) {
@@ -229,7 +229,7 @@ export async function getCommentCourse({ userId, courseId, offset, limit }) {
             OFFSET $${params.length - 1} LIMIT $${params.length}
         `
 
-    return await sql.query(query, params);
+    return await sql(query, params);
 }
 
 export async function getLesson(data) {
@@ -267,7 +267,7 @@ export async function getRoadmap({ roadmapId }) {
         ${whereSQL}
     `
 
-    return await sql.query(query, params);
+    return await sql(query, params);
 }
 
 export async function getRoadmapNodes({ userId, roadmapId }) {
@@ -316,5 +316,5 @@ export async function getRoadmapNodes({ userId, roadmapId }) {
         ORDER BY n.order_index ASC
     `
 
-    return await sql.query(query, params);
+    return await sql(query, params);
 }

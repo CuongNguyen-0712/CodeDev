@@ -4,20 +4,12 @@ import { api } from '@/app/lib/axios'
 
 export const authClient = {
     login: async (data) => {
-        const { username, password, authType } = data;
-        const response = await signIn(authType, {
+        const { username, password } = data;
+        return await signIn('credentials', {
             username,
             password,
-            redirect: false,
+            callbackUrl: '/home',
         });
-
-        if (response.error) {
-            const error = new Error(response.error || "Login failed, please try again.");
-            error.status = response.status || 500;
-            throw error;
-        }
-
-        return response;
     },
 
     loginWithProvider: async (provider) => {

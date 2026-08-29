@@ -2635,25 +2635,31 @@ input:-webkit-autofill {
 
     .account.mobile .account_footer {
         display: flex;
+        height: 45px;
         gap: 10px;
     }
 
-    .account.mobile .account_footer .close {
+    .account.mobile .account_footer .settings {
         display: flex;
         align-items: center;
         justify-content: center;
-        height: 42px;
-        width: 42px;
+        height: 100%;
+        width: max-content;
+        padding: 0 15px;
         color: var(--black);
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 600;
         background: var(--gray-200);
         border-radius: var(--radius-md);
+        gap: 8px;
     }
 
     .account.mobile .account_footer .danger {
         display: flex;
         align-items: center;
         justify-content: center;
-        height: 42px;
+        height: 100%;
         flex-grow: 1;
         color: var(--white);
         background: var(--color-danger);

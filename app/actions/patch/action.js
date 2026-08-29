@@ -56,7 +56,7 @@ export async function updateInfo({ userId, nickname = null, surname = null, phon
         ${whereSQL}
     `
 
-    return await sql.query(query, params);
+    return await sql(query, params);
 }
 
 export async function updateStatusCourse({ userId, courseId, is_marked }) {
@@ -79,7 +79,7 @@ export async function updateStatusCourse({ userId, courseId, is_marked }) {
             ${whereSQL}
         `;
 
-    return await sql.query(query, params);
+    return await sql(query, params);
 }
 
 export async function updateWithdrawCourse({ userId, courseId }) {
@@ -100,7 +100,7 @@ export async function updateWithdrawCourse({ userId, courseId }) {
         ${whereSQL}
     `
 
-    return await sql.query(query, params);
+    return await sql(query, params);
 }
 export async function updateLesson({ userId, courseId, lessonId }) {
     const params = []
@@ -109,7 +109,7 @@ export async function updateLesson({ userId, courseId, lessonId }) {
 
     const query = `select update_lesson($${params.length - 2}, $${params.length - 1}, $${params.length});`;
 
-    return await sql.query(query, params);
+    return await sql(query, params);
 }
 
 export async function updateVotingComment({ userId, commentId, isVoted }) {
@@ -130,6 +130,6 @@ export async function updateVotingComment({ userId, commentId, isVoted }) {
                 updated_at = NOW();
         `;
 
-    return await sql.query(query, params);
+    return await sql(query, params);
 }
 

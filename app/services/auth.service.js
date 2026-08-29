@@ -2,11 +2,11 @@ import { userDb } from "@/app/db/user.db";
 
 import bycrypt from "bcryptjs";
 
-import crypto from "crypto";
-
 import { ApiError } from "@/app/lib/error/apiError";
 
 import { generateSonyflake } from "@/app/lib/sonyflake";
+
+import { hashRefreshToken, generateRefreshToken } from "@/app/utils/auth.util";
 
 import { ulid } from "ulid";
 
@@ -38,8 +38,9 @@ export const authService = {
 
         const session = await authService.createSession({ userId: user.id });
 
-        user.session_id = session.session_id;
-        user.refresh_token = session.refresh_token;
+        user.sessionId = session.sessionId;
+        user.tokenId = session.tokenId;
+        user.refreshToken = session.refreshToken;
 
         return user;
     },
@@ -66,52 +67,48 @@ export const authService = {
 
         const session = await authService.createSession({ userId: user.id });
 
-        user.session_id = session.session_id;
-        user.refresh_token = session.refresh_token;
+        user.sessionId = session.sessionId;
+        user.refreshToken = session.refreshToken;
+        user.tokenId = session.tokenId;
 
         return user;
     },
 
     createSession: async (data) => {
         const { userId } = data;
-        const id = generateSonyflake();
+        const sessionId = generateSonyflake();
+        const tokenId = generateSonyflake();
 
-        const refresh_token = crypto.randomBytes(40).toString("hex");
-        const refresh_token_hash = crypto.createHash("sha256").update(refresh_token).digest("hex");
+        const refreshToken = generateRefreshToken();
+        const refreshTokenHash = hashRefreshToken(refreshToken);
 
-        const expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+        const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
-        const session = await userDb.createSession({ id, userId, refresh_token_hash, expires_at });
+        const response = await userDb.createSession({ sessionId, tokenId, userId, refreshTokenHash, expiresAt });
 
-        if (!session || session.length === 0) {
+        if (!response || response.length === 0) {
             throw new ApiError("Failed to create session, try again", 500);
         }
 
+        const session = response[0];
+
         return {
-            session_id: session[0].session_id,
-            refresh_token: refresh_token,
+            sessionId: session.sessionId,
+            tokenId: session.tokenId,
+            refreshToken: refreshToken,
         }
     },
 
     refreshSession: async (data) => {
-        const { session_id, userId, refresh_token } = data;
+        const { sessionId, tokenId, userId, refreshToken } = data;
 
-        const old_refresh_token_hash = crypto.createHash("sha256").update(refresh_token).digest("hex");
-
-        const new_refresh_token = crypto.randomBytes(40).toString("hex");
-        const new_refresh_token_hash = crypto.createHash("sha256").update(new_refresh_token).digest("hex");
-
-        const updateSession = await userDb.refreshSession({ session_id, userId, old_refresh_token_hash, new_refresh_token_hash });
-
-        if (!updateSession || updateSession.length === 0) {
-            throw new ApiError("Invalid session, try again", 401);
-        }
-
-        const session = updateSession[0];
+        const updatedSession = await userDb.refreshSession({ sessionId, tokenId, userId, refreshToken });
 
         return {
-            session_id: session.id,
-            refresh_token: new_refresh_token,
+            sessionId: updatedSession.sessionId,
+            tokenId: updatedSession.tokenId,
+            refreshToken: updatedSession.refreshToken,
+            status: updatedSession.status,
         };
     },
 
@@ -124,6 +121,8 @@ export const authService = {
             throw new ApiError("Invalid session, try again", 401);
         }
 
-        return true;
+        const session = response[0];
+
+        return session;
     }
 }

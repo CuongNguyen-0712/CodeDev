@@ -5,7 +5,7 @@ import { ACCESS } from '../access'
 export default [
     {
         path: "/home",
-        action: ACTION.READ,
+        action: ACTION.LIST,
         resource: RESOURCE.HOME,
         access: ACCESS.PRIVATE
     }

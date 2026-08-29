@@ -66,7 +66,7 @@ export const courseDb = {
         LIMIT 1;
     `
 
-        return await sql.query(query, params);
+        return await sql(query, params);
     },
 
     getCourseList: async (data) => {
@@ -145,7 +145,7 @@ export const courseDb = {
             LIMIT 21;
         `;
 
-        return await sql.query(query, params);
+        return await sql(query, params);
     },
 
     postRegister: async (data) => {
@@ -159,7 +159,7 @@ export const courseDb = {
             SELECT register_course($${params.length - 1}, $${params.length})
         `;
 
-        return await sql.query(query, params);
+        return await sql(query, params);
     },
 
     postWithdraw: async (data) => {
@@ -183,7 +183,7 @@ export const courseDb = {
             ${whereSQL};
         `;
 
-        return await sql.query(query, params);
+        return await sql(query, params);
     },
 
     getLearning: async (data) => {
@@ -195,7 +195,7 @@ export const courseDb = {
 
         const query = `select * from learning_lesson($${params.length - 1}, $${params.length});`;
 
-        return await sql.query(query, params);
+        return await sql(query, params);
     },
 
     postSubmitLesson: async (data) => {
@@ -207,7 +207,7 @@ export const courseDb = {
 
         const query = `call submit_lesson($${params.length - 2}, $${params.length - 1}, $${params.length});`;
 
-        return await sql.query(query, params);
+        return await sql(query, params);
     },
 
     postFavorite: async (data) => {
@@ -225,7 +225,7 @@ export const courseDb = {
             ON CONFLICT (user_id, course_id) DO NOTHING;
         `;
 
-        return await sql.query(query, params);
+        return await sql(query, params);
     },
 
     getComments: async (data) => {
@@ -273,7 +273,7 @@ export const courseDb = {
             LIMIT 21
         `
 
-        return await sql.query(query, params);
+        return await sql(query, params);
     },
 
     postComment: async (data) => {
@@ -292,7 +292,7 @@ export const courseDb = {
             )
         `;
 
-        return await sql.query(query, params);
+        return await sql(query, params);
     },
 
     postVotingComment: async (data) => {
@@ -304,7 +304,7 @@ export const courseDb = {
 
         const query = `select * from voting_comment($${params.length - 2}, $${params.length - 1}, $${params.length});`;
 
-        return await sql.query(query, params);
+        return await sql(query, params);
     },
 
     deleteFavorite: async (data) => {
@@ -320,6 +320,6 @@ export const courseDb = {
             AND course_id = (SELECT id FROM public.course WHERE public_id = $2)
         `;
 
-        return await sql.query(query, params);
+        return await sql(query, params);
     }
 }

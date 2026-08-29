@@ -1,3 +1,5 @@
+'use client';
+
 import Link from 'next/link';
 
 import Image from 'next/image';
@@ -12,6 +14,10 @@ export default function ErrorPage() {
     Configuration: "A server configuration error has occurred. Please try again later.",
     AccessDenied: "You do not have permission to access this page.",
     Verification: "The authentication link has expired or has already been used.",
+    Callback: "An error occurred while processing the authentication callback.",
+    SessionInvalid: "Your session is invalid. Please log in again.",
+    SessionRevoked: "Your session has been revoked. Please log in again.",
+    SessionExpired: "Your session has expired. Please log in again.",
     Default: "An unknown error occurred during the authentication process."
   };
 

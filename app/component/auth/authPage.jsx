@@ -4,15 +4,12 @@ import { useState } from "react"
 import Login from "./login"
 import Signup from "./signup"
 
-import AlertPush from "../ui/alert"
-
 import { HiSparkles } from "react-icons/hi2"
 
 import '@/app/style/auth/auth.css'
 
 export default function AuthPage() {
     const [activeForm, setActiveForm] = useState('login')
-    const [alert, setAlert] = useState(null)
 
     const isLogin = activeForm === 'login'
     const isSignup = activeForm === 'signup'
@@ -58,12 +55,6 @@ export default function AuthPage() {
                         </div>
                     </aside>
                 </div>
-
-                <AlertPush
-                    status={alert?.status}
-                    message={alert?.message}
-                    reset={() => setAlert(null)}
-                />
             </div>
         </main>
     )

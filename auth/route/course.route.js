@@ -29,20 +29,20 @@ export default [
     },
     {
         path: '/api/course/register',
-        action: ACTION.CREATE,
+        action: ACTION.ENROLL,
         resource: RESOURCE.COURSE,
         access: ACCESS.PROTECTED
     },
     {
         path: '/api/course/favorite',
-        action: ACTION.CREATE,
+        action: ACTION.FAVORITE,
         resource: RESOURCE.COURSE,
-        access: ACCESS.PRIVATE
+        access: ACCESS.PROTECTED
     },
     {
         path: '/api/course/unfavorite',
-        action: ACTION.DELETE,
+        action: ACTION.UNFAVORITE,
         resource: RESOURCE.COURSE,
-        access: ACCESS.PRIVATE
+        access: ACCESS.PROTECTED
     }
 ]

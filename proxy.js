@@ -29,7 +29,7 @@ export default async function proxy(req) {
         return NextResponse.next()
     }
 
-    if (route.access === ACCESS.AUTH && token) {
+    if (route.access === ACCESS.GUEST && token) {
         return NextResponse.redirect(new URL('/home', req.url))
     }
 

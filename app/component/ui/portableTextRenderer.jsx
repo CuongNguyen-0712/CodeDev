@@ -8,12 +8,12 @@ import createImageUrlBuilder from "@sanity/image-url";
 
 import { MdOutlineContentCopy } from "react-icons/md";
 import { FaCheck } from "react-icons/fa6";
-import { 
-    FiInfo, 
-    FiAlertTriangle, 
-    FiCheckCircle, 
-    FiAlertCircle, 
-    FiZap, 
+import {
+    FiInfo,
+    FiAlertTriangle,
+    FiCheckCircle,
+    FiAlertCircle,
+    FiZap,
     FiFileText,
     FiExternalLink
 } from "react-icons/fi";
@@ -148,17 +148,12 @@ function CodeBlock({ value }) {
                     aria-label={copied ? "Copied to clipboard" : "Copy code"}
                     title={copied ? "Copied to clipboard" : "Copy code"}
                 >
-                    {copied ? (
-                        <>
+                    {
+                        copied ?
                             <FaCheck fontSize={13} />
-                            <span className="copy_text">Copied!</span>
-                        </>
-                    ) : (
-                        <>
+                            :
                             <MdOutlineContentCopy fontSize={14} />
-                            <span className="copy_text">Copy</span>
-                        </>
-                    )}
+                    }
                 </button>
             </div>
 

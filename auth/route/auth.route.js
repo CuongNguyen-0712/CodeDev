@@ -7,6 +7,6 @@ export default [
         path: "/auth",
         action: ACTION.READ,
         resource: RESOURCE.AUTH,
-        access: ACCESS.AUTH
+        access: ACCESS.GUEST
     },
 ]

@@ -521,8 +521,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 44px;
-    flex-grow: 1;
+    height: 45px;
     padding: 0 16px;
     font-weight: 600;
     font-size: 14px;
@@ -533,7 +532,7 @@
 }
 
 .footer_view button:first-child {
-    max-width: 120px;
+    width: 100px;
     background: var(--gray-200);
     color: var(--black);
 }
@@ -543,6 +542,7 @@
 }
 
 .footer_view button:last-child {
+    flex-grow: 1;
     background: var(--gradient-primary);
     color: var(--white);
     box-shadow: var(--shadow-sm);

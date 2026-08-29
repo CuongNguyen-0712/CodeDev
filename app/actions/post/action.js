@@ -8,7 +8,7 @@ export async function postFeedback({ sender, title, feedback }) {
 
     const query = `INSERT INTO public.feedback (sender, title, feedback) VALUES ($${params.length - 2}, $${params.length - 1}, $${params.length})`;
 
-    return await sql.query(query, params);
+    return await sql(query, params);
 }
 
 export async function postCreateTeam({ teamId, userId, name, size, description }) {
@@ -21,7 +21,7 @@ export async function postCreateTeam({ teamId, userId, name, size, description }
             VALUES ($${params.length - 4}, $${params.length - 3}, $${params.length - 2}, $${params.length - 1}, $${params.length})
         `;
 
-    return await sql.query(query, params);
+    return await sql(query, params);
 }
 
 export async function postCommentCourse({ userId, courseId, comment }) {
@@ -35,5 +35,5 @@ export async function postCommentCourse({ userId, courseId, comment }) {
         $${params.length - 1}, 
         $${params.length})`;
 
-    return await sql.query(query, params);
+    return await sql(query, params);
 }

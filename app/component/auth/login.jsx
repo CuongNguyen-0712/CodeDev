@@ -1,18 +1,16 @@
-import { useState, useTransition } from "react"
+import { useState } from "react"
 
 import Image from "next/image"
 import Form from "next/form"
 import Link from "next/link"
 
-import { useApp } from "@/app/contexts/appContext"
-
 import { validate } from "@/app/helper/validate"
+
+import { useApp } from "@/app/contexts/appContext"
 
 import { SignInSchema } from "@/app/lib/definition"
 
 import { authClient } from "@/app/clients/auth.client"
-
-import { useRouterActions } from "@/app/router/useRouterActions"
 
 import { useLogin } from "@/app/mutation/auth.mutation"
 
@@ -31,10 +29,6 @@ export default function Login({ active, changeForm }) {
 
     const [validation, setValidation] = useState({})
     const [isPending, setIsPending] = useState(null)
-
-    const [isNavigating, startTransition] = useTransition()
-
-    const { navigateReplace } = useRouterActions()
 
     const { showAlert: alert } = useApp()
 
@@ -55,17 +49,11 @@ export default function Login({ active, changeForm }) {
         setValidation({})
 
         try {
-            await loginMutation.mutateAsync({
-                username: formData.username,
-                password: formData.password,
-                authType: "credentials",
-            });
+            await loginMutation.mutateAsync(formData)
 
-            startTransition(() => {
-                navigateReplace("/home");
-            })
+            alert(200, 'Successfully logged in. Redirecting...')
         } catch (error) {
-            alert(error.status, error.message);
+            alert(error.status || 500, error.message || 'An unexpected error occurred. Please try again.')
         }
     }
 
@@ -115,7 +103,6 @@ export default function Login({ active, changeForm }) {
 
     const handleCallback = async (value) => {
         setIsPending(value)
-
         try {
             await authClient.loginWithProvider(value)
         }
@@ -172,8 +159,8 @@ export default function Login({ active, changeForm }) {
                     {/* <Link href="/auth" className="forgot_link">Forgot password?</Link> */}
                 </div>
 
-                <button type="submit" className="btn_submit" disabled={loginMutation.isPending || isPending}>
-                    {loginMutation.isPending || isNavigating ? (
+                <button type="submit" className="btn_submit" disabled={loginMutation.isPending}>
+                    {loginMutation.isPending ? (
                         <LoadingContent scale={0.5} color="var(--white)" />
                     ) : (
                         'Sign In'

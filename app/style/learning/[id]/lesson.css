@@ -299,7 +299,8 @@
 .lesson_video_container {
     position: relative;
     width: 100%;
-    padding-bottom: 56.25%; /* 16:9 aspect ratio */
+    padding-bottom: 56.25%;
+    /* 16:9 aspect ratio */
     height: 0;
     margin: 28px 0;
     border-radius: 16px;
@@ -367,6 +368,9 @@
     font-weight: 600;
     font-family: Consolas, Monaco, "Cascadia Code", monospace;
     letter-spacing: -0.2px;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    max-width: 100%;
 }
 
 .code_language {
@@ -383,9 +387,11 @@
 
 .copy_code_button {
     display: flex;
+    justify-content: center;
     align-items: center;
+    height: 35px;
+    width: 35px;
     gap: 6px;
-    padding: 6px 12px;
     border-radius: 8px;
     font-size: 12px;
     font-weight: 600;
@@ -510,6 +516,7 @@
     border-color: var(--color-primary);
     color: var(--black-dark);
 }
+
 .callout_info .callout_icon,
 .callout_info .callout_title {
     color: var(--color-primary);
@@ -520,6 +527,7 @@
     border-color: var(--amber-500);
     color: #78350F;
 }
+
 .callout_warning .callout_icon,
 .callout_warning .callout_title {
     color: var(--amber-500);
@@ -530,6 +538,7 @@
     border-color: var(--emerald-500);
     color: #065F46;
 }
+
 .callout_success .callout_icon,
 .callout_success .callout_title {
     color: var(--emerald-500);
@@ -540,6 +549,7 @@
     border-color: #EF4444;
     color: #991B1B;
 }
+
 .callout_error .callout_icon,
 .callout_error .callout_title {
     color: #EF4444;
@@ -550,6 +560,7 @@
     border-color: #8B5CF6;
     color: #4C1D95;
 }
+
 .callout_tip .callout_icon,
 .callout_tip .callout_title {
     color: #8B5CF6;

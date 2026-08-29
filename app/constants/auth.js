@@ -1,0 +1,8 @@
+export const TOKEN = {
+    REFRESH: "REFRESH",
+    CONCURRENT: "CONCURRENT",
+    INVALID: "INVALID",
+    REVOKED: "REVOKED",
+    EXPIRED: "EXPIRED",
+    FAILED: "FAILED",
+};

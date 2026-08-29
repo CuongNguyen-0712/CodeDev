@@ -1,4 +1,11 @@
-import { sql } from "@/app/lib/db";
+import { sql, dbPool } from "@/app/lib/db";
+
+import { hashRefreshToken, compareTokenHash, generateRefreshToken } from "@/app/utils/auth.util";
+import { generateSonyflake } from "@/app/lib/sonyflake";
+
+import { TOKEN } from "@/app/constants/auth";
+
+const REFRESH_TOKEN_GRACE_MS = 10_000; // 10 seconds
 
 export const userDb = {
     signUp: async (data) => {
@@ -10,7 +17,7 @@ export const userDb = {
 
         const query = `select public_id from sign_up($1, $2, $3, $4, $5, $6, $7);`;
 
-        return await sql.query(query, params);
+        return await sql(query, params);
     },
 
     login: async (data) => {
@@ -22,7 +29,7 @@ export const userDb = {
 
         const query = `select * from log_in($1);`;
 
-        return await sql.query(query, params);
+        return await sql(query, params);
     },
 
     logout: async (data) => {
@@ -42,7 +49,7 @@ export const userDb = {
             RETURNING id;
         `;
 
-        return await sql.query(query, params);
+        return await sql(query, params);
     },
 
     signUpWithProvider: async (data) => {
@@ -54,43 +61,218 @@ export const userDb = {
 
         const query = `SELECT * FROM auth_with_provider($1, $2, $3, $4, $5, $6, $7)`
 
-        return await sql.query(query, params);
+        return await sql(query, params);
     },
 
     createSession: async (data) => {
-        const { id, userId, refresh_token_hash, expires_at } = data;
+        const { sessionId, tokenId, userId, refreshTokenHash, expiresAt } = data;
 
         const params = [];
 
-        params.push(id, userId, refresh_token_hash, expires_at);
+        params.push(sessionId, tokenId, userId, refreshTokenHash, expiresAt);
 
-        const query = `select * from create_session($1, $2, $3, $4);`;
+        const query = `select * from create_session($1, $2, $3, $4, $5);`;
 
-        return await sql.query(query, params);
+        return await sql(query, params);
     },
 
     refreshSession: async (data) => {
-        const { session_id, userId, old_refresh_token_hash, new_refresh_token_hash } = data;
+        const { sessionId, tokenId, userId, refreshToken } = data;
 
-        const params = [];
+        const client = await dbPool.connect();
 
-        params.push(new_refresh_token_hash, session_id, userId, old_refresh_token_hash);
+        try {
+            await client.query("BEGIN");
 
-        const query = `
+            const result = await client.query(
+                `
+                SELECT
+                    s.id AS session_id,
+                    s.expires_at,
+                    s.is_revoked,
+
+                    r.id AS token_id,
+                    r.refresh_token_hash,
+                    r.rotated_to_token_id,
+                    r.rotated_at
+
+                FROM private.sessions s
+
+                INNER JOIN private.refresh_tokens r
+                    ON r.session_id = s.id
+
+                INNER JOIN private.users u
+                    ON u.id = s.user_id
+
+                WHERE s.id = $1
+                  AND u.public_id = $2
+                  AND r.id = $3
+
+                FOR UPDATE OF s, r
+            `,
+                [
+                    sessionId,
+                    userId,
+                    tokenId,
+                ]
+            );
+
+            if (result.rowCount === 0) {
+                await client.query("ROLLBACK");
+
+                return {
+                    status: TOKEN.INVALID,
+                };
+            }
+
+            const session = result.rows[0];
+
+            if (session.is_revoked) {
+                await client.query("ROLLBACK");
+
+                return {
+                    status: TOKEN.REVOKED,
+                };
+            }
+
+            const expiresAt = new Date(session.expires_at).getTime();
+
+            if (
+                Number.isNaN(expiresAt) ||
+                expiresAt <= Date.now()
+            ) {
+                await client.query("ROLLBACK");
+
+                return {
+                    status: TOKEN.EXPIRED,
+                };
+            }
+
+            const refreshTokenHash = hashRefreshToken(refreshToken);
+
+            const validToken = compareTokenHash(
+                refreshTokenHash,
+                session.refresh_token_hash
+            );
+
+            if (!validToken) {
+                await client.query("ROLLBACK");
+
+                return {
+                    status: TOKEN.INVALID,
+                };
+            }
+
+            if (session.rotated_to_token_id && session.rotated_at) {
+                const rotatedAt = new Date(
+                    session.rotated_at
+                ).getTime();
+
+                const elapsed = Date.now() - rotatedAt;
+
+                if (elapsed >= 0 && elapsed <= REFRESH_TOKEN_GRACE_MS) {
+                    await client.query("COMMIT");
+
+                    return {
+                        status: TOKEN.CONCURRENT,
+                    };
+                }
+
+                return {
+                    status: TOKEN.REVOKED,
+                };
+            }
+
+            const newTokenId = generateSonyflake();
+            const newRefreshToken = generateRefreshToken();
+            const newRefreshTokenHash = hashRefreshToken(newRefreshToken);
+
+            await client.query(
+                `
+                UPDATE private.refresh_tokens
+                SET
+                    rotated_to_token_id = $1,
+                    rotated_at = NOW()
+                WHERE id = $2
+            `,
+                [
+                    newTokenId,
+                    session.token_id,
+                ]
+            );
+
+            const insertResult = await client.query(
+                `
+                INSERT INTO private.refresh_tokens (
+                    id,
+                    session_id,
+                    refresh_token_hash,
+                    created_at
+                )
+                VALUES (
+                    $1,
+                    $2,
+                    $3,
+                    NOW()
+                )
+                RETURNING
+                    id,
+                    session_id
+            `,
+                [
+                    newTokenId,
+                    session.session_id,
+                    newRefreshTokenHash,
+                ]
+            );
+
+            if (insertResult.rowCount === 0) {
+                throw new Error(
+                    "Failed to create new refresh token"
+                );
+            }
+
+            await client.query(
+                `
                 UPDATE private.sessions
-                SET 
-                    refresh_token_hash = $${params.length - 3},
+                SET
                     updated_at = NOW()
-                WHERE id = $${params.length - 2}
-                AND user_id = (SELECT id FROM private.users WHERE public_id = $${params.length - 1})
-                AND refresh_token_hash = $${params.length}
-                AND is_revoked = FALSE
-                AND expires_at > NOW()
-                RETURNING id;
-            `
-            ;
+                WHERE id = $1
+            `,
+                [session.session_id]
+            );
 
-        return await sql.query(query, params);
+            await client.query("COMMIT");
+
+            const newToken = insertResult.rows[0];
+
+            return {
+                sessionId: newToken.session_id,
+                tokenId: newToken.id,
+                refreshToken: newRefreshToken,
+                status: TOKEN.REFRESH,
+            };
+        } catch (error) {
+            try {
+                await client.query("ROLLBACK");
+            } catch (rollbackError) {
+                console.error(
+                    "Refresh token rollback failed:",
+                    rollbackError
+                );
+            }
+
+            console.error(
+                "Refresh session failed:",
+                error
+            );
+
+            return {
+                status: TOKEN.FAILED,
+            };
+        } finally {
+            client.release();
+        }
     },
 
     getPermissions: async (data) => {
@@ -110,7 +292,7 @@ export const userDb = {
             JOIN private.users u ON u.id = ur.user_id
             WHERE u.public_id = $1`
 
-        return await sql.query(query, params);
+        return await sql(query, params);
     },
 
     refreshToken: async (data) => {
@@ -121,7 +303,7 @@ export const userDb = {
 
         const query = `select * from refresh_token($1, $2);`;
 
-        return await sql.query(query, params);
+        return await sql(query, params);
     },
 
     getMe: async (userId) => {
@@ -155,7 +337,7 @@ export const userDb = {
             limit 1
         `;
 
-        return await sql.query(query, params);
+        return await sql(query, params);
     },
 
     getOverview: async (userId) => {
@@ -292,7 +474,7 @@ export const userDb = {
 
             ) AS data;
         `
-        return await sql.query(query, params);
+        return await sql(query, params);
     },
 
     getCourseProgress: async (data) => {
@@ -372,7 +554,7 @@ export const userDb = {
             limit 21
         `;
 
-        return await sql.query(query, params);
+        return await sql(query, params);
     },
 
     getLearningProgress: async (data) => {
@@ -383,6 +565,6 @@ export const userDb = {
         params.push(userId, courseId)
         const query = `select * from learning_progress($${params.length - 1}, $${params.length});`;
 
-        return await sql.query(query, params);
+        return await sql(query, params);
     }
 }

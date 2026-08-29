@@ -10,7 +10,7 @@ export default {
     },
 
     [ACTION.CREATE]({ user }) {
-        return !!user
+        return user.role === 'admin' || user.role === 'moderator'
     },
 
     [ACTION.UPDATE]({ user, resource }) {
@@ -23,11 +23,23 @@ export default {
         return !!user
     },
 
-    [ACTION.DELETE]({ user }) {
+    [ACTION.ENROLL]({ user }) {
         return !!user
     },
 
+    [ACTION.DELETE]({ user }) {
+        return user.role === 'admin' || user.role === 'moderator'
+    },
+
     [ACTION.COMMENT]({ user }) {
+        return !!user
+    },
+
+    [ACTION.FAVORITE]({ user }) {
+        return !!user
+    },
+
+    [ACTION.UNFAVORITE]({ user }) {
         return !!user
     }
 }

@@ -5,8 +5,8 @@ import { ACCESS } from '../access';
 export default [
     {
         path: "/",
-        action: ACTION.READ,
+        action: ACTION.LIST,
         resource: RESOURCE.INDEX,
-        access: ACCESS.AUTH
+        access: ACCESS.GUEST
     },
 ]
