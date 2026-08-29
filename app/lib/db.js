@@ -22,23 +22,30 @@ const neonSql = neon(DATABASE_URL);
 
 const prodPool = new NeonPool({
     connectionString: DATABASE_URL,
+    max: 10,
 });
-
 
 export async function sql(text, params = []) {
     if (isProd) {
-        const result = await neonSql.query(text, params);
-        return {
-            rows: result,
-            rowCount: result.length,
-        };
+        try {
+            const result = await neonSql.query(text, params);
+
+            return {
+                rows: result,
+                rowCount: result.length,
+            };
+        } catch (error) {
+            console.error("Neon query failed:", {
+                message: error instanceof Error ? error.message : error,
+                cause: error instanceof Error ? error.cause : undefined,
+            });
+
+            throw error;
+        }
     }
 
-    const result = await devPool.query(text, params);
-
-    return result;
+    return devPool.query(text, params);
 }
-
 
 export const dbPool = isProd
     ? prodPool
