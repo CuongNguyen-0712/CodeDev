@@ -146,56 +146,52 @@ export const authOptions = {
 
 
                 if (!response) {
-                    throw new ApiError("Session refresh failed, try again", 500);
+                    return token;
                 }
 
-                if (response.status === TOKEN.INVALID) {
-                    return {
-                        ...token,
-                        error: "SessionInvalid",
-                    };
-                }
+                switch (response.status) {
+                    case TOKEN.REFRESH:
+                        return {
+                            ...token,
+                            sessionId: response.sessionId,
+                            tokenId: response.tokenId,
+                            refreshToken: response.refreshToken,
+                            expiresAt: Date.now() + ACCESS_TOKEN_LIFETIME,
+                            error: undefined,
+                        };
 
-                if (response.status === TOKEN.EXPIRED) {
-                    return {
-                        ...token,
-                        error: "SessionExpired",
-                    };
-                }
+                    case TOKEN.INVALID:
+                        return {
+                            ...token,
+                            error: "SessionInvalid",
+                        };
 
-                if (response.status === TOKEN.REVOKED) {
-                    return {
-                        ...token,
-                        error: "SessionRevoked",
-                    };
-                }
+                    case TOKEN.EXPIRED:
+                        return {
+                            ...token,
+                            error: "SessionExpired",
+                        };
 
-                if (response.status === TOKEN.REFRESH) {
-                    return {
-                        ...token,
-                        sessionId: response.sessionId,
-                        tokenId: response.tokenId,
-                        refreshToken: response.refreshToken,
-                        expiresAt: Date.now() + ACCESS_TOKEN_LIFETIME,
-                        error: undefined,
-                    };
-                }
+                    case TOKEN.REVOKED:
+                        return {
+                            ...token,
+                            error: "SessionRevoked",
+                        };
 
-                return {
-                    ...token,
-                    error: "SessionInvalid",
-                };
+                    case TOKEN.CONCURRENT:
+                        return token;
+
+                    case TOKEN.FAILED:
+                    default:
+                        return token;
+                }
             } catch (err) {
-                console.error(
-                    "JWT refresh failed:",
-                    err
-                );
-                return {
-                    ...token,
-                    error: "SessionInvalid",
-                };
+                console.error("JWT refresh failed:", err);
+
+                return token;
             }
         },
+
         async session({ token }) {
             return {
                 user: {

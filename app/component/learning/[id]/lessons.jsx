@@ -15,7 +15,7 @@ import { ErrorReload } from "../../ui/error";
 
 import "@/app/style/learning/[id]/lesson.css"
 
-export function SubmitLessonButton({ lessonId, courseId, isSubmit }) {
+export function SubmitLessonButton({ lessonId, courseId }) {
     const submitLesson = useCourseSubmitLesson();
 
     const { showAlert: alert } = useApp();
@@ -24,15 +24,15 @@ export function SubmitLessonButton({ lessonId, courseId, isSubmit }) {
         try {
             await submitLesson.mutateAsync({ lessonId, courseId });
 
-            alert("Lesson submitted successfully!");
+            alert(200, "Lesson submitted successfully!");
         }
         catch (error) {
-            alert("Failed to submit lesson. Please try again.");
+            console.error("Failed to submit lesson:", error);
+            alert(500, "Failed to submit lesson. Please try again.");
         }
     }
 
-    return isSubmit &&
-        !submitLesson.isSuccess &&
+    return !submitLesson.isSuccess &&
         <button
             id="confirm_lesson"
             onClick={handleSubmit}
@@ -58,6 +58,7 @@ export default function LearningLesson({ lessonId, courseId, isSubmit }) {
     }, [lessonId]);
 
     if (isError) return <ErrorReload data={error} refetch={refetch} />;
+
     return (
         <div id="view" ref={scrollRef}>
             <div className="lesson_container">
@@ -71,11 +72,10 @@ export default function LearningLesson({ lessonId, courseId, isSubmit }) {
                 <div className="portable_text_container">
                     <PortableTextRenderer value={data?.content} />
                 </div>
-
                 <footer className="lesson_footer">
                     {
-                        !isLoading &&
-                        <SubmitLessonButton lessonId={lessonId} courseId={courseId} isSubmit={isSubmit} />
+                        (!isLoading && !isSubmit) &&
+                        <SubmitLessonButton lessonId={lessonId} courseId={courseId} />
                     }
                 </footer>
             </div>

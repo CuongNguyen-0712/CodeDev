@@ -178,6 +178,8 @@ export const userDb = {
                     };
                 }
 
+                await client.query("ROLLBACK");
+
                 return {
                     status: TOKEN.REVOKED,
                 };
@@ -227,9 +229,11 @@ export const userDb = {
             );
 
             if (insertResult.rowCount === 0) {
-                throw new Error(
-                    "Failed to create new refresh token"
-                );
+                await client.query("ROLLBACK");
+
+                return {
+                    status: TOKEN.FAILED,
+                };
             }
 
             await client.query(

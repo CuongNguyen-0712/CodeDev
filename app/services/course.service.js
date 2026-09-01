@@ -8,7 +8,9 @@ export const courseService = {
             throw new Error('Failed to fetch course details, try again later');
         }
 
-        return response.rows[0];
+        const details = response.rows[0];
+
+        return details;
     },
 
     getList: async (params) => {
@@ -36,7 +38,9 @@ export const courseService = {
             throw new Error('Failed to register for the course, try again later');
         }
 
-        return response;
+        const course = response.rows[0];
+
+        return !!course;
     },
 
     postWithdraw: async (data) => {
@@ -56,7 +60,9 @@ export const courseService = {
             throw new Error('Failed to fetch learning, try again later');
         }
 
-        return response.rows[0];
+        const learning = response.rows[0];
+
+        return learning;
     },
 
     postSubmitLesson: async (data) => {
@@ -66,7 +72,9 @@ export const courseService = {
             throw new Error('Failed to submit lesson, try again later');
         }
 
-        return response;
+        const course = response.rows[0];
+
+        return !!course;
     },
 
     postFavorite: async (data) => {
@@ -104,7 +112,9 @@ export const courseService = {
             throw new Error('Failed to post comment, try again later');
         }
 
-        return response;
+        const comment = response.rows[0];
+
+        return !!comment;
     },
 
     postVotingComment: async (data) => {
@@ -114,7 +124,9 @@ export const courseService = {
             throw new Error('Failed to vote on comment, try again later');
         }
 
-        return response;
+        const vote = response.rows[0];
+
+        return !!vote;
     },
 
     deleteFavorite: async (data) => {
@@ -124,6 +136,8 @@ export const courseService = {
             throw new Error('Failed to delete favorite status, try again later');
         }
 
-        return response;
+        const deleted = response.rows[0];
+
+        return !!deleted;
     },
 }

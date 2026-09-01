@@ -156,7 +156,7 @@ export const courseDb = {
         params.push(userId, courseId);
 
         const query = `
-            SELECT register_course($${params.length - 1}, $${params.length})
+            SELECT * FROM register_course($${params.length - 1}, $${params.length})
         `;
 
         return await sql(query, params);
@@ -205,7 +205,7 @@ export const courseDb = {
 
         params.push(userId, courseId, lessonId);
 
-        const query = `call submit_lesson($${params.length - 2}, $${params.length - 1}, $${params.length});`;
+        const query = `select * from submit_lesson($${params.length - 2}, $${params.length - 1}, $${params.length});`;
 
         return await sql(query, params);
     },
@@ -218,11 +218,15 @@ export const courseDb = {
 
         const query = `
             INSERT INTO course.favorite (user_id, course_id)
-            VALUES (
-                (SELECT id FROM private.users WHERE public_id = $1),
-                (SELECT id FROM public.course WHERE public_id = $2)
-            )
-            ON CONFLICT (user_id, course_id) DO NOTHING;
+            SELECT
+                u.id,
+                c.id
+            FROM private.users u
+            CROSS JOIN public.course c
+            WHERE u.public_id = $1
+            AND c.public_id = $2
+            ON CONFLICT (user_id, course_id) DO NOTHING
+            RETURNING *;
         `;
 
         return await sql(query, params);

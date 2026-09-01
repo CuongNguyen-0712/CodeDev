@@ -11,10 +11,9 @@ import { courseService } from "@/app/services/course.service";
 export async function generateMetadata({ params }) {
     const { id } = await params;
 
-    const data = await courseService.getDetails({ courseId: id });
-    const course = data[0];
+    const course = await courseService.getDetails({ courseId: id });
 
-    if (!course) {
+    if (course.rowCount === 0) {
         return {
             title: "Course not found",
         };

@@ -113,7 +113,11 @@ export default function StudyingPage({ params }) {
                         isLoading ?
                             <LoadingContent />
                             :
-                            <LearningLesson lessonId={selectedData?.lesson} courseId={params.id} isSubmit={selectedData?.status === 'in_progress'} />
+                            <LearningLesson
+                                lessonId={selectedData?.lesson}
+                                courseId={params.id}
+                                isSubmit={selectedData?.status === 'completed'}
+                            />
                     }
                 </div>
                 <div className={`slider ${slider ? 'active' : ''}`}>

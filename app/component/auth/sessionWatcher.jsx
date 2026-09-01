@@ -11,6 +11,12 @@ import DefaultLayout from "@/app/layout/defaultLayout";
 
 import { useApp } from "@/app/contexts/appContext";
 
+const tokenError = [
+    'SessionInvalid',
+    'SessionExpired',
+    'SessionRevoked',
+]
+
 export function SessionWatcher() {
     const { showAlert: alert } = useApp();
 
@@ -43,7 +49,7 @@ export function SessionWatcher() {
     useEffect(() => {
         if (status === "loading" || status === "unauthenticated") return;
 
-        if (session?.error) {
+        if (session?.error && tokenError.includes(session.error)) {
             handleSessionInvalid(session.error);
         }
     }, [session?.error, status]);
