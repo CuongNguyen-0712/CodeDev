@@ -20,7 +20,7 @@ export const courseService = {
             throw new Error('Failed to fetch course list, try again later');
         }
 
-        const LIMIT = 20
+        const LIMIT = params.limit || 20
         const hasMore = response.rowCount > LIMIT
         const data = response.rows.slice(0, LIMIT)
 

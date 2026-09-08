@@ -10,7 +10,7 @@ import { authService } from "@/app/services/auth.service";
 import { TOKEN } from "@/app/constants/auth";
 
 const ACCESS_TOKEN_LIFETIME = 15 * 60 * 1000;
-const ACCESS_TOKEN_REFRESH_BUFFER = 10 * 1000;
+const ACCESS_TOKEN_REFRESH_BUFFER = 30 * 1000;
 
 export const authOptions = {
     session: {
@@ -179,16 +179,29 @@ export const authOptions = {
                         };
 
                     case TOKEN.CONCURRENT:
-                        return token;
+                        return {
+                            ...token,
+                            sessionId: response.sessionId || token.sessionId,
+                            tokenId: response.tokenId || token.tokenId,
+                            refreshToken: response.refreshToken || token.refreshToken,
+                            expiresAt: Date.now() + ACCESS_TOKEN_LIFETIME,
+                            error: undefined,
+                        };
 
                     case TOKEN.FAILED:
                     default:
-                        return token;
+                        return {
+                            ...token,
+                            expiresAt: Date.now() + 30 * 1000,
+                        };
                 }
             } catch (err) {
                 console.error("JWT refresh failed:", err);
 
-                return token;
+                return {
+                    ...token,
+                    expiresAt: Date.now() + 30 * 1000,
+                };
             }
         },
 

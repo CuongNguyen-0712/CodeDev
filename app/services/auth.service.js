@@ -9,6 +9,20 @@ import { generateSonyflake } from "@/app/lib/sonyflake";
 import { hashRefreshToken, generateRefreshToken } from "@/app/utils/auth.util";
 
 import { ulid } from "ulid";
+import { TOKEN } from "@/app/constants/auth";
+
+const pendingRefreshPromises = new Map();
+const recentRotations = new Map();
+const ROTATION_CACHE_TTL_MS = 120_000; // 2 minutes
+
+function cleanupExpiredRotations() {
+    const now = Date.now();
+    for (const [key, val] of recentRotations.entries()) {
+        if (now - val.timestamp > ROTATION_CACHE_TTL_MS) {
+            recentRotations.delete(key);
+        }
+    }
+}
 
 export const authService = {
     login: async (data) => {
@@ -102,18 +116,95 @@ export const authService = {
     refreshSession: async (data) => {
         const { sessionId, tokenId, userId, refreshToken } = data;
 
-        const updatedSession = await userDb.refreshSession({ sessionId, tokenId, userId, refreshToken });
+        cleanupExpiredRotations();
 
-        return {
-            sessionId: updatedSession.sessionId,
-            tokenId: updatedSession.tokenId,
-            refreshToken: updatedSession.refreshToken,
-            status: updatedSession.status,
-        };
+        // 1. Fast path: check if this session was recently rotated and matches tokenId
+        const cached = recentRotations.get(sessionId);
+        if (cached && (Date.now() - cached.timestamp < ROTATION_CACHE_TTL_MS)) {
+            if (cached.oldTokenId === tokenId || cached.tokenId === tokenId) {
+                return {
+                    sessionId: cached.sessionId,
+                    tokenId: cached.tokenId,
+                    refreshToken: cached.refreshToken,
+                    status: TOKEN.REFRESH,
+                };
+            }
+        }
+
+        // 2. In-flight deduplication: if refresh is in progress for this session, await it
+        if (pendingRefreshPromises.has(sessionId)) {
+            try {
+                return await pendingRefreshPromises.get(sessionId);
+            } catch (err) {
+                // If in-flight failed, proceed to try fresh
+            }
+        }
+
+        // 3. Execute refresh with mutex
+        const refreshPromise = (async () => {
+            try {
+                const updatedSession = await userDb.refreshSession({ sessionId, tokenId, userId, refreshToken });
+
+                if (!updatedSession) {
+                    return { status: TOKEN.FAILED };
+                }
+
+                if (updatedSession.status === TOKEN.REFRESH) {
+                    const result = {
+                        sessionId: updatedSession.sessionId,
+                        tokenId: updatedSession.tokenId,
+                        refreshToken: updatedSession.refreshToken,
+                        status: TOKEN.REFRESH,
+                    };
+
+                    recentRotations.set(sessionId, {
+                        ...result,
+                        oldTokenId: tokenId,
+                        timestamp: Date.now(),
+                    });
+
+                    return result;
+                }
+
+                if (updatedSession.status === TOKEN.CONCURRENT) {
+                    const latestCached = recentRotations.get(sessionId);
+                    if (latestCached && (Date.now() - latestCached.timestamp < ROTATION_CACHE_TTL_MS)) {
+                        return {
+                            sessionId: latestCached.sessionId,
+                            tokenId: latestCached.tokenId,
+                            refreshToken: latestCached.refreshToken,
+                            status: TOKEN.REFRESH,
+                        };
+                    }
+
+                    return {
+                        sessionId: updatedSession.sessionId || sessionId,
+                        tokenId: tokenId,
+                        refreshToken: refreshToken,
+                        status: TOKEN.CONCURRENT,
+                    };
+                }
+
+                return {
+                    sessionId: updatedSession.sessionId,
+                    tokenId: updatedSession.tokenId,
+                    refreshToken: updatedSession.refreshToken,
+                    status: updatedSession.status,
+                };
+            } finally {
+                pendingRefreshPromises.delete(sessionId);
+            }
+        })();
+
+        pendingRefreshPromises.set(sessionId, refreshPromise);
+        return await refreshPromise;
     },
 
     logout: async (data) => {
         const { userId, sessionId } = data;
+
+        recentRotations.delete(sessionId);
+        pendingRefreshPromises.delete(sessionId);
 
         const response = await userDb.logout({ userId, sessionId });
 

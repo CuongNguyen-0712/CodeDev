@@ -4,6 +4,8 @@ import Image from "next/image"
 import Form from "next/form"
 import Link from "next/link"
 
+import { useRouterActions } from '@/app/router/useRouterActions'
+
 import { validate } from "@/app/helper/validate"
 
 import { useApp } from "@/app/contexts/appContext"
@@ -30,11 +32,13 @@ export default function Login({ active, changeForm }) {
     const [validation, setValidation] = useState({})
     const [isPending, setIsPending] = useState(null)
 
+    const { navigateReplace } = useRouterActions()
+
     const { showAlert: alert } = useApp()
 
     const loginMutation = useLogin()
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = (e) => {
         e.preventDefault()
 
         if (loginMutation.isPending || isPending) return
@@ -48,13 +52,25 @@ export default function Login({ active, changeForm }) {
 
         setValidation({})
 
-        try {
-            await loginMutation.mutateAsync(formData)
+        loginMutation.mutate(formData, {
+            onSuccess: (response) => {
+                if (!response?.ok) {
+                    alert(response?.status || 500, response?.error || "Login failed, please try again.")
+                    return
+                }
 
-            alert(200, 'Successfully logged in. Redirecting...')
-        } catch (error) {
-            alert(error.status || 500, error.message || 'An unexpected error occurred. Please try again.')
-        }
+                alert(200, "Login successful! Redirecting...")
+                navigateReplace('/home')
+            },
+
+            onError: (error) => {
+                alert(error.status || 500, error.message || "Login failed, please try again.")
+            },
+
+            onSettled: () => {
+                setIsPending(null)
+            }
+        })
     }
 
     const handleValidation = (e) => {
@@ -101,14 +117,26 @@ export default function Login({ active, changeForm }) {
         })
     }
 
-    const handleCallback = async (value) => {
+    const handleCallback = (value) => {
         setIsPending(value)
-        try {
-            await authClient.loginWithProvider(value)
-        }
-        catch (error) {
+        authClient.loginWithProvider(value, {
+            onSuccess: (response) => {
+                if (!response?.ok) {
+                    alert(response?.status || 500, response?.error || "Login failed, please try again.")
+                    return
+                }
+
+                alert(200, "Login successful! Redirecting...")
+                navigateReplace('/home')
+            },
+
+            onError: (error) => {
+                alert(error.status || 500, error.message || "Login failed, please try again.")
+            }
+
+        }).finally(() => {
             setIsPending(null)
-        }
+        })
     }
 
     return (

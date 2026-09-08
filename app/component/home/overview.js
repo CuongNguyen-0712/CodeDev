@@ -16,6 +16,7 @@ import { FaRankingStar } from "react-icons/fa6";
 import { MdEdit } from "react-icons/md";
 
 import "@/app/style/home/welcome.css";
+import HomeRecommend from "./recommend";
 
 export default function HomeOverview() {
     const { navigate } = useRouterActions();
@@ -77,6 +78,7 @@ export default function HomeOverview() {
                         </>
                 }
             </section>
+            <HomeRecommend />
         </div>
     )
 }

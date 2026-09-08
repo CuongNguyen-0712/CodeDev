@@ -42,7 +42,7 @@ export default function Signup({ active, changeForm }) {
     const [validation, setValidation] = useState({})
     const [isPending, setIsPending] = useState(null)
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = (e) => {
         e.preventDefault()
 
         const { success, errors } = validate(SignUpSchema, formData)
@@ -53,16 +53,27 @@ export default function Signup({ active, changeForm }) {
             return
         }
 
-        try {
-            await signUpMutation.mutateAsync(formData)
+        setValidation({})
 
-            alert(201, "Account created successfully, please login")
-            changeForm()
-        } catch (err) {
-            alert(err.status || 500, err.message || "Sign up failed, try again")
-        } finally {
-            setIsPending(null)
-        }
+        signUpMutation.mutate(formData, {
+            onSuccess: (response) => {
+                if (!response?.ok) {
+                    alert(response?.status || 500, response?.error || "Sign up failed, please try again.")
+                    setIsPending(null)
+                    return
+                }
+
+                alert(200, "Sign up successful! Redirecting...")
+                setFormData(defaultState)
+                setStep(0)
+                changeForm()
+            },
+
+            onError: (error) => {
+                alert(error.status || 500, error.message || "Sign up failed, please try again.")
+                setIsPending(null)
+            }
+        })
     }
 
     const handleValidation = (e) => {
@@ -101,15 +112,25 @@ export default function Signup({ active, changeForm }) {
         })
     }
 
-    const handleCallback = async (value) => {
+    const handleCallback = (value) => {
         setIsPending(value)
 
-        try {
-            await authClient.loginWithProvider(value)
-        }
-        catch (error) {
+        authClient.loginWithProvider(value, {
+            onSuccess: (response) => {
+                if (!response?.ok) {
+                    alert(response?.status || 500, response?.error || "Login failed, please try again.")
+                    return
+                }
+
+                alert(200, "Login successful! Redirecting...")
+                navigateReplace('/home')
+            },
+            onError: (error) => {
+                alert(error.status || 500, error.message || "Login failed, please try again.")
+            }
+        }).finally(() => {
             setIsPending(null)
-        }
+        })
     }
 
     const canGoNext = step < 1

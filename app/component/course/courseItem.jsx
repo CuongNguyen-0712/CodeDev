@@ -14,7 +14,7 @@ import { useSession } from "next-auth/react";
 
 import { useCourseRegister } from "@/app/mutation/course.mutation";
 
-import { FaStar, FaUser, FaCode, FaCoins } from "react-icons/fa";
+import { FaStar, FaUser, FaBookOpen, FaClock, FaCode, FaCoins } from "react-icons/fa";
 import { BiDetail } from "react-icons/bi";
 import { MdCategory } from "react-icons/md";
 
@@ -108,7 +108,20 @@ export const CourseItem = ({ item }) => {
 
             <div className="course-card-body">
                 <h3 className="course-title">{item.title}</h3>
-                <p className="course-properties">{`${item.modules} modules - ${item.lessons} lessons - ${item.duration} minutes`}</p>
+                <div className="course-properties">
+                    <div className='property'>
+                        <FaBookOpen />
+                        <p>{item.modules} modules</p>
+                    </div>
+                    <div className='property'>
+                        <FaCode />
+                        <p>{item.lessons} lessons</p>
+                    </div>
+                    <div className='property'>
+                        <FaClock color={'--color-primary'} />
+                        <p>{item.duration} minutes</p>
+                    </div>
+                </div>
                 <div className="course-meta">
                     <Link href={'#'} className="meta-item language">
                         <FaCode />

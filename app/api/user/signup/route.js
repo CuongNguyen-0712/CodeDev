@@ -16,7 +16,7 @@ export async function POST(req) {
 
         const response = await userService.signUp(data);
 
-        return NextResponse.json({ success: response }, { status: 201 });
+        return NextResponse.json({ success: true, data: response }, { status: 201 });
     }
     catch (error) {
         return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: error.status || 500 });

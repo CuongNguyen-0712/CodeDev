@@ -49,7 +49,7 @@ export default function Account({ isAccountMobile, handleAccountMobile, alert })
         <section className={`account mobile ${isAccountMobile ? 'open' : 'closed'}`} ref={ref}>
             <header className="account_header">
                 <img
-                    src={session?.user?.image}
+                    src={session?.user?.image || '/image/static/no_image.png'}
                     alt="avatar"
                     height={80}
                     width={80}

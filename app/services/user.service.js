@@ -16,9 +16,15 @@ export const userService = {
         const salt = await bycrypt.genSalt(10);
         const hashedPassword = await bycrypt.hash(password, salt);
 
-        const userData = await userDb.signUp({ id, public_id, username, email, surname, name, password: hashedPassword });
+        const resposne = await userDb.signUp({ id, public_id, username, email, surname, name, password: hashedPassword });
 
-        return userData;
+        const newUser = resposne.rows[0];
+
+        if (!newUser) {
+            throw new Error('Failed to create user, try again later');
+        }
+
+        return newUser;
     },
 
     getMe: async (userId) => {

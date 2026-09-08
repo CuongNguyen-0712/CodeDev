@@ -5,15 +5,19 @@ import { api } from '@/app/lib/axios'
 export const authClient = {
     login: async (data) => {
         const { username, password } = data;
-        return await signIn('credentials', {
+        const response = await signIn('credentials', {
             username,
             password,
-            callbackUrl: '/home',
+            redirect: false,
         });
+
+        return response;
     },
 
     loginWithProvider: async (provider) => {
-        return await signIn(provider, { callbackUrl: '/home' });
+        const response = await signIn(provider, { redirect: false });
+
+        return response;
     },
 
     logout: async () => {

@@ -5,7 +5,7 @@ import { generateSonyflake } from "@/app/lib/sonyflake";
 
 import { TOKEN } from "@/app/constants/auth";
 
-const REFRESH_TOKEN_GRACE_MS = 10_000; // 10 seconds
+const REFRESH_TOKEN_GRACE_MS = 120_000; // 2 minutes (120 seconds)
 
 export const userDb = {
     signUp: async (data) => {
@@ -15,7 +15,7 @@ export const userDb = {
 
         params.push(id, public_id, username, email, surname, name, password);
 
-        const query = `select public_id from sign_up($1, $2, $3, $4, $5, $6, $7);`;
+        const query = `select * from sign_up($1, $2, $3, $4, $5, $6, $7);`;
 
         return await sql(query, params);
     },
@@ -174,6 +174,7 @@ export const userDb = {
                     await client.query("COMMIT");
 
                     return {
+                        sessionId: session.session_id,
                         status: TOKEN.CONCURRENT,
                     };
                 }

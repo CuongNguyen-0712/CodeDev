@@ -19,9 +19,9 @@ export const userClient = {
             throw new Error('Failed to fetch user details, try again later');
         }
 
-        return Array.isArray(res.data)
-            ? res.data[0]
-            : res.data;
+        const user = Array.isArray(res.data) ? res.data[0] : res.data;
+
+        return user;
     },
 
     getOverview: async () => {

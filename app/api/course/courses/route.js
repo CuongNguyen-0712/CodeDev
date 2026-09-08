@@ -19,8 +19,9 @@ export async function GET(req) {
         const prices = searchParams.getAll("price[]");
         const levels = searchParams.getAll("level[]");
         const ratings = searchParams.getAll("rating[]");
+        const limit = searchParams.get("limit") || 20;
 
-        const data = { userId, search, lastId, prices, levels, ratings };
+        const data = { userId, search, lastId, prices, levels, ratings, limit };
 
         const response = await courseService.getList(data);
 

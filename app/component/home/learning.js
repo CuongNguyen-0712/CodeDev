@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 
 import { useRouterActions } from "@/app/router/useRouterActions";
 
@@ -101,18 +101,26 @@ export default function HomeLearning() {
                                                     className="course-item"
                                                     key={key}
                                                 >
-                                                    <img src={course.language_logo || '/image/static/no_image.png'}
-                                                        width={40}
-                                                        height={40}
-                                                        alt={course.language_name || 'course_logo'}
-                                                        onError={(e) => {
-                                                            e.target.onerror = null;
-                                                            e.target.src = '/image/static/no_image.png';
-                                                        }}
-                                                    />
-                                                    <div className="course-info">
-                                                        <h5>{course.title}</h5>
-                                                        <span>{course.category_name}</span>
+                                                    <div className="course-header">
+                                                        <img src={course.language_logo || '/image/static/no_image.png'}
+                                                            width={40}
+                                                            height={40}
+                                                            alt={course.language_name || 'course_logo'}
+                                                            onError={(e) => {
+                                                                e.target.onerror = null;
+                                                                e.target.src = '/image/static/no_image.png';
+                                                            }}
+                                                        />
+                                                        <div className="course-info">
+                                                            <h5>{course.title}</h5>
+                                                            <span>{course.category_name}</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="course-language">
+                                                        <h5>Language:</h5>
+                                                        <p>
+                                                            {course.language_name}
+                                                        </p>
                                                     </div>
                                                 </Link>
                                             ))}
