@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 
-import HomeLayout from "../layout/homeLayout";
-import CoursePage from "@/app/component/course/coursePage";
+import HomeLayout from '@/components/layouts/homeLayout';
+import CoursePage from "@/components/course/coursePage";
 
-import { LoadingRedirect } from "@/app/component/ui/loading";
+import { LoadingRedirect } from "@/components/ui/loading";
 
 export async function generateMetadata() {
     return {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import GetRoadmapService from "@/app/services/getService/roadmapService";
+import GetRoadmapService from "@/services/getService/roadmapService";
 
 export async function GET(req) {
     try {

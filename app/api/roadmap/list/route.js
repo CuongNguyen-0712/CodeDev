@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { ApiError } from "@/app/lib/error/apiError";
+import { ApiError } from "@/lib/error/apiError";
 
-import { roadmapService } from "@/app/services/roadmap.service";
+import { roadmapService } from "@/services/roadmap.service";
 
 export async function GET(req) {
     try {

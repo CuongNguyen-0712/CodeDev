@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 
-import { LoadingRedirect } from "@/app/component/ui/loading";
+import { LoadingRedirect } from "@/components/ui/loading";
 
-import RoadmapPage from "../component/roadmap/roadmapPage";
-import HomeLayout from "../layout/homeLayout";
+import RoadmapPage from "@/components/roadmap/roadmapPage";
+import HomeLayout from '@/components/layouts/homeLayout';
 
 export const metadata = {
 	title: "Roadmap | CodeDev",

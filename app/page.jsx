@@ -1,10 +1,10 @@
-import IndexPage from "@/app/component/index"
+import IndexPage from "@/components/index"
 
 import { Suspense } from "react"
 
-import HomeLayout from "./layout/homeLayout"
+import HomeLayout from '@/components/layouts/homeLayout'
 
-import { LoadingRedirect } from "./component/ui/loading"
+import { LoadingRedirect } from "@/components/ui/loading"
 
 export default function Page() {
     return (

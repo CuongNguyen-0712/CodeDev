@@ -1,0 +1,464 @@
+/* ==========================================================
+   LEARNING COURSE CARD
+   ========================================================== */
+.learning-card {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    background: var(--white);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--gray-200);
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.learning-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(113, 201, 206, 0.3);
+}
+
+/* ==========================================================
+   CARD HEADER & LOGO
+   ========================================================== */
+.learning-card .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 22px;
+    background: var(--gradient-card);
+    border-bottom: 1px solid rgba(113, 201, 206, 0.08);
+}
+
+.learning-card .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.learning-card .learning-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-lg);
+    background: var(--white);
+    border: 1px solid rgba(113, 201, 206, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.learning-card .learning-icon img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+}
+
+/* Status Pill */
+.learning-card .status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 100px;
+    font-size: 11.5px;
+    font-weight: 700;
+    background: var(--gray-100);
+    color: var(--black-dark);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.learning-card .status-pill.enrolled {
+    background: var(--blue-100, #dbeafe);
+    color: var(--blue-500, #3b82f6);
+}
+
+.learning-card .status-pill.in-progress {
+    background: var(--amber-100, #fef3c7);
+    color: var(--amber-700, #b45309);
+}
+
+.learning-card .status-pill.completed {
+    background: var(--emerald-100, #10b981);
+    color: var(--emerald-700, #047857);
+}
+
+/* Bookmark Button */
+.learning-card .bookmark-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--gray-400);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.learning-card .bookmark-btn:hover:not(:disabled) {
+    transform: scale(1.1);
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+}
+
+.learning-card .bookmark-btn.active {
+    color: var(--color-danger);
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+/* ==========================================================
+   CARD BODY & INFO
+   ========================================================== */
+.learning-card .card-body {
+    display: flex;
+    flex-direction: column;
+    padding: 22px;
+    gap: 20px;
+    flex: 1;
+}
+
+.learning-card .learning-info {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: 1;
+}
+
+.learning-card .learning-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--black-dark);
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.learning-card .learning-title:hover {
+    color: var(--color-primary);
+}
+
+.learning-card .learning-concept {
+    font-size: 13.5px;
+    color: var(--gray-600);
+    line-height: 1.55;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin: 0;
+}
+
+/* Meta Badges */
+.learning-card .learning-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.learning-card .meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 11.5px;
+    font-weight: 600;
+}
+
+.learning-card .meta-item svg {
+    font-size: 12px;
+}
+
+.learning-card .meta-item.level {
+    background: rgba(113, 201, 206, 0.08);
+    color: var(--color-primary);
+}
+
+.learning-card .meta-item.language {
+    background: rgba(16, 185, 129, 0.08);
+    color: var(--emerald-700, #047857);
+}
+
+.learning-card .meta-item.category {
+    background: rgba(249, 115, 22, 0.08);
+    color: var(--orange-700, #c2410c);
+}
+
+/* ==========================================================
+   PROGRESS BAR
+   ========================================================== */
+.learning-card .learning-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 14px;
+    border-top: 1px solid var(--gray-100);
+}
+
+.learning-card .progress-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.learning-card .progress-label {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.learning-card .progress-value {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-primary);
+}
+
+.learning-card .progress-bar {
+    width: 100%;
+    height: 7px;
+    background: var(--gray-200);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.learning-card .progress-fill {
+    height: 100%;
+    background: var(--gradient-primary);
+    border-radius: 4px;
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.learning-card .progress-fill.fill-completed {
+    background: var(--color-success, #10B981);
+}
+
+.learning-card .progress-detail {
+    font-size: 12px;
+    color: var(--gray-500);
+    font-weight: 500;
+}
+
+/* ==========================================================
+   CARD FOOTER & ACTIONS
+   ========================================================== */
+.learning-card .card-footer {
+    display: flex;
+    padding: 16px 22px 20px;
+    border-top: 1px solid var(--gray-200);
+    background: var(--gray-50);
+}
+
+.learning-card .main-actions,
+.learning-card .setting-actions {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 10px;
+}
+
+.learning-card .btn-join {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 42px;
+    background: var(--color-primary);
+    color: var(--white);
+    font-size: 13.5px;
+    font-weight: 700;
+    border-radius: var(--radius-md);
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.learning-card .btn-join:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.learning-card .btn-join:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.learning-card .btn-preview,
+.learning-card .btn-settings,
+.learning-card .btn-close {
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--white);
+    border: 1px solid var(--gray-300);
+    color: var(--black);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    flex-shrink: 0;
+}
+
+.learning-card .btn-preview:hover,
+.learning-card .btn-settings:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.learning-card .btn-close {
+    background: var(--gray-200);
+    border-color: var(--gray-300);
+}
+
+.learning-card .btn-close:hover {
+    background: var(--gray-300);
+}
+
+.learning-card .btn_action {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 42px;
+    font-size: 13.5px;
+    font-weight: 700;
+    border-radius: var(--radius-md);
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.learning-card .btn-withdraw {
+    background: var(--color-danger);
+    color: var(--white);
+}
+
+.learning-card .btn-withdraw:hover:not(:disabled) {
+    background: var(--rose-700);
+}
+
+.learning-card .btn-archived {
+    background: var(--gray-200);
+    color: var(--gray-700);
+}
+
+/* ==========================================================
+   CONFIRMATION MODAL
+   ========================================================== */
+.learning-card .confirm-modal {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: var(--radius-xl);
+    z-index: 10;
+    gap: 20px;
+    animation: modalFadeIn 0.2s ease-out forwards;
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.96);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.learning-card .modal-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 10px;
+}
+
+.learning-card .modal-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--color-danger);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+}
+
+.learning-card .modal-content h4 {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--black-dark);
+}
+
+.learning-card .modal-content p {
+    font-size: 13.5px;
+    color: var(--gray-600);
+    max-width: 260px;
+    line-height: 1.5;
+    margin: 0;
+}
+
+.learning-card .modal-actions {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    max-width: 260px;
+}
+
+.learning-card .btn-confirm {
+    flex: 1;
+    height: 38px;
+    background: var(--color-danger);
+    color: var(--white);
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: var(--radius-md);
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.learning-card .btn-confirm:hover:not(:disabled) {
+    background: var(--rose-700, #be123c);
+}
+
+.learning-card .btn-cancel {
+    flex: 1;
+    height: 38px;
+    background: var(--gray-200);
+    color: var(--black);
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: var(--radius-md);
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.learning-card .btn-cancel:hover:not(:disabled) {
+    background: var(--gray-300);
+}

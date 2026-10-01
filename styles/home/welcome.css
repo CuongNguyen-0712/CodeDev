@@ -1,0 +1,446 @@
+/* ==========================================================================
+   Overview Content & Welcome Banner Styles
+   ========================================================================== */
+
+#overview_content {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    flex-basis: 0;
+    min-width: 0;
+    max-width: 100%;
+    gap: 24px;
+}
+
+/* ==========================================================================
+   Welcome Banner Container
+   ========================================================================== */
+
+.overview-welcome {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    width: 100%;
+    min-height: 220px;
+    padding: 28px 32px;
+    border-radius: var(--radius-xl);
+    gap: 24px;
+    overflow: hidden;
+    background: var(--color-primary);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Decorative glowing mesh backgrounds */
+.overview-welcome::before {
+    content: '';
+    position: absolute;
+    top: -60px;
+    right: -40px;
+    width: 240px;
+    height: 240px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 70%);
+    filter: blur(24px);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.overview-welcome::after {
+    content: '';
+    position: absolute;
+    bottom: -60px;
+    left: 20%;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(17, 157, 164, 0.3) 0%, rgba(17, 157, 164, 0) 70%);
+    filter: blur(30px);
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* ==========================================================================
+   Welcome Content (Greeting, Title, Avatar)
+   ========================================================================== */
+
+.welcome-content {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    z-index: 1;
+}
+
+.welcome-text {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+}
+
+.welcome-text .greeting {
+    display: inline-flex;
+    align-items: center;
+    width: max-content;
+    gap: 7px;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 100px;
+    color: var(--color-primary-dark);
+    background: var(--white);
+    backdrop-filter: blur(10px);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+}
+
+.welcome-text .greeting svg {
+    font-size: 15px;
+    color: var(--color-warning);
+}
+
+.welcome-text h1 {
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--white);
+    letter-spacing: -0.4px;
+    line-height: 1.25;
+    word-break: break-word;
+}
+
+.welcome-text p {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.9);
+    line-height: 1.5;
+    max-width: 520px;
+}
+
+/* Guest Actions */
+.guest-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+}
+
+.guest-cta-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 22px;
+    border-radius: 100px;
+    background: var(--white);
+    color: var(--color-primary);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.guest-cta-primary:hover {
+    transform: translateY(-2px);
+    background: var(--white-soft);
+    color: var(--color-primary-dark);
+}
+
+.guest-cta-primary svg {
+    font-size: 11px;
+    transition: transform 0.2s ease;
+}
+
+.guest-cta-primary:hover svg {
+    transform: translateX(3px);
+}
+
+.guest-cta-secondary {
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 20px;
+    border-radius: 100px;
+    background: rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    color: var(--white);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.guest-cta-secondary:hover {
+    background: rgba(255, 255, 255, 0.28);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: translateY(-2px);
+}
+
+/* Avatar Section */
+.welcome-avatar {
+    position: relative;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.avatar-ring {
+    position: relative;
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    padding: 3px;
+    background: rgba(255, 255, 255, 0.65);
+}
+
+.avatar-ring img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--white);
+    transition: transform 0.3s ease;
+}
+
+.welcome-avatar:hover .avatar-ring img {
+    transform: scale(1.04);
+}
+
+.avatar-status-dot {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--color-success);
+    border: 2.5px solid var(--white);
+}
+
+.welcome-avatar .edit-btn {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--white);
+    color: var(--color-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+    font-size: 15px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 2;
+}
+
+.welcome-avatar .edit-btn:hover {
+    transform: scale(1.12);
+    color: var(--color-primary-dark);
+    background: var(--white-soft);
+}
+
+/* ==========================================================================
+   Welcome Badges / Metric Pills
+   ========================================================================== */
+
+.welcome-badges {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    z-index: 1;
+}
+
+.welcome-badges .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 100px;
+    background: rgba(255, 255, 255, 0.16);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: var(--white);
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: default;
+    user-select: none;
+}
+
+.welcome-badges .badge:hover {
+    background: rgba(255, 255, 255, 0.26);
+    border-color: rgba(255, 255, 255, 0.4);
+    transform: translateY(-2px);
+}
+
+.welcome-badges .badge svg {
+    font-size: 16px;
+}
+
+.welcome-badges .badge strong {
+    font-weight: 700;
+    color: var(--white);
+}
+
+.welcome-badges .badge .star-icon {
+    color: var(--amber-500);
+}
+
+.welcome-badges .badge .trophy-icon {
+    color: var(--rose-500);
+}
+
+/* ==========================================================================
+   Loading Skeleton State
+   ========================================================================== */
+
+.welcome-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    width: 100%;
+}
+
+.skeleton-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.skeleton-text {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    max-width: 420px;
+}
+
+.skeleton-pill {
+    width: 130px;
+    height: 28px;
+    border-radius: 100px;
+}
+
+.skeleton-title {
+    width: 260px;
+    height: 36px;
+    border-radius: 8px;
+}
+
+.skeleton-desc {
+    width: 100%;
+    height: 18px;
+    border-radius: 6px;
+}
+
+.skeleton-avatar {
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.skeleton-badges {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.skeleton-badge {
+    width: 115px;
+    height: 38px;
+    border-radius: 100px;
+}
+
+.shimmer {
+    background: rgba(255, 255, 255, 0.18);
+    animation: welcomePulse 1.6s ease-in-out infinite;
+}
+
+@keyframes welcomePulse {
+
+    0%,
+    100% {
+        opacity: 0.7;
+    }
+
+    50% {
+        opacity: 0.3;
+    }
+}
+
+.welcome-error-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 20px;
+}
+
+/* ==========================================================================
+   Responsive Adaptations
+   ========================================================================== */
+
+@media screen and (max-width: 768px) {
+    .overview-welcome {
+        padding: 24px;
+        gap: 20px;
+    }
+
+    .welcome-text h1 {
+        font-size: 26px;
+    }
+
+    .welcome-text p {
+        font-size: 13px;
+    }
+
+    .avatar-ring {
+        width: 72px;
+        height: 72px;
+    }
+}
+
+@media screen and (max-width: 520px) {
+    .overview-welcome {
+        padding: 20px 18px;
+        gap: 18px;
+    }
+
+    .welcome-content {
+        flex-direction: column-reverse;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .welcome-avatar {
+        align-self: flex-start;
+    }
+
+    .avatar-ring {
+        width: 64px;
+        height: 64px;
+    }
+
+    .welcome-text h1 {
+        font-size: 22px;
+    }
+
+    .welcome-badges {
+        gap: 8px;
+    }
+
+    .welcome-badges .badge {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+}

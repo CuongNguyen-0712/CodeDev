@@ -1,0 +1,17 @@
+import cloudinary from "@/lib/cloudinary";
+
+import { ApiError } from "@/lib/error/apiError";
+
+export default async function UploadService(data) {
+    const { file, folder } = data;
+    const arrayBuffer = await file.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString("base64");
+    const dataUri = `data:${file.type};base64,${base64}`;
+    const result = await cloudinary.uploader.upload(dataUri, { folder });
+
+    if (!result) {
+        throw new ApiError("Failed to upload, try again later", 500)
+    }
+
+    return result.secure_url;
+}

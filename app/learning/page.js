@@ -1,10 +1,10 @@
 import { Suspense } from 'react';
 
-import HomeLayout from '@/app/layout/homeLayout';
+import HomeLayout from '@/components/layouts/homeLayout';
 
-import { LoadingRedirect } from '@/app/component/ui/loading';
+import { LoadingRedirect } from '@/components/ui/loading';
 
-import LearngingPage from '@/app/component/learning/learningPage';
+import LearngingPage from '@/components/learning/learningPage';
 
 export async function generateMetadata() {
     return {

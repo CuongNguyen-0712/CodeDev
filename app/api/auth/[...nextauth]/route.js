@@ -3,11 +3,11 @@ import GithubProvider from "next-auth/providers/github";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 
-import { ApiError } from "@/app/lib/error/apiError";
+import { ApiError } from "@/lib/error/apiError";
 
-import { authService } from "@/app/services/auth.service";
+import { authService } from "@/services/auth.service";
 
-import { TOKEN } from "@/app/constants/auth";
+import { TOKEN } from "@/constants/auth";
 
 const ACCESS_TOKEN_LIFETIME = 15 * 60 * 1000;
 const ACCESS_TOKEN_REFRESH_BUFFER = 30 * 1000;

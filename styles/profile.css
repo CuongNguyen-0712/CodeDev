@@ -1,0 +1,476 @@
+/* ==========================================================
+   PROFILE PAGE STYLES - CODEDEV
+   Using CodeDev Global Theme & Semantic Variables
+   ========================================================== */
+
+.profile-page-container {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 1240px;
+    margin: 0 auto;
+    gap: 28px;
+    animation: profileFadeIn 0.4s ease-out forwards;
+}
+
+@keyframes profileFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ==================== TOP BREADCRUMB & HEADER ==================== */
+.profile-top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0 4px;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.profile-breadcrumbs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    font-weight: 500;
+}
+
+.profile-breadcrumbs .crumb-step {
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.profile-breadcrumbs .crumb-step:hover {
+    color: var(--color-text-heading);
+}
+
+.profile-breadcrumbs .crumb-sep {
+    font-size: 12px;
+    color: var(--color-text-muted);
+}
+
+.profile-breadcrumbs .crumb-current {
+    color: var(--color-text-heading);
+    font-weight: 700;
+}
+
+.profile-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.profile-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-light);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.profile-icon-btn:hover {
+    background: var(--color-surface-soft);
+    color: var(--color-primary);
+    transform: translateY(-1px);
+    border-color: var(--color-primary-light);
+}
+
+/* ==================== HERO PROFILE CARD ==================== */
+.profile-hero-card {
+    display: flex;
+    align-items: stretch;
+    background: var(--color-surface);
+    border-radius: var(--radius-xl);
+    padding: 34px 40px;
+    border: 1px solid var(--color-border-light);
+    gap: 40px;
+    position: relative;
+}
+
+/* Left Profile Info */
+.hero-user-column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    min-width: 200px;
+    max-width: 240px;
+}
+
+.hero-avatar-wrap {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-bottom: 14px;
+    background: var(--gray-100);
+    border: 3px solid var(--color-surface);
+    position: relative;
+}
+
+.hero-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.hero-user-column h2 {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--color-text-heading);
+    margin: 0 0 4px 0;
+    letter-spacing: -0.4px;
+}
+
+.hero-user-column .user-email {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    margin: 0 0 18px 0;
+    word-break: break-all;
+}
+
+.edit-profile-pill-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 22px;
+    border-radius: var(--radius-full);
+    background: transparent;
+    border: 1.5px solid var(--color-primary);
+    color: var(--color-primary);
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.edit-profile-pill-btn:hover {
+    background: var(--gradient-primary);
+    color: var(--white);
+    border-color: transparent;
+    transform: translateY(-1px);
+}
+
+/* Divider */
+.hero-divider {
+    width: 1px;
+    background: var(--color-border-light);
+    flex-shrink: 0;
+}
+
+/* Right Details Grid */
+.hero-details-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    row-gap: 24px;
+    column-gap: 32px;
+    flex-grow: 1;
+    align-content: center;
+}
+
+.detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.detail-item .detail-label {
+    font-size: 12px;
+    color: var(--color-text-muted);
+    font-weight: 500;
+    text-transform: capitalize;
+}
+
+.detail-item .detail-value {
+    font-size: 15px;
+    color: var(--color-text-heading);
+    font-weight: 700;
+}
+
+/* ==================== VITALS / STATS CARDS ==================== */
+.profile-vitals-section {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+}
+
+.section-headline {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--color-text-heading);
+    letter-spacing: -0.3px;
+    margin: 0;
+}
+
+.vitals-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    width: 100%;
+}
+
+.vital-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-xl);
+    padding: 22px 24px;
+    border: 1px solid var(--color-border-light);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: all 0.25s ease;
+}
+
+.vital-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--color-primary-light);
+}
+
+.vital-card .vital-label {
+    font-size: 12.5px;
+    color: var(--color-text-secondary);
+    font-weight: 600;
+}
+
+.vital-card .vital-metric {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin: 2px 0;
+}
+
+.vital-card .vital-value {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--color-text-heading);
+    line-height: 1.1;
+}
+
+.vital-card .vital-unit {
+    font-size: 12px;
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+
+.vital-card .vital-status {
+    font-size: 12px;
+    font-weight: 600;
+    margin-top: 2px;
+}
+
+.vital-card .vital-status.status-green {
+    color: var(--color-success);
+}
+
+.vital-card .vital-status.status-orange {
+    color: var(--color-warning-dark);
+}
+
+.vital-card .vital-status.status-blue {
+    color: var(--color-primary);
+}
+
+/* ==================== HISTORY / ACTIVITY TABLE ==================== */
+.profile-history-section {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+}
+
+.history-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.history-total-count {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    font-weight: 600;
+}
+
+.history-table-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--color-border-light);
+    overflow-x: auto;
+    width: 100%;
+}
+
+.history-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 680px;
+    text-align: left;
+}
+
+.history-table thead tr {
+    background: var(--color-surface-soft);
+    border-bottom: 1px solid var(--color-border-light);
+}
+
+.history-table th {
+    padding: 16px 20px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--color-text-secondary);
+    letter-spacing: 0.2px;
+}
+
+.history-table tbody tr {
+    border-bottom: 1px solid var(--color-border-light);
+    transition: background 0.15s ease;
+}
+
+.history-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.history-table tbody tr:hover {
+    background: var(--color-surface-soft);
+}
+
+.history-table td {
+    padding: 16px 20px;
+    font-size: 13.5px;
+    color: var(--color-text);
+    font-weight: 500;
+    vertical-align: middle;
+}
+
+/* Severity Pill */
+.severity-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.severity-bar {
+    width: 3px;
+    height: 16px;
+    border-radius: var(--radius-sm);
+    flex-shrink: 0;
+}
+
+.severity-bar.bar-high {
+    background: var(--color-danger);
+}
+
+.severity-bar.bar-low {
+    background: var(--color-success);
+}
+
+.severity-bar.bar-medium {
+    background: var(--color-warning);
+}
+
+.severity-text {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* Status Badges */
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.status-pill.status-treatment {
+    background: var(--color-danger-light);
+    color: var(--color-danger-dark);
+}
+
+.status-pill.status-cured {
+    background: var(--color-success-light);
+    color: var(--color-success-dark);
+}
+
+.status-pill.status-pending {
+    background: var(--color-warning-light);
+    color: var(--color-warning-dark);
+}
+
+/* Download / Document Action */
+.action-download-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--color-text-heading);
+    font-weight: 600;
+    font-size: 13px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.action-download-btn:hover {
+    color: var(--color-primary);
+    transform: translateX(2px);
+}
+
+.action-download-btn svg {
+    font-size: 14px;
+}
+
+/* ==================== RESPONSIVE ==================== */
+@media screen and (max-width: 1024px) {
+    .profile-hero-card {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 24px;
+        padding: 28px 24px;
+    }
+
+    .hero-divider {
+        width: 100%;
+        height: 1px;
+    }
+
+    .hero-details-grid {
+        grid-template-columns: repeat(2, 1fr);
+        width: 100%;
+    }
+
+    .vitals-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media screen and (max-width: 640px) {
+    .hero-details-grid {
+        grid-template-columns: 1fr;
+        text-align: left;
+    }
+
+    .vitals-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .profile-hero-card {
+        padding: 24px 18px;
+    }
+}

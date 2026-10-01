@@ -1,10 +1,10 @@
 import { Suspense } from "react"
 
-import { LoadingRedirect } from "@/app/component/ui/loading"
+import { LoadingRedirect } from "@/components/ui/loading"
 
-import Settings from "../component/settings/settings"
+import SettingsPage from "@/components/settings/settingsPage"
 
-import NavigateLayout from "../layout/navigateLayout"
+import NavigateLayout from '@/components/layouts/navigateLayout'
 
 export async function generateMetadata() {
     return {
@@ -17,7 +17,7 @@ export default function Page() {
     return (
         <Suspense fallback={<LoadingRedirect />}>
             <NavigateLayout>
-                <Settings />
+                <SettingsPage />
             </NavigateLayout>
         </Suspense>
     )

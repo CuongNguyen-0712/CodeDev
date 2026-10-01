@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
-import { ApiError } from "@/app/lib/error/apiError";
+import { ApiError } from "@/lib/error/apiError";
 
-import { client } from "@/app/lib/sanity";
+import { client } from "@/lib/sanity";
 
-import { courseService } from "@/app/services/course.service";
+import { courseService } from "@/services/course.service";
 
 export async function GET(req) {
     try {

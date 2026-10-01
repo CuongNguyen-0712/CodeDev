@@ -1,0 +1,278 @@
+/* ==========================================================
+   SIGNUP STEPPER & FORM STYLES
+   ========================================================== */
+.signup_form .step_indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 22px;
+    user-select: none;
+}
+
+.step {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: var(--radius-sm, 8px);
+    opacity: 0.55;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    outline: none;
+}
+
+.step:hover {
+    opacity: 0.85;
+}
+
+.step.current,
+.step.completed {
+    opacity: 1;
+}
+
+.step_number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--gray-200);
+    color: var(--gray-600);
+    font-size: 12px;
+    font-weight: 700;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.step.current .step_number {
+    background: var(--color-primary);
+    color: var(--white);
+    transform: scale(1.05);
+}
+
+.step.completed .step_number {
+    background: #10B981;
+    color: var(--white);
+}
+
+.step_label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray-500);
+    transition: color 0.2s ease;
+}
+
+.step.current .step_label {
+    color: var(--black-dark);
+    font-weight: 700;
+}
+
+.step.completed .step_label {
+    color: var(--gray-700);
+}
+
+.step_line {
+    width: 48px;
+    height: 2px;
+    background: var(--gray-200);
+    border-radius: 2px;
+    transition: background 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.step_line.active {
+    background: #10B981;
+}
+
+/* ==========================================================
+   FORM STEPS SLIDER (NORMAL DOCUMENT FLOW)
+   ========================================================== */
+.signup_form .form_body {
+    display: block;
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+}
+
+.signup_form .form_steps {
+    display: flex;
+    width: 200%;
+    will-change: transform;
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.signup_form .form_step {
+    display: flex;
+    flex-direction: column;
+    width: 50%;
+    flex: 0 0 50%;
+    padding: 12px 2px 34px;
+    gap: 30px;
+    box-sizing: border-box;
+}
+
+/* Input error in signup form */
+.signup_form .field-input .input_error {
+    position: absolute;
+    top: 58px;
+    left: 14px;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--color-danger, #ef4444);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: normal;
+    line-height: 1.3;
+    max-width: calc(100% - 28px);
+    animation: fadeInError 0.2s ease-out;
+}
+
+@keyframes fadeInError {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ==========================================================
+   STEPPER NAVIGATION BUTTONS
+   ========================================================== */
+.signup_form .form_actions {
+    margin-top: 4px;
+}
+
+.step_navigation {
+    display: flex;
+    width: 100%;
+}
+
+.btn_next_step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    height: 48px;
+    border-radius: var(--radius-lg);
+    background: var(--gradient-primary);
+    color: var(--white);
+    font-size: 14.5px;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn_next_step:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.btn_next_step:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.btn_next_step:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.step_dual_actions {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 12px;
+}
+
+.btn_prev_step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 48px;
+    padding: 0 20px;
+    background: var(--gray-50);
+    color: var(--black-dark);
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.btn_prev_step:hover:not(:disabled) {
+    background: var(--gray-200);
+    color: var(--black-dark);
+    border-color: var(--gray-400);
+}
+
+.btn_prev_step:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.btn_prev_step:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.step_dual_actions .btn_submit {
+    flex: 1;
+    margin-top: 0;
+}
+
+/* ==========================================================
+   RESPONSIVE ADJUSTMENTS
+   ========================================================== */
+@media screen and (max-width: 480px) {
+    .signup_form .step_indicator {
+        gap: 8px;
+        margin-bottom: 16px;
+    }
+
+    .step_line {
+        width: 32px;
+    }
+
+    .step_label {
+        font-size: 12px;
+    }
+
+    .step_number {
+        width: 24px;
+        height: 24px;
+        font-size: 11px;
+    }
+
+    .signup_form .form_step {
+        gap: 28px;
+        padding: 8px 2px 32px;
+    }
+
+    .btn_prev_step {
+        padding: 0 14px;
+        font-size: 13px;
+    }
+
+    .btn_next_step,
+    .step_dual_actions .btn_submit {
+        font-size: 14px;
+    }
+}
+
+@media screen and (max-width: 360px) {
+    .step_label {
+        display: none;
+    }
+
+    .step_line {
+        width: 44px;
+    }
+}

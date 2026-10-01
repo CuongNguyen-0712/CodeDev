@@ -1,10 +1,10 @@
 import { Suspense } from 'react';
 
-import ErrorPage from '@/app/component/auth/errorPage';
+import ErrorPage from '@/components/auth/errorPage';
 
-import { LoadingContent } from "@/app/component/ui/loading";
+import { LoadingContent } from "@/components/ui/loading";
 
-import '@/app/style/auth/error.css';
+import '@/styles/auth/error.css';
 
 export async function generateMetadata() {
   return {

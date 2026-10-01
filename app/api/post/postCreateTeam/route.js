@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
-import { ApiError } from "@/app/lib/error/apiError";
+import { ApiError } from "@/lib/error/apiError";
 
-import PostCreateTeamService from "@/app/services/postService/createTeamService";
+import PostCreateTeamService from "@/services/postService/createTeamService";
 
 export async function POST(req) {
     try {

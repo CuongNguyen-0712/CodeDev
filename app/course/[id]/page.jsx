@@ -1,13 +1,13 @@
 import { Suspense } from "react"
 
-import PreviewPage from "@/app/component/course/params/previewPage"
+import PreviewPage from "@/components/course/params/previewPage"
 
-import { courseService } from "@/app/services/course.service"
-import { courseQueries } from "@/app/query/course.query"
+import { courseService } from "@/services/course.service"
+import { courseQueries } from "@/queries/course.query"
 
-import DefaultLayout from "@/app/layout/defaultLayout";
+import DefaultLayout from "@/components/layouts/defaultLayout";
 
-import { LoadingRedirect } from "@/app/component/ui/loading";
+import { LoadingRedirect } from "@/components/ui/loading";
 
 import { HydrationBoundary, QueryClient, dehydrate } from "@tanstack/react-query";
 

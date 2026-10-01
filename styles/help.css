@@ -1,0 +1,380 @@
+/* ==========================================================
+   HELP & SUPPORT PAGE STYLES - CODEDEV
+   Using CodeDev Global Theme & Semantic Variables
+   ========================================================== */
+
+.help-page-container {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 1240px;
+    margin: 0 auto;
+    gap: 28px;
+    animation: helpFadeIn 0.4s ease-out forwards;
+}
+
+@keyframes helpFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ==================== TOP BREADCRUMB & HEADER ==================== */
+.help-top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0 4px;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.help-breadcrumbs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    font-weight: 500;
+}
+
+.help-breadcrumbs .crumb-step {
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.help-breadcrumbs .crumb-step:hover {
+    color: var(--color-text-heading);
+}
+
+.help-breadcrumbs .crumb-sep {
+    font-size: 12px;
+    color: var(--color-text-muted);
+}
+
+.help-breadcrumbs .crumb-current {
+    color: var(--color-text-heading);
+    font-weight: 700;
+}
+
+/* ==================== HERO SEARCH CARD ==================== */
+.help-hero-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-xl);
+    padding: 36px 40px;
+    border: 1px solid var(--color-border-light);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 20px;
+}
+
+.help-hero-title {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--color-text-heading);
+    letter-spacing: -0.4px;
+    margin: 0;
+}
+
+.help-hero-subtitle {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    max-width: 520px;
+    margin: 0;
+    line-height: 1.5;
+}
+
+.help-search-box {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    max-width: 560px;
+    background: var(--color-surface-soft);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-full);
+    padding: 6px 18px;
+    gap: 12px;
+    transition: all 0.2s ease;
+}
+
+.help-search-box:focus-within {
+    background: var(--color-surface);
+    border-color: var(--color-primary);
+}
+
+.help-search-box svg {
+    color: var(--color-text-muted);
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.help-search-input {
+    width: 100%;
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    color: var(--color-text);
+    outline: none;
+    padding: 8px 0;
+    font-family: inherit;
+}
+
+.help-quick-tags {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.help-quick-tags span {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    font-weight: 600;
+}
+
+.quick-tag-pill {
+    padding: 4px 14px;
+    border-radius: var(--radius-full);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-size: 12px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.quick-tag-pill:hover {
+    background: var(--color-bg-secondary);
+    color: var(--color-text-heading);
+}
+
+/* ==================== CATEGORIES GRID ==================== */
+.help-categories-section {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+}
+
+.help-categories-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    width: 100%;
+}
+
+.help-category-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-xl);
+    padding: 24px 22px;
+    border: 1px solid var(--color-border-light);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.help-category-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--color-primary-light);
+}
+
+.category-icon-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-lg);
+    background: rgba(113, 201, 206, 0.1);
+    color: var(--color-primary);
+    font-size: 20px;
+}
+
+.category-icon-box.blue {
+    background: rgba(113, 201, 206, 0.1);
+    color: var(--color-primary);
+}
+
+.category-icon-box.green {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--color-success);
+}
+
+.category-icon-box.amber {
+    background: rgba(245, 158, 11, 0.1);
+    color: var(--color-warning-dark);
+}
+
+.help-category-card h4 {
+    font-size: 15.5px;
+    font-weight: 700;
+    color: var(--color-text-heading);
+    margin: 0;
+}
+
+.help-category-card p {
+    font-size: 12.5px;
+    color: var(--color-text-secondary);
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* ==================== FAQ ACCORDION SECTION ==================== */
+.help-faq-section {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+}
+
+.faq-card-container {
+    background: var(--color-surface);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--color-border-light);
+    overflow: hidden;
+}
+
+.faq-item {
+    border-bottom: 1px solid var(--color-border-light);
+    transition: background 0.2s ease;
+}
+
+.faq-item:last-child {
+    border-bottom: none;
+}
+
+.faq-question-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    background: transparent;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--color-text-heading);
+    gap: 16px;
+}
+
+.faq-question-btn:hover {
+    color: var(--color-primary);
+}
+
+.faq-chevron {
+    font-size: 14px;
+    color: var(--color-text-muted);
+    transition: transform 0.25s ease;
+}
+
+.faq-item.open .faq-chevron {
+    transform: rotate(180deg);
+    color: var(--color-primary);
+}
+
+.faq-answer {
+    padding: 0 24px 20px 24px;
+    font-size: 13.5px;
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+}
+
+/* ==================== SUPPORT CONTACT CARD ==================== */
+.help-support-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-xl);
+    padding: 24px 30px;
+    border: 1px solid var(--color-border-light);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.support-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.support-icon-circle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: rgba(113, 201, 206, 0.1);
+    color: var(--color-primary);
+    font-size: 22px;
+}
+
+.support-text h4 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-text-heading);
+    margin: 0 0 3px 0;
+}
+
+.support-text p {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    margin: 0;
+}
+
+.btn-contact-support {
+    padding: 10px 24px;
+    border-radius: var(--radius-full);
+    background: var(--gradient-header);
+    color: var(--white);
+    font-size: 13px;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-contact-support:hover {
+    transform: translateY(-1px);
+}
+
+/* ==================== RESPONSIVE ==================== */
+@media screen and (max-width: 1024px) {
+    .help-categories-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media screen and (max-width: 640px) {
+    .help-hero-card {
+        padding: 24px 20px;
+    }
+
+    .help-categories-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .help-support-card {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .btn-contact-support {
+        width: 100%;
+    }
+}

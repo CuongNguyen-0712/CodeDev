@@ -1,0 +1,62 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+import { signOut, useSession } from "next-auth/react";
+
+import { useQueryClient } from "@tanstack/react-query";
+
+import { useLogOut } from "@/mutations/auth.mutation";
+
+import { useApp } from "@/contexts/appContext";
+
+const tokenError = [
+    'SessionInvalid',
+    'SessionExpired',
+    'SessionRevoked',
+]
+
+export function SessionWatcher() {
+    const { showAlert: alert } = useApp();
+
+    const handlingValidSessionRef = useRef(false);
+
+    const { data: session, status } = useSession();
+
+    const queryClient = useQueryClient();
+    const logoutMutation = useLogOut();
+
+    const handleSessionInvalid = (error) => {
+        if (logoutMutation.isPending || handlingValidSessionRef.current) return;
+
+        handlingValidSessionRef.current = true;
+
+        logoutMutation.mutate(null, {
+            onSuccess: async () => {
+                queryClient.clear();
+
+                await signOut({ callbackUrl: `/auth/error?error=${error}` });
+            },
+
+            onError: (error) => {
+                handlingValidSessionRef.current = false;
+                if (typeof alert === "function") {
+                    alert(500, error?.message || "An error occurred while logging out.");
+                }
+            }
+        });
+    }
+
+    useEffect(() => {
+        if (status === "loading" || status === "unauthenticated") return;
+
+        if (session?.error && tokenError.includes(session.error)) {
+            handleSessionInvalid(session.error);
+        }
+    }, [session?.error, status]);
+
+    return null;
+}
+
+export function AuthSessionWatcher() {
+    return <SessionWatcher />;
+}

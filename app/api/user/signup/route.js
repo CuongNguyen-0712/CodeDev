@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { ApiError } from "@/app/lib/error/apiError";
+import { ApiError } from "@/lib/error/apiError";
 
-import { userService } from "@/app/services/user.service";
+import { userService } from "@/services/user.service";
 
 export async function POST(req) {
     try {
@@ -16,9 +16,18 @@ export async function POST(req) {
 
         const response = await userService.signUp(data);
 
-        return NextResponse.json({ success: true, data: response }, { status: 201 });
+        return NextResponse.json({
+            success: true,
+            message: "Account created successfully",
+            data: response
+        }, { status: 201 });
     }
     catch (error) {
-        return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: error.status || 500 });
+        const status = error.status || (error.code === 'P0001' || error.code === '23505' ? 409 : 500);
+        return NextResponse.json({
+            success: false,
+            message: error.message || "Internal Server Error",
+            error: error.message || "Internal Server Error"
+        }, { status });
     }
 }

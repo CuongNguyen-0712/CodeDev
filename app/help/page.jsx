@@ -1,10 +1,10 @@
 import { Suspense } from "react";
 
-import { LoadingRedirect } from "@/app/component/ui/loading";
+import { LoadingRedirect } from "@/components/ui/loading";
 
-import NavigateLayout from "../layout/navigateLayout";
+import NavigateLayout from '@/components/layouts/navigateLayout';
 
-import HelpPage from "../component/help/helpPage";
+import HelpPage from "@/components/help/helpPage";
 
 export default function Page() {
     return (

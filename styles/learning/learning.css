@@ -1,0 +1,407 @@
+/* ==========================================================
+   LEARNING CONTAINER & LAYOUT
+   ========================================================== */
+#learning {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    width: 100%;
+    height: auto;
+    min-height: 100%;
+    flex-shrink: 0;
+}
+
+/* ==========================================================
+   HERO BANNER
+   ========================================================== */
+.learning-hero-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 36px 32px;
+    background: var(--gradient-card);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    position: relative;
+    overflow: hidden;
+}
+
+.learning-hero-banner::before {
+    content: '';
+    position: absolute;
+    top: -60px;
+    right: -40px;
+    width: 220px;
+    height: 220px;
+    background: radial-gradient(circle, rgba(113, 201, 206, 0.12) 0%, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.learning-hero-banner .hero-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 680px;
+    z-index: 1;
+}
+
+.learning-hero-banner .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 100px;
+    background: var(--palette-1);
+    border: 2px solid var(--palette-2);
+    color: var(--color-primary);
+    font-size: 13px;
+    font-weight: 600;
+    width: fit-content;
+    letter-spacing: 0.5px;
+}
+
+.learning-hero-banner .hero-title {
+    font-size: 30px;
+    font-weight: 800;
+    color: var(--black-dark);
+    line-height: 1.25;
+    letter-spacing: -0.5px;
+}
+
+.learning-hero-banner .hero-subtitle {
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--gray-600);
+    margin: 0;
+}
+
+.learning-hero-banner .hero-marketplace-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 24px;
+    background: var(--gradient-primary);
+    color: var(--white);
+    border-radius: var(--radius-lg);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    text-decoration: none;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
+    z-index: 1;
+}
+
+.learning-hero-banner .hero-marketplace-btn:hover {
+    transform: translateY(-2px);
+}
+
+/* ==========================================================
+   GUEST PROMPT BANNER
+   ========================================================== */
+.learning-guest-prompt {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 18px 24px;
+    background: #FEF3C7;
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: var(--radius-xl);
+}
+
+.learning-guest-prompt .guest-prompt-text h4 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--amber-800, #92400e);
+    margin-bottom: 4px;
+}
+
+.learning-guest-prompt .guest-prompt-text p {
+    font-size: 13.5px;
+    color: var(--gray-600);
+    margin: 0;
+}
+
+.learning-guest-prompt .guest-login-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 18px;
+    background: var(--black);
+    color: var(--white);
+    border-radius: var(--radius-md);
+    font-size: 13.5px;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.learning-guest-prompt .guest-login-btn:hover {
+    background: var(--black-dark);
+    transform: translateX(2px);
+}
+
+/* ==========================================================
+   SEARCH & FILTERS
+   ========================================================== */
+.learning-search {
+    width: 100%;
+}
+
+/* ==========================================================
+   STATUS BAR
+   ========================================================== */
+.learning-status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+}
+
+.learning-status-bar .status-counter {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--gray-700);
+}
+
+.learning-status-bar .status-counter svg {
+    color: var(--color-primary);
+    font-size: 17px;
+}
+
+.learning-status-bar .reset-filter-btn {
+    background: none;
+    border: none;
+    color: var(--color-primary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    transition: all 0.15s ease;
+}
+
+.learning-status-bar .reset-filter-btn:hover {
+    background: rgba(113, 201, 206, 0.08);
+    text-decoration: underline;
+}
+
+/* ==========================================================
+   LEARNING GRID
+   ========================================================== */
+.learning-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 24px;
+    width: 100%;
+    min-height: 200px;
+}
+
+/* Loading & Error Wrappers */
+.learning-grid .loading-wrapper,
+.learning-grid .error-wrapper {
+    grid-column: 1 / -1;
+    min-height: 280px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-xl);
+}
+
+/* ==========================================================
+   PAGINATION & LOAD MORE
+   ========================================================== */
+.learning-pagination {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 16px 0 24px 0;
+    width: 100%;
+}
+
+.learning-load-more-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 12px 32px;
+    background: var(--white);
+    border: 1.5px solid var(--color-primary);
+    color: var(--color-primary);
+    font-size: 14px;
+    font-weight: 700;
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 8px rgba(113, 201, 206, 0.15);
+    min-width: 180px;
+    height: 44px;
+}
+
+.learning-load-more-btn:hover:not(:disabled) {
+    background: var(--color-primary);
+    color: var(--white);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 14px rgba(113, 201, 206, 0.35);
+}
+
+.learning-load-more-btn:disabled {
+    opacity: 0.75;
+    cursor: not-allowed;
+    background: var(--gray-100);
+    border-color: var(--gray-300);
+    color: var(--gray-500);
+}
+
+.learning-end-text {
+    font-size: 13.5px;
+    color: var(--gray-400);
+    font-weight: 500;
+    padding: 8px 16px;
+    background: var(--gray-100);
+    border-radius: var(--radius-full);
+}
+
+.load-more-wrapper {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 0;
+}
+
+/* ==========================================================
+   EMPTY STATE
+   ========================================================== */
+.learning-grid .empty-state {
+    grid-column: 1 / -1;
+    min-height: 340px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 24px;
+    text-align: center;
+    background: var(--white);
+    border: 1px dashed var(--gray-300);
+    border-radius: var(--radius-2xl);
+    gap: 14px;
+}
+
+.empty-state .empty-icon-wrap {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: rgba(113, 201, 206, 0.08);
+    color: var(--color-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    margin-bottom: 4px;
+}
+
+.empty-state h4 {
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--black-dark);
+}
+
+.empty-state p {
+    font-size: 14px;
+    color: var(--gray-500);
+    max-width: 420px;
+    line-height: 1.6;
+}
+
+.empty-state .empty-actions {
+    margin-top: 8px;
+}
+
+.empty-state .btn-empty-browse {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 22px;
+    background: var(--gradient-primary);
+    color: var(--white);
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.empty-state .btn-empty-browse:hover {
+    transform: translateY(-1px);
+}
+
+.empty-state .btn-empty-reset {
+    padding: 10px 20px;
+    background: var(--gray-50);
+    color: var(--black);
+    border: none;
+    font-size: 13.5px;
+    font-weight: 600;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.empty-state .btn-empty-reset:hover {
+    background: var(--gray-100);
+}
+
+/* ==========================================================
+   RESPONSIVE DESIGN
+   ========================================================== */
+@media screen and (max-width: 768px) {
+    .learning-hero-banner {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 24px 20px;
+        gap: 18px;
+    }
+
+    .learning-hero-banner .hero-title {
+        font-size: 24px;
+    }
+
+    .learning-hero-banner .hero-marketplace-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .learning-guest-prompt {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .learning-guest-prompt .guest-login-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .learning-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+}

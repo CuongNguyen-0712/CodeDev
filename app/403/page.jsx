@@ -2,8 +2,8 @@ import '@/app/globals.css';
 
 import { Suspense } from "react"
 
-import { LoadingRedirect } from "../component/ui/loading"
-import Forbidden from "../component/ui/forbidden"
+import { LoadingRedirect } from "@/components/ui/loading"
+import Forbidden from "@/components/ui/forbidden"
 
 export async function generateMetadata() {
     return {

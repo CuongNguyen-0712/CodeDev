@@ -1,0 +1,796 @@
+/* ==========================================================================
+   Home Learning Sidebar Styles (Overview Progress & Skills)
+   ========================================================================== */
+
+#overview_sidebar {
+    display: flex;
+    width: 40%;
+    min-width: 320px;
+    max-width: 450px;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.overview-analytics {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+/* ==========================================================================
+   Common Card Container & Header
+   ========================================================================== */
+
+.overview-progress,
+.overview-skills {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    border-radius: var(--radius-xl);
+    background: var(--gradient-card);
+    border: 1px solid rgba(113, 201, 206, 0.12);
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+}
+
+
+.overview-progress:hover,
+.overview-skills:hover {
+    border-color: rgba(113, 201, 206, 0.22);
+}
+
+#overview_sidebar .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 20px;
+    border-bottom: 1px solid rgba(113, 201, 206, 0.08);
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(8px);
+}
+
+.card-header .header-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: default;
+    min-width: 0;
+}
+
+.card-header .header-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: var(--radius-md);
+    background: rgba(113, 201, 206, 0.08);
+    color: var(--color-primary);
+    font-size: 18px;
+    flex-shrink: 0;
+    transition: transform 0.25s ease;
+}
+
+.card-header .header-icon.sparkles {
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--amber-500);
+}
+
+.card-header:hover .header-icon {
+    transform: scale(1.05);
+}
+
+.card-header .header-title span {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.card-header .header-title span h5 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--black-dark);
+    letter-spacing: -0.2px;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.card-header .header-title span p {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--gray-500);
+    margin-top: 2px;
+}
+
+/* Header Navigation (when viewing a specific category) */
+.card-header .header-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.card-header .back-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-md);
+    background: rgba(113, 201, 206, 0.08);
+    border: 1px solid rgba(113, 201, 206, 0.12);
+    color: var(--color-primary);
+    font-size: 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-header .back-btn:hover {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: var(--white);
+    transform: translateX(-2px);
+}
+
+.card-header .status-pill-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, currentColor 14%, transparent);
+    border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+/* Action Buttons in Header */
+.card-header .view-all-btn,
+.card-header .collapse-btn {
+    display: inline-flex;
+    align-items: center;
+    height: 30px;
+    padding: 0 12px;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    flex-shrink: 0;
+    background: var(--gray-50);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-header .view-all-btn:hover,
+.card-header .collapse-btn:hover {
+    background: var(--palette-3);
+    color: var(--white);
+}
+
+.card-header .view-all-btn svg,
+.card-header .collapse-btn svg {
+    font-size: 13px;
+    transition: transform 0.2s ease;
+}
+
+.card-header .view-all-btn:hover svg,
+.card-header .collapse-btn:hover svg {
+    transform: translateX(2px);
+}
+
+.card-header .collapse-btn.expanded svg {
+    transform: rotate(90deg);
+}
+
+@media screen and (max-width: 425px) {
+
+    .card-header .view-all-btn,
+    .card-header .collapse-btn {
+        justify-content: center;
+        padding: 0;
+        width: 30px;
+        border-radius: 50%;
+    }
+
+    .card-header .view-all-btn span,
+    .card-header .collapse-btn span {
+        display: none;
+    }
+}
+
+/* ==========================================================================
+   1. Course Progress Carousel & Content
+   ========================================================================== */
+
+.progress-content {
+    display: flex;
+    height: 350px;
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+}
+
+.progress-content.active {
+    transform: translateX(-50%);
+}
+
+.progress-list {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    flex-basis: 100%;
+    padding: 16px;
+    gap: 12px;
+    overflow-y: auto;
+}
+
+.progress-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.progress-list::-webkit-scrollbar-thumb {
+    background: var(--gray-300);
+    border-radius: 4px;
+}
+
+/* Progress Item Card */
+.progress-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex-grow: 1;
+    gap: 16px;
+    padding: 14px 18px;
+    cursor: pointer;
+    border-radius: var(--radius-lg);
+    background: var(--white);
+    border: 1px solid rgba(113, 201, 206, 0.08);
+    overflow: hidden;
+    user-select: none;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.progress-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%) scaleY(0.3);
+    width: 4px;
+    height: 36px;
+    border-radius: 0 4px 4px 0;
+    background: var(--color-primary);
+    opacity: 0;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.progress-item:hover {
+    transform: translateY(-2px);
+    background: var(--white);
+    border-color: rgba(113, 201, 206, 0.22);
+}
+
+.progress-item:hover::before,
+.progress-item.active::before {
+    opacity: 1;
+    transform: translateY(-50%) scaleY(1);
+}
+
+.progress-item:active {
+    transform: translateY(0) scale(0.985);
+    transition: transform 0.1s ease;
+}
+
+.progress-item.active {
+    background: var(--white);
+    border-color: var(--color-primary);
+}
+
+.progress-icon {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    border-radius: var(--radius-md);
+    background: rgba(113, 201, 206, 0.08);
+    background: color-mix(in srgb, currentColor 12%, transparent);
+    border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+    font-size: 20px;
+    flex-shrink: 0;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.progress-item:hover .progress-icon {
+    transform: scale(1.08);
+}
+
+.progress-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.progress-status {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+    line-height: 1.25;
+}
+
+.progress-count {
+    display: inline-flex;
+    width: max-content;
+    height: max-content;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gray-600);
+    padding: 3px 12px;
+    border-radius: 100px;
+    background: rgba(113, 201, 206, 0.05);
+    border: 1px solid rgba(113, 201, 206, 0.08);
+    transition: all 0.2s ease;
+}
+
+.progress-item:hover .progress-count {
+    color: var(--black-dark);
+    background: rgba(113, 201, 206, 0.1);
+    border-color: rgba(113, 201, 206, 0.15);
+}
+
+.progress-item .arrow {
+    color: var(--gray-400);
+    font-size: 16px;
+    opacity: 0.7;
+    flex-shrink: 0;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.progress-item:hover .arrow {
+    color: var(--color-primary);
+    opacity: 1;
+    transform: translateX(4px) scale(1.15);
+}
+
+/* ==========================================================================
+   Progress Detail (Course List for Selected Status)
+   ========================================================================== */
+
+.progress-content .progress-detail {
+    display: flex;
+    padding: 16px;
+    flex-direction: column;
+    height: 100%;
+    flex-grow: 1;
+    flex-basis: 100%;
+    gap: 12px;
+    overflow-y: scroll;
+    background: rgba(248, 252, 253, 0.5);
+}
+
+.progress-detail::-webkit-scrollbar {
+    width: 4px;
+}
+
+.progress-detail::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.progress-detail::-webkit-scrollbar-thumb {
+    background: var(--gray-300);
+    border-radius: 4px;
+}
+
+.progress-detail::-webkit-scrollbar-thumb:hover {
+    background: var(--gray-400);
+}
+
+.progress_detail_frame {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Individual Course Card */
+.course-item {
+    display: flex;
+    flex-direction: column;
+    padding: 14px;
+    width: 100%;
+    border-radius: var(--radius-lg);
+    background: var(--white);
+    border: 2px solid var(--gray-100);
+    text-decoration: none;
+    gap: 12px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.course-item:hover {
+    transform: translateY(-2px);
+    border-color: var(--color-primary);
+}
+
+.course-item:active {
+    transform: translateY(0) scale(0.99);
+}
+
+.course-item .course-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.course-item .course-logo-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: var(--radius-md);
+    background: var(--gray-50);
+    border: 1px solid rgba(113, 201, 206, 0.08);
+    flex-shrink: 0;
+    overflow: hidden;
+    padding: 6px;
+    transition: transform 0.25s ease;
+}
+
+.course-item:hover .course-logo-wrap {
+    transform: scale(1.06);
+}
+
+.course-item .course-logo-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.course-item .course-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.course-item .course-info h5 {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--black-dark);
+    line-height: 1.35;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.course-item .course-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.course-item .course-category {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--color-primary);
+    background: rgba(113, 201, 206, 0.08);
+    padding: 2px 8px;
+    border-radius: 100px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    line-height: 1.4;
+}
+
+.course-item .course-language-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gray-600);
+    padding: 2px 8px;
+    border-radius: 100px;
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    line-height: 1.4;
+}
+
+.course-item .lang-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+
+/* Course Progress Bar */
+.course-progress-section {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+}
+
+.course-progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gray-500);
+}
+
+.course-progress-header .progress-pct {
+    color: var(--black-dark);
+    font-variant-numeric: tabular-nums;
+}
+
+.course-progress-bar {
+    width: 100%;
+    height: 5px;
+    border-radius: 100px;
+    background: rgba(113, 201, 206, 0.08);
+    overflow: hidden;
+}
+
+.course-progress-fill {
+    height: 100%;
+    border-radius: 100px;
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* View More Courses Button */
+.more-courses {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 100px;
+    background: var(--color-primary, #71C9CE);
+    color: var(--white);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.more-courses:hover {
+    transform: translateY(-2px);
+}
+
+.more-courses svg {
+    font-size: 12px;
+    transition: transform 0.2s ease;
+}
+
+.more-courses:hover svg {
+    transform: translateX(3px);
+}
+
+/* ==========================================================================
+   2. Language Skills Section
+   ========================================================================== */
+
+.skills-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 18px 20px;
+    overflow-y: auto;
+    max-height: 250px;
+    transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.skills-content.expanded {
+    max-height: 520px;
+}
+
+.skills-content::-webkit-scrollbar {
+    width: 4px;
+}
+
+.skills-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.skills-content::-webkit-scrollbar-thumb {
+    background: var(--gray-300);
+    border-radius: 4px;
+}
+
+.skills-content::-webkit-scrollbar-thumb:hover {
+    background: var(--gray-400);
+}
+
+/* Individual Skill Item */
+.skill-item {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px;
+    background: var(--white);
+    border-radius: var(--radius-lg);
+    border: 2px solid var(--gray-100);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.skill-item:hover {
+    transform: translateY(-2px);
+    background: var(--white);
+    border-color: var(--color-primary);
+}
+
+.skill-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.skill-logo-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    background: var(--gray-50);
+    border: 1px solid rgba(113, 201, 206, 0.08);
+    flex-shrink: 0;
+    overflow: hidden;
+    padding: 4px;
+}
+
+.skill-logo-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.skill-title-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.skill-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--black-dark);
+    line-height: 1.25;
+}
+
+.skill-count {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--gray-500);
+    margin-top: 2px;
+}
+
+.skill-percent {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--black-dark);
+    font-variant-numeric: tabular-nums;
+    background: rgba(113, 201, 206, 0.08);
+    padding: 2px 8px;
+    border-radius: 100px;
+}
+
+.skill-bar {
+    width: 100%;
+    height: 6px;
+    border-radius: 100px;
+    background: rgba(113, 201, 206, 0.08);
+    overflow: hidden;
+}
+
+.skill-progress {
+    height: 100%;
+    border-radius: 100px;
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ==========================================================================
+   Empty State
+   ========================================================================== */
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 36px 20px;
+    text-align: center;
+    gap: 8px;
+}
+
+.empty-state .empty-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: rgba(113, 201, 206, 0.08);
+    color: var(--color-primary);
+    font-size: 22px;
+    margin-bottom: 4px;
+}
+
+.empty-state .empty-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--black-dark);
+}
+
+.empty-state .empty-desc {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--gray-500);
+    max-width: 260px;
+    line-height: 1.45;
+}
+
+.empty-state .explore-btn {
+    margin-top: 8px;
+    padding: 8px 18px;
+    border-radius: 100px;
+    background: var(--color-primary);
+    color: var(--white);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+}
+
+.empty-state .explore-btn:hover {
+    background: var(--blue-700);
+    transform: translateY(-1px);
+}
+
+/* ==========================================================================
+   Responsive Adaptations
+   ========================================================================== */
+
+@media screen and (max-width: 992px) {
+    #overview_sidebar {
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    #overview_sidebar .card-header {
+        padding: 14px 16px;
+    }
+
+    .progress-list,
+    .progress-content .progress-detail,
+    .skills-content {
+        padding: 12px;
+    }
+
+    .progress-item {
+        padding: 12px 14px;
+        gap: 12px;
+    }
+
+    .progress-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 18px;
+    }
+}

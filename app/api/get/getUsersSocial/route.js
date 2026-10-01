@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
-import { ApiError } from "@/app/lib/error/apiError";
+import { ApiError } from "@/lib/error/apiError";
 
-import GetUserSocialService from "@/app/services/getService/userSocialService";
+import GetUserSocialService from "@/services/getService/userSocialService";
 
 export async function GET(req) {
     try {

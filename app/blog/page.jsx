@@ -1,10 +1,10 @@
 import { Suspense } from "react";
 
-import { LoadingRedirect } from "@/app/component/ui/loading";
+import { LoadingRedirect } from "@/components/ui/loading";
 
-import HomeLayout from "../layout/homeLayout"
+import HomeLayout from '@/components/layouts/homeLayout'
 
-import Blog from "../component/blog/blog"
+import Blog from "@/components/blog/blog"
 
 export default function Page() {
     return (

@@ -1,0 +1,469 @@
+/* ==========================================================
+   CHALLENGE / QUIZ SECTION STYLES
+   ========================================================== */
+
+.challenge_section_wrapper {
+    margin-top: 48px;
+    padding-top: 36px;
+    border-top: 1px solid var(--gray-200);
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    animation: challengeFadeIn 0.35s ease-out;
+}
+
+@keyframes challengeFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.challenge_card {
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-xl, 16px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+    transition: all 0.25s ease;
+}
+
+.challenge_card:hover {
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.07);
+    border-color: rgba(113, 201, 206, 0.4);
+}
+
+/* Header */
+.challenge_header {
+    padding: 24px 28px;
+    background: linear-gradient(135deg, rgba(227, 253, 253, 0.5) 0%, rgba(203, 241, 245, 0.3) 100%);
+    border-bottom: 1px solid var(--gray-200);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.challenge_top_bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.challenge_brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.challenge_icon_box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: var(--color-primary);
+    color: var(--white);
+    box-shadow: 0 4px 12px rgba(113, 201, 206, 0.4);
+}
+
+.challenge_label {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--color-primary-dark, #1f5e62);
+}
+
+.challenge_badges {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.badge_diff {
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 20px;
+    text-transform: capitalize;
+    letter-spacing: 0.3px;
+}
+
+.badge_diff.easy {
+    background: rgba(34, 197, 94, 0.12);
+    color: #16a34a;
+    border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+.badge_diff.medium {
+    background: rgba(245, 158, 11, 0.12);
+    color: #d97706;
+    border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.badge_diff.hard {
+    background: rgba(239, 68, 68, 0.12);
+    color: #dc2626;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.badge_points {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: rgba(113, 201, 206, 0.15);
+    color: var(--color-primary-dark);
+    border: 1px solid rgba(113, 201, 206, 0.3);
+}
+
+.challenge_title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--black-dark, #0f172a);
+    margin: 0;
+    line-height: 1.35;
+}
+
+.challenge_desc {
+    font-size: 14.5px;
+    line-height: 1.6;
+    color: var(--gray-600, #475569);
+    margin: 0;
+}
+
+/* Questions */
+.challenge_body {
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+}
+
+.question_card {
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg, 12px);
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    transition: border-color 0.2s ease;
+}
+
+.question_card:hover {
+    border-color: var(--gray-300);
+}
+
+.question_header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.question_index_pill {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--gray-500);
+    background: var(--gray-100);
+    padding: 3px 9px;
+    border-radius: 6px;
+}
+
+.question_points_tag {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-primary-dark);
+}
+
+.question_content {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--black-dark, #1e293b);
+    line-height: 1.5;
+}
+
+.question_type_hint {
+    font-size: 12px;
+    color: var(--gray-500);
+    font-style: italic;
+    margin-top: -6px;
+}
+
+/* Options */
+.options_grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.option_btn {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 14px 18px;
+    background: var(--white);
+    border: 1.5px solid var(--gray-200);
+    border-radius: 10px;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14.5px;
+    color: var(--black, #334155);
+    line-height: 1.45;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.option_btn:hover:not(:disabled) {
+    border-color: var(--color-primary);
+    background: rgba(227, 253, 253, 0.25);
+    transform: translateX(2px);
+}
+
+.option_btn.selected {
+    border-color: var(--color-primary);
+    background: rgba(203, 241, 245, 0.35);
+    color: var(--black-dark);
+    font-weight: 600;
+}
+
+.option_indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid var(--gray-300);
+    color: transparent;
+    font-size: 11px;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+}
+
+.option_indicator.checkbox {
+    border-radius: 6px;
+}
+
+.option_btn.selected .option_indicator {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    color: var(--white);
+}
+
+.option_text {
+    flex: 1;
+}
+
+/* Result States */
+.option_btn.result_correct {
+    border-color: #22c55e !important;
+    background: rgba(34, 197, 94, 0.1) !important;
+    color: #15803d !important;
+    font-weight: 600;
+}
+
+.option_btn.result_correct .option_indicator {
+    border-color: #22c55e !important;
+    background: #22c55e !important;
+    color: #ffffff !important;
+}
+
+.option_btn.result_incorrect {
+    border-color: #ef4444 !important;
+    background: rgba(239, 68, 68, 0.08) !important;
+    color: #b91c1c !important;
+    font-weight: 600;
+}
+
+.option_btn.result_incorrect .option_indicator {
+    border-color: #ef4444 !important;
+    background: #ef4444 !important;
+    color: #ffffff !important;
+}
+
+.option_btn.result_missed {
+    border: 1.5px dashed #16a34a !important;
+    background: rgba(34, 197, 94, 0.04) !important;
+    color: #15803d !important;
+}
+
+.option_badge_status {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.badge_opt_correct {
+    background: #22c55e;
+    color: #fff;
+}
+
+.badge_opt_wrong {
+    background: #ef4444;
+    color: #fff;
+}
+
+.badge_opt_answer {
+    background: rgba(34, 197, 94, 0.15);
+    color: #15803d;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+/* Explanation Box */
+.explanation_card {
+    background: rgba(248, 250, 252, 0.9);
+    border-left: 4px solid var(--color-primary);
+    border-radius: 8px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13.5px;
+    line-height: 1.55;
+    animation: challengeFadeIn 0.3s ease-out;
+}
+
+.explanation_title {
+    font-weight: 700;
+    color: var(--black-dark);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.explanation_body {
+    color: var(--gray-700);
+}
+
+/* Footer / Action Bar */
+.challenge_footer {
+    padding: 20px 28px;
+    background: var(--gray-50, #f8fafc);
+    border-top: 1px solid var(--gray-200);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.btn_submit_quiz {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: var(--gradient-primary, linear-gradient(135deg, #71c9ce 0%, #57b0b5 100%));
+    color: var(--white);
+    border: none;
+    border-radius: var(--radius-md, 8px);
+    font-weight: 600;
+    font-size: 14.5px;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(113, 201, 206, 0.35);
+    transition: all 0.2s ease;
+}
+
+.btn_submit_quiz:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(113, 201, 206, 0.45);
+}
+
+.btn_submit_quiz:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.btn_retry_quiz {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    background: var(--white);
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-md, 8px);
+    color: var(--gray-700);
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn_retry_quiz:hover {
+    background: var(--gray-100);
+    color: var(--black-dark);
+}
+
+/* Results Banner */
+.challenge_result_banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    border-radius: 10px;
+    flex: 1;
+    min-width: 260px;
+}
+
+.challenge_result_banner.passed {
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.challenge_result_banner.failed {
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.result_icon {
+    font-size: 24px;
+}
+
+.result_texts {
+    display: flex;
+    flex-direction: column;
+}
+
+.result_title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--black-dark);
+}
+
+.result_subtitle {
+    font-size: 13px;
+    color: var(--gray-600);
+}
+
+/* Chip in Sidebar for syllabus */
+.lesson-challenge-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 12px;
+    background: rgba(113, 201, 206, 0.18);
+    color: var(--color-primary-dark, #1f5e62);
+    border: 1px solid rgba(113, 201, 206, 0.35);
+    margin-left: 6px;
+    flex-shrink: 0;
+    letter-spacing: 0.2px;
+}

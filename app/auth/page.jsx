@@ -1,10 +1,10 @@
 import { Suspense } from 'react'
 
-import AuthPage from "../component/auth/authPage"
+import AuthPage from "@/components/auth/authPage"
 
-import { LoadingRedirect } from '../component/ui/loading'
+import { LoadingRedirect } from '@/components/ui/loading'
 
-import DefaultLayout from '@/app/layout/defaultLayout'
+import DefaultLayout from '@/components/layouts/defaultLayout'
 
 export async function generateMetadata() {
     return {

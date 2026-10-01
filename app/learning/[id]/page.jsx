@@ -1,12 +1,12 @@
 import { Suspense } from "react";
 
-import { LoadingRedirect } from "@/app/component/ui/loading";
+import { LoadingRedirect } from "@/components/ui/loading";
 
-import DefaultLayout from "@/app/layout/defaultLayout";
+import DefaultLayout from "@/components/layouts/defaultLayout";
 
-import StydyingPage from "@/app/component/learning/[id]/studyingPage";
+import StydyingPage from "@/components/learning/[id]/studyingPage";
 
-import { courseService } from "@/app/services/course.service";
+import { courseService } from "@/services/course.service";
 
 export async function generateMetadata({ params }) {
     const { id } = await params;
