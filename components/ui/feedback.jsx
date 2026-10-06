@@ -1,36 +1,34 @@
-'use client'
-import { useState } from "react";
-import { useSearchParams } from "next/navigation";
+'use client';
 
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import Form from "next/form";
 
 import { IoClose } from "react-icons/io5";
 import { HiSparkles, HiPaperAirplane } from "react-icons/hi2";
 import { BiMessageDetail } from "react-icons/bi";
 
-import { api } from "@/lib/axios";
 import { sendFeedbackAction } from "@/actions/feedback.actions";
-
 import { useQueryParams } from "@/router/useQueryParams";
 import { FeedbackSchema } from "@/lib/definition";
-
 import { useApp } from "@/contexts/appContext";
-
 import { validate } from "@/lib/validate";
 
 import { LoadingContent } from "./loading";
 import { InputGroup, TextAreaGroup } from "./input";
-
 import useKey from "@/hooks/useKey";
+
+import "@/styles/home/feedback.css";
 
 export default function Feedback() {
     useKey({ key: 'Escape', param: 'feedback' });
 
-    const { showAlert: alert } = useApp();
-
+    const { overlay, setOverlay, showAlert: alert } = useApp();
     const updateQuery = useQueryParams();
     const params = useSearchParams();
-    const feedback = params.get('modal');
+
+    const isFeedbackQuery = params.get('modal') === 'feedback';
+    const isOpen = overlay === 'feedback' || isFeedbackQuery;
 
     const [state, setState] = useState({
         error: null,
@@ -42,8 +40,44 @@ export default function Feedback() {
         feedback: "",
     });
 
+    useEffect(() => {
+        if (isFeedbackQuery && overlay !== 'feedback') {
+            setOverlay('feedback');
+        }
+    }, [isFeedbackQuery, overlay, setOverlay]);
+
+    useEffect(() => {
+        if (!overlay && isFeedbackQuery) {
+            updateQuery({ modal: null });
+        }
+    }, [overlay, isFeedbackQuery, updateQuery]);
+
+    useEffect(() => {
+        return () => {
+            if (overlay === 'feedback') {
+                setOverlay(null);
+            }
+        };
+    }, [overlay, setOverlay]);
+
+    const handleClose = () => {
+        setOverlay(null);
+        if (isFeedbackQuery) {
+            updateQuery({ modal: null });
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        const { success, errors } = validate(FeedbackSchema, dataForm);
+        if (!success) {
+            setState((prev) => ({
+                ...prev,
+                error: errors,
+            }));
+            return;
+        }
 
         if (state.handling) return;
 
@@ -56,17 +90,16 @@ export default function Feedback() {
             const response = await sendFeedbackAction(dataForm);
             if (response.success) {
                 alert(200, "Thank you for your contribution!");
-                setDataForm((prev) => ({
-                    ...prev,
+                setDataForm({
                     title: "",
                     feedback: "",
-                }));
-                setState((prev) => ({
-                    ...prev,
+                });
+                setState({
+                    error: null,
                     handling: false,
-                }));
-            }
-            else {
+                });
+                handleClose();
+            } else {
                 alert(response.status || 500, response.message || "Failed to submit feedback");
                 setState((prev) => ({
                     ...prev,
@@ -88,34 +121,48 @@ export default function Feedback() {
         const nextUpdate = {
             ...dataForm,
             [name]: value,
-        }
+        };
 
         const { errors } = validate(FeedbackSchema, nextUpdate);
 
         setDataForm(nextUpdate);
 
         setState((prev) => {
-            const { [name]: removed, ...rest } = prev.error || {}
-            return errors?.[name] ?
-                {
+            const { [name]: removed, ...rest } = prev.error || {};
+            return errors?.[name]
+                ? {
                     ...prev,
-                    error: { ...prev.error, [name]: errors[name] }
+                    error: { ...prev.error, [name]: errors[name] },
                 }
-                :
-                {
+                : {
                     ...prev,
-                    error: rest
-                }
+                    error: rest,
+                };
         });
     };
 
-    const handleClose = () => updateQuery({ modal: null });
+    if (!isOpen) return null;
 
-    return feedback && (
-        <div className="feedback-overlay" onClick={handleClose}>
+    return (
+        <div
+            className="feedback-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="feedback-title"
+            onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                    handleClose();
+                }
+            }}
+        >
             <Form onSubmit={handleSubmit} className="feedback-modal" onClick={(e) => e.stopPropagation()}>
                 {/* Close Button */}
-                <button type="button" className="btn-close" onClick={handleClose}>
+                <button
+                    type="button"
+                    className="btn-close"
+                    onClick={handleClose}
+                    aria-label="Close feedback modal"
+                >
                     <IoClose />
                 </button>
 
@@ -124,7 +171,7 @@ export default function Feedback() {
                     <div className="header-icon">
                         <BiMessageDetail />
                     </div>
-                    <h2>Send Feedback</h2>
+                    <h2 id="feedback-title">Send Feedback</h2>
                     <p>Share your thoughts and help us improve CodeDev</p>
                 </div>
 
@@ -173,13 +220,11 @@ export default function Feedback() {
                         disabled={state.handling}
                     >
                         {state.handling ? (
-                            <>
-                                <LoadingContent color="var(--white)" scale={0.5} />
-                            </>
+                            <LoadingContent color="var(--white)" scale={0.5} />
                         ) : (
                             <>
                                 <HiPaperAirplane />
-                                <span>Send Feedback</span>
+                                <span>Send</span>
                             </>
                         )}
                     </button>

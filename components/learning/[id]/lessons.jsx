@@ -47,7 +47,7 @@ export function SubmitLessonButton({ lessonId, courseId, onSubmitted }) {
             title="Mark this lesson as completed"
         >
             {submitLesson.isPending ? (
-                <LoadingContent scale={0.4} color={'var(--white)'} />
+                <LoadingContent scale={0.5} color={'var(--white)'} />
             ) : (
                 <>
                     <FaCheck fontSize={14} />

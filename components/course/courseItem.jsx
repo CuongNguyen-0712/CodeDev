@@ -9,7 +9,7 @@ import { useApp } from "@/contexts/appContext";
 import { useSession } from "next-auth/react";
 import { useCourseRegister } from "@/mutations/course.mutation";
 
-import { FaStar, FaUser, FaBookOpen, FaClock, FaCode, FaCoins } from "react-icons/fa";
+import { FaStar, FaBookOpen, FaClock, FaCode, FaCoins } from "react-icons/fa";
 import { BiDetail } from "react-icons/bi";
 import { MdCategory } from "react-icons/md";
 
@@ -20,7 +20,7 @@ export const CourseItem = ({ item }) => {
     const cost = Number(item.cost || 0);
     const point_price = Number(item.point_price || 0);
 
-    const { data: session } = useSession();
+    const { status } = useSession();
 
     const [dataRegistered, setDataRegistered] = useState([]);
     const [isNavigating, startTransition] = useTransition();
@@ -33,10 +33,7 @@ export const CourseItem = ({ item }) => {
     const isEnrolled = dataRegistered.includes(item.id) || Boolean(item?.is_registered);
 
     const handleSubmit = async ({ id, isCost }) => {
-        if (!session) {
-            alert(401, 'Please log in to continue.');
-            return;
-        }
+        if (!id) return;
 
         if (isCost) {
             alert(400, 'The payment feature is not supported yet. Please try again later.');
@@ -149,40 +146,43 @@ export const CourseItem = ({ item }) => {
             </div>
 
             {/* Card Action Footer */}
-            <div className="course-card-footer">
-                {point_price > 0 && (
-                    <button className='buy-with-points-btn' title={`Buy with ${point_price} points`}>
-                        <span>Buy</span>
-                        <FaCoins />
-                    </button>
-                )}
-
-                <button
-                    type="button"
-                    className={`course-enroll-btn ${cost > 0 && !isEnrolled ? 'paid' : ''} ${isEnrolled ? 'enrolled' : ''}`}
-                    onClick={() => handleSubmit({ id: item.id, isCost: cost > 0 && !isEnrolled })}
-                    disabled={registerMutation.isPending || isNavigating}
-                >
-                    {registerMutation.isPending || isNavigating ? (
-                        <LoadingContent scale={0.5} color="var(--white)" />
-                    ) : isEnrolled ? (
-                        'Continue Learning'
-                    ) : cost === 0 ? (
-                        'Enroll Free'
-                    ) : (
-                        `$${cost.toFixed(2)}`
+            {
+                status === 'authenticated' &&
+                <div className="course-card-footer">
+                    {point_price > 0 && (
+                        <button className='buy-with-points-btn' title={`Buy with ${point_price} points`}>
+                            <span>Buy</span>
+                            <FaCoins />
+                        </button>
                     )}
-                </button>
 
-                <Link
-                    className="course-detail-btn"
-                    href={`/course/${item.id}`}
-                    title="View Course Details"
-                    aria-label="View Course Details"
-                >
-                    <BiDetail fontSize={18} />
-                </Link>
-            </div>
+                    <button
+                        type="button"
+                        className={`course-enroll-btn ${cost > 0 && !isEnrolled ? 'paid' : ''} ${isEnrolled ? 'enrolled' : ''}`}
+                        onClick={() => handleSubmit({ id: item.id, isCost: cost > 0 && !isEnrolled })}
+                        disabled={registerMutation.isPending || isNavigating}
+                    >
+                        {registerMutation.isPending || isNavigating ? (
+                            <LoadingContent scale={0.5} color="var(--white)" />
+                        ) : isEnrolled ? (
+                            'Continue Learning'
+                        ) : cost === 0 ? (
+                            'Enroll Free'
+                        ) : (
+                            `$${cost.toFixed(2)}`
+                        )}
+                    </button>
+
+                    <Link
+                        className="course-detail-btn"
+                        href={`/course/${item.id}`}
+                        title="View Course Details"
+                        aria-label="View Course Details"
+                    >
+                        <BiDetail fontSize={18} />
+                    </Link>
+                </div>
+            }
         </article>
     );
 };

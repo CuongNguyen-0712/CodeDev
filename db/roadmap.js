@@ -5,14 +5,28 @@ export const roadmapDb = {
         const params = []
         const query = `
             SELECT
-                r.public_id as id,
-                r.title as title,
-                r.description as description,
-                r.level as level,
-                COUNT(n.id) nodes
+                r.public_id AS id,
+                r.title AS title,
+                r.description AS description,
+                r.level AS level,
+                COUNT(DISTINCT n.id) AS nodes,
+                COALESCE(
+                    jsonb_agg(
+                        DISTINCT jsonb_build_object(
+                            'name', l.name,
+                            'id', l.id,
+                            'logo', l.logo,
+                            'color', l.color
+                        )
+                    ),
+                    '[]'::jsonb
+                ) AS languages
             FROM public.roadmaps r
-            JOIN roadmap.nodes n ON n.roadmap_id = r.id
-            GROUP BY r.id
+            LEFT JOIN roadmap.nodes n ON n.roadmap_id = r.id
+            LEFT JOIN roadmap.node_course nc ON nc.node_id = n.id
+            LEFT JOIN public.course c ON c.id = nc.course_id
+            LEFT JOIN public.language l ON c.language_id = l.id
+            GROUP BY r.id;
         `
 
         return await sql(query, params)

@@ -12,6 +12,7 @@ export function InputGroup({ name, label, type, value, onChange, error, icon, re
     return (
         <div className={`field-input ${value ? 'has-content' : ''}`}>
             <input
+                id={name}
                 type={shown ? 'text' : type}
                 name={name}
                 value={value}
@@ -69,11 +70,8 @@ export function InputGroup({ name, label, type, value, onChange, error, icon, re
 export function TextAreaGroup({ label, name, value, onChange, rows = 2, cols, error, ref }) {
     return (
         <div className={`area_input ${value ? 'has-content' : ''}`}>
-            <label htmlFor={name}>
-                <BsTextareaResize fontSize={16} className="label_icon" />
-                {label}
-            </label>
             <textarea
+                id={name}
                 cols={cols}
                 rows={rows}
                 name={name}
@@ -81,6 +79,10 @@ export function TextAreaGroup({ label, name, value, onChange, rows = 2, cols, er
                 onChange={onChange}
                 ref={ref}
             />
+            <label htmlFor={name}>
+                <BsTextareaResize fontSize={16} className="label_icon" />
+                {label}
+            </label>
             {
                 error &&
                 <p className="input_error">

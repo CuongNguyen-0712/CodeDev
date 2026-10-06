@@ -35,26 +35,6 @@ const FILTER_MAPPING = [
 
 const DEFAULT_FILTER = {};
 
-/**
- * Returns contextual track icon for card
- */
-function getTrackIcon(title = '') {
-    const lower = title.toLowerCase();
-    if (lower.includes('front') || lower.includes('react') || lower.includes('vue') || lower.includes('web') || lower.includes('ui')) {
-        return <HiCodeBracket className="track-icon" />;
-    }
-    if (lower.includes('back') || lower.includes('node') || lower.includes('api') || lower.includes('java') || lower.includes('python')) {
-        return <HiServerStack className="track-icon" />;
-    }
-    if (lower.includes('devops') || lower.includes('cloud') || lower.includes('docker') || lower.includes('linux')) {
-        return <HiCommandLine className="track-icon" />;
-    }
-    if (lower.includes('ai') || lower.includes('data') || lower.includes('ml')) {
-        return <HiCpuChip className="track-icon" />;
-    }
-    return <LuCompass className="track-icon" />;
-}
-
 export default function RoadmapPage() {
     const { navigate } = useRouterActions();
     const { data, isLoading, isError, error, refetch } = useQuery(roadmapQueries.list());
@@ -177,6 +157,7 @@ export default function RoadmapPage() {
                         };
 
                         const nodeCount = parseInt(roadmap.nodes, 10) || 0;
+                        const languages = roadmap.languages || [];
 
                         return (
                             <article
@@ -195,8 +176,27 @@ export default function RoadmapPage() {
                                 <div className="card-accent-bar" />
 
                                 <div className="roadmap-card-header">
-                                    <div className="card-icon-box">
-                                        {getTrackIcon(roadmap.title)}
+                                    <div className="card-icon-languages">
+                                        {languages.slice(0, 3).map((lang) => (
+                                            <img
+                                                key={lang.id}
+                                                src={lang.logo || '/image/static/no_image.png'}
+                                                alt={lang.name}
+                                                className="language-badge logo-badge"
+                                                loading="lazy"
+                                                onError={(e) => {
+                                                    e.target.onerror = null;
+                                                    e.target.src = '/image/static/no_image.png';
+                                                }}
+                                            />
+                                        ))}
+                                        {
+                                            languages.length > 3 && (
+                                                <span className="language-badge more-languages">
+                                                    +{languages.length - 3}
+                                                </span>
+                                            )
+                                        }
                                     </div>
                                     <span
                                         className="roadmap-level-badge"

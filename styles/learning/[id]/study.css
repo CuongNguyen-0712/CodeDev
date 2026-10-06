@@ -760,6 +760,6 @@ aside.slider.active {
         height: 100%;
         width: 0;
         max-width: 0;
-        z-index: 3;
+        z-index: 6;
     }
 }

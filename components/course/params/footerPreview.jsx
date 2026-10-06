@@ -16,7 +16,7 @@ export default function FooterPreview({ courseId, cost = 0, status = 'not_enroll
 
     const { showAlert: alert } = useApp();
     const { navigate, navigateBack } = useRouterActions();
-    const { data: session } = useSession();
+    const { status: authStatus } = useSession();
 
     const useRegister = useCourseRegister();
     const numericCost = Number(cost || 0);
@@ -24,11 +24,6 @@ export default function FooterPreview({ courseId, cost = 0, status = 'not_enroll
     const handleSubmit = async () => {
         if (!courseId) return;
         if (useRegister.isPending || isPending) return;
-
-        if (!session || !session.user) {
-            alert(401, "You must be logged in to register for this course.");
-            return;
-        }
 
         if (status !== 'not_enrolled') {
             startTransition(() => {
@@ -96,14 +91,17 @@ export default function FooterPreview({ courseId, cost = 0, status = 'not_enroll
                     <span>Back</span>
                 </button>
 
-                <button
-                    type="button"
-                    className={`join_btn ${numericCost === 0 ? 'free' : 'paid'} ${status !== 'not_enrolled' ? 'enrolled' : ''}`}
-                    disabled={useRegister.isPending || isPending || loading}
-                    onClick={handleSubmit}
-                >
-                    {getActionLabel()}
-                </button>
+                {
+                    authStatus === 'authenticated' &&
+                    <button
+                        type="button"
+                        className={`join_btn ${numericCost === 0 ? 'free' : 'paid'} ${status !== 'not_enrolled' ? 'enrolled' : ''}`}
+                        disabled={useRegister.isPending || isPending || loading}
+                        onClick={handleSubmit}
+                    >
+                        {getActionLabel()}
+                    </button>
+                }
 
                 <button
                     type="button"

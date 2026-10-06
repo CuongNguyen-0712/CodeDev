@@ -205,7 +205,7 @@ export const courseDb = {
 
         params.push(userId, courseId, lessonId);
 
-        const query = `select * from submit_lesson($${params.length - 2}, $${params.length - 1}, $${params.length});`;
+        const query = `select * from submit_lesson($${params.length - 2}, $${params.length - 1}, $${params.length}::bigint);`;
 
         return await sql(query, params);
     },
