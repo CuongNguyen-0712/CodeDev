@@ -376,7 +376,7 @@ export default function Signup({ active, changeForm }) {
                         aria-label="Sign up with GitHub"
                     >
                         {isPending === 'github' ? (
-                            <LoadingContent scale={0.4} />
+                            <LoadingContent scale={0.5} color="var(--black)" />
                         ) : (
                             <>
                                 <FaGithub />
@@ -392,7 +392,7 @@ export default function Signup({ active, changeForm }) {
                         aria-label="Sign up with Google"
                     >
                         {isPending === 'google' ? (
-                            <LoadingContent scale={0.4} />
+                            <LoadingContent scale={0.5} color="var(--amber-500)" />
                         ) : (
                             <>
                                 <FaGoogle />

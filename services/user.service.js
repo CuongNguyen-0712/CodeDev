@@ -114,5 +114,38 @@ export const userService = {
         }
 
         return user.learning_progress || {};
+    },
+
+    updateProfile: async (data) => {
+        const { userId, nickname, surname, phone, name, email, bio, image } = data;
+
+        const result = await userDb.updateProfile({
+            userId,
+            nickname,
+            surname,
+            phone,
+            name,
+            email,
+            bio,
+            image
+        });
+
+        if (!result) {
+            throw new ApiError("Failed to update your information, try again later", 500);
+        }
+
+        return true;
+    },
+
+    getFriends: async (data) => {
+        const { userId, search } = data;
+
+        const result = await userDb.getFriends({ userId, search });
+
+        if (!result) {
+            throw new ApiError("Failed to get friends, try again later", 500);
+        }
+
+        return result.rows || result;
     }
 }

@@ -1,4 +1,5 @@
 import { courseDb } from "@/db/course.db";
+import { getPusherServer } from "@/lib/pusher";
 
 export const courseService = {
     getDetails: async (data) => {
@@ -96,7 +97,12 @@ export const courseService = {
 
         const LIMIT = 20
         const hasMore = response.rowCount > LIMIT
-        const data = response.rows.slice(0, LIMIT)
+        const data = response.rows.slice(0, LIMIT).map((item) => ({
+            ...item,
+            upvotes: Number(item.upvotes) || 0,
+            downvotes: Number(item.downvotes) || 0,
+            vote: item.vote || null,
+        }));
 
         return {
             data,
@@ -114,7 +120,28 @@ export const courseService = {
 
         const comment = response.rows[0];
 
-        return !!comment;
+        // Trigger realtime event to course channel via Pusher
+        try {
+            const pusher = getPusherServer();
+            if (pusher && data.courseId) {
+                const channelName = `course-${data.courseId}`;
+                await pusher.trigger(channelName, "new-comment", {
+                    id: comment.id,
+                    user_id: comment.user_id,
+                    username: comment.username,
+                    avatar: comment.avatar,
+                    comment: comment.comment,
+                    upvotes: Number(comment.upvotes) || 0,
+                    downvotes: Number(comment.downvotes) || 0,
+                    created_at: comment.created_at,
+                    vote: null,
+                });
+            }
+        } catch (pusherError) {
+            console.error("[Pusher] Failed to broadcast new comment:", pusherError.message);
+        }
+
+        return comment || true;
     },
 
     postVotingComment: async (data) => {
@@ -124,9 +151,30 @@ export const courseService = {
             throw new Error('Failed to vote on comment, try again later');
         }
 
-        const vote = response.rows[0];
+        const voteRow = response.rows[0];
+        const result = {
+            commentId: data.commentId,
+            upvotes: Number(voteRow.upvotes) || 0,
+            downvotes: Number(voteRow.downvotes) || 0,
+            vote: voteRow.vote || null,
+        };
 
-        return !!vote;
+        // Realtime broadcast updated votes via Pusher if courseId provided
+        try {
+            const pusher = getPusherServer();
+            if (pusher && data.courseId) {
+                const channelName = `course-${data.courseId}`;
+                await pusher.trigger(channelName, "comment-voted", {
+                    commentId: data.commentId,
+                    upvotes: result.upvotes,
+                    downvotes: result.downvotes,
+                });
+            }
+        } catch (pusherError) {
+            console.error("[Pusher] Failed to broadcast comment vote:", pusherError.message);
+        }
+
+        return result;
     },
 
     deleteFavorite: async (data) => {

@@ -52,6 +52,25 @@ export const userDb = {
         return await sql(query, params);
     },
 
+    getSessionById: async ({ sessionId }) => {
+        const params = [sessionId];
+        const query = `
+            SELECT
+                s.id AS session_id,
+                s.user_id,
+                s.expires_at,
+                s.is_revoked,
+                u.public_id,
+                u.username,
+                u.role
+            FROM private.sessions s
+            INNER JOIN private.users u ON u.id = s.user_id
+            WHERE s.id = $1
+            LIMIT 1;
+        `;
+        return await sql(query, params);
+    },
+
     signUpWithProvider: async (data) => {
         const { id, public_id, username, email, image, accountProvider, providerAccountId } = data;
 
@@ -571,6 +590,100 @@ export const userDb = {
 
         params.push(userId, courseId)
         const query = `select * from learning_progress($${params.length - 1}, $${params.length});`;
+
+        return await sql(query, params);
+    },
+
+    updateProfile: async ({ userId, nickname = null, surname = null, phone = null, name = null, email = null, image = null, bio = null }) => {
+        const params = [];
+        const conditions = [];
+
+        params.push(userId);
+        conditions.push(`user_id = (select id from private.users where public_id = $${params.length})`);
+
+        const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+        const setQuery = [];
+
+        if (surname !== null) {
+            params.push(surname);
+            setQuery.push(`surname = case when $${params.length} is distinct from surname then $${params.length} else surname end`);
+        }
+
+        if (phone !== null) {
+            params.push(phone);
+            setQuery.push(`phone = case when $${params.length} is distinct from phone then $${params.length} else phone end`);
+        }
+
+        if (nickname !== null) {
+            params.push(nickname);
+            setQuery.push(`nickname = case when $${params.length} is distinct from nickname then $${params.length} else nickname end`);
+        }
+
+        if (name !== null) {
+            params.push(name);
+            setQuery.push(`name = case when $${params.length} is distinct from name then $${params.length} else name end`);
+        }
+
+        if (email !== null) {
+            params.push(email);
+            setQuery.push(`email = case when $${params.length} is distinct from email then $${params.length} else email end`);
+        }
+
+        if (image !== null) {
+            params.push(image);
+            setQuery.push(`image = case when $${params.length} is distinct from image then $${params.length} else image end`);
+        }
+
+        if (bio !== null) {
+            params.push(bio);
+            setQuery.push(`bio = case when $${params.length} is distinct from bio then $${params.length} else bio end`);
+        }
+
+        const setSQL = setQuery.length > 0 ? `SET ${setQuery.join(', ')}` : '';
+
+        const query = `
+            update private.info
+            ${setSQL},
+            update_at = now()
+            ${whereSQL}
+            RETURNING id;
+        `;
+
+        return await sql(query, params);
+    },
+
+    getFriends: async ({ userId, search }) => {
+        const params = [];
+        const conditions = [];
+
+        params.push(userId);
+
+        if (search && search.trim()) {
+            params.push(`%${search.toLowerCase()}%`);
+            conditions.push(`LOWER(u.username) LIKE $${params.length}`);
+        }
+
+        const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+        const query = `
+            SELECT
+                i.id as id,
+                u.username,
+                i.image,
+                i.nickname,
+                i.level,
+                i.rank,
+                i.star,
+                f.status
+            FROM private.users u
+            INNER JOIN private.info i ON i.user_id = u.id AND i.user_id != (select id from private.users where public_id = $1)
+            INNER JOIN private.friend f ON (
+                (f.sender_id = (select id from private.users where public_id = $1) AND f.receiver_id = u.id)
+                OR
+                (f.receiver_id = (select id from private.users where public_id = $1) AND f.sender_id = u.id)
+            )
+            ${whereSQL}
+        `;
 
         return await sql(query, params);
     }

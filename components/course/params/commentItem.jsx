@@ -87,11 +87,11 @@ const CommentItem = ({ data, courseId }) => {
                         onClick={() => handleVoting('upvote')}
                         className={`vote-btn upvote ${data.vote === 'upvote' ? 'active' : ''}`}
                         disabled={useVoting.isPending || !session}
-                        title={data.vote === 'upvote' ? "Remove upvote" : "Upvote"}
+                        title={!session ? "Please log in to vote" : (data.vote === 'upvote' ? "Remove upvote" : "Upvote")}
                         aria-pressed={data.vote === 'upvote'}
                     >
                         <IoHeart fontSize={16} />
-                        <span>{data.upvotes || 0}</span>
+                        <span>{Number(data.upvotes) || 0}</span>
                     </button>
 
                     <button
@@ -100,11 +100,11 @@ const CommentItem = ({ data, courseId }) => {
                         onClick={() => handleVoting('downvote')}
                         className={`vote-btn downvote ${data.vote === 'downvote' ? 'active' : ''}`}
                         disabled={useVoting.isPending || !session}
-                        title={data.vote === 'downvote' ? "Remove downvote" : "Downvote"}
+                        title={!session ? "Please log in to vote" : (data.vote === 'downvote' ? "Remove downvote" : "Downvote")}
                         aria-pressed={data.vote === 'downvote'}
                     >
                         <IoHeartDislike fontSize={16} />
-                        <span>{data.downvotes || 0}</span>
+                        <span>{Number(data.downvotes) || 0}</span>
                     </button>
                 </div>
             </div>

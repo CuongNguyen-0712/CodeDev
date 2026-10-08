@@ -2,7 +2,7 @@
 
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import UpdateInfoService from "@/services/updateService/infoService";
+import { userService } from "@/services/user.service";
 
 export async function updateUserProfileAction(data) {
     try {
@@ -19,7 +19,7 @@ export async function updateUserProfileAction(data) {
             return { success: false, message: "No data to update", status: 400 };
         }
 
-        const result = await UpdateInfoService({
+        const result = await userService.updateProfile({
             userId,
             nickname,
             surname,
@@ -30,7 +30,7 @@ export async function updateUserProfileAction(data) {
             bio,
         });
 
-        return { success: !!result };
+        return { success: Boolean(result) };
     } catch (error) {
         return {
             success: false,

@@ -28,5 +28,25 @@ export const roadmapService = {
             ...roadmap,
             allRoadmaps
         };
+    },
+
+    getRoadmap: async ({ roadmapId }) => {
+        const response = await roadmapDb.getRoadmapById({ roadmapId });
+
+        if (!response) {
+            throw new Error('Failed to load roadmap, try again later');
+        }
+
+        return response.rows || response;
+    },
+
+    getRoadmapNodes: async ({ userId, roadmapId }) => {
+        const response = await roadmapDb.getRoadmapNodes({ userId, roadmapId });
+
+        if (!response) {
+            throw new Error('Failed to load roadmap nodes, try again later');
+        }
+
+        return response.rows || response;
     }
 }

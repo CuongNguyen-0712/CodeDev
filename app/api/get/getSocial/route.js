@@ -1,16 +1,14 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-
 import { ApiError } from "@/lib/error/apiError";
-
-import GetSocialService from "@/services/getService/teamsSocialService";
+import { teamService } from "@/services/team.service";
 
 export async function GET(req) {
     try {
         const session = await getServerSession(authOptions);
 
-        if (!session) {
+        if (!session?.user?.id) {
             throw new ApiError("Unauthorized", 401);
         }
 
@@ -18,17 +16,16 @@ export async function GET(req) {
         const { searchParams } = new URL(req.url);
 
         const search = searchParams.get('search') || '';
-        const limit = searchParams.get('limit') || 10;
-        const offset = searchParams.get('offset') || 0;
+        const limit = Number(searchParams.get('limit')) || 10;
+        const offset = Number(searchParams.get('offset')) || 0;
 
-        const data = { userId, search, limit, offset };
-
-        const response = await GetSocialService(data);
+        const response = await teamService.getTeamsSocial({ userId, search, limit, offset });
 
         return NextResponse.json({ success: true, data: response }, { status: 200 });
     } catch (error) {
-
-
-        throw new ApiError(500, "Internal Server Error");
+        return NextResponse.json(
+            { message: error.message || "Internal Server Error" },
+            { status: error.status || 500 }
+        );
     }
 }

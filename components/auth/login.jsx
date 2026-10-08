@@ -213,7 +213,7 @@ export default function Login({ active, changeForm }) {
                         aria-label="Continue with GitHub"
                     >
                         {isPending === 'github' ? (
-                            <LoadingContent scale={0.4} />
+                            <LoadingContent scale={0.5} color="var(--black)" />
                         ) : (
                             <>
                                 <FaGithub />
@@ -229,7 +229,7 @@ export default function Login({ active, changeForm }) {
                         aria-label="Continue with Google"
                     >
                         {isPending === 'google' ? (
-                            <LoadingContent scale={0.4} />
+                            <LoadingContent scale={0.5} color="var(--ember-500)" />
                         ) : (
                             <>
                                 <FaGoogle />

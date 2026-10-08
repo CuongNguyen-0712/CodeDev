@@ -261,7 +261,7 @@ export const courseDb = {
                 m.content as comment,
                 m.upvotes as upvotes,
                 m.downvotes as downvotes,
-                ${userId ? `coalesce(v.voting, null) as vote,` : ''}
+                ${userId ? `coalesce(v.voting, null) as vote,` : 'null as vote,'}
                 m.created_at as created_at
             FROM public.comment m
             JOIN private.info i ON m.user_id = i.user_id
@@ -288,13 +288,27 @@ export const courseDb = {
         params.push(userId, courseId, content);
 
         const query = `
-            INSERT INTO public.comment (user_id, reference_id, content)
-            VALUES (
-                (SELECT id FROM private.users WHERE public_id = $1),
-                (SELECT id FROM public.course WHERE public_id = $2),
-                $3
+            WITH inserted AS (
+                INSERT INTO public.comment (user_id, reference_id, content)
+                VALUES (
+                    (SELECT id FROM private.users WHERE public_id = $1),
+                    (SELECT id FROM public.course WHERE public_id = $2),
+                    $3
+                )
+                RETURNING *
             )
-            RETURNING *;
+            SELECT 
+                u.public_id as user_id,
+                u.username as username,
+                i.image as avatar,
+                m.public_id as id,
+                m.content as comment,
+                m.upvotes as upvotes,
+                m.downvotes as downvotes,
+                m.created_at as created_at
+            FROM inserted m
+            JOIN private.users u ON m.user_id = u.id
+            LEFT JOIN private.info i ON m.user_id = i.user_id;
         `;
 
         return await sql(query, params);

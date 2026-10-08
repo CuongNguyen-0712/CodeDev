@@ -46,4 +46,7 @@ sanity.config.js
 /tests
 
 # Design
-design.pen
+/design.pen
+
+# Agents
+/.agents

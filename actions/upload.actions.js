@@ -2,7 +2,7 @@
 
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import UploadService from "@/services/postService/uploadService";
+import { uploadService } from "@/services/upload.service";
 
 export async function uploadImageAction(formData) {
     try {
@@ -14,16 +14,7 @@ export async function uploadImageAction(formData) {
         const file = formData.get("file");
         const folder = formData.get("folder") || "uploads";
 
-        if (!file || typeof file === "string" || !file.type?.startsWith("image/")) {
-            return { success: false, message: "Invalid file type. Only image files are permitted.", status: 400 };
-        }
-
-        if (file.size > 5 * 1024 * 1024) {
-            return { success: false, message: "File size exceeds 5MB limit", status: 400 };
-        }
-
-        const data = { file, folder };
-        const secureUrl = await UploadService(data);
+        const secureUrl = await uploadService.uploadImage({ file, folder });
 
         return { success: true, data: secureUrl };
     } catch (error) {

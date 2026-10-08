@@ -1,18 +1,21 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import Form from 'next/form';
 
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { LoadingContent } from "@/components/ui/loading";
 import { ErrorReload } from "@/components/ui/error";
 import { courseQueries } from "@/queries/course.query";
+import { courseKeys } from "@/keys/course.keys";
 import { useCourseComment } from "@/mutations/course.mutation";
 import { useApp } from "@/contexts/appContext";
 import { TextAreaGroup } from "@/components/ui/input";
+import { getPusherClient } from "@/lib/pusher";
 
 import CommentItem from "./commentItem";
+import { uniqBy } from "lodash";
 
 import { IoSend } from "react-icons/io5";
 import { MdOutlineForum } from "react-icons/md";
@@ -22,6 +25,7 @@ import "@/styles/course/[id]/comment.css";
 export default function CommentPage({ courseId }) {
     const inputRef = useRef(null);
     const scrollRef = useRef(null);
+    const queryClient = useQueryClient();
 
     const [comment, setComment] = useState({
         content: '',
@@ -35,7 +39,81 @@ export default function CommentPage({ courseId }) {
         courseQueries.comments(courseId)
     );
 
-    const comments = data?.pages?.flatMap(page => page.data) || [];
+    const rawComments = data?.pages?.flatMap(page => page.data || []) || [];
+    const comments = uniqBy(rawComments, 'id');
+
+    // Realtime comments subscription with Pusher
+    useEffect(() => {
+        if (!courseId) return;
+
+        const pusher = getPusherClient();
+        if (!pusher) return;
+
+        const channelName = `course-${courseId}`;
+        const channel = pusher.subscribe(channelName);
+
+        const handleNewComment = (newComment) => {
+            if (!newComment || !newComment.id) return;
+
+            queryClient.setQueryData(courseKeys.comments(courseId), (oldData) => {
+                if (!oldData || !oldData.pages) {
+                    return oldData;
+                }
+
+                // Check if comment already exists (prevent duplicate on author's view)
+                const exists = oldData.pages.some(page =>
+                    page.data?.some(item => item.id === newComment.id)
+                );
+
+                if (exists) {
+                    return oldData;
+                }
+
+                const firstPage = oldData.pages[0];
+                const updatedFirstPage = {
+                    ...firstPage,
+                    data: [newComment, ...(firstPage?.data || [])],
+                };
+
+                return {
+                    ...oldData,
+                    pages: [updatedFirstPage, ...oldData.pages.slice(1)],
+                };
+            });
+        };
+
+        const handleCommentVoted = ({ commentId, upvotes, downvotes }) => {
+            if (!commentId) return;
+
+            queryClient.setQueryData(courseKeys.comments(courseId), (oldData) => {
+                if (!oldData || !oldData.pages) return oldData;
+
+                return {
+                    ...oldData,
+                    pages: oldData.pages.map((page) => ({
+                        ...page,
+                        data: (page.data || []).map((item) => {
+                            if (item.id !== commentId) return item;
+                            return {
+                                ...item,
+                                upvotes: Number(upvotes) || 0,
+                                downvotes: Number(downvotes) || 0,
+                            };
+                        }),
+                    })),
+                };
+            });
+        };
+
+        channel.bind("new-comment", handleNewComment);
+        channel.bind("comment-voted", handleCommentVoted);
+
+        return () => {
+            channel.unbind("new-comment", handleNewComment);
+            channel.unbind("comment-voted", handleCommentVoted);
+            pusher.unsubscribe(channelName);
+        };
+    }, [courseId, queryClient]);
 
     const scrollToTop = () => {
         if (scrollRef.current) {

@@ -2,7 +2,7 @@
 
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import PostFeedbackService from "@/services/postService/feedbackService";
+import { feedbackService } from "@/services/feedback.service";
 
 export async function sendFeedbackAction({ title, feedback }) {
     if (!title?.trim() || !feedback?.trim()) {
@@ -13,13 +13,13 @@ export async function sendFeedbackAction({ title, feedback }) {
         const session = await getServerSession(authOptions);
         const sender = session?.user?.id || 'anonymous';
 
-        const result = await PostFeedbackService({
+        const result = await feedbackService.createFeedback({
             sender,
             title: title.trim(),
             feedback: feedback.trim()
         });
 
-        return { success: !!result };
+        return { success: Boolean(result) };
     } catch (error) {
         return {
             success: false,

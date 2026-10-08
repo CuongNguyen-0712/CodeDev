@@ -4,6 +4,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { courseService } from "@/services/course.service";
 
+import { rateLimiters } from "@/lib/rateLimit";
+
 async function getAuthUserId() {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
@@ -97,21 +99,27 @@ export async function unfavoriteCourseAction(courseIdOrData) {
 export async function postCommentAction({ courseId, content }) {
     const userId = await getAuthUserId();
 
+    // Check rate limit: 15 comments / min per user
+    const rateCheck = await rateLimiters.comment.check(userId);
+    if (!rateCheck.success) {
+        throw new Error(`You are submitting comments too quickly. Please retry in ${rateCheck.retryAfter} seconds.`);
+    }
+
     if (!courseId || !content?.trim()) {
         throw new Error("Course ID and comment content are required.");
     }
 
-    const success = await courseService.postComment({ userId, courseId, content: content.trim() });
-    return { success: Boolean(success) };
+    const result = await courseService.postComment({ userId, courseId, content: content.trim() });
+    return { success: Boolean(result), data: typeof result === 'object' ? result : null };
 }
 
-export async function voteCommentAction({ commentId, vote }) {
+export async function voteCommentAction({ commentId, courseId, vote }) {
     const userId = await getAuthUserId();
 
     if (!commentId) {
         throw new Error("Comment ID is required.");
     }
 
-    const response = await courseService.postVotingComment({ userId, commentId, vote });
-    return { success: Boolean(response) };
+    const response = await courseService.postVotingComment({ userId, commentId, courseId, vote });
+    return { success: Boolean(response), data: typeof response === 'object' ? response : null };
 }

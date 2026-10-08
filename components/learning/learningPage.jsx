@@ -203,7 +203,7 @@ export default function LearningPage() {
             {/* Pagination / Load More Section */}
             <div className="learning-pagination">
                 {hasNextPage ?
-                    (isFetchingNextPage && courses.length > 0) ?
+                    isFetchingNextPage ?
                         <LoadingContent scale={0.4} color="var(--color-primary)" message="Loading more courses..." />
                         :
                         null
