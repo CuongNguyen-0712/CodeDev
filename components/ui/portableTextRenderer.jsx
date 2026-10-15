@@ -6,17 +6,17 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import createImageUrlBuilder from "@sanity/image-url";
 
-import { MdOutlineContentCopy } from "react-icons/md";
-import { FaCheck } from "react-icons/fa6";
 import {
-    FiInfo,
-    FiAlertTriangle,
-    FiCheckCircle,
-    FiAlertCircle,
-    FiZap,
-    FiFileText,
-    FiExternalLink
-} from "react-icons/fi";
+    LuCheck,
+    LuCircleAlert,
+    LuCircleCheck,
+    LuCopy,
+    LuExternalLink,
+    LuFileText,
+    LuInfo,
+    LuTriangleAlert,
+    LuZap,
+} from "react-icons/lu";
 
 const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || "4sw0c7mz";
 const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET || "production";
@@ -134,7 +134,7 @@ function CodeBlock({ value }) {
             <div className="code_block_header">
                 <div className="code_meta">
                     <span className="code_icon">
-                        <FiFileText fontSize={14} />
+                        <LuFileText fontSize={14} />
                     </span>
                     <span className="code_filename">{fileLabel}</span>
                     <span className="code_language">{languageLabel}</span>
@@ -150,14 +150,20 @@ function CodeBlock({ value }) {
                 >
                     {
                         copied ?
-                            <FaCheck fontSize={13} />
+                            <LuCheck fontSize={13} />
                             :
-                            <MdOutlineContentCopy fontSize={14} />
+                            <LuCopy fontSize={14} />
                     }
                 </button>
             </div>
 
-            <div className="code_content_wrapper">
+            {/* The wrapper scrolls (not the <pre>) so keyboard users can focus and scroll long lines. */}
+            <div
+                className="code_content_wrapper"
+                tabIndex={0}
+                role="region"
+                aria-label={`${fileLabel} code`}
+            >
                 <SyntaxHighlighter
                     language={normalizedLang}
                     style={vscDarkPlus}
@@ -166,21 +172,24 @@ function CodeBlock({ value }) {
                     lineNumberStyle={{
                         minWidth: "2.2em",
                         paddingRight: "1.2em",
-                        color: "rgba(255, 255, 255, 0.25)",
+                        color: "var(--editor-gutter)",
                         textAlign: "right",
                         userSelect: "none",
                     }}
                     customStyle={{
                         margin: 0,
-                        padding: "18px 20px",
+                        overflow: "visible",
+                        width: "max-content",
+                        minWidth: "100%",
+                        padding: "14px 16px",
                         background: "transparent",
-                        fontSize: "13.5px",
+                        fontSize: "13px",
                         lineHeight: "1.65",
-                        fontFamily: 'Consolas, Monaco, "Cascadia Code", "Fira Code", "Courier New", monospace',
+                        fontFamily: 'var(--font-jetbrains-mono), Consolas, Monaco, "Courier New", monospace',
                     }}
                     codeTagProps={{
                         style: {
-                            fontFamily: 'Consolas, Monaco, "Cascadia Code", "Fira Code", "Courier New", monospace',
+                            fontFamily: 'var(--font-jetbrains-mono), Consolas, Monaco, "Courier New", monospace',
                         },
                     }}
                 >
@@ -197,32 +206,32 @@ function Callout({ value }) {
 
     const config = {
         info: {
-            icon: <FiInfo />,
+            icon: <LuInfo />,
             title: title || "Note",
             className: "callout_info",
         },
         warning: {
-            icon: <FiAlertTriangle />,
+            icon: <LuTriangleAlert />,
             title: title || "Important Warning",
             className: "callout_warning",
         },
         success: {
-            icon: <FiCheckCircle />,
+            icon: <LuCircleCheck />,
             title: title || "Best Practice / Key Takeaway",
             className: "callout_success",
         },
         error: {
-            icon: <FiAlertCircle />,
+            icon: <LuCircleAlert />,
             title: title || "Common Pitfall",
             className: "callout_error",
         },
         danger: {
-            icon: <FiAlertCircle />,
+            icon: <LuCircleAlert />,
             title: title || "Danger",
             className: "callout_error",
         },
         tip: {
-            icon: <FiZap />,
+            icon: <LuZap />,
             title: title || "Pro Tip",
             className: "callout_tip",
         },
@@ -332,7 +341,7 @@ export default function PortableTextRenderer({ value }) {
                                 className="lesson_link"
                             >
                                 {children}
-                                {isExternal && <FiExternalLink className="lesson_external_icon" />}
+                                {isExternal && <LuExternalLink className="lesson_external_icon" />}
                             </a>
                         );
                     },

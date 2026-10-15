@@ -1,134 +1,143 @@
 'use client'
 import { useState } from "react"
 import Link from "next/link"
+import Image from "next/image"
 
 import Login from "./login"
 import Signup from "./signup"
 
-import { HiSparkles, HiCheckCircle } from "react-icons/hi2"
-import { FaArrowLeft, FaGraduationCap, FaCode, FaChartLine } from "react-icons/fa6"
+import { Button } from "@/components/shadcn/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/shadcn/tabs"
 
-import '@/styles/auth/auth.css'
+import {
+    LuArrowLeft,
+    LuLibrary,
+    LuSquareTerminal,
+    LuTrendingUp,
+} from "react-icons/lu"
+
+const ACCOUNT_FEATURES = [
+    {
+        icon: LuLibrary,
+        title: "Enroll in courses",
+        desc: "Join courses from the catalog and work through their lessons in order.",
+    },
+    {
+        icon: LuSquareTerminal,
+        title: "Submit challenges",
+        desc: "Solve coding challenges in the browser and get them graded against hidden tests.",
+    },
+    {
+        icon: LuTrendingUp,
+        title: "Keep your progress",
+        desc: "Your progress is saved to your account, so you can continue on any device.",
+    },
+]
+
+const COPY = {
+    login: {
+        title: "Sign in to CodeDev",
+        desc: "Welcome back. Sign in to continue your courses.",
+    },
+    signup: {
+        title: "Create your account",
+        desc: "It takes two short steps. You can also sign up with GitHub or Google.",
+    },
+}
 
 export default function AuthPage() {
     const [activeForm, setActiveForm] = useState('login')
 
     const isLogin = activeForm === 'login'
     const isSignup = activeForm === 'signup'
-
-    const features = [
-        {
-            icon: <FaGraduationCap />,
-            title: "Interactive Learning",
-            desc: "Hands-on coding exercises with real-time feedback",
-        },
-        {
-            icon: <FaCode />,
-            title: "Modern Tech Stack",
-            desc: "Master in-demand languages and industry frameworks",
-        },
-        {
-            icon: <FaChartLine />,
-            title: "Track Progress",
-            desc: "Structured roadmaps, skill badges and milestones",
-        },
-    ]
+    const copy = COPY[activeForm] || COPY.login
 
     return (
-        <main id="auth">
-            {/* Quick Floating Back to Home Link */}
-            <Link href="/" className="auth_back_home" title="Back to Homepage">
-                <FaArrowLeft fontSize={14} />
-                <span>Back to CodeDev</span>
-            </Link>
+        <main className="flex min-h-full w-full flex-1 flex-col lg:flex-row">
+            <div className="flex min-w-0 flex-1 flex-col">
+                <div className="flex h-14 shrink-0 items-center justify-between gap-3 px-4 sm:px-6">
+                    <Link
+                        href="/"
+                        className="flex items-center gap-2 rounded-md text-sm font-semibold text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    >
+                        <Image src="/image/static/logo.svg" width={24} height={24} alt="" priority />
+                        CodeDev
+                    </Link>
+                    <Button asChild variant="ghost" size="sm">
+                        <Link href="/">
+                            <LuArrowLeft />
+                            Back to home
+                        </Link>
+                    </Button>
+                </div>
 
-            <div className="auth_wrapper">
-                <div className="auth_card">
-                    {/* Left/Main Forms Column */}
-                    <section className="auth_forms">
-                        {/* Segmented Tab Switcher */}
-                        <div className="auth_tabs" role="tablist" aria-label="Authentication Options">
-                            <button
-                                type="button"
-                                role="tab"
-                                aria-selected={isLogin}
-                                className={`auth_tab ${isLogin ? 'active' : ''}`}
-                                onClick={() => setActiveForm('login')}
-                            >
-                                Sign In
-                            </button>
-                            <button
-                                type="button"
-                                role="tab"
-                                aria-selected={isSignup}
-                                className={`auth_tab ${isSignup ? 'active' : ''}`}
-                                onClick={() => setActiveForm('signup')}
-                            >
-                                Create Account
-                            </button>
-                        </div>
+                <div className="flex flex-1 items-start justify-center px-4 pt-6 pb-12 sm:items-center sm:px-6 sm:pt-0">
+                    <div className="flex w-full max-w-sm flex-col gap-6">
+                        <header className="flex flex-col gap-2">
+                            <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+                                {copy.title}
+                            </h1>
+                            <p className="text-sm text-muted-foreground">{copy.desc}</p>
+                        </header>
 
-                        {/* Active Form */}
-                        <div className="forms_container">
-                            <Login
-                                active={isLogin}
-                                changeForm={() => setActiveForm('signup')}
-                            />
-                            <Signup
-                                active={isSignup}
-                                changeForm={() => setActiveForm('login')}
-                            />
-                        </div>
-                    </section>
+                        <Tabs value={activeForm} onValueChange={setActiveForm} className="gap-6">
+                            <TabsList className="w-full" aria-label="Sign in or create an account">
+                                <TabsTrigger value="login">Sign in</TabsTrigger>
+                                <TabsTrigger value="signup">Create account</TabsTrigger>
+                            </TabsList>
 
-                    {/* Right Info Sidebar */}
-                    <aside className="auth_sidebar">
-                        <div className="sidebar_content">
-                            <div className="sidebar_brand">
-                                <span className="brand_icon_box">
-                                    <HiSparkles className="brand_icon" />
-                                </span>
-                                <h3>CodeDev</h3>
-                            </div>
-
-                            <div className="sidebar_hero">
-                                <div className="sidebar_image_wrap">
-                                    <img src="/image/static/auth.png" alt="CodeDev Platform" />
-                                </div>
-                                <div className="sidebar_text">
-                                    <h4>{isLogin ? 'Welcome Back!' : 'Start Your Journey'}</h4>
-                                    <p>
-                                        {isLogin
-                                            ? 'Resume your coding path, pick up your streak and master new software engineering concepts.'
-                                            : 'Create your free account today and join a thriving developer community.'}
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Value Propositions */}
-                            <ul className="sidebar_features">
-                                {features.map((feat, idx) => (
-                                    <li key={idx} className="feature_item">
-                                        <span className="feature_icon">{feat.icon}</span>
-                                        <div className="feature_details">
-                                            <strong>{feat.title}</strong>
-                                            <span>{feat.desc}</span>
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-
-                            <button
-                                type="button"
-                                className="sidebar_btn"
-                                onClick={() => setActiveForm(isLogin ? 'signup' : 'login')}
-                            >
-                                {isLogin ? 'New here? Create Account' : 'Already registered? Sign In'}
-                            </button>
-                        </div>
-                    </aside>
+                            {/* Both forms stay mounted so typed values survive switching tabs. */}
+                            <TabsContent value="login" forceMount className="data-[state=inactive]:hidden">
+                                <Login
+                                    active={isLogin}
+                                    changeForm={() => setActiveForm('signup')}
+                                />
+                            </TabsContent>
+                            <TabsContent value="signup" forceMount className="data-[state=inactive]:hidden">
+                                <Signup
+                                    active={isSignup}
+                                    changeForm={() => setActiveForm('login')}
+                                />
+                            </TabsContent>
+                        </Tabs>
+                    </div>
                 </div>
             </div>
+
+            <aside
+                aria-labelledby="auth-aside-title"
+                className="hidden w-full max-w-md shrink-0 flex-col justify-center gap-8 border-l bg-muted/40 px-10 py-12 lg:flex xl:max-w-lg xl:px-14"
+            >
+                <div className="flex flex-col gap-2">
+                    <h2 id="auth-aside-title" className="text-lg font-semibold tracking-tight text-foreground">
+                        What an account gives you
+                    </h2>
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                        You can browse courses without signing in. An account lets you enroll and keeps your work.
+                    </p>
+                </div>
+
+                <ul className="flex list-none flex-col gap-5">
+                    {ACCOUNT_FEATURES.map(({ icon: Icon, title, desc }) => (
+                        <li key={title} className="flex items-start gap-3">
+                            <span className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-background text-foreground">
+                                <Icon className="size-4" aria-hidden="true" />
+                            </span>
+                            <div className="flex flex-col gap-0.5">
+                                <h3 className="text-sm font-medium text-foreground">{title}</h3>
+                                <p className="text-sm leading-relaxed text-muted-foreground">{desc}</p>
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+
+                <Button asChild variant="outline" className="self-start">
+                    <Link href="/course">
+                        <LuLibrary />
+                        Browse courses first
+                    </Link>
+                </Button>
+            </aside>
         </main>
     )
-}
+}

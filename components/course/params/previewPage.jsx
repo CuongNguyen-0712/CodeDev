@@ -2,28 +2,192 @@
 import Link from "next/link";
 
 import { ErrorReload } from "../../ui/error";
-import { LoadingContent } from "../../ui/loading";
 
 import FooterPreview from "./footerPreview";
+import CommentPage from "./commentPage";
+import { LEVEL_ICON, formatDuration } from "../courseItem";
 
 import { useApp } from "@/contexts/appContext";
+import { useSession } from "next-auth/react";
+import { useRouterActions } from "@/router/useRouterActions";
 
 import { useQuery } from "@tanstack/react-query";
 import { courseQueries } from "@/queries/course.query";
 import { useCourseFavorite, useCourseUnfavorite } from "@/mutations/course.mutation";
 
-import CommentPage from "./commentPage";
-
 import { levelMapping } from "@/constants/constants";
 
-import { FaStar, FaGraduationCap, FaPlayCircle, FaCode, FaFileAlt } from "react-icons/fa";
-import { IoHeart } from "react-icons/io5";
-import { MdPlayLesson, MdPerson, MdLanguage, MdCategory } from "react-icons/md";
-import { LuAlarmClock } from "react-icons/lu";
-import { PiStudent } from "react-icons/pi";
-import { HiChevronRight } from "react-icons/hi2";
+import { Avatar, AvatarFallback } from "@/components/shadcn/avatar";
+import { Badge } from "@/components/shadcn/badge";
+import {
+    Breadcrumb,
+    BreadcrumbItem,
+    BreadcrumbLink,
+    BreadcrumbList,
+    BreadcrumbPage,
+    BreadcrumbSeparator,
+} from "@/components/shadcn/breadcrumb";
+import { Button } from "@/components/shadcn/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/shadcn/collapsible";
+import { Separator } from "@/components/shadcn/separator";
+import { Skeleton } from "@/components/shadcn/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 
-import "@/styles/course/[id]/preview.css";
+import {
+    LuArrowLeft,
+    LuChevronRight,
+    LuCirclePlay,
+    LuCode,
+    LuFileText,
+    LuHeart,
+    LuLibrary,
+    LuLoaderCircle,
+    LuSearchX,
+    LuSignalLow,
+    LuStar,
+} from "react-icons/lu";
+
+// Enrollment status is shown as a tinted badge with a text label, never colour alone.
+const ENROLLMENT_STATUS = {
+    enrolled: { label: 'Enrolled', variant: 'muted' },
+    in_progress: { label: 'In progress', variant: 'primary' },
+    completed: { label: 'Completed', variant: 'success' },
+    paused: { label: 'Paused', variant: 'warning' },
+    dropped: { label: 'Dropped', variant: 'destructive' },
+};
+
+const pad = (value) => String(value).padStart(2, '0');
+
+// `content_type` also carries storage values such as "sanity" (rich text in the CMS),
+// so only real lesson formats get a label; everything else reads as a written lesson.
+const getLessonFormat = (type) => {
+    const lower = String(type || '').toLowerCase();
+    if (lower.includes('video')) return { Icon: LuCirclePlay, label: 'Video' };
+    if (lower.includes('code') || lower.includes('exercise')) return { Icon: LuCode, label: 'Exercise' };
+    if (lower.includes('quiz')) return { Icon: LuFileText, label: 'Quiz' };
+    return { Icon: LuFileText, label: null };
+};
+
+const getInitials = (name) => String(name || '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part[0]?.toUpperCase())
+    .join('') || '?';
+
+function HeaderSkeleton() {
+    return (
+        <div className="space-y-5" aria-hidden="true">
+            <div className="flex items-center gap-3">
+                <Skeleton className="size-10 rounded-md" />
+                <Skeleton className="h-3 w-40" />
+            </div>
+            <div className="space-y-3">
+                <Skeleton className="h-9 w-3/4" />
+                <Skeleton className="h-4 w-full max-w-xl" />
+                <Skeleton className="h-4 w-2/3 max-w-md" />
+            </div>
+            <div className="flex gap-1.5">
+                <Skeleton className="h-5 w-24" />
+                <Skeleton className="h-5 w-14" />
+                <Skeleton className="h-5 w-12" />
+            </div>
+            <div className="flex gap-2">
+                <Skeleton className="h-9 w-40" />
+                <Skeleton className="h-9 w-28" />
+            </div>
+            <Skeleton className="h-16 w-full" />
+            <div className="space-y-2 pt-6">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+            </div>
+        </div>
+    );
+}
+
+function Syllabus({ modules }) {
+    const totalLessons = modules.reduce((acc, item) => acc + (item.lessons?.length || 0), 0);
+
+    return (
+        <section aria-labelledby="course-syllabus-heading" className="space-y-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 id="course-syllabus-heading" className="text-base font-semibold">Syllabus</h2>
+                <span className="font-mono text-xs text-muted-foreground tabular">
+                    {modules.length} {modules.length === 1 ? 'chapter' : 'chapters'} &middot; {totalLessons} {totalLessons === 1 ? 'lesson' : 'lessons'}
+                </span>
+            </div>
+
+            {modules.length > 0 ? (
+                <ol className="list-none divide-y overflow-hidden rounded-lg border bg-card">
+                    {modules.map((item, index) => {
+                        const lessons = item.lessons || [];
+
+                        return (
+                            <li key={index}>
+                                <Collapsible defaultOpen={index === 0}>
+                                    <CollapsibleTrigger className="group flex min-h-12 w-full items-center gap-3 px-4 py-2.5 text-left outline-none hover:bg-muted/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset">
+                                        <LuChevronRight
+                                            className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-90"
+                                            aria-hidden="true"
+                                        />
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block font-mono text-[11px] text-muted-foreground">
+                                                Chapter {pad(index + 1)}
+                                            </span>
+                                            <span className="block text-sm leading-snug font-medium text-foreground">
+                                                {item.title}
+                                            </span>
+                                        </span>
+                                        <span className="shrink-0 font-mono text-xs text-muted-foreground tabular">
+                                            {lessons.length} {lessons.length === 1 ? 'lesson' : 'lessons'}
+                                        </span>
+                                    </CollapsibleTrigger>
+
+                                    <CollapsibleContent>
+                                        {lessons.length > 0 ? (
+                                            <ul className="list-none border-t bg-muted/30 py-1">
+                                                {lessons.map((child, idx) => {
+                                                    const { Icon: LessonIcon, label: formatLabel } = getLessonFormat(child.content_type);
+
+                                                    return (
+                                                        <li key={idx} className="flex min-h-9 items-center gap-3 py-1.5 pr-4 pl-11">
+                                                            <LessonIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                                                            <span className="w-8 shrink-0 font-mono text-[11px] text-muted-foreground tabular">
+                                                                {index + 1}.{idx + 1}
+                                                            </span>
+                                                            <span className="min-w-0 flex-1 truncate text-[13px] text-foreground" title={child.title}>
+                                                                {child.title}
+                                                            </span>
+                                                            {formatLabel && (
+                                                                <Badge variant="outline" className="font-mono text-[10px] text-muted-foreground max-sm:hidden">
+                                                                    {formatLabel}
+                                                                </Badge>
+                                                            )}
+                                                        </li>
+                                                    );
+                                                })}
+                                            </ul>
+                                        ) : (
+                                            <p className="border-t bg-muted/30 py-3 pr-4 pl-11 text-[13px] text-muted-foreground">
+                                                No lessons have been published in this chapter yet.
+                                            </p>
+                                        )}
+                                    </CollapsibleContent>
+                                </Collapsible>
+                            </li>
+                        );
+                    })}
+                </ol>
+            ) : (
+                <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+                    No chapters have been published for this course yet.
+                </p>
+            )}
+        </section>
+    );
+}
 
 export default function PreviewPage({ params } = {}) {
     const { data, isLoading, error, refetch } = useQuery(courseQueries.details(params.id));
@@ -32,6 +196,8 @@ export default function PreviewPage({ params } = {}) {
     const useUnfavorite = useCourseUnfavorite();
 
     const { showAlert: alert } = useApp();
+    const { navigateBack } = useRouterActions();
+    const { status: authStatus } = useSession();
 
     const handleSubmitFavorite = async () => {
         try {
@@ -45,252 +211,255 @@ export default function PreviewPage({ params } = {}) {
         }
     };
 
-    const getLessonIcon = (type) => {
-        const lower = String(type || '').toLowerCase();
-        if (lower.includes('code') || lower.includes('exercise')) return <FaCode className="lesson-icon" />;
-        if (lower.includes('quiz') || lower.includes('reading') || lower.includes('article')) return <FaFileAlt className="lesson-icon" />;
-        return <FaPlayCircle className="lesson-icon" />;
-    };
+    const isFavorite = Boolean(data?.is_favorite);
+    const isFavoritePending = useFavorite.isPending || useUnfavorite.isPending;
+
+    const modules = Array.isArray(data?.modules) ? data.modules : [];
+    const level = levelMapping?.[data?.level];
+    const LevelIcon = LEVEL_ICON[data?.level] || LuSignalLow;
+    const cost = Number(data?.cost || 0);
+    const rating = Number(data?.rating || 0);
+    const reviews = Number(data?.reviews || 0);
+    const enrollment = ENROLLMENT_STATUS[data?.status];
+
+    const stats = [
+        { label: 'Chapters', value: modules.length },
+        { label: 'Lessons', value: data?.lessons ?? 0 },
+        { label: 'Duration', value: formatDuration(data?.duration) },
+        { label: 'Students', value: Number(data?.students ?? 0).toLocaleString('en-US') },
+    ];
+
+    const courseInfo = [
+        { label: 'Level', value: level?.label || data?.level || 'Not set' },
+        { label: 'Language', value: data?.language_name || 'Not set' },
+        { label: 'Category', value: data?.category_name || 'Not set' },
+        { label: 'Price', value: cost > 0 ? `$${cost.toFixed(2)}` : 'Free', mono: cost > 0 },
+    ];
 
     return (
-        <section id="course-preview">
-            {/* Top Breadcrumb */}
-            <div className="preview-breadcrumb-wrapper">
-                <nav className="course-breadcrumb" aria-label="Breadcrumb">
-                    <Link href="/course" className="breadcrumb-link">
-                        Courses
-                    </Link>
-                    <HiChevronRight className="breadcrumb-separator" />
-                    <span className="breadcrumb-current">
-                        {data?.title || 'Course Details'}
-                    </span>
-                </nav>
-            </div>
+        <div className="flex min-h-full w-full flex-col bg-background">
+            {/* Top bar */}
+            <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b bg-background px-2 sm:px-3">
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon-sm" onClick={() => navigateBack('/course')} aria-label="Back to courses">
+                            <LuArrowLeft />
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">Back to courses</TooltipContent>
+                </Tooltip>
 
-            <section className="preview-content">
-                <div className="preview-main">
-                    {/* Hero Section */}
-                    <div className="course-hero">
-                        {isLoading ? (
-                            <div className="hero-loading">
-                                <LoadingContent />
-                            </div>
-                        ) : error ? (
-                            <ErrorReload
-                                data={error || { status: 500, message: "An unexpected error occurred, try again later" }}
-                                refetch={() => refetch()}
-                            />
-                        ) : data ? (
-                            <>
-                                <div className="image_preview">
+                <Separator orientation="vertical" className="mx-1 data-[orientation=vertical]:h-4" />
+
+                <Breadcrumb className="min-w-0 flex-1">
+                    <BreadcrumbList className="flex-nowrap">
+                        <BreadcrumbItem className="shrink-0">
+                            <BreadcrumbLink asChild>
+                                <Link href="/course" className="rounded-sm">Courses</Link>
+                            </BreadcrumbLink>
+                        </BreadcrumbItem>
+                        <BreadcrumbSeparator />
+                        <BreadcrumbItem className="min-w-0">
+                            {isLoading ? (
+                                <Skeleton className="h-4 w-40" />
+                            ) : (
+                                <BreadcrumbPage className="truncate font-medium" title={data?.title}>
+                                    {data?.title || 'Course details'}
+                                </BreadcrumbPage>
+                            )}
+                        </BreadcrumbItem>
+                    </BreadcrumbList>
+                </Breadcrumb>
+            </header>
+
+            <main className="mx-auto flex w-full max-w-6xl flex-col px-4 pt-6 pb-12 sm:px-6 lg:pt-10">
+                {isLoading ? (
+                    <HeaderSkeleton />
+                ) : error ? (
+                    <ErrorReload
+                        data={error || { status: 500, message: "An unexpected error occurred, try again later" }}
+                        refetch={() => refetch()}
+                    />
+                ) : !data ? (
+                    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-14 text-center">
+                        <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                            <LuSearchX className="size-5" aria-hidden="true" />
+                        </span>
+                        <div className="space-y-1">
+                            <h1 className="text-sm font-semibold">Course not found</h1>
+                            <p className="max-w-[48ch] text-sm text-muted-foreground">
+                                This course may have been removed or hidden. Pick another one from the catalog.
+                            </p>
+                        </div>
+                        <Button asChild size="sm">
+                            <Link href="/course"><LuLibrary />Browse courses</Link>
+                        </Button>
+                    </div>
+                ) : (
+                    <>
+                        {/* Course header */}
+                        <section aria-labelledby="course-title" className="flex flex-col gap-5">
+                            <div className="flex min-w-0 items-center gap-3">
+                                <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-card">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
-                                        src={data.image || '/image/static/no_image.png'}
-                                        alt={data.title}
-                                        className="preview-image"
-                                        loading="lazy"
+                                        src={data.language_logo || '/image/static/default.svg'}
+                                        alt=""
+                                        width={24}
+                                        height={24}
+                                        className="size-6 object-contain"
                                         onError={(e) => {
-                                            e.target.onerror = null;
-                                            e.target.src = '/image/static/no_image.png';
+                                            e.currentTarget.onerror = null;
+                                            e.currentTarget.src = '/image/static/default.svg';
                                         }}
                                     />
-                                </div>
-
-                                <div className="hero-header">
-                                    {data.language_logo && (
-                                        <div className="course-logo-wrapper">
-                                            <img
-                                                src={data.language_logo}
-                                                alt={data.language_name || 'Language'}
-                                                className="course-logo"
-                                                height={56}
-                                                width={56}
-                                                onError={(e) => {
-                                                    e.target.onerror = null;
-                                                    e.target.src = '/image/static/no_image.png';
-                                                }}
-                                            />
-                                        </div>
-                                    )}
-
-                                    <div className="hero-info">
-                                        <h1 className="course-title">{data.title}</h1>
-
-                                        <div className="course-badges">
-                                            {data.level && (
-                                                <span
-                                                    className="course-badge level-badge"
-                                                    style={{
-                                                        color: levelMapping?.[data.level]?.color,
-                                                        background: levelMapping?.[data.level]?.bg
-                                                    }}
-                                                >
-                                                    {levelMapping?.[data.level]?.label || data.level}
-                                                </span>
-                                            )}
-
-                                            <button
-                                                type="button"
-                                                className={`course-badge favorite-badge ${data.is_favorite ? 'favorited' : ''}`}
-                                                onClick={handleSubmitFavorite}
-                                                disabled={useFavorite.isPending || useUnfavorite.isPending}
-                                                title={data.is_favorite ? "Remove from favorites" : "Add to favorites"}
-                                            >
-                                                <IoHeart fontSize={18} color={data.is_favorite ? 'var(--rose-500)' : 'var(--gray-400)'} />
-                                                <span>{data.is_favorite ? 'Favorited' : 'Favorite'}</span>
-                                            </button>
-
-                                            <div className="rating-section" title={`Rated ${data.rating || 0} out of 5`}>
-                                                <span className="rating-number">{Number(data.rating || 0).toFixed(1)}</span>
-                                                <div className="rating-stars">
-                                                    {[1, 2, 3, 4, 5].map((star) => (
-                                                        <FaStar
-                                                            key={star}
-                                                            color={star <= Math.round(Number(data.rating || 0)) ? "var(--color-warning)" : "var(--gray-300)"}
-                                                        />
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {data.concept && (
-                                    <div className="course-concept">
-                                        <p>{data.concept}</p>
-                                    </div>
-                                )}
-                            </>
-                        ) : (
-                            <p className="error-text">Course details could not be loaded. Please try again.</p>
-                        )}
-                    </div>
-
-                    {/* Course Details & Stats */}
-                    <div className="course-details">
-                        <div className="detail-card">
-                            <h3 className="detail-heading">About This Course</h3>
-                            <p className="detail-text">{data?.description || 'No detailed description provided for this course.'}</p>
-
-                            <div className="detail-meta">
-                                {data?.instructor && (
-                                    <span className="detail-tag instructor" title="Instructor">
-                                        <MdPerson className="meta-icon" />
-                                        <span className="meta-text">{data.instructor}</span>
-                                    </span>
-                                )}
-                                {data?.category_name && (
-                                    <span className="detail-tag category" title="Category">
-                                        <MdCategory className="meta-icon" />
-                                        <span className="meta-text">{data.category_name}</span>
-                                    </span>
-                                )}
-                                {data?.language_name && (
-                                    <span className="detail-tag language" title="Programming Language">
-                                        <MdLanguage className="meta-icon" />
-                                        <span className="meta-text">{data.language_name}</span>
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="stats-grid">
-                            <div className="stat-card">
-                                <div className="stat-icon-wrapper lessons">
-                                    <MdPlayLesson className="stat-icon lessons" />
-                                </div>
-                                <div className="stat-info">
-                                    <span className="stat-label">Total Lessons</span>
-                                    <strong className="stat-value">{data?.lessons ?? 0}</strong>
-                                </div>
-                            </div>
-                            <div className="stat-card">
-                                <div className="stat-icon-wrapper duration">
-                                    <LuAlarmClock className="stat-icon duration" />
-                                </div>
-                                <div className="stat-info">
-                                    <span className="stat-label">Duration</span>
-                                    <strong className="stat-value">{data?.duration ?? 0} min</strong>
-                                </div>
-                            </div>
-                            <div className="stat-card">
-                                <div className="stat-icon-wrapper students">
-                                    <PiStudent className="stat-icon students" />
-                                </div>
-                                <div className="stat-info">
-                                    <span className="stat-label">Students</span>
-                                    <strong className="stat-value">{data?.students ?? 0}</strong>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Curriculum Section */}
-                    <div className="curriculum-section">
-                        <div className="section-title">
-                            <div className="section-title-icon">
-                                <FaGraduationCap fontSize={24} />
-                            </div>
-                            <div className="title-text">
-                                <h4>Course Curriculum</h4>
-                                <p>
-                                    {data?.modules?.length || 0} modules with structured lessons to guide your progress.
+                                </span>
+                                <p className="truncate font-mono text-xs text-muted-foreground">
+                                    {[data.language_name, data.category_name].filter(Boolean).join(' / ') || 'General'}
                                 </p>
                             </div>
-                        </div>
 
-                        <div className="modules-list">
-                            {isLoading ? (
-                                <div className="modules-loading">
-                                    <LoadingContent />
-                                </div>
-                            ) : data?.modules && data.modules.length > 0 ? (
-                                data.modules.map((item, index) => (
-                                    <div key={index} className="module-card">
-                                        <div className="module-header">
-                                            <span className="chapter-badge">Chapter {index + 1}</span>
-                                            <h3 className="module-title">{item.title}</h3>
-                                            <span className="module-lessons-count">
-                                                {item.lessons?.length || 0} {item.lessons?.length === 1 ? 'lesson' : 'lessons'}
-                                            </span>
-                                        </div>
+                            <div className="space-y-3">
+                                <h1 id="course-title" className="text-3xl font-semibold tracking-tight text-balance text-foreground sm:text-4xl">
+                                    {data.title}
+                                </h1>
+                                {data.concept && (
+                                    <p className="max-w-[70ch] text-base leading-relaxed text-muted-foreground">
+                                        {data.concept}
+                                    </p>
+                                )}
+                            </div>
 
-                                        <div className="lessons-list">
-                                            {item.lessons?.map((child, idx) => (
-                                                <div key={idx} className="lesson-item">
-                                                    {getLessonIcon(child.content_type)}
-                                                    <span className="lesson-name">
-                                                        <span className="lesson-index">{index + 1}.{idx + 1}</span> {child.title}
-                                                    </span>
-                                                    {child.content_type && (
-                                                        <span className={`lesson-type ${String(child.content_type).toLowerCase()}`}>
-                                                            {child.content_type}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            ))}
+                            <div className="flex flex-wrap items-center gap-1.5">
+                                {data.level && (
+                                    <Badge variant="outline" className="text-muted-foreground">
+                                        <LevelIcon aria-hidden="true" />
+                                        {level?.label || data.level}
+                                    </Badge>
+                                )}
+                                {cost > 0 ? (
+                                    <Badge variant="outline" className="font-mono tabular">${cost.toFixed(2)}</Badge>
+                                ) : (
+                                    <Badge variant="success">Free</Badge>
+                                )}
+                                {enrollment && <Badge variant={enrollment.variant}>{enrollment.label}</Badge>}
+                                <span
+                                    className="ml-1 flex items-center gap-1 font-mono text-xs text-muted-foreground tabular"
+                                    title={`Rated ${rating.toFixed(1)} out of 5`}
+                                >
+                                    <LuStar className="size-3.5" aria-hidden="true" />
+                                    <span className="sr-only">Rating</span>
+                                    {rating.toFixed(1)}
+                                    {reviews > 0 && (
+                                        <span>({reviews.toLocaleString('en-US')} {reviews === 1 ? 'review' : 'reviews'})</span>
+                                    )}
+                                </span>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                                <FooterPreview
+                                    courseId={params.id}
+                                    cost={data?.cost ?? 0}
+                                    status={data?.status ?? 'not_enrolled'}
+                                    loading={isLoading}
+                                />
+
+                                {authStatus === 'authenticated' && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={handleSubmitFavorite}
+                                        disabled={isFavoritePending}
+                                        aria-pressed={isFavorite}
+                                    >
+                                        {isFavoritePending ? (
+                                            <LuLoaderCircle className="animate-spin" aria-hidden="true" />
+                                        ) : (
+                                            <LuHeart className={isFavorite ? 'fill-destructive text-destructive' : undefined} aria-hidden="true" />
+                                        )}
+                                        {isFavorite ? 'Favorited' : 'Add to favorites'}
+                                    </Button>
+                                )}
+                            </div>
+
+                            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-4">
+                                {stats.map((stat) => (
+                                    <div key={stat.label} className="bg-card px-4 py-3">
+                                        <dt className="text-xs text-muted-foreground">{stat.label}</dt>
+                                        <dd className="font-mono text-lg font-medium tabular">{stat.value}</dd>
+                                    </div>
+                                ))}
+                            </dl>
+                        </section>
+
+                        <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-12">
+                            {/* Course info, first on phones so it sits under the header */}
+                            <aside className="flex flex-col gap-4 lg:order-last" aria-label="Course information">
+                                {data.image && (
+                                    <div className="overflow-hidden rounded-lg border bg-muted">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                            src={data.image}
+                                            alt=""
+                                            loading="lazy"
+                                            className="aspect-video w-full object-cover"
+                                            onError={(e) => {
+                                                // A broken cover adds nothing; hide the frame instead of a placeholder.
+                                                e.currentTarget.parentElement.hidden = true;
+                                            }}
+                                        />
+                                    </div>
+                                )}
+
+                                <div className="rounded-lg border bg-card">
+                                    <div className="flex items-center gap-3 border-b px-4 py-3">
+                                        <Avatar className="size-9">
+                                            <AvatarFallback className="font-mono text-xs">
+                                                {getInitials(data.instructor)}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <div className="min-w-0">
+                                            <h2 className="text-xs text-muted-foreground">Instructor</h2>
+                                            <p className="truncate text-sm font-semibold" title={data.instructor}>
+                                                {data.instructor || 'Not assigned'}
+                                            </p>
                                         </div>
                                     </div>
-                                ))
-                            ) : (
-                                <div className="empty-modules">
-                                    <p>No curriculum modules have been published for this course yet.</p>
+                                    <dl className="divide-y">
+                                        {courseInfo.map((row) => (
+                                            <div key={row.label} className="flex items-center justify-between gap-4 px-4 py-2.5 text-sm">
+                                                <dt className="text-muted-foreground">{row.label}</dt>
+                                                <dd className={row.mono ? 'truncate font-mono tabular' : 'truncate font-medium'}>
+                                                    {row.value}
+                                                </dd>
+                                            </div>
+                                        ))}
+                                    </dl>
                                 </div>
-                            )}
+                            </aside>
+
+                            <div className="flex min-w-0 flex-col gap-10">
+                                <section aria-labelledby="course-about-heading" className="space-y-3">
+                                    <h2 id="course-about-heading" className="text-base font-semibold">About this course</h2>
+                                    {data.description ? (
+                                        <p className="max-w-[70ch] text-sm leading-relaxed whitespace-pre-line text-foreground">
+                                            {data.description}
+                                        </p>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground">
+                                            No description has been written for this course yet.
+                                        </p>
+                                    )}
+                                </section>
+
+                                <Syllabus modules={modules} />
+
+                                <CommentPage courseId={params.id} />
+                            </div>
                         </div>
-                    </div>
-                </div>
-
-                {/* Comments Sidebar */}
-                <CommentPage courseId={params.id} />
-            </section>
-
-            {/* Bottom Action Bar */}
-            <FooterPreview
-                courseId={params.id}
-                cost={data?.cost ?? 0}
-                status={data?.status ?? 'not_enrolled'}
-                loading={isLoading}
-            />
-        </section>
+                    </>
+                )}
+            </main>
+        </div>
     );
 }

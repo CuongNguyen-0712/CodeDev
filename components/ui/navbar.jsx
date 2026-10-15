@@ -1,228 +1,250 @@
 'use client'
-import { useState, useEffect } from "react";
-
+import { Fragment, useEffect } from "react";
 import Link from "next/link";
-
-import { LoadingContent } from "./loading";
-
-import { useLogOut } from "@/mutations/auth.mutation";
+import { usePathname } from "next/navigation";
 
 import { useSession } from "next-auth/react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import useOutside from "@/hooks/useOutside";
-import useViewport from "@/hooks/useViewport";
-
+import { useLogOut } from "@/mutations/auth.mutation";
 import { useApp } from "@/contexts/appContext";
-
 import { userQueries } from "@/queries/user.query";
 import { useRouterActions } from "@/router/useRouterActions";
+import { useQueryParams } from "@/router/useQueryParams";
 
-import { useQuery } from "@tanstack/react-query";
-import { useQueryClient } from "@tanstack/react-query";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn/avatar";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/shadcn/breadcrumb";
+import { Button } from "@/components/shadcn/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/shadcn/dropdown-menu";
+import { Kbd, KbdGroup } from "@/components/shadcn/kbd";
+import { Separator } from "@/components/shadcn/separator";
+import { SidebarTrigger } from "@/components/shadcn/sidebar";
+import { Skeleton } from "@/components/shadcn/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 
-import { signOut } from "next-auth/react";
+import {
+  LuChevronsUpDown,
+  LuCircleHelp,
+  LuCoins,
+  LuLoaderCircle,
+  LuLogIn,
+  LuLogOut,
+  LuMessageSquareText,
+  LuSettings,
+  LuUser,
+} from "react-icons/lu";
 
-import { IoSettingsSharp, IoLogOut } from "react-icons/io5";
-import { MdEmail, MdNotifications } from "react-icons/md";
-import { LuSparkles } from "react-icons/lu";
-import { FaCoins } from "react-icons/fa";
-import { TbLayoutSidebarLeftCollapse, TbLayoutSidebarRightCollapse } from "react-icons/tb";
+const SECTION_LABELS = {
+  home: 'Home',
+  learning: 'Learning',
+  course: 'Courses',
+  roadmap: 'Roadmap',
+  blog: 'Blog',
+  contact: 'Contacts',
+  connect: 'Connect',
+  about: 'About',
+  help: 'Help',
+  profile: 'Profile',
+  settings: 'Settings',
+};
 
-export default function Navbar({ isDashboard, handleDashboard, handleAccountMobile }) {
+export function formatPoints(value) {
+  const points = Number(value || 0);
+  return points > 999 ? `${(points / 1000).toFixed(1)}k` : String(points);
+}
+
+function initials(name = '') {
+  const parts = String(name).trim().split(/[\s._-]+/).filter(Boolean);
+  return (parts[0]?.[0] || 'U').concat(parts[1]?.[0] || '').toUpperCase();
+}
+
+function PageBreadcrumb() {
+  const pathname = usePathname() || '/';
+  const segments = pathname.split('/').filter(Boolean);
+  const section = segments[0] || 'home';
+  const label = SECTION_LABELS[section] || section.charAt(0).toUpperCase() + section.slice(1);
+
+  const crumbs = segments.length > 1
+    ? [{ label, href: `/${section}` }, { label: 'Details' }]
+    : [{ label }];
+
+  return (
+    <Breadcrumb className="min-w-0">
+      <BreadcrumbList className="flex-nowrap">
+        {crumbs.map((crumb, index) => (
+          <Fragment key={crumb.label + index}>
+            {index > 0 && <BreadcrumbSeparator />}
+            <BreadcrumbItem className="min-w-0">
+              {crumb.href ? (
+                <BreadcrumbLink asChild>
+                  <Link href={crumb.href}>{crumb.label}</Link>
+                </BreadcrumbLink>
+              ) : (
+                <BreadcrumbPage className="truncate font-medium">{crumb.label}</BreadcrumbPage>
+              )}
+            </BreadcrumbItem>
+          </Fragment>
+        ))}
+      </BreadcrumbList>
+    </Breadcrumb>
+  );
+}
+
+function AccountMenu() {
   const { showAlert: alert } = useApp();
   const { status } = useSession();
-
   const { navigateReplace } = useRouterActions();
-
-  const { data, isLoading, error, isError } = useQuery(userQueries.me(status));
-
-  const [dropdown, setDropdown] = useState(false);
-
+  const updateQuery = useQueryParams();
   const queryClient = useQueryClient();
   const logoutMutation = useLogOut();
 
-  const ref = useOutside({
-    stateOutside: dropdown,
-    setStateOutside: setDropdown,
-  });
-
-  const viewport = useViewport();
-
-  const handleLogout = () => {
-    if (logoutMutation.isPending) return;
-
-    logoutMutation.mutate(null, {
-      onSuccess: async () => {
-        queryClient.clear();
-
-        await signOut({ redirect: false });
-
-        navigateReplace('/');
-      },
-      onError: (error) => {
-        alert(error.status, error.message);
-      }
-    });
-  };
-
-  const toggleDropdown = (e) => {
-    e.stopPropagation();
-
-    if (viewport.width <= 425) {
-      handleAccountMobile(true);
-    }
-    else {
-      setDropdown(!dropdown);
-    }
-  };
-
-  useEffect(() => {
-    if (viewport.width <= 425) {
-      setDropdown(false);
-      if (dropdown) handleAccountMobile(true);
-    }
-    else {
-      handleAccountMobile(false);
-    }
-  }, [viewport.width]);
+  const { data, isLoading, error, isError } = useQuery(userQueries.me(status));
 
   useEffect(() => {
     if (!isError) return;
     alert(error?.status || 500, error?.message || 'Failed to load data, try again.');
   }, [isError]);
 
+  const handleLogout = (event) => {
+    event.preventDefault();
+    if (logoutMutation.isPending) return;
+
+    logoutMutation.mutate(null, {
+      onSuccess: ({ revoked }) => {
+        queryClient.clear();
+        if (!revoked) {
+          alert(503, 'Signed out on this device, but the server could not be reached. Use Settings > Active sessions on another device to end this session remotely.');
+        }
+        navigateReplace('/');
+      },
+      onError: (error) => {
+        alert(error.status || 500, error.message || 'Could not sign out, please try again.');
+      }
+    });
+  };
+
+  const name = data?.username || data?.email || 'Account';
+  const points = formatPoints(data?.points);
+
   return (
-    <section id='header'>
-      <nav id="navbar">
-        <div className="nav-left">
-          <button className='nav_sidebar_btn' onClick={() => handleDashboard(prev => !prev)} title="Toggle Sidebar">
-            <TbLayoutSidebarLeftCollapse fontSize={20} className={`sidebar_icon left ${isDashboard ? 'active' : ''}`} />
-            <TbLayoutSidebarRightCollapse fontSize={20} className={`sidebar_icon right ${isDashboard ? '' : 'active'}`} />
-          </button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          className="h-9 gap-2 px-1.5 sm:px-2 data-[state=open]:bg-accent"
+          aria-label={`Account menu for ${name}`}
+        >
+          <Avatar className="size-7 rounded-md">
+            <AvatarImage src={data?.image || undefined} alt="" />
+            <AvatarFallback className="rounded-md bg-primary-soft text-xs font-semibold text-primary-soft-foreground">
+              {initials(name)}
+            </AvatarFallback>
+          </Avatar>
+          <span className="hidden max-w-[10rem] flex-col items-start leading-tight sm:flex">
+            {isLoading ? (
+              <Skeleton className="h-3.5 w-20" />
+            ) : (
+              <span className="max-w-full truncate text-[13px] font-medium">{name}</span>
+            )}
+            <span className="flex items-center gap-1 font-mono text-[11px] text-muted-foreground tabular">
+              <LuCoins className="size-3 text-warning" aria-hidden="true" />
+              {points} pts
+            </span>
+          </span>
+          <LuChevronsUpDown className="hidden size-3.5 text-muted-foreground sm:block" aria-hidden="true" />
+        </Button>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent align="end" className="w-60">
+        <DropdownMenuLabel className="flex items-center gap-2.5 py-2 font-normal">
+          <Avatar className="size-9 rounded-md">
+            <AvatarImage src={data?.image || undefined} alt="" />
+            <AvatarFallback className="rounded-md bg-primary-soft text-sm font-semibold text-primary-soft-foreground">
+              {initials(name)}
+            </AvatarFallback>
+          </Avatar>
+          <span className="grid min-w-0 leading-tight">
+            <span className="truncate text-sm font-semibold">{data?.username || '-'}</span>
+            <span className="truncate text-xs text-muted-foreground">{data?.email || '-'}</span>
+          </span>
+        </DropdownMenuLabel>
+        <div className="mx-2 mb-1 flex items-center justify-between rounded-md bg-muted px-2.5 py-1.5 text-xs">
+          <span className="text-muted-foreground">Reward points</span>
+          <span className="flex items-center gap-1 font-mono font-medium tabular">
+            <LuCoins className="size-3.5 text-warning" aria-hidden="true" />
+            {points}
+          </span>
         </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuItem asChild>
+            <Link href="/profile"><LuUser />Profile</Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/settings"><LuSettings />Settings</Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/help"><LuCircleHelp />Help center</Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => updateQuery({ modal: 'feedback' })}>
+            <LuMessageSquareText />Send feedback
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          variant="destructive"
+          onSelect={handleLogout}
+          disabled={logoutMutation.isPending}
+        >
+          {logoutMutation.isPending ? <LuLoaderCircle className="animate-spin" /> : <LuLogOut />}
+          {logoutMutation.isPending ? 'Signing out...' : 'Log out'}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
-        <div className="nav-right">
-          {
-            status === 'loading' ?
-              <LoadingContent scale={0.5} color={'var(--color-primary)'} />
-              :
-              status === 'authenticated' &&
-              <>
-                <div className="nav-account" ref={ref}>
-                  <button className={`account-trigger ${dropdown ? 'active' : ''}`} onClick={toggleDropdown}>
-                    <img
-                      src={data?.image || '/image/static/no_image.png'}
-                      alt="Avatar"
-                      className="account-avatar"
-                      width={37}
-                      height={37}
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = '/image/static/no_image.png';
-                      }}
-                    />
-                    {
-                      isLoading ?
-                        <LoadingContent scale={0.5} color={'var(--white)'} />
-                        :
-                        <div className="account-shortcut">
-                          <span className="account-name">
-                            {data?.email?.length > 10 ? `${data?.email.substring(0, 10)}...` : data?.username || "_"}
-                          </span>
-                          <p className="account-points">
-                            <span className="points-value">
-                              {Number(data?.points || 0) > 999 ? `${(Number(data?.points) / 1000).toFixed(1)}k` : data?.points || 0}
-                            </span>
-                            <FaCoins color={'var(--amber-500)'} fontSize={14} />
-                          </p>
-                        </div>
-                    }
-                  </button>
+export default function Navbar() {
+  const { status } = useSession();
 
-                  <div className={`account-dropdown ${dropdown ? 'active' : ''}`}>
-                    {status === "authenticated" ?
-                      <>
-                        <Link href="/profile" className="dropdown-header">
-                          <img
-                            className="dropdown-avatar"
-                            src={data?.image || '/image/static/no_image.png'}
-                            alt="Avatar"
-                            width={50}
-                            height={50}
-                            onError={(e) => {
-                              e.target.onerror = null;
-                              e.target.src = '/image/static/no_image.png';
-                            }}
-                          />
-                          {
-                            isLoading ?
-                              <LoadingContent scale={0.5} />
-                              :
-                              <div className="dropdown-user">
-                                <h4>{data?.username.length > 15 ? `${data?.username.substring(0, 15)}...` : data?.username || "_"}</h4>
-                                <p>{data?.email || '_'}</p>
-                              </div>
-                          }
-                        </Link>
-                        <button className="dropdown-points" disabled={logoutMutation.isPending}>
-                          <span className="points-label">Points</span>
-                          <span className="points-badge">{Number(data?.points || 0) > 999 ? `${(Number(data?.points) / 1000).toFixed(1)}k` : data?.points || 0}</span>
-                          <span className="points-icon"><FaCoins fontSize={16} /></span>
-                        </button>
-                      </>
-                      :
-                      <Link href="/auth" className="dropdown-item authenticated">
-                        Please log in again
-                      </Link>
-                    }
+  return (
+    <header className="flex h-12 w-full shrink-0 items-center gap-2 border-b bg-background px-3 sm:px-4">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <SidebarTrigger className="-ml-1 size-8 text-muted-foreground hover:text-foreground" />
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="flex items-center gap-2">
+          Toggle sidebar
+          <KbdGroup><Kbd>Ctrl</Kbd><Kbd>B</Kbd></KbdGroup>
+        </TooltipContent>
+      </Tooltip>
+      <Separator orientation="vertical" className="mr-1 data-[orientation=vertical]:h-4" />
+      <PageBreadcrumb />
 
-                    <div className="dropdown-divider" />
-
-                    <div className="dropdown-group">
-                      <button className="dropdown-item" disabled={logoutMutation.isPending}>
-                        <span className="item-icon"><MdEmail /></span>
-                        <span className="item-label">Messages</span>
-                        <span className="item-badge">0</span>
-                      </button>
-                      <button className="dropdown-item" disabled={logoutMutation.isPending}>
-                        <span className="item-icon"><MdNotifications /></span>
-                        <span className="item-label">Notifications</span>
-                        <span className="item-badge">0</span>
-                      </button>
-                    </div>
-
-                    <div className="dropdown-divider" />
-
-                    <div className="dropdown-group">
-                      <Link href="/settings" className="dropdown-item highlight">
-                        <span className="item-icon"><IoSettingsSharp /></span>
-                        <span className="item-label">Settings</span>
-                      </Link>
-                      <button className="dropdown-item danger" onClick={handleLogout} disabled={logoutMutation.isPending}>
-                        {
-                          logoutMutation.isPending ?
-                            <LoadingContent scale={0.5} color={'var(--rose-500)'} />
-                            :
-                            <>
-                              <span className="item-icon"><IoLogOut /></span>
-                              <span className="item-label">Log out</span>
-                            </>
-                        }
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </>
-          }
-          {
-            status === 'unauthenticated' &&
-            <Link className="nav-cta" href="/auth" title="Get Started">
-              <LuSparkles />
-              <span>Get Started</span>
-            </Link>
-          }
-        </div>
-      </nav>
-    </section>
+      <div className="ml-auto flex items-center gap-2">
+        {status === 'loading' && <Skeleton className="h-8 w-32" />}
+        {status === 'authenticated' && <AccountMenu />}
+        {status === 'unauthenticated' && (
+          <Button asChild size="sm">
+            <Link href="/auth"><LuLogIn />Sign in</Link>
+          </Button>
+        )}
+      </div>
+    </header>
   );
 }

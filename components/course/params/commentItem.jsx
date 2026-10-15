@@ -2,10 +2,13 @@ import { memo, useMemo } from "react";
 import Link from "next/link";
 import { useSession } from 'next-auth/react';
 
-import { IoHeart, IoHeartDislike } from "react-icons/io5";
 import { useCourseVotingComment } from "@/mutations/course.mutation";
+import { cn } from "@/lib/utils";
 
-import "@/styles/course/[id]/item.css";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn/avatar";
+import { Button } from "@/components/shadcn/button";
+
+import { LuThumbsDown, LuThumbsUp } from "react-icons/lu";
 
 const formatDate = (str) => {
     if (!str) return 'Recently';
@@ -32,6 +35,8 @@ const formatDate = (str) => {
     }
 };
 
+const activeVote = "bg-primary-soft text-primary-soft-foreground hover:bg-primary-soft/70 hover:text-primary-soft-foreground";
+
 const CommentItem = ({ data, courseId }) => {
     const { data: session } = useSession();
     const useVoting = useCourseVotingComment();
@@ -48,65 +53,83 @@ const CommentItem = ({ data, courseId }) => {
         });
     };
 
+    const username = data.username || 'Anonymous';
+    const isUpvoted = data.vote === 'upvote';
+    const isDownvoted = data.vote === 'downvote';
+
+    const identity = (
+        <>
+            <Avatar className="size-8">
+                <AvatarImage src={data.avatar || undefined} alt="" />
+                <AvatarFallback className="text-xs font-medium">
+                    {username.charAt(0).toUpperCase()}
+                </AvatarFallback>
+            </Avatar>
+            <span className="truncate text-sm font-semibold text-foreground group-hover/user:underline group-hover/user:underline-offset-4">
+                {username}
+            </span>
+        </>
+    );
+
     return (
-        <article className="comment-card">
-            <div className="comment-header-row">
-                <Link
-                    className="comment-user-link"
-                    href={data.user_id ? `/profile/${data.user_id}` : '#'}
-                    title={data.username || 'User'}
+        <article className="flex flex-col gap-2 px-4 py-3.5">
+            <header className="flex min-w-0 items-center gap-2.5">
+                {data.user_id ? (
+                    <Link
+                        href={`/profile/${data.user_id}`}
+                        className="group/user flex min-w-0 items-center gap-2.5 rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    >
+                        {identity}
+                    </Link>
+                ) : (
+                    <span className="flex min-w-0 items-center gap-2.5">{identity}</span>
+                )}
+                <span aria-hidden="true" className="text-muted-foreground">&middot;</span>
+                <time
+                    dateTime={data.created_at || undefined}
+                    className="shrink-0 text-xs text-muted-foreground"
+                    title={data.created_at ? new Date(data.created_at).toLocaleString() : undefined}
                 >
-                    <div className="comment-avatar-wrapper">
-                        <img
-                            className="comment-avatar"
-                            src={data.avatar || '/image/static/no_image.png'}
-                            alt={data.username || 'User'}
-                            height={36}
-                            width={36}
-                            onError={(e) => {
-                                e.target.onerror = null;
-                                e.target.src = '/image/static/no_image.png';
-                            }}
-                        />
-                    </div>
+                    {formattedDate}
+                </time>
+            </header>
 
-                    <div className="comment-user-info">
-                        <h4 className="comment-username">{data.username || 'Anonymous'}</h4>
-                        <span className="comment-date">{formattedDate}</span>
-                    </div>
-                </Link>
-            </div>
+            <p className="pl-[42px] text-sm leading-relaxed break-words whitespace-pre-line text-foreground">
+                {data.comment}
+            </p>
 
-            <div className="comment-body">
-                <p className="comment-text">{data.comment}</p>
+            <div className="flex items-center gap-1 pl-[38px]">
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    name="upvote"
+                    onClick={() => handleVoting('upvote')}
+                    className={cn("text-muted-foreground", isUpvoted && activeVote)}
+                    disabled={useVoting.isPending || !session}
+                    title={!session ? "Sign in to vote" : undefined}
+                    aria-label={isUpvoted ? `Remove upvote, ${Number(data.upvotes) || 0} upvotes` : `Upvote, ${Number(data.upvotes) || 0} upvotes`}
+                    aria-pressed={isUpvoted}
+                >
+                    <LuThumbsUp className={cn(isUpvoted && "fill-current")} aria-hidden="true" />
+                    <span className="font-mono tabular">{Number(data.upvotes) || 0}</span>
+                </Button>
 
-                <div className="comment-actions">
-                    <button
-                        type="button"
-                        name="upvote"
-                        onClick={() => handleVoting('upvote')}
-                        className={`vote-btn upvote ${data.vote === 'upvote' ? 'active' : ''}`}
-                        disabled={useVoting.isPending || !session}
-                        title={!session ? "Please log in to vote" : (data.vote === 'upvote' ? "Remove upvote" : "Upvote")}
-                        aria-pressed={data.vote === 'upvote'}
-                    >
-                        <IoHeart fontSize={16} />
-                        <span>{Number(data.upvotes) || 0}</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        name="downvote"
-                        onClick={() => handleVoting('downvote')}
-                        className={`vote-btn downvote ${data.vote === 'downvote' ? 'active' : ''}`}
-                        disabled={useVoting.isPending || !session}
-                        title={!session ? "Please log in to vote" : (data.vote === 'downvote' ? "Remove downvote" : "Downvote")}
-                        aria-pressed={data.vote === 'downvote'}
-                    >
-                        <IoHeartDislike fontSize={16} />
-                        <span>{Number(data.downvotes) || 0}</span>
-                    </button>
-                </div>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    name="downvote"
+                    onClick={() => handleVoting('downvote')}
+                    className={cn("text-muted-foreground", isDownvoted && activeVote)}
+                    disabled={useVoting.isPending || !session}
+                    title={!session ? "Sign in to vote" : undefined}
+                    aria-label={isDownvoted ? `Remove downvote, ${Number(data.downvotes) || 0} downvotes` : `Downvote, ${Number(data.downvotes) || 0} downvotes`}
+                    aria-pressed={isDownvoted}
+                >
+                    <LuThumbsDown className={cn(isDownvoted && "fill-current")} aria-hidden="true" />
+                    <span className="font-mono tabular">{Number(data.downvotes) || 0}</span>
+                </Button>
             </div>
         </article>
     );

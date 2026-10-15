@@ -17,8 +17,9 @@ export const AppProvider = ({ children }) => {
     useEffect(() => {
         try {
             const saved = localStorage.getItem(STORAGE_KEY);
-            if (saved !== null && typeof window !== 'undefined' && window.innerWidth >= 768) {
-                setIsDashboard(JSON.parse(saved));
+            if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+                // Desktop starts with the labelled sidebar unless the user collapsed it before.
+                setIsDashboard(saved === null ? true : JSON.parse(saved));
             }
         } catch {
             setIsDashboard(false);

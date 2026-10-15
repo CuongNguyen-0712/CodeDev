@@ -1,25 +1,29 @@
 import { useTransition } from "react";
+import Link from "next/link";
 
 import { useRouterActions } from "@/router/useRouterActions";
 import { useCourseRegister } from "@/mutations/course.mutation";
-import { LoadingContent } from "@/components/ui/loading";
 import { useApp } from "@/contexts/appContext";
 import { useSession } from 'next-auth/react';
+import { cn } from "@/lib/utils";
 
-import { FaArrowLeft } from "react-icons/fa";
-import { IoShareSocial } from "react-icons/io5";
+import { Button } from "@/components/shadcn/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 
-import "@/styles/course/[id]/footer.css";
+import { LuArrowRight, LuLink, LuLoaderCircle, LuLogIn, LuPlay, LuPlus, LuRotateCcw } from "react-icons/lu";
 
-export default function FooterPreview({ courseId, cost = 0, status = 'not_enrolled', loading = false }) {
+// Primary enroll / continue action for the course details header, plus a copy-link button.
+// The name is kept from the old bottom bar so existing imports keep working.
+export default function FooterPreview({ courseId, cost = 0, status = 'not_enrolled', loading = false, className }) {
     const [isPending, startTransition] = useTransition();
 
     const { showAlert: alert } = useApp();
-    const { navigate, navigateBack } = useRouterActions();
+    const { navigate } = useRouterActions();
     const { status: authStatus } = useSession();
 
     const useRegister = useCourseRegister();
     const numericCost = Number(cost || 0);
+    const isBusy = useRegister.isPending || isPending || loading;
 
     const handleSubmit = async () => {
         if (!courseId) return;
@@ -55,64 +59,66 @@ export default function FooterPreview({ courseId, cost = 0, status = 'not_enroll
                     alert(200, "Course link copied to clipboard!");
                 }
             } catch {
-                alert(200, "Course URL: " + window.location.href);
+                alert(0, "Copy this link: " + window.location.href);
             }
         }
     };
 
-    const getActionLabel = () => {
-        if (useRegister.isPending || isPending || loading) {
-            return <LoadingContent scale={0.5} color="var(--white)" />;
-        }
-
+    const getAction = () => {
         switch (status) {
             case 'enrolled':
-                return "Start Learning";
+                return { label: 'Start learning', Icon: LuPlay };
             case 'in_progress':
-                return "Continue Learning";
+                return { label: 'Continue learning', Icon: LuArrowRight };
             case 'completed':
-                return "Review Course";
+                return { label: 'Review course', Icon: LuRotateCcw };
+            case 'not_enrolled':
+                return {
+                    label: numericCost === 0 ? 'Enroll for free' : `Enroll for $${numericCost.toFixed(2)}`,
+                    Icon: LuPlus,
+                };
             default:
-                return numericCost === 0 ? "Enroll for Free" : `Enroll · $${numericCost.toFixed(2)}`;
+                return { label: 'Continue learning', Icon: LuArrowRight };
         }
     };
 
+    const action = getAction();
+
     return (
-        <footer className="preview-footer">
-            <div className="footer-inner">
-                <button
+        <div className={cn("flex flex-wrap items-center gap-2", className)}>
+            {authStatus === 'authenticated' ? (
+                <Button
                     type="button"
-                    className="back-btn"
-                    onClick={() => navigateBack('/course')}
-                    title="Back to courses"
-                    aria-label="Back to courses"
+                    onClick={handleSubmit}
+                    disabled={isBusy}
+                    className="min-w-40"
                 >
-                    <FaArrowLeft fontSize={14} />
-                    <span>Back</span>
-                </button>
+                    {isBusy ? <LuLoaderCircle className="animate-spin" aria-hidden="true" /> : <action.Icon aria-hidden="true" />}
+                    {useRegister.isPending ? 'Enrolling...' : action.label}
+                </Button>
+            ) : authStatus === 'unauthenticated' ? (
+                <Button asChild>
+                    <Link href="/auth">
+                        <LuLogIn aria-hidden="true" />
+                        Sign in to enroll
+                    </Link>
+                </Button>
+            ) : null}
 
-                {
-                    authStatus === 'authenticated' &&
-                    <button
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button
                         type="button"
-                        className={`join_btn ${numericCost === 0 ? 'free' : 'paid'} ${status !== 'not_enrolled' ? 'enrolled' : ''}`}
-                        disabled={useRegister.isPending || isPending || loading}
-                        onClick={handleSubmit}
+                        variant="outline"
+                        size="icon"
+                        onClick={handleShare}
+                        aria-label="Copy course link"
                     >
-                        {getActionLabel()}
-                    </button>
-                }
-
-                <button
-                    type="button"
-                    className="share-btn"
-                    onClick={handleShare}
-                    title="Share Course"
-                    aria-label="Share Course"
-                >
-                    <IoShareSocial fontSize={18} />
-                </button>
-            </div>
-        </footer>
+                        <LuLink />
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent>Copy course link</TooltipContent>
+            </Tooltip>
+        </div>
     );
-}    
+}

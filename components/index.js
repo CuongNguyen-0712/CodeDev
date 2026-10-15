@@ -1,296 +1,276 @@
 "use client";
 
-import { useState } from "react";
-import { useRouterActions } from "@/router/useRouterActions";
+import Link from "next/link";
+
+import { Button } from "@/components/shadcn/button";
+
+import { SiJavascript } from "react-icons/si";
 import {
-    FaRocket,
-    FaGraduationCap,
-    FaArrowRight,
-    FaTrophy,
-    FaTerminal,
-    FaLaptopCode,
-    FaStar,
-    FaFire
-} from "react-icons/fa";
-import { TbSourceCode, TbRoute, TbUsersGroup, TbCertificate } from "react-icons/tb";
+    LuArrowRight,
+    LuLibrary,
+    LuListChecks,
+    LuMap,
+    LuSquareTerminal,
+    LuTrendingUp,
+    LuUsers,
+} from "react-icons/lu";
 
-import "@/styles/index.css";
+// A sample in the shape of a real CodeDev coding challenge: starter function,
+// visible sample tests, hidden tests on submit.
+const SAMPLE_CODE = `// Return the indices of the two numbers that add up to target.
+function twoSum(nums, target) {
+  const seen = new Map();
 
-export default function IndexPage() {
-    const { navigate } = useRouterActions();
-    const [activeTab, setActiveTab] = useState("js");
+  for (let i = 0; i < nums.length; i++) {
+    const need = target - nums[i];
+    if (seen.has(need)) return [seen.get(need), i];
+    seen.set(nums[i], i);
+  }
 
-    const codeSnippets = {
-        js: `// Welcome to CodeDev Interactive Platform
-const developer = {
-name: "Alex",
-level: "Fullstack Engineer",
-skills: ["React", "Next.js", "Node.js", "PostgreSQL"],
-streak: "14 Days"
-};
+  return [];
+}`;
 
-function startLearning(track) {
-console.log(\`🚀 Launching career track: \${track}\`);
-return { status: "Active", progress: "100%" };
-}
+const SAMPLE_TESTS = [
+    { call: "twoSum([2, 7, 11, 15], 9)", expected: "[0, 1]" },
+    { call: "twoSum([3, 2, 4], 6)", expected: "[1, 2]" },
+];
 
-startLearning("Fullstack Mastery");`,
-        python: `# CodeDev Python Data & Backend Track
-class Developer:
-    def __init__(self, name, track):
-        self.name = name
-        self.track = track
-        self.points = 1250
+const FEATURES = [
+    {
+        icon: LuLibrary,
+        title: "Courses with structured lessons",
+        description: "Browse the catalog by level, enroll, and work through written lessons in order.",
+        href: "/course",
+        linkLabel: "Browse courses",
+    },
+    {
+        icon: LuSquareTerminal,
+        title: "Coding challenges in the browser",
+        description: "Write JavaScript in the editor and run the sample tests instantly. Submitting grades your code against hidden tests as well.",
+    },
+    {
+        icon: LuListChecks,
+        title: "Quizzes after lessons",
+        description: "Some lessons end with a short quiz so you can check the idea stuck before moving on.",
+    },
+    {
+        icon: LuTrendingUp,
+        title: "Progress you can resume",
+        description: "My learning lists every course you are enrolled in with your progress, so you always know what is next.",
+    },
+    {
+        icon: LuMap,
+        title: "Roadmaps",
+        description: "Follow a roadmap when you want a suggested order across several topics.",
+        href: "/roadmap",
+        linkLabel: "View roadmaps",
+    },
+    {
+        icon: LuUsers,
+        title: "Other learners",
+        description: "Find people to learn with, add them as contacts and form study teams.",
+    },
+];
 
-    def complete_lesson(self, lesson_id):
-        self.points += 50
-        print(f"✅ Mastered {lesson_id}! XP: {self.points}")
+const STEPS = [
+    {
+        title: "Pick a course",
+        description: "Filter the catalog by level and enroll in something that fits where you are.",
+    },
+    {
+        title: "Read the lesson",
+        description: "Each lesson explains one idea in writing, with code examples alongside.",
+    },
+    {
+        title: "Solve the challenge",
+        description: "Run the sample tests while you work, then submit to be graded.",
+    },
+    {
+        title: "Keep going",
+        description: "Come back later and continue from the lesson where you stopped.",
+    },
+];
 
-dev = Developer("Sarah", "Backend Systems")
-dev.complete_lesson("Asyncio Microservices")`,
-        sql: `-- Real-time Database Queries
-SELECT 
-    u.username,
-    r.name AS role,
-    COUNT(c.id) AS completed_courses
-FROM private.users u
-JOIN private.user_roles ur ON u.id = ur.user_id
-JOIN private.roles r ON ur.role_id = r.id
-LEFT JOIN course.register c ON u.public_id = c.user_id
-GROUP BY u.username, r.name
-ORDER BY completed_courses DESC;`
-    };
+function CodeSample() {
+    const lines = SAMPLE_CODE.split("\n");
 
     return (
-        <div id="index_page">
-            {/* HERO SECTION */}
-            <section className="hero_section">
-                <div className="hero_badge">
-                    <span className="badge_icon">
-                        <FaFire fontSize={16} color={'var(--orange-500)'} />
-                    </span>
-                    <span>Next-Gen Interactive Developer Platform</span>
-                </div>
+        <figure
+            aria-label="Example coding challenge"
+            className="min-w-0 overflow-hidden rounded-lg border border-editor-border bg-editor text-editor-foreground"
+        >
+            <div className="flex h-10 items-center gap-2 border-b border-editor-border bg-editor-panel px-3">
+                <SiJavascript className="size-3.5 shrink-0 text-editor-muted" aria-hidden="true" />
+                <span className="font-mono text-xs">solution.js</span>
+            </div>
 
-                <h1 className="hero_title">
-                    Master Modern Coding & Build <span className="text_gradient">Real Engineering Careers</span>
-                </h1>
-
-                <p className="hero_description">
-                    Empowering developers with structured career roadmaps, interactive coding courses, real-time code runners, and an active developer community.
-                </p>
-
-                <div className="hero_actions">
-                    <button className="btn_primary" onClick={() => navigate({ path: '/course' })}>
-                        <FaRocket /> Explore Courses <FaArrowRight />
-                    </button>
-                    <button className="btn_secondary" onClick={() => navigate({ path: '/roadmap' })}>
-                        <TbRoute /> Career Roadmaps
-                    </button>
-                    <button className="btn_tertiary" onClick={() => navigate({ path: '/auth' })}>
-                        <FaLaptopCode /> Get Started Free
-                    </button>
-                </div>
-
-                {/* IDE MOCKUP */}
-                <div className="hero_ide_wrapper">
-                    <div className="ide_window">
-                        <div className="ide_header">
-                            <div className="ide_dots">
-                                <span className="dot dot_red"></span>
-                                <span className="dot dot_yellow"></span>
-                                <span className="dot dot_green"></span>
-                            </div>
-                            <div className="ide_tabs">
-                                <button
-                                    type="button"
-                                    className={`ide_tab ${activeTab === 'js' ? 'active' : ''}`}
-                                    onClick={() => setActiveTab('js')}
-                                >
-                                    main.js
-                                </button>
-                                <button
-                                    type="button"
-                                    className={`ide_tab ${activeTab === 'python' ? 'active' : ''}`}
-                                    onClick={() => setActiveTab('python')}
-                                >
-                                    app.py
-                                </button>
-                                <button
-                                    type="button"
-                                    className={`ide_tab ${activeTab === 'sql' ? 'active' : ''}`}
-                                    onClick={() => setActiveTab('sql')}
-                                >
-                                    query.sql
-                                </button>
-                            </div>
-                            <span className="ide_status_badge">
-                                <span className="pulse_dot"></span> Live Runner
+            <pre
+                tabIndex={0}
+                aria-label="Example solution code"
+                className="overflow-x-auto py-3 font-mono text-[13px] leading-6 outline-none focus-visible:ring-2 focus-visible:ring-editor-accent/60 focus-visible:ring-inset"
+            >
+                <code className="grid min-w-max">
+                    {lines.map((line, index) => (
+                        <span key={index} className="flex">
+                            <span
+                                aria-hidden="true"
+                                className="tabular w-10 shrink-0 select-none pr-4 text-right text-editor-gutter"
+                            >
+                                {index + 1}
                             </span>
-                        </div>
-                        <div className="ide_body">
-                            <pre className="ide_code">
-                                <code>{codeSnippets[activeTab]}</code>
-                            </pre>
-                        </div>
-                        <div className="ide_footer">
-                            <div className="ide_output">
-                                <FaTerminal className="term_icon" />
-                                <span>Output: Process executed successfully with 0 errors</span>
+                            <span className={line.trim().startsWith("//") ? "pr-4 text-editor-muted" : "pr-4"}>
+                                {line || " "}
+                            </span>
+                        </span>
+                    ))}
+                </code>
+            </pre>
+
+            <figcaption className="border-t border-editor-border bg-editor-panel px-3 py-3">
+                <p className="mb-2 text-xs font-medium text-editor-muted">Sample tests</p>
+                <ul className="flex list-none flex-col gap-1.5">
+                    {SAMPLE_TESTS.map((test) => (
+                        <li
+                            key={test.call}
+                            className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 rounded-md bg-editor-raised px-2.5 py-1.5 font-mono text-xs"
+                        >
+                            <span className="break-all">{test.call}</span>
+                            <span className="text-editor-muted">
+                                expected <span className="text-editor-foreground">{test.expected}</span>
+                            </span>
+                        </li>
+                    ))}
+                </ul>
+                <p className="mt-2 text-xs text-editor-muted">Hidden tests run when you submit.</p>
+            </figcaption>
+        </figure>
+    );
+}
+
+export default function IndexPage() {
+    return (
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-16 px-4 pt-8 pb-12 sm:px-6 lg:gap-24 lg:pt-14">
+            <section
+                aria-labelledby="landing-title"
+                className="grid items-center gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-14"
+            >
+                <div className="flex flex-col items-start gap-6">
+                    <h1
+                        id="landing-title"
+                        className="max-w-[20ch] text-4xl font-semibold tracking-tight text-balance text-foreground sm:text-5xl lg:text-6xl"
+                    >
+                        Learn to code by writing code
+                    </h1>
+                    <p className="max-w-[52ch] text-base leading-relaxed text-pretty text-muted-foreground sm:text-lg">
+                        CodeDev pairs short written lessons with coding challenges you solve right in the browser.
+                        Run the sample tests as you work, submit for grading, and pick up where you left off next time.
+                    </p>
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                        <Button asChild size="lg">
+                            <Link href="/auth">
+                                Get started
+                                <LuArrowRight />
+                            </Link>
+                        </Button>
+                        <Button asChild size="lg" variant="outline">
+                            <Link href="/course">
+                                <LuLibrary />
+                                Browse courses
+                            </Link>
+                        </Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Creating an account is free.</p>
+                </div>
+
+                <CodeSample />
+            </section>
+
+            <section aria-labelledby="features-title" className="grid gap-8 lg:grid-cols-12 lg:gap-10">
+                <div className="flex flex-col gap-3 lg:col-span-4">
+                    <h2 id="features-title" className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                        What you get
+                    </h2>
+                    <p className="max-w-[44ch] text-sm leading-relaxed text-muted-foreground">
+                        Everything you need to go from reading about an idea to writing working code for it, in one place.
+                    </p>
+                </div>
+
+                <ul className="flex list-none flex-col divide-y rounded-lg border lg:col-span-8">
+                    {FEATURES.map(({ icon: Icon, title, description, href, linkLabel }) => (
+                        <li key={title} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:gap-4 sm:p-5">
+                            <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
+                                <Icon className="size-4" aria-hidden="true" />
+                            </span>
+                            <div className="flex min-w-0 flex-1 flex-col gap-1">
+                                <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+                                <p className="max-w-[60ch] text-sm leading-relaxed text-muted-foreground">{description}</p>
                             </div>
-                            <span className="ide_lang">{activeTab.toUpperCase()}</span>
-                        </div>
-                    </div>
-                </div>
+                            {href && (
+                                <Button asChild variant="ghost" size="sm" className="self-start sm:-my-1">
+                                    <Link href={href}>
+                                        {linkLabel}
+                                        <LuArrowRight />
+                                    </Link>
+                                </Button>
+                            )}
+                        </li>
+                    ))}
+                </ul>
             </section>
 
-            {/* STATS STRIP */}
-            <section className="stats_section">
-                <div className="stat_item">
-                    <h3>15,000+</h3>
-                    <p>Active Learners</p>
+            <section aria-labelledby="steps-title" className="flex flex-col gap-6">
+                <div className="flex flex-col gap-3">
+                    <h2 id="steps-title" className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                        How learning works
+                    </h2>
+                    <p className="max-w-[60ch] text-sm leading-relaxed text-muted-foreground">
+                        Every course follows the same loop, so you spend your time on the material instead of the tool.
+                    </p>
                 </div>
-                <div className="stat_divider"></div>
-                <div className="stat_item">
-                    <h3>50+</h3>
-                    <p>Interactive Courses</p>
-                </div>
-                <div className="stat_divider"></div>
-                <div className="stat_item">
-                    <h3>120+</h3>
-                    <p>Practical Lessons</p>
-                </div>
-                <div className="stat_divider"></div>
-                <div className="stat_item">
-                    <h3>99.4%</h3>
-                    <p>Satisfaction Rate</p>
-                </div>
+
+                <ol className="grid list-none gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-2 lg:grid-cols-4">
+                    {STEPS.map((step, index) => (
+                        <li key={step.title} className="flex flex-col gap-3 bg-background p-5">
+                            <span
+                                aria-hidden="true"
+                                className="tabular flex size-7 items-center justify-center rounded-md border font-mono text-xs text-muted-foreground"
+                            >
+                                {index + 1}
+                            </span>
+                            <div className="flex flex-col gap-1">
+                                <h3 className="text-sm font-semibold text-foreground">
+                                    <span className="sr-only">Step {index + 1}: </span>
+                                    {step.title}
+                                </h3>
+                                <p className="text-sm leading-relaxed text-muted-foreground">{step.description}</p>
+                            </div>
+                        </li>
+                    ))}
+                </ol>
             </section>
 
-            {/* FEATURES GRID */}
-            <section className="features_section">
-                <div className="section_header">
-                    <span className="section_tag">WHY CHOOSE CODEDEV</span>
-                    <h2>Everything You Need to Succeed in Tech</h2>
-                    <p>An all-in-one learning ecosystem optimized for developers from beginner to senior.</p>
+            <section
+                aria-labelledby="cta-title"
+                className="flex flex-col gap-5 rounded-lg border bg-muted/40 p-6 sm:p-8 md:flex-row md:items-center md:justify-between"
+            >
+                <div className="flex flex-col gap-2">
+                    <h2 id="cta-title" className="text-xl font-semibold tracking-tight sm:text-2xl">
+                        Ready to write your first solution?
+                    </h2>
+                    <p className="max-w-[52ch] text-sm leading-relaxed text-muted-foreground">
+                        Create an account to enroll in courses, submit challenges and keep track of your progress.
+                    </p>
                 </div>
-
-                <div className="features_grid">
-                    <div className="feature_card">
-                        <div className="feature_icon_box icon_blue">
-                            <TbSourceCode />
-                        </div>
-                        <h3>Interactive Code Runner</h3>
-                        <p>Write, execute, and test code directly in your browser with instant automated feedback — zero local setup required.</p>
-                    </div>
-
-                    <div className="feature_card">
-                        <div className="feature_icon_box icon_teal">
-                            <TbRoute />
-                        </div>
-                        <h3>Guided Career Roadmaps</h3>
-                        <p>Follow clear, step-by-step learning paths tailored for Frontend, Backend, Fullstack, and Cloud Engineering.</p>
-                    </div>
-
-                    <div className="feature_card">
-                        <div className="feature_icon_box icon_purple">
-                            <TbUsersGroup />
-                        </div>
-                        <h3>Dev Community & Teams</h3>
-                        <p>Connect with fellow developers, form project teams, share insights, and join interactive coding challenges.</p>
-                    </div>
-
-                    <div className="feature_card">
-                        <div className="feature_icon_box icon_amber">
-                            <FaTrophy />
-                        </div>
-                        <h3>Gamified Progress & Badges</h3>
-                        <p>Earn XP points, unlock achievements, maintain study streaks, and rank on the global leaderboard.</p>
-                    </div>
-
-                    <div className="feature_card">
-                        <div className="feature_icon_box icon_emerald">
-                            <FaLaptopCode />
-                        </div>
-                        <h3>Real-World Projects</h3>
-                        <p>Build portfolio-ready web apps, REST APIs, and database schemas with production-grade tools.</p>
-                    </div>
-
-                    <div className="feature_card">
-                        <div className="feature_icon_box icon_rose">
-                            <TbCertificate />
-                        </div>
-                        <h3>Verified Certificates</h3>
-                        <p>Validate your skills with shareable certificates and completion badges recognized by top employers.</p>
-                    </div>
-                </div>
-            </section>
-
-            {/* ROADMAP PREVIEW */}
-            <section className="roadmaps_preview_section">
-                <div className="section_header">
-                    <span className="section_tag">STRUCTURED LEARNING</span>
-                    <h2>Popular Career Roadmaps</h2>
-                    <p>Choose your track and master the exact skills top tech companies look for.</p>
-                </div>
-
-                <div className="roadmap_cards_grid">
-                    <div className="roadmap_card" onClick={() => navigate({ path: '/roadmap' })}>
-                        <div className="roadmap_card_header">
-                            <span className="badge_pill pill_blue">Frontend</span>
-                            <FaStar className="star_icon" />
-                        </div>
-                        <h3>Frontend Web Engineer</h3>
-                        <p>Master modern web interfaces with HTML5, CSS3, JavaScript ES6+, React, Next.js, and Web Performance.</p>
-                        <div className="roadmap_card_footer">
-                            <span>12 Chapters • 45 Lessons</span>
-                            <span className="link_text">View Path <FaArrowRight /></span>
-                        </div>
-                    </div>
-
-                    <div className="roadmap_card" onClick={() => navigate({ path: '/roadmap' })}>
-                        <div className="roadmap_card_header">
-                            <span className="badge_pill pill_teal">Backend</span>
-                            <FaStar className="star_icon" />
-                        </div>
-                        <h3>Backend Systems & APIs</h3>
-                        <p>Build high-performance servers, database architectures, REST & GraphQL APIs with Node.js, Express, and PostgreSQL.</p>
-                        <div className="roadmap_card_footer">
-                            <span>14 Chapters • 52 Lessons</span>
-                            <span className="link_text">View Path <FaArrowRight /></span>
-                        </div>
-                    </div>
-
-                    <div className="roadmap_card" onClick={() => navigate({ path: '/roadmap' })}>
-                        <div className="roadmap_card_header">
-                            <span className="badge_pill pill_purple">Fullstack</span>
-                            <FaStar className="star_icon" />
-                        </div>
-                        <h3>Fullstack Web Specialist</h3>
-                        <p>Combine frontend UI elegance with backend power. Deploy end-to-end applications to Vercel and Cloud environments.</p>
-                        <div className="roadmap_card_footer">
-                            <span>18 Chapters • 70 Lessons</span>
-                            <span className="link_text">View Path <FaArrowRight /></span>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* CALL TO ACTION */}
-            <section className="cta_section">
-                <div className="cta_card">
-                    <div className="cta_content">
-                        <h2>Ready to Elevate Your Developer Career?</h2>
-                        <p>Join CodeDev today for free and start building software that matters.</p>
-                        <div className="cta_buttons">
-                            <button className="btn_primary_white" onClick={() => navigate({ path: '/auth' })}>
-                                <FaRocket /> Create Free Account
-                            </button>
-                            <button className="btn_outline_white" onClick={() => navigate({ path: '/course' })}>
-                                <FaGraduationCap /> Browse All Courses
-                            </button>
-                        </div>
-                    </div>
+                <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                    <Button asChild>
+                        <Link href="/auth">Create an account</Link>
+                    </Button>
+                    <Button asChild variant="outline">
+                        <Link href="/roadmap">
+                            <LuMap />
+                            View roadmaps
+                        </Link>
+                    </Button>
                 </div>
             </section>
         </div>

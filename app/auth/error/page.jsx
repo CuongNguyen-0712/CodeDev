@@ -4,7 +4,6 @@ import ErrorPage from '@/components/auth/errorPage';
 
 import { LoadingContent } from "@/components/ui/loading";
 
-import '@/styles/auth/error.css';
 
 export async function generateMetadata() {
   return {

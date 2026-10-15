@@ -1,21 +1,14 @@
 'use client';
 
-import Image from "next/image";
 import Link from "next/link";
 import { useRouterActions } from "@/router/useRouterActions";
+import { cn } from "@/lib/utils";
 
-import { IoReload, IoClose, IoArrowBack, IoHomeOutline } from "react-icons/io5";
-import { HiExclamationTriangle } from "react-icons/hi2";
+import { Button } from "@/components/shadcn/button";
 
-export function ErrorReload({
-    data = null,
-    refetch,
-    callback = null,
-    compact = false,
-    title = null
-}) {
-    if (data === null || data === undefined) return null;
+import { LuArrowLeft, LuHouse, LuRotateCw, LuTriangleAlert, LuUnlink, LuX } from "react-icons/lu";
 
+function describe(data, title) {
     const status = typeof data === 'object'
         ? (data?.status || data?.statusCode || data?.response?.status || 500)
         : 500;
@@ -26,57 +19,65 @@ export function ErrorReload({
 
     const heading = title || (
         status === 404
-            ? "Resource Not Found"
+            ? "Not found"
             : status === 401 || status === 403
-            ? "Access Denied"
-            : "Unable to Load Data"
+                ? "Access denied"
+                : "Could not load this data"
     );
 
+    return { status, message, heading };
+}
+
+export function ErrorReload({
+    data = null,
+    refetch,
+    callback = null,
+    compact = false,
+    title = null
+}) {
+    if (data === null || data === undefined) return null;
+
+    const { status, message, heading } = describe(data, title);
+
     return (
-        <div className={`error-container ${compact ? 'compact' : ''}`} role="alert">
-            <div className="error-content">
-                <div className="error-icon-wrap">
-                    <div className="error-icon">
-                        <HiExclamationTriangle />
-                    </div>
-                </div>
+        <div
+            role="alert"
+            className={cn(
+                "flex w-full gap-3 rounded-lg border border-destructive/20 bg-destructive-soft/60",
+                compact ? "items-start p-3" : "flex-col items-center px-6 py-10 text-center"
+            )}
+        >
+            <span className={cn(
+                "flex shrink-0 items-center justify-center rounded-md bg-destructive-soft text-destructive",
+                compact ? "size-8" : "size-10"
+            )}>
+                <LuTriangleAlert className={compact ? "size-4" : "size-5"} aria-hidden="true" />
+            </span>
 
-                <div className="error-text">
-                    <h4>{heading}</h4>
-                    <p>{message}</p>
-                    {status && (
-                        <span className="error-code">
-                            HTTP {status}
-                        </span>
-                    )}
-                </div>
+            <div className={cn("min-w-0 space-y-1", compact && "flex-1")}>
+                <p className="text-sm font-semibold text-foreground">{heading}</p>
+                <p className="text-sm text-muted-foreground">{message}</p>
+                {status && (
+                    <p className="font-mono text-xs text-muted-foreground tabular">HTTP {status}</p>
+                )}
+            </div>
 
-                <div className="error-actions">
+            {(refetch || callback) && (
+                <div className={cn("flex shrink-0 gap-2", compact ? "self-center" : "mt-1")}>
                     {refetch && (
-                        <button
-                            type="button"
-                            className="btn-reload"
-                            onClick={() => refetch()}
-                            title="Retry loading data"
-                        >
-                            <IoReload className="reload-icon" />
-                            <span>Try Again</span>
-                        </button>
+                        <Button variant="outline" size="sm" onClick={() => refetch()}>
+                            <LuRotateCw />
+                            Try again
+                        </Button>
                     )}
                     {callback && (
-                        <button
-                            type="button"
-                            className="btn-dismiss"
-                            onClick={callback}
-                            title="Dismiss error"
-                            aria-label="Dismiss"
-                        >
-                            <IoClose />
-                            <span>Dismiss</span>
-                        </button>
+                        <Button variant="ghost" size="sm" onClick={callback}>
+                            <LuX />
+                            Dismiss
+                        </Button>
                     )}
                 </div>
-            </div>
+            )}
         </div>
     );
 }
@@ -88,36 +89,25 @@ export function PageError({
     const { navigateBack } = useRouterActions();
 
     return (
-        <div className="page-error" role="alert">
-            <div className="error-content">
-                <div className="error-illustration">
-                    <Image
-                        src="/image/static/broken_link.png"
-                        alt="Broken link illustration"
-                        width={130}
-                        height={130}
-                        priority
-                    />
-                </div>
-                <div className="error-text">
-                    <h2>{title}</h2>
-                    <p>
+        <div className="flex min-h-[60vh] w-full items-center justify-center px-6 py-16" role="alert">
+            <div className="flex max-w-md flex-col items-center gap-4 text-center">
+                <span className="flex size-12 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                    <LuUnlink className="size-6" aria-hidden="true" />
+                </span>
+                <div className="space-y-2">
+                    <h2 className="text-2xl font-semibold tracking-tight">{title}</h2>
+                    <p className="text-sm text-muted-foreground">
                         {message || "The page you're looking for was moved, removed, or is temporarily unavailable."}
                     </p>
                 </div>
-                <div className="error-actions">
-                    <button
-                        type="button"
-                        className="btn-back"
-                        onClick={() => navigateBack()}
-                    >
-                        <IoArrowBack />
-                        <span>Go Back</span>
-                    </button>
-                    <Link href="/" className="btn-home">
-                        <IoHomeOutline />
-                        <span>Back to Home</span>
-                    </Link>
+                <div className="flex flex-wrap justify-center gap-2">
+                    <Button variant="outline" onClick={() => navigateBack()}>
+                        <LuArrowLeft />
+                        Go back
+                    </Button>
+                    <Button asChild>
+                        <Link href="/"><LuHouse />Back to home</Link>
+                    </Button>
                 </div>
             </div>
         </div>

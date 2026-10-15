@@ -1,78 +1,28 @@
-import { useState, useEffect, useCallback } from "react";
+'use client';
+import { useEffect } from "react";
+import { toast } from "sonner";
 
-import { IoWarning, IoCloseCircle, IoCheckmarkCircle, IoInformationCircle, IoClose } from "react-icons/io5";
+import { Toaster } from "@/components/shadcn/sonner";
 
-const alertConfig = {
-    0: { icon: IoInformationCircle, color: 'var(--blue-500)', bg: 'rgba(113, 201, 206, 0.1)', label: 'Info' },
-    200: { icon: IoCheckmarkCircle, color: 'var(--color-success)', bg: 'rgba(16, 185, 129, 0.1)', label: 'Success' },
-    201: { icon: IoCheckmarkCircle, color: 'var(--color-success)', bg: 'rgba(16, 185, 129, 0.1)', label: 'Success' },
-    500: { icon: IoCloseCircle, color: 'var(--color-danger)', bg: 'rgba(244, 63, 94, 0.1)', label: 'Error' },
-    default: { icon: IoWarning, color: 'var(--color-warning)', bg: 'rgba(249, 115, 22, 0.1)', label: 'Warning' }
-};
+// Bridges the app-wide showAlert(status, message, callback) API onto Sonner,
+// so every screen gets one accessible (aria-live) toast system.
+function notify(status, message, callback) {
+    const options = typeof callback === 'function'
+        ? { action: { label: 'Continue', onClick: callback }, duration: 8000 }
+        : { duration: 4000 };
 
-export default function AlertPush({ status = 0, message = '', callback = null, reset }) {
-    const [stack, setStack] = useState([]);
-
-    const pushAlert = useCallback((status, message, callback) => {
-        const id = Date.now();
-        setStack((prev) => [...prev, { id, status, message, callback }]);
-    }, []);
-
-    useEffect(() => {
-        if (!message || message.trim() === '') return;
-        pushAlert(status, message, callback);
-        reset();
-    }, [message, status, callback, pushAlert]);
-
-    const removeAlert = useCallback((id) => {
-        setStack((prev) => prev.filter((a) => a.id !== id));
-    }, []);
-
-    return stack.length > 0 && (
-        <section className="alert-stack">
-            {stack.map((item) => (
-                <AlertItem key={item.id} {...item} onRemove={removeAlert} />
-            ))}
-        </section>
-    );
+    if (status === 200 || status === 201) return toast.success(message, options);
+    if (status === 0) return toast.info(message, options);
+    if (status === 500) return toast.error(message, options);
+    return toast.warning(message, options);
 }
 
-function AlertItem({ id, status, message, callback, onRemove }) {
-    const config = alertConfig[status] || alertConfig.default;
-    const Icon = config.icon;
-
+export default function AlertPush({ status = 0, message = '', callback = null, reset }) {
     useEffect(() => {
-        const timer = setTimeout(() => {
-            onRemove(id);
-        }, 3000);
+        if (!message || message.trim() === '') return;
+        notify(status, message, callback);
+        reset?.();
+    }, [message, status, callback]);
 
-        return () => clearTimeout(timer);
-    }, [id, onRemove]);
-
-    const handleCallback = () => {
-        if (typeof callback === 'function') callback();
-    };
-
-    return (
-        <div className="alert-item" style={{ '--alert-color': config.color, '--alert-bg': config.bg }}>
-            <div className="alert-icon">
-                <Icon />
-            </div>
-            <div className="alert-content">
-                <span className="alert-label">{config.label}</span>
-                <p className="alert-message">{message}</p>
-            </div>
-            <div className="alert-actions">
-                {callback && (
-                    <button className="btn-action" onClick={handleCallback}>
-                        Next
-                    </button>
-                )}
-                <button className="btn-close" onClick={() => onRemove(id)}>
-                    <IoClose />
-                </button>
-            </div>
-            <span className="alert-progress" />
-        </div>
-    );
+    return <Toaster position="bottom-right" closeButton />;
 }

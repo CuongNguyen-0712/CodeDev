@@ -1,226 +1,203 @@
 'use client';
 
 import { useState } from "react";
-import { useRouterActions } from "@/router/useRouterActions";
-import { useApp } from "@/contexts/appContext";
+import Link from "next/link";
+
+import { useQueryParams } from "@/router/useQueryParams";
+
+import { InputGroup } from "@/components/ui/input";
+
+import { Button } from "@/components/shadcn/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/shadcn/collapsible";
 
 import {
-    FaSearch,
-    FaTerminal,
-    FaGraduationCap,
-    FaCertificate,
-    FaCreditCard,
-    FaChevronDown,
-    FaHeadset,
-    FaCode,
-    FaRocket
-} from "react-icons/fa";
+    LuBookOpen,
+    LuChevronDown,
+    LuMessageSquareText,
+    LuSearch,
+    LuSearchX,
+} from "react-icons/lu";
 
-import "@/styles/help.css";
-
-const CATEGORIES = [
-    {
-        id: "getting-started",
-        title: "Getting Started",
-        desc: "Learn how to navigate CodeDev, follow roadmaps, and solve your first exercise.",
-        icon: FaRocket,
-        colorClass: ""
-    },
-    {
-        id: "compiler",
-        title: "Compiler & Sandbox",
-        desc: "How automated test cases evaluate code, debugging tips, and terminal commands.",
-        icon: FaTerminal,
-        colorClass: "blue"
-    },
-    {
-        id: "certificates",
-        title: "Certificates & Badges",
-        desc: "Earning verified milestone certificates, accumulating XP, and daily streaks.",
-        icon: FaCertificate,
-        colorClass: "green"
-    },
-    {
-        id: "membership",
-        title: "Membership & Billing",
-        desc: "Manage CodeDev Pro subscriptions, team seat licenses, and invoice history.",
-        icon: FaCreditCard,
-        colorClass: "amber"
-    }
+const QUICK_TOPICS = [
+    { label: 'Courses', query: 'course' },
+    { label: 'Challenges', query: 'challenge' },
+    { label: 'Points', query: 'points' },
+    { label: 'Profile', query: 'profile' },
 ];
 
 const FAQS = [
     {
-        q: "How does the in-browser compiler evaluate my code submissions?",
-        a: "When you click 'Run Code' or 'Submit', your code is executed in an isolated, secure container sandbox. It runs against hidden test cases, edge cases, and performance criteria to verify algorithmic correctness before awarding XP and marking the lesson complete."
+        id: 'enroll',
+        q: 'How do I start a course?',
+        a: 'Open Courses from the sidebar, pick a course and enroll. It then appears in My learning, where you can start the first lesson and track how many lessons you have completed.',
     },
     {
-        q: "How do I earn verified course completion certificates?",
-        a: "Complete 100% of the lessons, practice exercises, and the final milestone project in any curriculum track. Once verified, a signed digital certificate with a verifiable credential ID and QR code is generated for download and LinkedIn sharing."
+        id: 'withdraw',
+        q: 'Can I leave a course I enrolled in?',
+        a: 'Yes, as long as you have not started it. In My learning, open the actions menu on the course row and choose Withdraw. Once you start a course, it stays in your list with your progress saved.',
     },
     {
-        q: "What happens if I miss a day on my daily coding streak?",
-        a: "Daily streaks count consecutive days where you solved at least one lesson or coding problem. If you miss a 24-hour cycle, your streak resets. CodeDev Pro members receive 1 automatic 'Streak Freeze' each month to protect their progress."
+        id: 'challenge-grading',
+        q: 'How are coding challenges graded?',
+        a: 'Your solution is run against the test cases defined for the challenge. Depending on the challenge, you either earn the full points when every test passes or a share of the points for each passing test.',
     },
     {
-        q: "Can I connect my GitHub profile to showcase completed projects?",
-        a: "Yes! In your Developer Settings, you can link your GitHub account. CodeDev can automatically sync your milestone repositories, display your verified skill badges, and feature your projects on your developer profile."
+        id: 'challenge-limit',
+        q: 'Why does a submission say I have to wait before retrying?',
+        a: 'Quiz and coding submissions are rate limited to keep the grader responsive. Wait for the number of seconds shown in the message, then submit again.',
     },
     {
-        q: "How do I upgrade or extend my CodeDev Pro membership?",
-        a: "You can click on the 'Check Now' button in the sidebar or navigate to Developer Settings > Membership to upgrade to Pro, granting unlimited compiler compute, AI code assistance, and access to all career roadmaps."
+        id: 'points',
+        q: 'Where do my points come from?',
+        a: 'Points are added to your account when you answer quiz questions correctly and pass coding challenge tests. Your total is shown in the account menu and on your profile.',
     },
     {
-        q: "What should I do if my code gets stuck in an infinite loop or times out?",
-        a: "Our sandbox enforces an execution timeout (typically 5 seconds) to prevent frozen processes. If your code times out, check your loop exit conditions and recursion base cases. You can also reset the lesson starter template at any time."
-    }
+        id: 'profile-edit',
+        q: 'How do I change my name, photo or email?',
+        a: 'Go to Settings from the account menu. Each section, such as Profile photo, Personal information and Account, has its own save button. Your username cannot be changed.',
+    },
+    {
+        id: 'roadmaps',
+        q: 'What are roadmaps for?',
+        a: 'Roadmaps lay out a learning path for a topic as a sequence of steps, so you can see what to study next.',
+    },
+    {
+        id: 'feedback',
+        q: 'How do I report a problem or suggest an improvement?',
+        a: 'Use Send feedback in the account menu or the button at the bottom of this page. Describe what happened and what you expected, and the team will review it.',
+    },
 ];
 
 export default function HelpPage() {
-    const { navigate } = useRouterActions();
-    const { showAlert } = useApp();
+    const updateQuery = useQueryParams();
 
     const [searchQuery, setSearchQuery] = useState("");
-    const [openFaq, setOpenFaq] = useState(0);
+    const [openFaq, setOpenFaq] = useState(FAQS[0].id);
 
-    const handleCategoryClick = (category) => {
-        showAlert(200, `Viewing guides and tutorials for: ${category.title}`);
-    };
-
-    const handleQuickTag = (tag) => {
-        setSearchQuery(tag);
-    };
-
+    const query = searchQuery.trim().toLowerCase();
     const filteredFaqs = FAQS.filter(
-        faq =>
-            faq.q.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            faq.a.toLowerCase().includes(searchQuery.toLowerCase())
+        (faq) => faq.q.toLowerCase().includes(query) || faq.a.toLowerCase().includes(query)
     );
 
     return (
-        <div className="help-page-container">
-            {/* TOP BREADCRUMB */}
-            <div className="help-top-bar">
-                <div className="help-breadcrumbs">
-                    <span className="crumb-step" onClick={() => navigate({ path: "home" })}>Dashboard</span>
-                    <span className="crumb-sep">&gt;</span>
-                    <span className="crumb-current">Developer Help & Documentation</span>
-                </div>
-            </div>
-
-            {/* HERO SEARCH CARD */}
-            <div className="help-hero-card">
-                <h2 className="help-hero-title">How can we help you learn today?</h2>
-                <p className="help-hero-subtitle">
-                    Search documentation, interactive sandbox guides, course FAQs, and developer community resources.
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 pt-6 pb-10 sm:px-6 lg:pt-10">
+            <header className="space-y-2">
+                <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">Help center</h1>
+                <p className="max-w-[60ch] text-sm text-muted-foreground">
+                    Answers to common questions about courses, challenges, points and your account.
                 </p>
+            </header>
 
-                <div className="help-search-box">
-                    <FaSearch />
-                    <input
-                        type="text"
-                        className="help-search-input"
-                        placeholder="Search courses, compiler errors, certificates, roadmaps..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                </div>
-
-                <div className="help-quick-tags">
-                    <span>Popular Topics:</span>
-                    <button type="button" className="quick-tag-pill" onClick={() => handleQuickTag("Compiler")}>
-                        Compiler Sandbox
-                    </button>
-                    <button type="button" className="quick-tag-pill" onClick={() => handleQuickTag("Certificate")}>
-                        Certificates
-                    </button>
-                    <button type="button" className="quick-tag-pill" onClick={() => handleQuickTag("Streak")}>
-                        Coding Streak
-                    </button>
-                    <button type="button" className="quick-tag-pill" onClick={() => handleQuickTag("Pro")}>
-                        Pro Membership
-                    </button>
-                </div>
-            </div>
-
-            {/* CATEGORIES SECTION */}
-            <div className="help-categories-section">
-                <h3 className="section-headline">Browse Documentation By Category</h3>
-
-                <div className="help-categories-grid">
-                    {CATEGORIES.map((cat) => {
-                        const IconComponent = cat.icon;
+            <section aria-label="Search help" className="flex flex-col gap-3">
+                <InputGroup
+                    name="help-search"
+                    label="Search questions"
+                    type="search"
+                    placeholder="Search by keyword, for example challenge"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    reset={() => setSearchQuery("")}
+                    icon={<LuSearch />}
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Popular topics</span>
+                    {QUICK_TOPICS.map((topic) => {
+                        const active = query === topic.query;
                         return (
-                            <div
-                                key={cat.id}
-                                className="help-category-card"
-                                onClick={() => handleCategoryClick(cat)}
+                            <Button
+                                key={topic.query}
+                                type="button"
+                                size="xs"
+                                variant={active ? 'soft' : 'outline'}
+                                aria-pressed={active}
+                                onClick={() => setSearchQuery(active ? '' : topic.query)}
                             >
-                                <div className={`category-icon-box ${cat.colorClass}`}>
-                                    <IconComponent />
-                                </div>
-                                <h4>{cat.title}</h4>
-                                <p>{cat.desc}</p>
-                            </div>
+                                {topic.label}
+                            </Button>
                         );
                     })}
                 </div>
-            </div>
+            </section>
 
-            {/* FAQ SECTION */}
-            <div className="help-faq-section">
-                <h3 className="section-headline">Frequently Asked Questions</h3>
+            <section aria-labelledby="help-faq-heading" className="flex flex-col gap-3">
+                <div className="flex min-h-8 items-center justify-between gap-3">
+                    <h2 id="help-faq-heading" className="text-base font-semibold text-foreground">
+                        Frequently asked questions
+                    </h2>
+                    <span className="font-mono text-xs text-muted-foreground tabular" aria-live="polite">
+                        {filteredFaqs.length} of {FAQS.length}
+                    </span>
+                </div>
 
-                <div className="faq-card-container">
-                    {filteredFaqs.length > 0 ? (
-                        filteredFaqs.map((faq, index) => {
-                            const isOpen = openFaq === index;
+                {filteredFaqs.length > 0 ? (
+                    <ul className="m-0 list-none divide-y overflow-hidden rounded-lg border bg-card p-0">
+                        {filteredFaqs.map((faq) => {
+                            const isOpen = openFaq === faq.id;
                             return (
-                                <div key={index} className={`faq-item ${isOpen ? "open" : ""}`}>
-                                    <button
-                                        type="button"
-                                        className="faq-question-btn"
-                                        onClick={() => setOpenFaq(isOpen ? null : index)}
+                                <li key={faq.id}>
+                                    <Collapsible
+                                        open={isOpen}
+                                        onOpenChange={(open) => setOpenFaq(open ? faq.id : null)}
                                     >
-                                        <span>{faq.q}</span>
-                                        <FaChevronDown className="faq-chevron" />
-                                    </button>
-                                    {isOpen && (
-                                        <div className="faq-answer">
-                                            {faq.a}
-                                        </div>
-                                    )}
-                                </div>
+                                        <h3 className="m-0 text-sm font-medium">
+                                            <CollapsibleTrigger className="group/faq flex min-h-12 w-full items-center justify-between gap-4 px-4 py-3 text-left text-foreground transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset">
+                                                <span>{faq.q}</span>
+                                                <LuChevronDown
+                                                    className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]/faq:rotate-180"
+                                                    aria-hidden="true"
+                                                />
+                                            </CollapsibleTrigger>
+                                        </h3>
+                                        <CollapsibleContent>
+                                            <p className="m-0 max-w-[70ch] px-4 pb-4 text-sm leading-relaxed text-muted-foreground">
+                                                {faq.a}
+                                            </p>
+                                        </CollapsibleContent>
+                                    </Collapsible>
+                                </li>
                             );
-                        })
-                    ) : (
-                        <div style={{ padding: "30px", textAlign: "center", color: "var(--color-text-secondary)" }}>
-                            No matching documentation or FAQs found for "{searchQuery}".
+                        })}
+                    </ul>
+                ) : (
+                    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-12 text-center">
+                        <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                            <LuSearchX className="size-5" aria-hidden="true" />
+                        </span>
+                        <div className="space-y-1">
+                            <h3 className="text-sm font-semibold">No matching questions</h3>
+                            <p className="max-w-[48ch] text-sm break-words text-muted-foreground">
+                                Nothing matches &quot;{searchQuery}&quot;. Try a shorter keyword or send us your question.
+                            </p>
                         </div>
-                    )}
-                </div>
-            </div>
-
-            {/* SUPPORT CONTACT CARD */}
-            <div className="help-support-card">
-                <div className="support-left">
-                    <div className="support-icon-circle">
-                        <FaHeadset />
+                        <Button variant="outline" size="sm" onClick={() => setSearchQuery("")}>
+                            Clear search
+                        </Button>
                     </div>
-                    <div className="support-text">
-                        <h4>Need assistance with a coding exercise or account?</h4>
-                        <p>Our engineering mentors and developer support team are available 24/7 to help you keep building.</p>
-                    </div>
-                </div>
+                )}
+            </section>
 
-                <button
-                    type="button"
-                    className="btn-contact-support"
-                    onClick={() => showAlert(200, "Support ticket created. A mentor will reach out shortly!")}
-                >
-                    Contact Mentor Support
-                </button>
-            </div>
+            <section
+                aria-labelledby="help-contact-heading"
+                className="flex flex-col gap-4 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+                <div className="space-y-1">
+                    <h2 id="help-contact-heading" className="text-base font-semibold text-foreground">
+                        Still stuck?
+                    </h2>
+                    <p className="max-w-[56ch] text-sm text-muted-foreground">
+                        Send the team a short note about the problem, or go back to your courses.
+                    </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    <Button asChild variant="outline">
+                        <Link href="/learning"><LuBookOpen />My learning</Link>
+                    </Button>
+                    <Button onClick={() => updateQuery({ modal: 'feedback' })}>
+                        <LuMessageSquareText />
+                        Send feedback
+                    </Button>
+                </div>
+            </section>
         </div>
     );
 }

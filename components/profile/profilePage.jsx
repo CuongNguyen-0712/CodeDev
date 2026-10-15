@@ -1,290 +1,416 @@
 'use client';
 
+import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { useRouterActions } from "@/router/useRouterActions";
-import { useApp } from "@/contexts/appContext";
+import { useQuery } from "@tanstack/react-query";
+
+import { userQueries } from "@/queries/user.query";
+import { levelMapping } from "@/constants/constants";
+
+import { ErrorReload } from "@/components/ui/error";
+import { formatPoints } from "@/components/ui/navbar";
+import { COURSE_STATUS } from "@/components/learning/course";
+
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn/avatar";
+import { Badge } from "@/components/shadcn/badge";
+import { Button } from "@/components/shadcn/button";
+import { Progress } from "@/components/shadcn/progress";
+import { Skeleton } from "@/components/shadcn/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
 
 import {
-    FaBell,
-    FaSearch,
-    FaDownload,
-    FaPen,
-    FaFire,
-    FaCheck,
-    FaBolt,
-    FaCertificate
-} from "react-icons/fa";
+    LuArrowRight,
+    LuBookOpen,
+    LuCircleCheck,
+    LuCircleAlert,
+    LuCode,
+    LuCoins,
+    LuGauge,
+    LuLibrary,
+    LuStar,
+    LuTrophy,
+    LuUserPen,
+} from "react-icons/lu";
 
-import "@/styles/profile.css";
+// Course lists shown on the profile, in the order a learner cares about them.
+const ACTIVITY_TABS = ['in_progress', 'completed', 'enrolled'];
 
-export default function ProfilePage() {
-    const { data: session } = useSession();
-    const { navigate } = useRouterActions();
-    const { showAlert } = useApp();
+const EMPTY_COPY = {
+    in_progress: {
+        title: 'Nothing in progress',
+        description: 'Start a lesson in one of your courses and it will show up here.',
+    },
+    completed: {
+        title: 'No completed courses yet',
+        description: 'Finish every lesson in a course to see it listed here.',
+    },
+    enrolled: {
+        title: 'No courses waiting to start',
+        description: 'Courses you enroll in but have not started yet appear here.',
+    },
+};
 
-    const user = session?.user || {
-        name: "Alex Rivera",
-        email: "alex.rivera@codedev.io",
-        image: "/image/static/no_image.png",
-        role: "Fullstack Engineer",
-        track: "Web & Cloud Architecture",
-        level: "Level 5 (Advanced)",
-        experience: "3+ Years",
-        status: "Pro Member",
-        registeredDate: "20 Jan, 2023",
-        rank: "#42 Global",
-        devId: "#CD-0365",
-        streak: 14,
-        exercisesSolved: 120,
-        codeVelocity: 97,
-        retention: 85
-    };
+function initials(name = '') {
+    const parts = String(name).trim().split(/[\s._-]+/).filter(Boolean);
+    return (parts[0]?.[0] || 'U').concat(parts[1]?.[0] || '').toUpperCase();
+}
 
-    const historyData = [
-        {
-            date: "20 Jan, 2024",
-            course: "Next.js 15 & React 19 Fullstack Systems",
-            complexity: "High",
-            complexityType: "high",
-            lessons: "48 / 48",
-            status: "Certified",
-            statusType: "cured"
-        },
-        {
-            date: "12 Dec, 2023",
-            course: "High-Performance Node.js & Microservices",
-            complexity: "High",
-            complexityType: "high",
-            lessons: "52 / 52",
-            status: "Certified",
-            statusType: "cured"
-        },
-        {
-            date: "20 Oct, 2023",
-            course: "PostgreSQL Schema Design & High-Scale DB",
-            complexity: "Medium",
-            complexityType: "medium",
-            lessons: "36 / 36",
-            status: "Certified",
-            statusType: "cured"
-        },
-        {
-            date: "15 Sep, 2023",
-            course: "Modern TypeScript Architecture & Clean Code",
-            complexity: "Medium",
-            complexityType: "medium",
-            lessons: "42 / 42",
-            status: "Certified",
-            statusType: "cured"
-        },
-        {
-            date: "02 Aug, 2023",
-            course: "Docker, Kubernetes & Cloud Deployment",
-            complexity: "High",
-            complexityType: "high",
-            lessons: "28 / 34",
-            status: "In Progress",
-            statusType: "pending"
-        }
-    ];
+function toPercent(done, total) {
+    const totalNum = Number(total) || 0;
+    if (totalNum <= 0) return 0;
+    return Math.min(100, Math.max(0, Math.round((Number(done) || 0) / totalNum * 100)));
+}
 
-    const handleDownload = (item) => {
-        showAlert(200, `Downloading verified certificate for: ${item.course}`);
-    };
+function Stat({ icon: Icon, label, children }) {
+    return (
+        <div className="flex min-w-0 flex-col gap-1 bg-card px-4 py-3">
+            <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Icon className="size-3.5" aria-hidden="true" />
+                {label}
+            </dt>
+            <dd className="m-0 truncate text-lg font-semibold text-foreground">{children}</dd>
+        </div>
+    );
+}
+
+function ProfileSkeleton() {
+    return (
+        <div className="flex flex-col gap-6" aria-busy="true" aria-label="Loading profile">
+            <div className="flex items-start gap-4">
+                <Skeleton className="size-16 rounded-full" />
+                <div className="flex-1 space-y-2.5">
+                    <Skeleton className="h-9 w-56 max-w-full" />
+                    <Skeleton className="h-4 w-72 max-w-full" />
+                    <Skeleton className="h-8 w-28" />
+                </div>
+            </div>
+            <Skeleton className="h-[74px] w-full rounded-lg" />
+            <div className="grid gap-6 lg:grid-cols-3">
+                <Skeleton className="h-72 rounded-lg lg:col-span-2" />
+                <Skeleton className="h-72 rounded-lg" />
+            </div>
+        </div>
+    );
+}
+
+function CourseList({ status, courses, total }) {
+    if (courses.length === 0) {
+        const copy = EMPTY_COPY[status];
+        return (
+            <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+                <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                    <LuBookOpen className="size-5" aria-hidden="true" />
+                </span>
+                <div className="space-y-1">
+                    <h3 className="text-sm font-semibold">{copy.title}</h3>
+                    <p className="max-w-[44ch] text-sm text-muted-foreground">{copy.description}</p>
+                </div>
+                <Button asChild variant="outline" size="sm">
+                    <Link href="/course"><LuLibrary />Browse courses</Link>
+                </Button>
+            </div>
+        );
+    }
 
     return (
-        <div className="profile-page-container">
-            {/* TOP BREADCRUMB & ACTION BUTTONS */}
-            <div className="profile-top-bar">
-                <div className="profile-breadcrumbs">
-                    <span className="crumb-step" onClick={() => navigate({ path: "home" })}>Dashboard</span>
-                    <span className="crumb-sep">&gt;</span>
-                    <span className="crumb-step">Developer Profile</span>
-                    <span className="crumb-sep">&gt;</span>
-                    <span className="crumb-current">{user.name}</span>
+        <>
+            <ul className="m-0 list-none divide-y p-0">
+                {courses.map((course) => {
+                    const percent = toPercent(course.progress, course.total);
+                    return (
+                        <li key={course.id}>
+                            <Link
+                                href={`/course/${course.id}`}
+                                className="group/course flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                            >
+                                <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                        src={course.language_logo || '/image/static/default.svg'}
+                                        alt=""
+                                        width={22}
+                                        height={22}
+                                        className="size-[22px] object-contain"
+                                        onError={(e) => {
+                                            e.currentTarget.onerror = null;
+                                            e.currentTarget.src = '/image/static/default.svg';
+                                        }}
+                                    />
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-sm font-medium text-foreground group-hover/course:text-primary">
+                                        {course.title}
+                                    </span>
+                                    <span className="block truncate font-mono text-xs text-muted-foreground">
+                                        {[course.language_name, course.category_name].filter(Boolean).join(' / ') || 'General'}
+                                    </span>
+                                </span>
+                                <span className="hidden w-40 shrink-0 items-center gap-3 sm:flex">
+                                    <Progress
+                                        value={percent}
+                                        className="h-1.5 flex-1 bg-muted"
+                                        aria-label={`${course.title} progress`}
+                                    />
+                                    <span className="w-14 text-right font-mono text-xs text-muted-foreground tabular">
+                                        {Number(course.progress) || 0}/{Number(course.total) || 0}
+                                    </span>
+                                </span>
+                                <span className="font-mono text-xs text-muted-foreground tabular sm:hidden">
+                                    {percent}%
+                                </span>
+                            </Link>
+                        </li>
+                    );
+                })}
+            </ul>
+            {total > courses.length && (
+                <div className="border-t px-4 py-2.5">
+                    <Button asChild variant="link" size="sm" className="h-auto px-0">
+                        <Link href="/learning">
+                            View all {total} in My learning
+                            <LuArrowRight />
+                        </Link>
+                    </Button>
+                </div>
+            )}
+        </>
+    );
+}
+
+function ActivitySection({ status }) {
+    const { data, isLoading, error, isError, refetch } = useQuery(userQueries.overview(status));
+
+    const byStatus = data?.summary?.by_status || {};
+    const languages = Array.isArray(data?.languages) ? data.languages : [];
+
+    return (
+        <div className="grid gap-6 lg:grid-cols-3">
+            <section aria-labelledby="profile-activity-heading" className="flex min-w-0 flex-col gap-3 lg:col-span-2">
+                <div className="flex min-h-8 items-center justify-between gap-3">
+                    <h2 id="profile-activity-heading" className="text-base font-semibold text-foreground">
+                        Course activity
+                    </h2>
+                    {!isLoading && !isError && (
+                        <span className="font-mono text-xs text-muted-foreground tabular">
+                            {Number(data?.summary?.total) || 0} enrolled in total
+                        </span>
+                    )}
                 </div>
 
-                <div className="profile-header-actions">
-                    <button
-                        type="button"
-                        className="profile-icon-btn"
-                        onClick={() => showAlert(200, "You are up to date! No unread notifications.")}
-                        title="Notifications"
-                    >
-                        <FaBell fontSize={15} />
-                    </button>
-                    <button
-                        type="button"
-                        className="profile-icon-btn"
-                        onClick={() => navigate({ path: "settings" })}
-                        title="Settings"
-                    >
-                        <FaSearch fontSize={15} />
-                    </button>
-                </div>
-            </div>
-
-            {/* HERO PROFILE CARD */}
-            <div className="profile-hero-card">
-                <div className="hero-user-column">
-                    <div className="hero-avatar-wrap">
-                        <img
-                            src={user.image || "/image/static/no_image.png"}
-                            alt={user.name}
-                            className="hero-avatar-img"
-                            onError={(e) => {
-                                e.target.onerror = null;
-                                e.target.src = "/image/static/no_image.png";
-                            }}
-                        />
+                {isLoading ? (
+                    <div className="space-y-px overflow-hidden rounded-lg border">
+                        <Skeleton className="h-11 rounded-none" />
+                        {Array.from({ length: 4 }, (_, index) => (
+                            <div key={index} className="flex items-center gap-3 px-4 py-3">
+                                <Skeleton className="size-9 rounded-md" />
+                                <div className="flex-1 space-y-1.5">
+                                    <Skeleton className="h-4 w-48 max-w-full" />
+                                    <Skeleton className="h-3 w-28" />
+                                </div>
+                                <Skeleton className="hidden h-1.5 w-40 sm:block" />
+                            </div>
+                        ))}
                     </div>
-                    <h2>{user.name}</h2>
-                    <p className="user-email">{user.email}</p>
-                    <button
-                        type="button"
-                        className="edit-profile-pill-btn"
-                        onClick={() => navigate({ path: "settings" })}
-                    >
-                        <FaPen fontSize={11} />
-                        <span>Edit Profile</span>
-                    </button>
-                </div>
-
-                <div className="hero-divider" />
-
-                <div className="hero-details-grid">
-                    <div className="detail-item">
-                        <span className="detail-label">Track</span>
-                        <span className="detail-value">{user.track || "Fullstack Web"}</span>
-                    </div>
-                    <div className="detail-item">
-                        <span className="detail-label">Skill Level</span>
-                        <span className="detail-value">{user.level || "Level 5 (Advanced)"}</span>
-                    </div>
-                    <div className="detail-item">
-                        <span className="detail-label">Experience</span>
-                        <span className="detail-value">{user.experience || "3+ Years"}</span>
-                    </div>
-                    <div className="detail-item">
-                        <span className="detail-label">Membership</span>
-                        <span className="detail-value">{user.status || "Pro Member"}</span>
-                    </div>
-                    <div className="detail-item">
-                        <span className="detail-label">Primary Stack</span>
-                        <span className="detail-value">TypeScript / Next.js</span>
-                    </div>
-                    <div className="detail-item">
-                        <span className="detail-label">Member Since</span>
-                        <span className="detail-value">{user.registeredDate || "20 Jan, 2023"}</span>
-                    </div>
-                    <div className="detail-item">
-                        <span className="detail-label">Global Rank</span>
-                        <span className="detail-value">{user.rank || "#42 Global"}</span>
-                    </div>
-                    <div className="detail-item">
-                        <span className="detail-label">Developer ID</span>
-                        <span className="detail-value">{user.devId || "#CD-0365"}</span>
-                    </div>
-                </div>
-            </div>
-
-            {/* CODING VITALS / STATS SECTION */}
-            <div className="profile-vitals-section">
-                <h3 className="section-headline">Developer Coding Vitals</h3>
-
-                <div className="vitals-grid">
-                    <div className="vital-card">
-                        <span className="vital-label">Coding Streak</span>
-                        <div className="vital-metric">
-                            <span className="vital-value">{user.streak || 14}</span>
-                            <span className="vital-unit">days</span>
-                        </div>
-                        <span className="vital-status status-green">🔥 In the zone</span>
-                    </div>
-
-                    <div className="vital-card">
-                        <span className="vital-label">Exercises Solved</span>
-                        <div className="vital-metric">
-                            <span className="vital-value">{user.exercisesSolved || 120}</span>
-                            <span className="vital-unit">tasks</span>
-                        </div>
-                        <span className="vital-status status-orange">⚡ Top 5% speed</span>
-                    </div>
-
-                    <div className="vital-card">
-                        <span className="vital-label">Code Velocity</span>
-                        <div className="vital-metric">
-                            <span className="vital-value">{user.codeVelocity || 97}</span>
-                            <span className="vital-unit">pts/wk</span>
-                        </div>
-                        <span className="vital-status status-green">✓ High output</span>
-                    </div>
-
-                    <div className="vital-card">
-                        <span className="vital-label">Course Mastery</span>
-                        <div className="vital-metric">
-                            <span className="vital-value">{user.retention || 85}</span>
-                            <span className="vital-unit">%</span>
-                        </div>
-                        <span className="vital-status status-green">✓ On track</span>
-                    </div>
-                </div>
-            </div>
-
-            {/* LEARNING HISTORY & CERTIFICATIONS TABLE */}
-            <div className="profile-history-section">
-                <div className="history-header-row">
-                    <h3 className="section-headline">Course Learning & Certifications</h3>
-                    <span className="history-total-count">Total 5 Courses Completed</span>
-                </div>
-
-                <div className="history-table-card">
-                    <table className="history-table">
-                        <thead>
-                            <tr>
-                                <th>Date Completed</th>
-                                <th>Course / Track</th>
-                                <th>Complexity</th>
-                                <th>Progress</th>
-                                <th>Status</th>
-                                <th>Credential</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {historyData.map((item, idx) => (
-                                <tr key={idx}>
-                                    <td>{item.date}</td>
-                                    <td style={{ fontWeight: 600, color: "var(--color-text-heading)" }}>
-                                        {item.course}
-                                    </td>
-                                    <td>
-                                        <div className="severity-cell">
-                                            <span className={`severity-bar bar-${item.complexityType}`} />
-                                            <span className="severity-text">{item.complexity}</span>
-                                        </div>
-                                    </td>
-                                    <td>{item.lessons}</td>
-                                    <td>
-                                        <span className={`status-pill status-${item.statusType}`}>
-                                            {item.status}
+                ) : isError ? (
+                    <ErrorReload data={error} refetch={refetch} />
+                ) : (
+                    <Tabs defaultValue="in_progress" className="gap-0 overflow-hidden rounded-lg border bg-card">
+                        <div className="overflow-x-auto overflow-y-hidden border-b px-2 pt-2 pb-1.5">
+                            <TabsList variant="line" className="h-9">
+                                {ACTIVITY_TABS.map((key) => (
+                                    <TabsTrigger key={key} value={key} className="flex-none px-2.5">
+                                        {COURSE_STATUS[key]?.label}
+                                        <span className="font-mono text-xs text-muted-foreground tabular">
+                                            {Number(byStatus[key]) || 0}
                                         </span>
-                                    </td>
-                                    <td>
-                                        <button
-                                            type="button"
-                                            className="action-download-btn"
-                                            onClick={() => handleDownload(item)}
-                                        >
-                                            <FaDownload />
-                                            <span>Certificate</span>
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                                    </TabsTrigger>
+                                ))}
+                            </TabsList>
+                        </div>
+                        {ACTIVITY_TABS.map((key) => (
+                            <TabsContent key={key} value={key}>
+                                <CourseList
+                                    status={key}
+                                    courses={Array.isArray(data?.courses?.[key]) ? data.courses[key] : []}
+                                    total={Number(byStatus[key]) || 0}
+                                />
+                            </TabsContent>
+                        ))}
+                    </Tabs>
+                )}
+            </section>
+
+            <section aria-labelledby="profile-languages-heading" className="flex min-w-0 flex-col gap-3">
+                <div className="flex min-h-8 items-center">
+                    <h2 id="profile-languages-heading" className="text-base font-semibold text-foreground">
+                        Languages
+                    </h2>
                 </div>
-            </div>
+
+                {isLoading ? (
+                    <div className="space-y-4 rounded-lg border p-4">
+                        {Array.from({ length: 3 }, (_, index) => (
+                            <div key={index} className="space-y-2">
+                                <Skeleton className="h-4 w-32" />
+                                <Skeleton className="h-1.5 w-full" />
+                            </div>
+                        ))}
+                    </div>
+                ) : isError ? null : languages.length === 0 ? (
+                    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-10 text-center">
+                        <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                            <LuCode className="size-5" aria-hidden="true" />
+                        </span>
+                        <div className="space-y-1">
+                            <h3 className="text-sm font-semibold">No languages yet</h3>
+                            <p className="text-sm text-muted-foreground">
+                                Languages from courses you start or finish are counted here.
+                            </p>
+                        </div>
+                        <Button asChild variant="outline" size="sm">
+                            <Link href="/learning"><LuBookOpen />Go to My learning</Link>
+                        </Button>
+                    </div>
+                ) : (
+                    <ul className="m-0 flex list-none flex-col gap-4 rounded-lg border bg-card p-4">
+                        {languages.map((lang) => {
+                            const percent = Math.round(Number(lang.percentage) || 0);
+                            const count = Number(lang.total) || 0;
+                            return (
+                                <li key={lang.name || 'unknown'} className="flex flex-col gap-2">
+                                    <div className="flex items-center gap-2">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                            src={lang.logo || '/image/static/default.svg'}
+                                            alt=""
+                                            width={16}
+                                            height={16}
+                                            className="size-4 shrink-0 object-contain"
+                                            onError={(e) => {
+                                                e.currentTarget.onerror = null;
+                                                e.currentTarget.src = '/image/static/default.svg';
+                                            }}
+                                        />
+                                        <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                                            {lang.name || 'Other'}
+                                        </span>
+                                        <span className="font-mono text-xs text-muted-foreground tabular">
+                                            {count} {count === 1 ? 'course' : 'courses'}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <Progress
+                                            value={percent}
+                                            className="h-1.5 flex-1 bg-muted"
+                                            aria-label={`${lang.name || 'Other'} share of your courses`}
+                                        />
+                                        <span className="w-10 text-right font-mono text-xs text-muted-foreground tabular">
+                                            {percent}%
+                                        </span>
+                                    </div>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                )}
+            </section>
+        </div>
+    );
+}
+
+export default function ProfilePage() {
+    const { status } = useSession();
+
+    const { data, isLoading, error, isError, refetch } = useQuery(userQueries.me(status));
+
+    const isSessionLoading = status === 'loading';
+    const showLoading = isSessionLoading || (status === 'authenticated' && isLoading);
+
+    const fullName = [data?.surname, data?.name].filter(Boolean).join(' ');
+    const displayName = fullName || data?.username || 'Your profile';
+    const levelLabel = levelMapping[data?.level]?.label;
+    const rank = data?.rank;
+    const points = Number(data?.points) || 0;
+
+    return (
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10">
+            {showLoading ? (
+                <ProfileSkeleton />
+            ) : isError ? (
+                <ErrorReload data={error} refetch={refetch} title="Could not load your profile" />
+            ) : status !== 'authenticated' ? (
+                <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-14 text-center">
+                    <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                        <LuUserPen className="size-5" aria-hidden="true" />
+                    </span>
+                    <div className="space-y-1">
+                        <h1 className="text-sm font-semibold">Sign in to see your profile</h1>
+                        <p className="text-sm text-muted-foreground">Your progress, points and courses are tied to your account.</p>
+                    </div>
+                    <Button asChild size="sm">
+                        <Link href="/auth">Sign in</Link>
+                    </Button>
+                </div>
+            ) : (
+                <>
+                    <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="flex min-w-0 items-start gap-4">
+                            <Avatar className="size-14 border sm:size-16">
+                                <AvatarImage src={data?.image || undefined} alt="" className="object-cover" />
+                                <AvatarFallback className="bg-primary-soft text-base font-semibold text-primary-soft-foreground">
+                                    {initials(displayName)}
+                                </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 space-y-2">
+                                <h1 className="text-3xl font-semibold tracking-tight break-words text-foreground sm:text-4xl">
+                                    {displayName}
+                                </h1>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground">
+                                    {data?.username && (
+                                        <span className="font-mono">@{data.username}</span>
+                                    )}
+                                    {data?.nickname && <span>{data.nickname}</span>}
+                                    {data?.email && <span className="break-all">{data.email}</span>}
+                                    {data?.email && (
+                                        data?.email_verified ? (
+                                            <Badge variant="success"><LuCircleCheck aria-hidden="true" />Email verified</Badge>
+                                        ) : (
+                                            <Badge variant="warning"><LuCircleAlert aria-hidden="true" />Email not verified</Badge>
+                                        )
+                                    )}
+                                </div>
+                                {data?.bio && (
+                                    <p className="max-w-[65ch] text-sm whitespace-pre-line text-foreground/90">{data.bio}</p>
+                                )}
+                            </div>
+                        </div>
+                        <Button asChild variant="outline" className="self-start">
+                            <Link href="/settings"><LuUserPen />Edit profile</Link>
+                        </Button>
+                    </header>
+
+                    <dl className="m-0 grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-4">
+                        <Stat icon={LuCoins} label="Points">
+                            <span className="font-mono tabular" title={`${points} points`}>{formatPoints(points)}</span>
+                        </Stat>
+                        <Stat icon={LuGauge} label="Level">
+                            {levelLabel || <span className="text-sm font-medium text-muted-foreground">Not set</span>}
+                        </Stat>
+                        <Stat icon={LuStar} label="Stars">
+                            <span className="font-mono tabular">{Number(data?.star) || 0}</span>
+                        </Stat>
+                        <Stat icon={LuTrophy} label="Rank">
+                            {rank !== null && rank !== undefined ? (
+                                <span className="font-mono tabular">#{rank}</span>
+                            ) : (
+                                <span className="text-sm font-medium text-muted-foreground">Unranked</span>
+                            )}
+                        </Stat>
+                    </dl>
+
+                    <ActivitySection status={status} />
+                </>
+            )}
         </div>
     );
 }

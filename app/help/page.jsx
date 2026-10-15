@@ -2,16 +2,16 @@ import { Suspense } from "react";
 
 import { LoadingRedirect } from "@/components/ui/loading";
 
-import NavigateLayout from '@/components/layouts/navigateLayout';
+import HomeLayout from '@/components/layouts/homeLayout';
 
 import HelpPage from "@/components/help/helpPage";
 
 export default function Page() {
     return (
         <Suspense fallback={<LoadingRedirect />}>
-            <NavigateLayout>
+            <HomeLayout>
                 <HelpPage />
-            </NavigateLayout>
+            </HomeLayout>
         </Suspense>
     );
 }

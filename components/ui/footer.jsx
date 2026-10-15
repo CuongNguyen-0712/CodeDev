@@ -1,71 +1,48 @@
-'use client'
+import Link from 'next/link';
+
 import { FaFacebookF, FaGithub } from "react-icons/fa";
 
-import Link from 'next/link';
-import Image from 'next/image';
+import { Button } from '@/components/shadcn/button';
+
+const LINKS = [
+    { href: '/course', label: 'Courses' },
+    { href: '/roadmap', label: 'Roadmap' },
+    { href: '/blog', label: 'Blog' },
+    { href: '/about', label: 'About' },
+    { href: '/help', label: 'Help' },
+];
 
 export default function Footer() {
     const currentYear = new Date().getFullYear();
 
     return (
-        <footer id="footer">
-            <div className="footer-wrapper">
-                <div className="footer-grid">
-                    {/* Brand */}
-                    <div className="footer-column">
-                        <Link href="/home" className="footer-brand">
-                            <Image
-                                src="/image/static/logo.svg"
-                                alt="CodeDev"
-                                width={32}
-                                height={24}
-                            />
-                            <span>CodeDev</span>
+        <footer className="mt-auto w-full border-t">
+            <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-3 px-4 py-4 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <p>&copy; {currentYear} CodeDev</p>
+
+                <nav aria-label="Footer" className="flex flex-wrap gap-x-4 gap-y-1">
+                    {LINKS.map((link) => (
+                        <Link
+                            key={link.href}
+                            href={link.href}
+                            className="inline-flex min-h-6 items-center rounded-sm hover:text-foreground"
+                        >
+                            {link.label}
                         </Link>
-                        <p className="footer-text">Learn, create, and grow with CodeDev.</p>
-                    </div>
+                    ))}
+                </nav>
 
-                    <div className="footer-column">
-                        <h4 className="footer-title">Resources</h4>
-                        <nav className="footer-nav">
-                            <Link href="/home">Home</Link>
-                            <Link href="/course">Course</Link>
-                            <Link href="/roadmap">Roadmap</Link>
-                            <Link href="/learning">Learning</Link>
-                            <Link href="/blog">Blog</Link>
-                        </nav>
-                    </div>
-
-                    <div className="footer-column">
-                        <h4 className="footer-title">Community</h4>
-                        <nav className="footer-nav">
-                            <Link href="/contact">Contact</Link>
-                            <Link href="/connect">Connect</Link>
-                        </nav>
-                    </div>
-
-                    {/* Social */}
-                    <div className="footer-column">
-                        <h4 className="footer-title">Follow Us</h4>
-                        <div className="footer-socials">
-                            <Link href="https://www.facebook.com/cuongnguyen0712?locale=vi_VN" target='_blank' aria-label="Facebook" className='link facebook'>
-                                <FaFacebookF />
-                            </Link>
-                            <Link href="https://github.com/CuongNguyen-0712" target='_blank' aria-label="GitHub" className='link github'>
-                                <FaGithub />
-                            </Link>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Bottom */}
-                <div className="footer-bottom">
-                    <p>&copy; {currentYear} CodeDev. All rights reserved.</p>
-                    <div className="footer-links">
-                        <a href="#privacy">Privacy</a>
-                        <a href="#terms">Terms</a>
-                        <a href="#cookies">Cookies</a>
-                    </div>
+                <div className="flex items-center gap-1">
+                    <Button asChild variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground">
+                        <a href="https://github.com/CuongNguyen-0712" target="_blank" rel="noopener noreferrer" aria-label="CodeDev on GitHub">
+                            <FaGithub />
+                        </a>
+                    </Button>
+                    <Button asChild variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground">
+                        <a href="https://www.facebook.com/cuongnguyen0712?locale=vi_VN" target="_blank" rel="noopener noreferrer" aria-label="CodeDev on Facebook">
+                            <FaFacebookF />
+                        </a>
+                    </Button>
                 </div>
             </div>
         </footer>

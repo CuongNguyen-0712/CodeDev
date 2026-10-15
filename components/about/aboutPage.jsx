@@ -1,267 +1,162 @@
-'use client';
+"use client";
 
-import { useRouterActions } from "@/router/useRouterActions";
-import {
-    FaRocket,
-    FaArrowRight,
-    FaTrophy,
-    FaLaptopCode,
-    FaLightbulb,
-    FaCompass,
-    FaShieldAlt,
-    FaCheckCircle,
-} from "react-icons/fa";
-import {
-    TbSourceCode,
-    TbRoute,
-    TbUsersGroup,
-    TbCertificate,
-    TbTargetArrow,
-} from "react-icons/tb";
-import { HiSparkles } from "react-icons/hi2";
+import Link from "next/link";
 
-import "@/styles/about.css";
+import { Button } from "@/components/shadcn/button";
+
+import {
+    LuArrowRight,
+    LuCode,
+    LuLibrary,
+    LuMap,
+    LuUsers,
+} from "react-icons/lu";
+
+const PRINCIPLES = [
+    {
+        title: "Practice over watching",
+        description: "Reading about a loop is not the same as writing one. Lessons are paired with challenges you solve yourself, with tests that tell you right away whether your code works.",
+    },
+    {
+        title: "Always a clear next step",
+        description: "Courses are ordered lesson by lesson and roadmaps suggest an order across topics, so you spend less time deciding what to study and more time studying it.",
+    },
+    {
+        title: "Learning is easier with other people",
+        description: "You can find other learners, keep them as contacts and form study teams to work through material together.",
+    },
+];
+
+const AREAS = [
+    {
+        icon: LuLibrary,
+        title: "Courses",
+        description: "The catalog of courses, filterable by level.",
+        href: "/course",
+    },
+    {
+        icon: LuCode,
+        title: "Learning",
+        description: "Your enrolled courses and progress. Requires an account.",
+        href: "/learning",
+    },
+    {
+        icon: LuMap,
+        title: "Roadmap",
+        description: "Suggested learning order across topics.",
+        href: "/roadmap",
+    },
+    {
+        icon: LuUsers,
+        title: "Contacts",
+        description: "People you learn with. Requires an account.",
+        href: "/contact",
+    },
+];
 
 export default function AboutPage() {
-    const { navigate } = useRouterActions();
-
-    const values = [
-        {
-            icon: <TbSourceCode />,
-            colorClass: "icon_blue",
-            title: "Practice-First Learning",
-            description: "We believe programming is best learned by writing real code. Every lesson is paired with interactive in-browser execution, tests, and instant feedback."
-        },
-        {
-            icon: <TbRoute />,
-            colorClass: "icon_teal",
-            title: "Structured Roadmaps",
-            description: "No more guessing what to learn next. Our curated paths guide developers from foundational syntax to production-ready software engineering."
-        },
-        {
-            icon: <TbUsersGroup />,
-            colorClass: "icon_purple",
-            title: "Collaborative Community",
-            description: "Learning is exponential when shared. Connect with peers, form study teams, review pull requests, and solve challenges together."
-        },
-        {
-            icon: <FaLightbulb />,
-            colorClass: "icon_amber",
-            title: "Modern Industry Standards",
-            description: "Curriculum built around contemporary stacks: React 19, Next.js App Router, Serverless PostgreSQL, Node.js, and Cloud architectures."
-        },
-        {
-            icon: <FaShieldAlt />,
-            colorClass: "icon_emerald",
-            title: "Accessible & Open",
-            description: "Quality engineering education should be barrier-free. We design inclusive, responsive interfaces optimized for learners worldwide."
-        },
-        {
-            icon: <TbCertificate />,
-            colorClass: "icon_rose",
-            title: "Verifiable Outcomes",
-            description: "Earn demonstrable credentials, build portfolio-grade projects, and gain real-world confidence demanded by top tech companies."
-        }
-    ];
-
-    const milestones = [
-        {
-            phase: "Phase 01",
-            title: "The Inception",
-            tag: "Foundation",
-            desc: "Started with a core vision: replace passive video tutorials with an interactive, in-browser sandbox runner."
-        },
-        {
-            phase: "Phase 02",
-            title: "Career Tracks Launch",
-            tag: "Curriculum",
-            desc: "Introduced full-length career roadmaps for Frontend, Backend, and Fullstack systems with structured milestones."
-        },
-        {
-            phase: "Phase 03",
-            title: "Ecosystem & Collaboration",
-            tag: "Community",
-            desc: "Integrated serverless database environments (Neon DB), role-based permissions, teams, and social profiles."
-        },
-        {
-            phase: "Phase 04",
-            title: "Intelligent Future",
-            tag: "Innovation",
-            desc: "Expanding with AI-assisted code diagnostics, interactive system architecture sandboxes, and global hackathons."
-        }
-    ];
-
-    const stats = [
-        { count: "15,000+", label: "Active Developers" },
-        { count: "50+", label: "Structured Modules" },
-        { count: "120+", label: "Interactive Lessons" },
-        { count: "99.4%", label: "Satisfaction Rate" }
-    ];
-
     return (
-        <div className='shared_section' id="about">
-            {/* HERO SECTION */}
-            <section className="about_hero">
-                <div className="about_badge">
-                    <HiSparkles className="badge_sparkle" />
-                    <span>Our Story & Mission</span>
-                </div>
-
-                <h1 className="about_hero_title">
-                    Pioneering the Future of <span className="text_gradient">Developer Education</span>
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-12 px-4 pt-6 pb-10 sm:px-6 lg:gap-16 lg:pt-10">
+            <header className="flex max-w-3xl flex-col gap-4">
+                <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
+                    About CodeDev
                 </h1>
-
-                <p className="about_hero_desc">
-                    CodeDev was founded on a singular premise: anyone with curiosity and dedication deserves a practical, high-impact pathway to becoming a world-class software engineer.
+                <p className="max-w-[62ch] text-base leading-relaxed text-pretty text-muted-foreground sm:text-lg">
+                    CodeDev is a place to learn programming by doing it. Every course combines short written
+                    lessons with coding challenges and quizzes, and keeps track of where you are so you can
+                    come back to it.
                 </p>
+            </header>
 
-                <div className="about_tags_strip">
-                    <span className="tag_pill"><FaLaptopCode /> Interactive IDE</span>
-                    <span className="tag_pill"><TbRoute /> Career Tracks</span>
-                    <span className="tag_pill"><TbUsersGroup /> Dev Community</span>
-                    <span className="tag_pill"><FaTrophy /> Gamified Progress</span>
-                </div>
-            </section>
-
-            {/* MISSION & VISION DUAL CARDS */}
-            <section className="about_mission_section">
-                <div className="mission_card mission_gradient">
-                    <div className="card_header_icon icon_primary">
-                        <TbTargetArrow />
+            <section aria-labelledby="why-title" className="grid gap-8 lg:grid-cols-12 lg:gap-10">
+                <div className="flex flex-col gap-4 lg:col-span-7">
+                    <h2 id="why-title" className="text-2xl font-semibold tracking-tight">
+                        Why we built it
+                    </h2>
+                    <div className="flex max-w-[65ch] flex-col gap-4 text-sm leading-relaxed text-muted-foreground sm:text-base">
+                        <p>
+                            Most people who learn to program get stuck in the same place: they can follow along
+                            with an example, but freeze when facing an empty editor. The fix is practice with fast
+                            feedback, and that is what CodeDev is organised around.
+                        </p>
+                        <p>
+                            Challenges run in your browser, so there is nothing to install. You can run the sample
+                            tests as often as you like while you work, and when you submit, your code is also checked
+                            against hidden tests so you know it handles more than the obvious cases.
+                        </p>
                     </div>
-                    <span className="card_sub_title">OUR PURPOSE</span>
-                    <h2>Our Mission</h2>
-                    <p>
-                        To eliminate the divide between theoretical coding concepts and real-world engineering reality. We equip learners with hands-on problem-solving skills, deep architectural understanding, and the mental models needed to build scalable digital systems.
-                    </p>
-                    <ul className="mission_highlights">
-                        <li><FaCheckCircle className="check_icon" /> Zero-setup browser IDE runner for immediate practice</li>
-                        <li><FaCheckCircle className="check_icon" /> Real-world project blueprints reflecting actual industry requirements</li>
-                        <li><FaCheckCircle className="check_icon" /> Mentorship and peer-review culture that accelerates mastery</li>
+                </div>
+
+                <aside aria-labelledby="areas-title" className="flex flex-col gap-3 lg:col-span-5">
+                    <h2 id="areas-title" className="text-sm font-medium text-muted-foreground">
+                        Where to find things
+                    </h2>
+                    <ul className="flex list-none flex-col divide-y rounded-lg border">
+                        {AREAS.map(({ icon: Icon, title, description, href }) => (
+                            <li key={href}>
+                                <Link
+                                    href={href}
+                                    className="group flex items-center gap-3 rounded-lg px-4 py-3 outline-none transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 active:bg-accent/80"
+                                >
+                                    <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
+                                        <Icon className="size-4" aria-hidden="true" />
+                                    </span>
+                                    <span className="flex min-w-0 flex-1 flex-col">
+                                        <span className="text-sm font-medium text-foreground">{title}</span>
+                                        <span className="text-sm text-muted-foreground">{description}</span>
+                                    </span>
+                                    <LuArrowRight
+                                        className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                                        aria-hidden="true"
+                                    />
+                                </Link>
+                            </li>
+                        ))}
                     </ul>
-                </div>
-
-                <div className="mission_card vision_gradient">
-                    <div className="card_header_icon icon_secondary">
-                        <FaCompass />
-                    </div>
-                    <span className="card_sub_title">OUR HORIZON</span>
-                    <h2>Our Vision</h2>
-                    <p>
-                        To become the global home for developers — where aspiring coders evolve into architects, where experienced engineers refine their craft, and where continuous learning is as natural as writing code.
-                    </p>
-                    <ul className="mission_highlights">
-                        <li><FaCheckCircle className="check_icon" /> Universal access to high-caliber software engineering curricula</li>
-                        <li><FaCheckCircle className="check_icon" /> Seamless transition from education to high-growth tech careers</li>
-                        <li><FaCheckCircle className="check_icon" /> A vibrant, collaborative global network of creators and engineers</li>
-                    </ul>
-                </div>
+                </aside>
             </section>
 
-            {/* PLATFORM METRICS */}
-            <section className="about_stats_section">
-                {stats.map((stat, idx) => (
-                    <div key={idx} className="about_stat_item">
-                        <h3>{stat.count}</h3>
-                        <p>{stat.label}</p>
-                    </div>
-                ))}
-            </section>
-
-            {/* CORE VALUES */}
-            <section className="about_values_section">
-                <div className="section_header">
-                    <span className="section_tag">OUR PILLARS</span>
-                    <h2>Values That Guide Everything We Build</h2>
-                    <p>The engineering principles and educational philosophy behind every feature on CodeDev.</p>
-                </div>
-
-                <div className="values_grid">
-                    {values.map((v, idx) => (
-                        <div key={idx} className="value_card">
-                            <div className={`value_icon_box ${v.colorClass}`}>
-                                {v.icon}
-                            </div>
-                            <h3>{v.title}</h3>
-                            <p>{v.description}</p>
-                        </div>
+            <section aria-labelledby="principles-title" className="flex flex-col gap-6">
+                <h2 id="principles-title" className="text-2xl font-semibold tracking-tight">
+                    What guides the product
+                </h2>
+                <ol className="flex list-none flex-col divide-y border-y">
+                    {PRINCIPLES.map((principle, index) => (
+                        <li key={principle.title} className="grid gap-2 py-5 sm:grid-cols-[3rem_minmax(0,16rem)_minmax(0,1fr)] sm:gap-6">
+                            <span aria-hidden="true" className="tabular font-mono text-sm text-muted-foreground">
+                                {String(index + 1).padStart(2, "0")}
+                            </span>
+                            <h3 className="text-base font-semibold text-foreground">{principle.title}</h3>
+                            <p className="max-w-[62ch] text-sm leading-relaxed text-muted-foreground">
+                                {principle.description}
+                            </p>
+                        </li>
                     ))}
-                </div>
+                </ol>
             </section>
 
-            {/* ENGINEERING PHILOSOPHY */}
-            <section className="about_philosophy_section">
-                <div className="philosophy_content">
-                    <span className="section_tag">ENGINEERING PHILOSOPHY</span>
-                    <h2>Why Interactive Learning Outperforms Video Tutorials</h2>
-                    <p>
-                        Passive video consumption often creates the illusion of competence. At CodeDev, we structure every single concept around the active loop of reading, implementing, breaking, and debugging.
+            <section
+                aria-labelledby="about-cta-title"
+                className="flex flex-col gap-5 rounded-lg border bg-muted/40 p-6 sm:p-8 md:flex-row md:items-center md:justify-between"
+            >
+                <div className="flex flex-col gap-2">
+                    <h2 id="about-cta-title" className="text-xl font-semibold tracking-tight">
+                        Try a course
+                    </h2>
+                    <p className="max-w-[52ch] text-sm leading-relaxed text-muted-foreground">
+                        Browse the catalog without an account, or create one to enroll and save your progress.
                     </p>
-
-                    <div className="philosophy_features">
-                        <div className="phil_item">
-                            <div className="phil_num">01</div>
-                            <div>
-                                <h4>Instant Cognitive Feedback</h4>
-                                <p>Execute code against automated test assertions within milliseconds to lock in comprehension immediately.</p>
-                            </div>
-                        </div>
-                        <div className="phil_item">
-                            <div className="phil_num">02</div>
-                            <div>
-                                <h4>Production-Grade Architecture</h4>
-                                <p>Learn patterns used by high-scale companies: microservices, state machines, clean APIs, and relational schemas.</p>
-                            </div>
-                        </div>
-                        <div className="phil_item">
-                            <div className="phil_num">03</div>
-                            <div>
-                                <h4>Continuous Gamified Motivation</h4>
-                                <p>XP rewards, streak counters, and skill badges designed to turn consistent daily practice into an effortless habit.</p>
-                            </div>
-                        </div>
-                    </div>
                 </div>
-            </section>
-
-            {/* JOURNEY & MILESTONES */}
-            <section className="about_timeline_section">
-                <div className="section_header">
-                    <span className="section_tag">OUR JOURNEY</span>
-                    <h2>How CodeDev Has Evolved</h2>
-                    <p>From an experimental interactive runner to a comprehensive developer career platform.</p>
-                </div>
-
-                <div className="timeline_grid">
-                    {milestones.map((m, idx) => (
-                        <div key={idx} className="timeline_card">
-                            <div className="timeline_meta">
-                                <span className="timeline_phase">{m.phase}</span>
-                                <span className="timeline_tag">{m.tag}</span>
-                            </div>
-                            <h3>{m.title}</h3>
-                            <p>{m.desc}</p>
-                        </div>
-                    ))}
-                </div>
-            </section>
-
-            {/* CALL TO ACTION */}
-            <section className="about_cta_section">
-                <div className="about_cta_card">
-                    <div className="about_cta_content">
-                        <h2>Ready to Accelerate Your Developer Journey?</h2>
-                        <p>Join thousands of learners mastering modern programming through interactive lessons, real projects, and career roadmaps.</p>
-
-                        <div className="about_cta_actions">
-                            <button className="btn_primary_white" onClick={() => navigate({ path: '/course' })}>
-                                <FaRocket /> Explore Courses
-                            </button>
-                            <button className="btn_outline_white" onClick={() => navigate({ path: '/roadmap' })}>
-                                <TbRoute /> View Career Roadmaps <FaArrowRight />
-                            </button>
-                        </div>
-                    </div>
+                <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                    <Button asChild>
+                        <Link href="/course">
+                            <LuLibrary />
+                            Browse courses
+                        </Link>
+                    </Button>
+                    <Button asChild variant="outline">
+                        <Link href="/auth">Create an account</Link>
+                    </Button>
                 </div>
             </section>
         </div>

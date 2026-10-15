@@ -1,33 +1,163 @@
 'use client';
 
 import { useState, useRef, useEffect } from "react";
-import { useRouterActions } from "@/router/useRouterActions";
+import Link from "next/link";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { courseQueries } from "@/queries/course.query";
 import { levelMapping } from "@/constants/constants";
 
-import {
-    FaStar,
-    FaFire,
-    FaArrowRight,
-    FaCode,
-    FaClock,
-    FaBookOpen,
-    FaUser,
-    FaChevronLeft,
-    FaChevronRight,
-    FaCoins
-} from "react-icons/fa";
-import { HiSparkles } from "react-icons/hi2";
-import { TbRoute } from "react-icons/tb";
-
-import { LoadingContent } from "../ui/loading";
 import { ErrorReload } from "../ui/error";
 
-import "@/styles/home/recommend.css";
+import { Badge } from "@/components/shadcn/badge";
+import { Button } from "@/components/shadcn/button";
+import { Skeleton } from "@/components/shadcn/skeleton";
+
+import {
+    LuArrowRight,
+    LuBookOpen,
+    LuChevronLeft,
+    LuChevronRight,
+    LuClock,
+    LuLayers,
+    LuLibrary,
+    LuRoute,
+    LuStar,
+} from "react-icons/lu";
+
+const FALLBACK_IMAGE = "/image/static/no_image.png";
+const CARD_WIDTH = "w-64 sm:w-72";
+
+function handleImageError(e) {
+    e.currentTarget.onerror = null;
+    e.currentTarget.src = FALLBACK_IMAGE;
+}
+
+function CardSkeleton() {
+    return (
+        <li className={`${CARD_WIDTH} shrink-0`}>
+            <div className="flex h-full flex-col overflow-hidden rounded-lg border bg-card">
+                <Skeleton className="aspect-video w-full rounded-none" />
+                <div className="flex flex-col gap-3 p-3.5">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-3 w-40" />
+                    <div className="flex items-center justify-between border-t pt-3">
+                        <Skeleton className="h-4 w-16" />
+                        <Skeleton className="h-5 w-20" />
+                    </div>
+                </div>
+            </div>
+        </li>
+    );
+}
+
+function CourseCard({ item, onClickGuard }) {
+    const level = levelMapping[item.level] || levelMapping["beginner"];
+    const cost = Number(item.cost || 0);
+    const point_price = Number(item.point_price || 0);
+
+    const subtitle = [item.language_name, item.category_name].filter(Boolean).join(" / ");
+    const stats = [
+        item?.modules ? { Icon: LuLayers, value: item.modules, label: Number(item.modules) === 1 ? "module" : "modules" } : null,
+        item?.lessons ? { Icon: LuBookOpen, value: item.lessons, label: Number(item.lessons) === 1 ? "lesson" : "lessons" } : null,
+        item?.duration ? { Icon: LuClock, value: `${item.duration}m`, label: "total" } : null,
+    ].filter(Boolean);
+
+    return (
+        <li className={`${CARD_WIDTH} shrink-0 snap-start`}>
+            <Link
+                href={`/course/${item.id}`}
+                draggable={false}
+                onClick={onClickGuard}
+                className="group/card flex h-full flex-col overflow-hidden rounded-lg border bg-card text-card-foreground transition-colors outline-none hover:border-primary/40 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 active:bg-accent/40"
+            >
+                <div className="aspect-video w-full overflow-hidden border-b bg-muted">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                        src={item.image || FALLBACK_IMAGE}
+                        alt=""
+                        loading="lazy"
+                        draggable={false}
+                        className="block size-full object-cover"
+                        onError={handleImageError}
+                    />
+                </div>
+
+                <div className="flex flex-1 flex-col gap-2.5 p-3.5">
+                    <div className="flex min-w-0 items-center gap-2">
+                        <span className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-sm border bg-background">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src={item.language_logo || FALLBACK_IMAGE}
+                                alt=""
+                                width={16}
+                                height={16}
+                                draggable={false}
+                                className="size-4 object-contain"
+                                onError={handleImageError}
+                            />
+                        </span>
+                        <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
+                            {subtitle || "General"}
+                        </span>
+                        {item?.rating ? (
+                            <span className="flex shrink-0 items-center gap-1 font-mono text-xs text-foreground tabular">
+                                <LuStar className="size-3.5 fill-current text-muted-foreground" aria-hidden="true" />
+                                <span className="sr-only">Rating</span>
+                                {item.rating}
+                            </span>
+                        ) : null}
+                    </div>
+
+                    <h3
+                        className="line-clamp-2 text-sm leading-snug font-semibold text-foreground group-hover/card:text-primary"
+                        title={item.title}
+                    >
+                        {item.title}
+                    </h3>
+
+                    {stats.length > 0 && (
+                        <ul className="m-0 flex list-none flex-wrap gap-x-3 gap-y-1 p-0 text-xs text-muted-foreground">
+                            {stats.map(({ Icon, value, label }) => (
+                                <li key={label} className="flex items-center gap-1">
+                                    <Icon className="size-3.5" aria-hidden="true" />
+                                    <span className="font-mono text-foreground tabular">{value}</span>
+                                    {label}
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+
+                    {item.instructor && (
+                        <p className="truncate text-xs text-muted-foreground">
+                            By <span className="text-foreground">{item.instructor}</span>
+                        </p>
+                    )}
+
+                    <div className="mt-auto flex items-center justify-between gap-2 border-t pt-3">
+                        {cost === 0 ? (
+                            <Badge variant="success">Free</Badge>
+                        ) : (
+                            <span className="flex min-w-0 items-baseline gap-1.5 text-xs text-muted-foreground">
+                                <span className="font-mono text-sm font-semibold text-foreground tabular">
+                                    ${cost.toFixed(2)}
+                                </span>
+                                {point_price > 0 && (
+                                    <span className="truncate">
+                                        or <span className="font-mono tabular">{point_price}</span> points
+                                    </span>
+                                )}
+                            </span>
+                        )}
+                        <Badge variant="muted">{level.label}</Badge>
+                    </div>
+                </div>
+            </Link>
+        </li>
+    );
+}
 
 export default function HomeRecommend() {
-    const { navigate } = useRouterActions();
     const sliderRef = useRef(null);
 
     const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -67,20 +197,21 @@ export default function HomeRecommend() {
                 window.removeEventListener("resize", checkScroll);
             };
         }
-    }, [courses]);
+    }, [data, isLoading, isError]);
 
     const scroll = (direction) => {
-        if (sliderRef.current) {
-            const scrollAmount = 305;
-            sliderRef.current.scrollBy({
-                left: direction === "left" ? -scrollAmount : scrollAmount,
-                behavior: "smooth"
-            });
-        }
+        const el = sliderRef.current;
+        if (!el) return;
+        // Move by most of the visible width so one card stays in view for context.
+        const scrollAmount = Math.max(240, el.clientWidth * 0.85);
+        el.scrollBy({
+            left: direction === "left" ? -scrollAmount : scrollAmount,
+            behavior: "smooth"
+        });
     };
 
     const handleMouseDown = (e) => {
-        if (!sliderRef.current) return;
+        if (!sliderRef.current || e.button !== 0) return;
         setIsDragging(true);
         setHasDragged(false);
         setStartX(e.pageX - sliderRef.current.offsetLeft);
@@ -106,249 +237,160 @@ export default function HomeRecommend() {
         sliderRef.current.scrollLeft = scrollStart - walk;
     };
 
-    const handleCardClick = (courseId) => {
-        if (hasDragged) return;
-        navigate({ path: `course/${courseId}` });
+    // A drag that ends over a card must not open it.
+    const handleClickGuard = (e) => {
+        if (hasDragged) {
+            e.preventDefault();
+        }
     };
 
-    const handleMoreClick = () => {
-        if (hasDragged) return;
-        navigate({ path: "course" });
-    };
+    const showEmpty = !isLoading && !isError && courses.length === 0;
+    const showTrack = !isError && !showEmpty;
 
     return (
-        <section className="overview-recommend" id="home_recommend">
-            <div className="recommend-header">
-                <div className="header-title-group">
-                    <div className="header-icon-box">
-                        <FaFire className="header-flame" />
-                    </div>
-                    <div className="header-text">
-                        <h3>Featured Courses</h3>
-                        <p>Handpicked courses curated for your engineering growth</p>
-                    </div>
+        <section
+            id="home_recommend"
+            aria-labelledby="home-featured-heading"
+            className="flex min-w-0 flex-col gap-4 lg:col-start-1 lg:row-start-1"
+        >
+            <div className="flex flex-wrap items-end justify-between gap-3">
+                <div className="min-w-0 space-y-1">
+                    <h2 id="home-featured-heading" className="text-base font-semibold text-foreground">
+                        Featured courses
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                        Top rated courses you are not enrolled in yet.
+                    </p>
                 </div>
 
-                {/* NAVIGATION CONTROLS */}
-                <div className="header-nav-actions">
-                    <div className="carousel-nav-arrows">
-                        <button
-                            type="button"
-                            className={`carousel-arrow-btn ${!canScrollLeft ? "disabled" : ""}`}
-                            onClick={() => scroll("left")}
-                            disabled={!canScrollLeft}
-                            aria-label="Previous courses"
-                            title="Previous"
-                        >
-                            <FaChevronLeft fontSize={12} />
-                        </button>
-                        <button
-                            type="button"
-                            className={`carousel-arrow-btn ${!canScrollRight ? "disabled" : ""}`}
-                            onClick={() => scroll("right")}
-                            disabled={!canScrollRight}
-                            aria-label="Next courses"
-                            title="Next"
-                        >
-                            <FaChevronRight fontSize={12} />
-                        </button>
-                    </div>
-
-                    <button
-                        type="button"
-                        className="view-all-link-btn"
-                        onClick={() => navigate({ path: "course" })}
-                        title="View all courses"
-                    >
-                        <span>All Courses</span>
-                        <FaArrowRight fontSize={12} />
-                    </button>
-                </div>
-            </div>
-
-            {/* CAROUSEL SWIPE TRACK */}
-            <div className="carousel-outer-container">
-                {isLoading ?
-                    <LoadingContent scale={0.7} />
-                    :
-                    isError ?
-                        <ErrorReload
-                            data={error || { status: 500, message: "Could not load recommendations" }}
-                            refetch={refetch}
-                        />
-                        : (
-                            <div
-                                className={`recommend-carousel-track ${isDragging ? "dragging" : ""}`}
-                                ref={sliderRef}
-                                onMouseDown={handleMouseDown}
-                                onMouseLeave={handleMouseLeave}
-                                onMouseUp={handleMouseUp}
-                                onMouseMove={handleMouseMove}
+                <div className="flex items-center gap-1">
+                    {showTrack && (
+                        <>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon-sm"
+                                onClick={() => scroll("left")}
+                                disabled={isLoading || !canScrollLeft}
+                                aria-label="Scroll to previous courses"
+                                aria-controls="home-featured-track"
                             >
-                                {courses.map((item, index) => {
-                                    const level = levelMapping[item.level] || levelMapping["beginner"];
-                                    const cost = Number(item.cost || 0);
-                                    const point_price = Number(item.point_price || 0);
-
-                                    return (
-                                        <div
-                                            key={item.id || index}
-                                            className="recommend-card swipe-item"
-                                            onClick={() => handleCardClick(item.id)}
-                                        >
-                                            {/* CARD THUMBNAIL */}
-                                            <div className="card-thumb-wrap">
-                                                <img
-                                                    src={item.image || "/image/static/no_image.png"}
-                                                    alt={item.title}
-                                                    className="thumb-image"
-                                                    loading="lazy"
-                                                    onError={(e) => {
-                                                        e.target.onerror = null;
-                                                        e.target.src = "/image/static/no_image.png";
-                                                    }}
-                                                />
-
-                                                <div className="thumb-overlay" />
-
-                                                <div className="thumb-top-row">
-                                                    <span className="badge-highlight">
-                                                        <FaFire />
-                                                        Hot
-                                                    </span>
-
-                                                    <span
-                                                        className="badge-level"
-                                                        style={{ color: level.color }}
-                                                    >
-                                                        {level.label}
-                                                    </span>
-                                                </div>
-
-                                                <div className="tech-logo-float">
-                                                    <img
-                                                        src={item.language_logo || "/image/static/no_image.png"}
-                                                        alt={item.language_name || "tech"}
-                                                        width={26}
-                                                        height={26}
-                                                        onError={(e) => {
-                                                            e.target.onerror = null;
-                                                            e.target.src = "/image/static/no_image.png";
-                                                        }}
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <div className="card-body-content">
-                                                <div className="meta-category-row">
-                                                    <span className="category-text">{item.category_name}</span>
-                                                    <div className="rating-pill">
-                                                        <FaStar className="star-gold" />
-                                                        <span>{item?.rating || '_'}</span>
-                                                    </div>
-                                                </div>
-
-                                                <h4 className="course-title" title={item.title}>
-                                                    {item.title}
-                                                </h4>
-
-                                                {/* STATS STRIP */}
-                                                <div className="meta-stats-row">
-                                                    <span className="stat-chip modules">
-                                                        <FaBookOpen />
-                                                        {item?.modules || '__'} modules
-                                                    </span>
-                                                    <span className="stat-chip lessons">
-                                                        <FaCode />
-                                                        {item?.lessons || '__'} lessons
-                                                    </span>
-                                                    <span className="stat-chip duration">
-                                                        <FaClock />
-                                                        {item?.duration || '__'}m
-                                                    </span>
-                                                </div>
-
-                                                <div className="instructor-row">
-                                                    <FaUser className="user-icon" />
-                                                    <span>{item.instructor || "CodeDev Instructor"}</span>
-                                                </div>
-                                            </div>
-
-                                            <div className="card-footer-actions">
-                                                <div className="cost-info">
-                                                    {cost === 0 ? (
-                                                        <span className="free-tag">Free</span>
-                                                    ) : (
-                                                        <>
-                                                            <span className="price-tag">${cost.toFixed(2)}</span>
-                                                            <b>or</b>
-                                                            <span className="point_price">
-                                                                {point_price} <FaCoins />
-                                                            </span>
-                                                        </>
-                                                    )}
-                                                </div>
-
-                                                <button
-                                                    type="button"
-                                                    className="btn-card-learn"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleCardClick(item.id);
-                                                    }}
-                                                >
-                                                    <span>Start</span>
-                                                    <FaArrowRight fontSize={11} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-
-                                <div
-                                    className="recommend-card swipe-item recommend-more-card"
-                                    onClick={handleMoreClick}
-                                >
-                                    <div className="more-card-content">
-                                        <div className="more-icon-circle">
-                                            <HiSparkles className="sparkle-more-icon" />
-                                        </div>
-
-                                        <div className="more-card-text">
-                                            <span className="more-tag">Full Catalog</span>
-                                            <h4>Explore 50+ More Courses</h4>
-                                            <p>Find courses in Frontend, Backend, Cloud & AI.</p>
-                                        </div>
-
-                                        <div className="more-action-pill">
-                                            <span>View All Courses</span>
-                                            <FaArrowRight fontSize={12} className="arrow-bounce" />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+                                <LuChevronLeft />
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon-sm"
+                                onClick={() => scroll("right")}
+                                disabled={isLoading || !canScrollRight}
+                                aria-label="Scroll to next courses"
+                                aria-controls="home-featured-track"
+                            >
+                                <LuChevronRight />
+                            </Button>
+                        </>
+                    )}
+                    <Button asChild variant="ghost" size="sm">
+                        <Link href="/course">
+                            All courses
+                            <LuArrowRight />
+                        </Link>
+                    </Button>
+                </div>
             </div>
 
-            <div className="recommend-roadmap-banner">
-                <div className="banner-left">
-                    <div className="banner-icon-circle">
-                        <TbRoute />
+            {isError ? (
+                <ErrorReload
+                    data={error || { status: 500, message: "Could not load recommendations" }}
+                    refetch={refetch}
+                />
+            ) : showEmpty ? (
+                <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-12 text-center">
+                    <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                        <LuLibrary className="size-5" aria-hidden="true" />
+                    </span>
+                    <div className="space-y-1">
+                        <h3 className="text-sm font-semibold text-foreground">No featured courses right now</h3>
+                        <p className="max-w-[48ch] text-sm text-muted-foreground">
+                            You are already enrolled in every top rated course. Browse the catalog to find something new.
+                        </p>
                     </div>
-                    <div className="banner-text">
-                        <h4>Prefer a guided career roadmap?</h4>
-                        <p>Follow our structured Frontend, Backend, and Fullstack developer tracks.</p>
+                    <Button asChild size="sm">
+                        <Link href="/course">
+                            <LuLibrary />
+                            Browse courses
+                        </Link>
+                    </Button>
+                </div>
+            ) : (
+                <ul
+                    id="home-featured-track"
+                    ref={sliderRef}
+                    aria-label="Featured courses"
+                    aria-busy={isLoading || undefined}
+                    onMouseDown={handleMouseDown}
+                    onMouseLeave={handleMouseLeave}
+                    onMouseUp={handleMouseUp}
+                    onMouseMove={handleMouseMove}
+                    className={`m-0 flex list-none gap-3 overflow-x-auto overscroll-x-contain p-0 pb-3 [scrollbar-width:thin] ${isDragging ? "cursor-grabbing select-none" : "snap-x snap-mandatory"}`}
+                >
+                    {isLoading
+                        ? Array.from({ length: 4 }, (_, index) => <CardSkeleton key={index} />)
+                        : (
+                            <>
+                                {courses.map((item, index) => (
+                                    <CourseCard
+                                        key={item.id || index}
+                                        item={item}
+                                        onClickGuard={handleClickGuard}
+                                    />
+                                ))}
+
+                                <li className={`${CARD_WIDTH} shrink-0 snap-start`}>
+                                    <Link
+                                        href="/course"
+                                        draggable={false}
+                                        onClick={handleClickGuard}
+                                        className="flex h-full min-h-48 flex-col items-start justify-end gap-3 rounded-lg border border-dashed bg-card p-4 transition-colors outline-none hover:border-primary/40 hover:bg-accent/40 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                    >
+                                        <span className="flex size-9 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                                            <LuLibrary className="size-4" aria-hidden="true" />
+                                        </span>
+                                        <span className="space-y-1">
+                                            <span className="block text-sm font-semibold text-foreground">Browse the full catalog</span>
+                                            <span className="block text-sm text-muted-foreground">
+                                                Filter every course by level, price and rating.
+                                            </span>
+                                        </span>
+                                        <span className="flex items-center gap-1 text-sm font-medium text-primary">
+                                            All courses
+                                            <LuArrowRight className="size-4" aria-hidden="true" />
+                                        </span>
+                                    </Link>
+                                </li>
+                            </>
+                        )}
+                </ul>
+            )}
+
+            <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-start gap-3">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                        <LuRoute className="size-4" aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0 space-y-0.5">
+                        <h3 className="text-sm font-semibold text-foreground">Prefer a guided path?</h3>
+                        <p className="text-sm text-muted-foreground">
+                            Roadmaps put courses in order so you always know what to learn next.
+                        </p>
                     </div>
                 </div>
-
-                <button
-                    type="button"
-                    className="banner-cta-btn"
-                    onClick={() => navigate({ path: "roadmap" })}
-                >
-                    <span>View Roadmaps</span>
-                    <FaArrowRight fontSize={12} />
-                </button>
+                <Button asChild variant="outline" size="sm" className="self-start sm:self-auto">
+                    <Link href="/roadmap">
+                        View roadmaps
+                        <LuArrowRight />
+                    </Link>
+                </Button>
             </div>
         </section>
     );

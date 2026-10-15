@@ -4,7 +4,7 @@ import { LoadingRedirect } from "@/components/ui/loading"
 
 import SettingsPage from "@/components/settings/settingsPage"
 
-import NavigateLayout from '@/components/layouts/navigateLayout'
+import HomeLayout from '@/components/layouts/homeLayout';
 
 export async function generateMetadata() {
     return {
@@ -16,9 +16,9 @@ export async function generateMetadata() {
 export default function Page() {
     return (
         <Suspense fallback={<LoadingRedirect />}>
-            <NavigateLayout>
+            <HomeLayout>
                 <SettingsPage />
-            </NavigateLayout>
+            </HomeLayout>
         </Suspense>
     )
 }

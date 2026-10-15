@@ -1,26 +1,19 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { roadmapQueries } from '@/queries/roadmap.query';
-import { useRouterActions } from '@/router/useRouterActions';
 import { levelMapping } from '@/constants/constants';
 
-import { LoadingContent } from '@/components/ui/loading';
 import { ErrorReload } from '@/components/ui/error';
 import SearchBar from '@/components/ui/searchBar';
 
-import { LuSparkles, LuCompass, LuLayers } from 'react-icons/lu';
-import { FaRoute } from 'react-icons/fa6';
-import {
-    HiArrowRight,
-    HiCodeBracket,
-    HiServerStack,
-    HiCommandLine,
-    HiCpuChip
-} from 'react-icons/hi2';
+import { Badge } from '@/components/shadcn/badge';
+import { Button } from '@/components/shadcn/button';
+import { Skeleton } from '@/components/shadcn/skeleton';
 
-import '@/styles/roadmap/roadmap.css';
+import { LuChevronRight, LuMap, LuRoute, LuSearchX } from 'react-icons/lu';
 
 const FILTER_MAPPING = [
     {
@@ -35,8 +28,69 @@ const FILTER_MAPPING = [
 
 const DEFAULT_FILTER = {};
 
+const FALLBACK_LOGO = '/image/static/no_image.png';
+
+function RoadmapRowSkeleton() {
+    return (
+        <li className="flex items-start gap-4 px-4 py-4">
+            <Skeleton className="size-9 shrink-0 rounded-md" />
+            <div className="min-w-0 flex-1 space-y-2">
+                <Skeleton className="h-4 w-56 max-w-[60vw]" />
+                <Skeleton className="h-3 w-full max-w-md" />
+                <Skeleton className="h-3 w-2/3 max-w-sm" />
+            </div>
+            <Skeleton className="h-5 w-20 max-sm:hidden" />
+        </li>
+    );
+}
+
+function LanguageStack({ languages }) {
+    // The list query aggregates languages through LEFT JOINs, so a roadmap
+    // without courses yields an empty placeholder object. Skip those.
+    const items = languages.filter((lang) => lang && lang.id != null);
+    const visible = items.slice(0, 3);
+    const extra = items.length - visible.length;
+
+    if (items.length === 0) {
+        return (
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-background text-muted-foreground">
+                <LuRoute className="size-4" aria-hidden="true" />
+            </span>
+        );
+    }
+
+    return (
+        <span className="flex shrink-0 items-center -space-x-2" title={items.map((lang) => lang.name).join(', ')}>
+            {visible.map((lang) => (
+                <span
+                    key={lang.id}
+                    className="flex size-9 items-center justify-center overflow-hidden rounded-md border bg-background"
+                >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                        src={lang.logo || FALLBACK_LOGO}
+                        alt={lang.name || ''}
+                        width={20}
+                        height={20}
+                        loading="lazy"
+                        className="size-5 object-contain"
+                        onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = FALLBACK_LOGO;
+                        }}
+                    />
+                </span>
+            ))}
+            {extra > 0 && (
+                <span className="flex size-9 items-center justify-center rounded-md border bg-muted font-mono text-xs text-muted-foreground tabular">
+                    +{extra}
+                </span>
+            )}
+        </span>
+    );
+}
+
 export default function RoadmapPage() {
-    const { navigate } = useRouterActions();
     const { data, isLoading, isError, error, refetch } = useQuery(roadmapQueries.list());
 
     const [state, setState] = useState({
@@ -84,179 +138,127 @@ export default function RoadmapPage() {
         });
     }, []);
 
-    const handleCardClick = (id) => {
-        if (!id) return;
-        navigate({ path: `roadmap/${id}` });
-    };
+    const handleSearchChange = useCallback((value) => {
+        setState((prev) => (prev.search === value ? prev : { ...prev, search: value }));
+    }, []);
+
+    const handleFilterChange = useCallback((value) => {
+        setState((prev) => ({ ...prev, filter: value }));
+    }, []);
+
+    const showError = !isLoading && isError;
+    const showEmpty = !isLoading && !isError && filteredRoadmaps.length === 0;
+    const countLabel = isLoading
+        ? 'Loading roadmaps...'
+        : `${filteredRoadmaps.length} roadmap${filteredRoadmaps.length === 1 ? '' : 's'}`;
+    const emptyTitle = hasActiveFilters ? 'No roadmaps match these filters' : 'No roadmaps published yet';
 
     return (
-        <section className="shared_section" id="roadmap">
-            {/* Hero Header Banner */}
-            <div className="roadmap-hero-banner">
-                <div className="hero-badge">
-                    <LuSparkles fontSize={14} />
-                    <span>Career Roadmaps</span>
-                </div>
-                <h1 className="hero-title">Developer Roadmaps</h1>
-                <p className="hero-subtitle">
-                    Step-by-step career paths and milestone guides to help you navigate modern software development, master essential tools, and build production-ready projects.
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10">
+            <header className="space-y-2">
+                <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                    Roadmaps
+                </h1>
+                <p className="max-w-[60ch] text-sm text-muted-foreground">
+                    Ordered learning paths for developer roles. Each step links to the courses that cover it, so you always know what to study next.
                 </p>
-            </div>
+            </header>
 
-            {/* Search and Filters Bar */}
-            <div className="roadmap_header">
+            <section className="w-full" aria-label="Search and filter roadmaps">
                 <SearchBar
                     data={FILTER_MAPPING}
                     filter={state.filter}
                     search={state.search}
                     resultsCount={filteredRoadmaps.length}
-                    setSearch={(val) => setState((prev) => ({ ...prev, search: val }))}
-                    setFilter={(val) => setState((prev) => ({ ...prev, filter: val }))}
+                    setSearch={handleSearchChange}
+                    setFilter={handleFilterChange}
                     defaultFilter={DEFAULT_FILTER}
                     pending={isLoading}
-                    placeholderText="Search roadmaps by role, title, or skills..."
+                    placeholderText="Search roadmaps by role, title or skill..."
                 />
-            </div>
+            </section>
 
+            <section aria-labelledby="roadmap-list-heading" className="flex flex-col gap-3">
+                <h2 id="roadmap-list-heading" className="flex min-h-8 items-center gap-2 text-sm font-medium text-foreground">
+                    <LuMap className="size-4 text-muted-foreground" aria-hidden="true" />
+                    <span aria-live="polite">{countLabel}</span>
+                </h2>
 
-            {/* Status Bar */}
-            {!isLoading && !isError && (
-                <div className="roadmaps-status-bar">
-                    <span className="roadmap-count">
-                        Showing <strong>{filteredRoadmaps.length}</strong> {filteredRoadmaps.length === 1 ? 'roadmap' : 'roadmaps'}
-                    </span>
-                    {hasActiveFilters && (
-                        <button
-                            type="button"
-                            className="clear-filters-link"
-                            onClick={handleClearFilters}
-                        >
-                            Reset all filters
-                        </button>
-                    )}
-                </div>
-            )}
-
-            {/* Roadmaps Grid */}
-            <div className="roadmaps-grid">
-                {isLoading ? (
-                    <div className="roadmaps-loading-wrapper">
-                        <LoadingContent color="var(--color-primary)" />
-                    </div>
-                ) : isError ? (
-                    <div className="roadmaps-error-wrapper">
+                {showError ? (
+                    <div className="rounded-lg border">
                         <ErrorReload data={error} refetch={refetch} />
                     </div>
-                ) : filteredRoadmaps.length > 0 ? (
-                    filteredRoadmaps.map((roadmap) => {
-                        const levelKey = roadmap.level?.toLowerCase() || 'beginner';
-                        const levelConfig = levelMapping[levelKey] || {
-                            label: roadmap.level || 'All Levels',
-                            color: 'var(--color-primary)',
-                            bg: 'var(--palette-1)',
-                        };
-
-                        const nodeCount = parseInt(roadmap.nodes, 10) || 0;
-                        const languages = roadmap.languages || [];
-
-                        return (
-                            <article
-                                key={roadmap.id}
-                                className="roadmap-card"
-                                role="button"
-                                tabIndex={0}
-                                onClick={() => handleCardClick(roadmap.id)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault();
-                                        handleCardClick(roadmap.id);
-                                    }
-                                }}
-                            >
-                                <div className="card-accent-bar" />
-
-                                <div className="roadmap-card-header">
-                                    <div className="card-icon-languages">
-                                        {languages.slice(0, 3).map((lang) => (
-                                            <img
-                                                key={lang.id}
-                                                src={lang.logo || '/image/static/no_image.png'}
-                                                alt={lang.name}
-                                                className="language-badge logo-badge"
-                                                loading="lazy"
-                                                onError={(e) => {
-                                                    e.target.onerror = null;
-                                                    e.target.src = '/image/static/no_image.png';
-                                                }}
-                                            />
-                                        ))}
-                                        {
-                                            languages.length > 3 && (
-                                                <span className="language-badge more-languages">
-                                                    +{languages.length - 3}
-                                                </span>
-                                            )
-                                        }
-                                    </div>
-                                    <span
-                                        className="roadmap-level-badge"
-                                        style={{
-                                            color: levelConfig.color,
-                                            background: levelConfig.bg,
-                                        }}
-                                    >
-                                        {levelConfig.label}
-                                    </span>
-                                </div>
-
-                                <div className="roadmap-card-body">
-                                    <h3 className="roadmap-title">{roadmap.title}</h3>
-                                    <p className="roadmap-description">{roadmap.description}</p>
-                                </div>
-
-                                <div className="roadmap-properties">
-                                    <div className="property">
-                                        <FaRoute />
-                                        <span>{nodeCount} {nodeCount === 1 ? 'Step' : 'Steps'}</span>
-                                    </div>
-                                    <div className="property">
-                                        <LuLayers />
-                                        <span>Structured Path</span>
-                                    </div>
-                                </div>
-
-                                <div className="roadmap-card-footer">
-                                    <span className="explore-link">
-                                        <span>Explore Roadmap</span>
-                                        <HiArrowRight className="arrow-icon" />
-                                    </span>
-                                </div>
-                            </article>
-                        );
-                    })
-                ) : (
-                    <div className="empty-state">
-                        <div className="empty-icon">
-                            <LuCompass />
+                ) : showEmpty ? (
+                    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-14 text-center">
+                        <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                            <LuSearchX className="size-5" aria-hidden="true" />
+                        </span>
+                        <div className="space-y-1">
+                            <h3 className="text-sm font-semibold">{emptyTitle}</h3>
+                            <p className="max-w-[48ch] text-sm text-muted-foreground">
+                                {hasActiveFilters
+                                    ? 'Clear the search or remove the level filter to see every roadmap.'
+                                    : 'Roadmaps will appear here once they are published. Browse the course catalog in the meantime.'}
+                            </p>
                         </div>
-                        <h3>No roadmaps found</h3>
-                        <p>
-                            {hasActiveFilters
-                                ? "We couldn't find any roadmaps matching your criteria. Try adjusting your search query or reset your filters."
-                                : 'No roadmaps are currently available. Please check back soon!'}
-                        </p>
-                        {hasActiveFilters && (
-                            <button
-                                type="button"
-                                className="empty-reset-btn"
-                                onClick={handleClearFilters}
-                            >
-                                Reset Filters
-                            </button>
+                        {hasActiveFilters ? (
+                            <Button variant="outline" size="sm" onClick={handleClearFilters}>Reset filters</Button>
+                        ) : (
+                            <Button asChild size="sm">
+                                <Link href="/course">Browse courses</Link>
+                            </Button>
                         )}
                     </div>
+                ) : (
+                    <ul className="list-none divide-y overflow-hidden rounded-lg border bg-card">
+                        {isLoading
+                            ? Array.from({ length: 4 }, (_, index) => <RoadmapRowSkeleton key={index} />)
+                            : filteredRoadmaps.map((roadmap) => {
+                                const levelKey = roadmap.level?.toLowerCase();
+                                const levelLabel = levelMapping[levelKey]?.label || roadmap.level || 'All levels';
+                                const nodeCount = parseInt(roadmap.nodes, 10) || 0;
+                                const languages = Array.isArray(roadmap.languages) ? roadmap.languages : [];
+
+                                return (
+                                    <li key={roadmap.id}>
+                                        <Link
+                                            href={`/roadmap/${roadmap.id}`}
+                                            className="group flex items-start gap-4 px-4 py-4 outline-none transition-colors hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset active:bg-accent"
+                                        >
+                                            <LanguageStack languages={languages} />
+
+                                            <div className="min-w-0 flex-1 space-y-1">
+                                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                                    <h3 className="text-sm font-semibold text-foreground group-hover:text-primary">
+                                                        {roadmap.title}
+                                                    </h3>
+                                                    <Badge variant="muted" className="sm:hidden">{levelLabel}</Badge>
+                                                </div>
+                                                {roadmap.description && (
+                                                    <p className="line-clamp-2 max-w-[72ch] text-sm text-muted-foreground">
+                                                        {roadmap.description}
+                                                    </p>
+                                                )}
+                                                <p className="flex items-center gap-1.5 pt-0.5 font-mono text-xs text-muted-foreground tabular">
+                                                    <LuRoute className="size-3.5" aria-hidden="true" />
+                                                    {nodeCount} {nodeCount === 1 ? 'step' : 'steps'}
+                                                </p>
+                                            </div>
+
+                                            <div className="flex shrink-0 items-center gap-3 self-center">
+                                                <Badge variant="muted" className="max-sm:hidden">{levelLabel}</Badge>
+                                                <LuChevronRight
+                                                    className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"
+                                                    aria-hidden="true"
+                                                />
+                                            </div>
+                                        </Link>
+                                    </li>
+                                );
+                            })}
+                    </ul>
                 )}
-            </div>
-        </section>
+            </section>
+        </div>
     );
 }

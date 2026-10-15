@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { getAuthSession } from "@/lib/session";
 import { LoadingRedirect } from "@/components/ui/loading";
 import DefaultLayout from "@/components/layouts/defaultLayout";
 import RoadmapDetailsPage from "@/components/roadmap/[id]/roadmapDetailsPage";
@@ -33,9 +34,18 @@ export default async function Page({ params }) {
     const { id } = await params;
     const queryClient = new QueryClient();
 
+    // Include the signed-in user so the prefetched data carries their progress
+    let userId = null;
+    try {
+        const session = await getAuthSession();
+        userId = session?.user?.id ?? null;
+    } catch {
+        userId = null;
+    }
+
     let roadmapData = null;
     try {
-        roadmapData = await roadmapService.getDetails({ publicId: id });
+        roadmapData = await roadmapService.getDetails({ publicId: id, userId });
         if (roadmapData) {
             queryClient.setQueryData(roadmapQueries.details(id).queryKey, {
                 success: true,

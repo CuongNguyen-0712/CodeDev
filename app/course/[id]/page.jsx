@@ -3,6 +3,7 @@ import { Suspense } from "react"
 import PreviewPage from "@/components/course/params/previewPage"
 
 import { courseService } from "@/services/course.service"
+import { getAuthSession } from "@/lib/session"
 import { courseQueries } from "@/queries/course.query"
 
 import DefaultLayout from "@/components/layouts/defaultLayout";
@@ -14,7 +15,7 @@ import { HydrationBoundary, QueryClient, dehydrate } from "@tanstack/react-query
 export async function generateMetadata({ params }) {
     const { id } = await params;
 
-    const course = await courseService.getDetails({ courseId: id });
+    const course = await courseService.getDetails({ courseId: id }).catch(() => null);
 
     if (!course) {
         return {
@@ -32,9 +33,19 @@ export default async function Page({ params }) {
     const { id } = await params
 
     const queryClient = new QueryClient();
-    const data = await courseService.getDetails(id);
 
-    queryClient.setQueryData(courseQueries.details(id).queryKey, data);
+    // Prefetch with the viewer's id so the hydrated data carries their status / progress.
+    const session = await getAuthSession();
+    const data = await courseService
+        .getDetails({ courseId: id, userId: session?.user?.id ?? null })
+        .catch((error) => {
+            console.error("Failed to prefetch course details:", error);
+            return null;
+        });
+
+    if (data) {
+        queryClient.setQueryData(courseQueries.details(id).queryKey, data);
+    }
 
     return (
         <Suspense fallback={<LoadingRedirect />}>

@@ -1,75 +1,220 @@
 'use client'
 import { useState, useEffect, useTransition } from "react"
 
-import { LoadingContent } from "../../ui/loading";
 import { ErrorReload } from "../../ui/error";
 
 import { useQuery } from "@tanstack/react-query";
 import { userQueries } from "@/queries/user.query";
 import { useSession } from "next-auth/react";
 import { useRouterActions } from "@/router/useRouterActions";
-import { useApp } from "@/contexts/appContext";
 import useViewport from "@/hooks/useViewport";
+import { cn } from "@/lib/utils";
+
+import { Badge } from "@/components/shadcn/badge";
+import { Button } from "@/components/shadcn/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/shadcn/collapsible";
+import { Progress } from "@/components/shadcn/progress";
+import { ScrollArea } from "@/components/shadcn/scroll-area";
+import { Separator } from "@/components/shadcn/separator";
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/shadcn/sheet";
+import { Skeleton } from "@/components/shadcn/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 
 import LearningLesson from "./lessons";
 
-import { FaAngleLeft, FaAngleRight, FaCheck, FaLock, FaPlay } from "react-icons/fa6";
-import { MdInfoOutline, MdOutlineClose, MdOutlineQuiz } from "react-icons/md";
-import { TbLayoutSidebarRightCollapse, TbReload } from "react-icons/tb";
-import { IoMdList } from "react-icons/io";
-import { BiMessageSquareDetail } from "react-icons/bi";
+import {
+    LuArrowLeft,
+    LuChevronRight,
+    LuCircle,
+    LuCircleCheck,
+    LuCircleDot,
+    LuExternalLink,
+    LuInfo,
+    LuLoaderCircle,
+    LuLock,
+    LuPanelLeftClose,
+    LuPanelLeftOpen,
+    LuRefreshCw,
+    LuX,
+} from "react-icons/lu";
 
-import "@/styles/learning/[id]/study.css"
-import "@/styles/learning/[id]/challenge.css"
+const pad = (value) => String(value).padStart(2, '0');
+
+function LessonStatusIcon({ status, locked }) {
+    if (locked) return <LuLock className="size-3.5 text-muted-foreground" aria-hidden="true" />;
+    if (status === 'completed') return <LuCircleCheck className="size-3.5 text-success" aria-hidden="true" />;
+    if (status === 'in_progress') return <LuCircleDot className="size-3.5 text-primary" aria-hidden="true" />;
+    return <LuCircle className="size-3.5 text-muted-foreground" aria-hidden="true" />;
+}
+
+function SyllabusPanel({
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isFetching,
+    allLessons,
+    selectedData,
+    setSelectedData,
+    isLessonUnlocked,
+    onSelectLesson,
+    completedLessonsCount,
+    totalLessonsCount,
+    onClose = null,
+}) {
+    return (
+        <div className="flex h-full min-h-0 flex-col">
+            <div className="flex h-11 shrink-0 items-center justify-between gap-2 border-b pr-2 pl-4">
+                <h2 className="text-sm font-semibold">Syllabus</h2>
+                <div className="flex items-center gap-1">
+                    <span className="mr-1 font-mono text-xs text-muted-foreground tabular">
+                        {completedLessonsCount}/{totalLessonsCount}
+                    </span>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="text-muted-foreground"
+                                onClick={() => refetch()}
+                                disabled={isFetching}
+                                aria-label="Refresh course progress"
+                            >
+                                <LuRefreshCw className={cn(isFetching && 'animate-spin')} />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Refresh progress</TooltipContent>
+                    </Tooltip>
+                    {onClose && (
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-muted-foreground"
+                            onClick={onClose}
+                            aria-label="Close syllabus"
+                        >
+                            <LuX />
+                        </Button>
+                    )}
+                </div>
+            </div>
+
+            <ScrollArea className="min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:block!">
+                <nav aria-label="Course syllabus" className="p-2">
+                    {isLoading ? (
+                        <div className="space-y-3 p-2">
+                            {[0, 1, 2].map((index) => (
+                                <div key={index} className="space-y-2">
+                                    <Skeleton className="h-4 w-3/4" />
+                                    <Skeleton className="h-3 w-full" />
+                                    <Skeleton className="h-3 w-5/6" />
+                                </div>
+                            ))}
+                        </div>
+                    ) : isError ? (
+                        <ErrorReload data={error} refetch={refetch} compact />
+                    ) : data?.modules?.length > 0 ? (
+                        <ol className="list-none space-y-1">
+                            {data.modules.map((module, index) => {
+                                const isModuleOpen = selectedData?.module === module.id;
+                                const lessons = module.lessons || [];
+                                const completedInModule = lessons.filter(l => l.status === 'completed').length;
+
+                                return (
+                                    <li key={module.id || index}>
+                                        <Collapsible
+                                            open={isModuleOpen}
+                                            onOpenChange={(open) => setSelectedData(prev => ({
+                                                ...prev,
+                                                module: open ? module.id : null,
+                                            }))}
+                                        >
+                                            <CollapsibleTrigger className="group flex w-full items-start gap-2 rounded-md px-2 py-2 text-left hover:bg-sidebar-accent">
+                                                <LuChevronRight
+                                                    className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-90"
+                                                    aria-hidden="true"
+                                                />
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="block font-mono text-[11px] text-muted-foreground">
+                                                        Chapter {pad(index + 1)}
+                                                    </span>
+                                                    <span className="block text-[13px] leading-snug font-medium text-foreground">
+                                                        {module.title}
+                                                    </span>
+                                                </span>
+                                                <span className="mt-0.5 shrink-0 font-mono text-[11px] text-muted-foreground tabular">
+                                                    {completedInModule}/{lessons.length}
+                                                </span>
+                                            </CollapsibleTrigger>
+
+                                            <CollapsibleContent>
+                                                <ul className="mt-0.5 mb-1.5 list-none space-y-0.5 pl-4">
+                                                    {lessons.map((lesson, lIndex) => {
+                                                        const isCurrent = selectedData?.lesson === lesson.id;
+                                                        const overallIndex = allLessons.findIndex(l => l.id === lesson.id);
+                                                        const isLocked = !isLessonUnlocked(lesson, overallIndex);
+                                                        const hasChallenges = lesson.challenges?.length > 0;
+                                                        const challengeKind = lesson.challenges?.some(c => c?.type && c.type !== 'quiz') ? 'Code' : 'Quiz';
+
+                                                        return (
+                                                            <li key={lesson.id || lIndex}>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => !isLocked && onSelectLesson(lesson, module.id)}
+                                                                    disabled={isLocked}
+                                                                    aria-current={isCurrent ? 'step' : undefined}
+                                                                    title={isLocked ? 'Complete the previous lesson to unlock this one.' : lesson.title}
+                                                                    className={cn(
+                                                                        'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:bg-transparent',
+                                                                        isCurrent && 'bg-sidebar-accent font-medium text-sidebar-foreground'
+                                                                    )}
+                                                                >
+                                                                    <LessonStatusIcon status={lesson.status} locked={isLocked} />
+                                                                    <span className="w-5 shrink-0 font-mono text-[11px] text-muted-foreground tabular">
+                                                                        {pad(lIndex + 1)}
+                                                                    </span>
+                                                                    <span className="min-w-0 flex-1 truncate">{lesson.title}</span>
+                                                                    {hasChallenges && (
+                                                                        <Badge variant="outline" className="h-4 px-1 font-mono text-[10px] text-muted-foreground">
+                                                                            {challengeKind}
+                                                                        </Badge>
+                                                                    )}
+                                                                    <span className="sr-only">
+                                                                        {isLocked ? '(locked)' : lesson.status === 'completed' ? '(completed)' : lesson.status === 'in_progress' ? '(in progress)' : ''}
+                                                                    </span>
+                                                                </button>
+                                                            </li>
+                                                        );
+                                                    })}
+                                                </ul>
+                                            </CollapsibleContent>
+                                        </Collapsible>
+                                    </li>
+                                );
+                            })}
+                        </ol>
+                    ) : (
+                        <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+                            No chapters have been published for this course yet.
+                        </p>
+                    )}
+                </nav>
+            </ScrollArea>
+        </div>
+    );
+}
 
 export default function StudyingPage({ params }) {
     const { navigateBack, navigate } = useRouterActions();
     const { status } = useSession();
-    const { overlay, setOverlay } = useApp();
     const viewport = useViewport();
-    const isMobile = viewport.width > 0 && viewport.width <= 1024;
+    const isCompact = viewport.width > 0 && viewport.width < 1024;
 
-    const [desktopSlider, setDesktopSlider] = useState(true);
+    const [desktopSyllabus, setDesktopSyllabus] = useState(true);
+    const [mobileSyllabus, setMobileSyllabus] = useState(false);
+    const [detailsOpen, setDetailsOpen] = useState(false);
     const [isNavigating, startTransition] = useTransition();
-
-    const isSliderOpen = isMobile ? overlay === 'slider' : desktopSlider;
-    const isViewOpen = overlay === 'view';
-
-    const handleToggleSlider = () => {
-        if (isMobile) {
-            setOverlay(prev => prev === 'slider' ? null : 'slider');
-        } else {
-            setDesktopSlider(prev => !prev);
-        }
-    };
-
-    const handleCloseSlider = () => {
-        if (isMobile) {
-            setOverlay(null);
-        } else {
-            setDesktopSlider(false);
-        }
-    };
-
-    const handleToggleView = () => {
-        setOverlay(prev => prev === 'view' ? null : 'view');
-    };
-
-    const handleCloseView = () => {
-        setOverlay(null);
-    };
-
-    useEffect(() => {
-        if (!isMobile) {
-            setOverlay(null);
-        }
-    }, [isMobile]);
-
-    useEffect(() => {
-        return () => {
-            setOverlay(null);
-        };
-    }, [setOverlay]);
 
     const {
         data,
@@ -140,6 +285,11 @@ export default function StudyingPage({ params }) {
         }
     }, [dataUpdatedAt]);
 
+    // Leaving the compact layout closes the syllabus sheet.
+    useEffect(() => {
+        if (!isCompact) setMobileSyllabus(false);
+    }, [isCompact]);
+
     const isLessonUnlocked = (lesson, indexInAll) => {
         if (!lesson) return false;
         // First lesson of the whole course is always unlocked
@@ -159,9 +309,7 @@ export default function StudyingPage({ params }) {
             status: lesson.status,
         });
 
-        if (isMobile) {
-            setOverlay(null);
-        }
+        setMobileSyllabus(false);
     };
 
     const currentLessonIndex = allLessons.findIndex(l => l.id === selectedData?.lesson);
@@ -175,86 +323,126 @@ export default function StudyingPage({ params }) {
     const isNextUnlocked = nextLesson ? isLessonUnlocked(nextLesson, currentLessonIndex + 1) : false;
     const isCurrentLessonLocked = selectedData ? !isLessonUnlocked(selectedData, currentLessonIndex) : false;
 
-    const handleNavigate = (path) => {
-        if (!path) return;
-        startTransition(() => {
-            navigate({ path: path.path });
-        });
-    };
+    const currentModuleIndex = data?.modules?.findIndex(m => m.id === currentLesson?.module_id) ?? -1;
 
     const handleBack = () => {
         if (typeof window !== 'undefined' && window.history.length > 1) {
-            navigateBack();
+            navigateBack('/learning');
         } else {
             navigate({ path: '/learning' });
         }
     };
 
+    const handleToggleSyllabus = () => {
+        if (isCompact) {
+            setMobileSyllabus(prev => !prev);
+        } else {
+            setDesktopSyllabus(prev => !prev);
+        }
+    };
+
+    const isSyllabusVisible = isCompact ? mobileSyllabus : desktopSyllabus;
+
+    const syllabusProps = {
+        data,
+        isLoading,
+        isError,
+        error,
+        refetch,
+        isFetching,
+        allLessons,
+        selectedData,
+        setSelectedData,
+        isLessonUnlocked,
+        onSelectLesson: handleSelectLesson,
+        completedLessonsCount,
+        totalLessonsCount,
+    };
+
     return (
-        <div id="studying_page_layout">
-            {/* Top Navigation Bar */}
-            <nav className="nav_layout_params">
-                <div className="nav_layout_heading">
-                    <button
-                        onClick={handleBack}
-                        title="Back to courses"
-                        aria-label="Back to courses"
-                        className="btn-nav-back"
-                    >
-                        <FaAngleLeft fontSize={18} />
-                    </button>
+        <div className="flex h-dvh w-full min-w-0 flex-col bg-background">
+            {/* Workspace bar */}
+            <header className="flex h-12 shrink-0 items-center gap-2 border-b px-2 sm:px-3">
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon-sm" onClick={handleBack} aria-label="Back to my learning">
+                            <LuArrowLeft />
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">Back to my learning</TooltipContent>
+                </Tooltip>
 
-                    <div className="nav-course-brand">
-                        <img
-                            src={data?.language_logo || '/image/static/no_image.png'}
-                            alt={data?.title || 'Course'}
-                            onError={(e) => {
-                                e.target.onerror = null;
-                                e.target.src = '/image/static/no_image.png';
-                            }}
-                        />
-                        <div className="nav-course-titles">
-                            <h3>{data?.title || (isLoading ? 'Loading course...' : 'Course')}</h3>
-                            {totalLessonsCount > 0 && (
-                                <span className="nav-course-meta">
-                                    {completedLessonsCount}/{totalLessonsCount} completed ({progressPercent}%)
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                </div>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={handleToggleSyllabus}
+                            aria-label={isSyllabusVisible ? 'Hide syllabus' : 'Show syllabus'}
+                            aria-pressed={isSyllabusVisible}
+                        >
+                            {isSyllabusVisible ? <LuPanelLeftClose /> : <LuPanelLeftOpen />}
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">{isSyllabusVisible ? 'Hide syllabus' : 'Show syllabus'}</TooltipContent>
+                </Tooltip>
 
-                <div className="nav_layout_handler">
-                    <button
-                        onClick={handleToggleView}
-                        className={`btn-nav-action ${isViewOpen ? 'active' : ''}`}
-                        title="Course Information"
-                        aria-label="Course Information"
-                    >
-                        <MdInfoOutline fontSize={20} />
-                    </button>
+                <Separator orientation="vertical" className="mx-1 data-[orientation=vertical]:h-4" />
 
-                    <button
-                        className={`lesson_view_btn btn-nav-action ${isSliderOpen ? 'active' : ''}`}
-                        onClick={handleToggleSlider}
-                        title={isSliderOpen ? "Collapse Syllabus" : "Expand Syllabus"}
-                        aria-label="Toggle Syllabus"
-                    >
-                        <IoMdList fontSize={20} />
-                    </button>
-                </div>
-            </nav>
-
-            {/* Main Content Area */}
-            <div id="course_param_content">
-                {/* Lesson Body Area */}
-                <div className="lesson_view">
+                <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                        src={data?.language_logo || '/image/static/default.svg'}
+                        alt=""
+                        width={18}
+                        height={18}
+                        className="size-[18px] shrink-0 object-contain max-sm:hidden"
+                        onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = '/image/static/default.svg';
+                        }}
+                    />
                     {isLoading ? (
-                        <div className="lesson-loading-wrapper">
-                            <LoadingContent message="Loading lesson material..." />
+                        <Skeleton className="h-4 w-48" />
+                    ) : (
+                        <h1 className="truncate text-sm font-semibold" title={data?.title}>
+                            {data?.title || 'Course'}
+                        </h1>
+                    )}
+                    {totalLessonsCount > 0 && (
+                        <div className="ml-2 hidden shrink-0 items-center gap-2 md:flex">
+                            <Progress value={progressPercent} className="h-1.5 w-28 bg-muted" aria-label="Course progress" />
+                            <span className="font-mono text-xs text-muted-foreground tabular">
+                                {completedLessonsCount}/{totalLessonsCount} &middot; {progressPercent}%
+                            </span>
+                        </div>
+                    )}
+                </div>
+
+                <Button variant="ghost" size="sm" onClick={() => setDetailsOpen(true)} className="text-muted-foreground hover:text-foreground">
+                    <LuInfo />
+                    <span className="max-sm:sr-only">Course details</span>
+                </Button>
+            </header>
+
+            <div className="flex min-h-0 flex-1">
+                {!isCompact && desktopSyllabus && (
+                    <aside className="w-72 shrink-0 border-r bg-sidebar xl:w-80" aria-label="Syllabus panel">
+                        <SyllabusPanel {...syllabusProps} />
+                    </aside>
+                )}
+
+                <main className="min-w-0 flex-1">
+                    {isLoading ? (
+                        <div className="mx-auto w-full max-w-3xl space-y-4 px-5 py-10 sm:px-8">
+                            <Skeleton className="h-3 w-40" />
+                            <Skeleton className="h-9 w-3/4" />
+                            <Skeleton className="h-4 w-full" />
+                            <Skeleton className="h-4 w-5/6" />
+                            <Skeleton className="mt-6 h-40 w-full" />
                         </div>
                     ) : isError ? (
-                        <div className="lesson-error-wrapper">
+                        <div className="mx-auto w-full max-w-3xl px-5 py-10 sm:px-8">
                             <ErrorReload data={error} refetch={refetch} />
                         </div>
                     ) : (
@@ -270,238 +458,108 @@ export default function StudyingPage({ params }) {
                             isNextUnlocked={isNextUnlocked}
                             onSelectLesson={(lesson) => handleSelectLesson(lesson, lesson.module_id)}
                             challenges={currentLesson?.challenges || []}
+                            moduleLabel={currentModuleIndex >= 0 ? `Chapter ${pad(currentModuleIndex + 1)}` : null}
+                            moduleTitle={currentLesson?.module_title}
+                            lessonPosition={currentLessonIndex >= 0 ? `${currentLessonIndex + 1} of ${totalLessonsCount}` : null}
                         />
                     )}
-                </div>
+                </main>
+            </div>
 
-                {/* Course Syllabus Sidebar */}
-                <aside className={`slider ${isSliderOpen ? 'active' : ''}`}>
-                    <div className="sidebar-header">
-                        <div className="sidebar-header-title">
-                            <IoMdList fontSize={18} />
-                            <h4>Course Syllabus</h4>
-                        </div>
-                        <span className="sidebar-progress-badge">
-                            {completedLessonsCount}/{totalLessonsCount} done
-                        </span>
-                    </div>
+            {/* Syllabus on tablets and phones */}
+            <Sheet open={isCompact && mobileSyllabus} onOpenChange={setMobileSyllabus}>
+                <SheetContent
+                    side="left"
+                    showCloseButton={false}
+                    className="w-[min(20rem,88vw)] gap-0 bg-sidebar p-0"
+                    onOpenAutoFocus={(event) => {
+                        // Land on the current lesson instead of the first toolbar
+                        // button, which would also pop its tooltip.
+                        const current = event.currentTarget?.querySelector?.('[aria-current="step"]');
+                        if (current) {
+                            event.preventDefault();
+                            current.focus();
+                        }
+                    }}
+                >
+                    <SheetHeader className="sr-only">
+                        <SheetTitle>Course syllabus</SheetTitle>
+                        <SheetDescription>Chapters and lessons in this course.</SheetDescription>
+                    </SheetHeader>
+                    <SyllabusPanel {...syllabusProps} onClose={() => setMobileSyllabus(false)} />
+                </SheetContent>
+            </Sheet>
 
-                    <div className="course_slider">
+            {/* Course details */}
+            <Sheet open={detailsOpen} onOpenChange={setDetailsOpen}>
+                <SheetContent side="right" className="w-[min(26rem,92vw)] gap-0">
+                    <SheetHeader className="border-b">
+                        <SheetTitle>Course details</SheetTitle>
+                        <SheetDescription>Overview of what this course covers and your progress.</SheetDescription>
+                    </SheetHeader>
+
+                    <div className="flex-1 space-y-6 overflow-y-auto p-4">
                         {isLoading ? (
-                            <LoadingContent scale={0.7} message="Loading modules..." />
-                        ) : isError ? (
-                            <ErrorReload data={error} refetch={refetch} />
-                        ) : (
-                            <div className="frame_slider">
-                                {data?.modules && data?.modules.length > 0 ? (
-                                    data.modules.map((item, index) => {
-                                        const isModuleOpen = selectedData?.module === item.id;
-                                        const completedInModule = (item.lessons || []).filter(l => l.status === 'completed').length;
-
-                                        return (
-                                            <section
-                                                key={item.id || index}
-                                                className={`module ${isModuleOpen ? 'target selected' : ''}`}
-                                            >
-                                                <button
-                                                    type="button"
-                                                    className="module_heading"
-                                                    onClick={() => setSelectedData(prev => ({
-                                                        ...prev,
-                                                        module: prev?.module === item.id ? null : item.id
-                                                    }))}
-                                                    aria-expanded={isModuleOpen}
-                                                >
-                                                    <div className="module_header">
-                                                        <span className="chapter-pill">Chapter {index + 1}</span>
-                                                        <span className="chapter-count">
-                                                            {completedInModule}/{item.lessons?.length || 0}
-                                                        </span>
-                                                        <div className="icon_module">
-                                                            <FaAngleRight />
-                                                        </div>
-                                                    </div>
-                                                    <h4 className="module_title">{item.title}</h4>
-                                                </button>
-
-                                                <div
-                                                    className="lessons"
-                                                    style={{
-                                                        maxHeight: isModuleOpen ? `${(item.lessons?.length || 1) * 75 + 30}px` : '0px',
-                                                        opacity: isModuleOpen ? 1 : 0
-                                                    }}
-                                                >
-                                                    {item.lessons?.map((lesson, lIndex) => {
-                                                        const isCurrent = selectedData?.lesson === lesson.id;
-                                                        const isCompleted = lesson.status === 'completed';
-                                                        const isInProgress = lesson.status === 'in_progress';
-                                                        const overallIndex = allLessons.findIndex(l => l.id === lesson.id);
-                                                        const isUnlocked = isLessonUnlocked(lesson, overallIndex);
-                                                        const isLocked = !isUnlocked;
-
-                                                        return (
-                                                            <div
-                                                                key={lesson.id || lIndex}
-                                                                className={`lesson ${isCurrent ? 'target' : ''} ${lesson.status || 'enrolled'} ${isLocked ? 'locked disabled' : ''}`}
-                                                            >
-                                                                <span
-                                                                    className={`target_lesson status-${isLocked ? 'enrolled' : (lesson.status || 'enrolled')}`}
-                                                                    title={isCompleted ? 'Completed' : isInProgress ? 'In Progress' : 'Locked'}
-                                                                >
-                                                                    {isCompleted ? (
-                                                                        <FaCheck fontSize={12} />
-                                                                    ) : isInProgress ? (
-                                                                        <FaPlay fontSize={10} />
-                                                                    ) : (
-                                                                        <FaLock fontSize={10} />
-                                                                    )}
-                                                                </span>
-                                                                <button
-                                                                    type="button"
-                                                                    className="lesson_title"
-                                                                    onClick={() => !isLocked && handleSelectLesson(lesson, item.id)}
-                                                                    disabled={isLocked}
-                                                                    aria-disabled={isLocked}
-                                                                    title={isLocked ? "Lesson is locked. Complete the previous lesson to unlock." : lesson.title}
-                                                                >
-                                                                    <span className="lesson_number">{lIndex + 1}.</span>
-                                                                    <span className="lesson_name">{lesson.title}</span>
-                                                                    {lesson.challenges && lesson.challenges.length > 0 && (
-                                                                        <span className="lesson-challenge-chip" title={`${lesson.challenges.length} Quiz available`}>
-                                                                            <MdOutlineQuiz fontSize={11} />
-                                                                            <span>Quiz</span>
-                                                                        </span>
-                                                                    )}
-                                                                    {isLocked && <FaLock className="lesson_lock_badge" fontSize={10} aria-hidden="true" />}
-                                                                </button>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </section>
-                                        );
-                                    })
-                                ) : (
-                                    <p className="no_data">No modules available for this course yet.</p>
-                                )}
+                            <div className="space-y-3">
+                                <Skeleton className="h-10 w-10 rounded-md" />
+                                <Skeleton className="h-5 w-3/4" />
+                                <Skeleton className="h-16 w-full" />
                             </div>
+                        ) : isError ? (
+                            <ErrorReload data={error} refetch={refetch} compact />
+                        ) : data ? (
+                            <>
+                                <div className="space-y-3">
+                                    <span className="flex size-10 items-center justify-center rounded-md border bg-background">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                            src={data?.language_logo || '/image/static/default.svg'}
+                                            alt=""
+                                            width={24}
+                                            height={24}
+                                            className="size-6 object-contain"
+                                            onError={(e) => {
+                                                e.currentTarget.onerror = null;
+                                                e.currentTarget.src = '/image/static/default.svg';
+                                            }}
+                                        />
+                                    </span>
+                                    <h2 className="text-lg font-semibold tracking-tight">{data?.title}</h2>
+                                    <p className="text-sm leading-relaxed text-muted-foreground">
+                                        {data?.description || data?.concept || 'No description has been written for this course yet.'}
+                                    </p>
+                                </div>
+
+                                <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border">
+                                    {[
+                                        { label: 'Chapters', value: data?.modules?.length || 0 },
+                                        { label: 'Lessons', value: totalLessonsCount },
+                                        { label: 'Challenges', value: totalChallengesCount },
+                                        { label: 'Completed', value: `${progressPercent}%` },
+                                    ].map((stat) => (
+                                        <div key={stat.label} className="bg-background px-3 py-2.5">
+                                            <dt className="text-xs text-muted-foreground">{stat.label}</dt>
+                                            <dd className="font-mono text-lg font-medium tabular">{stat.value}</dd>
+                                        </div>
+                                    ))}
+                                </dl>
+                            </>
+                        ) : (
+                            <p className="text-sm text-muted-foreground">Course data is not available.</p>
                         )}
                     </div>
 
-                    <div className="footer_slider">
-                        <button
-                            id="handle_slider"
-                            type="button"
-                            onClick={handleCloseSlider}
-                            title="Collapse sidebar"
+                    <SheetFooter className="border-t">
+                        <Button
+                            onClick={() => startTransition(() => navigate({ path: `/course/${data?.id}` }))}
+                            disabled={isNavigating || isLoading || !data?.id}
                         >
-                            <TbLayoutSidebarRightCollapse fontSize={18} />
-                            <span>Collapse</span>
-                        </button>
-                        <button
-                            id="reload_slider"
-                            type="button"
-                            onClick={() => refetch()}
-                            title="Refresh progress"
-                            aria-label="Refresh course progress"
-                            disabled={isFetching}
-                        >
-                            <TbReload fontSize={18} className={isFetching ? 'spin-anim' : ''} />
-                        </button>
-                    </div>
-                </aside>
-
-                {/* Course Info Drawer / Modal */}
-                <div
-                    id="view_state"
-                    className={isViewOpen ? 'open' : ''}
-                    role="dialog"
-                    aria-label="Course information"
-                >
-                    <div className="view_state_header">
-                        <h4>Course Details</h4>
-                        <button
-                            type="button"
-                            className="btn-view-close"
-                            onClick={handleCloseView}
-                            aria-label="Close details"
-                        >
-                            <MdOutlineClose fontSize={20} />
-                        </button>
-                    </div>
-
-                    {isLoading ? (
-                        <LoadingContent message="Loading course data..." />
-                    ) : isError ? (
-                        <ErrorReload data={error} refetch={refetch} />
-                    ) : data ? (
-                        <>
-                            <div className="view_course">
-                                <div className="view_course_logo">
-                                    <img
-                                        src={data?.language_logo || '/image/static/no_image.png'}
-                                        alt={data?.title || 'Course'}
-                                        onError={(e) => {
-                                            e.target.onerror = null;
-                                            e.target.src = '/image/static/no_image.png';
-                                        }}
-                                    />
-                                </div>
-                                <h2>{data?.title}</h2>
-                                <p>{data?.description || data?.concept || "No full description provided."}</p>
-
-                                <div className="view_course_stats">
-                                    <div className="stat_box">
-                                        <span className="stat_val">{data?.modules?.length || 0}</span>
-                                        <span className="stat_lbl">Chapters</span>
-                                    </div>
-                                    <div className="stat_box">
-                                        <span className="stat_val">{totalLessonsCount}</span>
-                                        <span className="stat_lbl">Lessons</span>
-                                    </div>
-                                    {totalChallengesCount > 0 && (
-                                        <div className="stat_box">
-                                            <span className="stat_val">{totalChallengesCount}</span>
-                                            <span className="stat_lbl">Quizzes</span>
-                                        </div>
-                                    )}
-                                    <div className="stat_box">
-                                        <span className="stat_val">{progressPercent}%</span>
-                                        <span className="stat_lbl">Done</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="footer_view">
-                                <button
-                                    type="button"
-                                    className="btn-close-drawer"
-                                    onClick={handleCloseView}
-                                >
-                                    Close
-                                </button>
-                                <button
-                                    type="button"
-                                    className="btn-more-info"
-                                    onClick={() => handleNavigate({ path: `/course/${data?.id}` })}
-                                    disabled={isNavigating || isLoading}
-                                >
-                                    {isNavigating ? (
-                                        <LoadingContent scale={0.4} color='var(--white)' />
-                                    ) : (
-                                        <>
-                                            <BiMessageSquareDetail fontSize={18} />
-                                            <span>Course Overview</span>
-                                        </>
-                                    )}
-                                </button>
-                            </div>
-                        </>
-                    ) : (
-                        <p className="no_data">Unable to load course data.</p>
-                    )}
-                </div>
-            </div>
+                            {isNavigating ? <LuLoaderCircle className="animate-spin" /> : <LuExternalLink />}
+                            Open course page
+                        </Button>
+                    </SheetFooter>
+                </SheetContent>
+            </Sheet>
         </div>
     );
 }

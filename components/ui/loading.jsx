@@ -1,78 +1,49 @@
 'use client'
 import { useState, useEffect } from "react"
+import Image from "next/image"
 
-export function LoadingRedirect({ scale }) {
+import { Spinner } from "@/components/shadcn/spinner"
+
+// Full-page fallback shown while a route segment loads.
+export function LoadingRedirect() {
     const [message, setMessage] = useState(null);
-    const [onChange, setOnChange] = useState(false);
-
-    const message_timer = (message, delay) => {
-        const timer = setTimeout(() => {
-            setMessage(message)
-        }, delay)
-
-        return () => clearTimeout(timer)
-    }
 
     useEffect(() => {
-        message_timer("Redirecting...", 5000)
-        message_timer("Still redirecting...", 10000)
-        message_timer("Waiting...", 15000)
-    }, [])
-
-    useEffect(() => {
-        setOnChange(true)
-
-        const timer = setTimeout(() => {
-            setOnChange(false)
-        }, 200)
-
-        return () => clearTimeout(timer)
-    }, [message])
+        const timers = [
+            setTimeout(() => setMessage("Still loading..."), 5000),
+            setTimeout(() => setMessage("This is taking longer than usual."), 12000),
+        ];
+        return () => timers.forEach(clearTimeout);
+    }, []);
 
     return (
-        <div id='loadRedirect'>
-            <div id="redrect_loader" style={scale && { scale: scale }}>
-                <svg className="logo_svg" viewBox="-5 -5 110 95">
-                    <polygon
-                        className="triangle"
-                        points="50,0 0,85 100,85" />
-                </svg>
-            </div>
-            <div
-                id="redirect_message"
-            >
-                <p
-                    style={
-                        onChange ?
-                            {
-                                transform: 'translateY(30px)',
-                                opacity: 0,
-                                transition: '0.2s all ease'
-                            }
-                            :
-                            {
-                                transform: 'translateY(0px)',
-                                opacity: 1,
-                                transition: '0.2s all ease'
-                            }
-                    }
-                >
-                    {message ?? ''}
-                </p>
-            </div>
-        </div >
+        <div className="flex h-dvh w-full flex-col items-center justify-center gap-4 bg-background" role="status" aria-live="polite">
+            <Image src="/image/static/logo.svg" alt="" width={28} height={28} className="size-7 opacity-90" priority />
+            <Spinner className="size-5 text-primary" aria-hidden="true" />
+            <p className="min-h-5 text-sm text-muted-foreground">
+                {message ?? <span className="sr-only">Loading CodeDev</span>}
+            </p>
+        </div>
     )
 }
 
-export function LoadingContent({ scale = 1, color = 'var(--color-primary)', message = null }) {
+// Inline loading state. `scale` and `color` are kept for existing callers
+// (buttons pass a light colour on dark fills).
+export function LoadingContent({ scale = 1, color, message = null }) {
+    const size = Math.max(12, Math.round(24 * scale));
+
     return (
-        <div className="loading-container">
-            <div className="loading-spinner" style={{ transform: `scale(${scale})` }}>
-                <svg viewBox="0 0 50 50">
-                    <circle cx="25" cy="25" r="20" fill="none" strokeWidth="4" style={{ stroke: color }} />
-                </svg>
-            </div>
-            {message && <p className="loading-message">{message}</p>}
+        <div className="flex flex-col items-center justify-center gap-2" role="status" aria-live="polite">
+            <Spinner
+                aria-hidden="true"
+                className={color ? undefined : "text-primary"}
+                style={{ width: size, height: size, color }}
+            />
+            {message ? (
+                <p className="text-sm text-muted-foreground">{message}</p>
+            ) : (
+                <span className="sr-only">Loading</span>
+            )}
         </div>
     )
 }

@@ -1,23 +1,62 @@
-import { useState, useTransition } from "react"
+'use client'
+import { useRef, useState, useTransition } from "react"
+import Link from "next/link"
+
 import { useRouterActions } from "@/router/useRouterActions"
 import { useCourseWithdraw, useCourseFavorite, useCourseUnfavorite } from "@/mutations/course.mutation"
-import { LoadingContent } from "../ui/loading"
-import { levelMapping, progressMapping } from "@/constants/constants"
-import Link from "next/link"
+import { levelMapping } from "@/constants/constants"
 import { useApp } from "@/contexts/appContext"
 
-import { FaGraduationCap, FaCode, FaPlay } from "react-icons/fa"
-import { MdCategory } from "react-icons/md"
-import { GoHeartFill } from "react-icons/go"
-import { IoSettingsSharp, IoTrashBin, IoClose, IoReload, IoArchive } from "react-icons/io5"
-import { VscDebugContinue } from "react-icons/vsc"
-import { BiDetail } from "react-icons/bi"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/shadcn/alert-dialog"
+import { Badge } from "@/components/shadcn/badge"
+import { Button, buttonVariants } from "@/components/shadcn/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/shadcn/dropdown-menu"
+import { Progress } from "@/components/shadcn/progress"
+import { TableCell, TableRow } from "@/components/shadcn/table"
 
-import "@/styles/learning/course.css"
+import {
+    LuArrowRight,
+    LuEllipsis,
+    LuFileText,
+    LuHeart,
+    LuLoaderCircle,
+    LuPlay,
+    LuRotateCcw,
+    LuTrash2,
+} from "react-icons/lu"
+
+// Status is always shown as a tinted badge with a text label, never colour alone.
+export const COURSE_STATUS = {
+    enrolled: { label: 'Not started', variant: 'muted' },
+    in_progress: { label: 'In progress', variant: 'primary' },
+    completed: { label: 'Completed', variant: 'success' },
+    paused: { label: 'Paused', variant: 'warning' },
+    dropped: { label: 'Dropped', variant: 'destructive' },
+}
+
+const PRIMARY_ACTION = {
+    enrolled: { label: 'Start', Icon: LuPlay },
+    completed: { label: 'Review', Icon: LuRotateCcw },
+}
 
 export default function LearningCourse({ item }) {
-    const [openSetting, setOpenSetting] = useState(false)
-    const [formConfirm, setFormConfirm] = useState(null)
+    const [confirmOpen, setConfirmOpen] = useState(false)
+    const menuButtonRef = useRef(null)
     const [isNavigating, startTransition] = useTransition()
 
     const { showAlert: alert } = useApp()
@@ -33,26 +72,30 @@ export default function LearningCourse({ item }) {
         ? Math.min(100, Math.max(0, Math.round((completedLessons / totalLessons) * 100)))
         : 0
 
-    const isArchived = item.status !== 'enrolled'
+    // Only a course that has not been started can be withdrawn.
+    const canWithdraw = item.status === 'enrolled'
     const isFavorited = Boolean(item.is_favorite)
+    const isFavoritePending = favoriteMutation.isPending || unfavoriteMutation.isPending
 
-    const handleWithdrawCourse = async (e) => {
-        e.preventDefault()
+    const status = COURSE_STATUS[item.status] || { label: 'Unknown', variant: 'muted' }
+    const action = PRIMARY_ACTION[item.status] || { label: 'Continue', Icon: LuArrowRight }
+    const levelLabel = levelMapping[item.level]?.label || 'Unknown'
+
+    const handleWithdrawCourse = async (event) => {
+        // Keep the dialog open until the request settles.
+        event.preventDefault()
 
         try {
             await withdrawMutation.mutateAsync(item.id)
-            alert(200, `Successfully withdrew from course: ${item.title}`)
-            setFormConfirm(null)
-            setOpenSetting(false)
+            alert(200, `Withdrew from ${item.title}.`)
+            setConfirmOpen(false)
         }
         catch (error) {
             alert(500, "An error occurred while withdrawing from the course.")
         }
     }
 
-    const handleFavoriteCourse = async (e) => {
-        e.preventDefault()
-
+    const handleFavoriteCourse = async () => {
         try {
             if (isFavorited) {
                 await unfavoriteMutation.mutateAsync({ courseId: item.id })
@@ -76,236 +119,154 @@ export default function LearningCourse({ item }) {
         })
     }
 
-    const levelLabel = levelMapping[item.level]?.label || 'Unknown'
-
-    const statusBadge = progressMapping[item.status] || { label: 'Unknown', className: 'unknown' }
-
     return (
-        <div className="learning-card">
-            {/* Card Header */}
-            <div className="card-header">
-                <div className="header-left">
-                    <div className="learning-icon">
+        <TableRow className="group/row max-lg:grid max-lg:grid-cols-[minmax(0,1fr)_auto] max-lg:gap-x-3 max-lg:gap-y-2.5 max-lg:px-4 max-lg:py-3.5">
+            {/* Course */}
+            <TableCell className="max-lg:col-span-2 max-lg:p-0 lg:w-full lg:max-w-0 lg:py-3 lg:pl-4">
+                <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                            src={item.language_logo || '/image/static/no_image.png'}
-                            alt={item.language_name || 'Language'}
+                            src={item.language_logo || '/image/static/default.svg'}
+                            alt=""
+                            width={22}
+                            height={22}
+                            className="size-[22px] object-contain"
                             onError={(e) => {
-                                e.target.onerror = null
-                                e.target.src = '/image/static/no_image.png'
+                                e.currentTarget.onerror = null
+                                e.currentTarget.src = '/image/static/default.svg'
                             }}
                         />
-                    </div>
-                    <span className={`status-pill ${statusBadge.className}`}>
-                        {statusBadge.label}
                     </span>
-                </div>
-
-                <button
-                    className={`bookmark-btn ${isFavorited ? 'active' : ''}`}
-                    onClick={handleFavoriteCourse}
-                    title={isFavorited ? "Remove from favorites" : "Add to favorites"}
-                    aria-label="Bookmark course"
-                    disabled={favoriteMutation.isPending || unfavoriteMutation.isPending}
-                >
-                    <GoHeartFill fontSize={16} />
-                </button>
-            </div>
-
-            {/* Card Body */}
-            <div className="card-body">
-                <div className="learning-info">
-                    <h3
-                        className="learning-title"
-                        onClick={handleNavigate}
-                        title={item.title}
-                    >
-                        {item.title}
-                    </h3>
-                    <p className="learning-concept">{item.concept || "No description provided for this course."}</p>
-
-                    <div className="learning-meta">
-                        <span className="meta-item level">
-                            <FaGraduationCap />
-                            <span>{levelLabel}</span>
-                        </span>
-                        {item.language_name && (
-                            <span className="meta-item language">
-                                <FaCode />
-                                <span>{item.language_name}</span>
-                            </span>
-                        )}
-                        {item.category_name && (
-                            <span className="meta-item category">
-                                <MdCategory />
-                                <span>{item.category_name}</span>
-                            </span>
-                        )}
-                    </div>
-                </div>
-
-                {/* Progress Bar & Stats */}
-                <div className="learning-progress">
-                    <div className="progress-header">
-                        <span className="progress-label">Progress</span>
-                        <span className="progress-value">
-                            {progressPercent === 100 ? 'Completed' : `${progressPercent}%`}
-                        </span>
-                    </div>
-                    <div className="progress-bar">
-                        <div
-                            className={`progress-fill ${progressPercent === 100 ? 'fill-completed' : ''}`}
-                            style={{ width: `${progressPercent}%` }}
-                        />
-                    </div>
-                    <span className="progress-detail">
-                        {completedLessons}/{totalLessons} lesson{totalLessons === 1 ? '' : 's'} finished
-                    </span>
-                </div>
-            </div>
-
-            {/* Card Footer Actions */}
-            <div className="card-footer">
-                {openSetting ? (
-                    <div className="setting-actions">
-                        {isArchived ? (
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
                             <button
-                                className="btn_action btn-archived"
-                                disabled={withdrawMutation.isPending}
-                                onClick={(e) => e.stopPropagation()}
+                                type="button"
+                                onClick={handleNavigate}
+                                className="min-h-6 truncate rounded-sm text-left text-sm font-semibold text-foreground hover:text-primary hover:underline hover:underline-offset-4"
+                                title={item.title}
                             >
-                                <IoArchive />
-                                <span>Archived</span>
+                                {item.title}
                             </button>
-                        ) : (
-                            <button
-                                className="btn_action btn-withdraw"
-                                disabled={withdrawMutation.isPending}
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    setFormConfirm('withdraw')
-                                }}
-                            >
-                                {withdrawMutation.isPending ? (
-                                    <LoadingContent scale={0.4} color={"var(--white)"} />
-                                ) : (
-                                    <>
-                                        <IoTrashBin />
-                                        <span>Withdraw</span>
-                                    </>
-                                )}
-                            </button>
-                        )}
-                        <button
-                            className="btn-close"
-                            title="Close settings"
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                setOpenSetting(false)
-                                setFormConfirm(null)
-                            }}
-                        >
-                            <IoClose fontSize={20} />
-                        </button>
-                    </div>
-                ) : (
-                    <div className="main-actions">
-                        <button
-                            className="btn-join"
-                            disabled={withdrawMutation.isPending || isNavigating}
-                            onClick={handleNavigate}
-                        >
-                            {isNavigating ? (
-                                <LoadingContent scale={0.5} color={"var(--white)"} />
-                            ) : (
-                                (() => {
-                                    if (item.status === 'enrolled') {
-                                        return (
-                                            <>
-                                                <FaPlay fontSize={12} />
-                                                <span>Start Learning</span>
-                                            </>
-                                        )
-                                    }
-                                    if (item.status === 'completed') {
-                                        return (
-                                            <>
-                                                <IoReload fontSize={16} />
-                                                <span>Review Course</span>
-                                            </>
-                                        )
-                                    }
-                                    return (
-                                        <>
-                                            <VscDebugContinue fontSize={17} />
-                                            <span>Continue</span>
-                                        </>
-                                    )
-                                })()
+                            {isFavorited && (
+                                <LuHeart className="size-3.5 shrink-0 fill-destructive text-destructive" aria-label="Favorite" />
                             )}
-                        </button>
-
-                        <Link
-                            href={`/course/${item.id}`}
-                            className="btn-preview"
-                            title="View Course Syllabus & Details"
-                            aria-label="Course preview"
-                        >
-                            <BiDetail fontSize={18} />
-                        </Link>
-
-                        <button
-                            className="btn-settings"
-                            disabled={withdrawMutation.isPending}
-                            title="Course Settings"
-                            aria-label="Course options"
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                setOpenSetting(true)
-                            }}
-                        >
-                            <IoSettingsSharp fontSize={16} />
-                        </button>
+                        </div>
+                        <p className="truncate font-mono text-xs text-muted-foreground">
+                            {[item.language_name, item.category_name].filter(Boolean).join(' / ') || 'General'}
+                        </p>
                     </div>
-                )}
-            </div>
-
-            {/* Withdraw Confirmation Modal */}
-            {formConfirm === 'withdraw' && (
-                <div className="confirm-modal">
-                    {withdrawMutation.isPending ? (
-                        <LoadingContent scale={0.8} message="Processing withdrawal..." />
-                    ) : (
-                        <>
-                            <div className="modal-content">
-                                <span className="modal-icon">
-                                    <IoTrashBin />
-                                </span>
-                                <h4>Withdraw Course</h4>
-                                <p>Are you sure you want to withdraw from <strong>{item.title}</strong>? Your progress will be saved.</p>
-                            </div>
-                            <div className="modal-actions">
-                                <button
-                                    className="btn-confirm"
-                                    disabled={withdrawMutation.isPending}
-                                    onClick={handleWithdrawCourse}
-                                >
-                                    Withdraw
-                                </button>
-                                <button
-                                    className="btn-cancel"
-                                    disabled={withdrawMutation.isPending}
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        setFormConfirm(null)
-                                    }}
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        </>
-                    )}
                 </div>
-            )}
-        </div>
+            </TableCell>
+
+            {/* Level */}
+            <TableCell className="text-sm whitespace-nowrap text-muted-foreground max-xl:hidden">
+                {levelLabel}
+            </TableCell>
+
+            {/* Status */}
+            <TableCell className="max-lg:p-0">
+                <Badge variant={status.variant}>{status.label}</Badge>
+            </TableCell>
+
+            {/* Progress */}
+            <TableCell className="max-lg:col-span-2 max-lg:row-start-3 max-lg:p-0">
+                <div className="flex items-center gap-3 lg:w-36 xl:w-44">
+                    <Progress
+                        value={progressPercent}
+                        className="h-1.5 flex-1 bg-muted"
+                        aria-label={`${item.title} progress`}
+                    />
+                    <span className="w-12 shrink-0 text-right font-mono text-xs text-muted-foreground tabular">
+                        {completedLessons}/{totalLessons}
+                    </span>
+                </div>
+            </TableCell>
+
+            {/* Actions */}
+            <TableCell className="max-lg:col-start-2 max-lg:row-start-2 max-lg:p-0 lg:pr-4">
+                <div className="flex items-center justify-end gap-1">
+                    <Button
+                        size="sm"
+                        variant={item.status === 'completed' ? 'outline' : 'default'}
+                        onClick={handleNavigate}
+                        disabled={withdrawMutation.isPending || isNavigating}
+                        className="min-w-24"
+                    >
+                        {isNavigating ? <LuLoaderCircle className="animate-spin" /> : <action.Icon />}
+                        {action.label}
+                    </Button>
+
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                size="icon-sm"
+                                variant="ghost"
+                                ref={menuButtonRef}
+                                className="text-muted-foreground data-[state=open]:bg-accent"
+                                aria-label={`More actions for ${item.title}`}
+                            >
+                                <LuEllipsis />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuItem asChild>
+                                <Link href={`/course/${item.id}`}>
+                                    <LuFileText />
+                                    Course details
+                                </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={handleFavoriteCourse} disabled={isFavoritePending}>
+                                <LuHeart className={isFavorited ? 'fill-current' : undefined} />
+                                {isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                                variant="destructive"
+                                disabled={!canWithdraw || withdrawMutation.isPending}
+                                onSelect={() => setConfirmOpen(true)}
+                            >
+                                <LuTrash2 />
+                                <span className="flex flex-col">
+                                    Withdraw
+                                    {!canWithdraw && (
+                                        <span className="text-xs text-muted-foreground">Only before you start</span>
+                                    )}
+                                </span>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
+
+                <AlertDialog open={confirmOpen} onOpenChange={(open) => !withdrawMutation.isPending && setConfirmOpen(open)}>
+                    <AlertDialogContent
+                        onCloseAutoFocus={(event) => {
+                            // Opened from a menu item, so return focus to the row's menu button.
+                            event.preventDefault()
+                            menuButtonRef.current?.focus()
+                        }}
+                    >
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Withdraw from this course?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                You are about to withdraw from{' '}
+                                <span className="font-medium text-foreground">{item.title}</span>. Your progress will be saved.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel disabled={withdrawMutation.isPending}>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                                className={buttonVariants({ variant: 'destructive' })}
+                                disabled={withdrawMutation.isPending}
+                                onClick={handleWithdrawCourse}
+                            >
+                                {withdrawMutation.isPending && <LuLoaderCircle className="animate-spin" />}
+                                Withdraw
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </TableCell>
+        </TableRow>
     )
 }

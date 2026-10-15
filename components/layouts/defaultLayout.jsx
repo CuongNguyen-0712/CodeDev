@@ -7,7 +7,7 @@ function LayoutContent({ children }) {
     const { alert, clearAlert } = useApp();
 
     return (
-        <section className='default_layout'>
+        <section className='flex h-dvh w-full flex-col overflow-y-auto bg-background'>
             {children}
             <AlertPush
                 message={alert?.message}

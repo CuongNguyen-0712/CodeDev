@@ -1,17 +1,61 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { IoSearch, IoClose, IoCheckmark } from 'react-icons/io5';
-import { HiAdjustmentsHorizontal } from 'react-icons/hi2';
-import { LoadingContent } from './loading';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { debounce } from 'lodash';
+
+import { Badge } from '@/components/shadcn/badge';
+import { Button } from '@/components/shadcn/button';
+import {
+    InputGroup,
+    InputGroupAddon,
+    InputGroupButton,
+    InputGroupInput,
+} from '@/components/shadcn/input-group';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/shadcn/popover';
+import { Separator } from '@/components/shadcn/separator';
+import { Spinner } from '@/components/shadcn/spinner';
+import { ToggleGroup, ToggleGroupItem } from '@/components/shadcn/toggle-group';
+
+import { LuSearch, LuSlidersHorizontal, LuX } from 'react-icons/lu';
+
+const FIELD_LABELS = {
+    price: 'Price',
+    rating: 'Rating',
+    level: 'Level',
+    status: 'Status',
+    type: 'Type',
+    language: 'Language',
+    category: 'Category',
+};
+
+const labelFor = (name) => FIELD_LABELS[name] || (name ? name.charAt(0).toUpperCase() + name.slice(1) : '');
+
+const toArray = (raw) => (Array.isArray(raw)
+    ? raw
+    : raw !== undefined && raw !== null && raw !== ''
+        ? [raw]
+        : []);
+
+const countValues = (filter) => Object.values(filter || {}).reduce((acc, val) => {
+    if (Array.isArray(val)) return acc + val.length;
+    if (val !== undefined && val !== null && val !== '') return acc + 1;
+    return acc;
+}, 0);
+
+// Single-choice fields render as a segmented control with an "Any" option.
+const isSegmentedField = (fieldName, itemsCount) => (
+    fieldName === 'price' ||
+    fieldName === 'rating' ||
+    (itemsCount > 0 && itemsCount <= 6 && (fieldName === 'type' || fieldName === 'bedrooms' || fieldName === 'bathrooms'))
+);
+
+const selectedToggle = "data-[state=on]:border-primary/40 data-[state=on]:bg-primary-soft data-[state=on]:text-primary-soft-foreground";
 
 export default function SearchBar({
     data = [],
     filter: propFilter,
     search: propSearch,
     value: propValue,
-    resultsCount,
     setSearch,
     setFilter,
     pending = false,
@@ -29,12 +73,7 @@ export default function SearchBar({
         const base = {};
         for (const field of filterFields) {
             if (field?.name) {
-                const def = defaultFilter?.[field.name];
-                base[field.name] = Array.isArray(def)
-                    ? def
-                    : def !== undefined && def !== null && def !== ''
-                    ? [def]
-                    : [];
+                base[field.name] = toArray(defaultFilter?.[field.name]);
             }
         }
         return base;
@@ -52,34 +91,26 @@ export default function SearchBar({
         effectiveExternalSearch !== undefined ? effectiveExternalSearch : ''
     );
 
-    const filterCardRef = useRef(null);
-
     // Currently applied filter (source of truth for active results)
     const appliedFilter = useMemo(() => {
         return propFilter !== undefined ? propFilter : state.filter;
     }, [propFilter, state.filter]);
 
-    // Draft / Staging filter state (only applied when user clicks "Show results" / Submit)
+    // Draft filter: edited in the panel, applied on "Apply filters"
     const [draftFilter, setDraftFilter] = useState(appliedFilter);
 
-    // Sync draftFilter whenever appliedFilter changes externally (e.g. from parent prop or reset)
     const appliedFilterKey = useMemo(() => JSON.stringify(appliedFilter || {}), [appliedFilter]);
     useEffect(() => {
         setDraftFilter(appliedFilter);
     }, [appliedFilterKey, appliedFilter]);
 
-    // Safely sync internal state with external controlled propFilter when content changes
     const propFilterKey = useMemo(() => (propFilter ? JSON.stringify(propFilter) : null), [propFilter]);
     useEffect(() => {
         if (propFilter !== undefined) {
-            setState((prev) => ({
-                ...prev,
-                filter: propFilter,
-            }));
+            setState((prev) => ({ ...prev, filter: propFilter }));
         }
     }, [propFilterKey, propFilter]);
 
-    // Safely sync search input text when external search/value prop changes
     useEffect(() => {
         if (effectiveExternalSearch !== undefined && effectiveExternalSearch !== inputValue) {
             setInputValue(effectiveExternalSearch);
@@ -87,7 +118,6 @@ export default function SearchBar({
         }
     }, [effectiveExternalSearch]);
 
-    // Handle debounced search query
     const handleDebounce = useMemo(
         () =>
             debounce((value) => {
@@ -99,11 +129,7 @@ export default function SearchBar({
         [setSearch]
     );
 
-    useEffect(() => {
-        return () => {
-            handleDebounce.cancel();
-        };
-    }, [handleDebounce]);
+    useEffect(() => () => handleDebounce.cancel(), [handleDebounce]);
 
     const handleChange = (e) => {
         const val = e.target.value;
@@ -111,11 +137,7 @@ export default function SearchBar({
         handleDebounce(val);
     };
 
-    const handleClearSearch = (e) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
+    const handleClearSearch = () => {
         setInputValue('');
         handleDebounce.cancel();
         setState((prev) => ({ ...prev, search: '' }));
@@ -124,207 +146,62 @@ export default function SearchBar({
         }
     };
 
-    // Staging filter toggling inside filter card (does NOT trigger parent update until submit)
-    const handleSetDraftFilter = useCallback(
-        (name, val) => {
-            setDraftFilter((prevDraft) => {
-                const rawVals = prevDraft[name];
-                const currentArray = Array.isArray(rawVals)
-                    ? rawVals
-                    : rawVals !== undefined && rawVals !== null && rawVals !== ''
-                    ? [rawVals]
-                    : [];
+    // Replace one field's values in the draft. Values come back from the
+    // toggle group as strings, so map them to the original item values.
+    const setDraftValues = useCallback((field, nextValues) => {
+        const items = Array.isArray(field.items) ? field.items : [];
+        const mapped = nextValues
+            .map((v) => items.find((it) => String(it.value) === String(v))?.value ?? v);
+        setDraftFilter((prev) => ({ ...prev, [field.name]: mapped }));
+    }, []);
 
-                let updatedValues;
+    const emptyFilter = useMemo(() => filterFields.reduce((acc, field) => {
+        if (field?.name) acc[field.name] = [];
+        return acc;
+    }, {}), [filterFields]);
 
-                // Clicking "any" clears the filter field
-                if (val === 'any' || val === null) {
-                    updatedValues = [];
-                } else {
-                    const strVal = String(val);
-                    // Single-select toggle logic for fields like price and rating
-                    if (name === 'price' || name === 'rating') {
-                        updatedValues = currentArray.some((v) => String(v) === strVal)
-                            ? []
-                            : [val];
-                    } else {
-                        updatedValues = currentArray.some((v) => String(v) === strVal)
-                            ? currentArray.filter((v) => String(v) !== strVal)
-                            : [...currentArray, val];
-                    }
-                }
+    const handleResetDraftFilter = () => setDraftFilter(emptyFilter);
 
-                return {
-                    ...prevDraft,
-                    [name]: updatedValues,
-                };
-            });
-        },
-        []
-    );
+    const handleApplyFilter = useCallback(() => {
+        setState((prev) => ({ ...prev, showFilter: false, filter: draftFilter }));
+        if (isFilter && typeof setFilter === 'function') {
+            setFilter(draftFilter);
+        }
+    }, [draftFilter, isFilter, setFilter]);
 
-    // Reset draft filter inside the card (still requires submit to apply)
-    const handleResetDraftFilter = useCallback(
-        (e) => {
-            if (e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
+    const handleCancelFilter = useCallback(() => {
+        setDraftFilter(appliedFilter);
+        setState((prev) => ({ ...prev, showFilter: false }));
+    }, [appliedFilter]);
 
-            const emptyFilter = filterFields.reduce((acc, field) => {
-                if (field?.name) {
-                    acc[field.name] = [];
-                }
-                return acc;
-            }, {});
-
-            setDraftFilter(emptyFilter);
-        },
-        [filterFields]
-    );
-
-    // SUBMIT / APPLY: Confirms draft filter and sends to parent
-    const handleApplyFilter = useCallback(
-        (e) => {
-            if (e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-
-            // 1. Update local applied filter state
-            setState((prev) => ({
-                ...prev,
-                showFilter: false,
-                filter: draftFilter,
-            }));
-
-            // 2. Inform parent component to trigger query updates
-            if (isFilter && typeof setFilter === 'function') {
-                setFilter(draftFilter);
-            }
-        },
-        [draftFilter, isFilter, setFilter]
-    );
-
-    // CANCEL: Discards draft changes, restores applied filter, and closes panel
-    const handleCancelFilter = useCallback(
-        (e) => {
-            if (e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
+    const handleOpenChange = (open) => {
+        if (open) {
             setDraftFilter(appliedFilter);
-            setState((prev) => ({ ...prev, showFilter: false }));
-        },
-        [appliedFilter]
-    );
+            setState((prev) => ({ ...prev, showFilter: true }));
+        } else {
+            handleCancelFilter();
+        }
+    };
 
-    // Directly remove one filter from applied filters (when clicking chip under search bar)
-    const handleRemoveAppliedFilter = useCallback(
-        (name, val) => {
-            const rawVals = appliedFilter[name];
-            const currentArray = Array.isArray(rawVals)
-                ? rawVals
-                : rawVals !== undefined && rawVals !== null && rawVals !== ''
-                ? [rawVals]
-                : [];
-
-            const strVal = String(val);
-            const updatedValues = currentArray.filter((v) => String(v) !== strVal);
-            const nextFilter = {
-                ...appliedFilter,
-                [name]: updatedValues,
-            };
-
-            setState((prev) => ({
-                ...prev,
-                filter: nextFilter,
-            }));
-            setDraftFilter(nextFilter);
-
-            if (isFilter && typeof setFilter === 'function') {
-                setFilter(nextFilter);
-            }
-        },
-        [appliedFilter, isFilter, setFilter]
-    );
-
-    // Directly clear all filters from the active chips bar under search input
-    const handleClearAllAppliedFilters = useCallback(
-        (e) => {
-            if (e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-
-            const emptyFilter = filterFields.reduce((acc, field) => {
-                if (field?.name) {
-                    acc[field.name] = [];
-                }
-                return acc;
-            }, {});
-
-            setState((prev) => ({
-                ...prev,
-                filter: emptyFilter,
-            }));
-            setDraftFilter(emptyFilter);
-
-            if (isFilter && typeof setFilter === 'function') {
-                setFilter(emptyFilter);
-            }
-        },
-        [filterFields, isFilter, setFilter]
-    );
-
-    // Toggle filter panel (initializes draft with current applied filter)
-    const toggleFilterPanel = useCallback(
-        (e) => {
-            if (e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-            setState((prev) => {
-                const nextShow = !prev.showFilter;
-                if (nextShow) {
-                    setDraftFilter(appliedFilter);
-                }
-                return { ...prev, showFilter: nextShow };
-            });
-        },
-        [appliedFilter]
-    );
-
-    // Listen for outside clicks and ESC key to close filter panel (no body overlay)
-    useEffect(() => {
-        if (!state.showFilter) return;
-
-        const handleKeyDown = (e) => {
-            if (e.key === 'Escape') {
-                handleCancelFilter();
-            }
+    const handleRemoveAppliedFilter = useCallback((name, val) => {
+        const nextFilter = {
+            ...appliedFilter,
+            [name]: toArray(appliedFilter[name]).filter((v) => String(v) !== String(val)),
         };
+        setState((prev) => ({ ...prev, filter: nextFilter }));
+        setDraftFilter(nextFilter);
+        if (isFilter && typeof setFilter === 'function') {
+            setFilter(nextFilter);
+        }
+    }, [appliedFilter, isFilter, setFilter]);
 
-        const handleClickOutside = (e) => {
-            if (
-                filterCardRef.current &&
-                !filterCardRef.current.contains(e.target) &&
-                !e.target.closest('.btn-filter-toggle')
-            ) {
-                handleCancelFilter();
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        document.addEventListener('mousedown', handleClickOutside);
-        document.addEventListener('touchstart', handleClickOutside);
-
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-            document.removeEventListener('mousedown', handleClickOutside);
-            document.removeEventListener('touchstart', handleClickOutside);
-        };
-    }, [state.showFilter, handleCancelFilter]);
+    const handleClearAllAppliedFilters = useCallback(() => {
+        setState((prev) => ({ ...prev, filter: emptyFilter }));
+        setDraftFilter(emptyFilter);
+        if (isFilter && typeof setFilter === 'function') {
+            setFilter(emptyFilter);
+        }
+    }, [emptyFilter, isFilter, setFilter]);
 
     const effectiveSubmit = onSubmit || submit;
     const handleSubmit = (e) => {
@@ -344,303 +221,163 @@ export default function SearchBar({
         }
     };
 
-    const totalAppliedFilters = useMemo(() => {
-        return Object.values(appliedFilter).reduce((acc, val) => {
-            if (Array.isArray(val)) {
-                return acc + val.length;
-            }
-            if (val !== undefined && val !== null && val !== '') {
-                return acc + 1;
-            }
-            return acc;
-        }, 0);
-    }, [appliedFilter]);
-
-    const totalDraftFilters = useMemo(() => {
-        return Object.values(draftFilter).reduce((acc, val) => {
-            if (Array.isArray(val)) {
-                return acc + val.length;
-            }
-            if (val !== undefined && val !== null && val !== '') {
-                return acc + 1;
-            }
-            return acc;
-        }, 0);
-    }, [draftFilter]);
+    const totalAppliedFilters = useMemo(() => countValues(appliedFilter), [appliedFilter]);
+    const totalDraftFilters = useMemo(() => countValues(draftFilter), [draftFilter]);
 
     const effectivePlaceholder = placeholder || placeholderText || 'Search...';
-
-    // Helper: Determine if field should be rendered as a segmented pill track
-    const isSegmentedField = (fieldName, itemsCount) => {
-        return (
-            fieldName === 'price' ||
-            fieldName === 'rating' ||
-            (itemsCount > 0 && itemsCount <= 6 && (fieldName === 'type' || fieldName === 'bedrooms' || fieldName === 'bathrooms'))
-        );
-    };
+    const hasFilters = isFilter && filterFields.length > 0;
 
     return (
-        <div className={`search-bar search-bar-container ${state.showFilter ? 'filter-open' : ''} ${className}`}>
-            {/* Main Search Input Form */}
-            <form onSubmit={handleSubmit} role="search" className="search-form">
-                <div className="search-input-wrapper">
-                    <span className="search-icon" aria-hidden="true">
-                        <IoSearch />
-                    </span>
-
-                    <input
-                        type="text"
+        <div className={`flex w-full flex-col gap-2.5 ${className}`}>
+            <form onSubmit={handleSubmit} role="search" className="w-full">
+                <InputGroup className="h-10 bg-background">
+                    <InputGroupAddon aria-hidden="true">
+                        <LuSearch />
+                    </InputGroupAddon>
+                    <InputGroupInput
+                        type="search"
                         name="search"
                         placeholder={effectivePlaceholder}
                         autoComplete="off"
                         value={inputValue}
                         onChange={handleChange}
                         aria-label={effectivePlaceholder}
+                        className="[&::-webkit-search-cancel-button]:hidden"
                     />
+                    <InputGroupAddon align="inline-end">
+                        {pending ? (
+                            <Spinner className="text-muted-foreground" aria-label="Loading results" />
+                        ) : inputValue.length > 0 ? (
+                            <InputGroupButton size="icon-xs" onClick={handleClearSearch} aria-label="Clear search">
+                                <LuX />
+                            </InputGroupButton>
+                        ) : null}
 
-                    {pending ? (
-                        <div className="search-loader" aria-label="Loading results">
-                            <LoadingContent scale={0.35} color="var(--color-primary)" />
-                        </div>
-                    ) : inputValue.length > 0 ? (
-                        <button
-                            type="button"
-                            className="clear-btn"
-                            onClick={handleClearSearch}
-                            title="Clear search text"
-                            aria-label="Clear search text"
-                        >
-                            <IoClose />
-                        </button>
-                    ) : null}
-
-                    {isFilter && filterFields.length > 0 && (
-                        <button
-                            type="button"
-                            className={`filter-toggle ${state.showFilter ? 'active' : ''}`}
-                            onClick={toggleFilterPanel}
-                            title={state.showFilter ? 'Close filters' : 'Open filters'}
-                            aria-expanded={state.showFilter}
-                            aria-label="Toggle filter options"
-                        >
-                            <HiAdjustmentsHorizontal />
-                            <span className="filter-toggle-label">Filters</span>
-                            {totalAppliedFilters > 0 && (
-                                <span className="filter-badge" aria-label={`${totalAppliedFilters} filters applied`}>
-                                    {totalAppliedFilters}
-                                </span>
-                            )}
-                        </button>
-                    )}
-                </div>
-            </form>
-
-            {/* Active Filter Chips Bar (Visible under search bar when filters are applied) */}
-            {isFilter && totalAppliedFilters > 0 && (
-                <div className="active-filters-chips" aria-label="Active filters">
-                    <div className="chips-list">
-                        {filterFields.map((field) => {
-                            const rawVals = appliedFilter[field.name];
-                            const selectedVals = Array.isArray(rawVals)
-                                ? rawVals
-                                : rawVals !== undefined && rawVals !== null && rawVals !== ''
-                                ? [rawVals]
-                                : [];
-                            const items = Array.isArray(field.items) ? field.items : [];
-
-                            return selectedVals.map((val) => {
-                                const itemObj = items.find((it) => String(it.value) === String(val));
-                                const label = itemObj?.name || val;
-                                return (
-                                    <button
-                                        key={`${field.name}-${val}`}
-                                        type="button"
-                                        className="filter-chip"
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            handleRemoveAppliedFilter(field.name, val);
-                                        }}
-                                        title={`Remove ${field.name}: ${label}`}
-                                        aria-label={`Remove filter ${field.name}: ${label}`}
+                        {hasFilters && (
+                            <Popover open={state.showFilter} onOpenChange={handleOpenChange}>
+                                <PopoverTrigger asChild>
+                                    <InputGroupButton
+                                        size="sm"
+                                        variant="ghost"
+                                        className="data-[state=open]:bg-accent"
+                                        aria-label={totalAppliedFilters > 0 ? `Filters, ${totalAppliedFilters} applied` : 'Filters'}
                                     >
-                                        <span className="chip-cat">{field.name}:</span>
-                                        <span className="chip-val">{label}</span>
-                                        <IoClose className="chip-remove-icon" />
-                                    </button>
-                                );
-                            });
-                        })}
-                    </div>
-
-                    <button
-                        type="button"
-                        className="btn-clear-all-chips"
-                        onClick={handleClearAllAppliedFilters}
-                        title="Reset all applied filters"
-                    >
-                        <span>Reset filters</span>
-                    </button>
-                </div>
-            )}
-
-            {/* Filter Card / Modal Dialog (Backdrop is provided globally by body.overlay) */}
-            {isFilter && filterFields.length > 0 && state.showFilter && (
-                <div
-                    className="filter-card active"
-                    ref={filterCardRef}
-                    role="dialog"
-                    aria-modal="true"
-                    aria-label="Filter options"
-                    onClick={(e) => e.stopPropagation()}
-                >
-                        {/* Mobile Drag Indicator Handle */}
-                        <div className="filter-sheet-handle" aria-hidden="true" />
-
-                        {/* Card Header (Minimalist "Filter" + "Reset filters" pill) */}
-                        <div className="filter-card-header">
-                            <div className="card-header-left">
-                                <h3 className="card-title">Filter</h3>
-                                {totalDraftFilters > 0 && (
-                                    <span className="active-badge-dot" title={`${totalDraftFilters} selected filters`}>
-                                        {totalDraftFilters}
-                                    </span>
-                                )}
-                            </div>
-
-                            <button
-                                type="button"
-                                className="btn-reset-pill"
-                                onClick={handleResetDraftFilter}
-                                title="Reset all draft selections"
-                            >
-                                Reset filters
-                            </button>
-                        </div>
-
-                        {/* Card Body with Segmented Tracks & Tactile Checked Chips */}
-                        <div className="filter-card-body">
-                            {filterFields.map((field) => {
-                                const rawVals = draftFilter[field.name];
-                                const selectedVals = Array.isArray(rawVals)
-                                    ? rawVals
-                                    : rawVals !== undefined && rawVals !== null && rawVals !== ''
-                                    ? [rawVals]
-                                    : [];
-                                const items = Array.isArray(field.items) ? field.items : [];
-                                const isSegmented = isSegmentedField(field.name, items.length);
-
-                                return (
-                                    <div key={field.name} className="filter-section">
-                                        <div className="filter-section-header">
-                                            <span className="filter-section-label">
-                                                {field.name === 'price'
-                                                    ? 'Price'
-                                                    : field.name === 'rating'
-                                                    ? 'Rating'
-                                                    : field.name === 'level'
-                                                    ? 'Level'
-                                                    : field.name === 'status'
-                                                    ? 'Status'
-                                                    : field.name}
-                                            </span>
-                                            {!isSegmented && selectedVals.length > 0 && (
-                                                <span className="filter-section-count">
-                                                    {selectedVals.length}
+                                        <LuSlidersHorizontal />
+                                        <span className="max-sm:sr-only">Filters</span>
+                                        {totalAppliedFilters > 0 && (
+                                            <Badge variant="primary" className="h-4 min-w-4 px-1 font-mono tabular">
+                                                {totalAppliedFilters}
+                                            </Badge>
+                                        )}
+                                    </InputGroupButton>
+                                </PopoverTrigger>
+                                <PopoverContent align="end" className="w-[min(22rem,calc(100vw-2rem))] p-0">
+                                    <div className="flex items-center justify-between gap-2 px-4 py-3">
+                                        <p className="flex items-center gap-2 text-sm font-semibold">
+                                            Filters
+                                            {totalDraftFilters > 0 && (
+                                                <span className="font-mono text-xs font-normal text-muted-foreground tabular">
+                                                    {totalDraftFilters} selected
                                                 </span>
                                             )}
-                                        </div>
-
-                                        {isSegmented ? (
-                                            /* Segmented Pill Track (e.g. Any / Free / Paid or Any / 1★ / 2★ ...) */
-                                            <div className="segmented-track" role="group" aria-label={field.name}>
-                                                <button
-                                                    type="button"
-                                                    className={`segmented-item ${selectedVals.length === 0 ? 'active' : ''}`}
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        handleSetDraftFilter(field.name, 'any');
-                                                    }}
-                                                    aria-pressed={selectedVals.length === 0}
-                                                >
-                                                    Any
-                                                </button>
-                                                {items.map((item) => {
-                                                    const isSelected = selectedVals.some(
-                                                        (v) => String(v) === String(item.value)
-                                                    );
-                                                    return (
-                                                        <button
-                                                            key={String(item.value)}
-                                                            type="button"
-                                                            className={`segmented-item ${isSelected ? 'active' : ''}`}
-                                                            onClick={(e) => {
-                                                                e.preventDefault();
-                                                                e.stopPropagation();
-                                                                handleSetDraftFilter(field.name, item.value);
-                                                            }}
-                                                            aria-pressed={isSelected}
-                                                        >
-                                                            {field.name === 'rating' ? `${item.value}★` : item.name}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        ) : (
-                                            /* Tactile Chips Grid with Circular Checkmark Badge */
-                                            <div className="filter-chips-grid">
-                                                {items.map((item) => {
-                                                    const isSelected = selectedVals.some(
-                                                        (v) => String(v) === String(item.value)
-                                                    );
-
-                                                    return (
-                                                        <button
-                                                            key={String(item.value)}
-                                                            type="button"
-                                                            className={`filter-chip-btn ${isSelected ? 'selected' : ''}`}
-                                                            onClick={(e) => {
-                                                                e.preventDefault();
-                                                                e.stopPropagation();
-                                                                handleSetDraftFilter(field.name, item.value);
-                                                            }}
-                                                            aria-pressed={isSelected}
-                                                        >
-                                                            {isSelected && (
-                                                                <span className="chip-check-circle" aria-hidden="true">
-                                                                    <IoCheckmark />
-                                                                </span>
-                                                            )}
-                                                            <span className="chip-name">{item.name}</span>
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
+                                        </p>
+                                        <Button variant="ghost" size="xs" onClick={handleResetDraftFilter} disabled={totalDraftFilters === 0}>
+                                            Clear all
+                                        </Button>
                                     </div>
-                                );
-                            })}
-                        </div>
+                                    <Separator />
 
-                        {/* Card Sticky Footer (Cancel & Submit "Show results") */}
-                        <div className="filter-card-footer">
-                            <button
-                                type="button"
-                                className="btn-filter-cancel"
-                                onClick={handleCancelFilter}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="button"
-                                className="btn-filter-apply"
-                                onClick={handleApplyFilter}
-                            >
-                                Apply Filters
-                            </button>
-                        </div>
-                    </div>
+                                    <div className="max-h-[min(60vh,26rem)] space-y-4 overflow-y-auto px-4 py-4">
+                                        {filterFields.map((field) => {
+                                            const items = Array.isArray(field.items) ? field.items : [];
+                                            const selected = toArray(draftFilter[field.name]).map(String);
+                                            const segmented = isSegmentedField(field.name, items.length);
+                                            const labelId = `filter-${field.name}-label`;
+
+                                            return (
+                                                <div key={field.name} className="space-y-2">
+                                                    <p id={labelId} className="text-xs font-medium text-muted-foreground">
+                                                        {labelFor(field.name)}
+                                                    </p>
+                                                    {segmented ? (
+                                                        <ToggleGroup
+                                                            type="single"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            spacing={1}
+                                                            aria-labelledby={labelId}
+                                                            value={selected[0] ?? 'any'}
+                                                            onValueChange={(v) => setDraftValues(field, v && v !== 'any' ? [v] : [])}
+                                                            className="w-full flex-wrap justify-start"
+                                                        >
+                                                            <ToggleGroupItem value="any" className={selectedToggle}>Any</ToggleGroupItem>
+                                                            {items.map((item) => (
+                                                                <ToggleGroupItem key={String(item.value)} value={String(item.value)} className={selectedToggle}>
+                                                                    {field.name === 'rating' ? `${item.value}+ stars` : item.name}
+                                                                </ToggleGroupItem>
+                                                            ))}
+                                                        </ToggleGroup>
+                                                    ) : (
+                                                        <ToggleGroup
+                                                            type="multiple"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            spacing={1}
+                                                            aria-labelledby={labelId}
+                                                            value={selected}
+                                                            onValueChange={(v) => setDraftValues(field, v)}
+                                                            className="w-full flex-wrap justify-start"
+                                                        >
+                                                            {items.map((item) => (
+                                                                <ToggleGroupItem key={String(item.value)} value={String(item.value)} className={selectedToggle}>
+                                                                    {item.name}
+                                                                </ToggleGroupItem>
+                                                            ))}
+                                                        </ToggleGroup>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    <Separator />
+                                    <div className="flex justify-end gap-2 px-4 py-3">
+                                        <Button variant="ghost" size="sm" onClick={handleCancelFilter}>Cancel</Button>
+                                        <Button size="sm" onClick={handleApplyFilter}>Apply filters</Button>
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
+                        )}
+                    </InputGroupAddon>
+                </InputGroup>
+            </form>
+
+            {hasFilters && totalAppliedFilters > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5" aria-label="Active filters">
+                    {filterFields.map((field) => {
+                        const items = Array.isArray(field.items) ? field.items : [];
+                        return toArray(appliedFilter[field.name]).map((val) => {
+                            const label = items.find((it) => String(it.value) === String(val))?.name || val;
+                            return (
+                                <Button
+                                    key={`${field.name}-${val}`}
+                                    variant="outline"
+                                    size="xs"
+                                    onClick={() => handleRemoveAppliedFilter(field.name, val)}
+                                    aria-label={`Remove filter ${labelFor(field.name)}: ${label}`}
+                                    className="h-7 gap-1.5 font-normal"
+                                >
+                                    <span className="text-muted-foreground">{labelFor(field.name)}:</span>
+                                    <span className="font-medium">{label}</span>
+                                    <LuX className="text-muted-foreground" />
+                                </Button>
+                            );
+                        });
+                    })}
+                    <Button variant="ghost" size="xs" className="h-7 text-muted-foreground" onClick={handleClearAllAppliedFilters}>
+                        Reset filters
+                    </Button>
+                </div>
             )}
         </div>
     );

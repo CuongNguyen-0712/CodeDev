@@ -1,38 +1,38 @@
 'use client'
-import Image from 'next/image'
+import Link from 'next/link';
 
 import { useRouterActions } from '@/router/useRouterActions';
 
-import { HiOutlineExclamationCircle } from "react-icons/hi2";
-import { FaChevronLeft } from "react-icons/fa";
+import { Button } from '@/components/shadcn/button';
+
+import { LuArrowLeft, LuCompass, LuHouse } from "react-icons/lu";
 
 export default function NotFound() {
     const { navigateBack } = useRouterActions();
 
     return (
-        <div className="not-found-page">
-            <div className="not-found-content">
-                <div className="not-found-illustration">
-                    <Image
-                        src="/image/static/404.png"
-                        alt="404 illustration"
-                        width={280}
-                        height={280}
-                        priority
-                    />
+        <main className="flex min-h-dvh w-full items-center justify-center bg-background px-6 py-16">
+            <div className="flex max-w-md flex-col items-start gap-5">
+                <span className="flex size-11 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                    <LuCompass className="size-5" aria-hidden="true" />
+                </span>
+                <div className="space-y-2">
+                    <p className="font-mono text-sm text-muted-foreground">Error 404</p>
+                    <h1 className="text-4xl font-semibold tracking-tight">Page not found</h1>
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                        The page you are looking for does not exist or has been moved.
+                    </p>
                 </div>
-                <div className="not-found-text">
-                    <span className="error-badge">
-                        <HiOutlineExclamationCircle />
-                        404 Error
-                    </span>
-                    <h1>Page not found</h1>
-                    <p>Sorry, the page you're looking for doesn't exist or has been moved.</p>
+                <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" onClick={() => navigateBack()}>
+                        <LuArrowLeft />
+                        Go back
+                    </Button>
+                    <Button asChild>
+                        <Link href="/"><LuHouse />Home</Link>
+                    </Button>
                 </div>
-                <button className="btn-back" onClick={() => navigateBack()}>
-                    <span>Go back</span>
-                </button>
             </div>
-        </div >
+        </main>
     );
-}   
+}

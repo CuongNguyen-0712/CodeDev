@@ -3,9 +3,9 @@ import Navbar from '@/components/ui/navbar';
 import Dashboard from '@/components/ui/dashboard';
 import Feedback from '@/components/ui/feedback';
 import Footer from '@/components/ui/footer';
-import Account from '@/components/ui/account';
-
 import AlertPush from '@/components/ui/alert';
+
+import { SidebarInset, SidebarProvider } from '@/components/shadcn/sidebar';
 
 import { useApp } from "@/contexts/appContext";
 
@@ -13,38 +13,26 @@ function LayoutContent({ children }) {
     const {
         isDashboard,
         setDashboard,
-        isAccountMobile,
-        setAccountMobile,
         alert,
-        showAlert,
         clearAlert
     } = useApp();
 
     return (
-        <>
-            <Dashboard
-                isDashboard={isDashboard}
-                handleDashboard={setDashboard}
-            />
+        <SidebarProvider
+            open={isDashboard}
+            onOpenChange={setDashboard}
+            className="h-dvh min-h-0 overflow-hidden"
+        >
+            <Dashboard />
 
-            <main id='main'>
-                <Navbar
-                    isDashboard={isDashboard}
-                    handleDashboard={setDashboard}
-                    handleAccountMobile={setAccountMobile}
-                />
+            <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
+                <Navbar />
 
                 <section id='container'>
                     {children}
                     <Footer />
                 </section>
-            </main>
-
-            <Account
-                isAccountMobile={isAccountMobile}
-                handleAccountMobile={setAccountMobile}
-                alert={showAlert}
-            />
+            </SidebarInset>
 
             <Feedback />
 
@@ -54,8 +42,7 @@ function LayoutContent({ children }) {
                 reset={clearAlert}
                 callback={alert?.callback}
             />
-
-        </>
+        </SidebarProvider>
     );
 }
 

@@ -1,26 +1,44 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import Link from "next/link";
 import Form from 'next/form';
 
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
-import { LoadingContent } from "@/components/ui/loading";
 import { ErrorReload } from "@/components/ui/error";
 import { courseQueries } from "@/queries/course.query";
 import { courseKeys } from "@/keys/course.keys";
 import { useCourseComment } from "@/mutations/course.mutation";
 import { useApp } from "@/contexts/appContext";
 import { TextAreaGroup } from "@/components/ui/input";
-import { getPusherClient } from "@/lib/pusher";
+import { usePusherChannel } from "@/hooks/usePusherChannel";
+import { channels, events } from "@/lib/realtime";
+
+import { Button } from "@/components/shadcn/button";
+import { Skeleton } from "@/components/shadcn/skeleton";
 
 import CommentItem from "./commentItem";
 import { uniqBy } from "lodash";
 
-import { IoSend } from "react-icons/io5";
-import { MdOutlineForum } from "react-icons/md";
+import { LuLoaderCircle, LuLogIn, LuMessagesSquare, LuSendHorizontal } from "react-icons/lu";
 
-import "@/styles/course/[id]/comment.css";
+const MAX_COMMENT_LENGTH = 200;
+
+function CommentSkeleton() {
+    return (
+        <div className="flex flex-col gap-2 px-4 py-3.5" aria-hidden="true">
+            <div className="flex items-center gap-2.5">
+                <Skeleton className="size-8 rounded-full" />
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-3 w-12" />
+            </div>
+            <div className="space-y-1.5 pl-[42px]">
+                <Skeleton className="h-3.5 w-full" />
+                <Skeleton className="h-3.5 w-2/3" />
+            </div>
+        </div>
+    );
+}
 
 export default function CommentPage({ courseId }) {
     const inputRef = useRef(null);
@@ -30,6 +48,7 @@ export default function CommentPage({ courseId }) {
     const [comment, setComment] = useState({
         content: '',
     });
+    const [fieldError, setFieldError] = useState(null);
 
     const { data: session } = useSession();
     const { showAlert: alert } = useApp();
@@ -42,78 +61,56 @@ export default function CommentPage({ courseId }) {
     const rawComments = data?.pages?.flatMap(page => page.data || []) || [];
     const comments = uniqBy(rawComments, 'id');
 
-    // Realtime comments subscription with Pusher
-    useEffect(() => {
-        if (!courseId) return;
+    // Realtime discussion feed (new comments + vote counts from other learners).
+    const updateComments = (updater) => {
+        queryClient.setQueryData(courseKeys.comments(courseId), (oldData) => {
+            if (!oldData || !oldData.pages) return oldData;
+            return updater(oldData);
+        });
+    };
 
-        const pusher = getPusherClient();
-        if (!pusher) return;
+    usePusherChannel(courseId ? channels.course(courseId) : null, {
+        [events.COMMENT_CREATED]: (newComment) => {
+            if (newComment?.stale) {
+                queryClient.invalidateQueries({ queryKey: courseKeys.comments(courseId) });
+                return;
+            }
+            if (!newComment?.id) return;
 
-        const channelName = `course-${courseId}`;
-        const channel = pusher.subscribe(channelName);
-
-        const handleNewComment = (newComment) => {
-            if (!newComment || !newComment.id) return;
-
-            queryClient.setQueryData(courseKeys.comments(courseId), (oldData) => {
-                if (!oldData || !oldData.pages) {
-                    return oldData;
-                }
-
-                // Check if comment already exists (prevent duplicate on author's view)
+            updateComments((oldData) => {
+                // The author already has it from the mutation response.
                 const exists = oldData.pages.some(page =>
                     page.data?.some(item => item.id === newComment.id)
                 );
+                if (exists) return oldData;
 
-                if (exists) {
-                    return oldData;
-                }
-
-                const firstPage = oldData.pages[0];
-                const updatedFirstPage = {
-                    ...firstPage,
-                    data: [newComment, ...(firstPage?.data || [])],
-                };
-
+                const [firstPage, ...rest] = oldData.pages;
                 return {
                     ...oldData,
-                    pages: [updatedFirstPage, ...oldData.pages.slice(1)],
+                    pages: [{ ...firstPage, data: [newComment, ...(firstPage?.data || [])] }, ...rest],
                 };
             });
-        };
+        },
 
-        const handleCommentVoted = ({ commentId, upvotes, downvotes }) => {
+        [events.COMMENT_VOTED]: ({ commentId, upvotes, downvotes } = {}) => {
             if (!commentId) return;
 
-            queryClient.setQueryData(courseKeys.comments(courseId), (oldData) => {
-                if (!oldData || !oldData.pages) return oldData;
-
-                return {
-                    ...oldData,
-                    pages: oldData.pages.map((page) => ({
-                        ...page,
-                        data: (page.data || []).map((item) => {
-                            if (item.id !== commentId) return item;
-                            return {
-                                ...item,
-                                upvotes: Number(upvotes) || 0,
-                                downvotes: Number(downvotes) || 0,
-                            };
-                        }),
-                    })),
-                };
-            });
-        };
-
-        channel.bind("new-comment", handleNewComment);
-        channel.bind("comment-voted", handleCommentVoted);
-
-        return () => {
-            channel.unbind("new-comment", handleNewComment);
-            channel.unbind("comment-voted", handleCommentVoted);
-            pusher.unsubscribe(channelName);
-        };
-    }, [courseId, queryClient]);
+            updateComments((oldData) => ({
+                ...oldData,
+                pages: oldData.pages.map((page) => ({
+                    ...page,
+                    data: (page.data || []).map((item) => item.id !== commentId ? item : {
+                        ...item,
+                        upvotes: Number(upvotes) || 0,
+                        downvotes: Number(downvotes) || 0,
+                    }),
+                })),
+            }));
+        },
+    }, {
+        // Events sent while the socket was down are lost: resync the feed.
+        onReconnect: () => queryClient.invalidateQueries({ queryKey: courseKeys.comments(courseId) }),
+    });
 
     const scrollToTop = () => {
         if (scrollRef.current) {
@@ -135,7 +132,17 @@ export default function CommentPage({ courseId }) {
         if (useComment.isPending) return;
 
         const trimmed = comment.content.trim();
-        if (trimmed.length === 0) return;
+        if (trimmed.length === 0) {
+            setFieldError("Write a comment before posting.");
+            inputRef.current?.focus();
+            return;
+        }
+
+        if (comment.content.length > MAX_COMMENT_LENGTH) {
+            setFieldError(`Comments can be up to ${MAX_COMMENT_LENGTH} characters.`);
+            inputRef.current?.focus();
+            return;
+        }
 
         try {
             await useComment.mutateAsync({
@@ -160,114 +167,111 @@ export default function CommentPage({ courseId }) {
             ...prev,
             [name]: value,
         }));
+        if (fieldError) setFieldError(null);
     };
 
     return (
-        <aside className="comments-sidebar" id="comments" aria-label="Course Discussion">
-            {/* Comments Header */}
-            <div className="comments-sidebar-header">
-                <div className="comments-header-title">
-                    <MdOutlineForum fontSize={20} />
-                    <h3>Discussion</h3>
-                </div>
-                <span className="comments-badge" title={`${comments.length} comments`}>
-                    {comments.length}
-                </span>
-            </div>
-
-            {/* Comments Feed */}
-            <div className="comments-container" ref={scrollRef}>
-                {isLoading ? (
-                    <div className="comments-loading">
-                        <LoadingContent />
-                    </div>
-                ) : isError ? (
-                    <ErrorReload
-                        data={error}
-                        refetch={() => refetch()}
-                    />
-                ) : (
-                    <div className="comments-list">
-                        {comments && comments.length > 0 ? (
-                            comments.map((item) => (
-                                <CommentItem
-                                    key={item.id}
-                                    data={item}
-                                    courseId={courseId}
-                                />
-                            ))
-                        ) : (
-                            <div className="empty-comments">
-                                <MdOutlineForum className="empty-comments-icon" />
-                                <p>No comments yet.</p>
-                                <span>Be the first to share your thoughts about this course!</span>
-                            </div>
-                        )}
-
-                        {hasNextPage && (
-                            <button
-                                type="button"
-                                className="load-more-btn"
-                                onClick={() => fetchNextPage()}
-                                disabled={isFetchingNextPage}
-                            >
-                                {isFetchingNextPage ? (
-                                    <LoadingContent scale={0.5} />
-                                ) : (
-                                    "Load more comments"
-                                )}
-                            </button>
-                        )}
-                    </div>
+        <section id="comments" aria-labelledby="course-comments-heading" className="scroll-mt-16 space-y-3">
+            <div className="flex items-baseline justify-between gap-2">
+                <h2 id="course-comments-heading" className="text-base font-semibold">Discussion</h2>
+                {!isLoading && !isError && (
+                    <span className="font-mono text-xs text-muted-foreground tabular">
+                        {comments.length}{hasNextPage ? '+' : ''} {comments.length === 1 ? 'comment' : 'comments'}
+                    </span>
                 )}
             </div>
 
-            {/* Comment Form or Guest Notice */}
+            {/* Comment form or guest notice */}
             {!session ? (
-                <div className="comment-guest-prompt">
-                    <p>Want to join the discussion?</p>
-                    <Link href="/auth" className="guest-login-btn">
-                        Sign In to Comment
-                    </Link>
+                <div className="flex flex-col gap-3 rounded-lg border bg-card px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-sm text-muted-foreground">Sign in to ask a question or share feedback on this course.</p>
+                    <Button asChild variant="outline" size="sm" className="self-start sm:self-auto">
+                        <Link href="/auth"><LuLogIn />Sign in to comment</Link>
+                    </Button>
                 </div>
             ) : (
-                <Form onSubmit={handleSubmit} className="comment-form">
+                <Form onSubmit={handleSubmit} className="flex flex-col gap-2 rounded-lg border bg-card p-4" noValidate>
                     <TextAreaGroup
-                        label="Share your thoughts or question..."
+                        label="Add a comment"
                         name="content"
-                        rows="3"
+                        rows={3}
                         value={comment.content}
                         onChange={handleChange}
-                        readOnly={useComment.isPending}
                         ref={inputRef}
+                        maxLength={MAX_COMMENT_LENGTH}
+                        error={fieldError}
+                        placeholder="Ask a question or share what you think about this course"
                     />
 
-                    <div className="comments_actions">
-                        <div className="option_actions">
-                            <span className={`char-count ${comment.content.length > 200 ? 'exceed' : ''}`}>
-                                {comment.content.length}/200
-                            </span>
-                        </div>
-
-                        <button
-                            type="submit"
-                            className={`submit-btn ${comment.content.trim().length > 0 && comment.content.length <= 200 ? 'active' : ''}`}
-                            disabled={useComment.isPending || comment.content.trim().length === 0 || comment.content.length > 200}
-                        >
+                    <div className="flex justify-end">
+                        <Button type="submit" size="sm" disabled={useComment.isPending}>
                             {useComment.isPending ? (
-                                <span>
-                                    Sending...
-                                </span>
+                                <LuLoaderCircle className="animate-spin" aria-hidden="true" />
                             ) : (
-                                <>
-                                    <span>Send</span>
-                                    <IoSend fontSize={15} />
-                                </>
+                                <LuSendHorizontal aria-hidden="true" />
                             )}
-                        </button>
+                            {useComment.isPending ? 'Posting...' : 'Post comment'}
+                        </Button>
                     </div>
                 </Form>
             )}
-        </aside>
+
+            {/* Comments feed */}
+            {isLoading ? (
+                <div className="divide-y rounded-lg border bg-card">
+                    {[0, 1, 2].map((index) => <CommentSkeleton key={index} />)}
+                </div>
+            ) : isError ? (
+                <ErrorReload
+                    data={error}
+                    refetch={() => refetch()}
+                />
+            ) : comments.length > 0 ? (
+                <div ref={scrollRef} className="flex flex-col gap-2">
+                    <ol className="list-none divide-y rounded-lg border bg-card">
+                        {comments.map((item) => (
+                            <li key={item.id}>
+                                <CommentItem
+                                    data={item}
+                                    courseId={courseId}
+                                />
+                            </li>
+                        ))}
+                    </ol>
+
+                    {hasNextPage && (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="self-center"
+                            onClick={() => fetchNextPage()}
+                            disabled={isFetchingNextPage}
+                        >
+                            {isFetchingNextPage && <LuLoaderCircle className="animate-spin" aria-hidden="true" />}
+                            {isFetchingNextPage ? 'Loading comments...' : 'Load more comments'}
+                        </Button>
+                    )}
+                </div>
+            ) : (
+                <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-10 text-center">
+                    <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                        <LuMessagesSquare className="size-5" aria-hidden="true" />
+                    </span>
+                    <div className="space-y-1">
+                        <h3 className="text-sm font-semibold">No comments yet</h3>
+                        <p className="max-w-[48ch] text-sm text-muted-foreground">
+                            Questions and feedback from learners on this course will show up here.
+                        </p>
+                    </div>
+                    {/* Guests already get the sign-in prompt above the feed. */}
+                    {session && (
+                        <Button variant="outline" size="sm" onClick={() => inputRef.current?.focus()}>
+                            Write the first comment
+                        </Button>
+                    )}
+                </div>
+            )}
+        </section>
     );
 }
