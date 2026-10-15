@@ -1,0 +1,151 @@
+-- =============================================================================
+-- 20261015_002_fix_lesson_lock_errcode.sql
+--
+-- learning_lesson() and submit_lesson() raised the "locked lesson" error with
+-- ERRCODE = 'P1', which is not a valid SQLSTATE. Postgres then failed with
+-- "unrecognized exception condition P1" instead of the intended message.
+-- Both now raise SQLSTATE P0001 (raise_exception) with the real message.
+-- =============================================================================
+
+BEGIN;
+
+CREATE OR REPLACE FUNCTION public.learning_lesson(p_user_id character varying, p_lesson_id bigint)
+ RETURNS TABLE(lesson_id bigint, module_id bigint, type character varying, source text, status character varying)
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_user_id bigint;
+BEGIN
+  SELECT id INTO v_user_id FROM identity.users WHERE public_id = p_user_id;
+
+  IF EXISTS (
+    SELECT 1 FROM learning.history h
+    WHERE h.user_id = v_user_id AND h.lesson_id = p_lesson_id AND h.status = 'enrolled'
+  ) THEN
+    RAISE EXCEPTION USING MESSAGE = 'Please complete the previous lesson', ERRCODE = 'P0001';
+  END IF;
+
+  UPDATE learning.history h2
+  SET last_seen = now()
+  WHERE h2.user_id = v_user_id AND h2.lesson_id = p_lesson_id;
+
+  RETURN QUERY
+  SELECT l.id, l.module_id, l.content_type, l.content_source, h.status::varchar
+  FROM course.lesson l
+  JOIN learning.history h ON l.id = h.lesson_id
+  WHERE h.user_id = v_user_id AND h.lesson_id = p_lesson_id;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.submit_lesson(_user_id character varying, _course_id character varying, _lesson_id bigint)
+ RETURNS TABLE("nextLessonId" bigint, "completedLessons" integer)
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+    v_user_id bigint;
+    v_course_id bigint;
+    v_reward bigint;
+    v_status status_progress_enum;
+    total_lessons int;
+    completed_lessons int;
+    next_lesson_id bigint;
+BEGIN
+    SELECT u.id INTO v_user_id FROM identity.users u WHERE u.public_id = _user_id;
+    IF v_user_id IS NULL THEN
+        RAISE EXCEPTION 'Missing user id';
+    END IF;
+
+    SELECT c.id, COALESCE(c.reward, 0) INTO v_course_id, v_reward
+    FROM catalog.course c
+    WHERE c.public_id = _course_id;
+    IF v_course_id IS NULL THEN
+        RAISE EXCEPTION 'Missing course id';
+    END IF;
+
+    SELECT h.status INTO v_status
+    FROM learning.history h
+    WHERE h.user_id = v_user_id AND h.course_id = v_course_id AND h.lesson_id = _lesson_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Lesson % does not belong to course %', _lesson_id, _course_id;
+    END IF;
+
+    -- Locked lessons cannot be completed (prevents skipping ahead / farming points).
+    IF v_status = 'enrolled' THEN
+        RAISE EXCEPTION USING MESSAGE = 'Please complete the previous lesson', ERRCODE = 'P0001';
+    END IF;
+
+    UPDATE learning.history
+    SET status = 'completed', updated_at = now()
+    WHERE user_id = v_user_id AND course_id = v_course_id AND lesson_id = _lesson_id;
+
+    -- Lesson reward, once per lesson (unique constraint keeps it idempotent).
+    WITH ins AS (
+        INSERT INTO profile.point_transaction (user_id, action, amount, source_type, source_id)
+        VALUES (v_user_id, 'credit', 10, 'lesson', _lesson_id)
+        ON CONFLICT (user_id, source_type, source_id, action) DO NOTHING
+        RETURNING amount
+    )
+    UPDATE profile.info
+    SET points = COALESCE(points, 0) + (SELECT amount FROM ins)
+    WHERE user_id = v_user_id AND EXISTS (SELECT 1 FROM ins);
+
+    -- Unlock the next lesson in course order.
+    SELECT l2.id INTO next_lesson_id
+    FROM course.lesson cur_l
+    JOIN course.module cur_m ON cur_m.id = cur_l.module_id
+    JOIN course.module m2 ON m2.course_id = cur_m.course_id AND m2.is_deleted = false
+    JOIN course.lesson l2 ON l2.module_id = m2.id AND l2.is_deleted = false
+    JOIN learning.history h ON h.lesson_id = l2.id AND h.user_id = v_user_id AND h.course_id = v_course_id
+    WHERE cur_l.id = _lesson_id
+      AND h.status = 'enrolled'
+      AND (
+            m2.order_index > cur_m.order_index
+         OR (m2.order_index = cur_m.order_index AND l2.order_index > cur_l.order_index)
+      )
+    ORDER BY m2.order_index, l2.order_index
+    LIMIT 1;
+
+    IF next_lesson_id IS NOT NULL THEN
+        UPDATE learning.history
+        SET status = 'in_progress', updated_at = now(), last_seen = now()
+        WHERE user_id = v_user_id AND course_id = v_course_id AND lesson_id = next_lesson_id;
+    END IF;
+
+    SELECT COUNT(*) INTO total_lessons
+    FROM course.lesson l
+    JOIN course.module m ON m.id = l.module_id
+    WHERE m.course_id = v_course_id AND l.is_deleted = false AND m.is_deleted = false;
+
+    SELECT COUNT(*) INTO completed_lessons
+    FROM learning.history
+    WHERE user_id = v_user_id AND course_id = v_course_id AND status = 'completed';
+
+    UPDATE learning.register
+    SET progress = completed_lessons
+    WHERE user_id = v_user_id AND course_id = v_course_id;
+
+    IF completed_lessons >= total_lessons THEN
+        UPDATE learning.register
+        SET status = 'completed'
+        WHERE user_id = v_user_id AND course_id = v_course_id;
+
+        IF v_reward > 0 THEN
+            WITH ins AS (
+                INSERT INTO profile.point_transaction (user_id, action, amount, source_type, source_id)
+                VALUES (v_user_id, 'credit', v_reward, 'course', v_course_id)
+                ON CONFLICT (user_id, source_type, source_id, action) DO NOTHING
+                RETURNING amount
+            )
+            UPDATE profile.info
+            SET points = COALESCE(points, 0) + (SELECT amount FROM ins)
+            WHERE user_id = v_user_id AND EXISTS (SELECT 1 FROM ins);
+        END IF;
+    END IF;
+
+    RETURN QUERY
+    SELECT next_lesson_id AS "nextLessonId", completed_lessons AS "completedLessons";
+END;
+$function$;
+
+COMMIT;
