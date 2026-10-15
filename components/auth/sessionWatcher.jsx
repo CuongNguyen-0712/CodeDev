@@ -5,58 +5,49 @@ import { signOut, useSession } from "next-auth/react";
 
 import { useQueryClient } from "@tanstack/react-query";
 
-import { useLogOut } from "@/mutations/auth.mutation";
+import { isFatalSessionError } from "@/constants/auth";
+import { isSigningOut, markSigningOut } from "@/lib/authSignal";
+import { disconnectPusher } from "@/lib/pusherClient";
 
-import { useApp } from "@/contexts/appContext";
+import { UserRealtimeBridge } from "@/components/realtime/userRealtimeBridge";
 
-const tokenError = [
-    'SessionInvalid',
-    'SessionExpired',
-    'SessionRevoked',
-]
-
+/**
+ * Signs the browser out once the server reports the session as revoked / expired / invalid
+ * (`session.error`, refreshed every 60s by SessionProvider and on window focus).
+ * The server-side session is already dead in those cases, so only the cookie needs clearing:
+ * no logout API call that could fail and leave the user stuck.
+ */
 export function SessionWatcher() {
-    const { showAlert: alert } = useApp();
-
-    const handlingValidSessionRef = useRef(false);
+    const handlingRef = useRef(false);
 
     const { data: session, status } = useSession();
-
     const queryClient = useQueryClient();
-    const logoutMutation = useLogOut();
-
-    const handleSessionInvalid = (error) => {
-        if (logoutMutation.isPending || handlingValidSessionRef.current) return;
-
-        handlingValidSessionRef.current = true;
-
-        logoutMutation.mutate(null, {
-            onSuccess: async () => {
-                queryClient.clear();
-
-                await signOut({ callbackUrl: `/auth/error?error=${error}` });
-            },
-
-            onError: (error) => {
-                handlingValidSessionRef.current = false;
-                if (typeof alert === "function") {
-                    alert(500, error?.message || "An error occurred while logging out.");
-                }
-            }
-        });
-    }
 
     useEffect(() => {
-        if (status === "loading" || status === "unauthenticated") return;
+        if (status !== "authenticated") return;
 
-        if (session?.error && tokenError.includes(session.error)) {
-            handleSessionInvalid(session.error);
-        }
-    }, [session?.error, status]);
+        const error = session?.error;
+        if (!isFatalSessionError(error) || handlingRef.current || isSigningOut()) return;
+
+        handlingRef.current = true;
+        markSigningOut();
+        queryClient.clear();
+        disconnectPusher();
+
+        signOut({ callbackUrl: `/auth/error?error=${encodeURIComponent(error)}` }).catch(() => {
+            // Network failure: fall back to a hard navigation, the proxy clears the cookie.
+            window.location.assign(`/auth/error?error=${encodeURIComponent(error)}`);
+        });
+    }, [session?.error, status, queryClient]);
 
     return null;
 }
 
 export function AuthSessionWatcher() {
-    return <SessionWatcher />;
+    return (
+        <>
+            <SessionWatcher />
+            <UserRealtimeBridge />
+        </>
+    );
 }
