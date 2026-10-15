@@ -21,11 +21,11 @@ export const roadmapDb = {
                     ),
                     '[]'::jsonb
                 ) AS languages
-            FROM public.roadmaps r
+            FROM roadmap.roadmaps r
             LEFT JOIN roadmap.nodes n ON n.roadmap_id = r.id
             LEFT JOIN roadmap.node_course nc ON nc.node_id = n.id
-            LEFT JOIN public.course c ON c.id = nc.course_id
-            LEFT JOIN public.language l ON c.language_id = l.id
+            LEFT JOIN catalog.course c ON c.id = nc.course_id
+            LEFT JOIN catalog.language l ON c.language_id = l.id
             GROUP BY r.id;
         `
 
@@ -41,7 +41,7 @@ export const roadmapDb = {
                 r.description,
                 r.level,
                 r.created_at
-            FROM public.roadmaps r
+            FROM roadmap.roadmaps r
             WHERE r.public_id = $1
             LIMIT 1
         `;
@@ -79,11 +79,11 @@ export const roadmapDb = {
                 ) AS courses
             FROM roadmap.nodes n
             LEFT JOIN roadmap.node_course nc ON nc.node_id = n.id
-            LEFT JOIN public.course c ON c.id = nc.course_id
-            LEFT JOIN public.language l ON c.language_id = l.id
-            LEFT JOIN public.category cat ON c.category_id = cat.id
-            LEFT JOIN course.register r ON r.course_id = c.id 
-                ${userId ? `AND r.user_id = (SELECT id FROM private.users WHERE public_id = $2)` : `AND 1 = 0`}
+            LEFT JOIN catalog.course c ON c.id = nc.course_id
+            LEFT JOIN catalog.language l ON c.language_id = l.id
+            LEFT JOIN catalog.category cat ON c.category_id = cat.id
+            LEFT JOIN learning.register r ON r.course_id = c.id 
+                ${userId ? `AND r.user_id = (SELECT id FROM identity.users WHERE public_id = $2)` : `AND 1 = 0`}
                 AND r.is_deleted = false
             WHERE n.roadmap_id = $1
             GROUP BY n.id, n.title, n.description, n.order_index
@@ -103,9 +103,10 @@ export const roadmapDb = {
         const params = [];
         const conditions = [];
 
+        // roadmapId is the public id (uuid), same as getRoadmapNodes.
         if (roadmapId) {
             params.push(roadmapId);
-            conditions.push(`r.id = $${params.length}`);
+            conditions.push(`r.public_id::text = $${params.length}`);
         }
 
         const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -116,10 +117,10 @@ export const roadmapDb = {
                 r.title as title,
                 r.description as description,
                 COUNT(n.id) nodes
-            FROM public.roadmaps r
-            JOIN roadmap.nodes n ON n.roadmap_id = r.id
-            GROUP BY r.id
+            FROM roadmap.roadmaps r
+            LEFT JOIN roadmap.nodes n ON n.roadmap_id = r.id
             ${whereSQL}
+            GROUP BY r.id
         `;
 
         return await sql(query, params);
@@ -130,7 +131,7 @@ export const roadmapDb = {
         const conditions = [];
 
         params.push(userId, roadmapId);
-        conditions.push(`n.roadmap_id = (select id from public.roadmaps where public_id = $${params.length})`);
+        conditions.push(`n.roadmap_id = (select id from roadmap.roadmaps where public_id = $${params.length})`);
 
         const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -162,10 +163,10 @@ export const roadmapDb = {
                 ) AS courses
             FROM roadmap.nodes n
             LEFT JOIN roadmap.node_course nc ON nc.node_id = n.id
-            LEFT JOIN public.course c ON c.id = nc.course_id
-            LEFT JOIN public.language l ON c.language_id = l.id
-            LEFT JOIN public.category cat ON c.category_id = cat.id
-            LEFT JOIN course.register r ON r.course_id = c.id AND r.user_id = (select id from private.users where public_id = $1) AND r.is_deleted = false
+            LEFT JOIN catalog.course c ON c.id = nc.course_id
+            LEFT JOIN catalog.language l ON c.language_id = l.id
+            LEFT JOIN catalog.category cat ON c.category_id = cat.id
+            LEFT JOIN learning.register r ON r.course_id = c.id AND r.user_id = (select id from identity.users where public_id = $1) AND r.is_deleted = false
             ${whereSQL}
             GROUP BY n.id, n.title, n.description, n.order_index
             ORDER BY n.order_index ASC

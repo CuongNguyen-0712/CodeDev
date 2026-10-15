@@ -1,11 +1,14 @@
 import { sql } from "@/lib/db";
 
 export const socialDb = {
+    // Active users the caller has no friendship (pending or otherwise) with.
     getUsersSocial: async ({ userId, search, limit, offset }) => {
-        const params = [];
-        const conditions = [];
-
-        params.push(userId);
+        const params = [userId];
+        const conditions = [
+            `u.id <> me.id`,
+            `u.status = 'active'`,
+            `f.id IS NULL`,
+        ];
 
         if (search && search.trim()) {
             params.push(`%${search.toLowerCase()}%`);
@@ -14,31 +17,25 @@ export const socialDb = {
 
         params.push(limit, offset);
 
-        conditions.push(`u.id != $1`);
-        conditions.push(`u.status = 'Active'`);
-        conditions.push(`f.sender_id IS NULL`);
-
-        const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-
         const query = `
-            SELECT 
-                u.id,
+            SELECT
+                u.public_id AS id,
                 u.username,
                 i.image,
                 i.nickname,
                 i.level,
                 i.rank,
                 i.star
-            FROM private.users u
-            LEFT JOIN private.info i ON i.user_id = u.id
-            LEFT JOIN private.friend f 
-                ON (
-                    (f.sender_id = $1 AND f.receiver_id = u.id)
-                    OR 
-                    (f.receiver_id = $1 AND f.sender_id = u.id)
-                )
-            ${whereSQL}
-            LIMIT $${params.length - 1} OFFSET $${params.length}
+            FROM identity.users me
+            JOIN identity.users u ON true
+            LEFT JOIN profile.info i ON i.user_id = u.id
+            LEFT JOIN community.friend f
+                ON LEAST(f.sender_id, f.receiver_id) = LEAST(me.id, u.id)
+               AND GREATEST(f.sender_id, f.receiver_id) = GREATEST(me.id, u.id)
+            WHERE me.public_id = $1
+              AND ${conditions.join(" AND ")}
+            ORDER BY u.username
+            LIMIT $${params.length - 1} OFFSET $${params.length};
         `;
 
         return await sql(query, params);

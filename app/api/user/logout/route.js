@@ -1,21 +1,18 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { getAuthSession } from "@/lib/session";
 
-import { ApiError } from "@/lib/error/apiError";
+import { errorResponse } from "@/lib/error/apiError";
 
 import { authService } from "@/services/auth.service";
 
+// Idempotent: signing out of a session that is already gone (revoked elsewhere, expired)
+// still succeeds so the client can always finish clearing its cookie.
 export async function PATCH() {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await getAuthSession({ validate: false });
 
-        if (!session) {
-            throw new ApiError("Unauthorized", 401);
-        }
-
-        const userId = session.user.id;
-        const sessionId = session.user.sessionId;
+        const userId = session?.user?.id;
+        const sessionId = session?.user?.sessionId;
 
         if (userId && sessionId) {
             await authService.logout({ userId, sessionId });
@@ -23,6 +20,6 @@ export async function PATCH() {
 
         return NextResponse.json({ success: true }, { status: 200 });
     } catch (error) {
-        return NextResponse.json({ success: false, message: error.message }, { status: error.status || 500 });
+        return errorResponse(error, "api/user/logout");
     }
 }

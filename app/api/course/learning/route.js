@@ -1,16 +1,24 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { getAuthSession } from "@/lib/session";
 
-import { ApiError } from "@/lib/error/apiError";
+import { ApiError, errorResponse } from "@/lib/error/apiError";
 
 import { client } from "@/lib/sanity";
+import { redis } from "@/lib/cache";
+import { cacheKeys, TTL } from "@/lib/cacheKeys";
 
 import { courseService } from "@/services/course.service";
 
+const LESSON_QUERY = `*[_type == "lesson" && _id == $id][0]{
+    title,
+    slug,
+    description,
+    content
+}`;
+
 export async function GET(req) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await getAuthSession();
 
         if (!session) {
             throw new ApiError("Unauthorized", 401);
@@ -35,17 +43,17 @@ export async function GET(req) {
             throw new ApiError("Lesson not available", 404);
         }
 
-        const query = `*[_type == "lesson" && _id == $id][0]{
-            title,
-            slug,
-            description,
-            content
-        }`;
+        // Access was checked above per user; the lesson body itself is the same for everyone.
+        const lesson = await redis.remember(cacheKeys.lessonContent(source), TTL.LESSON_CONTENT, () =>
+            client.fetch(LESSON_QUERY, { id: source })
+        );
 
-        const lesson = await client.fetch(query, { id: source });
+        if (!lesson) {
+            throw new ApiError("Lesson content not found", 404);
+        }
 
         return NextResponse.json({ success: true, data: lesson }, { status: 200 });
     } catch (error) {
-        return NextResponse.json({ success: false, message: error.message || "Internal Server Error" }, { status: error.status || 500 });
+        return errorResponse(error, "api/course/learning");
     }
 }

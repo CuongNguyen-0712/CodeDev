@@ -1,19 +1,18 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { getAuthSession } from "@/lib/session";
 
-import { ApiError } from "@/lib/error/apiError";
+import { ApiError, errorResponse } from "@/lib/error/apiError";
 import { rateLimiters } from "@/lib/rateLimit";
 import { courseService } from "@/services/course.service";
 
 export async function GET(req) {
     try {
-        const rateCheck = await rateLimiters.comment.limitRequest(req);
+        const rateCheck = await rateLimiters.commentRead.limitRequest(req);
         if (!rateCheck.allowed) {
             return rateCheck.response;
         }
 
-        const session = await getServerSession(authOptions);
+        const session = await getAuthSession();
 
         const userId = session?.user?.id || null;
 
@@ -34,6 +33,6 @@ export async function GET(req) {
             { status: 200, headers: rateCheck.headers }
         );
     } catch (error) {
-        return NextResponse.json({ success: false, message: error.message }, { status: error.status || 500 });
+        return errorResponse(error, "api/course/comments");
     }
 }

@@ -7,11 +7,17 @@ import {
     unfavoriteCourseAction,
     postCommentAction,
     voteCommentAction,
-    submitChallengeAction
 } from "@/actions/course.actions";
+
+import { unwrapActionResult } from "@/lib/actionResult";
 
 import { userKeys } from "@/keys/user.keys";
 import { courseKeys } from "@/keys/course.keys";
+
+// Server actions return { success, data | status, message }; failures become thrown errors.
+async function callAction(action, variables) {
+    return { success: true, data: unwrapActionResult(await action(variables)) };
+}
 
 function extractId(variables) {
     if (typeof variables === 'object' && variables !== null) {
@@ -25,8 +31,7 @@ export const useCourseRegister = () => {
 
     return useMutation({
         mutationFn: async (courseId) => {
-            const res = await registerCourseAction(courseId);
-            return res;
+            return callAction(registerCourseAction, courseId);
         },
 
         onSuccess: (_, variables) => {
@@ -50,8 +55,7 @@ export const useCourseWithdraw = () => {
 
     return useMutation({
         mutationFn: async (courseId) => {
-            const res = await withdrawCourseAction(courseId);
-            return res;
+            return callAction(withdrawCourseAction, courseId);
         },
 
         onMutate: async (courseIdOrData) => {
@@ -117,8 +121,7 @@ export const useCourseSubmitLesson = () => {
 
     return useMutation({
         mutationFn: async (data) => {
-            const res = await submitLessonAction(data);
-            return res;
+            return callAction(submitLessonAction, data);
         },
 
         onSuccess: (_, variables) => {
@@ -141,36 +144,12 @@ export const useCourseSubmitLesson = () => {
     });
 };
 
-export const useCourseSubmitChallenge = () => {
-    const queryClient = useQueryClient();
-
-    return useMutation({
-        mutationFn: async (data) => {
-            const res = await submitChallengeAction(data);
-            return res;
-        },
-
-        onSuccess: () => {
-            queryClient.invalidateQueries({
-                queryKey: userKeys.me(),
-            });
-            queryClient.invalidateQueries({
-                queryKey: userKeys.overview(),
-            });
-            queryClient.invalidateQueries({
-                queryKey: userKeys.courseProgress(),
-            });
-        }
-    });
-};
-
 export const useCourseFavorite = () => {
     const queryClient = useQueryClient();
 
     return useMutation({
         mutationFn: async (data) => {
-            const res = await favoriteCourseAction(data);
-            return res;
+            return callAction(favoriteCourseAction, data);
         },
 
         onSuccess: (_, variables) => {
@@ -194,8 +173,7 @@ export const useCourseUnfavorite = () => {
 
     return useMutation({
         mutationFn: async (data) => {
-            const res = await unfavoriteCourseAction(data);
-            return res;
+            return callAction(unfavoriteCourseAction, data);
         },
 
         onSuccess: (_, variables) => {
@@ -219,8 +197,7 @@ export const useCourseComment = () => {
 
     return useMutation({
         mutationFn: async (data) => {
-            const res = await postCommentAction(data);
-            return res;
+            return callAction(postCommentAction, data);
         },
 
         onSuccess: (res, variables) => {
@@ -258,8 +235,7 @@ export const useCourseVotingComment = () => {
 
     return useMutation({
         mutationFn: async (data) => {
-            const res = await voteCommentAction(data);
-            return res;
+            return callAction(voteCommentAction, data);
         },
 
         onMutate: async ({ commentId, courseId, vote }) => {

@@ -25,4 +25,19 @@ export const userClient = {
         const res = await apiClient.get('/user/learning-progress', { params });
         return res.data;
     },
+
+    getSessions: async () => {
+        const res = await apiClient.get('/user/sessions');
+        return res.data || [];
+    },
+
+    revokeSession: async (sessionId) => {
+        const res = await apiClient.delete('/user/sessions', { data: { sessionId } });
+        return res.data;
+    },
+
+    revokeOtherSessions: async () => {
+        const res = await apiClient.delete('/user/sessions', { data: { others: true } });
+        return res.data;
+    },
 };

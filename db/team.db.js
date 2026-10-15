@@ -1,61 +1,70 @@
 import { sql } from "@/lib/db";
 
+const USER_ID = (param) => `(SELECT id FROM identity.users WHERE public_id = ${param})`;
+
 export const teamDb = {
+    // Creates the team and registers the host as an approved member in one statement.
     createTeam: async ({ teamId, userId, name, size, description }) => {
         const params = [teamId, userId, name, size, description];
         const query = `
-            INSERT INTO public.team (id, host_id, name, size, description) 
-            VALUES ($1, $2, $3, $4, $5)
-            RETURNING id;
+            WITH team AS (
+                INSERT INTO community.team (id, host_id, name, size, description)
+                VALUES ($1, ${USER_ID("$2")}, $3, $4, $5)
+                RETURNING id, host_id
+            )
+            INSERT INTO community.team_members (team_id, user_id, status)
+            SELECT id, host_id, 'approved' FROM team
+            RETURNING team_id AS id;
         `;
         return await sql(query, params);
     },
 
+    // Teams the user belongs to (approved membership), with their member list.
     getMyTeams: async ({ userId, search }) => {
-        const params = [];
-        const conditions = [];
-
-        params.push(userId);
-        conditions.push(`t1.host_id = $${params.length}`);
+        const params = [userId];
+        const conditions = [
+            `me.user_id = ${USER_ID("$1")}`,
+            `me.status = 'approved'`,
+        ];
 
         if (search && search.trim()) {
             params.push(`%${search.toLowerCase()}%`);
-            conditions.push(`LOWER(t3.name) LIKE $${params.length}`);
+            conditions.push(`LOWER(t.name) LIKE $${params.length}`);
         }
-
-        const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
         const query = `
             SELECT
-                t1.id AS team_id,
-                t3.name AS team_name,
-                t3.size AS team_size,
-                t3.image_url AS team_image,
-                u2.username AS host_name,
-                (u2.id = $1) AS is_host,
-                STRING_AGG(u1.username, ',') AS members
-            FROM public.team t1
-            JOIN public.team t2 ON t1.id = t2.id
-            JOIN private.users u1 ON t2.host_id = u1.id
-            JOIN public.team t3 ON t3.id = t1.id
-            JOIN private.users u2 ON u2.id = t3.host_id
-            ${whereSQL}    
-            GROUP BY t1.id, t3.name, t3.size, t3.image_url, u2.username, u2.id
+                t.id AS team_id,
+                t.name AS team_name,
+                t.size AS team_size,
+                t.image_url AS team_image,
+                host.username AS host_name,
+                (t.host_id = me.user_id) AS is_host,
+                STRING_AGG(mu.username, ',' ORDER BY m.created_at) AS members
+            FROM community.team_members me
+            JOIN community.team t ON t.id = me.team_id
+            JOIN identity.users host ON host.id = t.host_id
+            JOIN community.team_members m ON m.team_id = t.id AND m.status = 'approved'
+            JOIN identity.users mu ON mu.id = m.user_id
+            WHERE ${conditions.join(" AND ")}
+            GROUP BY t.id, t.name, t.size, t.image_url, host.username, t.host_id, me.user_id
+            ORDER BY t.created_at DESC;
         `;
 
         return await sql(query, params);
     },
 
+    // Teams the user has not joined or requested yet.
     getTeamsSocial: async ({ userId, search, limit, offset }) => {
-        const conditions = [];
-        const params = [];
-
-        params.push(userId);
-        conditions.push(`t.id NOT IN (
-            SELECT team_id
-            FROM social.team
-            WHERE user_id = $1
-        )`);
+        const params = [userId];
+        const conditions = [
+            `NOT EXISTS (
+                SELECT 1 FROM community.team_members m
+                WHERE m.team_id = t.id
+                  AND m.user_id = ${USER_ID("$1")}
+                  AND m.status IN ('pending', 'approved')
+            )`,
+        ];
 
         if (search && search.trim()) {
             params.push(`%${search.toLowerCase()}%`);
@@ -64,15 +73,19 @@ export const teamDb = {
 
         params.push(limit, offset);
 
-        const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-
         const query = `
-            SELECT t.*
-            FROM public.team t
-            LEFT JOIN social.team s
-                ON s.team_id = t.id AND s.user_id = $1
-            ${whereSQL}
-            LIMIT $${params.length - 1} OFFSET $${params.length}
+            SELECT
+                t.id,
+                t.name,
+                t.size,
+                t.description,
+                t.image_url,
+                t.created_at,
+                (SELECT COUNT(*)::int FROM community.team_members m WHERE m.team_id = t.id AND m.status = 'approved') AS member_count
+            FROM community.team t
+            WHERE ${conditions.join(" AND ")}
+            ORDER BY t.created_at DESC
+            LIMIT $${params.length - 1} OFFSET $${params.length};
         `;
 
         return await sql(query, params);

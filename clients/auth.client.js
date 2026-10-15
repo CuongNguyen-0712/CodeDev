@@ -14,10 +14,12 @@ export const authClient = {
         return response;
     },
 
+    // OAuth always leaves the page (to the provider, then back to callbackUrl), so next-auth
+    // resolves with nothing: report that as "redirecting" rather than as a failure.
     loginWithProvider: async (provider) => {
-        const response = await signIn(provider, { redirect: false });
+        const response = await signIn(provider, { callbackUrl: '/home' });
 
-        return response;
+        return response ?? { ok: true, redirecting: true };
     },
 
     logout: async () => {

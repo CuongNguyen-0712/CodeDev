@@ -8,7 +8,6 @@ export const courseQueries = {
             queryKey: courseKeys.details(courseId),
             queryFn: () => courseClient.getDetails(courseId),
             staleTime: 0,
-            cacheTime: 1000 * 60 * 10, // 10 minutes
             gcTime: 1000 * 60 * 5, // 5 minutes
         }
     },
@@ -32,7 +31,6 @@ export const courseQueries = {
             },
 
             staleTime: 0,
-            cacheTime: 1000 * 60 * 5, // 5 minutes
             gcTime: 1000 * 60 * 1, // 5 minutes
         };
     },
@@ -43,7 +41,6 @@ export const courseQueries = {
             queryFn: () => courseClient.getLearning({ lessonId }),
             enabled: !!lessonId,
             staleTime: 0,
-            cacheTime: 1000 * 30, // 30 seconds
             gcTime: 1000 * 30, // 30 seconds
         };
     },
@@ -64,7 +61,6 @@ export const courseQueries = {
             },
             enabled: !!courseId,
             staleTime: 0,
-            cacheTime: 1000 * 30, // 30 seconds
             gcTime: 1000 * 30, // 30 seconds
             refetchOnWindowFocus: true,
         };

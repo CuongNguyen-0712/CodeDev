@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { ApiError } from "@/lib/error/apiError";
+import { ApiError, errorResponse } from "@/lib/error/apiError";
 
 import { roadmapService } from "@/services/roadmap.service";
 
@@ -14,9 +14,6 @@ export async function GET(req) {
 
         return NextResponse.json({ success: true, data: response }, { status: 200 });
     } catch (error) {
-        if (error instanceof ApiError) {
-            return NextResponse.json({ message: error.message }, { status: error.status });
-        }
-        return NextResponse.json({ message: error.message || "Internal Server Error" }, { status: error.status || 500 });
+        return errorResponse(error, "api/roadmap/list");
     }
 }

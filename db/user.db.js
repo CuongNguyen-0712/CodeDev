@@ -40,16 +40,67 @@ export const userDb = {
         params.push(userId, sessionId);
 
         const query = `
-            UPDATE private.sessions
+            UPDATE identity.sessions
             SET 
                 is_revoked = TRUE,
                 revoked_at = now()
-            WHERE user_id = (SELECT id FROM private.users WHERE public_id = $${params.length - 1})
+            WHERE user_id = (SELECT id FROM identity.users WHERE public_id = $${params.length - 1})
             AND id = $${params.length}
             RETURNING id;
         `;
 
         return await sql(query, params);
+    },
+
+    listSessions: async ({ userId }) => {
+        const query = `
+            SELECT
+                s.id::text AS session_id,
+                s.user_agent,
+                s.created_at,
+                s.updated_at,
+                s.expires_at
+            FROM identity.sessions s
+            WHERE s.user_id = (SELECT id FROM identity.users WHERE public_id = $1)
+              AND s.is_revoked IS NOT TRUE
+              AND s.expires_at > NOW()
+            ORDER BY s.updated_at DESC
+            LIMIT 50;
+        `;
+
+        return await sql(query, [userId]);
+    },
+
+    revokeSession: async ({ userId, sessionId }) => {
+        const query = `
+            UPDATE identity.sessions
+            SET
+                is_revoked = TRUE,
+                revoked_at = NOW(),
+                updated_at = NOW()
+            WHERE user_id = (SELECT id FROM identity.users WHERE public_id = $1)
+              AND id = $2
+              AND is_revoked IS NOT TRUE
+            RETURNING id::text AS session_id;
+        `;
+
+        return await sql(query, [userId, sessionId]);
+    },
+
+    revokeOtherSessions: async ({ userId, keepSessionId }) => {
+        const query = `
+            UPDATE identity.sessions
+            SET
+                is_revoked = TRUE,
+                revoked_at = NOW(),
+                updated_at = NOW()
+            WHERE user_id = (SELECT id FROM identity.users WHERE public_id = $1)
+              AND id <> $2
+              AND is_revoked IS NOT TRUE
+            RETURNING id::text AS session_id;
+        `;
+
+        return await sql(query, [userId, keepSessionId]);
     },
 
     getSessionById: async ({ sessionId }) => {
@@ -62,9 +113,11 @@ export const userDb = {
                 s.is_revoked,
                 u.public_id,
                 u.username,
-                u.role
-            FROM private.sessions s
-            INNER JOIN private.users u ON u.id = s.user_id
+                COALESCE(r.code, 'user') AS role
+            FROM identity.sessions s
+            INNER JOIN identity.users u ON u.id = s.user_id
+            LEFT JOIN identity.user_roles ur ON ur.user_id = u.id
+            LEFT JOIN identity.roles r ON r.id = ur.role_id
             WHERE s.id = $1
             LIMIT 1;
         `;
@@ -84,13 +137,14 @@ export const userDb = {
     },
 
     createSession: async (data) => {
-        const { sessionId, tokenId, userId, refreshTokenHash, expiresAt } = data;
+        const { sessionId, tokenId, userId, refreshTokenHash, expiresAt, userAgent = null } = data;
 
         const params = [];
 
-        params.push(sessionId, tokenId, userId, refreshTokenHash, expiresAt);
+        params.push(sessionId, tokenId, userId, refreshTokenHash, expiresAt, userAgent);
 
-        const query = `select * from create_session($1, $2, $3, $4, $5);`;
+        // public.create_session takes 6 arguments; the 6th (_user_agent) may be NULL.
+        const query = `select * from create_session($1, $2, $3, $4, $5, $6);`;
 
         return await sql(query, params);
     },
@@ -115,12 +169,12 @@ export const userDb = {
                     r.rotated_to_token_id,
                     r.rotated_at
 
-                FROM private.sessions s
+                FROM identity.sessions s
 
-                INNER JOIN private.refresh_tokens r
+                INNER JOIN identity.refresh_tokens r
                     ON r.session_id = s.id
 
-                INNER JOIN private.users u
+                INNER JOIN identity.users u
                     ON u.id = s.user_id
 
                 WHERE s.id = $1
@@ -198,10 +252,26 @@ export const userDb = {
                     };
                 }
 
-                await client.query("ROLLBACK");
+                // An already-rotated token was replayed after the grace window: treat it as
+                // theft and revoke the whole session (every token in the family dies with it).
+                await client.query(
+                    `
+                    UPDATE identity.sessions
+                    SET
+                        is_revoked = TRUE,
+                        revoked_at = NOW(),
+                        updated_at = NOW()
+                    WHERE id = $1
+                `,
+                    [session.session_id]
+                );
+
+                await client.query("COMMIT");
 
                 return {
+                    sessionId: session.session_id,
                     status: TOKEN.REVOKED,
+                    reuseDetected: true,
                 };
             }
 
@@ -211,7 +281,7 @@ export const userDb = {
 
             await client.query(
                 `
-                UPDATE private.refresh_tokens
+                UPDATE identity.refresh_tokens
                 SET
                     rotated_to_token_id = $1,
                     rotated_at = NOW()
@@ -225,7 +295,7 @@ export const userDb = {
 
             const insertResult = await client.query(
                 `
-                INSERT INTO private.refresh_tokens (
+                INSERT INTO identity.refresh_tokens (
                     id,
                     session_id,
                     refresh_token_hash,
@@ -258,7 +328,7 @@ export const userDb = {
 
             await client.query(
                 `
-                UPDATE private.sessions
+                UPDATE identity.sessions
                 SET
                     updated_at = NOW()
                 WHERE id = $1
@@ -309,23 +379,12 @@ export const userDb = {
         const query =
             `SELECT 
                 distinct (p.resource || '.' || p.action) as permissions
-            FROM private.permissions p
-            JOIN private.role_permissions rp ON rp.permission_id = p.id 
-            JOIN private.roles r ON rp.role_id = r.id
-            JOIN private.user_roles ur ON r.id = ur.role_id
-            JOIN private.users u ON u.id = ur.user_id
-            WHERE u.public_id = $1`
-
-        return await sql(query, params);
-    },
-
-    refreshToken: async (data) => {
-        const { session_id, refresh_token } = data;
-        const params = [];
-
-        params.push(session_id, refresh_token);
-
-        const query = `select * from refresh_token($1, $2);`;
+            FROM identity.permissions p
+            JOIN identity.role_permissions rp ON rp.permission_id = p.id 
+            JOIN identity.roles r ON rp.role_id = r.id
+            JOIN identity.user_roles ur ON r.id = ur.role_id
+            JOIN identity.users u ON u.id = ur.user_id
+            WHERE u.public_id = $1 OR u.id::text = $1`
 
         return await sql(query, params);
     },
@@ -335,7 +394,7 @@ export const userDb = {
         const conditions = []
 
         params.push(userId)
-        conditions.push(`i.user_id = (select id from private.users where public_id = $${params.length})`)
+        conditions.push(`i.user_id = (select id from identity.users where public_id = $${params.length})`)
 
         const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -355,8 +414,8 @@ export const userDb = {
                 u.username as username, 
                 u.email as email,
                 u.email_verified as email_verified 
-            from private.users u
-            join private.info i on u.id = i.user_id
+            from identity.users u
+            join profile.info i on u.id = i.user_id
             ${whereSQL}
             limit 1
         `;
@@ -382,7 +441,7 @@ export const userDb = {
                     language_logo,
                     language_color,
                     category_name
-                FROM user_progress
+                FROM learning.user_progress
                 WHERE user_id = $${params.length}
                 AND c_deleted = false
                 AND r_deleted = false
@@ -509,7 +568,7 @@ export const userDb = {
         const conditions = []
 
         params.push(userId)
-        conditions.push(`r.user_id = (select id from private.users where public_id = $${params.length})`)
+        conditions.push(`r.user_id = (select id from identity.users where public_id = $${params.length})`)
 
         if (search) {
             params.push(`%${search}%`);
@@ -568,11 +627,11 @@ export const userDb = {
                 r.course_id,
                 COALESCE(r.last_seen, r.created_at) as sort_time,
                 COALESCE(f.id, null) as is_favorite
-            from course.register r
-            join public.course c on r.course_id = c.id
-            left join course.favorite f on f.course_id = c.id and f.user_id = r.user_id
-            join public.language l on c.language_id = l.id
-            join public.category cat on c.category_id = cat.id
+            from learning.register r
+            join catalog.course c on r.course_id = c.id
+            left join learning.favorite f on f.course_id = c.id and f.user_id = r.user_id
+            join catalog.language l on c.language_id = l.id
+            join catalog.category cat on c.category_id = cat.id
             ${whereSQL}
             ORDER BY
                 sort_time DESC,
@@ -599,7 +658,7 @@ export const userDb = {
         const conditions = [];
 
         params.push(userId);
-        conditions.push(`user_id = (select id from private.users where public_id = $${params.length})`);
+        conditions.push(`user_id = (select id from identity.users where public_id = $${params.length})`);
 
         const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
         const setQuery = [];
@@ -624,9 +683,17 @@ export const userDb = {
             setQuery.push(`name = case when $${params.length} is distinct from name then $${params.length} else name end`);
         }
 
+        // email lives in identity.users, not profile.info: update it in a data-modifying CTE.
+        let emailCTE = '';
         if (email !== null) {
             params.push(email);
-            setQuery.push(`email = case when $${params.length} is distinct from email then $${params.length} else email end`);
+            emailCTE = `
+            WITH updated_user AS (
+                UPDATE identity.users
+                SET email = $${params.length}, updated_at = now()
+                WHERE public_id = $1 AND email IS DISTINCT FROM $${params.length}
+                RETURNING id
+            )`;
         }
 
         if (image !== null) {
@@ -639,12 +706,11 @@ export const userDb = {
             setQuery.push(`bio = case when $${params.length} is distinct from bio then $${params.length} else bio end`);
         }
 
-        const setSQL = setQuery.length > 0 ? `SET ${setQuery.join(', ')}` : '';
+        setQuery.push(`updated_at = now()`);
 
-        const query = `
-            update private.info
-            ${setSQL},
-            update_at = now()
+        const query = `${emailCTE}
+            UPDATE profile.info
+            SET ${setQuery.join(', ')}
             ${whereSQL}
             RETURNING id;
         `;
@@ -675,12 +741,12 @@ export const userDb = {
                 i.rank,
                 i.star,
                 f.status
-            FROM private.users u
-            INNER JOIN private.info i ON i.user_id = u.id AND i.user_id != (select id from private.users where public_id = $1)
-            INNER JOIN private.friend f ON (
-                (f.sender_id = (select id from private.users where public_id = $1) AND f.receiver_id = u.id)
+            FROM identity.users u
+            INNER JOIN profile.info i ON i.user_id = u.id AND i.user_id != (select id from identity.users where public_id = $1)
+            INNER JOIN community.friend f ON (
+                (f.sender_id = (select id from identity.users where public_id = $1) AND f.receiver_id = u.id)
                 OR
-                (f.receiver_id = (select id from private.users where public_id = $1) AND f.sender_id = u.id)
+                (f.receiver_id = (select id from identity.users where public_id = $1) AND f.sender_id = u.id)
             )
             ${whereSQL}
         `;

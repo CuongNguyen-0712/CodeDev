@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { getAuthSession } from "@/lib/session";
 
-import { ApiError } from "@/lib/error/apiError";
+import { ApiError, errorResponse } from "@/lib/error/apiError";
 
 import { userService } from "@/services/user.service";
 
 export async function GET() {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await getAuthSession();
 
         if (!session) {
             throw new ApiError("Unauthorized", 401);
@@ -20,6 +19,6 @@ export async function GET() {
 
         return NextResponse.json({ success: true, data: response }, { status: 200 });
     } catch (error) {
-        return NextResponse.json({ success: false, message: error.message }, { status: error.status || 500 });
+        return errorResponse(error, "api/user/overview");
     }
 }

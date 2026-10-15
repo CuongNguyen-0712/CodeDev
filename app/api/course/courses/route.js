@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { getAuthSession } from "@/lib/session";
 
-import { ApiError } from "@/lib/error/apiError";
+import { ApiError, errorResponse } from "@/lib/error/apiError";
 
 import { courseService } from "@/services/course.service";
 
 export async function GET(req) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await getAuthSession();
 
         const userId = session?.user?.id || null;
 
@@ -27,9 +26,6 @@ export async function GET(req) {
 
         return NextResponse.json({ success: true, data: response }, { status: 200 });
     } catch (error) {
-        if (error instanceof ApiError) {
-            return NextResponse.json({ message: error.message }, { status: error.status });
-        }
-        return NextResponse.json({ message: error.message || "Internal Server Error" }, { status: error.status || 500 });
+        return errorResponse(error, "api/course/courses");
     }
 }

@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { ApiError } from "@/lib/error/apiError";
+import { getAuthSession } from "@/lib/session";
+import { ApiError, errorResponse } from "@/lib/error/apiError";
 import { teamService } from "@/services/team.service";
 
 export async function POST(req) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await getAuthSession();
 
         if (!session?.user?.id) {
             throw new ApiError("Unauthorized", 401);
@@ -28,9 +27,6 @@ export async function POST(req) {
 
         return NextResponse.json({ success: response }, { status: 201 });
     } catch (error) {
-        return NextResponse.json(
-            { message: error.message || "Internal Server Error" },
-            { status: error.status || 500 }
-        );
+        return errorResponse(error, "api/post/postCreateTeam");
     }
 }

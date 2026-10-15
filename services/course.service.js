@@ -1,20 +1,60 @@
+import crypto from "crypto";
+
 import { courseDb } from "@/db/course.db";
-import { getPusherServer } from "@/lib/pusher";
+import { ApiError } from "@/lib/error/apiError";
+import { redis } from "@/lib/cache";
+import { cacheKeys, TTL, invalidateUserCache } from "@/lib/cacheKeys";
+import { publish, publishToUser } from "@/lib/pusher";
+import { channels, events, progressReasons } from "@/lib/realtime";
+
+/** Cache + realtime side effects after a write that changes a user's learning state. */
+async function afterProgressChange({ userId, courseId, reason }) {
+    await invalidateUserCache(userId);
+    if (courseId && (reason === progressReasons.REGISTERED || reason === progressReasons.WITHDRAWN)) {
+        // Learner counts on the public course page changed.
+        await redis.del(cacheKeys.courseDetailsPublic(courseId));
+    }
+    publishToUser(userId, events.PROGRESS_UPDATED, { courseId: courseId || null, reason });
+}
+
+function listCacheKey(params) {
+    const { lastId = null, prices = [], levels = [], ratings = [], limit = 20 } = params;
+    const hash = crypto
+        .createHash("sha1")
+        .update(JSON.stringify({ lastId, prices: [...prices].sort(), levels: [...levels].sort(), ratings: [...ratings].sort(), limit: Number(limit) }))
+        .digest("hex")
+        .slice(0, 16);
+    return cacheKeys.courseListPublic(hash);
+}
 
 export const courseService = {
     getDetails: async (data) => {
-        const response = await courseDb.getCourseDetails(data);
+        const load = async () => {
+            const response = await courseDb.getCourseDetails(data);
 
-        if (!response) {
-            throw new Error('Failed to fetch course details, try again later');
-        }
+            if (!response) {
+                throw new Error('Failed to fetch course details, try again later');
+            }
 
-        const details = response.rows[0];
+            return response.rows[0] ?? null;
+        };
 
-        return details;
+        // Signed-in visitors get their own status/progress columns: never share those.
+        if (data?.userId || !data?.courseId) return load();
+
+        return redis.remember(cacheKeys.courseDetailsPublic(data.courseId), TTL.COURSE_DETAILS_PUBLIC, load);
     },
 
     getList: async (params) => {
+        // Guests browsing without a search term all see the same pages.
+        if (!params.userId && !params.search) {
+            return redis.remember(listCacheKey(params), TTL.COURSE_LIST_PUBLIC, () => courseService.loadList(params));
+        }
+
+        return courseService.loadList(params);
+    },
+
+    loadList: async (params) => {
         const response = await courseDb.getCourseList(params);
 
         if (!response) {
@@ -41,6 +81,8 @@ export const courseService = {
 
         const course = response.rows[0];
 
+        await afterProgressChange({ userId: data.userId, courseId: data.courseId, reason: progressReasons.REGISTERED });
+
         return !!course;
     },
 
@@ -51,6 +93,8 @@ export const courseService = {
             throw new Error('Failed to withdraw from the course, try again later');
         }
 
+        await afterProgressChange({ userId: data.userId, courseId: data.courseId, reason: progressReasons.WITHDRAWN });
+
         return true;
     },
 
@@ -58,7 +102,7 @@ export const courseService = {
         const response = await courseDb.getLearning(data);
 
         if (!response || response.rowCount === 0) {
-            throw new Error('Failed to fetch learning, try again later');
+            throw new ApiError('This lesson is locked or you are not registered for its course', 403);
         }
 
         const learning = response.rows[0];
@@ -67,6 +111,18 @@ export const courseService = {
     },
 
     postSubmitLesson: async (data) => {
+        // submit_lesson() does not check unlock state, so guard it here.
+        const statusRes = await courseDb.getLessonStatus(data);
+        const lessonStatus = statusRes?.rows?.[0]?.status;
+
+        if (!lessonStatus) {
+            throw new ApiError('You are not registered for this lesson', 403);
+        }
+
+        if (lessonStatus === 'enrolled') {
+            throw new ApiError('Complete the previous lessons to unlock this one', 403);
+        }
+
         const response = await courseDb.postSubmitLesson(data);
 
         if (!response || response.rowCount === 0) {
@@ -74,6 +130,8 @@ export const courseService = {
         }
 
         const course = response.rows[0];
+
+        await afterProgressChange({ userId: data.userId, courseId: data.courseId, reason: progressReasons.LESSON_COMPLETED });
 
         return !!course;
     },
@@ -84,6 +142,8 @@ export const courseService = {
         if (!response || response.rowCount === 0) {
             throw new Error('Failed to favorite course, try again later');
         }
+
+        await afterProgressChange({ userId: data.userId, courseId: data.courseId, reason: progressReasons.FAVORITE_CHANGED });
 
         return true;
     },
@@ -120,25 +180,18 @@ export const courseService = {
 
         const comment = response.rows[0];
 
-        // Trigger realtime event to course channel via Pusher
-        try {
-            const pusher = getPusherServer();
-            if (pusher && data.courseId) {
-                const channelName = `course-${data.courseId}`;
-                await pusher.trigger(channelName, "new-comment", {
-                    id: comment.id,
-                    user_id: comment.user_id,
-                    username: comment.username,
-                    avatar: comment.avatar,
-                    comment: comment.comment,
-                    upvotes: Number(comment.upvotes) || 0,
-                    downvotes: Number(comment.downvotes) || 0,
-                    created_at: comment.created_at,
-                    vote: null,
-                });
-            }
-        } catch (pusherError) {
-            console.error("[Pusher] Failed to broadcast new comment:", pusherError.message);
+        if (data.courseId) {
+            await publish(channels.course(data.courseId), events.COMMENT_CREATED, {
+                id: comment.id,
+                user_id: comment.user_id,
+                username: comment.username,
+                avatar: comment.avatar,
+                comment: comment.comment,
+                upvotes: Number(comment.upvotes) || 0,
+                downvotes: Number(comment.downvotes) || 0,
+                created_at: comment.created_at,
+                vote: null,
+            });
         }
 
         return comment || true;
@@ -159,19 +212,12 @@ export const courseService = {
             vote: voteRow.vote || null,
         };
 
-        // Realtime broadcast updated votes via Pusher if courseId provided
-        try {
-            const pusher = getPusherServer();
-            if (pusher && data.courseId) {
-                const channelName = `course-${data.courseId}`;
-                await pusher.trigger(channelName, "comment-voted", {
-                    commentId: data.commentId,
-                    upvotes: result.upvotes,
-                    downvotes: result.downvotes,
-                });
-            }
-        } catch (pusherError) {
-            console.error("[Pusher] Failed to broadcast comment vote:", pusherError.message);
+        if (data.courseId) {
+            await publish(channels.course(data.courseId), events.COMMENT_VOTED, {
+                commentId: data.commentId,
+                upvotes: result.upvotes,
+                downvotes: result.downvotes,
+            });
         }
 
         return result;
@@ -186,16 +232,8 @@ export const courseService = {
 
         const deleted = response.rows[0];
 
+        await afterProgressChange({ userId: data.userId, courseId: data.courseId, reason: progressReasons.FAVORITE_CHANGED });
+
         return !!deleted;
-    },
-
-    postSubmitChallenge: async (data) => {
-        const response = await courseDb.submitChallenge(data);
-
-        if (!response) {
-            throw new Error('Failed to evaluate challenge, try again later');
-        }
-
-        return response;
     },
 }

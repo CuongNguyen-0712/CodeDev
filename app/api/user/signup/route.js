@@ -1,33 +1,50 @@
 import { NextResponse } from "next/server";
 
-import { ApiError } from "@/lib/error/apiError";
+import { ApiError, errorResponse } from "@/lib/error/apiError";
+import { rateLimiters } from "@/lib/rateLimit";
+import { SignUpSchema } from "@/lib/definition";
+import { validate } from "@/lib/validate";
 
 import { userService } from "@/services/user.service";
 
 export async function POST(req) {
-    try {
-        const { surname, name, email, username, password } = await req.json();
+    const limit = await rateLimiters.signup.limitRequest(req);
+    if (!limit.allowed) return limit.response;
 
-        if (!surname || !name || !email || !username || !password) {
-            throw new ApiError('Missing required fields', 400);
+    try {
+        const body = await req.json().catch(() => {
+            throw new ApiError("Invalid request body", 400);
+        });
+
+        const { success, errors } = validate(SignUpSchema, body || {});
+
+        if (!success) {
+            return NextResponse.json(
+                { success: false, message: "Please fix the highlighted fields.", errors },
+                { status: 422, headers: limit.headers }
+            );
         }
 
-        const data = { surname, name, email, username, password };
+        const { surname, name, email, username, password } = body;
 
-        const response = await userService.signUp(data);
+        const response = await userService.signUp({
+            surname: surname.trim(),
+            name: name.trim(),
+            email: email.trim().toLowerCase(),
+            username: username.trim(),
+            password,
+        });
 
         return NextResponse.json({
             success: true,
             message: "Account created successfully",
-            data: response
-        }, { status: 201 });
+            data: {
+                id: response?.id ?? response?.public_id ?? null,
+                username: response?.username ?? username.trim(),
+            },
+        }, { status: 201, headers: limit.headers });
     }
     catch (error) {
-        const status = error.status || (error.code === 'P0001' || error.code === '23505' ? 409 : 500);
-        return NextResponse.json({
-            success: false,
-            message: error.message || "Internal Server Error",
-            error: error.message || "Internal Server Error"
-        }, { status });
+        return errorResponse(error, "api/user/signup", limit.headers);
     }
 }

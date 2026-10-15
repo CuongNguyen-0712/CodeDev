@@ -1,125 +1,87 @@
 'use server';
 
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { courseService } from "@/services/course.service";
-
+import { ApiError } from "@/lib/error/apiError";
 import { rateLimiters } from "@/lib/rateLimit";
+import { runAction } from "@/lib/serverAction";
 
-async function getAuthUserId() {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-        throw new Error("Unauthorized: Please sign in to proceed.");
-    }
-    return session.user.id;
-}
+const MAX_COMMENT_LENGTH = 200;
 
 function parseCourseId(courseIdOrData) {
-    if (typeof courseIdOrData === 'object' && courseIdOrData !== null) {
-        return courseIdOrData.courseId || courseIdOrData.id;
+    const courseId = typeof courseIdOrData === 'object' && courseIdOrData !== null
+        ? courseIdOrData.courseId || courseIdOrData.id
+        : courseIdOrData;
+
+    if (!courseId) {
+        throw new ApiError("Course ID is required.", 400);
     }
-    return courseIdOrData;
+
+    return String(courseId);
 }
 
-export async function submitLessonAction({ courseId, lessonId }) {
-    const userId = await getAuthUserId();
+export async function submitLessonAction({ courseId, lessonId } = {}) {
+    return runAction(async ({ userId }) => {
+        if (!courseId || !lessonId) {
+            throw new ApiError("Course ID and Lesson ID are required.", 400);
+        }
 
-    if (!courseId || !lessonId) {
-        throw new Error("Course ID and Lesson ID are required.");
-    }
-
-    const success = await courseService.postSubmitLesson({ userId, courseId, lessonId });
-    return { success: Boolean(success) };
-}
-
-export async function submitChallengeAction({ challengeId, answers }) {
-    const userId = await getAuthUserId();
-
-    if (!challengeId) {
-        throw new Error("Challenge ID is required.");
-    }
-
-    const result = await courseService.postSubmitChallenge({
-        userId,
-        challengeId,
-        answers: answers || {}
-    });
-
-    return JSON.parse(JSON.stringify(result || {}));
+        const success = await courseService.postSubmitLesson({ userId, courseId, lessonId });
+        return Boolean(success);
+    }, { context: "submitLessonAction" });
 }
 
 export async function registerCourseAction(courseIdOrData) {
-    const userId = await getAuthUserId();
-    const courseId = parseCourseId(courseIdOrData);
-
-    if (!courseId) {
-        throw new Error("Course ID is required.");
-    }
-
-    const success = await courseService.postRegister({ userId, courseId });
-    return { success: Boolean(success) };
+    return runAction(async ({ userId }) => {
+        const success = await courseService.postRegister({ userId, courseId: parseCourseId(courseIdOrData) });
+        return Boolean(success);
+    }, { context: "registerCourseAction" });
 }
 
 export async function withdrawCourseAction(courseIdOrData) {
-    const userId = await getAuthUserId();
-    const courseId = parseCourseId(courseIdOrData);
-
-    if (!courseId) {
-        throw new Error("Course ID is required.");
-    }
-
-    const response = await courseService.postWithdraw({ userId, courseId });
-    return { success: Boolean(response) };
+    return runAction(async ({ userId }) => {
+        const success = await courseService.postWithdraw({ userId, courseId: parseCourseId(courseIdOrData) });
+        return Boolean(success);
+    }, { context: "withdrawCourseAction" });
 }
 
 export async function favoriteCourseAction(courseIdOrData) {
-    const userId = await getAuthUserId();
-    const courseId = parseCourseId(courseIdOrData);
-
-    if (!courseId) {
-        throw new Error("Course ID is required.");
-    }
-
-    const response = await courseService.postFavorite({ userId, courseId });
-    return { success: Boolean(response) };
+    return runAction(async ({ userId }) => {
+        const success = await courseService.postFavorite({ userId, courseId: parseCourseId(courseIdOrData) });
+        return Boolean(success);
+    }, { context: "favoriteCourseAction" });
 }
 
 export async function unfavoriteCourseAction(courseIdOrData) {
-    const userId = await getAuthUserId();
-    const courseId = parseCourseId(courseIdOrData);
-
-    if (!courseId) {
-        throw new Error("Course ID is required.");
-    }
-
-    const response = await courseService.deleteFavorite({ userId, courseId });
-    return { success: Boolean(response) };
+    return runAction(async ({ userId }) => {
+        const success = await courseService.deleteFavorite({ userId, courseId: parseCourseId(courseIdOrData) });
+        return Boolean(success);
+    }, { context: "unfavoriteCourseAction" });
 }
 
-export async function postCommentAction({ courseId, content }) {
-    const userId = await getAuthUserId();
+export async function postCommentAction({ courseId, content } = {}) {
+    return runAction(async ({ userId }) => {
+        const trimmed = String(content || "").trim();
 
-    // Check rate limit: 15 comments / min per user
-    const rateCheck = await rateLimiters.comment.check(userId);
-    if (!rateCheck.success) {
-        throw new Error(`You are submitting comments too quickly. Please retry in ${rateCheck.retryAfter} seconds.`);
-    }
+        if (!courseId || !trimmed) {
+            throw new ApiError("Course ID and comment content are required.", 400);
+        }
 
-    if (!courseId || !content?.trim()) {
-        throw new Error("Course ID and comment content are required.");
-    }
+        if (trimmed.length > MAX_COMMENT_LENGTH) {
+            throw new ApiError(`Comments can be up to ${MAX_COMMENT_LENGTH} characters.`, 400);
+        }
 
-    const result = await courseService.postComment({ userId, courseId, content: content.trim() });
-    return { success: Boolean(result), data: typeof result === 'object' ? result : null };
+        const result = await courseService.postComment({ userId, courseId, content: trimmed });
+        return typeof result === 'object' ? result : null;
+    }, { limiter: rateLimiters.comment, context: "postCommentAction" });
 }
 
-export async function voteCommentAction({ commentId, courseId, vote }) {
-    const userId = await getAuthUserId();
+export async function voteCommentAction({ commentId, courseId, vote } = {}) {
+    return runAction(async ({ userId }) => {
+        if (!commentId) {
+            throw new ApiError("Comment ID is required.", 400);
+        }
 
-    if (!commentId) {
-        throw new Error("Comment ID is required.");
-    }
-
-    const response = await courseService.postVotingComment({ userId, commentId, courseId, vote });
-    return { success: Boolean(response), data: typeof response === 'object' ? response : null };
+        const response = await courseService.postVotingComment({ userId, commentId, courseId, vote });
+        return typeof response === 'object' ? response : null;
+    }, { limiter: rateLimiters.vote, context: "voteCommentAction" });
 }

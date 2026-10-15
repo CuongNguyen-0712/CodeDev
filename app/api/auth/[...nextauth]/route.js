@@ -2,20 +2,62 @@ import NextAuth from "next-auth";
 import GithubProvider from "next-auth/providers/github";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { headers } from "next/headers";
 
 import { ApiError } from "@/lib/error/apiError";
+import { RateLimiter, rateLimiters, failureGuards } from "@/lib/rateLimit";
 
 import { authService } from "@/services/auth.service";
 
-import { TOKEN } from "@/constants/auth";
+import { TOKEN, SESSION_ERROR, isFatalSessionError } from "@/constants/auth";
 
 const ACCESS_TOKEN_LIFETIME = 15 * 60 * 1000;
 const ACCESS_TOKEN_REFRESH_BUFFER = 30 * 1000;
+// How often the jwt callback re-checks that the session was not revoked elsewhere.
+const SESSION_CHECK_INTERVAL = 60 * 1000;
+// Retry delay after a refresh that could not complete (DB hiccup / lost concurrent race).
+const REFRESH_RETRY_DELAY = 5 * 1000;
+
+const LOGIN_ERROR = {
+    INVALID: "Invalid username or password.",
+    UNAVAILABLE: "Sign-in is temporarily unavailable, please try again.",
+};
+
+async function currentUserAgent() {
+    try {
+        return (await headers()).get("user-agent");
+    } catch {
+        return null;
+    }
+}
+
+function readHeader(req, name) {
+    const h = req?.headers;
+    if (!h) return null;
+    return typeof h.get === "function" ? h.get(name) : h[name];
+}
+
+function applySession(token, user) {
+    token.id = user.id;
+    token.username = user.username;
+    token.provider = user.provider;
+    token.image = user.image;
+    token.email = user.email;
+    token.role = user.role;
+    token.permissions = user.permissions;
+    token.sessionId = String(user.sessionId);
+    token.tokenId = String(user.tokenId);
+    token.refreshToken = user.refreshToken;
+    token.expiresAt = Date.now() + ACCESS_TOKEN_LIFETIME;
+    token.checkedAt = Date.now();
+    token.error = undefined;
+    return token;
+}
 
 export const authOptions = {
     session: {
         strategy: "jwt",
-        maxAge: 30 * 24 * 60 * 60, // 30 days
+        maxAge: 30 * 24 * 60 * 60, // 30 days, same as the server-side session
     },
 
     providers: [
@@ -45,23 +87,49 @@ export const authOptions = {
                 username: {},
                 password: {},
             },
-            async authorize(credentials) {
-                const { username, password } = credentials;
+            // Thrown messages are shown to the user (signIn(...).error), so keep them safe.
+            async authorize(credentials, req) {
+                const username = String(credentials?.username || "").trim();
+                const password = String(credentials?.password || "");
 
                 if (!username || !password) {
-                    throw new ApiError("Missing credentials, try again", 400);
+                    throw new Error("Enter your username and password.");
+                }
+
+                const ip = RateLimiter.getClientIp(req);
+
+                const ipCheck = await rateLimiters.auth.check(ip);
+                if (!ipCheck.success) {
+                    throw new Error(`Too many sign-in attempts. Try again in ${ipCheck.retryAfter} seconds.`);
+                }
+
+                const lock = await failureGuards.login.status(username);
+                if (lock.locked) {
+                    const minutes = Math.ceil(lock.retryAfter / 60);
+                    throw new Error(`This account is temporarily locked after several failed attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`);
                 }
 
                 try {
-                    const response = await authService.login({ username, password });
+                    const user = await authService.login({
+                        username,
+                        password,
+                        userAgent: readHeader(req, "user-agent"),
+                    });
 
-                    if (!response) {
-                        throw new ApiError("Authentication failed, try again", 500);
+                    await failureGuards.login.reset(username);
+                    return user;
+                } catch (err) {
+                    if (err instanceof ApiError && err.status === 401) {
+                        await failureGuards.login.fail(username);
+                        throw new Error(LOGIN_ERROR.INVALID);
                     }
 
-                    return response;
-                } catch (err) {
-                    throw new ApiError(err.message || "Authentication failed, try again", err.status || 500);
+                    if (err instanceof ApiError && err.status < 500) {
+                        throw new Error(err.message);
+                    }
+
+                    console.error("[auth] Credentials sign-in failed:", err);
+                    throw new Error(LOGIN_ERROR.UNAVAILABLE);
                 }
             }
         }),
@@ -69,70 +137,66 @@ export const authOptions = {
 
     callbacks: {
         async jwt({ token, user, account, profile }) {
+            // ---- Sign in
             if (account && user) {
+                if (account.provider === "credentials") {
+                    return applySession(token, user);
+                }
+
+                const email =
+                    user.email ||
+                    profile?.email ||
+                    profile?.emails?.[0]?.value;
+
+                if (!email) {
+                    // Surfaces as /auth/error?error=Callback
+                    throw new Error("The provider did not share an email address.");
+                }
+
                 try {
-                    if (account.provider === "credentials") {
-                        token.id = user.id;
-                        token.username = user.username;
-                        token.provider = user.provider;
-                        token.image = user.image;
-                        token.email = user.email;
-                        token.role = user.role;
-                        token.permissions = user.permissions;
-                        token.sessionId = user.sessionId;
-                        token.tokenId = user.tokenId;
-                        token.refreshToken = user.refreshToken;
-                        token.expiresAt = Date.now() + ACCESS_TOKEN_LIFETIME; // 15 minutes
-                        token.error = undefined;
+                    const response = await authService.signUpWithProvider({
+                        username: user.username || user.name,
+                        email,
+                        image: user.image || null,
+                        accountProvider: account.provider,
+                        providerAccountId: account.providerAccountId,
+                        userAgent: await currentUserAgent(),
+                    });
 
-                        return token;
-                    }
-
-                    const email =
-                        user.email ||
-                        profile?.email ||
-                        profile?.emails?.[0]?.value;
-
-                    if (!email) {
-                        throw new ApiError("Missing credentials, try again", 400);
-                    }
-
-                    const image = user.image || null;
-                    const username = user.username || user.name;
-                    const accountProvider = account.provider;
-                    const providerAccountId = account.providerAccountId;
-
-                    const response = await authService.signUpWithProvider({ username, email, image, accountProvider, providerAccountId });
-
-                    token.id = response.id;
-                    token.username = response.username;
-                    token.provider = response.provider;
-                    token.email = response.email;
-                    token.image = response.image;
-                    token.role = response.role;
-                    token.permissions = response.permissions;
-                    token.sessionId = response.sessionId;
-                    token.refreshToken = response.refreshToken;
-                    token.tokenId = response.tokenId;
-                    token.expiresAt = Date.now() + ACCESS_TOKEN_LIFETIME; // 15 minutes
-                    token.error = undefined;
-
-                    return token;
+                    return applySession(token, response);
                 } catch (err) {
-                    throw new ApiError("Authentication failed, try again", 500);
+                    console.error(`[auth] ${account.provider} sign-in failed:`, err);
+                    throw new Error("Authentication failed, try again");
                 }
             }
 
-            if (!token.sessionId || !token.refreshToken || !token.tokenId) {
-                return {
-                    ...token,
-                    error: "SessionInvalid",
-                };
+            // ---- Existing session
+            if (isFatalSessionError(token.error)) {
+                return token;
             }
 
+            if (!token.sessionId || !token.refreshToken || !token.tokenId) {
+                return { ...token, error: SESSION_ERROR.INVALID };
+            }
+
+            const now = Date.now();
             const expiresAt = Number(token.expiresAt) || 0;
 
-            if (expiresAt > 0 && Date.now() < (expiresAt - ACCESS_TOKEN_REFRESH_BUFFER)) {
+            if (expiresAt > 0 && now < expiresAt - ACCESS_TOKEN_REFRESH_BUFFER) {
+                // Access token still valid: periodically make sure the session was not
+                // revoked from another device (Redis fast path, PostgreSQL fallback).
+                if (now - (Number(token.checkedAt) || 0) > SESSION_CHECK_INTERVAL) {
+                    try {
+                        const active = await authService.getSessionStatus(token.sessionId);
+                        if (!active) {
+                            return { ...token, error: SESSION_ERROR.REVOKED };
+                        }
+                        return { ...token, checkedAt: now };
+                    } catch (err) {
+                        // Cannot verify right now; try again on the next poll.
+                        console.error("[auth] Session check failed:", err?.message);
+                    }
+                }
                 return token;
             }
 
@@ -144,63 +208,45 @@ export const authOptions = {
                     refreshToken: token.refreshToken
                 });
 
-
-                if (!response) {
-                    return token;
-                }
-
-                switch (response.status) {
+                switch (response?.status) {
                     case TOKEN.REFRESH:
                         return {
                             ...token,
-                            sessionId: response.sessionId,
-                            tokenId: response.tokenId,
+                            sessionId: String(response.sessionId),
+                            tokenId: String(response.tokenId),
                             refreshToken: response.refreshToken,
-                            expiresAt: Date.now() + ACCESS_TOKEN_LIFETIME,
+                            expiresAt: now + ACCESS_TOKEN_LIFETIME,
+                            checkedAt: now,
                             error: undefined,
                         };
 
                     case TOKEN.INVALID:
-                        return {
-                            ...token,
-                            error: "SessionInvalid",
-                        };
+                        return { ...token, error: SESSION_ERROR.INVALID };
 
                     case TOKEN.EXPIRED:
-                        return {
-                            ...token,
-                            error: "SessionExpired",
-                        };
+                        return { ...token, error: SESSION_ERROR.EXPIRED };
 
                     case TOKEN.REVOKED:
-                        return {
-                            ...token,
-                            error: "SessionRevoked",
-                        };
+                        return { ...token, error: SESSION_ERROR.REVOKED };
 
+                    // Another request rotated this token but its result is not readable yet.
+                    // Keep the current token and retry shortly: it stays valid during the grace
+                    // window, and extending it to a full lifetime would make the next refresh a
+                    // replay (which revokes the session).
                     case TOKEN.CONCURRENT:
-                        return {
-                            ...token,
-                            sessionId: response.sessionId || token.sessionId,
-                            tokenId: response.tokenId || token.tokenId,
-                            refreshToken: response.refreshToken || token.refreshToken,
-                            expiresAt: Date.now() + ACCESS_TOKEN_LIFETIME,
-                            error: undefined,
-                        };
-
                     case TOKEN.FAILED:
                     default:
                         return {
                             ...token,
-                            expiresAt: Date.now() + 30 * 1000,
+                            expiresAt: now + REFRESH_RETRY_DELAY + ACCESS_TOKEN_REFRESH_BUFFER,
                         };
                 }
             } catch (err) {
-                console.error("JWT refresh failed:", err);
+                console.error("[auth] JWT refresh failed:", err);
 
                 return {
                     ...token,
-                    expiresAt: Date.now() + 30 * 1000,
+                    expiresAt: now + REFRESH_RETRY_DELAY + ACCESS_TOKEN_REFRESH_BUFFER,
                 };
             }
         },
@@ -228,4 +274,4 @@ export const authOptions = {
 };
 
 const handler = NextAuth(authOptions);
-export { handler as GET, handler as POST }; 
+export { handler as GET, handler as POST };

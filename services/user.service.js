@@ -1,5 +1,9 @@
 import { userDb } from "@/db/user.db";
 import { ApiError } from "@/lib/error/apiError";
+import { challengeService } from "@/services/challenge.service";
+import { cacheKeys, TTL, rememberForUser, invalidateUserCache } from "@/lib/cacheKeys";
+import { publishToUser } from "@/lib/pusher";
+import { events } from "@/lib/realtime";
 
 import bycrypt from "bcryptjs";
 
@@ -40,35 +44,39 @@ export const userService = {
     },
 
     getMe: async (userId) => {
-        const response = await userDb.getMe(userId);
+        return rememberForUser(userId, (v) => cacheKeys.userMe(userId, v), TTL.USER_ME, async () => {
+            const response = await userDb.getMe(userId);
 
-        if (!response) {
-            throw new Error('Failed to fetch user details, try again later');
-        }
+            if (!response) {
+                throw new Error('Failed to fetch user details, try again later');
+            }
 
-        const user = response.rows[0];
+            const user = response.rows[0];
 
-        if (!user) {
-            throw new Error('User not found');
-        }
+            if (!user) {
+                throw new ApiError('User not found', 404);
+            }
 
-        return user;
+            return user;
+        });
     },
 
     getOverview: async (userId) => {
-        const response = await userDb.getOverview(userId);
+        return rememberForUser(userId, (v) => cacheKeys.userOverview(userId, v), TTL.USER_OVERVIEW, async () => {
+            const response = await userDb.getOverview(userId);
 
-        if (!response) {
-            throw new Error('Failed to fetch user details, try again later');
-        }
+            if (!response) {
+                throw new Error('Failed to fetch user details, try again later');
+            }
 
-        const user = response.rows[0];
+            const user = response.rows[0];
 
-        if (!user) {
-            throw new Error('User not found');
-        }
+            if (!user) {
+                throw new ApiError('User not found', 404);
+            }
 
-        return user.data || {};
+            return user.data || {};
+        });
     },
 
     getCourseProgress: async (params) => {
@@ -101,19 +109,21 @@ export const userService = {
     },
 
     getLearningProgress: async (data) => {
-        const response = await userDb.getLearningProgress(data);
+        return rememberForUser(data.userId, (v) => cacheKeys.userLearningProgress(data.userId, v, data.courseId), TTL.USER_LEARNING_PROGRESS, async () => {
+            const response = await userDb.getLearningProgress(data);
 
-        if (!response) {
-            throw new Error('Failed to fetch learning progress, try again later');
-        }
+            if (!response) {
+                throw new Error('Failed to fetch learning progress, try again later');
+            }
 
-        const user = response.rows[0];
+            const user = response.rows[0];
 
-        if (!user) {
-            throw new Error('User not found');
-        }
+            if (!user) {
+                throw new ApiError('User not found', 404);
+            }
 
-        return user.learning_progress || {};
+            return challengeService.sanitizeLearningProgress(user.learning_progress || {});
+        });
     },
 
     updateProfile: async (data) => {
@@ -133,6 +143,9 @@ export const userService = {
         if (!result) {
             throw new ApiError("Failed to update your information, try again later", 500);
         }
+
+        await invalidateUserCache(userId);
+        publishToUser(userId, events.PROFILE_UPDATED, {});
 
         return true;
     },

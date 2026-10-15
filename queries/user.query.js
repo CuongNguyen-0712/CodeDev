@@ -20,7 +20,6 @@ export const userQueries = {
             queryFn: () => userClient.getOverview(),
             enabled: status === 'authenticated',
             staleTime: 0,
-            cacheTime: 1000 * 60 * 30,
             gcTime: 1000 * 60 * 30,
             refetchOnWindowFocus: true,
         };
@@ -47,6 +46,17 @@ export const userQueries = {
 
             gcTime: 10 * 60 * 1000, // 10 minutes
 
+            refetchOnWindowFocus: true,
+        };
+    },
+
+    sessions(status) {
+        return {
+            queryKey: userKeys.sessions(),
+            queryFn: () => userClient.getSessions(),
+            enabled: status === 'authenticated',
+            staleTime: 30 * 1000,
+            gcTime: 5 * 60 * 1000,
             refetchOnWindowFocus: true,
         };
     },

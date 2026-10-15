@@ -1,28 +1,35 @@
 import { roadmapDb } from '@/db/roadmap'
+import { redis } from '@/lib/cache'
+import { cacheKeys, TTL } from '@/lib/cacheKeys'
+import { ApiError } from '@/lib/error/apiError'
 
 export const roadmapService = {
+    // Same for every visitor and rarely edited: shared Redis cache.
     getList: async () => {
-        const response = await roadmapDb.getList();
+        return redis.remember(cacheKeys.roadmapList(), TTL.ROADMAP_LIST, async () => {
+            const response = await roadmapDb.getList();
 
-        if (!response) {
-            throw new Error('Failed to fetch roadmap list, try again later');
-        }
+            if (!response) {
+                throw new Error('Failed to fetch roadmap list, try again later');
+            }
 
-        return response.rows;
+            return response.rows;
+        });
     },
 
     getDetails: async ({ publicId, userId = null }) => {
         if (!publicId) {
-            throw new Error('Roadmap ID is required');
+            throw new ApiError('Roadmap ID is required', 400);
         }
 
-        const roadmap = await roadmapDb.getDetails(publicId, userId);
+        const [roadmap, allRoadmaps] = await Promise.all([
+            roadmapDb.getDetails(publicId, userId),
+            roadmapService.getList().catch(() => []),
+        ]);
+
         if (!roadmap) {
-            throw new Error('Roadmap not found');
+            throw new ApiError('Roadmap not found', 404);
         }
-
-        const listRes = await roadmapDb.getList();
-        const allRoadmaps = listRes ? listRes.rows : [];
 
         return {
             ...roadmap,

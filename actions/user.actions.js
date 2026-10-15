@@ -1,25 +1,20 @@
 'use server';
 
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { userService } from "@/services/user.service";
+import { ApiError } from "@/lib/error/apiError";
+import { rateLimiters } from "@/lib/rateLimit";
+import { runAction } from "@/lib/serverAction";
 
 export async function updateUserProfileAction(data) {
-    try {
-        const session = await getServerSession(authOptions);
-        if (!session?.user?.id) {
-            return { success: false, message: "Unauthorized", status: 401 };
-        }
-
-        const userId = session.user.id;
+    return runAction(async ({ userId }) => {
         const { nickname, surname, phone, name, email, image, bio } = data || {};
 
         const isUpdate = nickname || surname || phone || name || email || image || bio;
         if (!isUpdate) {
-            return { success: false, message: "No data to update", status: 400 };
+            throw new ApiError("No data to update", 400);
         }
 
-        const result = await userService.updateProfile({
+        return userService.updateProfile({
             userId,
             nickname,
             surname,
@@ -29,13 +24,5 @@ export async function updateUserProfileAction(data) {
             image,
             bio,
         });
-
-        return { success: Boolean(result) };
-    } catch (error) {
-        return {
-            success: false,
-            message: error.message || "Failed to update profile",
-            status: error.status || 500
-        };
-    }
+    }, { limiter: rateLimiters.profile, context: "updateUserProfileAction" });
 }

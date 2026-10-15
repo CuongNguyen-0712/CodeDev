@@ -12,7 +12,7 @@ export const courseDb = {
         }
 
         params.push(courseId)
-        conditions.push(`c.id = (select id from public.course where public_id = $${params.length})`)
+        conditions.push(`c.id = (select id from catalog.course where public_id = $${params.length})`)
 
         const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -53,15 +53,15 @@ export const courseDb = {
                 WHERE m.course_id = c.id
                 AND m.is_deleted = false
             ) AS modules
-        FROM public.course c
-        JOIN public.language lang
+        FROM catalog.course c
+        JOIN catalog.language lang
             ON lang.id = c.language_id
-        JOIN public.category cat
+        JOIN catalog.category cat
             ON cat.id = c.category_id
-        LEFT JOIN course.favorite f
+        LEFT JOIN learning.favorite f
             ON f.course_id = c.id
-            AND f.user_id = (SELECT id FROM private.users WHERE public_id = $1)
-        ${userId ? `LEFT JOIN course.register r ON r.course_id = c.id AND r.user_id = (SELECT id FROM private.users WHERE public_id = $1) AND r.is_deleted = false` : ''}
+            AND f.user_id = (SELECT id FROM identity.users WHERE public_id = $1)
+        ${userId ? `LEFT JOIN learning.register r ON r.course_id = c.id AND r.user_id = (SELECT id FROM identity.users WHERE public_id = $1) AND r.is_deleted = false` : ''}
         ${whereSQL}
         LIMIT 1;
     `
@@ -104,7 +104,7 @@ export const courseDb = {
 
         if (lastId) {
             params.push(lastId);
-            conditions.push(`c.id < (select id from public.course where public_id = $${params.length})`);
+            conditions.push(`c.id < (select id from catalog.course where public_id = $${params.length})`);
         }
 
         conditions.push(`c.is_hidden = false`);
@@ -133,14 +133,14 @@ export const courseDb = {
                 l.color as language_color,
                 cat.name as category_name,
                 COALESCE(r.status, null) as is_registered
-            FROM public.course c
-            JOIN public.language l ON c.language_id = l.id
-            JOIN public.category cat ON c.category_id = cat.id
-            LEFT JOIN course.register r ON r.course_id = c.id 
-                AND r.user_id = (SELECT id FROM private.users WHERE public_id = $1)
+            FROM catalog.course c
+            JOIN catalog.language l ON c.language_id = l.id
+            JOIN catalog.category cat ON c.category_id = cat.id
+            LEFT JOIN learning.register r ON r.course_id = c.id 
+                AND r.user_id = (SELECT id FROM identity.users WHERE public_id = $1)
                 AND r.is_deleted = false
             ${whereSQL}
-            ${!search ? 'AND c.id not in (select course_id from course.register where user_id = (select id from private.users where public_id = $1) and is_deleted = false)' : ''}
+            ${!search ? 'AND c.id not in (select course_id from learning.register where user_id = (select id from identity.users where public_id = $1) and is_deleted = false)' : ''}
             ORDER BY c.id DESC
             LIMIT 21;
         `;
@@ -169,15 +169,15 @@ export const courseDb = {
         const params = [];
 
         params.push(userId);
-        conditions.push(`user_id = (select id from private.users where public_id = $${params.length})`);
+        conditions.push(`user_id = (select id from identity.users where public_id = $${params.length})`);
 
         params.push(courseId);
-        conditions.push(`course_id = (select id from public.course where public_id = $${params.length})`);
+        conditions.push(`course_id = (select id from catalog.course where public_id = $${params.length})`);
 
         const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
         const query = `      
-            UPDATE course.register 
+            UPDATE learning.register 
             SET is_deleted = true,
                 deleted_at = now()
             ${whereSQL};
@@ -196,6 +196,21 @@ export const courseDb = {
         const query = `select * from learning_lesson($${params.length - 1}, $${params.length});`;
 
         return await sql(query, params);
+    },
+
+    getLessonStatus: async (data) => {
+        const { userId, courseId, lessonId } = data;
+
+        const query = `
+            SELECT h.status
+            FROM learning.history h
+            WHERE h.user_id = (SELECT id FROM identity.users WHERE public_id = $1)
+              AND h.course_id = (SELECT id FROM catalog.course WHERE public_id = $2)
+              AND h.lesson_id = $3::bigint
+            LIMIT 1;
+        `;
+
+        return await sql(query, [userId, courseId, lessonId]);
     },
 
     postSubmitLesson: async (data) => {
@@ -217,12 +232,12 @@ export const courseDb = {
         params.push(userId, courseId);
 
         const query = `
-            INSERT INTO course.favorite (user_id, course_id)
+            INSERT INTO learning.favorite (user_id, course_id)
             SELECT
                 u.id,
                 c.id
-            FROM private.users u
-            CROSS JOIN public.course c
+            FROM identity.users u
+            CROSS JOIN catalog.course c
             WHERE u.public_id = $1
             AND c.public_id = $2
             ON CONFLICT (user_id, course_id) DO NOTHING
@@ -243,7 +258,7 @@ export const courseDb = {
         }
 
         params.push(courseId);
-        conditions.push(`m.reference_id = (select id from public.course where public_id = $${params.length})`);
+        conditions.push(`m.reference_id = (select id from catalog.course where public_id = $${params.length})`);
 
         if (lastCreated) {
             params.push(lastCreated);
@@ -263,12 +278,12 @@ export const courseDb = {
                 m.downvotes as downvotes,
                 ${userId ? `coalesce(v.voting, null) as vote,` : 'null as vote,'}
                 m.created_at as created_at
-            FROM public.comment m
-            JOIN private.info i ON m.user_id = i.user_id
-            JOIN private.users u on m.user_id = u.id
+            FROM community.comment m
+            JOIN profile.info i ON m.user_id = i.user_id
+            JOIN identity.users u on m.user_id = u.id
             ${userId ?
-                `LEFT JOIN private.voting v on v.reference_id = m.id
-                    AND v.user_id = (select id from private.users where public_id = $1)`
+                `LEFT JOIN community.voting v on v.reference_id = m.id
+                    AND v.user_id = (select id from identity.users where public_id = $1)`
                 :
                 ''
             }
@@ -289,10 +304,10 @@ export const courseDb = {
 
         const query = `
             WITH inserted AS (
-                INSERT INTO public.comment (user_id, reference_id, content)
+                INSERT INTO community.comment (user_id, reference_id, content)
                 VALUES (
-                    (SELECT id FROM private.users WHERE public_id = $1),
-                    (SELECT id FROM public.course WHERE public_id = $2),
+                    (SELECT id FROM identity.users WHERE public_id = $1),
+                    (SELECT id FROM catalog.course WHERE public_id = $2),
                     $3
                 )
                 RETURNING *
@@ -307,8 +322,8 @@ export const courseDb = {
                 m.downvotes as downvotes,
                 m.created_at as created_at
             FROM inserted m
-            JOIN private.users u ON m.user_id = u.id
-            LEFT JOIN private.info i ON m.user_id = i.user_id;
+            JOIN identity.users u ON m.user_id = u.id
+            LEFT JOIN profile.info i ON m.user_id = i.user_id;
         `;
 
         return await sql(query, params);
@@ -334,102 +349,12 @@ export const courseDb = {
         params.push(userId, courseId);
 
         const query = `
-            DELETE FROM course.favorite
-            WHERE user_id = (SELECT id FROM private.users WHERE public_id = $1)
-            AND course_id = (SELECT id FROM public.course WHERE public_id = $2)
+            DELETE FROM learning.favorite
+            WHERE user_id = (SELECT id FROM identity.users WHERE public_id = $1)
+            AND course_id = (SELECT id FROM catalog.course WHERE public_id = $2)
             RETURNING *;
         `;
 
         return await sql(query, params);
     },
-
-    submitChallenge: async (data) => {
-        const { userId, challengeId, answers } = data;
-
-        const questionQuery = `
-            SELECT 
-                q.id AS question_id,
-                q.points,
-                q.type AS question_type,
-                q.explanation,
-                COALESCE(
-                    json_agg(o.id) FILTER (WHERE o.is_correct = true),
-                    '[]'::json
-                ) AS correct_options
-            FROM challenge.questions q
-            LEFT JOIN challenge.question_options o ON o.question_id = q.id
-            WHERE q.challenge_id = $1
-            GROUP BY q.id, q.points, q.type, q.explanation
-            ORDER BY q.id;
-        `;
-
-        const questionRes = await sql(questionQuery, [challengeId]);
-        const questions = questionRes.rows || [];
-
-        let earnedPoints = 0;
-        let totalPoints = 0;
-        const results = {};
-
-        for (const q of questions) {
-            const qId = q.question_id.toString();
-            const qPoints = Number(q.points) || 0;
-            totalPoints += qPoints;
-
-            const correctOptionIds = (q.correct_options || []).map(Number);
-            const userSelection = answers[qId] ?? answers[Number(qId)];
-
-            let isCorrect = false;
-
-            if (q.question_type === 'single_choice') {
-                const userOptionId = userSelection !== undefined && userSelection !== null ? Number(userSelection) : null;
-                isCorrect = userOptionId !== null && correctOptionIds.includes(userOptionId);
-
-                if (userOptionId !== null) {
-                    await sql(
-                        `INSERT INTO challenge.question_submissions (user_id, question_id, question_option_id, is_correct)
-                         VALUES ((SELECT id FROM private.users WHERE public_id = $1), $2, $3, $4);`,
-                        [userId, q.question_id, userOptionId, isCorrect]
-                    );
-                }
-            } else if (q.question_type === 'multiple_choice') {
-                const userOptionIds = Array.isArray(userSelection)
-                    ? userSelection.map(Number).sort((a, b) => a - b)
-                    : [];
-                const sortedCorrect = [...correctOptionIds].sort((a, b) => a - b);
-
-                isCorrect =
-                    userOptionIds.length === sortedCorrect.length &&
-                    userOptionIds.every((val, idx) => val === sortedCorrect[idx]);
-
-                for (const optId of userOptionIds) {
-                    await sql(
-                        `INSERT INTO challenge.question_submissions (user_id, question_id, question_option_id, is_correct)
-                         VALUES ((SELECT id FROM private.users WHERE public_id = $1), $2, $3, $4);`,
-                        [userId, q.question_id, optId, isCorrect]
-                    );
-                }
-            }
-
-            if (isCorrect) {
-                earnedPoints += qPoints;
-            }
-
-            results[qId] = {
-                isCorrect,
-                explanation: q.explanation,
-                correctOptionIds,
-            };
-        }
-
-        const passed = totalPoints > 0 ? (earnedPoints / totalPoints) >= 0.7 : true;
-
-        return {
-            challengeId,
-            earnedPoints,
-            totalPoints,
-            percentage: totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 100,
-            passed,
-            results,
-        };
-    }
 }
