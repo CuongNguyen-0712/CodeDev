@@ -50,3 +50,12 @@ sanity.config.js
 
 # Agents
 /.agents
+
+# Local database backups
+/db/backups
+
+# Claude Code local config & worktrees
+/.claude
+
+# Crash dumps
+*.stackdump
