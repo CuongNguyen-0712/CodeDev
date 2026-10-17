@@ -1,17 +1,19 @@
 'use client';
 
-import { useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { useApp } from "@/contexts/appContext";
 import { challengeQueries } from "@/queries/challenge.query";
+import { codeSubmissionKeys, codeSubmissionQueries } from "@/queries/codeSubmission.query";
 import { useSubmitCoding } from "@/mutations/challenge.mutation";
 import useCodeDraft from "@/hooks/useCodeDraft";
 import { detectEntryName, runTests, toSubmissionPayload } from "@/lib/challenges/runner";
 import { cn } from "@/lib/utils";
 
 import CodeEditor from "./codeEditor";
+import SubmissionHistory from "./submissionHistory";
 import { ErrorReload } from "../../../ui/error";
 
 import {
@@ -36,6 +38,7 @@ import {
     LuCircleX,
     LuClock,
     LuCloud,
+    LuHistory,
     LuListChecks,
     LuLoaderCircle,
     LuLock,
@@ -52,7 +55,7 @@ const STATUS_LABEL = {
     failed: "Failed",
     error: "Error",
     timeout: "Timed out",
-    pending: "Graded on submit",
+    pending: "Runs on submit",
     running: "Running",
     idle: "Not run",
 };
@@ -100,7 +103,7 @@ function DraftStatus({ draft }) {
 
 const darkTabTrigger = "flex-none rounded-none px-2.5 text-xs text-editor-muted hover:text-editor-foreground data-[state=active]:text-editor-foreground after:bg-editor-accent";
 
-export default function CodingChallenge({ challenge, onPassed }) {
+export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
     const { showAlert: alert } = useApp();
     const { data: session } = useSession();
     const userId = session?.user?.id;
@@ -110,6 +113,12 @@ export default function CodingChallenge({ challenge, onPassed }) {
         enabled: Boolean(userId && challenge.id),
     });
     const workspace = workspaceQuery.data;
+
+    const queryClient = useQueryClient();
+    const historyQuery = useQuery({
+        ...codeSubmissionQueries.history(challenge.id),
+        enabled: Boolean(userId && challenge.id),
+    });
 
     const draft = useCodeDraft({
         userId,
@@ -124,19 +133,41 @@ export default function CodingChallenge({ challenge, onPassed }) {
 
     const [phase, setPhase] = useState("idle"); // idle | running | submitting
     const [testResults, setTestResults] = useState({});
-    const [activePanel, setActivePanel] = useState("output"); // output | tests | console
+    const [activePanel, setActivePanel] = useState("output"); // output | tests | console | history
     const [lastRunMeta, setLastRunMeta] = useState(null);
     const [submission, setSubmission] = useState(null);
     const [expandedTest, setExpandedTest] = useState(null);
-    const [resetOpen, setResetOpen] = useState(false);
-    const resetButtonRef = useRef(null);
+    // Replacing the draft (reset to starter, restore a submission) is confirmed first.
+    const [confirm, setConfirm] = useState(null); // { kind: "reset" } | { kind: "restore", code, attempt }
+    const confirmTriggerRef = useRef(null);
+
+    // Sample tests only: hidden test inputs arrive from the server once a submission has started.
+    const [hiddenTests, setHiddenTests] = useState([]);
+    // Last Run: which code it ran and whether every sample test passed. Submit is only offered
+    // for exactly that code.
+    const [lastRun, setLastRun] = useState(null);
 
     const entry = useMemo(() => detectEntryName(workspace?.starterCode || ""), [workspace?.starterCode]);
-    const tests = workspace?.tests || [];
-    const visibleTests = tests.filter((t) => !t.isHidden);
-    const hiddenCount = tests.length - visibleTests.length;
-    const attemptsLeft = workspace?.maxAttempts ? Math.max(0, workspace.maxAttempts - workspace.attempts) : null;
+    const visibleTests = (workspace?.tests || []).filter((t) => !t.isHidden);
+    const hiddenCount = Number(workspace?.hiddenCount) || hiddenTests.length;
+    const maxAttempts = Number(workspace?.maxAttempts) || 5;
+    const attemptsLeft = Math.max(0, maxAttempts - (Number(workspace?.attempts) || 0));
     const isBusy = phase !== "idle";
+    const samplesPassedForCode = Boolean(lastRun?.allPassed && lastRun.code === draft.code);
+    const canSubmit = !isBusy && attemptsLeft > 0 && samplesPassedForCode && Boolean(draft.code.trim());
+
+    useEffect(() => {
+        if (workspace?.hasPassed) onPassed?.(challenge.id, { initial: true });
+        // Report a previous pass once when the workspace loads.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [workspace?.hasPassed, challenge.id]);
+
+    // Every attempt used without a pass: the lesson can move on without this challenge.
+    const isExhausted = Boolean(workspace) && attemptsLeft === 0 && !workspace.hasPassed;
+    useEffect(() => {
+        if (isExhausted) onExhausted?.(challenge.id, { initial: !submitCoding.isSuccess && !submitCoding.isError });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isExhausted, challenge.id]);
 
     const consoleLines = useMemo(() => Object.values(testResults).flatMap((r) => [
         ...(r.logs || []).map((log) => ({ ...log, test: r.name })),
@@ -145,7 +176,7 @@ export default function CodingChallenge({ challenge, onPassed }) {
 
     if (workspaceQuery.isLoading || (workspace && !draft.ready)) {
         return (
-            <div className="overflow-hidden rounded-lg border border-editor-border bg-editor" aria-busy="true" aria-label="Preparing the editor">
+            <div className="overflow-hidden rounded-lg border border-editor-border bg-editor max-sm:-mx-5 max-sm:rounded-none max-sm:border-x-0" aria-busy="true" aria-label="Preparing the editor">
                 <div className="h-10 border-b border-editor-border bg-editor-panel" />
                 <div className="space-y-2.5 p-4">
                     {['w-2/5', 'w-3/5', 'w-1/2', 'w-1/3'].map((width) => (
@@ -197,12 +228,23 @@ export default function CodingChallenge({ challenge, onPassed }) {
         setActivePanel("output");
         setSubmission(null);
 
+        const ranCode = draft.code;
+
         try {
             draft.flush();
             const results = await execute(visibleTests);
             const passed = results.filter((r) => r.status === "passed").length;
-            alert(passed === results.length ? 200 : 400, `${passed}/${results.length} sample tests passed.`);
+            const allPassed = passed === results.length;
+
+            setLastRun({ code: ranCode, allPassed, payload: toSubmissionPayload(results) });
+            alert(
+                allPassed ? 200 : 400,
+                allPassed
+                    ? `All ${results.length} sample tests passed. You can submit now.`
+                    : `${passed}/${results.length} sample tests passed. Pass all of them to submit.`
+            );
         } catch (error) {
+            setLastRun(null);
             console.error("Run failed:", error);
             alert(500, "Could not run your code in this browser.");
         } finally {
@@ -216,6 +258,10 @@ export default function CodingChallenge({ challenge, onPassed }) {
             alert(429, "You have used all attempts for this challenge.");
             return;
         }
+        if (!samplesPassedForCode) {
+            alert(400, "Run your code and pass every sample test before submitting.");
+            return;
+        }
 
         setPhase("submitting");
         setActivePanel("tests");
@@ -223,12 +269,17 @@ export default function CodingChallenge({ challenge, onPassed }) {
 
         try {
             await draft.flush();
-            const results = await execute(tests);
 
             const res = await submitCoding.mutateAsync({
                 challengeId: challenge.id,
                 code: submittedCode,
-                results: toSubmissionPayload(results),
+                results: lastRun.payload,
+                // Hidden tests only exist client-side after the attempt is recorded.
+                runHidden: async (hidden) => {
+                    setHiddenTests(hidden);
+                    if (hidden.length === 0) return {};
+                    return toSubmissionPayload(await execute(hidden));
+                },
             });
 
             setSubmission(res);
@@ -250,18 +301,34 @@ export default function CodingChallenge({ challenge, onPassed }) {
                 alert(400, `${res.testsPassed}/${res.testsTotal} tests passed. Your submission was saved.`);
             }
         } catch (error) {
-            alert(error.status || 500, error.message || "Submission failed. Your draft is still saved locally.");
+            const message = error.attemptUsed
+                ? `${error.message || "Grading failed."} This submission still counted as an attempt.`
+                : error.message || "Submission failed. Your draft is still saved locally.";
+            alert(error.status || 500, message);
         } finally {
             setPhase("idle");
+            // Any started submission used an attempt, graded or not: refresh the history.
+            queryClient.invalidateQueries({ queryKey: codeSubmissionKeys.history(challenge.id) });
         }
     };
 
-    const handleReset = () => {
-        if (isBusy) return;
-        draft.resetToStarter();
+    const openConfirm = (next, trigger) => {
+        confirmTriggerRef.current = trigger || null;
+        setConfirm(next);
+    };
+
+    const handleConfirm = () => {
+        if (isBusy || !confirm) return;
+        if (confirm.kind === "restore") {
+            draft.setCode(confirm.code);
+            alert(200, `Submission #${confirm.attempt} restored to the editor. Run it again before submitting.`);
+        } else {
+            draft.resetToStarter();
+        }
         setTestResults({});
         setSubmission(null);
-        setResetOpen(false);
+        setLastRun(null);
+        setConfirm(null);
     };
 
     const displayFile = workspace.filePath || (workspace.language === "python" ? "main.py" : "solution.js");
@@ -319,8 +386,7 @@ export default function CodingChallenge({ challenge, onPassed }) {
                         type="button"
                         variant="ghost"
                         size="icon-xs"
-                        ref={resetButtonRef}
-                        onClick={() => setResetOpen(true)}
+                        onClick={(event) => openConfirm({ kind: "reset" }, event.currentTarget)}
                         disabled={isBusy}
                         aria-label="Reset to starter code"
                         className="text-editor-muted hover:bg-editor-raised hover:text-editor-foreground"
@@ -345,8 +411,12 @@ export default function CodingChallenge({ challenge, onPassed }) {
                 type="button"
                 size="xs"
                 onClick={handleSubmit}
-                disabled={isBusy || attemptsLeft === 0 || !draft.code.trim()}
-                title="Run every test and submit for grading"
+                disabled={!canSubmit}
+                title={
+                    attemptsLeft === 0 ? "No attempts left"
+                        : samplesPassedForCode ? "Submit: saves this code and runs the hidden tests (uses 1 attempt)"
+                            : "Pass every sample test with Run to unlock Submit"
+                }
             >
                 {phase === "submitting" ? <LuLoaderCircle className="animate-spin" /> : <LuSend />}
                 Submit
@@ -356,7 +426,8 @@ export default function CodingChallenge({ challenge, onPassed }) {
 
     return (
         <div className="space-y-3">
-            <div className="overflow-hidden rounded-lg border border-editor-border bg-editor text-editor-foreground shadow-sm">
+            {/* Phones: bleed past the lesson's px-5 gutter so code gets the full screen width. */}
+            <div className="overflow-hidden rounded-lg border border-editor-border bg-editor text-editor-foreground shadow-sm max-sm:-mx-5 max-sm:rounded-none max-sm:border-x-0">
                 <CodeEditor
                     value={draft.code}
                     onChange={draft.setCode}
@@ -372,34 +443,42 @@ export default function CodingChallenge({ challenge, onPassed }) {
 
                 {/* Output panel */}
                 <Tabs value={activePanel} onValueChange={setActivePanel} className="gap-0 border-t border-editor-border">
-                    <div className="flex flex-wrap items-center gap-x-3 bg-editor-panel pr-3">
-                        <TabsList variant="line" className="h-9 justify-start bg-transparent p-0">
+                    {/* Below sm the tabs show icon + count only; the label stays for screen readers. */}
+                    <div className="flex items-center gap-x-3 bg-editor-panel pr-3">
+                        <TabsList variant="line" className="h-9 min-w-0 justify-start overflow-x-auto overflow-y-hidden bg-transparent p-0">
                             <TabsTrigger value="output" className={darkTabTrigger}>
                                 <LuSquareTerminal />
-                                Output
+                                <span className="max-sm:sr-only">Output</span>
                             </TabsTrigger>
                             <TabsTrigger value="tests" className={darkTabTrigger}>
                                 <LuListChecks />
-                                Tests
-                                <span className="font-mono text-[10px] text-editor-muted tabular">{tests.length}</span>
+                                <span className="max-sm:sr-only">Tests</span>
+                                <span className="font-mono text-[10px] text-editor-muted tabular">{visibleTests.length + hiddenCount}</span>
                             </TabsTrigger>
                             <TabsTrigger value="console" className={darkTabTrigger}>
                                 <LuTerminal />
-                                Console
+                                <span className="max-sm:sr-only">Console</span>
                                 <span className="font-mono text-[10px] text-editor-muted tabular">{consoleLines.length}</span>
                             </TabsTrigger>
+                            <TabsTrigger value="history" className={darkTabTrigger}>
+                                <LuHistory />
+                                <span className="max-sm:sr-only">History</span>
+                                {historyQuery.data && (
+                                    <span className="font-mono text-[10px] text-editor-muted tabular">{historyQuery.data.submissions.length}</span>
+                                )}
+                            </TabsTrigger>
                         </TabsList>
-                        <div className="ml-auto flex items-center gap-3 font-mono text-[11px] text-editor-muted tabular">
-                            {attemptsLeft !== null && (
-                                <span>{attemptsLeft} attempt{attemptsLeft === 1 ? '' : 's'} left</span>
-                            )}
+                        <div className="ml-auto flex shrink-0 items-center gap-3 font-mono text-[11px] text-editor-muted tabular">
+                            <span className={attemptsLeft === 0 ? "text-editor-danger" : undefined}>
+                                {attemptsLeft}/{maxAttempts}<span className="max-sm:hidden"> attempt{attemptsLeft === 1 ? '' : 's'}</span> left
+                            </span>
                             {lastRunMeta && (
                                 <span className="max-sm:hidden">{lastRunMeta.duration} ms at {lastRunMeta.time}</span>
                             )}
                         </div>
                     </div>
 
-                    <div className="h-52 overflow-auto font-mono text-xs leading-relaxed" aria-live="polite">
+                    <div className="h-[clamp(10rem,30svh,20rem)] overflow-auto font-mono text-xs leading-relaxed" aria-live="polite">
                         <TabsContent value="output" className="p-3">
                             {phase === "running" ? (
                                 <p className="flex items-center gap-2 text-editor-muted">
@@ -411,8 +490,11 @@ export default function CodingChallenge({ challenge, onPassed }) {
                                     <p className={passedVisible === ranVisible.length ? "text-editor-success" : "text-editor-danger"}>
                                         {passedVisible === ranVisible.length
                                             ? `All ${passedVisible} sample tests passed.`
-                                            : `${ranVisible.length - passedVisible} of ${ranVisible.length} sample tests failed.`}
+                                            : `${ranVisible.length - passedVisible} of ${ranVisible.length} sample tests failed. Fix them to unlock Submit.`}
                                     </p>
+                                    {lastRun?.allPassed && lastRun.code !== draft.code && (
+                                        <p className="text-editor-warning">Code changed since the last run. Run again before submitting.</p>
+                                    )}
                                     <ul className="list-none space-y-1">
                                         {ranVisible.map((t) => {
                                             const r = testResults[t.id];
@@ -436,18 +518,20 @@ export default function CodingChallenge({ challenge, onPassed }) {
                         </TabsContent>
 
                         <TabsContent value="tests">
-                            {tests.length === 0 ? (
+                            {visibleTests.length + hiddenCount === 0 ? (
                                 <p className="p-3 text-editor-muted">No test cases are configured for this challenge.</p>
                             ) : (
                                 <>
                                     <ul className="list-none">
                                         {visibleTests.map((t, i) => renderTest(t, i))}
-                                        {tests.filter((t) => t.isHidden).map((t, i) => renderTest(t, i))}
+                                        {hiddenTests.length > 0
+                                            ? hiddenTests.map((t, i) => renderTest(t, i))
+                                            : Array.from({ length: hiddenCount }, (_, i) => renderTest({ id: `hidden-${i}`, isHidden: true }, i))}
                                     </ul>
                                     {hiddenCount > 0 && (
                                         <p className="flex items-center gap-1.5 px-3 py-2 text-editor-muted">
                                             <LuLock className="size-3" aria-hidden="true" />
-                                            {hiddenCount} hidden test{hiddenCount === 1 ? '' : 's'} are graded on the server when you submit.
+                                            {hiddenCount} hidden test{hiddenCount === 1 ? '' : 's'} run only when you submit. Pass every sample test first.
                                         </p>
                                     )}
                                 </>
@@ -474,6 +558,16 @@ export default function CodingChallenge({ challenge, onPassed }) {
                                     ))}
                                 </ol>
                             )}
+                        </TabsContent>
+
+                        <TabsContent value="history">
+                            <SubmissionHistory
+                                challengeId={challenge.id}
+                                history={historyQuery}
+                                maxAttempts={maxAttempts}
+                                restoreDisabled={isBusy}
+                                onRestore={(code, item, trigger) => openConfirm({ kind: "restore", code, attempt: item.attempt }, trigger)}
+                            />
                         </TabsContent>
                     </div>
                 </Tabs>
@@ -502,24 +596,31 @@ export default function CodingChallenge({ challenge, onPassed }) {
                 </div>
             )}
 
-            <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>
+            <AlertDialog open={Boolean(confirm)} onOpenChange={(open) => !open && setConfirm(null)}>
                 <AlertDialogContent
                     onCloseAutoFocus={(event) => {
-                        // Opened without a Trigger, so return focus to the reset button explicitly.
+                        // Opened without a Trigger, so return focus to the button that opened it.
                         event.preventDefault();
-                        resetButtonRef.current?.focus();
+                        confirmTriggerRef.current?.focus();
                     }}
                 >
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Reset to the starter code?</AlertDialogTitle>
+                        <AlertDialogTitle>
+                            {confirm?.kind === "restore" ? `Restore submission #${confirm.attempt}?` : "Reset to the starter code?"}
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
-                            Your current draft for this challenge will be replaced. This cannot be undone.
+                            {confirm?.kind === "restore"
+                                ? "Your current draft will be replaced by the code of this submission. Press Ctrl+Z in the editor to get it back."
+                                : "Your current draft for this challenge will be replaced. Press Ctrl+Z in the editor to get it back."}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Keep my code</AlertDialogCancel>
-                        <AlertDialogAction className={buttonVariants({ variant: 'destructive' })} onClick={handleReset}>
-                            Reset code
+                        <AlertDialogAction
+                            className={confirm?.kind === "restore" ? undefined : buttonVariants({ variant: 'destructive' })}
+                            onClick={handleConfirm}
+                        >
+                            {confirm?.kind === "restore" ? "Restore code" : "Reset code"}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

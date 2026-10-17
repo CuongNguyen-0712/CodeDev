@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { ulid } from "ulid";
 
 import { challengeDb } from "@/db/challenge.db";
@@ -11,6 +12,12 @@ import { outputsMatch, parseJsonSafe, toJsonValue } from "@/lib/challenges/compa
 
 export const QUIZ_PASS_RATIO = 0.7;
 export const MAX_SOURCE_BYTES = 64 * 1024;
+export const MAX_QUIZ_ATTEMPTS = 3;
+export const QUIZ_COOLDOWN_SECONDS = 5 * 60;
+export const MAX_CODING_ATTEMPTS = 5;
+
+// A started submission must be finished (hidden tests reported) within this window.
+const PENDING_SUBMISSION_TTL_SEC = 15 * 60;
 
 const CODING_TYPES = new Set(["fix_bug", "mini_coding"]);
 
@@ -86,16 +93,20 @@ async function afterSubmission({ userId, ctx, passed, awardedPoints }) {
     });
 }
 
-function normaliseTestCases(testCases = []) {
-    return testCases.map((tc) => ({
-        id: String(tc.id),
-        name: tc.name || "Test case",
-        input: parseJsonSafe(tc.input, {}),
-        expected: tc.expected,
-        score: Number(tc.score) || 0,
-        isSample: Boolean(tc.is_sample),
-        isHidden: Boolean(tc.is_hidden),
-    }));
+// ------------------------------------------------------------------ quiz
+
+function normaliseAnswer(question, raw) {
+    const valid = new Set((question.all_options || []).map(String));
+
+    let selected = [];
+    if (question.question_type === "multiple_choice") {
+        selected = Array.isArray(raw) ? [...new Set(raw.map(String))] : [];
+    } else if (raw !== undefined && raw !== null && !Array.isArray(raw)) {
+        selected = [String(raw)];
+    }
+
+    // Ignore option ids that do not belong to this question.
+    return selected.filter((optId) => valid.has(optId));
 }
 
 function gradeQuiz(questions, answers) {
@@ -108,19 +119,9 @@ function gradeQuiz(questions, answers) {
         const qId = q.question_id;
         const points = Number(q.points) || 0;
         const correct = (q.correct_options || []).map(String);
-        const valid = new Set((q.all_options || []).map(String));
-        const raw = answers?.[qId];
+        const selected = normaliseAnswer(q, answers?.[qId]);
 
         totalPoints += points;
-
-        // Ignore option ids that do not belong to this question.
-        let selected = [];
-        if (q.question_type === "multiple_choice") {
-            selected = Array.isArray(raw) ? [...new Set(raw.map(String))] : [];
-        } else if (raw !== undefined && raw !== null && !Array.isArray(raw)) {
-            selected = [String(raw)];
-        }
-        selected = selected.filter((optId) => valid.has(optId));
 
         let isCorrect = false;
         if (q.question_type === "single_choice") {
@@ -137,6 +138,7 @@ function gradeQuiz(questions, answers) {
 
         results[qId] = {
             isCorrect,
+            selected,
             explanation: q.explanation,
             correctOptionIds: correct,
         };
@@ -154,8 +156,136 @@ function gradeQuiz(questions, answers) {
     };
 }
 
-function gradeCoding({ testCases, results, scoringMode, points }) {
-    const graded = testCases.map((tc) => {
+/**
+ * What the browser may see of a graded quiz. The correct options (and explanations) are only
+ * revealed once the quiz is passed; otherwise each question just says whether it was right.
+ */
+function quizView(graded) {
+    const results = Object.fromEntries(Object.entries(graded.results).map(([qId, r]) => [qId, {
+        isCorrect: r.isCorrect,
+        selected: r.selected,
+        explanation: graded.passed ? r.explanation : null,
+        correctOptionIds: graded.passed ? r.correctOptionIds : [],
+    }]));
+
+    return {
+        earnedPoints: graded.earnedPoints,
+        totalPoints: graded.totalPoints,
+        percentage: graded.percentage,
+        passed: graded.passed,
+        results,
+    };
+}
+
+async function loadQuizKey(ctx) {
+    if (ctx.type !== "quiz") {
+        throw new ApiError("This challenge is not a quiz", 400);
+    }
+
+    // Server-side only (never sent to the client); edits reach learners within the TTL.
+    // An empty key is not cached, so questions added to a draft quiz show up immediately.
+    const questions = (await redis.remember(
+        cacheKeys.challengeDefinition(ctx.id, "quiz-key"),
+        TTL.CHALLENGE_DEFINITION,
+        async () => {
+            const rows = (await challengeDb.getQuizAnswerKey({ challengeId: ctx.id }))?.rows || [];
+            return rows.length > 0 ? rows : null;
+        }
+    )) || [];
+
+    if (questions.length === 0) {
+        throw new ApiError("This quiz has no questions yet", 409);
+    }
+
+    return questions;
+}
+
+/**
+ * Groups attempt rows into graded attempts and derives the learner's quiz status.
+ * `rows`: getQuizAttempts output (question_id, option_id, attempt_no, wait_seconds).
+ */
+function evaluateQuizHistory(questions, rows) {
+    const byAttempt = new Map();
+    for (const row of rows) {
+        if (!byAttempt.has(row.attempt_no)) byAttempt.set(row.attempt_no, { attemptNo: row.attempt_no, submittedAt: row.created_at, chosen: [] });
+        byAttempt.get(row.attempt_no).chosen.push(row);
+    }
+
+    const attempts = [...byAttempt.values()].map((attempt) => {
+        const answers = {};
+        for (const q of questions) {
+            const chosen = attempt.chosen.filter((r) => r.question_id === q.question_id).map((r) => r.option_id);
+            if (chosen.length === 0) continue;
+            answers[q.question_id] = q.question_type === "multiple_choice" ? chosen : chosen[0];
+        }
+        return { ...attempt, answers, graded: gradeQuiz(questions, answers) };
+    });
+
+    const passedAttempt = attempts.find((a) => a.graded.passed) || null;
+    const latest = attempts[attempts.length - 1] || null;
+    const waitSeconds = Number(rows[0]?.wait_seconds) || 0;
+
+    return { attempts, passedAttempt, latest, waitSeconds };
+}
+
+function quizStateView(ctx, history) {
+    const attemptsUsed = history.attempts.length;
+    const passed = Boolean(history.passedAttempt);
+    const attemptsLeft = passed ? 0 : Math.max(0, MAX_QUIZ_ATTEMPTS - attemptsUsed);
+    const waitSeconds = attemptsLeft > 0 ? history.waitSeconds : 0;
+    // A passed quiz shows the passing attempt; otherwise the most recent one.
+    const shown = history.passedAttempt || history.latest;
+
+    return {
+        challengeId: ctx.id,
+        attempted: attemptsUsed > 0,
+        attemptsUsed,
+        maxAttempts: MAX_QUIZ_ATTEMPTS,
+        attemptsLeft,
+        cooldownSeconds: QUIZ_COOLDOWN_SECONDS,
+        waitSeconds,
+        nextAttemptAt: waitSeconds > 0 ? new Date(Date.now() + waitSeconds * 1000).toISOString() : null,
+        canSubmit: !passed && attemptsLeft > 0 && waitSeconds === 0,
+        submittedAt: shown?.submittedAt ?? null,
+        answers: shown?.answers ?? null,
+        ...(shown ? quizView(shown.graded) : { passed: false, results: {} }),
+        passed,
+    };
+}
+
+async function loadQuizHistory(ctx, questions) {
+    const res = await challengeDb.getQuizAttempts({
+        userDbId: ctx.user_db_id,
+        challengeId: ctx.id,
+        cooldownSec: QUIZ_COOLDOWN_SECONDS,
+    });
+    return evaluateQuizHistory(questions, res?.rows || []);
+}
+
+// ------------------------------------------------------------------ coding
+
+function maxCodingAttempts(definition) {
+    const configured = Number(definition?.max_attempts) || 0;
+    return configured > 0 ? Math.min(configured, MAX_CODING_ATTEMPTS) : MAX_CODING_ATTEMPTS;
+}
+
+const pendingKey = (submissionId) => `challenge:pending:${submissionId}`;
+
+function normaliseTestCases(testCases = []) {
+    return testCases.map((tc) => ({
+        id: String(tc.id),
+        name: tc.name || "Test case",
+        input: parseJsonSafe(tc.input, {}),
+        expected: tc.expected,
+        score: Number(tc.score) || 0,
+        isSample: Boolean(tc.is_sample),
+        isHidden: Boolean(tc.is_hidden),
+    }));
+}
+
+/** Grades browser-reported outputs ({ [testId]: { output, error, timeMs, timedOut } }) per test. */
+function gradeTests(testCases, results) {
+    return testCases.map((tc) => {
         const reported = results?.[tc.id] || null;
         const timeMs = Math.max(0, Math.min(Math.round(Number(reported?.timeMs) || 0), 600000));
 
@@ -182,7 +312,9 @@ function gradeCoding({ testCases, results, scoringMode, points }) {
             error: tc.isHidden ? undefined : (reported?.error ? String(reported.error).slice(0, 500) : null),
         };
     });
+}
 
+function summariseGrading(graded, { scoringMode, points }) {
     const testsTotal = graded.length;
     const testsPassed = graded.filter((t) => t.status === "passed").length;
     const allPassed = testsTotal > 0 && testsPassed === testsTotal;
@@ -203,62 +335,158 @@ function gradeCoding({ testCases, results, scoringMode, points }) {
         score: t.status === "passed" ? (t.weight || 0) : 0,
     }));
 
-    return { graded, testResults, testsTotal, testsPassed, allPassed, score };
+    return { testResults, testsTotal, testsPassed, allPassed, score };
+}
+
+function testView(t) {
+    return {
+        id: t.testCaseId,
+        name: t.name,
+        isHidden: t.isHidden,
+        status: t.status,
+        timeMs: t.timeMs,
+        actual: t.actual,
+        expected: t.expected,
+        error: t.error,
+    };
+}
+
+function submissionView(row) {
+    if (!row) return null;
+
+    // A submission that was started but never finished keeps its attempt; show it as expired.
+    const age = Date.now() - new Date(row.submitted_at).getTime();
+    const status = row.status === "pending" && age > PENDING_SUBMISSION_TTL_SEC * 1000 ? "expired" : row.status;
+
+    return { ...row, status };
+}
+
+async function loadCodingDefinition(ctx) {
+    if (!CODING_TYPES.has(ctx.type)) {
+        throw new ApiError("This challenge is not a coding challenge", 400);
+    }
+
+    const definition = await redis.remember(
+        cacheKeys.challengeDefinition(ctx.id, "coding"),
+        TTL.CHALLENGE_DEFINITION,
+        async () => (await challengeDb.getCodingDefinition({ challengeId: ctx.id }))?.rows?.[0] ?? null
+    );
+
+    if (!definition) {
+        throw new ApiError("Coding challenge is not configured", 404);
+    }
+
+    return definition;
 }
 
 export const challengeService = {
+    // ---------------------------------------------------------------- quiz
+
+    /**
+     * Attempts used / left, the cooldown before the next attempt and the result to show.
+     * Every rule here is decided on the server; the client only renders `canSubmit`.
+     */
+    getQuizState: async ({ userId, challengeId }) => {
+        const ctx = await resolveContext({ userId, challengeId });
+        const questions = await loadQuizKey(ctx);
+        const history = await loadQuizHistory(ctx, questions);
+
+        return quizStateView(ctx, history);
+    },
+
     submitQuiz: async ({ userId, challengeId, answers }) => {
         const ctx = await resolveContext({ userId, challengeId });
+        const questions = await loadQuizKey(ctx);
+        const history = await loadQuizHistory(ctx, questions);
 
-        if (ctx.type !== "quiz") {
-            throw new ApiError("This challenge is not a quiz", 400);
+        if (history.passedAttempt) {
+            throw new ApiError("You have already passed this quiz", 409);
         }
 
-        const keyResponse = await challengeDb.getQuizAnswerKey({ challengeId: ctx.id });
-        const questions = keyResponse?.rows || [];
-
-        if (questions.length === 0) {
-            throw new ApiError("This quiz has no questions yet", 409);
+        // Partial submissions would waste an attempt: require an answer for every question.
+        const unanswered = questions.filter((q) => normaliseAnswer(q, answers?.[q.question_id]).length === 0);
+        if (unanswered.length > 0) {
+            throw new ApiError("Answer every question before submitting", 400);
         }
 
         const graded = gradeQuiz(questions, answers || {});
+
+        // Attempt limit and cooldown are re-checked under a lock inside the transaction.
         const { awardedPoints } = await challengeDb.saveQuizAttempt({
             userDbId: ctx.user_db_id,
             challengeId: ctx.id,
             rows: graded.rows,
             passed: graded.passed,
             points: Number(ctx.points) || 0,
+            maxAttempts: MAX_QUIZ_ATTEMPTS,
+            cooldownSec: QUIZ_COOLDOWN_SECONDS,
         });
 
         await afterSubmission({ userId, ctx, passed: graded.passed, awardedPoints });
 
-        return {
-            challengeId: ctx.id,
-            earnedPoints: graded.earnedPoints,
-            totalPoints: graded.totalPoints,
-            percentage: graded.percentage,
-            passed: graded.passed,
-            results: graded.results,
-            awardedPoints,
-        };
+        const state = quizStateView(ctx, await loadQuizHistory(ctx, questions));
+
+        return { ...state, awardedPoints };
     },
+
+    /**
+     * Status of every challenge a lesson requires (see challengeDb.getLessonChallenges):
+     * `passed`, `exhausted` (all attempts used without a pass) and `resolved` (either one).
+     */
+    getLessonChallengeStatus: async ({ userId, lessonId }) => {
+        const res = await challengeDb.getLessonChallenges({ userId, lessonId });
+        const challenges = res?.rows || [];
+
+        const withState = (ch, passed, exhausted) => ({
+            id: ch.id,
+            type: ch.type,
+            title: ch.title,
+            passed,
+            exhausted: !passed && exhausted,
+            resolved: passed || exhausted,
+        });
+
+        return Promise.all(challenges.map(async (ch) => {
+            if (ch.type !== "quiz") {
+                const max = maxCodingAttempts({ max_attempts: ch.coding_max_attempts });
+                return withState(ch, Boolean(ch.coding_passed), Number(ch.coding_attempts) >= max);
+            }
+
+            const keyResponse = await challengeDb.getQuizAnswerKey({ challengeId: ch.id });
+            const questions = keyResponse?.rows || [];
+            // A quiz without questions cannot be passed, so it cannot block the lesson either.
+            if (questions.length === 0) return withState(ch, true, false);
+
+            const history = await loadQuizHistory({ id: ch.id, user_db_id: ch.user_db_id }, questions);
+            return withState(ch, Boolean(history.passedAttempt), history.attempts.length >= MAX_QUIZ_ATTEMPTS);
+        }));
+    },
+
+    /**
+     * Throws 403 unless every required challenge of the lesson is resolved: passed, or all of
+     * its attempts used without a pass (the learner may then move on to the next lesson).
+     */
+    assertLessonChallengesPassed: async ({ userId, lessonId }) => {
+        const status = await challengeService.getLessonChallengeStatus({ userId, lessonId });
+        const pending = status.filter((ch) => !ch.resolved);
+
+        if (pending.length > 0) {
+            throw new ApiError(
+                `Pass every challenge in this lesson first, or use all its attempts (${status.length - pending.length}/${status.length} done). Remaining: ${pending.map((ch) => ch.title).join(", ")}.`,
+                403
+            );
+        }
+
+        return status;
+    },
+
+    // ---------------------------------------------------------------- coding
 
     getCodingWorkspace: async ({ userId, challengeId }) => {
         const ctx = await resolveContext({ userId, challengeId });
+        const definition = await loadCodingDefinition(ctx);
 
-        if (!CODING_TYPES.has(ctx.type)) {
-            throw new ApiError("This challenge is not a coding challenge", 400);
-        }
-
-        const [definitionRes, workspaceRes] = await Promise.all([
-            challengeDb.getCodingDefinition({ challengeId: ctx.id }),
-            challengeDb.getCodingWorkspace({ userDbId: ctx.user_db_id, challengeId: ctx.id }),
-        ]);
-
-        const definition = definitionRes?.rows?.[0];
-        if (!definition) {
-            throw new ApiError("Coding challenge is not configured", 404);
-        }
+        const workspaceRes = await challengeDb.getCodingWorkspace({ userDbId: ctx.user_db_id, challengeId: ctx.id });
 
         const files = definition.files || [];
         const starterFile = files.find((f) => f.role === "starter" || !f.role) || null;
@@ -273,13 +501,15 @@ export const challengeService = {
                 : Promise.resolve(null),
         ]);
 
-        // Hidden tests ship their input only; expected outputs never leave the server.
-        const tests = normaliseTestCases(definition.test_cases).map((tc) => ({
+        // Only sample (public) tests reach the browser before a submission: hidden inputs are
+        // handed out once an attempt has been recorded, and hidden outputs never leave the server.
+        const testCases = normaliseTestCases(definition.test_cases);
+        const publicTests = testCases.filter((tc) => !tc.isHidden).map((tc) => ({
             id: tc.id,
             name: tc.name,
             input: tc.input,
-            isHidden: tc.isHidden,
-            expected: tc.isHidden ? undefined : parseJsonSafe(tc.expected),
+            isHidden: false,
+            expected: parseJsonSafe(tc.expected),
         }));
 
         return {
@@ -292,13 +522,14 @@ export const challengeService = {
             executionMode: definition.execution_mode,
             timeLimitMs: Number(definition.time_limit_ms) || 2000,
             scoringMode: definition.scoring_mode,
-            maxAttempts: definition.max_attempts ? Number(definition.max_attempts) : null,
+            maxAttempts: maxCodingAttempts(definition),
             starterCode: starterCode ?? "",
             harnessCode: harnessCode ?? null,
-            tests,
+            tests: publicTests,
+            hiddenCount: testCases.length - publicTests.length,
             attempts: Number(workspace.attempts) || 0,
             hasPassed: Boolean(workspace.has_passed),
-            lastSubmission: workspace.last_submission || null,
+            lastSubmission: submissionView(workspace.last_submission),
             server: serverCode !== null && serverCode !== undefined
                 ? {
                     code: serverCode,
@@ -309,12 +540,13 @@ export const challengeService = {
         };
     },
 
-    submitCoding: async ({ userId, challengeId, code, results }) => {
+    /**
+     * Submission step 1. Requires every sample test to pass, then snapshots the code to S3 and
+     * records a `pending` submission (this is what uses up an attempt) before revealing the
+     * hidden test inputs for step 2.
+     */
+    startCodingSubmission: async ({ userId, challengeId, code, results }) => {
         const ctx = await resolveContext({ userId, challengeId });
-
-        if (!CODING_TYPES.has(ctx.type)) {
-            throw new ApiError("This challenge is not a coding challenge", 400);
-        }
 
         if (typeof code !== "string" || code.trim().length === 0) {
             throw new ApiError("Source code is required", 400);
@@ -325,35 +557,27 @@ export const challengeService = {
             throw new ApiError(`Source code exceeds ${MAX_SOURCE_BYTES / 1024}KB`, 413);
         }
 
-        const definitionRes = await challengeDb.getCodingDefinition({ challengeId: ctx.id });
-        const definition = definitionRes?.rows?.[0];
-        if (!definition) {
-            throw new ApiError("Coding challenge is not configured", 404);
-        }
-
-        if (definition.max_attempts) {
-            const attemptsRes = await challengeDb.countCodingAttempts({ userDbId: ctx.user_db_id, challengeId: ctx.id });
-            const attempts = Number(attemptsRes?.rows?.[0]?.attempts) || 0;
-            if (attempts >= Number(definition.max_attempts)) {
-                throw new ApiError("You have used all attempts for this challenge", 429);
-            }
-        }
-
-        const startedAt = new Date();
-        const points = Number(ctx.points) || 0;
+        const definition = await loadCodingDefinition(ctx);
         const testCases = normaliseTestCases(definition.test_cases);
+        const publicCases = testCases.filter((tc) => !tc.isHidden);
+        const hiddenCases = testCases.filter((tc) => tc.isHidden);
+
+        if (testCases.length === 0) {
+            throw new ApiError("This challenge has no test cases yet", 409);
+        }
+
+        const publicGraded = gradeTests(publicCases, results);
+        const failingSample = publicGraded.find((t) => t.status !== "passed");
+        if (failingSample) {
+            throw new ApiError(`Pass every sample test before submitting ("${failingSample.name}" did not pass).`, 409);
+        }
+
         const starterFile = (definition.files || []).find((f) => f.role === "starter" || !f.role) || null;
         const language = starterFile?.language || "javascript";
         const { ext, mime } = languageFile(language);
+        const codeSha256 = crypto.createHash("sha256").update(code).digest("hex");
 
-        const grading = gradeCoding({
-            testCases,
-            results,
-            scoringMode: definition.scoring_mode,
-            points,
-        });
-
-        // 1) Upload the snapshot to S3 first; 2) persist metadata; 3) roll the object back if the DB write fails.
+        // 1) Upload the snapshot; 2) record the attempt; 3) roll the object back if the DB write fails.
         const objectKey = `coding/submissions/${userId}/${ctx.public_id}/${ulid()}.${ext}`;
         await s3.putText({
             key: objectKey,
@@ -362,19 +586,13 @@ export const challengeService = {
             metadata: { challenge: ctx.public_id },
         });
 
-        const firstError = grading.graded.find((t) => t.error)?.error || null;
-        const executionTimeMs = grading.graded.reduce((sum, t) => sum + t.timeMs, 0);
-        const status = grading.allPassed ? "passed" : "failed";
-
-        let saved;
+        let created;
         try {
-            saved = await challengeDb.createCodingSubmission({
+            created = await challengeDb.createPendingCodingSubmission({
                 userDbId: ctx.user_db_id,
                 challengeId: ctx.id,
                 language,
-                passed: grading.allPassed,
-                points,
-                maxAttempts: definition.max_attempts ? Number(definition.max_attempts) : null,
+                maxAttempts: maxCodingAttempts(definition),
                 asset: {
                     publicId: `ast_${ulid().toLowerCase()}`,
                     objectKey,
@@ -384,29 +602,13 @@ export const challengeService = {
                 },
                 submission: {
                     publicId: `sub_${ulid().toLowerCase()}`,
-                    status,
-                    score: grading.score,
                     snapshot: {
                         s3_key: objectKey,
                         s3_bucket: bucketForKey(objectKey),
                         snapshot_size: size,
-                        tests_total: grading.testsTotal,
-                        tests_passed: grading.testsPassed,
-                        has_hidden_failed: grading.graded.some((t) => t.isHidden && t.status !== "passed"),
-                        execution_time_ms: executionTimeMs,
-                        error_message: firstError,
+                        code_sha256: codeSha256,
                     },
                 },
-                run: {
-                    publicId: `run_${ulid().toLowerCase()}`,
-                    startedAt,
-                    stdout: null,
-                    stderr: firstError,
-                    executionTimeMs,
-                    passedTests: grading.testsPassed,
-                    totalTests: grading.testsTotal,
-                },
-                testResults: grading.testResults,
                 workspace: {
                     publicId: `ws_${ulid().toLowerCase()}`,
                     filePath: starterFile?.file_path || `solution.${ext}`,
@@ -425,6 +627,80 @@ export const challengeService = {
             throw error;
         }
 
+        const submissionId = created.submission.public_id;
+
+        await redis.set(pendingKey(submissionId), {
+            userDbId: String(ctx.user_db_id),
+            challengeId: String(ctx.id),
+            startedAt: new Date().toISOString(),
+            attempts: created.attempts,
+            codeSha256,
+            publicGraded,
+        }, { ex: PENDING_SUBMISSION_TTL_SEC });
+
+        return {
+            challengeId: ctx.id,
+            submissionId,
+            attempts: created.attempts,
+            maxAttempts: maxCodingAttempts(definition),
+            hiddenTests: hiddenCases.map((tc) => ({ id: tc.id, name: tc.name, input: tc.input, isHidden: true })),
+        };
+    },
+
+    /** Submission step 2: grades the hidden tests, finalizes the attempt and awards points once. */
+    finishCodingSubmission: async ({ userId, challengeId, submissionId, results }) => {
+        const ctx = await resolveContext({ userId, challengeId });
+
+        if (!/^sub_[a-z0-9]{26}$/.test(String(submissionId || ""))) {
+            throw new ApiError("Invalid submission id", 400);
+        }
+
+        const pending = await redis.get(pendingKey(submissionId));
+        if (!pending || pending.userDbId !== String(ctx.user_db_id) || pending.challengeId !== String(ctx.id)) {
+            throw new ApiError("This submission has expired. It still counts as an attempt; submit again to be graded.", 410);
+        }
+
+        const definition = await loadCodingDefinition(ctx);
+        const points = Number(ctx.points) || 0;
+        const hiddenCases = normaliseTestCases(definition.test_cases).filter((tc) => tc.isHidden);
+        const graded = [...(pending.publicGraded || []), ...gradeTests(hiddenCases, results)];
+        const grading = summariseGrading(graded, { scoringMode: definition.scoring_mode, points });
+
+        const starterFile = (definition.files || []).find((f) => f.role === "starter" || !f.role) || null;
+        const language = starterFile?.language || "javascript";
+        const firstError = graded.find((t) => t.error)?.error || null;
+        const executionTimeMs = graded.reduce((sum, t) => sum + t.timeMs, 0);
+        const status = grading.allPassed ? "passed" : "failed";
+
+        const saved = await challengeDb.finalizeCodingSubmission({
+            userDbId: ctx.user_db_id,
+            challengeId: ctx.id,
+            submissionPublicId: submissionId,
+            language,
+            status,
+            score: grading.score,
+            passed: grading.allPassed,
+            points,
+            snapshot: {
+                tests_total: grading.testsTotal,
+                tests_passed: grading.testsPassed,
+                has_hidden_failed: graded.some((t) => t.isHidden && t.status !== "passed"),
+                execution_time_ms: executionTimeMs,
+                error_message: firstError,
+            },
+            run: {
+                publicId: `run_${ulid().toLowerCase()}`,
+                startedAt: new Date(pending.startedAt),
+                stdout: null,
+                stderr: firstError,
+                executionTimeMs,
+                passedTests: grading.testsPassed,
+                totalTests: grading.testsTotal,
+            },
+            testResults: grading.testResults,
+        });
+
+        await redis.del(pendingKey(submissionId));
         await afterSubmission({ userId, ctx, passed: grading.allPassed, awardedPoints: saved.awardedPoints });
 
         return {
@@ -438,16 +714,9 @@ export const challengeService = {
             testsPassed: grading.testsPassed,
             testsTotal: grading.testsTotal,
             awardedPoints: saved.awardedPoints,
-            tests: grading.graded.map((t) => ({
-                id: t.testCaseId,
-                name: t.name,
-                isHidden: t.isHidden,
-                status: t.status,
-                timeMs: t.timeMs,
-                actual: t.actual,
-                expected: t.expected,
-                error: t.error,
-            })),
+            attempts: Number(pending.attempts) || null,
+            maxAttempts: maxCodingAttempts(definition),
+            tests: graded.map(testView),
         };
     },
 

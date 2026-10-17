@@ -11,6 +11,13 @@ export async function getCodingWorkspaceAction({ challengeId }) {
     );
 }
 
+export async function getQuizStateAction({ challengeId }) {
+    return runAction(
+        ({ userId }) => challengeService.getQuizState({ userId, challengeId }),
+        { context: "getQuizStateAction" }
+    );
+}
+
 export async function submitQuizAction({ challengeId, answers }) {
     return runAction(
         ({ userId }) => challengeService.submitQuiz({ userId, challengeId, answers: answers || {} }),
@@ -18,9 +25,18 @@ export async function submitQuizAction({ challengeId, answers }) {
     );
 }
 
-export async function submitCodingAction({ challengeId, code, results }) {
+// Coding submissions are two calls: start (sample tests verified, snapshot stored, attempt used,
+// hidden inputs returned) then finish (hidden test outputs graded).
+export async function startCodingSubmissionAction({ challengeId, code, results }) {
     return runAction(
-        ({ userId }) => challengeService.submitCoding({ userId, challengeId, code, results: results || {} }),
-        { limiter: rateLimiters.challenge, context: "submitCodingAction" }
+        ({ userId }) => challengeService.startCodingSubmission({ userId, challengeId, code, results: results || {} }),
+        { limiter: rateLimiters.challenge, context: "startCodingSubmissionAction" }
+    );
+}
+
+export async function finishCodingSubmissionAction({ challengeId, submissionId, results }) {
+    return runAction(
+        ({ userId }) => challengeService.finishCodingSubmission({ userId, challengeId, submissionId, results: results || {} }),
+        { limiter: rateLimiters.challenge, context: "finishCodingSubmissionAction" }
     );
 }

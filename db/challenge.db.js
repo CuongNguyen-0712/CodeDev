@@ -103,22 +103,80 @@ export const challengeDb = {
         return await sql(query, [challengeId]);
     },
 
+    /**
+     * Every quiz attempt of a user. One attempt = one INSERT statement, so its rows share
+     * `created_at`; `attempt_no` numbers them oldest first. `wait_seconds` is the cooldown left
+     * before the next attempt, computed by the database clock.
+     */
+    getQuizAttempts: async ({ userDbId, challengeId, cooldownSec }) => {
+        const query = `
+            WITH mine AS (
+                SELECT qs.question_id, qs.question_option_id, qs.created_at
+                FROM challenge.question_submissions qs
+                JOIN challenge.questions q ON q.id = qs.question_id
+                WHERE qs.user_id = $1 AND q.challenge_id = $2::bigint
+            ),
+            attempts AS (
+                SELECT created_at, ROW_NUMBER() OVER (ORDER BY created_at)::int AS attempt_no
+                FROM (SELECT DISTINCT created_at FROM mine) d
+            )
+            SELECT
+                m.question_id::text,
+                m.question_option_id::text AS option_id,
+                a.attempt_no,
+                m.created_at,
+                GREATEST(0, CEIL(EXTRACT(EPOCH FROM (
+                    (SELECT MAX(created_at) FROM mine) + make_interval(secs => $3) - LOCALTIMESTAMP
+                ))))::int AS wait_seconds
+            FROM mine m
+            JOIN attempts a ON a.created_at = m.created_at
+            ORDER BY a.attempt_no, m.question_id, m.question_option_id;
+        `;
+
+        return await sql(query, [userDbId, challengeId, cooldownSec]);
+    },
+
     // rows: [{ questionId, optionId, isCorrect }]
-    saveQuizAttempt: async ({ userDbId, challengeId, rows, passed, points }) => {
+    // Enforces `maxAttempts` and the cooldown between attempts per (user, quiz) under an
+    // advisory lock, so parallel submits cannot slip through.
+    saveQuizAttempt: async ({ userDbId, challengeId, rows, passed, points, maxAttempts, cooldownSec }) => {
         return await withTransaction(async (client) => {
-            if (rows.length > 0) {
-                await client.query(
-                    `INSERT INTO challenge.question_submissions (user_id, question_id, question_option_id, is_correct)
-                     SELECT $1, q_id, o_id, ok
-                     FROM unnest($2::bigint[], $3::bigint[], $4::boolean[]) AS t(q_id, o_id, ok);`,
-                    [
-                        userDbId,
-                        rows.map(r => r.questionId),
-                        rows.map(r => r.optionId),
-                        rows.map(r => r.isCorrect),
-                    ]
-                );
+            await client.query(
+                `SELECT pg_advisory_xact_lock(hashtext('quiz-attempt:' || $1::text || ':' || $2::text))`,
+                [userDbId, challengeId]
+            );
+
+            const attemptsRes = await client.query(
+                `SELECT
+                     COUNT(DISTINCT qs.created_at)::int AS attempts,
+                     GREATEST(0, CEIL(EXTRACT(EPOCH FROM (MAX(qs.created_at) + make_interval(secs => $3) - LOCALTIMESTAMP))))::int AS wait_seconds
+                 FROM challenge.question_submissions qs
+                 JOIN challenge.questions q ON q.id = qs.question_id
+                 WHERE qs.user_id = $1 AND q.challenge_id = $2::bigint;`,
+                [userDbId, challengeId, cooldownSec]
+            );
+            const { attempts = 0, wait_seconds: waitSeconds = 0 } = attemptsRes.rows[0] || {};
+
+            if (attempts >= maxAttempts) {
+                throw new ApiError("You have used all attempts for this quiz", 409);
             }
+            if (waitSeconds > 0) {
+                const error = new ApiError(`Please wait ${Math.ceil(waitSeconds / 60)} more minute(s) before your next attempt`, 429);
+                error.retryAfter = waitSeconds;
+                throw error;
+            }
+
+            await client.query(
+                `INSERT INTO challenge.question_submissions (user_id, question_id, question_option_id, is_correct)
+                 SELECT $1, q_id, o_id, ok
+                 FROM unnest($2::bigint[], $3::bigint[], $4::boolean[]) AS t(q_id, o_id, ok);`,
+                [
+                    userDbId,
+                    rows.map(r => r.questionId),
+                    rows.map(r => r.optionId),
+                    rows.map(r => r.isCorrect),
+                ]
+            );
 
             const awardedPoints = passed
                 ? await awardChallengePoints(client, { userDbId, challengeId, amount: points })
@@ -126,6 +184,38 @@ export const challengeDb = {
 
             return { awardedPoints };
         });
+    },
+
+    // Challenges a learner must pass before a lesson can be completed (published, open,
+    // supported types), with the coding pass flag; quiz passes are graded by the service.
+    getLessonChallenges: async ({ userId, lessonId }) => {
+        const query = `
+            SELECT
+                ch.id::text AS id,
+                ch.type,
+                ch.title,
+                u.id::text AS user_db_id,
+                CASE WHEN ch.type IN ('fix_bug', 'mini_coding') THEN EXISTS (
+                    SELECT 1 FROM challenge.code_submissions s
+                    WHERE s.user_id = u.id AND s.challenge_id = ch.id AND s.status = 'passed'
+                ) END AS coding_passed,
+                CASE WHEN ch.type IN ('fix_bug', 'mini_coding') THEN (
+                    SELECT COUNT(*)::int FROM challenge.code_submissions s
+                    WHERE s.user_id = u.id AND s.challenge_id = ch.id
+                ) END AS coding_attempts,
+                cfg.max_attempts AS coding_max_attempts
+            FROM challenge.challenges ch
+            JOIN identity.users u ON u.public_id = $1
+            LEFT JOIN challenge.coding_configs cfg ON cfg.challenge_id = ch.id
+            WHERE ch.lesson_id = $2::bigint
+              AND ch.is_deleted = false
+              AND ch.is_published = true
+              AND ch.status = 'open'
+              AND ch.type IN ('quiz', 'fix_bug', 'mini_coding')
+            ORDER BY ch.id;
+        `;
+
+        return await sql(query, [userId, lessonId]);
     },
 
     getCodingDefinition: async ({ challengeId }) => {
@@ -216,43 +306,26 @@ export const challengeDb = {
         return await sql(query, [userDbId, challengeId]);
     },
 
-    countCodingAttempts: async ({ userDbId, challengeId }) => {
-        return await sql(
-            `SELECT COUNT(*)::int AS attempts FROM challenge.code_submissions WHERE user_id = $1 AND challenge_id = $2::bigint;`,
-            [userDbId, challengeId]
-        );
-    },
-
-    // Persists an already-uploaded source snapshot (asset) and its grading in one transaction.
-    createCodingSubmission: async (data) => {
-        const {
-            userDbId,
-            challengeId,
-            language,
-            asset,
-            submission,
-            run,
-            testResults,
-            workspace,
-            passed,
-            points,
-            maxAttempts,
-        } = data;
+    /**
+     * Step 1 of a submission: counts as an attempt as soon as it is written. Stores the
+     * already-uploaded source snapshot and a `pending` submission, and refreshes the workspace.
+     */
+    createPendingCodingSubmission: async (data) => {
+        const { userDbId, challengeId, language, asset, submission, workspace, maxAttempts } = data;
 
         return await withTransaction(async (client) => {
-            if (maxAttempts) {
-                // Serialise submissions per (user, challenge) so parallel requests cannot exceed the limit.
-                await client.query(
-                    `SELECT pg_advisory_xact_lock(hashtext('coding-attempt:' || $1::text || ':' || $2::text))`,
-                    [userDbId, challengeId]
-                );
-                const attemptsRes = await client.query(
-                    `SELECT COUNT(*)::int AS attempts FROM challenge.code_submissions WHERE user_id = $1 AND challenge_id = $2::bigint;`,
-                    [userDbId, challengeId]
-                );
-                if ((attemptsRes.rows[0]?.attempts || 0) >= maxAttempts) {
-                    throw new ApiError("You have used all attempts for this challenge", 429);
-                }
+            // Serialise submissions per (user, challenge) so parallel requests cannot exceed the limit.
+            await client.query(
+                `SELECT pg_advisory_xact_lock(hashtext('coding-attempt:' || $1::text || ':' || $2::text))`,
+                [userDbId, challengeId]
+            );
+            const attemptsRes = await client.query(
+                `SELECT COUNT(*)::int AS attempts FROM challenge.code_submissions WHERE user_id = $1 AND challenge_id = $2::bigint;`,
+                [userDbId, challengeId]
+            );
+            const attempts = attemptsRes.rows[0]?.attempts || 0;
+            if (attempts >= maxAttempts) {
+                throw new ApiError("You have used all attempts for this challenge", 429);
             }
 
             const assetRes = await client.query(
@@ -265,9 +338,62 @@ export const challengeDb = {
 
             const submissionRes = await client.query(
                 `INSERT INTO challenge.code_submissions (public_id, user_id, challenge_id, language, source_snapshot, status, score)
-                 VALUES ($1, $2, $3::bigint, $4, $5::jsonb, $6, $7)
+                 VALUES ($1, $2, $3::bigint, $4, $5::jsonb, 'pending', NULL)
+                 RETURNING id, public_id, status, submitted_at;`,
+                [submission.publicId, userDbId, challengeId, language, JSON.stringify({ ...submission.snapshot, asset_id: String(assetId) })]
+            );
+
+            const workspaceRes = await client.query(
+                `INSERT INTO challenge.coding_workspaces (public_id, challenge_id, user_id, language, updated_at)
+                 VALUES ($1, $2::bigint, $3, $4, now())
+                 ON CONFLICT (challenge_id, user_id)
+                 DO UPDATE SET language = EXCLUDED.language, updated_at = now()
+                 RETURNING id;`,
+                [workspace.publicId, challengeId, userDbId, language]
+            );
+
+            await client.query(
+                `INSERT INTO challenge.coding_workspace_files (workspace_id, file_path, asset_id, version, file_size)
+                 VALUES ($1, $2, $3, 1, $4)
+                 ON CONFLICT (workspace_id, file_path)
+                 DO UPDATE SET
+                     asset_id = EXCLUDED.asset_id,
+                     file_size = EXCLUDED.file_size,
+                     version = challenge.coding_workspace_files.version + 1,
+                     created_at = now();`,
+                [workspaceRes.rows[0].id, workspace.filePath, assetId, asset.size]
+            );
+
+            return { submission: submissionRes.rows[0], attempts: attempts + 1 };
+        });
+    },
+
+    /**
+     * Step 2: grades a `pending` submission exactly once and credits the challenge points
+     * (once per user and challenge, however many submissions pass).
+     */
+    finalizeCodingSubmission: async (data) => {
+        const { userDbId, challengeId, submissionPublicId, language, status, score, snapshot, run, testResults, passed, points } = data;
+
+        return await withTransaction(async (client) => {
+            const pendingRes = await client.query(
+                `SELECT id, source_snapshot
+                 FROM challenge.code_submissions
+                 WHERE public_id = $1 AND user_id = $2 AND challenge_id = $3::bigint AND status = 'pending'
+                 FOR UPDATE;`,
+                [submissionPublicId, userDbId, challengeId]
+            );
+            const pending = pendingRes.rows[0];
+            if (!pending) {
+                throw new ApiError("This submission was already graded or does not exist", 409);
+            }
+
+            const submissionRes = await client.query(
+                `UPDATE challenge.code_submissions
+                 SET status = $2, score = $3, source_snapshot = source_snapshot || $4::jsonb
+                 WHERE id = $1
                  RETURNING id, public_id, status, score, submitted_at;`,
-                [submission.publicId, userDbId, challengeId, language, JSON.stringify(submission.snapshot), submission.status, submission.score]
+                [pending.id, status, score, JSON.stringify(snapshot)]
             );
             const submissionRow = submissionRes.rows[0];
 
@@ -275,14 +401,18 @@ export const challengeDb = {
                 `INSERT INTO challenge.code_runs (public_id, user_id, challenge_id, submission_id, run_type, language, source_snapshot, status, started_at, finished_at)
                  VALUES ($1, $2, $3::bigint, $4, 'submit', $5, $6::jsonb, 'completed', $7, now())
                  RETURNING id;`,
-                [run.publicId, userDbId, challengeId, submissionRow.id, language, JSON.stringify({ asset_id: String(assetId), s3_key: asset.objectKey }), run.startedAt]
+                [
+                    run.publicId, userDbId, challengeId, submissionRow.id, language,
+                    JSON.stringify({ asset_id: pending.source_snapshot?.asset_id ?? null, s3_key: pending.source_snapshot?.s3_key ?? null }),
+                    run.startedAt,
+                ]
             );
             const runId = runRes.rows[0].id;
 
             await client.query(
                 `INSERT INTO challenge.code_run_results (run_id, stdout, stderr, exit_code, execution_time_ms, passed_tests, total_tests, score)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`,
-                [runId, run.stdout, run.stderr, passed ? 0 : 1, run.executionTimeMs, run.passedTests, run.totalTests, submission.score]
+                [runId, run.stdout, run.stderr, passed ? 0 : 1, run.executionTimeMs, run.passedTests, run.totalTests, score]
             );
 
             if (testResults.length > 0) {
@@ -300,37 +430,11 @@ export const challengeDb = {
                 );
             }
 
-            const workspaceRes = await client.query(
-                `INSERT INTO challenge.coding_workspaces (public_id, challenge_id, user_id, language, updated_at)
-                 VALUES ($1, $2::bigint, $3, $4, now())
-                 ON CONFLICT (challenge_id, user_id)
-                 DO UPDATE SET language = EXCLUDED.language, updated_at = now()
-                 RETURNING id, public_id;`,
-                [workspace.publicId, challengeId, userDbId, language]
-            );
-            const workspaceRow = workspaceRes.rows[0];
-
-            await client.query(
-                `INSERT INTO challenge.coding_workspace_files (workspace_id, file_path, asset_id, version, file_size)
-                 VALUES ($1, $2, $3, 1, $4)
-                 ON CONFLICT (workspace_id, file_path)
-                 DO UPDATE SET
-                     asset_id = EXCLUDED.asset_id,
-                     file_size = EXCLUDED.file_size,
-                     version = challenge.coding_workspace_files.version + 1,
-                     created_at = now();`,
-                [workspaceRow.id, workspace.filePath, assetId, asset.size]
-            );
-
             const awardedPoints = passed
                 ? await awardChallengePoints(client, { userDbId, challengeId, amount: points })
                 : 0;
 
-            return {
-                submission: submissionRow,
-                workspaceId: workspaceRow.public_id,
-                awardedPoints,
-            };
+            return { submission: submissionRow, awardedPoints };
         });
     },
 };
