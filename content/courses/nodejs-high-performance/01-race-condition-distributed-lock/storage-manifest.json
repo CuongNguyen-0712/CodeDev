@@ -1,0 +1,44 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_nhp_102",
+      "key": "challenges/javascript/chal_fix_nhp_102/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "debit.js",
+      "size": 1009
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_fix_nhp_102",
+      "key": "challenges/javascript/chal_fix_nhp_102/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 1826
+    },
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_nhp_104",
+      "key": "challenges/javascript/chal_coding_nhp_104/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "lock.js",
+      "size": 1476
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_coding_nhp_104",
+      "key": "challenges/javascript/chal_coding_nhp_104/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 2247
+    },
+    {
+      "role": "lesson-starter",
+      "key": "courses/nodejs-high-performance/01-race-condition-distributed-lock/starter-template.zip",
+      "contentType": "application/zip",
+      "originalName": "starter-template.zip",
+      "size": 4206
+    }
+  ]
+}

@@ -1,0 +1,119 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nhp_301",
+      "name": "fixed-window-boundary-burst-quiz",
+      "type": "quiz",
+      "title": "How many requests fit through a fixed window?",
+      "description": "A fixed-window counter looks like it enforces \"100 per minute\". Check what it really allows before you rely on it.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 10,
+          "question": "The payment API limits each API key to 100 requests per minute with a fixed-window counter: the Redis key is ratelimit:<apiKey>:<current minute>, incremented on every request and rejected above 100. A misbehaving client sends 100 POST /payments at 12:00:59.900 and another 100 at 12:01:00.100. What happens?",
+          "explanation": "The two bursts land in different windows (minute 12:00 and minute 12:01), and each window's counter only reaches 100, so all 200 requests are accepted within about 200 ms - twice the intended rate. Fixed windows forget everything at the boundary. A sliding window (or a sliding-window counter that weights the previous window) or a token bucket bounds the burst no matter where the boundary falls.",
+          "options": [
+            { "text": "Only the first 100 are accepted: the limiter sees 200 requests in less than a minute and rejects the second burst.", "correct": false },
+            { "text": "All 200 are accepted within about 200 ms, because each burst falls into a different window whose counter only reaches 100.", "correct": true },
+            { "text": "The second burst is accepted only after the client waits until 12:01:59, when the first burst is a full minute old.", "correct": false },
+            { "text": "Half of each burst is rejected, because a fixed window spreads the 100-request budget evenly over the minute.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nhp_302",
+      "name": "token-bucket-with-injected-clock",
+      "type": "mini_coding",
+      "title": "Implement a token bucket",
+      "description": "Write createTokenBucket({ capacity, refillPerSecond }, now) returning take(cost). The bucket starts full, refills continuously from the injected clock (never above capacity), and take() either consumes tokens or denies with retryAfterMs so the API can send 429 with Retry-After. The harness replays a timeline of requests with a fake clock.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "tokenBucket.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A full bucket allows a burst up to its capacity",
+          "input": { "capacity": 3, "refillPerSecond": 1, "requests": [
+            { "at": 0 }, { "at": 0 }, { "at": 0 }, { "at": 0 }
+          ] },
+          "expected": ["allow", "allow", "allow", "deny:1"],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Tokens refill continuously between requests",
+          "input": { "capacity": 2, "refillPerSecond": 2, "requests": [
+            { "at": 0 }, { "at": 0 }, { "at": 0 }, { "at": 250 }, { "at": 500 }, { "at": 600 }
+          ] },
+          "expected": ["allow", "allow", "deny:1", "deny:1", "allow", "deny:1"],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "An idle client cannot save up more than capacity",
+          "input": { "capacity": 3, "refillPerSecond": 1, "requests": [
+            { "at": 0 }, { "at": 0 }, { "at": 0 },
+            { "at": 10000 }, { "at": 10000 }, { "at": 10000 }, { "at": 10000 }
+          ] },
+          "expected": ["allow", "allow", "allow", "allow", "allow", "allow", "deny:1"],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Expensive requests cost more tokens and wait longer",
+          "input": { "capacity": 10, "refillPerSecond": 5, "requests": [
+            { "at": 0, "cost": 8 }, { "at": 0, "cost": 4 }, { "at": 400, "cost": 4 },
+            { "at": 400, "cost": 1 }, { "at": 400, "cost": 10 }
+          ] },
+          "expected": ["allow", "deny:1", "allow", "deny:1", "deny:2"],
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "No double burst around a one-second boundary",
+          "input": { "capacity": 5, "refillPerSecond": 5, "requests": [
+            { "at": 900 }, { "at": 900 }, { "at": 900 }, { "at": 900 }, { "at": 900 },
+            { "at": 1000 }, { "at": 1000 }, { "at": 1000 }, { "at": 1000 }, { "at": 1000 },
+            { "at": 2000 }
+          ] },
+          "expected": ["allow", "allow", "allow", "allow", "allow", "deny:1", "deny:1", "deny:1", "deny:1", "deny:1", "allow"],
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    },
+    {
+      "publicId": "chal_quiz_nhp_303",
+      "name": "redis-incr-expire-quiz",
+      "type": "quiz",
+      "title": "Sharing one limit across API instances",
+      "description": "Six API instances must enforce the same per-key limit. Review the Redis code before it ships.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "points": 10,
+          "question": "Six instances of the payment API share this limiter:\n\nconst count = await redis.incr(key);\nif (count === 1) await redis.expire(key, 60);\nif (count > 100) return reply429();\n\nWhich statements are true? (Select all that apply.)",
+          "explanation": "INCR is atomic, so two instances can never both see count === 1 and no increment is lost. The weak spot is the gap between the two commands: if the process crashes or the connection drops after INCR and before EXPIRE, the key has no TTL, keeps counting forever and that API key is rate limited permanently. Sending INCR and EXPIRE together in one Lua script (or a MULTI block) closes the gap. Per-instance in-memory counters are not equivalent: behind a load balancer each instance allows its own 100, so the client gets up to 600 per minute.",
+          "options": [
+            { "text": "Two instances can both read count === 1 for the same key and each believe they started the window.", "correct": false },
+            { "text": "If the process dies between INCR and EXPIRE, the key never expires and that client stays rate limited forever.", "correct": true },
+            { "text": "Running INCR and EXPIRE in a single Lua script (or MULTI/EXEC) makes the pair atomic and removes that failure mode.", "correct": true },
+            { "text": "Keeping the counter in each instance's memory instead of Redis gives the same overall limit with less latency.", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

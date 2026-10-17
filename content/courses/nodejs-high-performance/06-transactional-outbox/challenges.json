@@ -1,0 +1,324 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nhp_221",
+      "name": "dual-write-quiz",
+      "type": "quiz",
+      "title": "Commit, then publish: what can go wrong?",
+      "description": "The top-up handler writes to PostgreSQL and then publishes an event for the wallet service. Find the gap between the two writes.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 10,
+          "question": "A top-up handler runs:\n\nawait db.query(\"BEGIN\");\nawait db.query(\"INSERT INTO topups ...\");\nawait db.query(\"COMMIT\");\nawait kafka.send({ topic: \"wallet-events\", messages: [walletCredited] });\n\nThe pod is OOM-killed right after COMMIT returns, before kafka.send() runs. What is the result?",
+          "explanation": "The top-up row is committed but the event is never published, and nothing will ever publish it: the only record of \"I still have to publish\" lived in the memory of the killed process. The customer paid, but the wallet is never credited. Swapping the order (publish first, then commit) just flips the failure: an event for a top-up that was rolled back. A database and a broker cannot share one transaction, so the fix is to make the event part of the database transaction (an outbox row) and publish it afterwards from there.",
+          "options": [
+            {
+              "text": "Nothing is lost: Node.js flushes pending Kafka sends when the process exits.",
+              "correct": false
+            },
+            {
+              "text": "The top-up is committed but the WalletCredited event is never published, so the wallet is never credited - and no retry will ever notice.",
+              "correct": true
+            },
+            {
+              "text": "PostgreSQL rolls the top-up back because the request did not finish.",
+              "correct": false
+            },
+            {
+              "text": "Kafka detects the missing message and asks the producer to resend it after restart.",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_nhp_222",
+      "name": "fix-idempotent-wallet-consumer",
+      "type": "fix_bug",
+      "title": "Fix the consumer that credits wallets twice",
+      "description": "handleWalletCredited() deduplicates redelivered events with a processed_messages table, yet some wallets are credited twice and some top-ups are marked processed without ever being credited. Make each message change the balance exactly once, even when it is redelivered concurrently or the credit fails halfway.",
+      "difficulty": "hard",
+      "points": 20,
+      "coding": {
+        "language": "javascript",
+        "filePath": "walletConsumer.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A redelivered message is applied once",
+          "input": {
+            "messages": {
+              "m1": {
+                "walletId": "wallet-42",
+                "amount": 100000
+              },
+              "m2": {
+                "walletId": "wallet-42",
+                "amount": 50000
+              },
+              "m3": {
+                "walletId": "wallet-7",
+                "amount": 20000
+              }
+            },
+            "deliveries": [
+              [
+                "m1"
+              ],
+              [
+                "m1"
+              ]
+            ]
+          },
+          "expected": {
+            "results": [
+              [
+                "applied"
+              ],
+              [
+                "duplicate"
+              ]
+            ],
+            "balances": {
+              "wallet-42": 100000
+            },
+            "processed": 1
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Three concurrent deliveries of the same message credit the wallet once",
+          "input": {
+            "messages": {
+              "m1": {
+                "walletId": "wallet-42",
+                "amount": 100000
+              },
+              "m2": {
+                "walletId": "wallet-42",
+                "amount": 50000
+              },
+              "m3": {
+                "walletId": "wallet-7",
+                "amount": 20000
+              }
+            },
+            "deliveries": [
+              [
+                "m1",
+                "m1",
+                "m1"
+              ],
+              [
+                "m1"
+              ]
+            ]
+          },
+          "expected": {
+            "results": [
+              [
+                "applied",
+                "duplicate",
+                "duplicate"
+              ],
+              [
+                "duplicate"
+              ]
+            ],
+            "balances": {
+              "wallet-42": 100000
+            },
+            "processed": 1
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Different messages are all applied",
+          "input": {
+            "messages": {
+              "m1": {
+                "walletId": "wallet-42",
+                "amount": 100000
+              },
+              "m2": {
+                "walletId": "wallet-42",
+                "amount": 50000
+              },
+              "m3": {
+                "walletId": "wallet-7",
+                "amount": 20000
+              }
+            },
+            "deliveries": [
+              [
+                "m1",
+                "m2",
+                "m3"
+              ]
+            ]
+          },
+          "expected": {
+            "results": [
+              [
+                "applied",
+                "applied",
+                "applied"
+              ]
+            ],
+            "balances": {
+              "wallet-42": 150000,
+              "wallet-7": 20000
+            },
+            "processed": 3
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A credit that fails is redelivered and applied, not lost",
+          "input": {
+            "messages": {
+              "m1": {
+                "walletId": "wallet-42",
+                "amount": 100000
+              },
+              "m2": {
+                "walletId": "wallet-42",
+                "amount": 50000
+              },
+              "m3": {
+                "walletId": "wallet-7",
+                "amount": 20000
+              }
+            },
+            "failCredits": [
+              1
+            ],
+            "deliveries": [
+              [
+                "m1"
+              ],
+              [
+                "m1"
+              ]
+            ]
+          },
+          "expected": {
+            "results": [
+              [
+                "error"
+              ],
+              [
+                "applied"
+              ]
+            ],
+            "balances": {
+              "wallet-42": 100000
+            },
+            "processed": 1
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A failure while duplicates are in flight still credits exactly once",
+          "input": {
+            "messages": {
+              "m1": {
+                "walletId": "wallet-42",
+                "amount": 100000
+              },
+              "m2": {
+                "walletId": "wallet-42",
+                "amount": 50000
+              },
+              "m3": {
+                "walletId": "wallet-7",
+                "amount": 20000
+              }
+            },
+            "failCredits": [
+              1
+            ],
+            "deliveries": [
+              [
+                "m1",
+                "m1",
+                "m2"
+              ],
+              [
+                "m1",
+                "m2"
+              ]
+            ]
+          },
+          "expected": {
+            "results": [
+              [
+                "error",
+                "applied",
+                "applied"
+              ],
+              [
+                "duplicate",
+                "duplicate"
+              ]
+            ],
+            "balances": {
+              "wallet-42": 150000
+            },
+            "processed": 2
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    },
+    {
+      "publicId": "chal_quiz_nhp_223",
+      "name": "outbox-relay-delivery-quiz",
+      "type": "quiz",
+      "title": "What the outbox relay guarantees",
+      "description": "The outbox fixes lost events. Check what it does not fix: duplicates and ordering.",
+      "difficulty": "hard",
+      "points": 10,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "points": 10,
+          "question": "A relay polls the outbox table, publishes each row to Kafka and then sets published_at on the row. Several wallet events are produced per wallet. Which statements are true? Select all that apply.",
+          "explanation": "If the relay crashes after Kafka acknowledged a message but before it set published_at, the row is picked up and published again - the outbox gives at-least-once delivery, so consumers must be idempotent. Kafka only keeps order within a partition, so events of one wallet must use the wallet id as the message key (and be read from the outbox in id order) to arrive in order. Running two relays that both SELECT the same unpublished rows doubles every message; parallel relays need FOR UPDATE SKIP LOCKED or partitioned ownership. And publishing inside the business transaction is exactly the dual write the outbox removes: the relay publishes after the commit, from the table.",
+          "options": [
+            {
+              "text": "A relay crash between the Kafka acknowledgement and the UPDATE of published_at causes the same event to be published twice.",
+              "correct": true
+            },
+            {
+              "text": "Using walletId as the Kafka message key keeps the events of one wallet in order, as long as the relay publishes them in outbox order.",
+              "correct": true
+            },
+            {
+              "text": "Two relay instances can safely run the same SELECT ... WHERE published_at IS NULL query without locking; Kafka discards the duplicates.",
+              "correct": false
+            },
+            {
+              "text": "To avoid duplicates, the relay should publish to Kafka inside the same database transaction that inserted the outbox row.",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

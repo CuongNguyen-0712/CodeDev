@@ -1,0 +1,105 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nhp_321",
+      "name": "write-returns-false-quiz",
+      "type": "quiz",
+      "title": "What does write() returning false mean?",
+      "description": "The export loop calls res.write() for every ledger row. Read what the return value is telling you.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 10,
+          "question": "An export handler writes CSV lines to the HTTP response with res.write(line) in a loop. After a few hundred lines, res.write() starts returning false. What does that mean, and what should the loop do?",
+          "explanation": "write() returning false is backpressure, not an error: the chunk WAS accepted and queued, but the stream's internal buffer has reached its highWaterMark because the destination (here, a slow client connection) is consuming more slowly than you produce. Writing more only grows the buffer in memory. The producer should pause and resume when the stream emits 'drain'. Retrying the same chunk would duplicate it, and nothing is dropped automatically.",
+          "options": [
+            { "text": "The line was rejected and lost; the loop must write the same line again until write() returns true.", "correct": false },
+            { "text": "The line was queued, but the buffer is at its highWaterMark; stop writing and continue after the 'drain' event.", "correct": true },
+            { "text": "The client disconnected; the loop should stop and call res.end().", "correct": false },
+            { "text": "Nothing important: Node.js grows the buffer automatically, so the loop can keep writing at full speed.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_nhp_322",
+      "name": "fix-exporter-ignoring-backpressure",
+      "type": "fix_bug",
+      "title": "Fix the exporter that ignores backpressure",
+      "description": "exportLedger() streams ledger rows as CSV, but it ignores write()'s return value, so a slow client makes the whole export pile up in memory. Fix it so the buffered data never exceeds the stream's highWaterMark, while every row is still written once, in order, followed by end(). The harness provides a fake writable with a slow consumer and records the peak buffer size.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "javascript",
+        "filePath": "exportLedger.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A small export is complete, in order and bounded",
+          "input": { "rows": 10, "highWaterMark": 4 },
+          "expected": { "rows": 10, "inOrder": true, "header": true, "ended": true, "peakBuffered": "within highWaterMark" },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "1,000 rows never buffer more than highWaterMark",
+          "input": { "rows": 1000, "highWaterMark": 64 },
+          "expected": { "rows": 1000, "inOrder": true, "header": true, "ended": true, "peakBuffered": "within highWaterMark" },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A single-row export still ends correctly",
+          "input": { "rows": 1, "highWaterMark": 16 },
+          "expected": { "rows": 1, "inOrder": true, "header": true, "ended": true, "peakBuffered": "within highWaterMark" },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A paged database cursor stays within the buffer limit",
+          "input": { "rows": 500, "highWaterMark": 16, "pageSize": 50 },
+          "expected": { "rows": 500, "inOrder": true, "header": true, "ended": true, "peakBuffered": "within highWaterMark" },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "3,000 rows with a larger highWaterMark",
+          "input": { "rows": 3000, "highWaterMark": 100 },
+          "expected": { "rows": 3000, "inOrder": true, "header": true, "ended": true, "peakBuffered": "within highWaterMark" },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    },
+    {
+      "publicId": "chal_quiz_nhp_323",
+      "name": "pipe-vs-pipeline-quiz",
+      "type": "quiz",
+      "title": "pipe() or pipeline()?",
+      "description": "The export chains a database cursor, a CSV transform, gzip and the HTTP response. Decide how to connect them.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "points": 10,
+          "question": "The export is built as cursor.pipe(toCsv).pipe(gzip).pipe(res). A reviewer asks you to switch to await pipeline(cursor, toCsv, gzip, res) from node:stream/promises. Which statements are true? (Select all that apply.)",
+          "explanation": "pipe() already handles backpressure between each pair of streams, so that is not the difference. What pipe() does not do is error handling and cleanup: an error in one stream is not forwarded, the other streams are not destroyed, and if the client disconnects the database cursor can keep running and holding a connection. pipeline() forwards the first error, destroys every stream in the chain on failure or early close, and gives you one promise (or callback) for completion. It does not buffer the whole data set - memory stays bounded by the highWaterMarks either way.",
+          "options": [
+            { "text": "pipe() ignores backpressure, so switching to pipeline() is what keeps memory bounded.", "correct": false },
+            { "text": "If any stream fails or the client disconnects, pipeline() destroys all streams in the chain, so the database cursor is closed instead of leaking.", "correct": true },
+            { "text": "pipeline() gives one promise that resolves when everything is flushed and rejects with the first error from any stream.", "correct": true },
+            { "text": "pipeline() reads the whole source into memory first so it can retry failed chunks.", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 'use client'
-import { useState, useEffect, useTransition } from "react"
+import { useState, useEffect, useRef, useTransition } from "react"
+import { usePathname, useSearchParams } from "next/navigation";
 
 import { ErrorReload } from "../../ui/error";
 
@@ -7,6 +8,8 @@ import { useQuery } from "@tanstack/react-query";
 import { userQueries } from "@/queries/user.query";
 import { useSession } from "next-auth/react";
 import { useRouterActions } from "@/router/useRouterActions";
+import { recordLessonVisitAction } from "@/actions/course.actions";
+import { callWithAuthRetry } from "@/lib/actionResult";
 import useViewport from "@/hooks/useViewport";
 import { cn } from "@/lib/utils";
 
@@ -206,7 +209,7 @@ function SyllabusPanel({
 }
 
 export default function StudyingPage({ params }) {
-    const { navigateBack, navigate } = useRouterActions();
+    const { navigate } = useRouterActions();
     const { status } = useSession();
     const viewport = useViewport();
     const isCompact = viewport.width > 0 && viewport.width < 1024;
@@ -268,11 +271,42 @@ export default function StudyingPage({ params }) {
         };
     };
 
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const lessonParam = searchParams.get('lesson');
+
+    // `?lesson=<id>` (other params kept). Changing lessons drops the `#challenge-…` hash.
+    const lessonUrl = (lessonId, hash = '') => {
+        const query = new URLSearchParams(searchParams.toString());
+        query.set('lesson', String(lessonId));
+        return `${pathname}?${query.toString()}${hash}`;
+    };
+
+    // `?lesson=` is the source of truth for the open lesson, so refresh, shared links and
+    // back/forward all land on it. A missing, unknown or locked lesson falls back to the resume
+    // point (latest last_seen) and the URL is corrected in place.
     useEffect(() => {
-        if (!data || selectedData) return;
-        const initial = getCurrentLesson(data);
-        if (initial) setSelectedData(initial);
-    }, [data, selectedData]);
+        if (!data) return;
+
+        const index = lessonParam ? allLessons.findIndex((l) => String(l.id) === lessonParam) : -1;
+        const fromUrl = index >= 0 ? allLessons[index] : null;
+
+        if (fromUrl && isLessonUnlocked(fromUrl, index)) {
+            if (String(selectedData?.lesson) !== String(fromUrl.id)) {
+                setSelectedData({ module: fromUrl.module_id, lesson: fromUrl.id, status: fromUrl.status });
+            }
+            return;
+        }
+
+        const fallback = getCurrentLesson(data);
+        if (!fallback) return;
+
+        setSelectedData(fallback);
+        // Native history calls are synced by the Next.js router without a server round trip.
+        const keepHash = lessonParam ? '' : window.location.hash;
+        window.history.replaceState(null, '', lessonUrl(fallback.lesson, keepHash));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [data, lessonParam]);
 
     useEffect(() => {
         if (!data) return;
@@ -303,6 +337,11 @@ export default function StudyingPage({ params }) {
         const isUnlocked = isLessonUnlocked(lesson, lessonIndex);
         if (!isUnlocked) return;
 
+        // A history entry per lesson: the browser Back button returns to the previous lesson.
+        if (String(lesson.id) !== lessonParam) {
+            window.history.pushState(null, '', lessonUrl(lesson.id));
+        }
+
         setSelectedData({
             module: moduleId,
             lesson: lesson.id,
@@ -325,13 +364,18 @@ export default function StudyingPage({ params }) {
 
     const currentModuleIndex = data?.modules?.findIndex(m => m.id === currentLesson?.module_id) ?? -1;
 
-    const handleBack = () => {
-        if (typeof window !== 'undefined' && window.history.length > 1) {
-            navigateBack('/learning');
-        } else {
-            navigate({ path: '/learning' });
-        }
-    };
+    // Course history: every lesson the learner opens becomes the resume point on the server.
+    const lastRecordedRef = useRef(null);
+    useEffect(() => {
+        const lessonId = selectedData?.lesson;
+        if (status !== 'authenticated' || !lessonId || isCurrentLessonLocked) return;
+        if (lastRecordedRef.current === String(lessonId)) return;
+
+        lastRecordedRef.current = String(lessonId);
+        callWithAuthRetry(() => recordLessonVisitAction({ courseId: params.id, lessonId })).catch(() => {
+            lastRecordedRef.current = null;
+        });
+    }, [selectedData?.lesson, status, isCurrentLessonLocked, params.id]);
 
     const handleToggleSyllabus = () => {
         if (isCompact) {
@@ -365,7 +409,7 @@ export default function StudyingPage({ params }) {
             <header className="flex h-12 shrink-0 items-center gap-2 border-b px-2 sm:px-3">
                 <Tooltip>
                     <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon-sm" onClick={handleBack} aria-label="Back to my learning">
+                        <Button variant="ghost" size="icon-sm" onClick={() => navigate({ path: '/learning' })} aria-label="Back to my learning">
                             <LuArrowLeft />
                         </Button>
                     </TooltipTrigger>

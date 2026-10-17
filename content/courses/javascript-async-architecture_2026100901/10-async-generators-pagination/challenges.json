@@ -1,0 +1,109 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_js_411",
+      "name": "async-generator-early-exit-quiz",
+      "type": "quiz",
+      "title": "What happens when you break out of for await?",
+      "description": "An async generator walks the order pages and a for await loop stops at the first flagged order. Predict what runs - and what never runs.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Each page holds 100 orders and the first flagged order is o-130 (on page 2):\n\nasync function* orders() {\n  try {\n    for (let page = 1; ; page++) {\n      console.log('fetch', page);\n      const rows = await fetchOrders(page);\n      yield* rows;\n    }\n  } finally {\n    console.log('cleanup');\n  }\n}\n\nfor await (const order of orders()) {\n  if (order.flagged) { console.log('found', order.id); break; }\n}\n\nWhat is logged?",
+          "explanation": "The generator is pull-based: page 2 is only fetched when the consumer asks for order 101, and nothing is fetched ahead. On break, for await...of calls the iterator's return() method. The suspended generator resumes at its yield as if a return statement were there, so the finally block runs ('cleanup') and the loop inside the generator never continues - page 3 is never requested. Without return(), every early exit would leak whatever the finally block was supposed to release.",
+          "options": [
+            { "text": "fetch 1, fetch 2, found o-130, cleanup", "correct": true },
+            { "text": "fetch 1, fetch 2, found o-130 - finally only runs when the generator finishes on its own, and break just abandons it.", "correct": false },
+            { "text": "fetch 1, fetch 2, fetch 3, found o-130, cleanup - the generator prefetches the next page while the loop body runs.", "correct": false },
+            { "text": "fetch 1, fetch 2, found o-130, then the generator keeps fetching in the background until fetchOrders returns an empty page, then cleanup.", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "const it = orders(); (the same generator as above). Which statements are true? (Select all that apply.)",
+          "explanation": "Calling an async generator function only creates the generator object; the body starts on the first next(). for await...of closes the iterator with return() on every abrupt exit of the loop - break, return, or an exception thrown by the loop body. A rejection inside the generator (fetchOrders failing) is not swallowed: next() rejects and the for await loop throws it at the loop. A generator object is a single-use iterator, not a re-iterable collection: two loops over the same object share one cursor position, and once one of them closes it, the other gets nothing more.",
+          "options": [
+            { "text": "Calling orders() runs none of the body yet; the first fetch happens on the first it.next().", "correct": true },
+            { "text": "for await...of calls it.return() when the loop is left with break, with return, or because the loop body throws.", "correct": true },
+            { "text": "If fetchOrders rejects inside the generator, the for await loop simply ends as if there were no more orders.", "correct": false },
+            { "text": "Two separate for await loops over the same it object each receive every order from the beginning.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_js_412",
+      "name": "lazy-cursor-pagination",
+      "type": "mini_coding",
+      "title": "Build paginate() and take() for a cursor API",
+      "description": "Write paginate(fetchPage), an async generator that walks a cursor-paginated API lazily and yields one item at a time until nextCursor is null, and take(iterable, n), which yields the first n values and then stops pulling. The harness counts every fetchPage call: the dashboard must not request a page nobody looks at.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "paginate.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "paginate walks every page in order until nextCursor is null",
+          "input": { "mode": "paginate", "pages": [
+            { "items": ["o1", "o2", "o3"], "nextCursor": "c2" },
+            { "items": ["o4", "o5", "o6"], "nextCursor": "c3" },
+            { "items": ["o7"], "nextCursor": null }
+          ] },
+          "expected": { "items": ["o1", "o2", "o3", "o4", "o5", "o6", "o7"], "requests": [null, "c2", "c3"], "fetchedBeforeFirstNext": 0 },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "take(paginate(...), 4) never requests the third page",
+          "input": { "mode": "take-pages", "n": 4, "pages": [
+            { "items": ["o1", "o2", "o3"], "nextCursor": "c2" },
+            { "items": ["o4", "o5", "o6"], "nextCursor": "c3" },
+            { "items": ["o7", "o8", "o9"], "nextCursor": "c4" },
+            { "items": ["o10"], "nextCursor": null }
+          ] },
+          "expected": { "items": ["o1", "o2", "o3", "o4"], "requests": [null, "c2"] },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "An empty page with a nextCursor is not the end",
+          "input": { "mode": "paginate", "pages": [
+            { "items": ["a", "b"], "nextCursor": "p2" },
+            { "items": [], "nextCursor": "p3" },
+            { "items": ["c"], "nextCursor": null }
+          ] },
+          "expected": { "items": ["a", "b", "c"], "requests": [null, "p2", "p3"], "fetchedBeforeFirstNext": 0 },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "take closes the source and never pulls an extra value",
+          "input": { "mode": "take-source", "count": 10, "n": 3 },
+          "expected": { "items": [1, 2, 3], "pulled": 3, "closed": true },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "take(..., 0) does not fetch anything",
+          "input": { "mode": "take-pages", "n": 0, "pages": [
+            { "items": ["o1", "o2"], "nextCursor": null }
+          ] },
+          "expected": { "items": [], "requests": [] },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

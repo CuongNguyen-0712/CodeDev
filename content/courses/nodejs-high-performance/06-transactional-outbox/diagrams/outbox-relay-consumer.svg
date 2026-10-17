@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="610" viewBox="0 0 1200 610" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#334155"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="610" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Transactional outbox + idempotent consumer</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The event is written in the same transaction as the business change, published later, and applied once by the consumer.</text>
+
+  <!-- API -->
+  <rect x="40" y="170" width="200" height="100" rx="12" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="140" y="210" font-size="17" font-weight="700" text-anchor="middle" fill="#0f172a">Top-up API</text>
+  <text x="140" y="236" font-size="14" text-anchor="middle" fill="#6d28d9">POST /topups</text>
+  <line x1="240" y1="220" x2="296" y2="220" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- producer transaction -->
+  <rect x="300" y="125" width="380" height="190" rx="14" fill="#eff6ff" stroke="#2563eb" stroke-width="2" stroke-dasharray="8 6"/>
+  <text x="490" y="155" font-size="16" font-weight="700" text-anchor="middle" fill="#1e3a8a">PostgreSQL: one transaction</text>
+  <rect x="325" y="175" width="330" height="50" rx="8" fill="#ffffff" stroke="#93c5fd" stroke-width="2"/>
+  <text x="490" y="206" font-size="14" text-anchor="middle" fill="#0f172a">INSERT INTO topups ...</text>
+  <rect x="325" y="240" width="330" height="50" rx="8" fill="#ffffff" stroke="#93c5fd" stroke-width="2"/>
+  <text x="490" y="271" font-size="14" text-anchor="middle" fill="#0f172a">INSERT INTO outbox (WalletCredited)</text>
+
+  <!-- relay -->
+  <line x1="680" y1="220" x2="776" y2="220" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="728" y="208" font-size="14" text-anchor="middle" fill="#475569">poll</text>
+  <rect x="780" y="170" width="260" height="100" rx="12" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="910" y="204" font-size="17" font-weight="700" text-anchor="middle" fill="#0f172a">Outbox relay</text>
+  <text x="910" y="228" font-size="13" text-anchor="middle" fill="#92400e">SELECT unpublished rows in order</text>
+  <text x="910" y="250" font-size="13" text-anchor="middle" fill="#92400e">publish, then set published_at</text>
+
+  <!-- relay -> kafka -->
+  <line x1="910" y1="270" x2="910" y2="376" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="925" y="318" font-size="14" font-weight="700" fill="#b91c1c">at-least-once</text>
+  <text x="925" y="340" font-size="13" fill="#991b1b">crash before the mark: resent</text>
+
+  <!-- kafka -->
+  <rect x="780" y="380" width="260" height="100" rx="12" fill="#f8fafc" stroke="#334155" stroke-width="2"/>
+  <text x="910" y="414" font-size="17" font-weight="700" text-anchor="middle" fill="#0f172a">Kafka: wallet-events</text>
+  <text x="910" y="438" font-size="13" text-anchor="middle" fill="#475569">message key = walletId</text>
+  <text x="910" y="460" font-size="13" text-anchor="middle" fill="#475569">order kept per wallet</text>
+
+  <!-- kafka -> consumer -->
+  <line x1="780" y1="430" x2="684" y2="430" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="732" y="418" font-size="14" text-anchor="middle" fill="#475569">deliver</text>
+
+  <!-- consumer transaction -->
+  <rect x="300" y="345" width="380" height="190" rx="14" fill="#f0fdf4" stroke="#16a34a" stroke-width="2" stroke-dasharray="8 6"/>
+  <text x="490" y="375" font-size="16" font-weight="700" text-anchor="middle" fill="#14532d">Wallet consumer: one transaction</text>
+  <rect x="325" y="395" width="330" height="50" rx="8" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="490" y="426" font-size="14" text-anchor="middle" fill="#0f172a">INSERT INTO processed_messages</text>
+  <rect x="325" y="460" width="330" height="50" rx="8" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="490" y="491" font-size="14" text-anchor="middle" fill="#0f172a">UPDATE wallets SET balance = ...</text>
+
+  <!-- duplicate note -->
+  <text x="40" y="420" font-size="15" font-weight="700" fill="#15803d">0 rows inserted?</text>
+  <text x="40" y="444" font-size="14" fill="#166534">already applied:</text>
+  <text x="40" y="466" font-size="14" fill="#166534">skip the credit, ack</text>
+
+  <!-- footer -->
+  <text x="40" y="580" font-size="14" fill="#64748b">Duplicates are expected. The PRIMARY KEY on processed_messages.message_id, in the same transaction as the credit, makes them harmless.</text>
+</svg>

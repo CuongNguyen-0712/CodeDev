@@ -19,6 +19,17 @@ function parseCourseId(courseIdOrData) {
     return String(courseId);
 }
 
+// Called whenever the learner opens a lesson: keeps the course history (resume point) current.
+export async function recordLessonVisitAction({ courseId, lessonId } = {}) {
+    return runAction(async ({ userId }) => {
+        if (!courseId || !/^\d{1,19}$/.test(String(lessonId || ""))) {
+            throw new ApiError("Course ID and Lesson ID are required.", 400);
+        }
+
+        return courseService.recordLessonVisit({ userId, courseId: String(courseId), lessonId: String(lessonId) });
+    }, { limiter: rateLimiters.api, context: "recordLessonVisitAction" });
+}
+
 export async function submitLessonAction({ courseId, lessonId } = {}) {
     return runAction(async ({ userId }) => {
         if (!courseId || !lessonId) {

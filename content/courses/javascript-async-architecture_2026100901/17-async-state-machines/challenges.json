@@ -1,0 +1,183 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_js_621",
+      "name": "boolean-soup-impossible-state-quiz",
+      "type": "quiz",
+      "title": "What does the screen show after a failed search?",
+      "description": "Three independent variables describe one request. Follow them through a failure and a successful retry.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 10,
+          "question": "A job-search panel keeps its request state in three variables and renders with:\n\nif (error) return <ErrorBanner />;\nif (isLoading) return <Spinner />;\nreturn <Results items={data} />;\n\nThe loader is:\n\nasync function load(query) {\n  isLoading = true;\n  try {\n    data = await api.search(query);\n  } catch (e) {\n    error = e;\n  } finally {\n    isLoading = false;\n  }\n}\n\nThe user searches 'plumber' and the request fails. They search 'electrician' and that request succeeds. What does the panel show?",
+          "explanation": "Nothing ever resets error, so after the second request error and data are both set at the same time - a combination that should be impossible. The render checks error first, so the user sees the error banner over perfectly good results. Three independent variables allow 2 x 2 x 2 combinations (more with data), and the code has to remember to keep them consistent in every branch. With a single status field (idle | loading | success | error), entering loading replaces the whole state and the stale error disappears by construction.",
+          "options": [
+            { "text": "The results for 'electrician', because the second request succeeded and set data.", "correct": false },
+            { "text": "The error banner, even though fresh results arrived: error is never cleared, so error and data are both set.", "correct": true },
+            { "text": "A spinner that never goes away, because isLoading is still true from the failed request.", "correct": false },
+            { "text": "An empty results list, because the failed request set data to undefined.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_js_622",
+      "name": "request-lifecycle-transition",
+      "type": "mini_coding",
+      "title": "Write the request-lifecycle transition function",
+      "description": "Implement transition(state, event) for a request that can be idle, loading, success, error or cancelled. Handle FETCH, RESOLVE, REJECT, CANCEL and RETRY, ignore stale and out-of-order events by requestId, cap retries at three attempts, never mutate the input, and return the same state object when an event does not apply.",
+      "difficulty": "hard",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "requestMachine.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "FETCH then RESOLVE reaches success",
+          "input": { "events": [
+            { "type": "FETCH" },
+            { "type": "RESOLVE", "requestId": 1, "data": ["job-1", "job-2"] }
+          ] },
+          "expected": { "statuses": ["loading", "success"], "ignored": 0, "mutated": false, "final": { "status": "success", "requestId": 1, "data": ["job-1", "job-2"] } },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A response for a superseded request is ignored",
+          "input": { "events": [
+            { "type": "FETCH" },
+            { "type": "FETCH" },
+            { "type": "RESOLVE", "requestId": 1, "data": ["stale"] },
+            { "type": "RESOLVE", "requestId": 2, "data": ["fresh"] }
+          ] },
+          "expected": { "statuses": ["loading", "loading", "loading", "success"], "ignored": 1, "mutated": false, "final": { "status": "success", "requestId": 2, "data": ["fresh"] } },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "CANCEL only applies while loading; a late response stays ignored",
+          "input": { "events": [
+            { "type": "CANCEL" },
+            { "type": "FETCH" },
+            { "type": "CANCEL" },
+            { "type": "RESOLVE", "requestId": 1, "data": ["late"] },
+            { "type": "FETCH" },
+            { "type": "RESOLVE", "requestId": 2, "data": ["ok"] }
+          ] },
+          "expected": { "statuses": ["idle", "loading", "cancelled", "cancelled", "loading", "success"], "ignored": 2, "mutated": false, "final": { "status": "success", "requestId": 2, "data": ["ok"] } },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "RETRY starts a new request id and stops after three attempts",
+          "input": { "events": [
+            { "type": "FETCH" },
+            { "type": "REJECT", "requestId": 1, "error": "timeout" },
+            { "type": "RETRY" },
+            { "type": "RESOLVE", "requestId": 1, "data": ["too late"] },
+            { "type": "REJECT", "requestId": 2, "error": "timeout" },
+            { "type": "RETRY" },
+            { "type": "REJECT", "requestId": 3, "error": "503" },
+            { "type": "RETRY" }
+          ] },
+          "expected": { "statuses": ["loading", "error", "loading", "loading", "error", "loading", "error", "error"], "ignored": 2, "mutated": false, "final": { "status": "error", "requestId": 3, "attempt": 3, "error": "503" } },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Events in the wrong state and unknown events change nothing",
+          "input": { "events": [
+            { "type": "RESOLVE", "requestId": 0, "data": ["ghost"] },
+            { "type": "RETRY" },
+            { "type": "FETCH" },
+            { "type": "REJECT", "requestId": 1, "error": "offline" },
+            { "type": "RESOLVE", "requestId": 1, "data": ["after error"] },
+            { "type": "RETRY" },
+            { "type": "RESOLVE", "requestId": 2, "data": ["recovered"] },
+            { "type": "RETRY" },
+            { "type": "CANCEL" },
+            { "type": "SOMETHING_ELSE" }
+          ] },
+          "expected": { "statuses": ["idle", "idle", "loading", "error", "error", "loading", "success", "success", "success", "success"], "ignored": 6, "mutated": false, "final": { "status": "success", "requestId": 2, "data": ["recovered"] } },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_js_623",
+      "name": "fix-stale-response-controller",
+      "type": "fix_bug",
+      "title": "Fix the controller that lets a stale response win",
+      "description": "The request machine ignores stale events, yet users on slow networks still see results - or an error - for the query they typed before the current one. The bug is in the controller that feeds events into the machine. Fix createRequestController so every response is reported for the request that produced it.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "javascript",
+        "filePath": "requestController.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A single search shows its results",
+          "input": { "steps": [
+            { "op": "load", "params": "hanoi" },
+            { "op": "resolve", "call": 0, "data": ["Hanoi"] }
+          ] },
+          "expected": { "renders": ["loading#1", "success#1"], "final": { "status": "success", "requestId": 1, "data": ["Hanoi"] } },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The newer search answers first; the older answer arrives later",
+          "input": { "steps": [
+            { "op": "load", "params": "hanoi" },
+            { "op": "load", "params": "ho chi minh" },
+            { "op": "resolve", "call": 1, "data": ["Ho Chi Minh City"] },
+            { "op": "resolve", "call": 0, "data": ["Hanoi"] }
+          ] },
+          "expected": { "renders": ["loading#1", "loading#2", "success#2"], "final": { "status": "success", "requestId": 2, "data": ["Ho Chi Minh City"] } },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The older search answers while the newer one is still loading",
+          "input": { "steps": [
+            { "op": "load", "params": "hanoi" },
+            { "op": "load", "params": "ho chi minh" },
+            { "op": "resolve", "call": 0, "data": ["Hanoi"] },
+            { "op": "resolve", "call": 1, "data": ["Ho Chi Minh City"] }
+          ] },
+          "expected": { "renders": ["loading#1", "loading#2", "success#2"], "final": { "status": "success", "requestId": 2, "data": ["Ho Chi Minh City"] } },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A stale failure never shows an error banner",
+          "input": { "steps": [
+            { "op": "load", "params": "da" },
+            { "op": "load", "params": "da nang" },
+            { "op": "reject", "call": 0, "error": "timeout" },
+            { "op": "resolve", "call": 1, "data": ["Da Nang"] }
+          ] },
+          "expected": { "renders": ["loading#1", "loading#2", "success#2"], "final": { "status": "success", "requestId": 2, "data": ["Da Nang"] } },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

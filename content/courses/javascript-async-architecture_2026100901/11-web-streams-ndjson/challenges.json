@@ -1,0 +1,149 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_js_421",
+      "name": "stream-chunks-and-decoding-quiz",
+      "type": "quiz",
+      "title": "What is inside a chunk?",
+      "description": "Before you parse a streamed export, know what reader.read() really hands you - and what a TextDecoder does at a chunk boundary.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "\"Café au lait\" is sent as UTF-8. The \"é\" is two bytes (0xC3 0xA9), and the network delivers chunk 1 = \"Caf\" + 0xC3 and chunk 2 = 0xA9 + \" au lait\". The client runs:\n\nconst decoder = new TextDecoder();\nlet text = '';\nfor (const chunk of [chunk1, chunk2]) text += decoder.decode(chunk);\n\nWhat is text?",
+          "explanation": "Without { stream: true }, every decode() call treats its input as a complete document. The lone 0xC3 at the end of chunk 1 is an incomplete sequence and becomes U+FFFD; the lone 0xA9 at the start of chunk 2 is an invalid continuation byte and becomes a second U+FFFD. decode(chunk, { stream: true }) instead keeps the incomplete bytes inside the decoder and joins them with the next chunk, and a final decode() flushes what is left. The default decoder is not fatal, so it never throws - it replaces silently, which is why this bug reaches production.",
+          "options": [
+            { "text": "\"Café au lait\" - the decoder remembers the 0xC3 byte and joins it with the next call.", "correct": false },
+            { "text": "\"Caf�� au lait\" - each call decodes its chunk as a complete text, so both halves of the é become replacement characters.", "correct": true },
+            { "text": "decode() throws a TypeError on the first chunk because it ends with an incomplete character.", "correct": false },
+            { "text": "\"Caf au lait\" - incomplete bytes are dropped silently and the é disappears.", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "The export endpoint streams one JSON row per line. Which statements about const reader = response.body.getReader() and reader.read() are true? (Select all that apply.)",
+          "explanation": "A chunk is whatever the network stack and the buffers in between happen to deliver: it can contain many rows, part of a row, or end inside a multi-byte character - one server write() does not map to one read(). getReader() locks the stream: while the lock is held, nobody else can read it, pipe it or get another reader, until releaseLock() (or the stream is cancelled through the reader). When the stream ends, read() resolves to { done: true, value: undefined }: the last data chunk was already delivered by the previous read().",
+          "options": [
+            { "text": "Chunk boundaries come from the network and buffering, not from the data: a chunk can end in the middle of a row or inside a multi-byte character.", "correct": true },
+            { "text": "While the reader holds the lock, the stream cannot be read, piped or given another reader until releaseLock() is called.", "correct": true },
+            { "text": "If the server calls write() once per row, each reader.read() resolves with exactly one row.", "correct": false },
+            { "text": "The final read() resolves to { done: true, value: lastChunk }, so the last chunk must be handled after the loop.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_js_422",
+      "name": "fix-utf8-decoding-across-chunks",
+      "type": "fix_bug",
+      "title": "Fix the broken characters in large exports",
+      "description": "readAllText(body) reads a streamed response to the end. Small exports decode fine, but in large ones accented names and emoji turn into replacement characters. Fix the decoding so multi-byte characters split across chunks survive, and a download cut off mid-character still ends with a visible replacement character instead of silently losing bytes.",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "javascript",
+        "filePath": "readAllText.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "ASCII CSV in three chunks",
+          "input": { "text": "id,name\n1,Ann\n2,Bob\n", "splitAt": [5, 12] },
+          "expected": {"text":"id,name\n1,Ann\n2,Bob\n","chunks":3,"locked":false},
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A two-byte character split between two chunks",
+          "input": { "text": "Café au lait", "splitAt": [4] },
+          "expected": {"text":"Café au lait","chunks":2,"locked":false},
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Vietnamese text and emoji delivered one byte per chunk",
+          "input": { "text": "Nguyễn Thị Ánh ☕ 🚚", "chunkSize": 1 },
+          "expected": {"text":"Nguyễn Thị Ánh ☕ 🚚","chunks":28,"locked":false},
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A download cut off in the middle of the last character",
+          "input": { "text": "total: 42 €", "dropLastBytes": 1, "chunkSize": 4 },
+          "expected": {"text":"total: 42 �","chunks":3,"locked":false},
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Three-byte chunks over mixed scripts",
+          "input": { "text": "Đơn hàng #42 ✓ giao bởi 🚚, khách: Zoë", "chunkSize": 3 },
+          "expected": {"text":"Đơn hàng #42 ✓ giao bởi 🚚, khách: Zoë","chunks":17,"locked":false},
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_js_423",
+      "name": "incremental-ndjson-parser",
+      "type": "mini_coding",
+      "title": "Write an incremental NDJSON parser",
+      "description": "Write createNdjsonParser() returning { push(chunk), flush() }. push() returns the rows completed by this chunk and keeps an unfinished line for later; flush() returns the last row when the stream does not end with a newline. Skip blank lines, accept CRLF, and report malformed rows as { error: \"INVALID_JSON\", line } without stopping. The harness records which push() call emitted each row, so buffering everything until flush() does not count as streaming.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "ndjsonParser.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A row split across two chunks is joined",
+          "input": { "chunks": ["{\"id\":1}\n{\"id\"", ":2}\n{\"id\":3}\n"] },
+          "expected": {"entries":[{"id":1},{"id":2},{"id":3}],"emittedBy":[0,1,1]},
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Blank lines and CRLF line endings are skipped",
+          "input": { "chunks": ["{\"a\":1}\r\n\r\n", "\n   \n{\"a\":2}\r\n"] },
+          "expected": {"entries":[{"a":1},{"a":2}],"emittedBy":[0,1]},
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "The last row without a newline comes out of flush()",
+          "input": { "chunks": ["{\"n\":1}\n{\"n\":", "2}"] },
+          "expected": {"entries":[{"n":1},{"n":2}],"emittedBy":[0,"flush"]},
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A malformed row is reported with its line number and parsing continues",
+          "input": { "chunks": ["{\"ok\":1}\n\n{\"ok\":tru", "e}\n{oops\n{\"ok\":2}\n"] },
+          "expected": {"entries":[{"ok":1},{"ok":true},{"error":"INVALID_JSON","line":4},{"ok":2}],"emittedBy":[0,1,1,1]},
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "One character per chunk, with accents and emoji",
+          "input": { "text": "{\"name\":\"Nguyễn\"}\n   \n{\"emoji\":\"🚚\"}\n{\"x\":1}", "chunkSize": 1 },
+          "expected": {"entries":[{"name":"Nguyễn"},{"emoji":"🚚"},{"x":1}],"emittedBy":[17,36,"flush"]},
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

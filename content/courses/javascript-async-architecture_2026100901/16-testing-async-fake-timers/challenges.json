@@ -1,0 +1,142 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_js_611",
+      "name": "fake-timers-test-hangs-quiz",
+      "type": "quiz",
+      "title": "Why does the fake-timer test still time out?",
+      "description": "The retry test was switched to fake timers to make it fast. Now it never finishes. Find the reason before you read on.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 10,
+          "question": "fetchWithRetry(api, { delayMs: 1000 }) calls api(); on failure it waits with setTimeout(delayMs) and calls api() again. This Vitest test times out after 5 seconds:\n\ntest('retries once after 1s', async () => {\n  vi.useFakeTimers();\n  const api = vi.fn()\n    .mockRejectedValueOnce(new Error('503'))\n    .mockResolvedValueOnce('ok');\n\n  const result = await fetchWithRetry(api, { delayMs: 1000 });\n  vi.advanceTimersByTime(1000);\n\n  expect(result).toBe('ok');\n});\n\nWhat is the cause?",
+          "explanation": "With fake timers, the 1000 ms setTimeout only fires when the test advances the clock. But the test awaits fetchWithRetry first, and fetchWithRetry cannot resolve until that timer fires. The line that would advance time is never reached: a deadlock, not a slow test. Start the operation without awaiting it, advance time with the async variant (await vi.advanceTimersByTimeAsync(1000)) so promise callbacks get to run between timers, and only then await the stored promise. Fake timers do work with promises, a rejected mock is handled by the retry code, and 1000 ms is enough because a timer due at exactly now + 1000 fires when the clock reaches it.",
+          "options": [
+            { "text": "Fake timers do not support promises, so code that awaits inside a timer callback can only be tested with real timers.", "correct": false },
+            { "text": "The test awaits fetchWithRetry before advancing the clock, but the promise can only settle after the fake 1000 ms timer fires - the advance is never reached.", "correct": true },
+            { "text": "mockRejectedValueOnce produces an unhandled rejection, which stops the test runner from processing timers.", "correct": false },
+            { "text": "advanceTimersByTime(1000) is one millisecond short: a timer created with 1000 ms only fires after 1001 ms have passed.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_js_612",
+      "name": "build-a-fake-clock",
+      "type": "mini_coding",
+      "title": "Build a fake clock with tick() and runAll()",
+      "description": "Write createFakeClock() - the heart of every fake-timer library. It exposes setTimeout, clearTimeout, setInterval, clearInterval and now(), plus tick(ms) and runAll(limit). Timers fire in due-time order (ties by creation order), callbacks may schedule more timers, intervals keep their id and can clear themselves, and runAll throws instead of looping forever on an interval that is never cleared.",
+      "difficulty": "hard",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "fakeClock.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Timers fire in due-time order, ties in creation order",
+          "input": { "steps": [
+            { "op": "timeout", "name": "a", "ms": 30 },
+            { "op": "timeout", "name": "b", "ms": 10 },
+            { "op": "timeout", "name": "c", "ms": 10 },
+            { "op": "timeout", "name": "d" },
+            { "op": "tick", "ms": 30 }
+          ] },
+          "expected": ["d@0", "b@10", "c@10", "a@30", "now=30"],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "tick() fires only what is due; clearTimeout cancels",
+          "input": { "steps": [
+            { "op": "timeout", "name": "a", "ms": 50 },
+            { "op": "timeout", "name": "b", "ms": 100 },
+            { "op": "timeout", "name": "c", "ms": 120 },
+            { "op": "timeout", "name": "e", "ms": -5 },
+            { "op": "tick", "ms": 60 },
+            { "op": "clear", "name": "c" },
+            { "op": "tick", "ms": 60 }
+          ] },
+          "expected": ["e@0", "a@50", "now=60", "b@100", "now=120"],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Timers scheduled inside a callback fire in the same tick when due",
+          "input": { "steps": [
+            { "op": "timeout", "name": "a", "ms": 10, "then": [
+              { "op": "timeout", "name": "a2", "ms": 0 },
+              { "op": "timeout", "name": "a3", "ms": 15 }
+            ] },
+            { "op": "timeout", "name": "b", "ms": 10 },
+            { "op": "tick", "ms": 20 },
+            { "op": "tick", "ms": 5 }
+          ] },
+          "expected": ["a@10", "b@10", "a2@10", "now=20", "a3@25", "now=25"],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Intervals repeat, keep their id and can be cleared from inside or outside",
+          "input": { "steps": [
+            { "op": "interval", "name": "p", "ms": 10, "stopAfter": 3 },
+            { "op": "timeout", "name": "t", "ms": 20 },
+            { "op": "interval", "name": "q", "ms": 25 },
+            { "op": "tick", "ms": 50 },
+            { "op": "clear", "name": "q", "kind": "interval" },
+            { "op": "tick", "ms": 100 }
+          ] },
+          "expected": ["p@10", "p@20", "t@20", "q@25", "p@30", "q@50", "now=50", "now=150"],
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "runAll() drains nested timers and throws on a runaway interval",
+          "input": { "steps": [
+            { "op": "timeout", "name": "a", "ms": 5, "then": [
+              { "op": "timeout", "name": "b", "ms": 100 }
+            ] },
+            { "op": "runAll" },
+            { "op": "runAll" },
+            { "op": "interval", "name": "p", "ms": 1000 },
+            { "op": "runAll", "limit": 3 }
+          ] },
+          "expected": ["a@5", "b@105", "ran 2", "now=105", "ran 0", "now=105", "p@1105", "p@2105", "p@3105", "runAll threw", "now=3105"],
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    },
+    {
+      "publicId": "chal_quiz_js_613",
+      "name": "advance-sync-vs-async-quiz",
+      "type": "quiz",
+      "title": "Three seconds passed, but only one poll ran",
+      "description": "The fake clock moved forward, yet the code under test barely moved. Explain the gap between timers and promise callbacks.",
+      "difficulty": "hard",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 10,
+          "question": "pollJob(getStatus) calls the async function getStatus(); when it resolves with 'pending', it schedules the next poll with setTimeout(poll, 1000). The test:\n\nvi.useFakeTimers();\nconst getStatus = vi.fn().mockResolvedValue('pending');\npollJob(getStatus);            // first call happens immediately\nvi.advanceTimersByTime(3000);\nexpect(getStatus).toHaveBeenCalledTimes(4);\n\nThe assertion fails: getStatus was called once. Why?",
+          "explanation": "The next setTimeout is created inside a .then/await continuation - a microtask that only runs when the current synchronous code finishes. vi.advanceTimersByTime(3000) is fully synchronous: when it starts, no poll timer exists yet, because the first getStatus() promise has not delivered its result. It moves the clock 3 seconds with nothing to fire. await vi.advanceTimersByTimeAsync(3000) awaits between timers, giving promise continuations a turn, so each poll can schedule the next one. vi.runAllTimers() is just as synchronous as advanceTimersByTime and has the same problem; real timers would work but make the test slow and flaky.",
+          "options": [
+            { "text": "advanceTimersByTime is synchronous: the timer for the next poll is only created in a promise continuation, which cannot run until the test yields, so there was no timer to fire.", "correct": true },
+            { "text": "Fake timers only advance setTimeout created before vi.useFakeTimers(), and pollJob created its timers afterwards.", "correct": false },
+            { "text": "mockResolvedValue resolves only once; later calls return undefined, so polling stops after the first call.", "correct": false },
+            { "text": "Replacing the advance with vi.runAllTimers() fixes it, because runAllTimers keeps going until the timer queue is empty.", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,188 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nhp_121",
+      "name": "version-conflict-quiz",
+      "type": "quiz",
+      "title": "UPDATE 0: what just happened?",
+      "description": "A versioned update reports that it changed nothing. Decide what that means and what the code should do next.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 10,
+          "question": "The back-office loaded product 42 at version 7. On save, the API runs:\n\nUPDATE products\nSET price = 120, version = version + 1\nWHERE id = 42 AND version = 7;\n\nPostgreSQL answers UPDATE 0 (rowCount = 0). What does that mean, and what is the right reaction?",
+          "explanation": "The WHERE clause matched no row: the product either no longer exists or its version is no longer 7, because someone else committed a change after you read it. Nothing was written, so no lost update happened - the conflict was detected. Re-running the same statement can never succeed, because the version will not go back to 7. The caller must re-read the row and either re-apply the change to the fresh data (for automatic, commutative changes) or hand the conflict to the user (for edits a person made on a stale screen). The application never sets the version to a guessed value; the database increments it.",
+          "options": [
+            { "text": "The row was updated, but the driver did not report the affected row count; treat it as a success.", "correct": false },
+            { "text": "Another writer changed (or deleted) the row after version 7 was read. Nothing was written: re-read the row, then retry on fresh data or report a conflict.", "correct": true },
+            { "text": "PostgreSQL had the row locked; retry the same statement in a loop until it returns UPDATE 1.", "correct": false },
+            { "text": "The application should have incremented the version itself: send WHERE version = 8 instead.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_nhp_122",
+      "name": "fix-optimistic-retry-loop",
+      "type": "fix_bug",
+      "title": "Fix the retry loop that can never win",
+      "description": "updateWithRetry() reserves stock with a compare-and-set on the row version and retries on conflict, yet under concurrent orders most of them fail with CONFLICT while stock is still available. Fix it so every attempt works on fresh data, the number of writes stays bounded by maxAttempts, and business errors from mutate are not retried. Hint: what does each retry send as the expected version?",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "javascript",
+        "filePath": "updateWithRetry.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "One order without contention reserves stock",
+          "input": { "initial": { "stock": 10 }, "orders": [3], "maxAttempts": 3 },
+          "expected": { "succeeded": 1, "errors": [], "final": { "sku": "sku-42", "stock": 7 }, "version": 2 },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Three concurrent orders all succeed after retrying",
+          "input": { "initial": { "stock": 10 }, "orders": [1, 1, 1], "maxAttempts": 5 },
+          "expected": { "succeeded": 3, "errors": [], "final": { "sku": "sku-42", "stock": 7 }, "version": 4 },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "On a constantly contended row, give up after exactly maxAttempts writes",
+          "input": { "initial": { "stock": 10 }, "orders": [1], "maxAttempts": 4, "hotRow": true },
+          "expected": { "succeeded": 0, "errors": ["CONFLICT"], "final": { "sku": "sku-42", "stock": 10 }, "version": 5, "casCalls": 4 },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "The stock rule is checked against fresh data and is not retried",
+          "input": { "initial": { "stock": 5 }, "orders": [2, 2, 2], "maxAttempts": 5 },
+          "expected": { "succeeded": 2, "errors": ["OUT_OF_STOCK"], "final": { "sku": "sku-42", "stock": 1 }, "version": 3 },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Five concurrent orders of different sizes lose no update",
+          "input": { "initial": { "stock": 20 }, "orders": [1, 2, 3, 1, 2], "maxAttempts": 10 },
+          "expected": { "succeeded": 5, "errors": [], "final": { "sku": "sku-42", "stock": 11 }, "version": 6 },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nhp_123",
+      "name": "etag-if-match-update",
+      "type": "mini_coding",
+      "title": "Implement PUT with ETag and If-Match",
+      "description": "Write updateProductPrice(req, repo) for the back-office: require an If-Match header (428 without it), update only if the version the client saw is still current (412 otherwise, also when another writer wins between your read and your UPDATE), return 404 for unknown products, and answer 200 with the new version as a quoted ETag. repo.updateIfVersion is the conditional UPDATE ... WHERE id = $1 AND version = $2 and returns null when no row matched.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "updateProductPrice.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A matching If-Match updates the price and returns the new ETag",
+          "input": {
+            "rows": [{ "id": "p-1", "version": 3, "price": 100 }],
+            "request": { "params": { "id": "p-1" }, "headers": { "if-match": "\"3\"" }, "body": { "price": 120 } }
+          },
+          "expected": { "status": 200, "etag": "\"4\"", "bodyVersion": 4, "stored": { "price": 120, "version": 4 } },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A stale If-Match is rejected with 412 and nothing changes",
+          "input": {
+            "rows": [{ "id": "p-1", "version": 3, "price": 100 }],
+            "request": { "params": { "id": "p-1" }, "headers": { "if-match": "\"2\"" }, "body": { "price": 120 } }
+          },
+          "expected": { "status": 412, "etag": null, "bodyVersion": null, "stored": { "price": 100, "version": 3 } },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A save without If-Match is refused with 428",
+          "input": {
+            "rows": [{ "id": "p-1", "version": 3, "price": 100 }],
+            "request": { "params": { "id": "p-1" }, "headers": {}, "body": { "price": 120 } }
+          },
+          "expected": { "status": 428, "etag": null, "bodyVersion": null, "stored": { "price": 100, "version": 3 } },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A writer that commits between the read and the UPDATE wins; you get 412",
+          "input": {
+            "rows": [{ "id": "p-1", "version": 3, "price": 100 }],
+            "raceOnUpdate": { "price": 99 },
+            "request": { "params": { "id": "p-1" }, "headers": { "if-match": "\"3\"" }, "body": { "price": 120 } }
+          },
+          "expected": { "status": 412, "etag": null, "bodyVersion": null, "stored": { "price": 99, "version": 4 } },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "An unknown product returns 404",
+          "input": {
+            "rows": [{ "id": "p-1", "version": 3, "price": 100 }],
+            "request": { "params": { "id": "p-404" }, "headers": { "if-match": "\"1\"" }, "body": { "price": 120 } }
+          },
+          "expected": { "status": 404, "etag": null, "bodyVersion": null, "stored": null },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    },
+    {
+      "publicId": "chal_quiz_nhp_124",
+      "name": "optimistic-vs-pessimistic-quiz",
+      "type": "quiz",
+      "title": "Optimistic or pessimistic?",
+      "description": "Optimistic concurrency is not free: it trades waiting for retrying. Pick the right tool for each workload.",
+      "difficulty": "hard",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Flash sale: 3,000 checkout requests per second all reserve stock on the same product row. Each request reads the row, checks stock, and writes with UPDATE ... WHERE id = $1 AND version = $2, retrying up to 3 times. What do you expect to see?",
+          "explanation": "On a hot row almost every attempt conflicts: of all the requests that read the same version, only one can win, so the rest re-read and collide again. Most requests burn their 3 attempts - each one a full read plus a failed write - and fail with CONFLICT although stock is available, while database load multiplies. For a single hot counter, do the check inside one atomic statement (UPDATE products SET stock = stock - $1 WHERE id = $2 AND stock >= $1), or serialize with SELECT ... FOR UPDATE, or a queue. Optimistic control shines when conflicts are rare.",
+          "options": [
+            { "text": "Throughput is excellent, because optimistic concurrency never waits for locks.", "correct": false },
+            { "text": "Most requests exhaust their retries and fail with CONFLICT while stock is still available, and the database does several times the work per sale.", "correct": true },
+            { "text": "PostgreSQL detects the contention and automatically switches the statement to row locking.", "correct": false },
+            { "text": "Requests are queued fairly by the version column, so each one succeeds on its second attempt.", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which of these are good fits for optimistic concurrency control (a version column checked on write)? Select all that apply.",
+          "explanation": "Optimistic control fits when conflicts are rare and the time between read and write is long or spans requests: you cannot hold a database lock while a merchant keeps an edit form open for ten minutes, or while a mobile client is offline, but you can send the version along and check it on save. It is a poor fit for a hot row where conflicts are the normal case, and for a critical step that must not fail under contention - there, a single atomic statement or a pessimistic lock (SELECT ... FOR UPDATE inside a short transaction) is the better tool.",
+          "options": [
+            { "text": "A merchant edits a product description in the back-office and may keep the form open for ten minutes before saving.", "correct": true },
+            { "text": "A shared wallet balance updated by thousands of micro-payments per second.", "correct": false },
+            { "text": "A mobile app that edits a customer's saved addresses offline and syncs them later.", "correct": true },
+            { "text": "A short transaction that must debit a hot settlement account and is not allowed to fail because of contention.", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

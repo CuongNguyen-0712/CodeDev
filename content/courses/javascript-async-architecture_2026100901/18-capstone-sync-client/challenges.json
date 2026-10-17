@@ -1,0 +1,173 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_js_631",
+      "name": "classify-sync-failures-quiz",
+      "type": "quiz",
+      "title": "Retry later, or give up now?",
+      "description": "A sync client that retries everything blocks the queue forever; one that gives up too easily throws away a technician's work. Sort the failures.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "points": 10,
+          "question": "The field-service app flushes its outbox and send() fails. Which of these failures should keep the mutation in the outbox so a later flush sends it again? Select all that apply.",
+          "explanation": "A 503 and a network TypeError say nothing about the mutation itself - the same request can succeed later, so the edit must stay queued. A TypeError from fetch carries no status code at all; treating unknown errors as transient protects the user's data, and the worst case is one more attempt. A 422 (invalid data) and a 403 (no longer allowed to edit the job) will fail identically on every retry: keeping them would block every later edit of that record. Report them, park them where the user or support can see them, and move on.",
+          "options": [
+            { "text": "The API gateway answers 503 Service Unavailable during a deploy.", "correct": true },
+            { "text": "fetch() rejects with TypeError: Failed to fetch because the van is in a tunnel.", "correct": true },
+            { "text": "The server answers 422 because the technician entered a negative part quantity.", "correct": false },
+            { "text": "The server answers 403 because the dispatcher reassigned the job to another technician.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_js_632",
+      "name": "outbox-sync-client",
+      "type": "mini_coding",
+      "title": "Build the outbox sync client",
+      "description": "Implement createSyncClient({ send, maxInFlight }) with enqueue(mutation) and flush(). Coalesce unsent edits of the same record, never touch an entry that was already sent, send one mutation per record at a time and at most maxInFlight records at once, keep transient failures (and everything queued behind them) for the next flush, report permanent ones, and resolve flush() with a summary of what was sent, what failed and what is still pending.",
+      "difficulty": "hard",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "syncClient.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Unsent edits of the same record are merged into one mutation",
+          "input": { "maxInFlight": 2, "steps": [
+            { "op": "enqueue", "id": "m1", "recordId": "job-17", "patch": { "status": "en-route" } },
+            { "op": "enqueue", "id": "m2", "recordId": "job-18", "patch": { "notes": "Gate code 4411" } },
+            { "op": "enqueue", "id": "m3", "recordId": "job-17", "patch": { "status": "on-site", "arrivedAt": "09:40" } },
+            { "op": "flush" },
+            { "op": "flush" }
+          ] },
+          "expected": {
+            "calls": ["m1 job-17 {\"status\":\"on-site\",\"arrivedAt\":\"09:40\"}", "m2 job-18 {\"notes\":\"Gate code 4411\"}"],
+            "maxConcurrent": 2,
+            "sameRecordOverlap": false,
+            "flushes": [
+              { "sent": ["m1", "m2"], "failed": [], "pending": [] },
+              { "sent": [], "failed": [], "pending": [] }
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "At most maxInFlight records sync at once; a second flush() call joins the first",
+          "input": { "maxInFlight": 2, "durations": { "m1": 30 }, "steps": [
+            { "op": "enqueue", "id": "m1", "recordId": "job-1", "patch": { "status": "done" } },
+            { "op": "enqueue", "id": "m2", "recordId": "job-2", "patch": { "status": "done" } },
+            { "op": "enqueue", "id": "m3", "recordId": "job-3", "patch": { "status": "done" } },
+            { "op": "enqueue", "id": "m4", "recordId": "job-4", "patch": { "status": "done" } },
+            { "op": "enqueue", "id": "m5", "recordId": "job-5", "patch": { "status": "done" } },
+            { "op": "flush", "twice": true }
+          ] },
+          "expected": {
+            "calls": ["m1 job-1 {\"status\":\"done\"}", "m2 job-2 {\"status\":\"done\"}", "m3 job-3 {\"status\":\"done\"}", "m4 job-4 {\"status\":\"done\"}", "m5 job-5 {\"status\":\"done\"}"],
+            "maxConcurrent": 2,
+            "sameRecordOverlap": false,
+            "flushes": [
+              { "sent": ["m2", "m3", "m1", "m4", "m5"], "failed": [], "pending": [] }
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "An edit made while its record is syncing waits for that call to finish",
+          "input": { "maxInFlight": 3, "durations": { "m3": 4 }, "steps": [
+            { "op": "enqueue", "id": "m1", "recordId": "job-7", "patch": { "status": "on-site" } },
+            { "op": "enqueue", "id": "m3", "recordId": "job-8", "patch": { "parts": ["valve"] } },
+            { "op": "flush", "during": [
+              { "at": 2, "id": "m2", "recordId": "job-7", "patch": { "status": "done" } }
+            ] }
+          ] },
+          "expected": {
+            "calls": ["m1 job-7 {\"status\":\"on-site\"}", "m3 job-8 {\"parts\":[\"valve\"]}", "m2 job-7 {\"status\":\"done\"}"],
+            "maxConcurrent": 2,
+            "sameRecordOverlap": false,
+            "flushes": [
+              { "sent": ["m3", "m1", "m2"], "failed": [], "pending": [] }
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Retryable failures stay queued unchanged; permanent ones are reported",
+          "input": { "maxInFlight": 2, "outcomes": { "m1": ["retry", "ok"], "m2": ["fail"] }, "steps": [
+            { "op": "enqueue", "id": "m1", "recordId": "job-3", "patch": { "status": "done", "signature": "sig-1" } },
+            { "op": "enqueue", "id": "m2", "recordId": "job-4", "patch": { "notes": "Customer not home" } },
+            { "op": "flush" },
+            { "op": "enqueue", "id": "m3", "recordId": "job-3", "patch": { "status": "invoiced" } },
+            { "op": "flush" }
+          ] },
+          "expected": {
+            "calls": ["m1 job-3 {\"status\":\"done\",\"signature\":\"sig-1\"}", "m2 job-4 {\"notes\":\"Customer not home\"}", "m1 job-3 {\"status\":\"done\",\"signature\":\"sig-1\"}", "m3 job-3 {\"status\":\"invoiced\"}"],
+            "maxConcurrent": 2,
+            "sameRecordOverlap": false,
+            "flushes": [
+              { "sent": [], "failed": [{ "id": "m2", "error": "422 Unprocessable Entity" }], "pending": ["m1"] },
+              { "sent": ["m1", "m3"], "failed": [], "pending": [] }
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "An unknown network error keeps the record's edits; other records still sync",
+          "input": { "maxInFlight": 2, "outcomes": { "m1": ["network"] }, "durations": { "m3": 30 }, "steps": [
+            { "op": "enqueue", "id": "m1", "recordId": "job-5", "patch": { "status": "en-route" } },
+            { "op": "enqueue", "id": "m3", "recordId": "job-6", "patch": { "notes": "Call ahead" } },
+            { "op": "flush", "during": [
+              { "at": 5, "id": "m2", "recordId": "job-5", "patch": { "status": "on-site" } }
+            ] }
+          ] },
+          "expected": {
+            "calls": ["m1 job-5 {\"status\":\"en-route\"}", "m3 job-6 {\"notes\":\"Call ahead\"}"],
+            "maxConcurrent": 2,
+            "sameRecordOverlap": false,
+            "flushes": [
+              { "sent": ["m3"], "failed": [], "pending": ["m1", "m2"] }
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    },
+    {
+      "publicId": "chal_quiz_js_633",
+      "name": "idempotent-mutation-id-quiz",
+      "type": "quiz",
+      "title": "The edit that vanished on retry",
+      "description": "Mutation ids let the server ignore duplicates. Combine that with a well-meant optimisation and see what happens.",
+      "difficulty": "hard",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 10,
+          "question": "The server stores every processed mutation id and, when it sees an id again, returns the stored result without applying anything. The client sends m-41 { status: 'done' } for job-42. The server applies it, but the response is lost in a tunnel, so the client keeps m-41 in the outbox. The technician then captures the customer's signature, and the client merges { signature: 'sig-9' } into m-41 because 'it was never confirmed anyway'. On the next flush m-41 is sent again. What is the result?",
+          "explanation": "To the server, m-41 is a duplicate: it was processed once, so the stored result is returned and the new payload is never applied. The client removes m-41 as 'sent' and the signature is lost silently. (A stricter server may reject the reused id because the payload changed - the edit still does not land.) Once a mutation has been sent, its id and content are frozen: new edits must go into a new mutation with a new id, queued behind it. That is also why PATCH being 'usually safe to retry' is not a guarantee - HTTP does not define PATCH as idempotent; the mutation id is what makes retries safe.",
+          "options": [
+            { "text": "The server applies the signature, because the payload is different from the first request.", "correct": false },
+            { "text": "The status is applied a second time and the job's history shows two 'done' events.", "correct": false },
+            { "text": "The signature is never stored: the server treats m-41 as an already-processed duplicate, and the client then drops m-41 as successfully sent.", "correct": true },
+            { "text": "Nothing goes wrong: PATCH requests are idempotent by definition, so the server merges both versions.", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

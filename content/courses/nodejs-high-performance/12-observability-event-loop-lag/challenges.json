@@ -1,0 +1,188 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nhp_421",
+      "name": "average-vs-p99-quiz",
+      "type": "quiz",
+      "title": "What the average hides",
+      "description": "Read a latency distribution the way an on-call engineer must: who is having a bad time, and which number shows it?",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "In 5 minutes the checkout endpoint served 10,000 requests: 9,850 took about 50 ms, and 150 took about 3,000 ms (waiting on a hot database row). The mobile app gives up after 2.5 s. The dashboard shows the average. Which statement is correct?",
+          "explanation": "The average is (9,850 x 50 + 150 x 3,000) / 10,000 = about 94 ms, which looks healthy and is far below the timeout. But the slowest 1.5% of requests - 150 real customers - took 3 s and saw an error. With the nearest-rank definition, p99 is the value at rank 9,900, which falls inside the slow group, so p99 = 3,000 ms while p50 = 50 ms. Averages blend two very different populations into a number that describes neither; percentiles describe how many users experienced at least that latency.",
+          "options": [
+            { "text": "The average is about 94 ms, far below 2.5 s, so no customer is affected.", "correct": false },
+            { "text": "The average is about 94 ms, but p99 is 3,000 ms: 1.5% of checkouts exceed the client timeout, and only the tail percentiles show it.", "correct": true },
+            { "text": "The average is about 1,525 ms, halfway between the fast and the slow requests.", "correct": false },
+            { "text": "p50 is 3,000 ms, because the slow requests dominate the total time.", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which statements about latency metrics and event loop delay are true? (Select all that apply.)",
+          "explanation": "Percentiles cannot be averaged: the mean of ten per-instance p99s is not the p99 of the combined traffic (one hot instance gets diluted). Export histograms - bucket counts add up across instances - and compute the quantile on the summed buckets, for example histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket[5m]))). Event loop delay measures how late callbacks run: when it rises while traffic is flat, requests are queueing inside the process before any handler code starts. It is not only a CPU-heavy-service problem - GC pauses, large JSON.parse/stringify, synchronous logging or crypto on the main thread all show up there.",
+          "options": [
+            { "text": "To get the fleet-wide p99, average the p99 reported by each of the 10 instances.", "correct": false },
+            { "text": "If event loop delay p99 rises while the request rate is flat, requests are waiting inside the process before their handlers run.", "correct": true },
+            { "text": "For a fleet-wide p99, export latency histograms and aggregate the bucket counts across instances before computing the quantile.", "correct": true },
+            { "text": "Event loop delay only matters for CPU-heavy services; an I/O-bound API always reports close to 0 ms.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nhp_422",
+      "name": "nearest-rank-percentile",
+      "type": "mini_coding",
+      "title": "Compute p50, p95 and p99 with nearest rank",
+      "description": "The checkout dashboard only shows the average latency. Implement percentile(values, p) with the nearest-rank definition from the starter's JSDoc: numeric sort of a copy, rank = ceil(p/100 * n) (at least 1), return the sample at that rank, null for no samples.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "percentile.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "p50, p90, p95 and p100 of ten checkout latencies",
+          "input": { "values": [42, 38, 51, 40, 1200, 45, 39, 44, 47, 41], "ps": [50, 90, 95, 100] },
+          "expected": { "results": [42, 51, 1200, 1200], "inputUnchanged": true },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "100 samples: the tail that the average hides",
+          "input": { "values": [30, 67, 64, 61, 58, 55, 52, 49, 46, 43, 40, 37, 34, 31, 68, 65, 62, 2400, 56, 53, 50, 47, 44, 41, 38, 35, 32, 69, 66, 63, 60, 57, 54, 51, 48, 45, 42, 39, 36, 33, 30, 67, 64, 61, 58, 55, 52, 49, 46, 43, 40, 37, 34, 31, 68, 65, 62, 59, 56, 53, 50, 47, 44, 1800, 38, 35, 32, 69, 66, 63, 60, 57, 54, 51, 48, 45, 42, 39, 36, 33, 30, 67, 64, 61, 58, 55, 52, 49, 950, 43, 40, 37, 34, 31, 68, 65, 62, 59, 56, 53], "ps": [50, 95, 99, 99.9] },
+          "expected": { "results": [51, 68, 1800, 2400], "inputUnchanged": true },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "Small samples round the rank up; p0 is the minimum",
+          "input": { "values": [120, 85, 3000, 95, 110], "ps": [0, 20, 25, 60] },
+          "expected": { "results": [85, 85, 95, 110], "inputUnchanged": true },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Duplicates and fractional percentiles",
+          "input": { "values": [70, 70, 70, 70, 250, 70, 70, 70], "ps": [50, 75, 87.5, 88] },
+          "expected": { "results": [70, 70, 70, 250], "inputUnchanged": true },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "No samples: every percentile is null",
+          "input": { "values": [], "ps": [50, 99] },
+          "expected": { "results": [null, null], "inputUnchanged": true },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nhp_423",
+      "name": "load-shedder",
+      "type": "mini_coding",
+      "title": "Fail fast with a load shedder",
+      "description": "Write createLoadShedder({ maxInFlight, maxLagMs }, getLag). admit() rejects a request with reason \"lag\" when the event loop lag is above maxLagMs, otherwise with \"in_flight\" when maxInFlight requests are already running, and otherwise accepts it with a release() that frees its slot exactly once. The harness replays a traffic scenario and checks every decision.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "loadShedder.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Accepts up to maxInFlight, then sheds until a slot is free",
+          "input": { "limits": { "maxInFlight": 2, "maxLagMs": 100 }, "steps": [
+            { "op": "req", "id": "a" },
+            { "op": "req", "id": "b" },
+            { "op": "req", "id": "c" },
+            { "op": "done", "id": "a" },
+            { "op": "req", "id": "d" },
+            { "op": "count" }
+          ] },
+          "expected": ["accept", "accept", "reject:in_flight", "accept", 2],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "High event loop lag sheds even an idle instance",
+          "input": { "limits": { "maxInFlight": 10, "maxLagMs": 100 }, "steps": [
+            { "op": "lag", "ms": 150 },
+            { "op": "req", "id": "a" },
+            { "op": "lag", "ms": 100 },
+            { "op": "req", "id": "b" },
+            { "op": "lag", "ms": 40 },
+            { "op": "req", "id": "c" },
+            { "op": "count" }
+          ] },
+          "expected": ["reject:lag", "accept", "accept", 2],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Lag is checked before the in-flight limit",
+          "input": { "limits": { "maxInFlight": 1, "maxLagMs": 100 }, "steps": [
+            { "op": "req", "id": "a" },
+            { "op": "lag", "ms": 500 },
+            { "op": "req", "id": "b" },
+            { "op": "done", "id": "a" },
+            { "op": "req", "id": "c" },
+            { "op": "lag", "ms": 20 },
+            { "op": "req", "id": "d" },
+            { "op": "count" }
+          ] },
+          "expected": ["accept", "reject:lag", "reject:lag", "accept", 1],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Rejected requests never take a slot",
+          "input": { "limits": { "maxInFlight": 1, "maxLagMs": 100 }, "steps": [
+            { "op": "req", "id": "a" },
+            { "op": "req", "id": "b" },
+            { "op": "req", "id": "c" },
+            { "op": "done", "id": "a" },
+            { "op": "req", "id": "d" },
+            { "op": "count" }
+          ] },
+          "expected": ["accept", "reject:in_flight", "reject:in_flight", "accept", 1],
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Releasing the same request twice frees only one slot",
+          "input": { "limits": { "maxInFlight": 2, "maxLagMs": 100 }, "steps": [
+            { "op": "req", "id": "a" },
+            { "op": "req", "id": "b" },
+            { "op": "done", "id": "a" },
+            { "op": "done", "id": "a" },
+            { "op": "req", "id": "c" },
+            { "op": "req", "id": "d" },
+            { "op": "count" }
+          ] },
+          "expected": ["accept", "accept", "accept", "reject:in_flight", 2],
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="580" viewBox="0 0 1200 580" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="580" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">When the lock expires before the work is done</text>
+  <text x="40" y="82" font-size="16" fill="#475569">A plain DEL from the slow holder removes someone else's lock.</text>
+
+  <!-- axis with seconds -->
+  <line x1="200" y1="440" x2="1140" y2="440" stroke="#94a3b8" stroke-width="2"/>
+  <g font-size="14" fill="#64748b" text-anchor="middle">
+    <text x="220" y="466">0s</text>
+    <text x="400" y="466">1s</text>
+    <text x="580" y="466">2s</text>
+    <text x="760" y="466">3s</text>
+    <text x="940" y="466">4s</text>
+    <text x="1120" y="466">5s</text>
+  </g>
+
+  <!-- worker A -->
+  <text x="40" y="170" font-size="18" font-weight="700" fill="#0e7490">Worker A</text>
+  <rect x="220" y="140" width="540" height="44" rx="8" fill="#cffafe" stroke="#0891b2" stroke-width="2"/>
+  <text x="490" y="168" font-size="14" text-anchor="middle" fill="#0f172a">holds lock (PX 3000)</text>
+  <rect x="760" y="140" width="360" height="44" rx="8" fill="#fff7ed" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6 5"/>
+  <text x="940" y="168" font-size="14" text-anchor="middle" fill="#9a3412">still paying - lock already expired</text>
+  <line x1="1120" y1="120" x2="1120" y2="210" stroke="#dc2626" stroke-width="3"/>
+  <text x="1110" y="112" font-size="14" font-weight="700" text-anchor="end" fill="#b91c1c">DEL lock:wallet:42</text>
+
+  <!-- worker B -->
+  <text x="40" y="270" font-size="18" font-weight="700" fill="#7c3aed">Worker B</text>
+  <rect x="760" y="240" width="360" height="44" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="940" y="268" font-size="14" text-anchor="middle" fill="#0f172a">acquires lock at 3s, paying</text>
+
+  <!-- worker C -->
+  <text x="40" y="370" font-size="18" font-weight="700" fill="#16a34a">Worker C</text>
+  <rect x="1120" y="340" width="60" height="44" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="1080" y="368" font-size="14" text-anchor="end" fill="#166534">acquires immediately -></text>
+
+  <rect x="200" y="492" width="940" height="64" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="670" y="518" font-size="15" font-weight="700" text-anchor="middle" fill="#b91c1c">B and C now run at the same time - mutual exclusion is gone</text>
+  <text x="670" y="542" font-size="14" text-anchor="middle" fill="#b91c1c">Fix: release only if the token matches (atomic Lua), and guard the DB write with a fencing token.</text>
+</svg>

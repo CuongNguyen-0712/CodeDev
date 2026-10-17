@@ -1,0 +1,10 @@
+{
+  "images": {
+    "shutdown-sequence": {
+      "publicId": "codedev/courses/nodejs-high-performance/11-graceful-shutdown/shutdown-sequence",
+      "url": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/q_auto/v1792168336/codedev/courses/nodejs-high-performance/11-graceful-shutdown/shutdown-sequence.png?_a=BAMAROWQ0",
+      "width": 1200,
+      "height": 600
+    }
+  }
+}

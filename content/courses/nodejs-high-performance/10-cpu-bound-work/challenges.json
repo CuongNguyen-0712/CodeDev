@@ -1,0 +1,94 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nhp_401",
+      "name": "cpu-bound-strategy-quiz",
+      "type": "quiz",
+      "title": "Chunking, worker threads or cluster?",
+      "description": "Three tools, three different problems. Pick the one that actually removes the blocking - and spot the claims that sound right but are not.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "POST /fraud/score-batch spends about 400 ms of pure JavaScript CPU per call (an in-memory scoring model). While it runs, the p99 of POST /payments on the same instance jumps from 40 ms to 450 ms. The service is a single Node.js process on a 4 vCPU VM. Which change best fixes /payments latency while keeping scoring throughput?",
+          "explanation": "The scoring is CPU work on the main thread, so every other request waits until it finishes. A worker_threads pool moves it off the event loop and uses the idle cores, and a bounded queue stops a burst of batches from piling up unbounded. Marking the function async changes nothing - the CPU work still runs synchronously on the same thread. process.nextTick callbacks run before the event loop gets back to I/O, so they do not let /payments in. Cluster spreads requests across processes, but any /payments request that lands on the process currently scoring still waits the full 400 ms.",
+          "options": [
+            { "text": "Declare the scoring function async and await it in the handler, so it no longer blocks.", "correct": false },
+            { "text": "Run the scoring in a worker_threads pool (for example piscina) sized to the spare cores, with a bounded queue.", "correct": true },
+            { "text": "Start 4 processes with cluster: the load is spread, so scoring can no longer delay a payment.", "correct": false },
+            { "text": "Call process.nextTick() every 100 transactions inside the scoring loop to let other requests run.", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which statements are true? (Select all that apply.)",
+          "explanation": "cluster forks full processes: each has its own heap and event loop and the primary hands out connections on the shared port. Worker threads are separate V8 isolates - they do not see each other's variables and communicate through postMessage (structured clone), transferred ArrayBuffers or a SharedArrayBuffer. Chunking does not reduce the total CPU time - it only interleaves other callbacks between chunks, which is enough when the work is moderate. Creating a Worker costs milliseconds and several MB of memory, so a reusable pool beats one Worker per request.",
+          "options": [
+            { "text": "cluster forks separate processes that share the listening port; each has its own memory and its own event loop.", "correct": true },
+            { "text": "Worker threads share one JavaScript heap, so a worker can read the main thread's variables directly.", "correct": false },
+            { "text": "Chunking with setImmediate keeps all work on the main thread: total CPU time stays the same, but other requests are served between chunks.", "correct": true },
+            { "text": "Spawning a new Worker for every request is cheaper than keeping a pool, because threads are lightweight.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nhp_402",
+      "name": "process-in-chunks",
+      "type": "mini_coding",
+      "title": "Score a batch in chunks without freezing the API",
+      "description": "Write processInChunks(items, chunkSize, fn, yieldToLoop): run the synchronous scoring fn over every item in order, at most chunkSize items at a time, and await yieldToLoop() between chunks so waiting HTTP requests get served. The harness simulates requests arriving mid-batch and measures how long they wait.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "processInChunks.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "10 transactions in chunks of 3: requests wait at most one chunk",
+          "input": { "items": [120, 45, 300, 80, 15, 990, 60, 75, 410, 5], "chunkSize": 3, "requestsAt": [1, 5] },
+          "expected": { "results": [40, 18, 6, 69, 17, 45, 38, 46, 94, 62], "longestRun": 3, "requestWaits": [2, 1] },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A request waiting before the batch starts is served after the first chunk",
+          "input": { "items": [250, 1200, 35, 880, 64, 410], "chunkSize": 2, "requestsAt": [0, 3] },
+          "expected": { "results": [50, 3, 51, 69, 60, 85], "longestRun": 2, "requestWaits": [2, 1] },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A batch smaller than one chunk runs in a single go",
+          "input": { "items": [999, 18, 72, 5000], "chunkSize": 10, "requestsAt": [2] },
+          "expected": { "results": [93, 29, 10, 9], "longestRun": 4, "requestWaits": [2] },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "An empty batch resolves with an empty array",
+          "input": { "items": [], "chunkSize": 3, "requestsAt": [] },
+          "expected": { "results": [], "longestRun": 0, "requestWaits": [] },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "12 transactions in chunks of 4: exact chunk boundaries",
+          "input": { "items": [300, 45, 1250, 80, 7, 640, 99, 15, 2300, 410, 56, 780], "chunkSize": 4, "requestsAt": [4, 8, 11] },
+          "expected": { "results": [0, 18, 56, 69, 61, 95, 11, 26, 24, 97, 22, 93], "longestRun": 4, "requestWaits": [0, 0, 1] },
+          "hidden": true,
+          "score": 8
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,155 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nhp_101",
+      "name": "single-thread-race-quiz",
+      "type": "quiz",
+      "title": "Does a single thread protect the wallet?",
+      "description": "Two payment requests for the same wallet run the same async handler at the same time. Predict the outcome before you read on.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 10,
+          "question": "Node.js runs your JavaScript on one thread. A wallet holds 100,000 and two POST /payments requests of 80,000 arrive together. Each runs:\n\nconst wallet = await repo.findById(walletId);\nif (wallet.balance < amount) throw new Error('INSUFFICIENT_FUNDS');\nawait repo.save({ ...wallet, balance: wallet.balance - amount });\n\nWhat can happen?",
+          "explanation": "Every await hands control back to the event loop. Request A reads 100,000 and waits for the database; request B runs its findById in that gap and also reads 100,000. Both pass the check and both save 20,000. Two payments are approved but only one is charged - a lost update. A single thread only guarantees that synchronous code is not interrupted; anything spanning an await can interleave.",
+          "options": [
+            { "text": "Nothing bad: the second request waits until the first handler finishes, because Node.js is single-threaded.", "correct": false },
+            { "text": "Both requests can read 100,000 before either saves, so both are approved and the wallet ends at 20,000 - one debit is lost.", "correct": true },
+            { "text": "Node.js throws an error because two async functions modify the same object at once.", "correct": false },
+            { "text": "Both requests fail, because the database locks the row automatically while it is being read.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_nhp_102",
+      "name": "fix-lost-update-in-locked-debit",
+      "type": "fix_bug",
+      "title": "Fix the lost update inside the lock",
+      "description": "The payment service wraps every debit in a per-wallet lock, yet concurrent payments still overspend. Fix debit() so the read-check-write is atomic. Hint: what does the callback passed to withLock return, and when does withLock release the lock?",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "javascript",
+        "filePath": "debit.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        { "name": "Two 80 debits on 100: only one is approved", "input": { "balance": 100, "amounts": [80, 80] }, "expected": { "succeeded": 1, "rejected": 1, "finalBalance": 20 }, "hidden": false, "score": 5 },
+        { "name": "Three concurrent 30 debits all fit", "input": { "balance": 100, "amounts": [30, 30, 30] }, "expected": { "succeeded": 3, "rejected": 0, "finalBalance": 10 }, "hidden": false, "score": 5 },
+        { "name": "A debit larger than the balance is rejected", "input": { "balance": 100, "amounts": [150] }, "expected": { "succeeded": 0, "rejected": 1, "finalBalance": 100 }, "hidden": false, "score": 4 },
+        { "name": "Six concurrent debits drain the wallet exactly to zero", "input": { "balance": 50, "amounts": [10, 10, 10, 10, 10, 10] }, "expected": { "succeeded": 5, "rejected": 1, "finalBalance": 0 }, "hidden": true, "score": 6 }
+      ]
+    },
+    {
+      "publicId": "chal_quiz_nhp_103",
+      "name": "lock-ttl-expiry-quiz",
+      "type": "quiz",
+      "title": "What if the lock expires mid-payment?",
+      "description": "Lock TTLs protect you from crashed holders - but they also mean a slow holder can lose the lock.",
+      "difficulty": "hard",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 10,
+          "question": "Worker A takes the lock with SET lock:wallet:42 <tokenA> NX PX 3000. Its call to the payment provider stalls for 5 seconds. After 3 seconds the key expires and worker B acquires the lock with <tokenB>. When A finally finishes, it releases with a plain DEL lock:wallet:42. What is the most important consequence?",
+          "explanation": "A plain DEL does not check who owns the key, so A deletes B's lock while B is still mid-payment. A third request can now acquire the lock and run alongside B - mutual exclusion is gone. Release must compare the token and delete atomically (a Lua compare-and-delete), and the database write should still be guarded (fencing token or a conditional UPDATE), because an expired holder can still be running.",
+          "options": [
+            { "text": "Nothing: DEL only removes the lock A created, so B keeps its lock.", "correct": false },
+            { "text": "A deletes B's lock. Another request can acquire it while B is still paying, so two payments run concurrently again.", "correct": true },
+            { "text": "Redis rejects the DEL because the key was re-created with a different TTL.", "correct": false },
+            { "text": "Redis rolls back B's payment automatically because its lock was removed.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nhp_104",
+      "name": "redis-lock-acquire-release",
+      "type": "mini_coding",
+      "title": "Implement acquire/release for a Redis lock",
+      "description": "Write createLock(redis) returning acquire(key, ttlMs) and release(key, token). Use SET NX PX with a fresh token per acquisition, and release only when the token still owns the lock. The in-memory redis client exposes set, get and an atomic delIfEquals (the Lua compare-and-delete).",
+      "difficulty": "hard",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "lock.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A held lock cannot be acquired again until it is released",
+          "input": { "steps": [
+            { "op": "acquire", "key": "lock:wallet:42", "ttlMs": 1000, "as": "A" },
+            { "op": "acquire", "key": "lock:wallet:42", "ttlMs": 1000, "as": "B" },
+            { "op": "release", "key": "lock:wallet:42", "as": "A" },
+            { "op": "acquire", "key": "lock:wallet:42", "ttlMs": 1000, "as": "B" }
+          ] },
+          "expected": [true, false, true, true],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Releasing with a token you do not own fails",
+          "input": { "steps": [
+            { "op": "acquire", "key": "lock:wallet:42", "ttlMs": 1000, "as": "A" },
+            { "op": "release", "key": "lock:wallet:42", "forged": "not-my-token" },
+            { "op": "acquire", "key": "lock:wallet:42", "ttlMs": 1000, "as": "B" }
+          ] },
+          "expected": [true, false, false],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "The lock expires by itself after its TTL",
+          "input": { "steps": [
+            { "op": "acquire", "key": "lock:wallet:42", "ttlMs": 1000, "as": "A" },
+            { "op": "advance", "ms": 999 },
+            { "op": "acquire", "key": "lock:wallet:42", "ttlMs": 1000, "as": "B" },
+            { "op": "advance", "ms": 2 },
+            { "op": "acquire", "key": "lock:wallet:42", "ttlMs": 1000, "as": "B" }
+          ] },
+          "expected": [true, false, true],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "An expired holder cannot release the new holder's lock",
+          "input": { "steps": [
+            { "op": "acquire", "key": "lock:wallet:42", "ttlMs": 1000, "as": "A" },
+            { "op": "advance", "ms": 1500 },
+            { "op": "acquire", "key": "lock:wallet:42", "ttlMs": 1000, "as": "B" },
+            { "op": "release", "key": "lock:wallet:42", "as": "A" },
+            { "op": "acquire", "key": "lock:wallet:42", "ttlMs": 1000, "as": "C" }
+          ] },
+          "expected": [true, true, false, false],
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Every acquisition gets a fresh token",
+          "input": { "steps": [
+            { "op": "acquire", "key": "lock:wallet:42", "ttlMs": 1000, "as": "A" },
+            { "op": "release", "key": "lock:wallet:42", "as": "A" },
+            { "op": "acquire", "key": "lock:wallet:42", "ttlMs": 1000, "as": "B" },
+            { "op": "release", "key": "lock:wallet:42", "as": "A" }
+          ] },
+          "expected": [true, true, true, false],
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

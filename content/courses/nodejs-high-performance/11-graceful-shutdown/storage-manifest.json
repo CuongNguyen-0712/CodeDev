@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_nhp_412",
+      "key": "challenges/javascript/chal_fix_nhp_412/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "shutdown.js",
+      "size": 1720
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_fix_nhp_412",
+      "key": "challenges/javascript/chal_fix_nhp_412/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 3969
+    }
+  ]
+}

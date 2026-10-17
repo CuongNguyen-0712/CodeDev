@@ -1,0 +1,37 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_js_622",
+      "key": "challenges/javascript/chal_coding_js_622/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "requestMachine.js",
+      "size": 2320
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_coding_js_622",
+      "key": "challenges/javascript/chal_coding_js_622/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 902
+    },
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_js_623",
+      "key": "challenges/javascript/chal_fix_js_623/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "requestController.js",
+      "size": 2006
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_fix_js_623",
+      "key": "challenges/javascript/chal_fix_js_623/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 2315
+    }
+  ]
+}

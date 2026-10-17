@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="650" viewBox="0 0 1200 650" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#334155"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="650" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Offline-first sync: outbox, per-record lanes, idempotent server</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Edits are committed locally first. flush() sends each job's edits in order, several jobs at once, and routes every outcome.</text>
+
+  <!-- UI -->
+  <rect x="40" y="130" width="200" height="70" rx="12" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="140" y="160" font-size="16" font-weight="700" text-anchor="middle" fill="#0f172a">Job form (UI)</text>
+  <text x="140" y="182" font-size="13" text-anchor="middle" fill="#475569">optimistic update</text>
+
+  <!-- UI -> IndexedDB -->
+  <line x1="140" y1="200" x2="140" y2="248" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="152" y="229" font-size="13" fill="#0f172a">enqueue()</text>
+
+  <!-- status back to UI -->
+  <line x1="420" y1="165" x2="243" y2="165" stroke="#334155" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#arrow)"/>
+  <text x="331" y="155" font-size="13" text-anchor="middle" fill="#0f172a">sync status</text>
+
+  <!-- IndexedDB outbox -->
+  <rect x="40" y="250" width="300" height="290" rx="14" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="190" y="280" font-size="16" font-weight="700" text-anchor="middle" fill="#0f172a">IndexedDB outbox</text>
+  <text x="190" y="302" font-size="13" text-anchor="middle" fill="#6d28d9">survives reloads, in edit order</text>
+
+  <rect x="60" y="318" width="260" height="48" rx="8" fill="#ffffff" stroke="#a78bfa" stroke-width="1.5"/>
+  <text x="74" y="338" font-size="14" font-weight="700" fill="#0f172a">m1 · job-17</text>
+  <text x="74" y="357" font-size="12" fill="#6d28d9">{ status, arrivedAt } - 2 edits merged</text>
+
+  <rect x="60" y="374" width="260" height="48" rx="8" fill="#ffffff" stroke="#a78bfa" stroke-width="1.5"/>
+  <text x="74" y="394" font-size="14" font-weight="700" fill="#0f172a">m2 · job-18</text>
+  <text x="74" y="413" font-size="12" fill="#6d28d9">{ notes }</text>
+
+  <rect x="60" y="430" width="260" height="48" rx="8" fill="#ffffff" stroke="#a78bfa" stroke-width="1.5"/>
+  <text x="74" y="450" font-size="14" font-weight="700" fill="#0f172a">m4 · job-17</text>
+  <text x="74" y="469" font-size="12" fill="#6d28d9">new entry: m1 was already sent</text>
+
+  <text x="60" y="506" font-size="13" fill="#475569">+ m5 · job-21, m6 · job-30</text>
+  <text x="60" y="526" font-size="12" fill="#64748b">same id on every retry</text>
+
+  <!-- outbox -> sync client -->
+  <line x1="340" y1="395" x2="418" y2="395" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="379" y="385" font-size="13" text-anchor="middle" fill="#0f172a">in order</text>
+
+  <!-- Sync client -->
+  <rect x="420" y="130" width="380" height="410" rx="14" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="610" y="160" font-size="16" font-weight="700" text-anchor="middle" fill="#0f172a">Sync client: flush()</text>
+  <text x="610" y="182" font-size="13" text-anchor="middle" fill="#0e7490">one lane per job · maxInFlight = 2</text>
+
+  <text x="440" y="233" font-size="14" font-weight="700" fill="#0f172a">job-17</text>
+  <rect x="520" y="210" width="120" height="36" rx="18" fill="#cffafe" stroke="#0891b2" stroke-width="2"/>
+  <text x="580" y="233" font-size="13" text-anchor="middle" fill="#0f172a">m1 in flight</text>
+  <rect x="660" y="210" width="120" height="36" rx="18" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+  <text x="720" y="233" font-size="13" text-anchor="middle" fill="#334155">m4 waits</text>
+
+  <text x="440" y="313" font-size="14" font-weight="700" fill="#0f172a">job-18</text>
+  <rect x="520" y="290" width="120" height="36" rx="18" fill="#cffafe" stroke="#0891b2" stroke-width="2"/>
+  <text x="580" y="313" font-size="13" text-anchor="middle" fill="#0f172a">m2 in flight</text>
+
+  <text x="440" y="393" font-size="14" font-weight="700" fill="#0f172a">job-21</text>
+  <rect x="520" y="370" width="190" height="36" rx="18" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+  <text x="615" y="393" font-size="13" text-anchor="middle" fill="#334155">m5 waits for a free slot</text>
+
+  <text x="440" y="473" font-size="14" font-weight="700" fill="#0f172a">job-30</text>
+  <rect x="520" y="450" width="250" height="36" rx="18" fill="#fffbeb" stroke="#f59e0b" stroke-width="2"/>
+  <text x="645" y="473" font-size="13" text-anchor="middle" fill="#92400e">m6 got 503: held until next flush</text>
+
+  <text x="440" y="522" font-size="12" fill="#475569">a second flush() call joins the running one</text>
+
+  <!-- sync client -> API -->
+  <line x1="800" y1="230" x2="878" y2="230" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="839" y="220" font-size="13" text-anchor="middle" fill="#0f172a">send()</text>
+
+  <!-- API -->
+  <rect x="880" y="130" width="280" height="170" rx="14" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="1020" y="162" font-size="16" font-weight="700" text-anchor="middle" fill="#0f172a">Jobs API</text>
+  <text x="1020" y="190" font-size="13" text-anchor="middle" fill="#166534">PATCH /api/jobs/job-17</text>
+  <text x="1020" y="212" font-size="13" text-anchor="middle" fill="#166534">Idempotency-Key: m1</text>
+  <text x="1020" y="246" font-size="13" text-anchor="middle" fill="#166534">seen this id before?</text>
+  <text x="1020" y="268" font-size="13" text-anchor="middle" fill="#166534">answer 200, apply nothing</text>
+
+  <!-- API -> outcomes -->
+  <line x1="1020" y1="300" x2="1020" y2="338" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- outcomes -->
+  <rect x="880" y="340" width="280" height="200" rx="14" fill="#ffffff" stroke="#334155" stroke-width="2"/>
+  <text x="1020" y="368" font-size="15" font-weight="700" text-anchor="middle" fill="#0f172a">Outcome of each call</text>
+  <rect x="900" y="384" width="240" height="40" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="1020" y="409" font-size="13" text-anchor="middle" fill="#166534">2xx: remove from the outbox</text>
+  <rect x="900" y="432" width="240" height="40" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="1020" y="457" font-size="13" text-anchor="middle" fill="#92400e">5xx, 429, offline: keep, retry</text>
+  <rect x="900" y="480" width="240" height="40" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="1020" y="505" font-size="13" text-anchor="middle" fill="#b91c1c">422, 403: park, Needs attention</text>
+
+  <!-- triggers -->
+  <rect x="420" y="575" width="380" height="50" rx="12" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="610" y="597" font-size="14" font-weight="700" text-anchor="middle" fill="#0f172a">Triggers</text>
+  <text x="610" y="615" font-size="12" text-anchor="middle" fill="#475569">online · tab visible · backoff timer · Sync now</text>
+  <line x1="610" y1="575" x2="610" y2="543" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+</svg>

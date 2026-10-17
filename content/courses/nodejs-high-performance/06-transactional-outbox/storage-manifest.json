@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_nhp_222",
+      "key": "challenges/javascript/chal_fix_nhp_222/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "walletConsumer.js",
+      "size": 1998
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_fix_nhp_222",
+      "key": "challenges/javascript/chal_fix_nhp_222/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 4679
+    }
+  ]
+}

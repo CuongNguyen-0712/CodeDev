@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_js_432",
+      "key": "challenges/javascript/chal_coding_js_432/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "asyncQueue.js",
+      "size": 1673
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_coding_js_432",
+      "key": "challenges/javascript/chal_coding_js_432/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 3453
+    }
+  ]
+}

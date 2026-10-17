@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#334155"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="620" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Circuit breaker: stop calling a dependency that is already down</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Fail fast while it recovers, then let a few trial calls decide whether to trust it again.</text>
+
+  <!-- closed -->
+  <rect x="80" y="160" width="290" height="130" rx="16" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="225" y="200" font-size="20" font-weight="700" text-anchor="middle" fill="#0f172a">CLOSED</text>
+  <text x="225" y="230" font-size="14" text-anchor="middle" fill="#166534">every call goes to the dependency</text>
+  <text x="225" y="254" font-size="14" text-anchor="middle" fill="#166534">a success resets the failure count</text>
+
+  <!-- open -->
+  <rect x="830" y="160" width="290" height="130" rx="16" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="975" y="200" font-size="20" font-weight="700" text-anchor="middle" fill="#0f172a">OPEN</text>
+  <text x="975" y="230" font-size="14" text-anchor="middle" fill="#991b1b">reject at once: CIRCUIT_OPEN</text>
+  <text x="975" y="254" font-size="14" text-anchor="middle" fill="#991b1b">the dependency is not called</text>
+
+  <!-- half-open -->
+  <rect x="455" y="400" width="290" height="130" rx="16" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="600" y="440" font-size="20" font-weight="700" text-anchor="middle" fill="#0f172a">HALF-OPEN</text>
+  <text x="600" y="470" font-size="14" text-anchor="middle" fill="#92400e">up to halfOpenMaxCalls trial calls</text>
+  <text x="600" y="494" font-size="14" text-anchor="middle" fill="#92400e">any extra call: CIRCUIT_OPEN</text>
+
+  <!-- closed -> open -->
+  <line x1="370" y1="215" x2="826" y2="215" stroke="#dc2626" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="598" y="200" font-size="15" font-weight="700" text-anchor="middle" fill="#b91c1c">failureThreshold consecutive failures</text>
+  <text x="598" y="240" font-size="14" text-anchor="middle" fill="#64748b">start the resetTimeoutMs timer</text>
+
+  <!-- open -> half-open -->
+  <path d="M900 290 C 890 360, 830 410, 749 425" fill="none" stroke="#d97706" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="862" y="348" font-size="15" font-weight="700" text-anchor="end" fill="#b45309">resetTimeoutMs elapsed</text>
+
+  <!-- half-open -> closed -->
+  <path d="M455 450 C 330 450, 240 380, 228 294" fill="none" stroke="#16a34a" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="80" y="420" font-size="15" font-weight="700" fill="#15803d">trial succeeds</text>
+  <text x="80" y="442" font-size="14" fill="#166534">close, failure count = 0</text>
+
+  <!-- half-open -> open -->
+  <path d="M745 495 C 960 505, 1060 420, 1045 294" fill="none" stroke="#dc2626" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="955" y="516" font-size="15" font-weight="700" fill="#b91c1c">trial fails</text>
+  <text x="955" y="538" font-size="14" fill="#991b1b">re-open, timer restarts</text>
+
+  <!-- footer -->
+  <text x="40" y="596" font-size="14" fill="#64748b">Example: failureThreshold 5, resetTimeoutMs 10 s, halfOpenMaxCalls 1. A dead fraud API costs one call every 10 s, not one per checkout.</text>
+</svg>

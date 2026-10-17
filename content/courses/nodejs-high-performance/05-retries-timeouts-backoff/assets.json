@@ -1,0 +1,10 @@
+{
+  "images": {
+    "circuit-breaker-states": {
+      "publicId": "codedev/courses/nodejs-high-performance/05-retries-timeouts-backoff/circuit-breaker-states",
+      "url": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/q_auto/v1792168499/codedev/courses/nodejs-high-performance/05-retries-timeouts-backoff/circuit-breaker-states.png?_a=BAMAROWQ0",
+      "width": 1200,
+      "height": 620
+    }
+  }
+}

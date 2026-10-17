@@ -1,0 +1,64 @@
+{
+  "publicId": "javascript-async-architecture_2026100901",
+  "existing": true,
+  "update": { "durationMinutes": 345 },
+  "title": "JavaScript: Asynchronous Architecture & Production Patterns",
+  "language": "JavaScript",
+  "category": "Web Development",
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Event Loop, Microtasks & Macrotasks",
+      "lessons": [
+        { "orderIndex": 1, "existing": true, "title": "Call Stack, Web APIs & Execution Order", "sanityId": "lesson-js-1-1" },
+        { "orderIndex": 2, "existing": true, "title": "Resolving Event Loop Blocking & UI Freeze", "sanityId": "lesson-js-1-2" },
+        { "orderIndex": 3, "existing": true, "title": "Building a Cancellable Sleep Utility", "sanityId": "lesson-js-1-3" }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Promises in Depth & Concurrency Control",
+      "lessons": [
+        { "orderIndex": 1, "existing": true, "title": "Promise Combinators in Practice", "sanityId": "lesson-js-2-1" },
+        { "orderIndex": 2, "existing": true, "title": "Eliminating Unhandled Rejections & Leaks", "sanityId": "lesson-js-2-2" },
+        { "orderIndex": 3, "existing": true, "title": "Building a Concurrency Limiter (Worker Pool)", "sanityId": "lesson-js-2-3" }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Async/Await, Error Recovery & Retry Strategy",
+      "lessons": [
+        { "orderIndex": 1, "existing": true, "title": "Async/Await Pitfalls & Return Patterns", "sanityId": "lesson-js-3-1" },
+        { "orderIndex": 2, "existing": true, "title": "Fixing Search Race Conditions with AbortController", "sanityId": "lesson-js-3-2" },
+        { "orderIndex": 3, "existing": true, "title": "Exponential Backoff & Jitter Retry Engine", "sanityId": "lesson-js-3-3" }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Async Iteration & Streaming Data",
+      "lessons": [
+        { "orderIndex": 1, "folder": "10-async-generators-pagination", "title": "Async generators & lazy pagination", "sanityId": "lesson-js-4-1" },
+        { "orderIndex": 2, "folder": "11-web-streams-ndjson", "title": "Web Streams: parsing data as it arrives", "sanityId": "lesson-js-4-2" },
+        { "orderIndex": 3, "folder": "12-async-queue-producer-consumer", "title": "Producer/consumer with a bounded async queue", "sanityId": "lesson-js-4-3" }
+      ]
+    },
+    {
+      "orderIndex": 5,
+      "title": "Events, Scheduling & UI Responsiveness",
+      "lessons": [
+        { "orderIndex": 1, "folder": "13-debounce-throttle", "title": "Debounce, throttle & rate-shaping user input", "sanityId": "lesson-js-5-1" },
+        { "orderIndex": 2, "folder": "14-scheduling-time-slicing", "title": "Scheduling work: priorities & time slicing", "sanityId": "lesson-js-5-2" },
+        { "orderIndex": 3, "folder": "15-event-listener-leaks", "title": "Event listeners, subscriptions & memory leaks", "sanityId": "lesson-js-5-3" }
+      ]
+    },
+    {
+      "orderIndex": 6,
+      "title": "Testing & Architecting Async Systems",
+      "lessons": [
+        { "orderIndex": 1, "folder": "16-testing-async-fake-timers", "title": "Testing async code deterministically", "sanityId": "lesson-js-6-1" },
+        { "orderIndex": 2, "folder": "17-async-state-machines", "title": "Modeling async flows as state machines", "sanityId": "lesson-js-6-2" },
+        { "orderIndex": 3, "folder": "18-capstone-sync-client", "title": "Capstone: a resilient offline-first sync client", "sanityId": "lesson-js-6-3" }
+      ]
+    }
+  ]
+}

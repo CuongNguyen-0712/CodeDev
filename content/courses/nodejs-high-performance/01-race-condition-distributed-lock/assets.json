@@ -1,0 +1,22 @@
+{
+  "images": {
+    "race-timeline": {
+      "publicId": "codedev/courses/nodejs-high-performance/01-race-condition-distributed-lock/race-timeline",
+      "url": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/q_auto/v1792165241/codedev/courses/nodejs-high-performance/01-race-condition-distributed-lock/race-timeline.png?_a=BAMAROWQ0",
+      "width": 1200,
+      "height": 560
+    },
+    "redis-lock-flow": {
+      "publicId": "codedev/courses/nodejs-high-performance/01-race-condition-distributed-lock/redis-lock-flow",
+      "url": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/q_auto/v1792165340/codedev/courses/nodejs-high-performance/01-race-condition-distributed-lock/redis-lock-flow.png?_a=BAMAROWQ0",
+      "width": 1200,
+      "height": 600
+    },
+    "ttl-expiry-hazard": {
+      "publicId": "codedev/courses/nodejs-high-performance/01-race-condition-distributed-lock/ttl-expiry-hazard",
+      "url": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/q_auto/v1792165343/codedev/courses/nodejs-high-performance/01-race-condition-distributed-lock/ttl-expiry-hazard.png?_a=BAMAROWQ0",
+      "width": 1200,
+      "height": 580
+    }
+  }
+}

@@ -1,0 +1,179 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nhp_311",
+      "name": "hot-key-expiry-stampede-quiz",
+      "type": "quiz",
+      "title": "What happens when the hot key expires?",
+      "description": "The flash-sale product page is served from Redis with plain cache-aside. Predict the moment its key expires.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 10,
+          "question": "During a flash sale, GET /products/sku-123 receives 3,000 requests per second, spread over 8 API instances. Each instance does:\n\nlet product = await redis.get(key);\nif (!product) {\n  product = await db.loadProduct(id);   // ~400 ms under load\n  await redis.set(key, product, { EX: 60 });\n}\n\nThe key expires at 20:00:00. What happens in the next half second?",
+          "explanation": "Every request that arrives before the first loader finishes also sees a miss. At 3,000 rps with a 400 ms query, that is roughly 1,200 requests, all running the same expensive query at once. The extra load makes the query slower, which widens the window and lets even more requests miss - the classic cache stampede (thundering herd). Redis does not coalesce misses for you; you need single-flight per key (per process, or a short Redis lock across processes), stale-while-revalidate, or early refresh.",
+          "options": [
+            { "text": "One request reloads the product; the others wait automatically because Redis serializes reads of the same key.", "correct": false },
+            { "text": "Each of the 8 instances sends exactly one query, because Node.js handles one request at a time per instance.", "correct": false },
+            { "text": "Every request that misses before the first reload finishes runs the query - on the order of a thousand concurrent queries, which slows the database and widens the window further.", "correct": true },
+            { "text": "Requests receive an error until the key is re-created, because cache-aside never reads the database on the hot path.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nhp_312",
+      "name": "single-flight-request-coalescing",
+      "type": "mini_coding",
+      "title": "Implement single-flight",
+      "description": "Write singleFlight(fn) returning load(key). Concurrent load(key) calls must share one in-flight call to fn per key, every waiter must see the same value or the same error, and the key must be forgotten once the call settles. The harness controls when the fake loader resolves and counts how often it was called.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "singleFlight.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Ten concurrent callers share one loader call",
+          "input": { "steps": [
+            { "op": "call", "key": "product:sku-123", "times": 10 },
+            { "op": "resolve", "key": "product:sku-123", "value": "v1" }
+          ] },
+          "expected": { "loaderCalls": { "product:sku-123": 1 }, "results": ["v1", "v1", "v1", "v1", "v1", "v1", "v1", "v1", "v1", "v1"] },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Different keys load independently",
+          "input": { "steps": [
+            { "op": "call", "key": "a", "times": 3 },
+            { "op": "call", "key": "b", "times": 2 },
+            { "op": "resolve", "key": "b", "value": "B" },
+            { "op": "resolve", "key": "a", "value": "A" }
+          ] },
+          "expected": { "loaderCalls": { "a": 1, "b": 1 }, "results": ["A", "A", "A", "B", "B"] },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A failure reaches every waiter",
+          "input": { "steps": [
+            { "op": "call", "key": "product:sku-123", "times": 3 },
+            { "op": "reject", "key": "product:sku-123", "message": "DB_TIMEOUT" }
+          ] },
+          "expected": { "loaderCalls": { "product:sku-123": 1 }, "results": ["error:DB_TIMEOUT", "error:DB_TIMEOUT", "error:DB_TIMEOUT"] },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "The key is forgotten after a successful load",
+          "input": { "steps": [
+            { "op": "call", "key": "k", "times": 2 },
+            { "op": "resolve", "key": "k", "value": "v1" },
+            { "op": "call", "key": "k", "times": 2 },
+            { "op": "resolve", "key": "k", "value": "v2" }
+          ] },
+          "expected": { "loaderCalls": { "k": 2 }, "results": ["v1", "v1", "v2", "v2"] },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "The key is forgotten after a failed load",
+          "input": { "steps": [
+            { "op": "call", "key": "k", "times": 2 },
+            { "op": "reject", "key": "k", "message": "BOOM" },
+            { "op": "call", "key": "k", "times": 1 },
+            { "op": "resolve", "key": "k", "value": "ok" }
+          ] },
+          "expected": { "loaderCalls": { "k": 2 }, "results": ["error:BOOM", "error:BOOM", "ok"] },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_nhp_313",
+      "name": "fix-cached-rejected-promise",
+      "type": "fix_bug",
+      "title": "Fix the cache that remembers a failure",
+      "description": "The FX-rate cache stores promises so concurrent checkouts share one provider call. After a two-second provider outage it kept serving the same error for the whole TTL. Fix createRateCache so a failed fetch is retried on the next call, while successful rates stay cached for ttlMs and concurrent misses still share one request.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "javascript",
+        "filePath": "rateCache.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A rate is served from the cache within its TTL",
+          "input": { "ttlMs": 600000, "steps": [
+            { "op": "get", "currency": "USD" },
+            { "op": "advance", "ms": 1000 },
+            { "op": "get", "currency": "USD" }
+          ] },
+          "expected": { "results": ["USD#1", "USD#1"], "fetchCalls": 1 },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A failed fetch is retried on the next call",
+          "input": { "ttlMs": 600000, "steps": [
+            { "op": "down" },
+            { "op": "get", "currency": "USD" },
+            { "op": "up" },
+            { "op": "get", "currency": "USD" }
+          ] },
+          "expected": { "results": ["error:FX_PROVIDER_DOWN", "USD#2"], "fetchCalls": 2 },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Concurrent checkouts share one provider call",
+          "input": { "ttlMs": 600000, "steps": [
+            { "op": "getMany", "currency": "USD", "count": 5 }
+          ] },
+          "expected": { "results": ["USD#1", "USD#1", "USD#1", "USD#1", "USD#1"], "fetchCalls": 1 },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Entries expire after the TTL",
+          "input": { "ttlMs": 60000, "steps": [
+            { "op": "get", "currency": "EUR" },
+            { "op": "advance", "ms": 60001 },
+            { "op": "get", "currency": "EUR" }
+          ] },
+          "expected": { "results": ["EUR#1", "EUR#2"], "fetchCalls": 2 },
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Concurrent waiters all see the failure, then the next checkout retries",
+          "input": { "ttlMs": 600000, "steps": [
+            { "op": "down" },
+            { "op": "getMany", "currency": "USD", "count": 3 },
+            { "op": "up" },
+            { "op": "get", "currency": "USD" },
+            { "op": "get", "currency": "USD" }
+          ] },
+          "expected": { "results": ["error:FX_PROVIDER_DOWN", "error:FX_PROVIDER_DOWN", "error:FX_PROVIDER_DOWN", "USD#2", "USD#2"], "fetchCalls": 2 },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

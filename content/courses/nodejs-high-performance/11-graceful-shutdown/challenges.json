@@ -1,0 +1,101 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nhp_411",
+      "name": "probes-and-shutdown-order-quiz",
+      "type": "quiz",
+      "title": "Readiness, liveness and the shutdown order",
+      "description": "Probes decide when Kubernetes sends traffic and when it restarts your pod. The shutdown order decides whether in-flight payments survive a deploy.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The payments API exposes two probe endpoints to Kubernetes. During a planned 40-second Postgres failover, what should the probes do?",
+          "explanation": "Readiness answers 'should this pod receive traffic right now?' - returning 503 while a hard dependency is down (or while shutting down) takes the pod out of the Service without killing it. Liveness answers 'is this process stuck and in need of a restart?' and should only test the process itself. If liveness checks the database, every pod fails it at the same time and Kubernetes restarts the whole fleet in a loop during the failover, turning a 40-second blip into an outage. Without probes, a hung process keeps receiving traffic forever.",
+          "options": [
+            { "text": "Liveness checks the database, so Kubernetes restarts the pods until the database is back.", "correct": false },
+            { "text": "Readiness returns 503 while the database is unreachable; liveness only checks that the process itself still responds.", "correct": true },
+            { "text": "Both probes call the same endpoint that runs SELECT 1, so they always agree.", "correct": false },
+            { "text": "Disable both probes: Kubernetes already notices crashed processes, and probes only add load.", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A rolling update sends SIGTERM to a payments pod (terminationGracePeriodSeconds: 30). Which sequence keeps in-flight payments safe?",
+          "explanation": "First make the pod unready and give the endpoints a few seconds to stop routing to it, then stop accepting new connections with server.close(). In-flight requests are allowed to finish, but under a deadline shorter than the grace period - otherwise SIGKILL arrives first and nothing is cleaned up. Only when no request can still need them are the database and Redis pools closed. Closing the pool first fails the very requests you are waiting for; exiting immediately drops them; waiting forever on keep-alive connections ends in SIGKILL.",
+          "options": [
+            { "text": "Close the database pool, then call server.close(), then exit.", "correct": false },
+            { "text": "Fail readiness and wait briefly, call server.close(), wait for in-flight requests up to a deadline below 30 s, close DB/Redis pools, exit 0.", "correct": true },
+            { "text": "Call process.exit(0) right away: the load balancer will retry the requests that were cut off.", "correct": false },
+            { "text": "Call server.close() and wait for every keep-alive connection to close by itself, however long it takes, then close the database.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_nhp_412",
+      "name": "fix-graceful-shutdown-order",
+      "type": "fix_bug",
+      "title": "Stop closing the pool under in-flight payments",
+      "description": "Every deploy fails a handful of payments with \"pool closed\", although the SIGTERM handler calls server.close() first. Fix createShutdown so the pool closes only after in-flight requests are done or the deadline has cut them off - and keep the deadline from firing after a clean drain.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "javascript",
+        "filePath": "shutdown.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "An in-flight payment finishes before the pool closes",
+          "input": { "timeoutMs": 5000, "sigtermAt": [100], "requests": [{ "id": "pay-1", "at": 0, "duration": 300 }] },
+          "expected": { "log": ["100 server.close", "300 pay-1 done", "300 db.end"], "result": { "drained": true } },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "New requests are refused after SIGTERM, running ones complete",
+          "input": { "timeoutMs": 5000, "sigtermAt": [100], "requests": [
+            { "id": "pay-1", "at": 0, "duration": 500 },
+            { "id": "pay-2", "at": 50, "duration": 300 },
+            { "id": "pay-3", "at": 200, "duration": 100 }
+          ] },
+          "expected": { "log": ["100 server.close", "200 pay-3 refused", "350 pay-2 done", "500 pay-1 done", "500 db.end"], "result": { "drained": true } },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A stuck request is cut off at the deadline",
+          "input": { "timeoutMs": 1000, "sigtermAt": [100], "requests": [
+            { "id": "pay-1", "at": 0, "duration": null },
+            { "id": "pay-2", "at": 0, "duration": 200 }
+          ] },
+          "expected": { "log": ["100 server.close", "200 pay-2 done", "1100 server.closeAllConnections", "1100 pay-1 dropped", "1100 db.end"], "result": { "drained": false } },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A second SIGTERM does not start a second shutdown",
+          "input": { "timeoutMs": 5000, "sigtermAt": [100, 250], "requests": [{ "id": "pay-1", "at": 0, "duration": 400 }] },
+          "expected": { "log": ["100 server.close", "400 pay-1 done", "400 db.end"], "result": { "drained": true } },
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "An idle server shuts down at once and the deadline never fires",
+          "input": { "timeoutMs": 2000, "sigtermAt": [100], "requests": [] },
+          "expected": { "log": ["100 server.close", "100 db.end"], "result": { "drained": true } },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

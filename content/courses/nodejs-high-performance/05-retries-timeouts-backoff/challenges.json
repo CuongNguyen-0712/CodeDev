@@ -1,0 +1,529 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nhp_211",
+      "name": "what-to-retry-quiz",
+      "type": "quiz",
+      "title": "What is worth retrying - and how often?",
+      "description": "Not every failure gets better with another attempt, and every retry is extra load on a service that may already be struggling.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "The checkout service calls a fraud-scoring API with POST /score. The call is read-only and safe to repeat. Which failures should the client retry automatically (with backoff)? Select all that apply.",
+          "explanation": "503 and a timeout are transient: the server was overloaded or the response never arrived, and a later attempt may succeed. 429 means 'slow down' - retry, but no sooner than the Retry-After header says. 400 means the request itself is invalid; sending the same bytes again will fail again and only adds load. Note that all of this is only safe because /score has no side effects - a timed-out POST /payments must not be blindly retried without an idempotency key.",
+          "options": [
+            {
+              "text": "503 Service Unavailable",
+              "correct": true
+            },
+            {
+              "text": "The request timed out after 800 ms (ETIMEDOUT)",
+              "correct": true
+            },
+            {
+              "text": "400 Bad Request: \"currency must be a 3-letter ISO code\"",
+              "correct": false
+            },
+            {
+              "text": "429 Too Many Requests with Retry-After: 2",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A request goes mobile app -> API gateway -> checkout service -> fraud API. The gateway, the checkout service and the fraud client each retry up to 3 times (4 attempts each) on timeouts. The fraud API slows down so every call to it times out. In the worst case, how many requests reach the fraud API for one tap of the user?",
+          "explanation": "Retries multiply across layers: each of the 4 gateway attempts makes the checkout service try 4 times, and each of those makes the fraud client try 4 times: 4 x 4 x 4 = 64 calls to a service that is already failing. This is how a slowdown becomes a retry storm. Retry at one layer only (usually the one closest to the failing dependency), cap retries with a retry budget, and let the outer layers fail fast.",
+          "options": [
+            {
+              "text": "4 - each layer's retries replace each other.",
+              "correct": false
+            },
+            {
+              "text": "12 - three layers with 4 attempts each.",
+              "correct": false
+            },
+            {
+              "text": "64 - the attempts multiply: 4 x 4 x 4.",
+              "correct": true
+            },
+            {
+              "text": "Unlimited - retries never stop while the API is slow.",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_nhp_212",
+      "name": "fix-leaking-timeout",
+      "type": "fix_bug",
+      "title": "Fix the timeout that leaks timers and sockets",
+      "description": "callWithTimeout() puts a deadline on the fraud-scoring call with Promise.race. It returns the right errors, yet under load the process leaks timers and keeps timed-out requests running. Fix it so the deadline timer is always cleaned up and a timed-out request is actually cancelled.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "javascript",
+        "filePath": "callWithTimeout.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A fast response leaves no timer behind",
+          "input": {
+            "calls": [
+              {
+                "latencyMs": 50,
+                "timeoutMs": 1000
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              {
+                "outcome": "ok",
+                "at": 50,
+                "aborted": false,
+                "pendingTimers": 0
+              }
+            ],
+            "leakedTimers": 0
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A slow call times out at the deadline and the request is aborted",
+          "input": {
+            "calls": [
+              {
+                "latencyMs": 5000,
+                "timeoutMs": 1000
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              {
+                "outcome": "ETIMEDOUT",
+                "at": 1000,
+                "aborted": true,
+                "pendingTimers": 0
+              }
+            ],
+            "leakedTimers": 0
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A fast failure is passed through and leaves no timer behind",
+          "input": {
+            "calls": [
+              {
+                "latencyMs": 20,
+                "timeoutMs": 1000,
+                "fail": "ECONNRESET"
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              {
+                "outcome": "ECONNRESET",
+                "at": 20,
+                "aborted": false,
+                "pendingTimers": 0
+              }
+            ],
+            "leakedTimers": 0
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Mixed traffic: nothing is left running after each call",
+          "input": {
+            "calls": [
+              {
+                "latencyMs": 30,
+                "timeoutMs": 800
+              },
+              {
+                "latencyMs": 3000,
+                "timeoutMs": 500
+              },
+              {
+                "latencyMs": 10,
+                "timeoutMs": 800,
+                "fail": "ECONNRESET"
+              },
+              {
+                "latencyMs": 100,
+                "timeoutMs": 800
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              {
+                "outcome": "ok",
+                "at": 30,
+                "aborted": false,
+                "pendingTimers": 0
+              },
+              {
+                "outcome": "ETIMEDOUT",
+                "at": 530,
+                "aborted": true,
+                "pendingTimers": 0
+              },
+              {
+                "outcome": "ECONNRESET",
+                "at": 540,
+                "aborted": false,
+                "pendingTimers": 0
+              },
+              {
+                "outcome": "ok",
+                "at": 640,
+                "aborted": false,
+                "pendingTimers": 0
+              }
+            ],
+            "leakedTimers": 0
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nhp_213",
+      "name": "circuit-breaker-states",
+      "type": "mini_coding",
+      "title": "Build a circuit breaker for the fraud-scoring client",
+      "description": "Write createCircuitBreaker(fn, { failureThreshold, resetTimeoutMs, halfOpenMaxCalls }, now). Open after failureThreshold consecutive failures and fail fast with code CIRCUIT_OPEN, let up to halfOpenMaxCalls trial calls through once resetTimeoutMs has passed, close on a successful trial and re-open on a failed one. The clock is injected.",
+      "difficulty": "hard",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "circuitBreaker.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Opens after N consecutive failures and then fails fast",
+          "input": {
+            "options": {
+              "failureThreshold": 3,
+              "resetTimeoutMs": 1000,
+              "halfOpenMaxCalls": 1
+            },
+            "steps": [
+              {
+                "op": "call",
+                "result": "ok"
+              },
+              {
+                "op": "call",
+                "result": "fail"
+              },
+              {
+                "op": "call",
+                "result": "fail"
+              },
+              {
+                "op": "call",
+                "result": "fail"
+              },
+              {
+                "op": "state"
+              },
+              {
+                "op": "call",
+                "result": "ok"
+              },
+              {
+                "op": "call",
+                "result": "ok"
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              "ok",
+              "fail",
+              "fail",
+              "fail",
+              "open",
+              "open",
+              "open"
+            ],
+            "calls": 4,
+            "state": "open"
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A success resets the consecutive-failure count",
+          "input": {
+            "options": {
+              "failureThreshold": 3,
+              "resetTimeoutMs": 1000,
+              "halfOpenMaxCalls": 1
+            },
+            "steps": [
+              {
+                "op": "call",
+                "result": "fail"
+              },
+              {
+                "op": "call",
+                "result": "fail"
+              },
+              {
+                "op": "call",
+                "result": "ok"
+              },
+              {
+                "op": "call",
+                "result": "fail"
+              },
+              {
+                "op": "call",
+                "result": "fail"
+              },
+              {
+                "op": "call",
+                "result": "ok"
+              },
+              {
+                "op": "call",
+                "result": "fail"
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              "fail",
+              "fail",
+              "ok",
+              "fail",
+              "fail",
+              "ok",
+              "fail"
+            ],
+            "calls": 7,
+            "state": "closed"
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "After resetTimeoutMs a successful trial closes the circuit",
+          "input": {
+            "options": {
+              "failureThreshold": 3,
+              "resetTimeoutMs": 1000,
+              "halfOpenMaxCalls": 1
+            },
+            "steps": [
+              {
+                "op": "call",
+                "result": "fail"
+              },
+              {
+                "op": "call",
+                "result": "fail"
+              },
+              {
+                "op": "call",
+                "result": "fail"
+              },
+              {
+                "op": "advance",
+                "ms": 999
+              },
+              {
+                "op": "call",
+                "result": "ok"
+              },
+              {
+                "op": "state"
+              },
+              {
+                "op": "advance",
+                "ms": 1
+              },
+              {
+                "op": "state"
+              },
+              {
+                "op": "call",
+                "result": "ok"
+              },
+              {
+                "op": "state"
+              },
+              {
+                "op": "call",
+                "result": "ok"
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              "fail",
+              "fail",
+              "fail",
+              "open",
+              "open",
+              "half_open",
+              "ok",
+              "closed",
+              "ok"
+            ],
+            "calls": 5,
+            "state": "closed"
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A failed trial re-opens the circuit for a full resetTimeoutMs",
+          "input": {
+            "options": {
+              "failureThreshold": 2,
+              "resetTimeoutMs": 500,
+              "halfOpenMaxCalls": 1
+            },
+            "steps": [
+              {
+                "op": "call",
+                "result": "fail"
+              },
+              {
+                "op": "call",
+                "result": "fail"
+              },
+              {
+                "op": "advance",
+                "ms": 500
+              },
+              {
+                "op": "call",
+                "result": "fail"
+              },
+              {
+                "op": "state"
+              },
+              {
+                "op": "call",
+                "result": "ok"
+              },
+              {
+                "op": "advance",
+                "ms": 499
+              },
+              {
+                "op": "call",
+                "result": "ok"
+              },
+              {
+                "op": "advance",
+                "ms": 1
+              },
+              {
+                "op": "call",
+                "result": "ok"
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              "fail",
+              "fail",
+              "fail",
+              "open",
+              "open",
+              "open",
+              "ok"
+            ],
+            "calls": 4,
+            "state": "closed"
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Half-open admits at most halfOpenMaxCalls concurrent trials",
+          "input": {
+            "options": {
+              "failureThreshold": 1,
+              "resetTimeoutMs": 100,
+              "halfOpenMaxCalls": 2
+            },
+            "steps": [
+              {
+                "op": "call",
+                "result": "fail"
+              },
+              {
+                "op": "advance",
+                "ms": 100
+              },
+              {
+                "op": "concurrent",
+                "calls": [
+                  {
+                    "result": "ok"
+                  },
+                  {
+                    "result": "ok"
+                  },
+                  {
+                    "result": "ok"
+                  }
+                ]
+              },
+              {
+                "op": "call",
+                "result": "ok"
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              "fail",
+              [
+                "ok",
+                "ok",
+                "open"
+              ],
+              "ok"
+            ],
+            "calls": 4,
+            "state": "closed"
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,131 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nhp_201",
+      "name": "idempotency-key-scope-quiz",
+      "type": "quiz",
+      "title": "Where does the Idempotency-Key come from?",
+      "description": "The mobile app retries POST /payments when the network drops. Decide how the client should generate the key so a retry is recognised as the same payment.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 10,
+          "question": "A customer taps \"Pay 80,000\" once. The app sends POST /payments, the response is lost on a flaky 4G connection, and the HTTP client retries twice. Later the same customer intentionally buys a second, identical 80,000 item. Which way of choosing the Idempotency-Key charges exactly once per purchase?",
+          "explanation": "The key identifies one payment intent, not one HTTP attempt. Generating a UUID when the user confirms the checkout and reusing it for every retry of that request lets the server recognise retries and replay the first response. A new key per attempt makes every retry look like a new payment. A key derived from wallet + amount collapses two genuine purchases of the same amount into one. A server-generated key cannot help, because the client never received the response that carried it.",
+          "options": [
+            { "text": "Generate a new UUID for every HTTP attempt, so each request is unique and easy to trace.", "correct": false },
+            { "text": "Generate a UUID once when the user confirms the checkout, store it with the pending payment and send the same value on every retry of that request.", "correct": true },
+            { "text": "Use a hash of walletId + amount + currency, so identical requests always get the same key.", "correct": false },
+            { "text": "Let the server generate the key and return it in the response; the client sends it back on retries.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nhp_202",
+      "name": "idempotency-store-handle",
+      "type": "mini_coding",
+      "title": "Build an idempotency store for POST /payments",
+      "description": "Write createIdempotencyStore({ ttlMs, now }) returning handle(key, fingerprint, fn). Run the charge at most once per key, replay the stored result on retries, answer 409 while the first request is still running, 422 when the key is reused with a different payload, free the key when the charge fails and expire completed keys after ttlMs.",
+      "difficulty": "hard",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "idempotency.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A retry with the same key replays the first response",
+          "input": { "steps": [
+            { "op": "call", "key": "pay-7f3a", "fp": "wallet-42:80000:VND", "amount": 80000 },
+            { "op": "call", "key": "pay-7f3a", "fp": "wallet-42:80000:VND", "amount": 80000 },
+            { "op": "call", "key": "pay-91c2", "fp": "wallet-42:80000:VND", "amount": 80000 }
+          ] },
+          "expected": { "results": ["executed:ch_1", "replayed:ch_1", "executed:ch_2"], "charges": 2 },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Reusing a key with a different payload is rejected with 422",
+          "input": { "steps": [
+            { "op": "call", "key": "pay-7f3a", "fp": "wallet-42:80000:VND", "amount": 80000 },
+            { "op": "call", "key": "pay-7f3a", "fp": "wallet-42:95000:VND", "amount": 95000 },
+            { "op": "call", "key": "pay-7f3a", "fp": "wallet-42:80000:VND", "amount": 80000 }
+          ] },
+          "expected": { "results": ["executed:ch_1", 422, "replayed:ch_1"], "charges": 1 },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A concurrent double tap charges once; the duplicate gets 409",
+          "input": { "steps": [
+            { "op": "concurrent", "calls": [
+              { "key": "pay-7f3a", "fp": "wallet-42:80000:VND", "amount": 80000 },
+              { "key": "pay-7f3a", "fp": "wallet-42:80000:VND", "amount": 80000 },
+              { "key": "pay-7f3a", "fp": "wallet-42:95000:VND", "amount": 95000 },
+              { "key": "pay-91c2", "fp": "wallet-42:80000:VND", "amount": 80000 }
+            ] },
+            { "op": "call", "key": "pay-7f3a", "fp": "wallet-42:80000:VND", "amount": 80000 }
+          ] },
+          "expected": { "results": [["executed:ch_1", 409, 422, "executed:ch_2"], "replayed:ch_1"], "charges": 2 },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A failed charge frees the key so the retry can run",
+          "input": { "steps": [
+            { "op": "call", "key": "pay-7f3a", "fp": "wallet-42:80000:VND", "amount": 80000, "fail": true },
+            { "op": "call", "key": "pay-7f3a", "fp": "wallet-42:80000:VND", "amount": 80000 },
+            { "op": "call", "key": "pay-7f3a", "fp": "wallet-42:80000:VND", "amount": 80000 }
+          ] },
+          "expected": { "results": ["error", "executed:ch_2", "replayed:ch_2"], "charges": 2 },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Completed keys expire after the TTL",
+          "input": { "ttlMs": 1000, "steps": [
+            { "op": "call", "key": "pay-7f3a", "fp": "wallet-42:80000:VND", "amount": 80000 },
+            { "op": "advance", "ms": 999 },
+            { "op": "call", "key": "pay-7f3a", "fp": "wallet-42:80000:VND", "amount": 80000 },
+            { "op": "advance", "ms": 2 },
+            { "op": "call", "key": "pay-7f3a", "fp": "wallet-42:95000:VND", "amount": 95000 }
+          ] },
+          "expected": { "results": ["executed:ch_1", "replayed:ch_1", "executed:ch_2"], "charges": 2 },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    },
+    {
+      "publicId": "chal_quiz_nhp_203",
+      "name": "idempotency-storage-quiz",
+      "type": "quiz",
+      "title": "Storing idempotency keys safely",
+      "description": "The idempotency check works on one instance. Now it has to survive several API instances, restarts and a busy database.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "points": 10,
+          "question": "The payments API runs on 6 instances and writes to PostgreSQL. You add a table idempotency_keys(merchant_id, key, request_hash, status, response, created_at). Which statements are correct? Select all that apply.",
+          "explanation": "A unique constraint on (merchant_id, key) is what makes the reservation safe across instances: only one INSERT wins, every other instance gets a conflict and treats the request as a duplicate. Writing the key and the payment in the same transaction means a crash cannot leave a payment without its key (or a key without its payment). An in-process Map only protects one instance, so a retry that lands on another instance charges again. Keys must expire eventually, but the TTL has to be longer than the client's whole retry window (often 24 hours) - a 5-second TTL lets a slow retry through as a brand new payment.",
+          "options": [
+            { "text": "A UNIQUE constraint on (merchant_id, key) lets exactly one instance reserve a key; the others get a conflict and treat the request as a duplicate.", "correct": true },
+            { "text": "Inserting the key row and the payment row in the same database transaction prevents a payment from existing without its key after a crash.", "correct": true },
+            { "text": "Keeping the keys in a Map inside each Node.js process is enough, because the load balancer always sends a retry to the same instance.", "correct": false },
+            { "text": "A TTL of about 5 seconds is ideal: retries happen quickly and the table stays small.", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

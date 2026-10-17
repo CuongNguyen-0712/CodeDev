@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#334155"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#dc2626"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#16a34a"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">The hot key expires: stampede vs single-flight</text>
+  <text x="40" y="82" font-size="16" fill="#475569">3,000 requests per second for one product; the database query takes 400 ms under load.</text>
+
+  <line x1="600" y1="110" x2="600" y2="560" stroke="#e2e8f0" stroke-width="2"/>
+
+  <!-- ===== Left: plain cache-aside ===== -->
+  <text x="40" y="132" font-size="18" font-weight="700" fill="#b91c1c">Plain cache-aside</text>
+
+  <rect x="50" y="165" width="130" height="34" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="115" y="187" font-size="13" text-anchor="middle" fill="#0f172a">GET sku-123</text>
+  <rect x="50" y="215" width="130" height="34" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="115" y="237" font-size="13" text-anchor="middle" fill="#0f172a">GET sku-123</text>
+  <rect x="50" y="265" width="130" height="34" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="115" y="287" font-size="13" text-anchor="middle" fill="#0f172a">GET sku-123</text>
+  <rect x="50" y="315" width="130" height="34" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="115" y="337" font-size="13" text-anchor="middle" fill="#0f172a">GET sku-123</text>
+  <rect x="50" y="365" width="130" height="34" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="115" y="387" font-size="13" text-anchor="middle" fill="#0f172a">GET sku-123</text>
+
+  <rect x="230" y="230" width="140" height="100" rx="12" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="300" y="268" font-size="17" font-weight="700" text-anchor="middle" fill="#0f172a">Redis</text>
+  <text x="300" y="294" font-size="14" text-anchor="middle" fill="#991b1b">MISS (expired)</text>
+
+  <line x1="180" y1="182" x2="230" y2="250" stroke="#334155" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="180" y1="232" x2="230" y2="265" stroke="#334155" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="180" y1="282" x2="230" y2="280" stroke="#334155" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="180" y1="332" x2="230" y2="295" stroke="#334155" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="180" y1="382" x2="230" y2="310" stroke="#334155" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="420" y="200" width="160" height="160" rx="14" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="500" y="240" font-size="17" font-weight="700" text-anchor="middle" fill="#0f172a">Products DB</text>
+  <text x="500" y="272" font-size="14" text-anchor="middle" fill="#991b1b">~1,200 identical</text>
+  <text x="500" y="292" font-size="14" text-anchor="middle" fill="#991b1b">SELECTs at once</text>
+  <text x="500" y="330" font-size="14" font-weight="700" text-anchor="middle" fill="#b91c1c">p99: 9 s</text>
+
+  <line x1="370" y1="245" x2="420" y2="235" stroke="#dc2626" stroke-width="1.5" marker-end="url(#arrow-red)"/>
+  <line x1="370" y1="262" x2="420" y2="258" stroke="#dc2626" stroke-width="1.5" marker-end="url(#arrow-red)"/>
+  <line x1="370" y1="280" x2="420" y2="280" stroke="#dc2626" stroke-width="1.5" marker-end="url(#arrow-red)"/>
+  <line x1="370" y1="298" x2="420" y2="302" stroke="#dc2626" stroke-width="1.5" marker-end="url(#arrow-red)"/>
+  <line x1="370" y1="315" x2="420" y2="325" stroke="#dc2626" stroke-width="1.5" marker-end="url(#arrow-red)"/>
+
+  <text x="50" y="440" font-size="14" fill="#334155">... ~1,200 requests arrive before the first reload finishes.</text>
+  <text x="50" y="464" font-size="14" fill="#334155">Each one misses and runs the same query. The extra load</text>
+  <text x="50" y="488" font-size="14" fill="#334155">makes the query slower, so even more requests miss.</text>
+
+  <!-- ===== Right: single-flight ===== -->
+  <text x="630" y="132" font-size="18" font-weight="700" fill="#15803d">Single-flight per key</text>
+
+  <rect x="640" y="165" width="130" height="34" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="705" y="187" font-size="13" text-anchor="middle" fill="#0f172a">GET sku-123</text>
+  <rect x="640" y="215" width="130" height="34" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="705" y="237" font-size="13" text-anchor="middle" fill="#0f172a">GET sku-123</text>
+  <rect x="640" y="265" width="130" height="34" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="705" y="287" font-size="13" text-anchor="middle" fill="#0f172a">GET sku-123</text>
+  <rect x="640" y="315" width="130" height="34" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="705" y="337" font-size="13" text-anchor="middle" fill="#0f172a">GET sku-123</text>
+  <rect x="640" y="365" width="130" height="34" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="705" y="387" font-size="13" text-anchor="middle" fill="#0f172a">GET sku-123</text>
+
+  <rect x="810" y="215" width="160" height="130" rx="12" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="890" y="250" font-size="17" font-weight="700" text-anchor="middle" fill="#0f172a">single-flight</text>
+  <text x="890" y="278" font-size="14" text-anchor="middle" fill="#0e7490">1 promise per key</text>
+  <text x="890" y="300" font-size="14" text-anchor="middle" fill="#0e7490">the rest await it</text>
+
+  <line x1="770" y1="182" x2="810" y2="245" stroke="#334155" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="770" y1="232" x2="810" y2="262" stroke="#334155" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="770" y1="282" x2="810" y2="280" stroke="#334155" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="770" y1="332" x2="810" y2="298" stroke="#334155" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="770" y1="382" x2="810" y2="315" stroke="#334155" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="1020" y="230" width="140" height="100" rx="14" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="1090" y="268" font-size="17" font-weight="700" text-anchor="middle" fill="#0f172a">Products DB</text>
+  <text x="1090" y="294" font-size="14" text-anchor="middle" fill="#166534">1 SELECT</text>
+
+  <line x1="970" y1="262" x2="1020" y2="262" stroke="#16a34a" stroke-width="2" marker-end="url(#arrow-green)"/>
+  <line x1="1020" y1="300" x2="970" y2="300" stroke="#16a34a" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrow-green)"/>
+
+  <text x="640" y="440" font-size="14" fill="#334155">One query per key per process. Every waiter gets the same</text>
+  <text x="640" y="464" font-size="14" fill="#334155">value - or the same error - and the key is forgotten once</text>
+  <text x="640" y="488" font-size="14" fill="#334155">the promise settles. Re-cache with TTL 60 s + random jitter.</text>
+</svg>

@@ -1,0 +1,53 @@
+{
+  "publicId": "nodejs-high-performance",
+  "title": "Node.js High Performance: Concurrency & Consistency",
+  "concept": "Keep a Node.js backend correct and fast under concurrent traffic: race conditions, atomicity, distributed locks and idempotency.",
+  "description": "A hands-on course for backend developers running Node.js services with real money and real traffic. Each lesson starts from a production incident, reproduces it, and fixes it with patterns you can ship: atomic updates and distributed locks, idempotent APIs and reliable messaging, rate limiting and backpressure, and the operational basics - CPU-bound work, graceful shutdown and observability.",
+  "image": "/icons/nodejs/nodejs-original.svg",
+  "level": "intermediate",
+  "durationMinutes": 270,
+  "instructor": "CodeDev Engineering Team",
+  "language": "JavaScript",
+  "category": "Backend Development",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 200,
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Concurrency & Data Consistency",
+      "lessons": [
+        { "orderIndex": 1, "folder": "01-race-condition-distributed-lock", "title": "Payment race conditions & distributed locks", "sanityId": "lesson-nodejs-hp-1-1" },
+        { "orderIndex": 2, "folder": "02-event-loop-async-pitfalls", "title": "The event loop under server load", "sanityId": "lesson-nodejs-hp-1-2" },
+        { "orderIndex": 3, "folder": "03-optimistic-concurrency-control", "title": "Optimistic concurrency: versions & compare-and-swap", "sanityId": "lesson-nodejs-hp-1-3" }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Idempotency & Reliable Delivery",
+      "lessons": [
+        { "orderIndex": 1, "folder": "04-idempotency-keys", "title": "Idempotent payment APIs with Idempotency-Key", "sanityId": "lesson-nodejs-hp-2-1" },
+        { "orderIndex": 2, "folder": "05-retries-timeouts-backoff", "title": "Timeouts, retry budgets & circuit breakers", "sanityId": "lesson-nodejs-hp-2-2" },
+        { "orderIndex": 3, "folder": "06-transactional-outbox", "title": "Transactional outbox & idempotent consumers", "sanityId": "lesson-nodejs-hp-2-3" }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Throughput & Backpressure",
+      "lessons": [
+        { "orderIndex": 1, "folder": "07-rate-limiting-token-bucket", "title": "Rate limiting with token buckets", "sanityId": "lesson-nodejs-hp-3-1" },
+        { "orderIndex": 2, "folder": "08-cache-stampede-single-flight", "title": "Caching without stampedes: single-flight & TTL jitter", "sanityId": "lesson-nodejs-hp-3-2" },
+        { "orderIndex": 3, "folder": "09-streams-backpressure", "title": "Streams & backpressure", "sanityId": "lesson-nodejs-hp-3-3" }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Running Node.js in Production",
+      "lessons": [
+        { "orderIndex": 1, "folder": "10-cpu-bound-work", "title": "CPU-bound work: worker threads, cluster & chunking", "sanityId": "lesson-nodejs-hp-4-1" },
+        { "orderIndex": 2, "folder": "11-graceful-shutdown", "title": "Graceful shutdown & health checks", "sanityId": "lesson-nodejs-hp-4-2" },
+        { "orderIndex": 3, "folder": "12-observability-event-loop-lag", "title": "Observability: event loop lag, p99 & load shedding", "sanityId": "lesson-nodejs-hp-4-3" }
+      ]
+    }
+  ]
+}

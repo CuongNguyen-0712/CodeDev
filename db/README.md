@@ -12,6 +12,7 @@ query modules in this folder (`*.db.js`, `roadmap.js`) via `lib/db.js`.
 | `triggers/` | One file per trigger (generated) |
 | `schema.dbml` | Full diagram for [dbdiagram.io](https://dbdiagram.io) (generated) |
 | `tools/export-schema.mjs` | Regenerates the generated folders/files from a live database |
+| `seeds/` | Course content seeds (generated from `content/courses/`, see [content/README.md](../content/README.md)) |
 | `backups/` | Local `pg_dump` files (git-ignored) |
 
 ## Schemas
@@ -37,7 +38,7 @@ query modules in this folder (`*.db.js`, `roadmap.js`) via `lib/db.js`.
 | `sign_up(7)` | `user.db.js` → `signUp` |
 | `log_in(1)` | `user.db.js` → `login` |
 | `auth_with_provider(7)` | `user.db.js` → `signUpWithProvider` |
-| `create_session(6)` | `user.db.js` → `createSession` (6th arg `_user_agent` may be NULL) |
+| `create_session(6)` | no longer called: sessions and refresh tokens are written by `session.db.js` (see `docs/auth.md`); kept for compatibility |
 | `learning_progress(2)` | `user.db.js` → `getLearningProgress` |
 | `register_course(2)` | `course.db.js` → `postRegister` |
 | `learning_lesson(2)` | `course.db.js` → `getLearning` |

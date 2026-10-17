@@ -1,0 +1,360 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_js_531",
+      "name": "remove-inline-listener-quiz",
+      "type": "quiz",
+      "title": "Why is the listener still there?",
+      "description": "The cleanup code calls removeEventListener, yet the handler keeps firing after the component is gone.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 10,
+          "question": "A chat panel registers and later cleans up a resize handler like this:\n\nwindow.addEventListener(\"resize\", () => layoutMessages(panel));\n// ... when the panel closes:\nwindow.removeEventListener(\"resize\", () => layoutMessages(panel));\n\nAfter closing and reopening the panel 20 times, layoutMessages runs 21 times per resize event. Why?",
+          "explanation": "removeEventListener only removes a listener that matches the one registered: same type, the same function object (compared by identity) and the same capture flag. Each arrow expression creates a brand-new function, so the removal call looks for a listener that was never added and silently does nothing. Every open adds one more listener, and each one keeps panel - and everything it references - alive. Keep a reference to the handler, or register with { signal } and abort the controller on cleanup.",
+          "options": [
+            {
+              "text": "removeEventListener is asynchronous; the listener is removed only after the next resize event.",
+              "correct": false
+            },
+            {
+              "text": "Each arrow function is a new function object, so the removal does not match the registered listener and removes nothing.",
+              "correct": true
+            },
+            {
+              "text": "Listeners on window can only be removed with { capture: true }.",
+              "correct": false
+            },
+            {
+              "text": "The browser deduplicates identical listeners, so the extra calls come from layoutMessages being called recursively.",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_js_532",
+      "name": "fix-leaking-widget-unmount",
+      "type": "fix_bug",
+      "title": "Fix the leaking widget unmount()",
+      "description": "mountWidget() wires a price widget to its root element, a shared price store and a polling interval. Its unmount() is supposed to undo all of it, but every route change leaves listeners and subscriptions behind. Fix unmount() so nothing the widget registered survives it, without touching other widgets, and so a second unmount() is harmless. Hint: check what each removal call actually matches, and what store.subscribe() returns.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "javascript",
+        "filePath": "mountWidget.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "One mount/unmount cycle leaves nothing behind",
+          "input": {
+            "steps": [
+              {
+                "op": "mount",
+                "as": "A"
+              },
+              {
+                "op": "interact"
+              },
+              {
+                "op": "report"
+              },
+              {
+                "op": "unmount",
+                "as": "A"
+              },
+              {
+                "op": "report"
+              }
+            ]
+          },
+          "expected": [
+            {
+              "listeners": 2,
+              "subscriptions": 1,
+              "intervals": 1,
+              "views": {
+                "A": {
+                  "clicks": 1,
+                  "closed": true,
+                  "price": 100,
+                  "polls": 1
+                }
+              }
+            },
+            {
+              "listeners": 0,
+              "subscriptions": 0,
+              "intervals": 0,
+              "views": {
+                "A": {
+                  "clicks": 1,
+                  "closed": true,
+                  "price": 100,
+                  "polls": 1
+                }
+              }
+            }
+          ],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Five route changes: no leaks pile up, unmounted widgets stop updating",
+          "input": {
+            "steps": [
+              {
+                "op": "mount",
+                "as": "page1"
+              },
+              {
+                "op": "interact"
+              },
+              {
+                "op": "unmount",
+                "as": "page1"
+              },
+              {
+                "op": "mount",
+                "as": "page2"
+              },
+              {
+                "op": "interact"
+              },
+              {
+                "op": "unmount",
+                "as": "page2"
+              },
+              {
+                "op": "mount",
+                "as": "page3"
+              },
+              {
+                "op": "interact"
+              },
+              {
+                "op": "unmount",
+                "as": "page3"
+              },
+              {
+                "op": "mount",
+                "as": "page4"
+              },
+              {
+                "op": "interact"
+              },
+              {
+                "op": "unmount",
+                "as": "page4"
+              },
+              {
+                "op": "mount",
+                "as": "page5"
+              },
+              {
+                "op": "interact"
+              },
+              {
+                "op": "unmount",
+                "as": "page5"
+              },
+              {
+                "op": "interact"
+              },
+              {
+                "op": "report"
+              }
+            ]
+          },
+          "expected": [
+            {
+              "listeners": 0,
+              "subscriptions": 0,
+              "intervals": 0,
+              "views": {
+                "page1": {
+                  "clicks": 1,
+                  "closed": true,
+                  "price": 100,
+                  "polls": 1
+                },
+                "page2": {
+                  "clicks": 1,
+                  "closed": true,
+                  "price": 101,
+                  "polls": 1
+                },
+                "page3": {
+                  "clicks": 1,
+                  "closed": true,
+                  "price": 102,
+                  "polls": 1
+                },
+                "page4": {
+                  "clicks": 1,
+                  "closed": true,
+                  "price": 103,
+                  "polls": 1
+                },
+                "page5": {
+                  "clicks": 1,
+                  "closed": true,
+                  "price": 104,
+                  "polls": 1
+                }
+              }
+            }
+          ],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Unmounting one widget does not break another",
+          "input": {
+            "steps": [
+              {
+                "op": "mount",
+                "as": "A"
+              },
+              {
+                "op": "mount",
+                "as": "B"
+              },
+              {
+                "op": "unmount",
+                "as": "B"
+              },
+              {
+                "op": "interact"
+              },
+              {
+                "op": "report"
+              }
+            ]
+          },
+          "expected": [
+            {
+              "listeners": 2,
+              "subscriptions": 1,
+              "intervals": 1,
+              "views": {
+                "A": {
+                  "clicks": 1,
+                  "closed": true,
+                  "price": 100,
+                  "polls": 1
+                },
+                "B": {
+                  "clicks": 0,
+                  "closed": false,
+                  "price": null,
+                  "polls": 0
+                }
+              }
+            }
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A second unmount() is harmless and later mounts still work",
+          "input": {
+            "steps": [
+              {
+                "op": "mount",
+                "as": "A"
+              },
+              {
+                "op": "interact"
+              },
+              {
+                "op": "unmount",
+                "as": "A"
+              },
+              {
+                "op": "unmount",
+                "as": "A"
+              },
+              {
+                "op": "mount",
+                "as": "B"
+              },
+              {
+                "op": "interact"
+              },
+              {
+                "op": "report"
+              }
+            ]
+          },
+          "expected": [
+            {
+              "listeners": 2,
+              "subscriptions": 1,
+              "intervals": 1,
+              "views": {
+                "A": {
+                  "clicks": 1,
+                  "closed": true,
+                  "price": 100,
+                  "polls": 1
+                },
+                "B": {
+                  "clicks": 1,
+                  "closed": true,
+                  "price": 101,
+                  "polls": 1
+                }
+              }
+            }
+          ],
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    },
+    {
+      "publicId": "chal_quiz_js_533",
+      "name": "heap-snapshot-detached-dom-quiz",
+      "type": "quiz",
+      "title": "Reading a heap snapshot",
+      "description": "You have taken heap snapshots before and after navigating away from the chat view. Interpret what DevTools shows.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "points": 10,
+          "question": "In the chat app you open a conversation, go back to the inbox, and repeat 10 times. A heap snapshot filtered by \"Detached\" shows 10 \"Detached <div class=conversation>\" trees. The retainers panel for one of them shows: Window -> socket (WebSocket) -> listeners -> onMessage (closure) -> context -> listEl. Which statements are correct? (Select all that apply.)",
+          "explanation": "A detached tree is a DOM subtree removed from the document but still reachable from JavaScript, so the garbage collector cannot free it. The retainer path is read from the GC root toward the object: the long-lived WebSocket holds a message listener whose closure captured listEl, which pins the whole conversation subtree - ten opens, ten copies. Forcing GC does not help while that path exists. The fix is to remove that listener (or unsubscribe) when the conversation view is torn down; removing the div from the DOM is exactly what already happened, and is not enough on its own.",
+          "options": [
+            {
+              "text": "Each conversation view is still reachable from a live object, so the garbage collector is not allowed to free it.",
+              "correct": true
+            },
+            {
+              "text": "The leak is the message listener on the long-lived socket whose closure references listEl; removing it on unmount releases the tree.",
+              "correct": true
+            },
+            {
+              "text": "Clicking the \"Collect garbage\" button before taking the snapshot would free these trees, so they are not a real leak.",
+              "correct": false
+            },
+            {
+              "text": "Calling listEl.remove() on unmount fixes it, because detached nodes are freed as soon as they leave the document.",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

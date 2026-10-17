@@ -1,0 +1,18 @@
+{
+  "name": "wallet-race-lab",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "CodeDev lab: reproduce and fix a double-spend race in a wallet payment API",
+  "scripts": {
+    "start": "node src/server.js",
+    "attack": "node scripts/double-spend.js",
+    "start:locked": "USE_LOCK=1 node src/server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "ioredis": "^5.4.1"
+  }
+}

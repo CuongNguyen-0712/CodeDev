@@ -69,7 +69,7 @@ Client: `hooks/usePusherChannel.js` (đếm tham chiếu kênh, tự refetch khi
 - [ ] Theo dõi tỉ lệ cache hit/miss (đếm trong `remember()`), log khi Redis vào trạng thái degraded.
 
 ### 2.4 Dọn dẹp
-- [ ] Xóa `components/home/manage.jsx` (không còn được import; logout ở đây chưa thu hồi session phía server).
+- [x] Xóa `components/home/manage.jsx` (không còn được import; logout ở đây chưa thu hồi session phía server).
 - [ ] Gom các route kiểu `app/api/get/*`, `app/api/post/*` về REST theo tài nguyên (`/api/teams`, `/api/friends`…), dùng chung `requireAuthSession` + `errorResponse`.
 - [ ] `app/api/post/sendEmail` đang là stub (trả 501).
 

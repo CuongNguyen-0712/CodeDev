@@ -1,0 +1,37 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_nhp_122",
+      "key": "challenges/javascript/chal_fix_nhp_122/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "updateWithRetry.js",
+      "size": 1732
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_fix_nhp_122",
+      "key": "challenges/javascript/chal_fix_nhp_122/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 2281
+    },
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_nhp_123",
+      "key": "challenges/javascript/chal_coding_nhp_123/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "updateProductPrice.js",
+      "size": 1714
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_coding_nhp_123",
+      "key": "challenges/javascript/chal_coding_nhp_123/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 2223
+    }
+  ]
+}

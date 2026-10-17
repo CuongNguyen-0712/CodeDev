@@ -1,0 +1,37 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_js_422",
+      "key": "challenges/javascript/chal_fix_js_422/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "readAllText.js",
+      "size": 867
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_fix_js_422",
+      "key": "challenges/javascript/chal_fix_js_422/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 1463
+    },
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_js_423",
+      "key": "challenges/javascript/chal_coding_js_423/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "ndjsonParser.js",
+      "size": 1071
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_coding_js_423",
+      "key": "challenges/javascript/chal_coding_js_423/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 1268
+    }
+  ]
+}

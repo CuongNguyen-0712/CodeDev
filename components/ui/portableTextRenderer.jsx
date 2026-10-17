@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { PortableText } from "@portabletext/react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { syntaxTheme } from "@/lib/syntaxTheme";
 import createImageUrlBuilder from "@sanity/image-url";
 
 import {
@@ -166,7 +166,7 @@ function CodeBlock({ value }) {
             >
                 <SyntaxHighlighter
                     language={normalizedLang}
-                    style={vscDarkPlus}
+                    style={syntaxTheme}
                     useInlineStyles={true}
                     showLineNumbers={Boolean(code && code.split("\n").length > 3)}
                     lineNumberStyle={{
@@ -185,11 +185,11 @@ function CodeBlock({ value }) {
                         background: "transparent",
                         fontSize: "13px",
                         lineHeight: "1.65",
-                        fontFamily: 'var(--font-jetbrains-mono), Consolas, Monaco, "Courier New", monospace',
+                        fontFamily: "var(--font-code)",
                     }}
                     codeTagProps={{
                         style: {
-                            fontFamily: 'var(--font-jetbrains-mono), Consolas, Monaco, "Courier New", monospace',
+                            fontFamily: "var(--font-code)",
                         },
                     }}
                 >
@@ -277,6 +277,27 @@ function ImageBlock({ value }) {
     );
 }
 
+// Image hosted on Cloudinary (lesson diagrams); width/height reserve space to avoid layout shift.
+function CloudinaryImage({ value }) {
+    const { url, alt, caption, width, height } = value || {};
+    if (!url || !url.startsWith("https://res.cloudinary.com/")) return null;
+
+    return (
+        <figure className="lesson_image_wrapper">
+            <img
+                src={url}
+                alt={alt || ""}
+                width={width || undefined}
+                height={height || undefined}
+                loading="lazy"
+                decoding="async"
+                className="lesson_image h-auto"
+            />
+            {caption && <figcaption className="lesson_image_caption">{caption}</figcaption>}
+        </figure>
+    );
+}
+
 function VideoEmbed({ value }) {
     const { url, title } = value || {};
     if (!url) return null;
@@ -309,7 +330,9 @@ function VideoEmbed({ value }) {
     );
 }
 
-export default function PortableTextRenderer({ value }) {
+// `types`: extra block renderers supplied by the page (e.g. `challengeEmbed` in a lesson).
+// Unknown block types without a renderer are skipped.
+export default function PortableTextRenderer({ value, types = null }) {
     if (!value || (Array.isArray(value) && value.length === 0)) {
         return null;
     }
@@ -317,12 +340,16 @@ export default function PortableTextRenderer({ value }) {
     return (
         <PortableText
             value={value}
+            onMissingComponent={false}
             components={{
                 types: {
                     codeBlock: ({ value }) => <CodeBlock value={value} />,
                     callout: ({ value }) => <Callout value={value} />,
                     image: ({ value }) => <ImageBlock value={value} />,
+                    cloudinaryImage: ({ value }) => <CloudinaryImage value={value} />,
                     video: ({ value }) => <VideoEmbed value={value} />,
+                    challengeEmbed: () => null,
+                    ...types,
                 },
                 marks: {
                     strong: ({ children }) => <strong className="lesson_strong">{children}</strong>,

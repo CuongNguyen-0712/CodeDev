@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#334155"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Bounded async queue: producers wait when full, consumers wait when empty</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The buffer absorbs bursts; its capacity caps memory, and a pending push() is the backpressure signal.</text>
+
+  <!-- producers -->
+  <text x="40" y="128" font-size="15" font-weight="700" fill="#0e7490">Producers</text>
+  <rect x="40" y="140" width="230" height="70" rx="12" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="155" y="170" font-size="16" font-weight="700" text-anchor="middle" fill="#0f172a">Thumbnail worker</text>
+  <text x="155" y="194" font-size="13" text-anchor="middle" fill="#0e7490">await queue.push(blob)</text>
+
+  <rect x="40" y="230" width="230" height="70" rx="12" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="155" y="260" font-size="16" font-weight="700" text-anchor="middle" fill="#0f172a">Paste handler</text>
+  <text x="155" y="284" font-size="13" text-anchor="middle" fill="#0e7490">await queue.push(blob)</text>
+
+  <line x1="272" y1="175" x2="416" y2="175" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="272" y1="265" x2="416" y2="265" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="344" y="163" font-size="13" text-anchor="middle" fill="#475569">push()</text>
+  <text x="344" y="253" font-size="13" text-anchor="middle" fill="#475569">push()</text>
+
+  <!-- queue -->
+  <text x="600" y="128" font-size="15" font-weight="700" text-anchor="middle" fill="#7c3aed">buffer, capacity 3 (full)</text>
+  <rect x="420" y="140" width="360" height="160" rx="14" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <rect x="440" y="185" width="100" height="70" rx="10" fill="#ffffff" stroke="#a78bfa" stroke-width="2"/>
+  <text x="490" y="226" font-size="15" text-anchor="middle" fill="#0f172a">img 7</text>
+  <rect x="550" y="185" width="100" height="70" rx="10" fill="#ffffff" stroke="#a78bfa" stroke-width="2"/>
+  <text x="600" y="226" font-size="15" text-anchor="middle" fill="#0f172a">img 8</text>
+  <rect x="660" y="185" width="100" height="70" rx="10" fill="#ffffff" stroke="#a78bfa" stroke-width="2"/>
+  <text x="710" y="226" font-size="15" text-anchor="middle" fill="#0f172a">img 9</text>
+  <text x="490" y="172" font-size="12" text-anchor="middle" fill="#6d28d9">oldest</text>
+  <text x="710" y="172" font-size="12" text-anchor="middle" fill="#6d28d9">newest</text>
+
+  <!-- waiting pushers -->
+  <line x1="600" y1="302" x2="600" y2="326" stroke="#d97706" stroke-width="2" stroke-dasharray="5 4"/>
+  <rect x="420" y="328" width="360" height="62" rx="12" fill="#fffbeb" stroke="#d97706" stroke-width="2" stroke-dasharray="6 5"/>
+  <text x="600" y="354" font-size="15" font-weight="700" text-anchor="middle" fill="#92400e">waiting producers: push(img 10)</text>
+  <text x="600" y="376" font-size="13" text-anchor="middle" fill="#b45309">resolves when a pull() frees a slot</text>
+
+  <!-- consumers -->
+  <text x="930" y="128" font-size="15" font-weight="700" fill="#16a34a">Consumers</text>
+  <rect x="930" y="140" width="230" height="70" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="1045" y="170" font-size="16" font-weight="700" text-anchor="middle" fill="#0f172a">Uploader 1</text>
+  <text x="1045" y="194" font-size="13" text-anchor="middle" fill="#166534">for await (const job of queue)</text>
+
+  <rect x="930" y="230" width="230" height="70" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="1045" y="260" font-size="16" font-weight="700" text-anchor="middle" fill="#0f172a">Uploader 2</text>
+  <text x="1045" y="284" font-size="13" text-anchor="middle" fill="#166534">for await (const job of queue)</text>
+
+  <line x1="782" y1="175" x2="926" y2="175" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="782" y1="265" x2="926" y2="265" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="854" y="163" font-size="13" text-anchor="middle" fill="#475569">pull()</text>
+  <text x="854" y="253" font-size="13" text-anchor="middle" fill="#475569">pull()</text>
+
+  <!-- states -->
+  <text x="40" y="440" font-size="17" font-weight="700" fill="#0f172a">The three states every operation has to handle</text>
+
+  <rect x="40" y="456" width="360" height="110" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="60" y="488" font-size="16" font-weight="700" fill="#166534">Has room</text>
+  <text x="60" y="516" font-size="14" fill="#0f172a">push() resolves at once</text>
+  <text x="60" y="542" font-size="14" fill="#0f172a">pull() takes the oldest item</text>
+
+  <rect x="420" y="456" width="360" height="110" rx="12" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="440" y="488" font-size="16" font-weight="700" fill="#92400e">Full</text>
+  <text x="440" y="516" font-size="14" fill="#0f172a">push() waits - the producer pauses</text>
+  <text x="440" y="542" font-size="14" fill="#0f172a">memory stays bounded by capacity</text>
+
+  <rect x="800" y="456" width="360" height="110" rx="12" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="820" y="488" font-size="16" font-weight="700" fill="#1d4ed8">Empty or closed</text>
+  <text x="820" y="516" font-size="14" fill="#0f172a">pull() waits for the next push()</text>
+  <text x="820" y="542" font-size="14" fill="#0f172a">after close(): drain, then { done: true }</text>
+</svg>

@@ -1,0 +1,169 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_js_511",
+      "name": "debounce-or-throttle-quiz",
+      "type": "quiz",
+      "title": "Debounce, throttle or neither?",
+      "description": "Three handlers on the same product page fire far too often. Pick the right rate-shaping tool for each one.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The product editor autosaves the description while the merchant types. Saving on every keystroke sends 300 PUT requests per paragraph. Product wants: save once the merchant pauses, and never lose more than 5 seconds of typing if they type non-stop for minutes. Which setup fits?",
+          "explanation": "A trailing debounce waits for the pause and then saves the latest text, which is exactly what an autosave needs. On its own it would never fire for a user who never pauses, so maxWait bounds how long unsaved text can pile up. A throttle would save mid-word on a fixed rhythm and could miss the final keystrokes unless it has a trailing call; a leading debounce saves the first keystroke of a burst, which is the least useful version of the text.",
+          "options": [
+            { "text": "Trailing debounce (e.g. 1000 ms) with maxWait 5000 ms, saving the latest value.", "correct": true },
+            { "text": "Leading debounce: save on the first keystroke, ignore the rest of the burst.", "correct": false },
+            { "text": "Throttle at 5000 ms without a trailing call, so at most one save per 5 seconds.", "correct": false },
+            { "text": "No rate shaping: just cancel the previous PUT with AbortController on each keystroke.", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Two more handlers on the page: (1) a sticky header that shrinks according to the current scroll position, (2) the \"Place order\" button, which customers sometimes double-click and create two orders. Which pairing is right?",
+          "explanation": "Scroll-driven UI must keep updating while the user scrolls, so it needs a regular cadence: throttle it (ideally aligned to animation frames) - a debounce would freeze the header until scrolling stops. A double-click guard must act on the FIRST click immediately and swallow the clicks that follow within a short window: that is a leading-edge debounce with no trailing call. The server should still be idempotent, but the UI guard removes most duplicates.",
+          "options": [
+            { "text": "(1) trailing debounce 200 ms, (2) trailing debounce 500 ms.", "correct": false },
+            { "text": "(1) throttle to about one update per frame, (2) leading debounce with trailing disabled.", "correct": true },
+            { "text": "(1) leading debounce, (2) throttle at 1000 ms with a trailing call.", "correct": false },
+            { "text": "(1) throttle, (2) trailing debounce, so the order is placed after the user stops clicking.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_js_512",
+      "name": "debounce-leading-trailing-maxwait",
+      "type": "mini_coding",
+      "title": "Build debounce with leading, trailing, maxWait, cancel and flush",
+      "description": "Write debounce(fn, waitMs, options, timers). Calls in a burst collapse into a leading and/or trailing invocation; the trailing one uses the latest arguments; maxWait forces an invocation during a never-ending burst; cancel() drops the pending call and flush() runs it now. Use only the injected timers - the tests replay a timeline on a fake clock and compare every invocation (time and arguments).",
+      "difficulty": "hard",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "debounce.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Trailing debounce saves the latest text once the user pauses",
+          "input": {
+            "waitMs": 300,
+            "timeline": [
+              { "call": "h" }, { "advance": 50 }, { "call": "he" }, { "advance": 50 }, { "call": "hel" },
+              { "advance": 900 }, { "call": "hello" }
+            ]
+          },
+          "expected": [
+            { "at": 400, "args": ["hel"] },
+            { "at": 1300, "args": ["hello"] }
+          ],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Leading only: the first click runs, the double clicks are swallowed",
+          "input": {
+            "waitMs": 500,
+            "options": { "leading": true, "trailing": false },
+            "timeline": [
+              { "call": "click-1" }, { "advance": 100 }, { "call": "click-2" }, { "advance": 150 }, { "call": "click-3" },
+              { "advance": 1000 }, { "call": "click-4" }
+            ]
+          },
+          "expected": [
+            { "at": 0, "args": ["click-1"] },
+            { "at": 1250, "args": ["click-4"] }
+          ],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "maxWait saves a user who never stops typing",
+          "input": {
+            "waitMs": 1000,
+            "options": { "maxWait": 3000 },
+            "timeline": [
+              { "call": "k0" }, { "advance": 400 }, { "call": "k1" }, { "advance": 400 }, { "call": "k2" }, { "advance": 400 },
+              { "call": "k3" }, { "advance": 400 }, { "call": "k4" }, { "advance": 400 }, { "call": "k5" }, { "advance": 400 },
+              { "call": "k6" }, { "advance": 400 }, { "call": "k7" }, { "advance": 400 }, { "call": "k8" }, { "advance": 400 },
+              { "call": "k9" }, { "advance": 400 }, { "call": "k10" }
+            ]
+          },
+          "expected": [
+            { "at": 3000, "args": ["k7"] },
+            { "at": 5000, "args": ["k10"] }
+          ],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "flush() saves now, cancel() drops the pending draft for good",
+          "input": {
+            "waitMs": 300,
+            "timeline": [
+              { "call": "draft-1" }, { "advance": 100 }, { "flush": true },
+              { "advance": 50 }, { "call": "draft-2" }, { "advance": 100 }, { "cancel": true }, { "flush": true },
+              { "advance": 1000 }, { "call": "draft-3" }
+            ]
+          },
+          "expected": [
+            { "at": 100, "args": ["draft-1"] },
+            { "at": 1550, "args": ["draft-3"] }
+          ],
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Leading + trailing: a single call is not invoked twice",
+          "input": {
+            "waitMs": 200,
+            "options": { "leading": true },
+            "timeline": [
+              { "call": "a" }, { "advance": 50 }, { "call": "b" }, { "advance": 50 }, { "call": "c" },
+              { "advance": 900 }, { "call": "d" }
+            ]
+          },
+          "expected": [
+            { "at": 0, "args": ["a"] },
+            { "at": 300, "args": ["c"] },
+            { "at": 1000, "args": ["d"] }
+          ],
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    },
+    {
+      "publicId": "chal_quiz_js_513",
+      "name": "debounced-typeahead-stale-results-quiz",
+      "type": "quiz",
+      "title": "Is a debounce enough for typeahead?",
+      "description": "The search box is debounced now. Support still reports wrong results. Find out why.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 10,
+          "question": "A store search box calls search(query) through a 250 ms trailing debounce. A user types \"lap\", pauses 300 ms, then types \"laptop\". The request for \"lap\" takes 900 ms, the one for \"laptop\" 200 ms. Both render results when they resolve. What does the user see, and what is the fix?",
+          "explanation": "Debounce reduces how many requests start, but once two requests are in flight nothing orders their responses. \"laptop\" resolves first and renders, then the slow \"lap\" response arrives and overwrites it with stale results. Rate shaping and cancellation solve different problems: keep the debounce, and also abort the previous request (or ignore any response that is not for the latest query) - the latest-request-wins pattern from the AbortController lesson.",
+          "options": [
+            { "text": "Results for \"laptop\" - the debounce guarantees only the latest query is sent.", "correct": false },
+            { "text": "Results for \"laptop\", then replaced by stale \"lap\" results. Keep the debounce and also abort or ignore the superseded request.", "correct": true },
+            { "text": "Nothing: the second call cancels the first request automatically because they share the debounced function.", "correct": false },
+            { "text": "Results for \"lap\" only. Increase the wait to 1000 ms so the two requests can never overlap.", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

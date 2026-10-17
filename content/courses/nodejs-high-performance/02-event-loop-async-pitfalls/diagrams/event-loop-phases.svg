@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#334155"/>
+    </marker>
+    <marker id="arrow-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#d97706"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">One loop, one thread: where your callbacks run</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The loop visits each phase in turn. After every single callback, both microtask queues are drained.</text>
+
+  <!-- loop-back path (next iteration) -->
+  <path d="M1075 160 L1075 128 L155 128 L155 152" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#arrow)"/>
+  <rect x="520" y="114" width="190" height="28" rx="14" fill="#ffffff"/>
+  <text x="615" y="133" font-size="14" text-anchor="middle" fill="#64748b">next loop iteration</text>
+
+  <!-- phases -->
+  <rect x="60" y="160" width="190" height="90" rx="12" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="155" y="192" font-size="17" font-weight="700" text-anchor="middle" fill="#0f172a">1. timers</text>
+  <text x="155" y="216" font-size="13" text-anchor="middle" fill="#0e7490">setTimeout,</text>
+  <text x="155" y="234" font-size="13" text-anchor="middle" fill="#0e7490">setInterval callbacks</text>
+
+  <rect x="290" y="160" width="190" height="90" rx="12" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="385" y="192" font-size="17" font-weight="700" text-anchor="middle" fill="#0f172a">2. pending</text>
+  <text x="385" y="216" font-size="13" text-anchor="middle" fill="#475569">deferred system</text>
+  <text x="385" y="234" font-size="13" text-anchor="middle" fill="#475569">I/O callbacks</text>
+
+  <rect x="520" y="160" width="190" height="90" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="615" y="192" font-size="17" font-weight="700" text-anchor="middle" fill="#0f172a">3. poll</text>
+  <text x="615" y="216" font-size="13" text-anchor="middle" fill="#166534">sockets, fs, DB replies;</text>
+  <text x="615" y="234" font-size="13" text-anchor="middle" fill="#166534">waits here when idle</text>
+
+  <rect x="750" y="160" width="190" height="90" rx="12" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="845" y="192" font-size="17" font-weight="700" text-anchor="middle" fill="#0f172a">4. check</text>
+  <text x="845" y="216" font-size="13" text-anchor="middle" fill="#6d28d9">setImmediate</text>
+  <text x="845" y="234" font-size="13" text-anchor="middle" fill="#6d28d9">callbacks</text>
+
+  <rect x="980" y="160" width="190" height="90" rx="12" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="1075" y="192" font-size="17" font-weight="700" text-anchor="middle" fill="#0f172a">5. close</text>
+  <text x="1075" y="216" font-size="13" text-anchor="middle" fill="#475569">'close' event</text>
+  <text x="1075" y="234" font-size="13" text-anchor="middle" fill="#475569">callbacks</text>
+
+  <!-- phase arrows -->
+  <line x1="252" y1="205" x2="286" y2="205" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="482" y1="205" x2="516" y2="205" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="712" y1="205" x2="746" y2="205" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="942" y1="205" x2="976" y2="205" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- links to microtasks -->
+  <line x1="155" y1="252" x2="155" y2="304" stroke="#d97706" stroke-width="2" stroke-dasharray="5 5" marker-end="url(#arrow-amber)"/>
+  <line x1="385" y1="252" x2="385" y2="304" stroke="#d97706" stroke-width="2" stroke-dasharray="5 5" marker-end="url(#arrow-amber)"/>
+  <line x1="615" y1="252" x2="615" y2="304" stroke="#d97706" stroke-width="2" stroke-dasharray="5 5" marker-end="url(#arrow-amber)"/>
+  <line x1="845" y1="252" x2="845" y2="304" stroke="#d97706" stroke-width="2" stroke-dasharray="5 5" marker-end="url(#arrow-amber)"/>
+  <line x1="1075" y1="252" x2="1075" y2="304" stroke="#d97706" stroke-width="2" stroke-dasharray="5 5" marker-end="url(#arrow-amber)"/>
+
+  <!-- microtask band -->
+  <rect x="60" y="308" width="1110" height="104" rx="14" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="84" y="340" font-size="17" font-weight="700" fill="#92400e">Microtasks - drained completely after every callback, before the loop moves on</text>
+  <rect x="84" y="358" width="420" height="38" rx="19" fill="#ffffff" stroke="#f59e0b" stroke-width="2"/>
+  <text x="294" y="383" font-size="15" text-anchor="middle" fill="#0f172a">first: process.nextTick queue</text>
+  <line x1="510" y1="377" x2="556" y2="377" stroke="#d97706" stroke-width="2" marker-end="url(#arrow-amber)"/>
+  <rect x="562" y="358" width="584" height="38" rx="19" fill="#ffffff" stroke="#f59e0b" stroke-width="2"/>
+  <text x="854" y="383" font-size="15" text-anchor="middle" fill="#0f172a">then: promise jobs (.then callbacks, code after await)</text>
+
+  <!-- blocking -->
+  <rect x="60" y="446" width="540" height="116" rx="12" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="84" y="478" font-size="17" font-weight="700" fill="#b91c1c">Synchronous code is never interrupted</text>
+  <text x="84" y="506" font-size="15" fill="#7f1d1d">While a callback runs, no phase advances:</text>
+  <text x="84" y="530" font-size="15" fill="#7f1d1d">timers fire late and every socket waits.</text>
+
+  <rect x="630" y="446" width="540" height="116" rx="12" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="654" y="478" font-size="17" font-weight="700" fill="#0f172a">Example: one 400 ms JSON.parse()</text>
+  <text x="654" y="506" font-size="15" fill="#475569">Every other request on this process waits 400 ms,</text>
+  <text x="654" y="530" font-size="15" fill="#475569">including health checks and DB replies already received.</text>
+</svg>

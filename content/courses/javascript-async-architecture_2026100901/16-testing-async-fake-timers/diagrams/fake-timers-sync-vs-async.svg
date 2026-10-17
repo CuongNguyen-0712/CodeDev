@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="580" viewBox="0 0 1200 580" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="580" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Advancing fake time: synchronous vs async</text>
+  <text x="40" y="82" font-size="16" fill="#475569">pollJob awaits getStatus() and only then calls setTimeout(poll, 1000). The test advances the clock by 3000 ms.</text>
+
+  <!-- grid lines (behind everything) -->
+  <line x1="150" y1="150" x2="150" y2="462" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="6 6"/>
+  <line x1="380" y1="150" x2="380" y2="462" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="6 6"/>
+  <line x1="610" y1="150" x2="610" y2="462" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="6 6"/>
+  <line x1="840" y1="150" x2="840" y2="462" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="6 6"/>
+
+  <!-- lane 1: synchronous -->
+  <text x="40" y="138" font-size="17" font-weight="700" fill="#0f172a">Synchronous: vi.advanceTimersByTime(3000)</text>
+  <rect x="90" y="166" width="120" height="58" rx="10" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="150" y="191" font-size="15" text-anchor="middle" fill="#0f172a">poll #1</text>
+  <text x="150" y="211" font-size="13" text-anchor="middle" fill="#0e7490">t = 0</text>
+
+  <rect x="222" y="177" width="612" height="36" rx="8" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+  <text x="528" y="200" font-size="14" text-anchor="middle" fill="#334155">clock jumps 0 → 3000 ms in one go - no poll timer exists yet, nothing fires</text>
+
+  <rect x="848" y="166" width="104" height="58" rx="10" fill="#fffbeb" stroke="#f59e0b" stroke-width="2"/>
+  <text x="900" y="190" font-size="13" text-anchor="middle" fill="#92400e">continuation</text>
+  <text x="900" y="209" font-size="13" text-anchor="middle" fill="#92400e">runs too late</text>
+
+  <rect x="975" y="166" width="185" height="58" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="1067" y="191" font-size="15" font-weight="700" text-anchor="middle" fill="#b91c1c">getStatus: 1 call</text>
+  <text x="1067" y="211" font-size="13" text-anchor="middle" fill="#b91c1c">expected 4 - test fails</text>
+
+  <!-- lane 2: async -->
+  <text x="40" y="308" font-size="17" font-weight="700" fill="#0f172a">Async: await vi.advanceTimersByTimeAsync(3000)</text>
+  <rect x="90" y="336" width="120" height="58" rx="10" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="150" y="361" font-size="15" text-anchor="middle" fill="#0f172a">poll #1</text>
+  <text x="150" y="381" font-size="13" text-anchor="middle" fill="#0e7490">t = 0</text>
+
+  <rect x="220" y="351" width="90" height="28" rx="14" fill="#fffbeb" stroke="#f59e0b" stroke-width="2"/>
+  <text x="265" y="370" font-size="12" text-anchor="middle" fill="#92400e">setTimeout</text>
+
+  <rect x="320" y="336" width="120" height="58" rx="10" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="380" y="361" font-size="15" text-anchor="middle" fill="#0f172a">poll #2</text>
+  <text x="380" y="381" font-size="13" text-anchor="middle" fill="#0e7490">t = 1000</text>
+
+  <rect x="450" y="351" width="90" height="28" rx="14" fill="#fffbeb" stroke="#f59e0b" stroke-width="2"/>
+  <text x="495" y="370" font-size="12" text-anchor="middle" fill="#92400e">setTimeout</text>
+
+  <rect x="550" y="336" width="120" height="58" rx="10" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="610" y="361" font-size="15" text-anchor="middle" fill="#0f172a">poll #3</text>
+  <text x="610" y="381" font-size="13" text-anchor="middle" fill="#0e7490">t = 2000</text>
+
+  <rect x="680" y="351" width="90" height="28" rx="14" fill="#fffbeb" stroke="#f59e0b" stroke-width="2"/>
+  <text x="725" y="370" font-size="12" text-anchor="middle" fill="#92400e">setTimeout</text>
+
+  <rect x="780" y="336" width="120" height="58" rx="10" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="840" y="361" font-size="15" text-anchor="middle" fill="#0f172a">poll #4</text>
+  <text x="840" y="381" font-size="13" text-anchor="middle" fill="#0e7490">t = 3000</text>
+
+  <rect x="975" y="336" width="185" height="58" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="1067" y="361" font-size="15" font-weight="700" text-anchor="middle" fill="#166534">getStatus: 4 calls</text>
+  <text x="1067" y="381" font-size="13" text-anchor="middle" fill="#166534">yields between timers</text>
+
+  <text x="150" y="428" font-size="13" fill="#64748b">after each timer the advance yields, the await resumes and schedules the next poll</text>
+
+  <!-- time axis -->
+  <line x1="150" y1="470" x2="860" y2="470" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="860,464 872,470 860,476" fill="#94a3b8"/>
+  <text x="150" y="494" font-size="14" text-anchor="middle" fill="#64748b">0 ms</text>
+  <text x="380" y="494" font-size="14" text-anchor="middle" fill="#64748b">1000 ms</text>
+  <text x="610" y="494" font-size="14" text-anchor="middle" fill="#64748b">2000 ms</text>
+  <text x="840" y="494" font-size="14" text-anchor="middle" fill="#64748b">3000 ms</text>
+  <text x="900" y="475" font-size="14" fill="#64748b">fake time</text>
+
+  <!-- legend -->
+  <rect x="40" y="530" width="18" height="18" rx="4" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="68" y="544" font-size="14" fill="#334155">timer callback</text>
+  <rect x="220" y="530" width="18" height="18" rx="4" fill="#fffbeb" stroke="#f59e0b" stroke-width="2"/>
+  <text x="248" y="544" font-size="14" fill="#334155">promise continuation (microtask)</text>
+  <rect x="510" y="530" width="18" height="18" rx="4" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+  <text x="538" y="544" font-size="14" fill="#334155">clock moved without yielding</text>
+</svg>

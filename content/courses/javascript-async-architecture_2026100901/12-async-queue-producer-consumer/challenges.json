@@ -1,0 +1,132 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_js_431",
+      "name": "bounded-queue-backpressure-quiz",
+      "type": "quiz",
+      "title": "What does a full queue do to the producer?",
+      "description": "A bounded queue is only useful if you know what happens at its edges: when it is full, when it is empty and when it is closed.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The thumbnail step and the uploader are decoupled with a bounded queue. No consumer has started yet:\n\nconst queue = createAsyncQueue({ capacity: 2 });\nfor (const file of files) {           // 5 photos\n  const blob = await makeThumbnail(file);\n  await queue.push(blob);\n  console.log('queued', file.name);\n}\n\nWhat happens?",
+          "explanation": "push() resolves immediately for the first two thumbnails because the queue has room. The third push() returns a promise that stays pending until a consumer pulls, so the loop is suspended at that await: 'queued' is logged twice, and the producer stops creating thumbnails. At most three blobs exist - two in the buffer and the one waiting inside the pending push(). That pause is backpressure: memory is bounded by the capacity instead of by the number of files. Nothing is dropped and nothing throws; a full queue is a normal state, not an error.",
+          "options": [
+            { "text": "All 5 are queued; the queue drops the two oldest thumbnails to stay at capacity 2.", "correct": false },
+            { "text": "'queued' is logged twice; the third push() stays pending, so the loop pauses until a consumer pulls - at most three thumbnails exist.", "correct": true },
+            { "text": "The third push() throws a QUEUE_FULL error, and the loop ends with an unhandled rejection.", "correct": false },
+            { "text": "All 5 are logged as 'queued' immediately; capacity only limits how many items a consumer can pull at once.", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "The user leaves the chat while uploads are still queued, and the app calls queue.close(). Which behaviours make close() safe for a producer/consumer queue? (Select all that apply.)",
+          "explanation": "Closing means \"no new items\", not \"throw away what was accepted\": items already in the queue are still delivered, and consumers see the end of the stream ({ done: true }) only after it is drained - otherwise accepted uploads vanish silently. A consumer waiting on an empty queue must be woken with { done: true }, or its for await loop hangs forever and leaks whatever it holds. A push() after close() is a programming error or a race the producer must learn about, so it should reject rather than drop the item quietly. And the end of the stream is a normal outcome: rejecting pending pulls would force every consumer to treat a clean shutdown as a failure.",
+          "options": [
+            { "text": "Items already in the queue are still delivered; consumers get { done: true } only after the queue has drained.", "correct": true },
+            { "text": "A consumer that is waiting in pull() on an empty queue is woken with { done: true } instead of waiting forever.", "correct": true },
+            { "text": "push() after close() resolves quietly and discards the item, so producers never need error handling.", "correct": false },
+            { "text": "close() rejects every pending pull() with an error, so consumers notice the shutdown faster.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_js_432",
+      "name": "bounded-async-queue",
+      "type": "mini_coding",
+      "title": "Build a bounded async queue",
+      "description": "Write createAsyncQueue({ capacity }) with push(item) (resolves when there is room), pull() (resolves with { value, done: false } or waits while empty), close() (accepted items still drain, then { done: true }; push after close rejects with QUEUE_CLOSED) and [Symbol.asyncIterator] for for await consumers. The harness interleaves producers and consumers step by step and logs exactly when each push and pull settles.",
+      "difficulty": "hard",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "asyncQueue.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "push resolves at once while there is room; pull returns items in FIFO order",
+          "input": { "capacity": 2, "steps": [
+            { "op": "push", "value": "a" },
+            { "op": "push", "value": "b" },
+            { "op": "pull" },
+            { "op": "pull" }
+          ] },
+          "expected": ["push a","push a -> ok","push b","push b -> ok","pull#1","pull#1 -> a","pull#2","pull#2 -> b"],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A full queue makes push wait until a consumer pulls",
+          "input": { "capacity": 1, "steps": [
+            { "op": "push", "value": "a" },
+            { "op": "push", "value": "b" },
+            { "op": "push", "value": "c" },
+            { "op": "pull" },
+            { "op": "pull" },
+            { "op": "pull" }
+          ] },
+          "expected": ["push a","push a -> ok","push b","push c","pull#1","push b -> ok","pull#1 -> a","pull#2","push c -> ok","pull#2 -> b","pull#3","pull#3 -> c"],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "pull waits while the queue is empty and receives the next pushed item",
+          "input": { "capacity": 1, "steps": [
+            { "op": "pull" },
+            { "op": "pull" },
+            { "op": "push", "value": "x" },
+            { "op": "push", "value": "y" },
+            { "op": "push", "value": "z" },
+            { "op": "push", "value": "w" }
+          ] },
+          "expected": ["pull#1","pull#2","push x","pull#1 -> x","push x -> ok","push y","pull#2 -> y","push y -> ok","push z","push z -> ok","push w","push w -> pending"],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "close: accepted items still drain, then done; push after close is rejected",
+          "input": { "capacity": 2, "steps": [
+            { "op": "push", "value": "a" },
+            { "op": "push", "value": "b" },
+            { "op": "push", "value": "c" },
+            { "op": "close" },
+            { "op": "push", "value": "d" },
+            { "op": "pull" },
+            { "op": "pull" },
+            { "op": "pull" },
+            { "op": "pull" }
+          ] },
+          "expected": ["push a","push a -> ok","push b","push b -> ok","push c","close","push d","push d -> rejected QUEUE_CLOSED","pull#1","push c -> ok","pull#1 -> a","pull#2","pull#2 -> b","pull#3","pull#3 -> c","pull#4","pull#4 -> done"],
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "close wakes waiting consumers and ends a for await consumer",
+          "input": { "capacity": 1, "steps": [
+            { "op": "pull" },
+            { "op": "iterate" },
+            { "op": "push", "value": "a" },
+            { "op": "push", "value": "b" },
+            { "op": "push", "value": "c" },
+            { "op": "pull" },
+            { "op": "close" },
+            { "op": "pull" }
+          ] },
+          "expected": ["pull#1","iterate","push a","pull#1 -> a","push a -> ok","push b","push b -> ok","iter b","push c","push c -> ok","iter c","pull#2","close","pull#2 -> done","iter end","pull#3","pull#3 -> done"],
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

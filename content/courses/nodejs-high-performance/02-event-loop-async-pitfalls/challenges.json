@@ -1,0 +1,510 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nhp_111",
+      "name": "event-loop-under-load-quiz",
+      "type": "quiz",
+      "title": "What stalls every request on the instance?",
+      "description": "One process, one thread, many concurrent requests. Predict which code freezes all of them before you read on.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "To 'flush metrics as fast as possible', a developer adds this to the order API:\n\nfunction drain() {\n  if (buffer.length > 0) metricsBatch.push(buffer.shift());\n  process.nextTick(drain);\n}\ndrain();\n\nEach call does almost no work. What happens to incoming HTTP requests on this instance?",
+          "explanation": "process.nextTick callbacks run before the event loop is allowed to move on, and the queue is drained until it is empty. drain() always queues itself again, so the queue is never empty and the loop never reaches the poll phase where new connections and request data are handled. No exception is thrown - this is not stack recursion - the process just spins at 100% CPU and stops answering, health checks included. Promise callbacks that keep queuing promise callbacks starve the loop the same way; use setImmediate or a timer for work that should repeat.",
+          "options": [
+            {
+              "text": "They are served normally: nextTick callbacks are interleaved between requests.",
+              "correct": false
+            },
+            {
+              "text": "The instance stops answering: the nextTick queue never empties, so the loop never gets to the phase that reads sockets.",
+              "correct": true
+            },
+            {
+              "text": "Node.js throws RangeError: Maximum call stack size exceeded after a few thousand calls, and the process restarts.",
+              "correct": false
+            },
+            {
+              "text": "Only timers are delayed; incoming requests are still handled because network I/O runs on libuv's thread pool.",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Inside an Express request handler of a payments API, which of these delay EVERY other in-flight request handled by the same Node.js process while they run? Select all that apply.",
+          "explanation": "JSON.parse and crypto.pbkdf2Sync are synchronous: they run on the main thread and nothing else - no timer, no socket read, no other request - can run until they return. A slow database query or HTTP call is different: while it is awaited, the handler is suspended and the event loop keeps serving other requests. Slow I/O hurts only the request waiting on it; slow synchronous code hurts everyone.",
+          "options": [
+            {
+              "text": "JSON.parse() of a 60 MB settlement file uploaded in the request body",
+              "correct": true
+            },
+            {
+              "text": "await db.query(...) on a report query that takes 2 seconds in PostgreSQL",
+              "correct": false
+            },
+            {
+              "text": "crypto.pbkdf2Sync(pin, salt, 600000, 64, 'sha512') to verify a wallet PIN",
+              "correct": true
+            },
+            {
+              "text": "await fetch(providerUrl) to a payment provider that takes 3 seconds to answer",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_nhp_112",
+      "name": "fix-foreach-async-settlement",
+      "type": "fix_bug",
+      "title": "Fix the settlement total that is always 0",
+      "description": "settleMerchant() sums each order's amount minus its gateway fee, but the nightly report says every merchant earned 0. Fix it so the function resolves only after every fee has been looked up and the total is correct. Hint: what does Array.prototype.forEach do with the promise your async callback returns?",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "javascript",
+        "filePath": "settlement.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Three orders: net is the sum of amount minus fee",
+          "input": {
+            "merchantId": "m-101",
+            "orders": [
+              {
+                "id": "o1",
+                "amountCents": 120000
+              },
+              {
+                "id": "o2",
+                "amountCents": 45000
+              },
+              {
+                "id": "o3",
+                "amountCents": 9900
+              }
+            ],
+            "fees": {
+              "o1": 3480,
+              "o2": 1305,
+              "o3": 287
+            }
+          },
+          "expected": {
+            "merchantId": "m-101",
+            "orderCount": 3,
+            "netCents": 169828
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "One order with a slow fee lookup",
+          "input": {
+            "merchantId": "m-102",
+            "orders": [
+              {
+                "id": "p1",
+                "amountCents": 50000
+              }
+            ],
+            "fees": {
+              "p1": 1450
+            },
+            "delays": {
+              "p1": 20
+            }
+          },
+          "expected": {
+            "merchantId": "m-102",
+            "orderCount": 1,
+            "netCents": 48550
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A merchant with no orders tonight settles to 0",
+          "input": {
+            "merchantId": "m-103",
+            "orders": [],
+            "fees": {}
+          },
+          "expected": {
+            "merchantId": "m-103",
+            "orderCount": 0,
+            "netCents": 0
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Six orders whose fees arrive out of order",
+          "input": {
+            "merchantId": "m-104",
+            "orders": [
+              {
+                "id": "a",
+                "amountCents": 10000
+              },
+              {
+                "id": "b",
+                "amountCents": 20000
+              },
+              {
+                "id": "c",
+                "amountCents": 30000
+              },
+              {
+                "id": "d",
+                "amountCents": 40000
+              },
+              {
+                "id": "e",
+                "amountCents": 50000
+              },
+              {
+                "id": "f",
+                "amountCents": 60000
+              }
+            ],
+            "fees": {
+              "a": 290,
+              "b": 580,
+              "c": 870,
+              "d": 1160,
+              "e": 1450,
+              "f": 1740
+            },
+            "delays": {
+              "a": 9,
+              "b": 1,
+              "c": 6,
+              "d": 2,
+              "e": 8,
+              "f": 4
+            }
+          },
+          "expected": {
+            "merchantId": "m-104",
+            "orderCount": 6,
+            "netCents": 203910
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nhp_113",
+      "name": "batch-loader-n-plus-one",
+      "type": "mini_coding",
+      "title": "Implement a DataLoader-style batch loader",
+      "description": "Write createBatchLoader(batchFn, { maxBatchSize }). Every load(key) made in the same tick must be coalesced into one batchFn(keys) call (flush with queueMicrotask), duplicate keys are sent once, batches are split at maxBatchSize, and each caller gets its own value. batchFn returns an array aligned with keys where an Error instance means that key failed: reject only those callers. The harness counts batchFn calls and records their key lists.",
+      "difficulty": "hard",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "batchLoader.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Loads made in the same tick become one batchFn call",
+          "input": {
+            "data": {
+              "p1": "Mug",
+              "p2": "Tee",
+              "p3": "Cap",
+              "p4": "Tote",
+              "p5": "Pin"
+            },
+            "rounds": [
+              [
+                "p1",
+                "p2",
+                "p3"
+              ]
+            ]
+          },
+          "expected": {
+            "results": [
+              [
+                "Mug",
+                "Tee",
+                "Cap"
+              ]
+            ],
+            "calls": [
+              [
+                "p1",
+                "p2",
+                "p3"
+              ]
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A duplicate key is fetched once and every caller gets the value",
+          "input": {
+            "data": {
+              "p1": "Mug",
+              "p2": "Tee",
+              "p3": "Cap",
+              "p4": "Tote",
+              "p5": "Pin"
+            },
+            "rounds": [
+              [
+                "p1",
+                "p2",
+                "p1",
+                "p3",
+                "p2"
+              ]
+            ]
+          },
+          "expected": {
+            "results": [
+              [
+                "Mug",
+                "Tee",
+                "Mug",
+                "Cap",
+                "Tee"
+              ]
+            ],
+            "calls": [
+              [
+                "p1",
+                "p2",
+                "p3"
+              ]
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A missing product rejects only its own callers",
+          "input": {
+            "data": {
+              "p1": "Mug",
+              "p2": "Tee",
+              "p3": "Cap",
+              "p4": "Tote",
+              "p5": "Pin"
+            },
+            "rounds": [
+              [
+                "p1",
+                "p9",
+                "p2",
+                "p9"
+              ]
+            ]
+          },
+          "expected": {
+            "results": [
+              [
+                "Mug",
+                {
+                  "error": "NOT_FOUND:p9"
+                },
+                "Tee",
+                {
+                  "error": "NOT_FOUND:p9"
+                }
+              ]
+            ],
+            "calls": [
+              [
+                "p1",
+                "p9",
+                "p2"
+              ]
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "maxBatchSize splits a large batch, keys keep their order",
+          "input": {
+            "data": {
+              "p1": "Mug",
+              "p2": "Tee",
+              "p3": "Cap",
+              "p4": "Tote",
+              "p5": "Pin"
+            },
+            "maxBatchSize": 2,
+            "rounds": [
+              [
+                "p1",
+                "p2",
+                "p3",
+                "p4",
+                "p5"
+              ]
+            ]
+          },
+          "expected": {
+            "results": [
+              [
+                "Mug",
+                "Tee",
+                "Cap",
+                "Tote",
+                "Pin"
+              ]
+            ],
+            "calls": [
+              [
+                "p1",
+                "p2"
+              ],
+              [
+                "p3",
+                "p4"
+              ],
+              [
+                "p5"
+              ]
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Later ticks are new batches; a failed batchFn rejects every caller in it",
+          "input": {
+            "data": {
+              "p1": "Mug",
+              "p2": "Tee",
+              "p3": "Cap",
+              "p4": "Tote",
+              "p5": "Pin"
+            },
+            "failBatchContaining": "p3",
+            "batchError": "DB_TIMEOUT",
+            "rounds": [
+              [
+                "p1",
+                "p2"
+              ],
+              [
+                "p3",
+                "p1"
+              ]
+            ]
+          },
+          "expected": {
+            "results": [
+              [
+                "Mug",
+                "Tee"
+              ],
+              [
+                {
+                  "error": "DB_TIMEOUT"
+                },
+                {
+                  "error": "DB_TIMEOUT"
+                }
+              ]
+            ],
+            "calls": [
+              [
+                "p1",
+                "p2"
+              ],
+              [
+                "p3",
+                "p1"
+              ]
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    },
+    {
+      "publicId": "chal_quiz_nhp_114",
+      "name": "promise-all-rejection-quiz",
+      "type": "quiz",
+      "title": "When one of 500 charges fails",
+      "description": "Promise.all and unhandled rejections behave differently from what most people expect. Answer before reading the section.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "A refund job runs:\n\nconst receipts = await Promise.all(orders.map((o) => provider.refund(o)));\n\nThere are 500 orders. One refund rejects after 50 ms; the other 499 each take about 2 seconds. Which statements are true? Select all that apply.",
+          "explanation": "Promise.all is fail-fast: it rejects with the first rejection, here after about 50 ms, and you lose the results of everything else. It cannot cancel anything - JavaScript promises have no cancellation, so the other 499 refunds keep running and many of them will succeed. After a failure the job must therefore reconcile what actually happened (or use Promise.allSettled to collect every outcome). Collecting all errors in an AggregateError is what Promise.any does when every promise rejects, not Promise.all.",
+          "options": [
+            {
+              "text": "The await rejects after about 50 ms with that refund's error.",
+              "correct": true
+            },
+            {
+              "text": "The other 499 refunds are cancelled automatically when Promise.all rejects.",
+              "correct": false
+            },
+            {
+              "text": "The other refunds keep running and may succeed, so the job must find out which ones went through.",
+              "correct": true
+            },
+            {
+              "text": "Promise.all waits for all 500 and then rejects with an AggregateError listing every failure.",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "On Node.js 20, a background task does sendReceiptEmail(order) without await or .catch(), and the promise rejects. The process has no 'unhandledRejection' listener. What happens?",
+          "explanation": "Since Node.js 15 the default --unhandled-rejections mode is 'throw': an unhandled rejection is raised as an uncaught exception and the process exits. Every request in flight on that instance fails with it. Always await or attach .catch() to background promises, and register process.on('unhandledRejection') only as a last-resort logger, not as a fix.",
+          "options": [
+            {
+              "text": "Nothing visible: the rejection is silently ignored.",
+              "correct": false
+            },
+            {
+              "text": "A warning is printed and the process keeps running.",
+              "correct": false
+            },
+            {
+              "text": "The rejection is raised as an uncaught exception and the process crashes, taking every in-flight request with it.",
+              "correct": true
+            },
+            {
+              "text": "Node.js retries the rejected promise once before giving up.",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

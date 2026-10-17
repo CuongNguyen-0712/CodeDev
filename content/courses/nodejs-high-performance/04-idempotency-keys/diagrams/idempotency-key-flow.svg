@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#334155"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="620" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Idempotency-Key: one payment per key, whatever the client resends</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The server looks the key up before charging. Only the first request for a key ever reaches the payment provider.</text>
+
+  <!-- client -->
+  <rect x="40" y="265" width="210" height="100" rx="12" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="145" y="300" font-size="17" font-weight="700" text-anchor="middle" fill="#0f172a">Client</text>
+  <text x="145" y="324" font-size="14" text-anchor="middle" fill="#6d28d9">POST /payments</text>
+  <text x="145" y="346" font-size="13" text-anchor="middle" fill="#6d28d9">Idempotency-Key: pay-7f3a</text>
+
+  <line x1="250" y1="315" x2="306" y2="315" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- lookup -->
+  <rect x="310" y="255" width="230" height="120" rx="14" fill="#f8fafc" stroke="#334155" stroke-width="2"/>
+  <text x="425" y="292" font-size="17" font-weight="700" text-anchor="middle" fill="#0f172a">Look up the key</text>
+  <text x="425" y="318" font-size="14" text-anchor="middle" fill="#475569">idempotency_keys</text>
+  <text x="425" y="340" font-size="14" text-anchor="middle" fill="#475569">compare request_hash</text>
+
+  <!-- branch arrows -->
+  <path d="M540 290 C 620 240, 640 170, 716 162" fill="none" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M540 305 C 620 295, 650 275, 716 272" fill="none" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M540 325 C 620 335, 650 380, 716 382" fill="none" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M540 345 C 620 400, 640 485, 716 492" fill="none" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- outcomes -->
+  <rect x="720" y="120" width="440" height="84" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="742" y="154" font-size="16" font-weight="700" fill="#0f172a">Key not found</text>
+  <text x="742" y="182" font-size="14" fill="#166534">reserve as in_flight, charge, store response, 201</text>
+
+  <rect x="720" y="230" width="440" height="84" rx="12" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="742" y="264" font-size="16" font-weight="700" fill="#0f172a">Key in flight (first request still running)</text>
+  <text x="742" y="292" font-size="14" fill="#92400e">409 IDEMPOTENCY_KEY_IN_PROGRESS, retry later</text>
+
+  <rect x="720" y="340" width="440" height="84" rx="12" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="742" y="374" font-size="16" font-weight="700" fill="#0f172a">Completed, same request_hash</text>
+  <text x="742" y="402" font-size="14" fill="#0e7490">replay the stored response: same 201, same chargeId</text>
+
+  <rect x="720" y="450" width="440" height="84" rx="12" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="742" y="484" font-size="16" font-weight="700" fill="#0f172a">Same key, different request_hash</text>
+  <text x="742" y="512" font-size="14" fill="#991b1b">422 IDEMPOTENCY_KEY_REUSED, never charge</text>
+
+  <!-- footer -->
+  <text x="40" y="584" font-size="14" fill="#64748b">Key row: UNIQUE (merchant_id, key)  ·  request_hash = sha256(method + path + canonical body)  ·  expires after 24 h</text>
+</svg>

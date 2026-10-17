@@ -1,0 +1,463 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_fix_js_521",
+      "name": "fix-time-slicing-loop",
+      "type": "fix_bug",
+      "title": "Fix the chunked processing loop",
+      "description": "processInChunks() is supposed to keep each slice of work under budgetMs and give the main thread back in between, but the dashboard still freezes. Fix the slicing so every slice runs until the budget is spent and then really yields. Hint: what does the loop do with the promise yieldToMain() returns, and when does a slice start?",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "javascript",
+        "filePath": "processInChunks.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "6 items of 4 ms with a 10 ms budget: two slices",
+          "input": {
+            "items": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "costMs": 4,
+            "budgetMs": 10
+          },
+          "expected": {
+            "slices": [
+              [
+                1,
+                2,
+                3
+              ],
+              [
+                4,
+                5,
+                6
+              ]
+            ],
+            "results": [
+              10,
+              20,
+              30,
+              40,
+              50,
+              60
+            ]
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "10 items of 3 ms with an 8 ms budget: four slices",
+          "input": {
+            "items": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "costMs": 3,
+            "budgetMs": 8
+          },
+          "expected": {
+            "slices": [
+              [
+                1,
+                2,
+                3
+              ],
+              [
+                4,
+                5,
+                6
+              ],
+              [
+                7,
+                8,
+                9
+              ],
+              [
+                10
+              ]
+            ],
+            "results": [
+              10,
+              20,
+              30,
+              40,
+              50,
+              60,
+              70,
+              80,
+              90,
+              100
+            ]
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Work that fits the budget runs in one slice",
+          "input": {
+            "items": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "costMs": 2,
+            "budgetMs": 100
+          },
+          "expected": {
+            "slices": [
+              [
+                1,
+                2,
+                3,
+                4,
+                5
+              ]
+            ],
+            "results": [
+              10,
+              20,
+              30,
+              40,
+              50
+            ]
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Items longer than the budget get a slice each",
+          "input": {
+            "items": [
+              1,
+              2,
+              3
+            ],
+            "costMs": 12,
+            "budgetMs": 10
+          },
+          "expected": {
+            "slices": [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            "results": [
+              10,
+              20,
+              30
+            ]
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "No items: no slices",
+          "input": {
+            "items": [],
+            "costMs": 5,
+            "budgetMs": 10
+          },
+          "expected": {
+            "slices": [],
+            "results": []
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    },
+    {
+      "publicId": "chal_quiz_js_522",
+      "name": "main-thread-scheduling-quiz",
+      "type": "quiz",
+      "title": "Which tool for which work?",
+      "description": "Three pieces of work on an analytics dashboard compete for the same main thread. Decide how each one should be scheduled.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The \"Apply filter\" handler does this:\n\nbutton.addEventListener(\"click\", () => {\n  spinner.hidden = false;\n  const rows = filterRows(allRows, criteria); // ~400 ms of synchronous work\n  renderTable(rows);\n  spinner.hidden = true;\n});\n\nUsers say the button feels dead and the spinner never appears. Why?",
+          "explanation": "The browser renders between tasks, not in the middle of one. Showing the spinner only changes the DOM; nothing is painted until the click task finishes, and by then the spinner is hidden again. The whole 400 ms is one long task, so the next frame - the visual response to the click that INP measures - waits for all of it. Show the spinner, yield so a frame can be painted, then do the heavy work in slices.",
+          "options": [
+            {
+              "text": "spinner.hidden = false is applied asynchronously by the browser, so it races with filterRows.",
+              "correct": false
+            },
+            {
+              "text": "The browser only paints after the task ends; the 400 ms task delays the next frame, and by then the spinner is hidden again.",
+              "correct": true
+            },
+            {
+              "text": "The click event is passive by default, so DOM changes inside it are ignored until the next event.",
+              "correct": false
+            },
+            {
+              "text": "filterRows runs on a background thread and its result overwrites the spinner state when it returns.",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Match the scheduling tool to the work: (1) moving a drag preview so it follows the pointer, (2) sending a batch of analytics events when the page has nothing better to do, (3) computing a 20,000-row pivot table after a click, with the page staying responsive.",
+          "explanation": "Visual updates that must land in the next frame belong in requestAnimationFrame, which runs right before the browser paints. Low-value background work suits requestIdleCallback (with a timeout so it eventually runs), which only fires in idle periods. Long, user-requested work should be split into slices that yield back to the main thread - scheduler.yield() where available, otherwise setTimeout/MessageChannel - so input can be handled between slices. A Web Worker is also a good choice for (3) if the data can be moved off the main thread.",
+          "options": [
+            {
+              "text": "(1) setTimeout(fn, 16), (2) requestAnimationFrame, (3) one synchronous loop inside requestIdleCallback.",
+              "correct": false
+            },
+            {
+              "text": "(1) requestAnimationFrame, (2) requestIdleCallback with a timeout, (3) slices that yield with scheduler.yield() or setTimeout.",
+              "correct": true
+            },
+            {
+              "text": "(1) requestIdleCallback, (2) setInterval every 100 ms, (3) Promise.resolve().then() for each row so it runs asynchronously.",
+              "correct": false
+            },
+            {
+              "text": "(1) requestAnimationFrame, (2) queueMicrotask, (3) requestAnimationFrame for the whole computation.",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_js_523",
+      "name": "priority-time-slicing-scheduler",
+      "type": "mini_coding",
+      "title": "Build a priority scheduler with time slicing",
+      "description": "Write createScheduler({ sliceMs }, { now, yieldToHost }) returning schedule(task, priority). Run units of work highest priority first (FIFO within a priority, continuations keep their place), re-pick before every unit, and hand the main thread back to the host whenever a turn has used up sliceMs. The harness is the host: it runs one turn at a time on a fake clock, injects input between turns and compares the units run in each turn.",
+      "difficulty": "hard",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "scheduler.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A long background job is split into slices",
+          "input": {
+            "sliceMs": 10,
+            "tasks": [
+              {
+                "name": "index",
+                "units": 6,
+                "cost": 4,
+                "priority": "background"
+              }
+            ]
+          },
+          "expected": [
+            [
+              "index:1",
+              "index:2",
+              "index:3"
+            ],
+            [
+              "index:4",
+              "index:5",
+              "index:6"
+            ]
+          ],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Higher priorities first, FIFO within a priority",
+          "input": {
+            "sliceMs": 100,
+            "tasks": [
+              {
+                "name": "prefetch",
+                "units": 2,
+                "cost": 5,
+                "priority": "background"
+              },
+              {
+                "name": "render",
+                "units": 2,
+                "cost": 5,
+                "priority": "user-visible"
+              },
+              {
+                "name": "legend",
+                "units": 1,
+                "cost": 5,
+                "priority": "user-visible"
+              },
+              {
+                "name": "click",
+                "units": 1,
+                "cost": 5,
+                "priority": "user-blocking"
+              }
+            ]
+          },
+          "expected": [
+            [
+              "click:1",
+              "render:1",
+              "render:2",
+              "legend:1",
+              "prefetch:1",
+              "prefetch:2"
+            ]
+          ],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A keypress between slices jumps ahead of background work",
+          "input": {
+            "sliceMs": 10,
+            "tasks": [
+              {
+                "name": "index",
+                "units": 6,
+                "cost": 4,
+                "priority": "background"
+              }
+            ],
+            "events": [
+              {
+                "beforeTurn": 1,
+                "name": "keypress",
+                "units": 1,
+                "cost": 2,
+                "priority": "user-blocking"
+              }
+            ]
+          },
+          "expected": [
+            [
+              "index:1",
+              "index:2",
+              "index:3"
+            ],
+            [
+              "keypress:1",
+              "index:4",
+              "index:5"
+            ],
+            [
+              "index:6"
+            ]
+          ],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Urgent work scheduled mid-turn runs at the next unit",
+          "input": {
+            "sliceMs": 50,
+            "tasks": [
+              {
+                "name": "chart",
+                "units": 2,
+                "cost": 2,
+                "priority": "user-visible"
+              },
+              {
+                "name": "sync",
+                "units": 4,
+                "cost": 2,
+                "priority": "background",
+                "spawn": {
+                  "atUnit": 2,
+                  "name": "toast",
+                  "units": 1,
+                  "cost": 1,
+                  "priority": "user-blocking"
+                }
+              }
+            ]
+          },
+          "expected": [
+            [
+              "chart:1",
+              "chart:2",
+              "sync:1",
+              "sync:2",
+              "toast:1",
+              "sync:3",
+              "sync:4"
+            ]
+          ],
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "The scheduler wakes up again after going idle",
+          "input": {
+            "sliceMs": 10,
+            "tasks": [
+              {
+                "name": "boot",
+                "units": 1,
+                "cost": 2,
+                "priority": "user-visible"
+              }
+            ],
+            "events": [
+              {
+                "beforeTurn": 2,
+                "name": "refresh",
+                "units": 2,
+                "cost": 3,
+                "priority": "background"
+              }
+            ]
+          },
+          "expected": [
+            [
+              "boot:1"
+            ],
+            [
+              "refresh:1",
+              "refresh:2"
+            ]
+          ],
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

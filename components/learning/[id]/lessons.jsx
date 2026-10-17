@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import PortableTextRenderer from "../../ui/portableTextRenderer";
 import { useCourseSubmitLesson } from "@/mutations/course.mutation";
 import { useApp } from "@/contexts/appContext";
@@ -11,16 +11,24 @@ import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
 
-import { LuArrowLeft, LuArrowRight, LuBookOpen, LuCheck, LuCircleCheck, LuLoaderCircle, LuLock } from "react-icons/lu";
-import ChallengeSection from "./challengeSection";
+import { LuArrowLeft, LuArrowRight, LuBookOpen, LuCheck, LuCircleCheck, LuClock, LuLoaderCircle, LuLock } from "react-icons/lu";
+import ChallengeSection, { ChallengeProgressProvider, InlineChallenge, embeddedChallengeIds } from "./challengeSection";
+import LessonBrief from "./lessonBrief";
+
+// Challenges placed in the lesson body by a Sanity `challengeEmbed` block.
+const lessonBlockTypes = {
+    challengeEmbed: ({ value }) => <InlineChallenge publicId={value?.challengePublicId} hint={value?.hint} />,
+};
 
 import "@/styles/learning/[id]/lesson.css"
 
-export function SubmitLessonButton({ lessonId, courseId, onSubmitted }) {
+// `blocked`: challenges of this lesson are not all passed yet (the server enforces the same rule).
+export function SubmitLessonButton({ lessonId, courseId, onSubmitted, blocked = false }) {
     const submitLesson = useCourseSubmitLesson();
     const { showAlert: alert } = useApp();
 
     const handleSubmit = async () => {
+        if (blocked) return;
         try {
             await submitLesson.mutateAsync({ lessonId, courseId });
             alert(200, "Lesson marked as completed.");
@@ -28,7 +36,7 @@ export function SubmitLessonButton({ lessonId, courseId, onSubmitted }) {
         }
         catch (error) {
             console.error("Failed to submit lesson:", error);
-            alert(500, "Failed to submit lesson. Please try again.");
+            alert(error?.status || 500, error?.message || "Failed to submit lesson. Please try again.");
         }
     };
 
@@ -37,8 +45,8 @@ export function SubmitLessonButton({ lessonId, courseId, onSubmitted }) {
     }
 
     return (
-        <Button onClick={handleSubmit} disabled={submitLesson.isPending}>
-            {submitLesson.isPending ? <LuLoaderCircle className="animate-spin" /> : <LuCheck />}
+        <Button onClick={handleSubmit} disabled={submitLesson.isPending || blocked}>
+            {submitLesson.isPending ? <LuLoaderCircle className="animate-spin" /> : blocked ? <LuLock /> : <LuCheck />}
             {submitLesson.isPending ? 'Saving...' : 'Mark as completed'}
         </Button>
     );
@@ -124,6 +132,13 @@ export default function LearningLesson({
 
     const scrollRef = useRef(null);
 
+    // Challenge progress of the current lesson, reported by ChallengeSection. A challenge is
+    // resolved once passed or once all its attempts are used without a pass.
+    const [challengeProgress, setChallengeProgress] = useState({ lessonId: null, passed: 0, resolved: 0, total: 0 });
+    const requiredCount = (challenges || []).filter((c) => c?.status === "open").length;
+    const resolvedCount = challengeProgress.lessonId === lessonId ? challengeProgress.resolved : 0;
+    const challengesBlocking = !isSubmit && requiredCount > 0 && resolvedCount < requiredCount;
+
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = 0;
@@ -187,26 +202,40 @@ export default function LearningLesson({
                                     {data.description}
                                 </p>
                             )}
+                            {data?.estimatedTime > 0 && (
+                                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                    <LuClock className="size-3.5" aria-hidden="true" />
+                                    <span className="tabular">{data.estimatedTime} min</span>
+                                </p>
+                            )}
                         </header>
 
-                        <div className="lesson-prose pt-6">
-                            <div className="portable_text_container">
-                                <PortableTextRenderer value={data?.content} />
-                            </div>
-                        </div>
+                        <LessonBrief lessonId={lessonId} scenario={data?.scenario} environmentSetup={data?.environmentSetup} />
 
-                        {challenges && challenges.length > 0 && (
-                            <ChallengeSection
-                                key={lessonId}
-                                challenges={challenges}
-                                onChallengeCompleted={() => onSubmitted?.()}
-                            />
-                        )}
+                        {/* Embedded challenges and the Practice section share one progress state. */}
+                        <ChallengeProgressProvider
+                            key={lessonId}
+                            challenges={challenges}
+                            onChallengeCompleted={() => onSubmitted?.()}
+                            onProgressChange={(progress) => setChallengeProgress({ lessonId, ...progress })}
+                        >
+                            <div className="lesson-prose pt-6">
+                                <div className="portable_text_container">
+                                    <PortableTextRenderer value={data?.content} types={lessonBlockTypes} />
+                                </div>
+                            </div>
+
+                            <ChallengeSection embeddedIds={embeddedChallengeIds(data?.content)} />
+                        </ChallengeProgressProvider>
 
                         <footer className="mt-12 space-y-4 border-t pt-6">
                             <div className="flex flex-wrap items-center justify-between gap-3">
                                 <p className="text-sm text-muted-foreground">
-                                    {isSubmit ? 'You have finished this lesson.' : 'Finished reading? Mark the lesson as completed.'}
+                                    {isSubmit
+                                        ? 'You have finished this lesson.'
+                                        : challengesBlocking
+                                            ? `Pass each practice challenge (or use all its attempts) to complete this lesson (${resolvedCount}/${requiredCount} done).`
+                                            : 'Finished reading? Mark the lesson as completed.'}
                                 </p>
                                 {isSubmit ? (
                                     <CompletedBadge />
@@ -216,6 +245,7 @@ export default function LearningLesson({
                                         lessonId={lessonId}
                                         courseId={courseId}
                                         onSubmitted={onSubmitted}
+                                        blocked={challengesBlocking}
                                     />
                                 )}
                             </div>

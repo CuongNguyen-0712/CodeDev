@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_js_532",
+      "key": "challenges/javascript/chal_fix_js_532/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "mountWidget.js",
+      "size": 1798
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_fix_js_532",
+      "key": "challenges/javascript/chal_fix_js_532/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 4729
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_nhp_302",
+      "key": "challenges/javascript/chal_coding_nhp_302/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "tokenBucket.js",
+      "size": 1350
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_coding_nhp_302",
+      "key": "challenges/javascript/chal_coding_nhp_302/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 1337
+    }
+  ]
+}

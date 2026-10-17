@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#334155"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Distributed lock with Redis: one payment per wallet at a time</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Each API instance competes for the same key; only the token holder may debit and release.</text>
+
+  <!-- instances -->
+  <rect x="60" y="150" width="230" height="90" rx="12" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="175" y="188" font-size="17" font-weight="700" text-anchor="middle" fill="#0f172a">API instance 1</text>
+  <text x="175" y="214" font-size="14" text-anchor="middle" fill="#0e7490">token = a1f9...</text>
+
+  <rect x="60" y="380" width="230" height="90" rx="12" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="175" y="418" font-size="17" font-weight="700" text-anchor="middle" fill="#0f172a">API instance 2</text>
+  <text x="175" y="444" font-size="14" text-anchor="middle" fill="#6d28d9">token = 7c2e...</text>
+
+  <!-- redis -->
+  <rect x="490" y="250" width="250" height="120" rx="14" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="615" y="292" font-size="18" font-weight="700" text-anchor="middle" fill="#0f172a">Redis</text>
+  <text x="615" y="320" font-size="14" text-anchor="middle" fill="#991b1b">lock:wallet:42 = a1f9...</text>
+  <text x="615" y="344" font-size="14" text-anchor="middle" fill="#991b1b">PX 5000 (auto-expires)</text>
+
+  <!-- database -->
+  <rect x="900" y="250" width="250" height="120" rx="14" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="1025" y="292" font-size="18" font-weight="700" text-anchor="middle" fill="#0f172a">Wallet DB</text>
+  <text x="1025" y="320" font-size="14" text-anchor="middle" fill="#166534">UPDATE ... SET balance =</text>
+  <text x="1025" y="342" font-size="14" text-anchor="middle" fill="#166534">balance - 80000</text>
+
+  <!-- arrows instance1 -->
+  <line x1="290" y1="180" x2="490" y2="270" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="300" y="168" font-size="14" fill="#0f172a">1. SET key a1f9 NX PX 5000</text>
+  <text x="462" y="238" font-size="14" font-weight="700" fill="#15803d">OK</text>
+
+  <path d="M290 205 C 600 120, 900 140, 960 250" fill="none" stroke="#16a34a" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="640" y="132" font-size="14" fill="#15803d">2. debit inside the lock</text>
+
+  <path d="M200 240 C 230 290, 400 300, 490 305" fill="none" stroke="#334155" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#arrow)"/>
+  <text x="60" y="300" font-size="14" fill="#0f172a">3. release: compare token,</text>
+  <text x="60" y="320" font-size="14" fill="#0f172a">then DEL (atomic Lua)</text>
+
+  <!-- arrows instance2 -->
+  <line x1="290" y1="420" x2="490" y2="350" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="300" y="470" font-size="14" fill="#0f172a">SET key 7c2e NX PX 5000</text>
+  <text x="395" y="408" font-size="14" font-weight="700" fill="#b91c1c">nil - lock held</text>
+  <text x="300" y="500" font-size="14" fill="#64748b">-> retry with backoff, or reply 409 "payment in progress"</text>
+</svg>

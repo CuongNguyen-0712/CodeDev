@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_nhp_322",
+      "key": "challenges/javascript/chal_fix_nhp_322/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "exportLedger.js",
+      "size": 1432
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_fix_nhp_322",
+      "key": "challenges/javascript/chal_fix_nhp_322/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 3165
+    }
+  ]
+}
