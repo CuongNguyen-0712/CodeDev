@@ -1,0 +1,31 @@
+# Local services for `next dev` (APP_ENV=development). Production uses Neon, Upstash and Neon S3
+# instead; see docs/environments.md.
+#
+#   npm run services:up      # docker compose --env-file .env.local -f docker-compose.dev.yml up -d
+#   npm run storage:sync     # create the buckets and copy the Neon buckets into MinIO
+#
+# MINIO_ROOT_USER / MINIO_ROOT_PASSWORD are read from .env.local (development-only values).
+# Redis for development comes from docker-compose.yml (`docker compose up -d redis`).
+name: codedev-dev
+
+services:
+  minio:
+    # The official minio/minio images are no longer published; Chainguard builds MinIO from
+    # source. Pinned by digest so every machine runs the same server.
+    image: cgr.dev/chainguard/minio:latest@sha256:2136d593beacf4461187035eca949fe49abd589d5079735025c711ca58fee0c8
+    container_name: codedev-minio
+    restart: unless-stopped
+    command: ["server", "/data", "--address", ":9000", "--console-address", ":9001"]
+    # Named volumes are created root-owned and the image has no shell to chown them.
+    user: "0:0"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in .env.local}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env.local}
+    ports:
+      - "127.0.0.1:9000:9000"   # S3 API
+      - "127.0.0.1:9001:9001"   # console
+    volumes:
+      - minio-data:/data
+
+volumes:
+  minio-data:

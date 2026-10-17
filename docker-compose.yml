@@ -11,6 +11,7 @@ services:
       - .env
     environment:
       - NODE_ENV=production
+      - APP_ENV=production
       - PORT=3000
       - HOSTNAME=0.0.0.0
       - REDIS_URL=redis://redis:6379

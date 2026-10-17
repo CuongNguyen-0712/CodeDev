@@ -5,7 +5,7 @@
  *
  * Usage:
  *   node scripts/seed-challenge-harness.mjs              # uses .env.local
- *   node scripts/seed-challenge-harness.mjs --env .env   # other env file
+ *   node scripts/seed-challenge-harness.mjs --env .env.production   # production storage + DB
  *   node scripts/seed-challenge-harness.mjs --dry-run    # print the plan only
  *
  * Harness files live in scripts/challenges/harness/<challenge public_id>.js and must
@@ -20,12 +20,15 @@ import dotenv from "dotenv";
 import pg from "pg";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
+import { resolveStorageConfig, s3ClientOptions, describeStorage } from "../lib/storageConfig.mjs";
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
 const envFile = args.includes("--env") ? args[args.indexOf("--env") + 1] : ".env.local";
 const dryRun = args.includes("--dry-run");
 
 dotenv.config({ path: path.resolve(root, envFile), quiet: true });
+dotenv.config({ path: path.resolve(root, ".env"), quiet: true });
 
 const harnessDir = path.join(root, "scripts", "challenges", "harness");
 const files = fs.readdirSync(harnessDir).filter((f) => f.endsWith(".js"));
@@ -35,15 +38,11 @@ if (files.length === 0) {
     process.exit(0);
 }
 
-const s3 = new S3Client({
-    region: process.env.AWS_REGION || "us-east-1",
-    endpoint: process.env.AWS_ENDPOINT_URL_S3,
-    forcePathStyle: true,
-    credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-    },
-});
+// Same target as the app in this environment: MinIO in development, S3 (Neon) in production.
+const storage = resolveStorageConfig();
+console.log(`storage: ${describeStorage(storage)}`);
+const s3 = new S3Client(s3ClientOptions(storage));
+const bucket = storage.buckets.public;
 
 const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
 await db.connect();
@@ -69,12 +68,12 @@ try {
         const size = Buffer.byteLength(body, "utf8");
 
         if (dryRun) {
-            console.log(`[dry-run] ${publicId} -> s3://${process.env.S3_BUCKET}/${objectKey} (${size} bytes)`);
+            console.log(`[dry-run] ${publicId} -> s3://${bucket}/${objectKey} (${size} bytes)`);
             continue;
         }
 
         await s3.send(new PutObjectCommand({
-            Bucket: process.env.S3_BUCKET,
+            Bucket: bucket,
             Key: objectKey,
             Body: body,
             ContentType: "application/javascript; charset=utf-8",
