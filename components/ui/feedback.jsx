@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { sendFeedbackAction } from "@/actions/feedback.actions";
+import { callWithAuthRetry } from "@/lib/actionResult";
 import { useQueryParams } from "@/router/useQueryParams";
 import { FeedbackSchema } from "@/lib/definition";
 import { useApp } from "@/contexts/appContext";
@@ -56,7 +57,7 @@ export default function Feedback() {
         setState((prev) => ({ ...prev, handling: true }));
 
         try {
-            const response = await sendFeedbackAction(dataForm);
+            const response = await callWithAuthRetry(() => sendFeedbackAction(dataForm));
             if (response.success) {
                 alert(200, "Thanks, your feedback was sent.");
                 setDataForm(EMPTY_FORM);
@@ -97,7 +98,7 @@ export default function Feedback() {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <FieldGroup className="gap-4">
+                    <FieldGroup className="gap-2.5">
                         <InputGroup
                             name="title"
                             label="Summary"

@@ -28,7 +28,11 @@ function LayoutContent({ children }) {
             <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
                 <Navbar />
 
-                <section id='container'>
+                {/* The page scroller: hooks/useInfiniteScroll observes it by id. */}
+                <section
+                    id='container'
+                    className='flex min-h-0 w-full flex-1 flex-col items-center overflow-x-hidden overflow-y-auto overscroll-y-contain bg-background [overflow-anchor:none] **:[overflow-anchor:none]'
+                >
                     {children}
                     <Footer />
                 </section>

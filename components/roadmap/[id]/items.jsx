@@ -94,10 +94,10 @@ export default function Node({ data, handleNodeClick, isSelected = false, ...pro
             aria-current={isSelected ? 'true' : undefined}
             data-roadmap-node={data.id}
             className={cn(
-                'group flex w-full flex-col gap-2 rounded-lg border bg-card px-3.5 py-3 text-left outline-none transition-colors',
-                'hover:border-foreground/20 hover:bg-accent/40 active:bg-accent',
+                'group flex w-full flex-col gap-2 rounded-lg border border-border bg-card px-3.5 py-3 text-left outline-none transition-all duration-150',
+                'hover:border-primary/50 hover:shadow-xs hover:bg-accent/30 active:bg-accent',
                 'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
-                isSelected && 'border-primary/50 bg-primary-soft/40 hover:border-primary/60 hover:bg-primary-soft/60'
+                isSelected && 'border-primary/60 bg-primary-soft/50 shadow-xs hover:border-primary/70 hover:bg-primary-soft/60'
             )}
             {...props}
         >

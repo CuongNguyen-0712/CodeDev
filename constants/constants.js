@@ -1,15 +1,15 @@
 import { FaBook, FaFire, FaGraduationCap } from "react-icons/fa";
 
 export const levelMapping = {
-    'beginner': { label: 'Beginner', color: 'var(--emerald-500)', bg: 'rgba(34, 197, 94, 0.1)' },
-    'intermediate': { label: 'Intermediate', color: 'var(--orange-500)', bg: 'rgba(251, 191, 36, 0.1)' },
-    'advanced': { label: 'Advanced', color: 'var(--blue-500)', bg: 'rgba(59, 130, 246, 0.1)' },
-    'expert': { label: 'Expert', color: 'var(--purple-500)', bg: 'rgba(147, 51, 234, 0.1)' },
-    'master': { label: 'Master', color: 'var(--rose-500)', bg: 'rgba(244, 63, 94, 0.1)' },
-}
+    'beginner': { label: 'Beginner', variant: 'success', color: 'var(--success)', bg: 'var(--success-soft)' },
+    'intermediate': { label: 'Intermediate', variant: 'warning', color: 'var(--warning)', bg: 'var(--warning-soft)' },
+    'advanced': { label: 'Advanced', variant: 'info', color: 'var(--info)', bg: 'var(--info-soft)' },
+    'expert': { label: 'Expert', variant: 'primary', color: 'var(--primary)', bg: 'var(--primary-soft)' },
+    'master': { label: 'Master', variant: 'destructive', color: 'var(--destructive)', bg: 'var(--destructive-soft)' },
+};
 
 export const progressMapping = {
-    'enrolled': { label: 'Enrolled', className: 'enrolled', color: 'var(--blue-500)', icon: <FaBook /> },
-    'in_progress': { label: 'In Progress', className: 'in-progress', color: 'var(--amber-500)', icon: <FaFire /> },
-    'completed': { label: 'Completed', className: 'completed', color: 'var(--emerald-500)', icon: <FaGraduationCap /> },
+    'enrolled': { label: 'Enrolled', className: 'enrolled', variant: 'info', color: 'var(--info)', icon: <FaBook /> },
+    'in_progress': { label: 'In Progress', className: 'in-progress', variant: 'warning', color: 'var(--warning)', icon: <FaFire /> },
+    'completed': { label: 'Completed', className: 'completed', variant: 'success', color: 'var(--success)', icon: <FaGraduationCap /> },
 };

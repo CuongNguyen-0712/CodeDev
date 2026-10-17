@@ -8,8 +8,7 @@ export function useRouterActions() {
         navigate: ({ path, query = {} }) => {
             const searchParams = new URLSearchParams(query);
             const queryString = searchParams.toString();
-            const formattedPath = path.startsWith('/') ? path : `/${path}`;
-            router.push(queryString ? `${formattedPath}?${queryString}` : formattedPath);
+            router.push(queryString ? `${path}?${queryString}` : path);
         },
         navigateReplace: (path) => router.replace(path),
         navigateBack: (fallback = "/home") => {

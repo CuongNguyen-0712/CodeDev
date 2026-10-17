@@ -344,14 +344,14 @@ export default function PreviewPage({ params } = {}) {
                                 )}
                                 {enrollment && <Badge variant={enrollment.variant}>{enrollment.label}</Badge>}
                                 <span
-                                    className="ml-1 flex items-center gap-1 font-mono text-xs text-muted-foreground tabular"
+                                    className="ml-1 flex items-center gap-1 font-mono text-xs font-medium text-foreground tabular"
                                     title={`Rated ${rating.toFixed(1)} out of 5`}
                                 >
-                                    <LuStar className="size-3.5" aria-hidden="true" />
+                                    <LuStar className="size-3.5 text-xp fill-xp/20" aria-hidden="true" />
                                     <span className="sr-only">Rating</span>
                                     {rating.toFixed(1)}
                                     {reviews > 0 && (
-                                        <span>({reviews.toLocaleString('en-US')} {reviews === 1 ? 'review' : 'reviews'})</span>
+                                        <span className="font-normal text-muted-foreground">({reviews.toLocaleString('en-US')} {reviews === 1 ? 'review' : 'reviews'})</span>
                                     )}
                                 </span>
                             </div>
@@ -394,7 +394,7 @@ export default function PreviewPage({ params } = {}) {
 
                         <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-12">
                             {/* Course info, first on phones so it sits under the header */}
-                            <aside className="flex flex-col gap-4 lg:order-last" aria-label="Course information">
+                            <aside className="flex flex-col gap-4 lg:order-last lg:sticky lg:top-16 lg:self-start" aria-label="Course information">
                                 {data.image && (
                                     <div className="overflow-hidden rounded-lg border bg-muted">
                                         {/* eslint-disable-next-line @next/next/no-img-element */}

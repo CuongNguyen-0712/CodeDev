@@ -3,6 +3,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { debounce } from 'lodash';
 
+import { normalizeSearch, SEARCH_MAX_LENGTH } from '@/lib/listFilters';
+
 import { Badge } from '@/components/shadcn/badge';
 import { Button } from '@/components/shadcn/button';
 import {
@@ -12,9 +14,12 @@ import {
     InputGroupInput,
 } from '@/components/shadcn/input-group';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/shadcn/popover';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/shadcn/sheet';
 import { Separator } from '@/components/shadcn/separator';
 import { Spinner } from '@/components/shadcn/spinner';
 import { ToggleGroup, ToggleGroupItem } from '@/components/shadcn/toggle-group';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { cn } from '@/lib/utils';
 
 import { LuSearch, LuSlidersHorizontal, LuX } from 'react-icons/lu';
 
@@ -51,6 +56,95 @@ const isSegmentedField = (fieldName, itemsCount) => (
 
 const selectedToggle = "data-[state=on]:border-primary/40 data-[state=on]:bg-primary-soft data-[state=on]:text-primary-soft-foreground";
 
+function FilterFormBody({
+    totalDraftFilters,
+    handleResetDraftFilter,
+    filterFields,
+    draftFilter,
+    setDraftValues,
+    handleCancelFilter,
+    handleApplyFilter,
+    isMobile = false,
+}) {
+    return (
+        <div className="flex h-full min-h-0 flex-col">
+            <div className="flex shrink-0 items-center justify-between gap-2 px-4 py-3">
+                <p className="flex items-center gap-2 text-sm font-semibold">
+                    Filters
+                    {totalDraftFilters > 0 && (
+                        <span className="font-mono text-xs font-normal text-muted-foreground tabular">
+                            {totalDraftFilters} selected
+                        </span>
+                    )}
+                </p>
+                <Button variant="ghost" size="xs" onClick={handleResetDraftFilter} disabled={totalDraftFilters === 0}>
+                    Clear all
+                </Button>
+            </div>
+            <Separator />
+
+            <div className={cn("space-y-4 overflow-y-auto px-4 py-4 flex-1 min-h-0", isMobile ? "max-h-[55vh]" : "max-h-[min(60vh,26rem)]")}>
+                {filterFields.map((field) => {
+                    const items = Array.isArray(field.items) ? field.items : [];
+                    const selected = toArray(draftFilter[field.name]).map(String);
+                    const segmented = isSegmentedField(field.name, items.length);
+                    const labelId = `filter-${field.name}-label`;
+
+                    return (
+                        <div key={field.name} className="space-y-2">
+                            <p id={labelId} className="text-xs font-medium text-muted-foreground">
+                                {labelFor(field.name)}
+                            </p>
+                            {segmented ? (
+                                <ToggleGroup
+                                    type="single"
+                                    variant="outline"
+                                    size="sm"
+                                    spacing={1}
+                                    aria-labelledby={labelId}
+                                    value={selected[0] ?? 'any'}
+                                    onValueChange={(v) => setDraftValues(field, v && v !== 'any' ? [v] : [])}
+                                    className="w-full flex-wrap justify-start"
+                                >
+                                    <ToggleGroupItem value="any" className={selectedToggle}>Any</ToggleGroupItem>
+                                    {items.map((item) => (
+                                        <ToggleGroupItem key={String(item.value)} value={String(item.value)} className={selectedToggle}>
+                                            {field.name === 'rating' ? `${item.value}+ stars` : item.name}
+                                        </ToggleGroupItem>
+                                    ))}
+                                </ToggleGroup>
+                            ) : (
+                                <ToggleGroup
+                                    type="multiple"
+                                    variant="outline"
+                                    size="sm"
+                                    spacing={1}
+                                    aria-labelledby={labelId}
+                                    value={selected}
+                                    onValueChange={(v) => setDraftValues(field, v)}
+                                    className="w-full flex-wrap justify-start"
+                                >
+                                    {items.map((item) => (
+                                        <ToggleGroupItem key={String(item.value)} value={String(item.value)} className={selectedToggle}>
+                                            {item.name}
+                                        </ToggleGroupItem>
+                                    ))}
+                                </ToggleGroup>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+
+            <Separator />
+            <div className={cn("bg-background shrink-0", isMobile ? "grid grid-cols-2 gap-2 p-3" : "flex justify-end gap-2 px-4 py-3")}>
+                <Button variant={isMobile ? "outline" : "ghost"} size="sm" onClick={handleCancelFilter}>Cancel</Button>
+                <Button size="sm" onClick={handleApplyFilter}>Apply filters</Button>
+            </div>
+        </div>
+    );
+}
+
 export default function SearchBar({
     data = [],
     filter: propFilter,
@@ -67,6 +161,7 @@ export default function SearchBar({
     submit,
     className = '',
 }) {
+    const isMobile = useIsMobile();
     const filterFields = useMemo(() => (Array.isArray(data) ? data : []), [data]);
 
     const initialFilter = useMemo(() => {
@@ -111,8 +206,10 @@ export default function SearchBar({
         }
     }, [propFilterKey, propFilter]);
 
+    // The parent may hand back a normalised term (trimmed, single spaces): only overwrite the
+    // input when the meaning differs, so a trailing space being typed is not swallowed.
     useEffect(() => {
-        if (effectiveExternalSearch !== undefined && effectiveExternalSearch !== inputValue) {
+        if (effectiveExternalSearch !== undefined && normalizeSearch(effectiveExternalSearch) !== normalizeSearch(inputValue)) {
             setInputValue(effectiveExternalSearch);
             setState((prev) => ({ ...prev, search: effectiveExternalSearch }));
         }
@@ -239,6 +336,7 @@ export default function SearchBar({
                         name="search"
                         placeholder={effectivePlaceholder}
                         autoComplete="off"
+                        maxLength={SEARCH_MAX_LENGTH}
                         value={inputValue}
                         onChange={handleChange}
                         aria-label={effectivePlaceholder}
@@ -254,99 +352,78 @@ export default function SearchBar({
                         ) : null}
 
                         {hasFilters && (
-                            <Popover open={state.showFilter} onOpenChange={handleOpenChange}>
-                                <PopoverTrigger asChild>
-                                    <InputGroupButton
-                                        size="sm"
-                                        variant="ghost"
-                                        className="data-[state=open]:bg-accent"
-                                        aria-label={totalAppliedFilters > 0 ? `Filters, ${totalAppliedFilters} applied` : 'Filters'}
-                                    >
-                                        <LuSlidersHorizontal />
-                                        <span className="max-sm:sr-only">Filters</span>
-                                        {totalAppliedFilters > 0 && (
-                                            <Badge variant="primary" className="h-4 min-w-4 px-1 font-mono tabular">
-                                                {totalAppliedFilters}
-                                            </Badge>
-                                        )}
-                                    </InputGroupButton>
-                                </PopoverTrigger>
-                                <PopoverContent align="end" className="w-[min(22rem,calc(100vw-2rem))] p-0">
-                                    <div className="flex items-center justify-between gap-2 px-4 py-3">
-                                        <p className="flex items-center gap-2 text-sm font-semibold">
-                                            Filters
-                                            {totalDraftFilters > 0 && (
-                                                <span className="font-mono text-xs font-normal text-muted-foreground tabular">
-                                                    {totalDraftFilters} selected
-                                                </span>
+                            isMobile ? (
+                                <Sheet open={state.showFilter} onOpenChange={handleOpenChange}>
+                                    <SheetTrigger asChild>
+                                        <InputGroupButton
+                                            size="sm"
+                                            variant="ghost"
+                                            className="data-[state=open]:bg-accent"
+                                            aria-label={totalAppliedFilters > 0 ? `Filters, ${totalAppliedFilters} applied` : 'Filters'}
+                                        >
+                                            <LuSlidersHorizontal />
+                                            <span className="max-sm:sr-only">Filters</span>
+                                            {totalAppliedFilters > 0 && (
+                                                <Badge variant="primary" className="h-4 min-w-4 px-1 font-mono tabular">
+                                                    {totalAppliedFilters}
+                                                </Badge>
                                             )}
-                                        </p>
-                                        <Button variant="ghost" size="xs" onClick={handleResetDraftFilter} disabled={totalDraftFilters === 0}>
-                                            Clear all
-                                        </Button>
-                                    </div>
-                                    <Separator />
-
-                                    <div className="max-h-[min(60vh,26rem)] space-y-4 overflow-y-auto px-4 py-4">
-                                        {filterFields.map((field) => {
-                                            const items = Array.isArray(field.items) ? field.items : [];
-                                            const selected = toArray(draftFilter[field.name]).map(String);
-                                            const segmented = isSegmentedField(field.name, items.length);
-                                            const labelId = `filter-${field.name}-label`;
-
-                                            return (
-                                                <div key={field.name} className="space-y-2">
-                                                    <p id={labelId} className="text-xs font-medium text-muted-foreground">
-                                                        {labelFor(field.name)}
-                                                    </p>
-                                                    {segmented ? (
-                                                        <ToggleGroup
-                                                            type="single"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            spacing={1}
-                                                            aria-labelledby={labelId}
-                                                            value={selected[0] ?? 'any'}
-                                                            onValueChange={(v) => setDraftValues(field, v && v !== 'any' ? [v] : [])}
-                                                            className="w-full flex-wrap justify-start"
-                                                        >
-                                                            <ToggleGroupItem value="any" className={selectedToggle}>Any</ToggleGroupItem>
-                                                            {items.map((item) => (
-                                                                <ToggleGroupItem key={String(item.value)} value={String(item.value)} className={selectedToggle}>
-                                                                    {field.name === 'rating' ? `${item.value}+ stars` : item.name}
-                                                                </ToggleGroupItem>
-                                                            ))}
-                                                        </ToggleGroup>
-                                                    ) : (
-                                                        <ToggleGroup
-                                                            type="multiple"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            spacing={1}
-                                                            aria-labelledby={labelId}
-                                                            value={selected}
-                                                            onValueChange={(v) => setDraftValues(field, v)}
-                                                            className="w-full flex-wrap justify-start"
-                                                        >
-                                                            {items.map((item) => (
-                                                                <ToggleGroupItem key={String(item.value)} value={String(item.value)} className={selectedToggle}>
-                                                                    {item.name}
-                                                                </ToggleGroupItem>
-                                                            ))}
-                                                        </ToggleGroup>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-
-                                    <Separator />
-                                    <div className="flex justify-end gap-2 px-4 py-3">
-                                        <Button variant="ghost" size="sm" onClick={handleCancelFilter}>Cancel</Button>
-                                        <Button size="sm" onClick={handleApplyFilter}>Apply filters</Button>
-                                    </div>
-                                </PopoverContent>
-                            </Popover>
+                                        </InputGroupButton>
+                                    </SheetTrigger>
+                                    <SheetContent
+                                        side="bottom"
+                                        showCloseButton={false}
+                                        className="flex max-h-[85vh] flex-col gap-0 rounded-t-2xl border-t bg-background p-0"
+                                    >
+                                        <div className="mx-auto my-2.5 h-1 w-10 shrink-0 rounded-full bg-muted-foreground/30" aria-hidden="true" />
+                                        <SheetHeader className="sr-only">
+                                            <SheetTitle>Filters</SheetTitle>
+                                            <SheetDescription>Filter search results</SheetDescription>
+                                        </SheetHeader>
+                                        <FilterFormBody
+                                            totalDraftFilters={totalDraftFilters}
+                                            handleResetDraftFilter={handleResetDraftFilter}
+                                            filterFields={filterFields}
+                                            draftFilter={draftFilter}
+                                            setDraftValues={setDraftValues}
+                                            handleCancelFilter={handleCancelFilter}
+                                            handleApplyFilter={handleApplyFilter}
+                                            isMobile={true}
+                                        />
+                                    </SheetContent>
+                                </Sheet>
+                            ) : (
+                                <Popover open={state.showFilter} onOpenChange={handleOpenChange}>
+                                    <PopoverTrigger asChild>
+                                        <InputGroupButton
+                                            size="sm"
+                                            variant="ghost"
+                                            className="data-[state=open]:bg-accent"
+                                            aria-label={totalAppliedFilters > 0 ? `Filters, ${totalAppliedFilters} applied` : 'Filters'}
+                                        >
+                                            <LuSlidersHorizontal />
+                                            <span className="max-sm:sr-only">Filters</span>
+                                            {totalAppliedFilters > 0 && (
+                                                <Badge variant="primary" className="h-4 min-w-4 px-1 font-mono tabular">
+                                                    {totalAppliedFilters}
+                                                </Badge>
+                                            )}
+                                        </InputGroupButton>
+                                    </PopoverTrigger>
+                                    <PopoverContent align="end" className="w-[min(22rem,calc(100vw-2rem))] p-0">
+                                        <FilterFormBody
+                                            totalDraftFilters={totalDraftFilters}
+                                            handleResetDraftFilter={handleResetDraftFilter}
+                                            filterFields={filterFields}
+                                            draftFilter={draftFilter}
+                                            setDraftValues={setDraftValues}
+                                            handleCancelFilter={handleCancelFilter}
+                                            handleApplyFilter={handleApplyFilter}
+                                            isMobile={false}
+                                        />
+                                    </PopoverContent>
+                                </Popover>
+                            )
                         )}
                     </InputGroupAddon>
                 </InputGroup>

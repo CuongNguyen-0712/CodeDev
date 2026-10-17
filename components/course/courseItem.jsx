@@ -91,7 +91,7 @@ export const CourseItem = ({ item }) => {
     ];
 
     return (
-        <article className="flex h-full flex-col gap-3.5 rounded-lg border bg-card p-4 text-card-foreground transition-colors hover:border-foreground/20">
+        <article className="group/course flex h-full flex-col gap-3.5 rounded-lg border border-border bg-card p-4 text-card-foreground transition-all duration-150 hover:border-primary/50 hover:shadow-sm">
             <div className="flex min-w-0 items-start gap-3">
                 <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -136,10 +136,10 @@ export const CourseItem = ({ item }) => {
                 )}
                 {isEnrolled && <Badge variant="primary">Enrolled</Badge>}
                 <span
-                    className="ml-auto flex items-center gap-1 font-mono text-xs text-muted-foreground tabular"
+                    className="ml-auto flex items-center gap-1 font-mono text-xs font-medium text-foreground tabular"
                     title={`Rated ${rating.toFixed(1)} out of 5`}
                 >
-                    <LuStar className="size-3.5" aria-hidden="true" />
+                    <LuStar className="size-3.5 text-xp fill-xp/20" aria-hidden="true" />
                     <span className="sr-only">Rating</span>
                     {rating.toFixed(1)}
                 </span>

@@ -27,6 +27,7 @@ import { Separator } from '@/components/shadcn/separator';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/shadcn/sheet';
 import { Skeleton } from '@/components/shadcn/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/shadcn/tooltip';
+import { cn } from '@/lib/utils';
 
 import Node, { NODE_STATUS, NodeCourseList, StageMarker, getCourseProgress, getNodeProgress, pad } from './items';
 
@@ -162,10 +163,11 @@ function NodeDetailsPanel({ node, stepNumber, onClose = null }) {
 
 export default function RoadmapDetailsPage({ params, initialData = null }) {
     const { id } = params;
-    const { navigateBack } = useRouterActions();
+    const { navigate } = useRouterActions();
     const { showAlert } = useApp();
     const viewport = useViewport();
     const isCompact = viewport.width > 0 && viewport.width < 1024;
+    const isMobile = viewport.width > 0 && viewport.width < 640;
 
     // Query roadmap details
     const { data: queryData, isLoading, isError, error, refetch } = useQuery({
@@ -207,8 +209,6 @@ export default function RoadmapDetailsPage({ params, initialData = null }) {
     const levelLabel = roadmapData?.level
         ? levelMapping[roadmapData.level.toLowerCase()]?.label || roadmapData.level
         : null;
-
-    const handleBack = () => navigateBack('/roadmap');
 
     const handleSelectNode = (nodeId) => {
         setSelectedNodeId(nodeId);
@@ -253,7 +253,7 @@ export default function RoadmapDetailsPage({ params, initialData = null }) {
             <header className="flex h-12 shrink-0 items-center gap-2 border-b px-2 sm:px-3">
                 <Tooltip>
                     <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon-sm" onClick={handleBack} aria-label="Back to roadmaps">
+                        <Button variant="ghost" size="icon-sm" onClick={() => navigate({ path: '/roadmap' })} aria-label="Back to roadmaps">
                             <LuArrowLeft />
                         </Button>
                     </TooltipTrigger>
@@ -449,9 +449,14 @@ export default function RoadmapDetailsPage({ params, initialData = null }) {
             {/* Step details on tablets and phones */}
             <Sheet open={isCompact && detailsOpen} onOpenChange={setDetailsOpen}>
                 <SheetContent
-                    side="right"
+                    side={isMobile ? 'bottom' : 'right'}
                     showCloseButton={false}
-                    className="w-[min(26rem,92vw)] gap-0 bg-sidebar p-0"
+                    className={cn(
+                        'gap-0 bg-sidebar p-0',
+                        isMobile
+                            ? 'max-h-[85vh] rounded-t-2xl border-t'
+                            : 'w-[min(26rem,92vw)]'
+                    )}
                     onCloseAutoFocus={(event) => {
                         // Opened from a step button, so return focus to it.
                         if (!selectedNode) return;
@@ -462,6 +467,9 @@ export default function RoadmapDetailsPage({ params, initialData = null }) {
                         }
                     }}
                 >
+                    {isMobile && (
+                        <div className="mx-auto my-2.5 h-1 w-10 shrink-0 rounded-full bg-muted-foreground/30 sm:hidden" aria-hidden="true" />
+                    )}
                     <SheetHeader className="sr-only">
                         <SheetTitle>Step details</SheetTitle>
                         <SheetDescription>Description, progress and courses for the selected step.</SheetDescription>

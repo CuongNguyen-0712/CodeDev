@@ -1,37 +1,40 @@
 /*
- * CodeDev stylesheet entry. Imported once, from app/layout.jsx.
+ * CodeDev stylesheet entry. Imported from app/layout.jsx (and the two
+ * routes that render outside it: app/403 and app/global-not-found).
  *
  * Cascade order (lowest to highest):
  *   theme      Tailwind theme variables
- *   base       element defaults for the shadcn/ui layer
- *   legacy     the hand-written stylesheets in styles/ (pre-Tailwind UI)
- *   components cross-cutting rules that must beat legacy (focus, motion)
+ *   base       element defaults (reset, body, scrollbars)
+ *   components cross-cutting rules (focus, motion, surface scrollbars)
  *   utilities  Tailwind utilities, so shadcn/ui classes always win
  *
- * Tailwind preflight is intentionally not imported: the legacy reset in
- * styles/legacy/globals.css still owns element defaults for pages that have
- * not been migrated yet.
+ * Tailwind preflight is not imported: the reset below is the subset this
+ * app relies on, so lists and headings keep their browser defaults.
  */
-@layer theme, base, legacy, components, utilities;
+@layer theme, base, components, utilities;
 
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 @import "tw-animate-css";
-@import "../styles/legacy/globals.css" layer(legacy);
 
-/* Dark mode is not part of the product yet. Without this, Tailwind v4 maps
-   dark: to prefers-color-scheme and shadcn components would half-switch. */
+/* Dark mode variant: matches .dark class on <html> or any ancestor */
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ==========================================================
    DESIGN TOKENS
-   One source of truth for the shadcn/ui layer. Contrast pairs
-   were measured with the UI/UX kit's contrast.py:
-     primary-foreground on primary      6.00:1
-     muted-foreground on background     5.55:1
-     muted-foreground on sidebar        5.21:1
-     success / warning / destructive    >= 5.0:1 on white
-     editor-muted on editor             6.65:1
+   One source of truth for every page. Neutrals share the brand
+   hue (teal-grey) so surfaces never drift to a cool slate grey.
+   Contrast pairs, measured with the UI/UX kit's contrast.py:
+     primary-foreground on primary        6.00:1
+     foreground on background            16.91:1
+     muted-foreground on background       5.55:1
+     muted-foreground on muted            4.96:1
+     muted-foreground on sidebar-accent   4.72:1
+     primary on primary-soft              5.33:1
+     input (control border) on white      3.47:1
+     status text on its soft surface     >= 4.60:1
+     editor-muted on editor               6.65:1
+   Scrollbar thumbs are decorative chrome, kept quiet on purpose.
    ========================================================== */
 :root {
     --radius: 0.5rem;
@@ -45,20 +48,27 @@
     --popover-foreground: #0F1F24;
     --canvas: #F6F8F8;
 
-    /* Brand: deep teal for actions, the original #71C9CE kept as a tint */
+    /* Brand: deep teal for actions and links */
     --primary: #0B6E75;
     --primary-hover: #095C62;
     --primary-foreground: #FFFFFF;
-    --primary-soft: #EAF6F6;
+    --primary-soft: #E8F4F4;
     --primary-soft-foreground: #0B6E75;
-    --brand-tint: #71C9CE;
+    --primary-border: #C7E8EA;
 
-    --secondary: #EEF2F2;
+    /* One neutral fill for secondary buttons, hovers and skeletons */
+    --secondary: #EEF3F3;
     --secondary-foreground: #0F1F24;
-    --muted: #F1F4F4;
+    --muted: #EEF3F3;
     --muted-foreground: #5B6B70;
     --accent: #EEF3F3;
     --accent-foreground: #0F1F24;
+
+    /* Gamification & Accents */
+    --streak: #EA580C;
+    --streak-soft: #FFF7ED;
+    --xp: #D97706;
+    --xp-soft: #FEF3C7;
 
     /* Status */
     --destructive: #C42840;
@@ -71,22 +81,31 @@
     --warning-foreground: #FFFFFF;
     --warning-soft: #FDF5E6;
     --info: #2563EB;
+    --info-foreground: #FFFFFF;
     --info-soft: #EEF3FE;
 
-    /* Lines and focus */
+    /* Lines and focus: border is decorative only, input carries 3:1 for controls */
     --border: #E2E8E9;
     --input: #7A8D92;
     --ring: #0B6E75;
+
+    /* Modal backdrop: the foreground ink at half strength, not pure black */
+    --overlay: rgb(15 31 36 / 0.5);
 
     /* Sidebar */
     --sidebar: #F6F8F8;
     --sidebar-foreground: #0F1F24;
     --sidebar-primary: #0B6E75;
     --sidebar-primary-foreground: #FFFFFF;
-    --sidebar-accent: #E9EFEF;
+    --sidebar-accent: #E7EEEE;
     --sidebar-accent-foreground: #0F1F24;
     --sidebar-border: #E2E8E9;
     --sidebar-ring: #0B6E75;
+
+    /* Scrollbars: every scroll container reads these through the base layer.
+       Dark code surfaces swap them for the editor pair below. */
+    --scrollbar-thumb: #C3CFD1;
+    --scrollbar-thumb-hover: #93A4A9;
 
     /* Code surfaces: editor, terminal and lesson code blocks share one dark theme */
     --editor: #0F1719;
@@ -101,8 +120,97 @@
     --editor-danger: #F87171;
     --editor-warning: #FBBF24;
 
-    /* Fonts come from next/font in app/layout.jsx; the legacy layer reads --font-jakarta */
-    --font-jakarta: var(--font-plus-jakarta), system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    /* Syntax colours (Dracula) */
+    --syntax-foreground: #F8F8F2;
+    --syntax-comment: #8592C7;
+    --syntax-keyword: #FF79C6;
+    --syntax-string: #F1FA8C;
+    --syntax-function: #50FA7B;
+    --syntax-type: #8BE9FD;
+    --syntax-number: #BD93F9;
+    --syntax-parameter: #FFB86C;
+    --syntax-regex: #FF5555;
+    --syntax-punctuation: #C9D1D3;
+    --syntax-line: #17242A;
+    --syntax-selection: rgb(98 114 164 / 0.45);
+    --editor-scrollbar-thumb: #34474E;
+    --editor-scrollbar-thumb-hover: #4D646C;
+
+    /* Fonts come from next/font (app/fonts.js) */
+    --font-body: var(--font-plus-jakarta), system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --font-code: var(--font-jetbrains-mono), ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+
+/* ==========================================================
+   DARK THEME (CALIBRATED)
+   Comfort Dark (Dimmed Slate-Teal): Reduces glare and eye fatigue.
+   Buttons have pure white text (--primary-foreground: #FFFFFF).
+   ========================================================== */
+.dark {
+    /* Surfaces: lifted from pitch-black to a soft, ergonomic slate-teal */
+    --background: #131B1E;
+    --foreground: #CFD9DC;
+    --card: #182226;
+    --card-foreground: #CFD9DC;
+    --popover: #1B262B;
+    --popover-foreground: #CFD9DC;
+    --canvas: #0F1517;
+
+    /* Brand: Balanced Deep Teal with crisp pure white text */
+    --primary: #0D7E86;
+    --primary-hover: #10919A;
+    --primary-foreground: #FFFFFF;
+    --primary-soft: #14282D;
+    --primary-soft-foreground: #48C4CC;
+    --primary-border: #1E3D44;
+
+    /* Neutrals: soft contrast pairs */
+    --secondary: #1D292E;
+    --secondary-foreground: #CFD9DC;
+    --muted: #1A252A;
+    --muted-foreground: #7F9399;
+    --accent: #212F35;
+    --accent-foreground: #F2F7F8;
+
+    /* Gamification in Dark */
+    --streak: #F97316;
+    --streak-soft: #2B180C;
+    --xp: #FBBF24;
+    --xp-soft: #2B210C;
+
+    /* Status: softened and desaturated for eye comfort, with white text for solid badges/buttons */
+    --destructive: #E05252;
+    --destructive-foreground: #FFFFFF;
+    --destructive-soft: #2E191B;
+    --success: #2EA063;
+    --success-foreground: #FFFFFF;
+    --success-soft: #142A1F;
+    --warning: #D97706;
+    --warning-foreground: #FFFFFF;
+    --warning-soft: #2D2214;
+    --info: #3B82F6;
+    --info-foreground: #FFFFFF;
+    --info-soft: #16253B;
+
+    /* Lines and focus */
+    --border: #233339;
+    --input: #3E535A;
+    --ring: #10919A;
+    --overlay: rgb(0 0 0 / 0.7);
+
+    /* Sidebar in Dark */
+    --sidebar: #11181B;
+    --sidebar-foreground: #CFD9DC;
+    --sidebar-primary: #0D7E86;
+    --sidebar-primary-foreground: #FFFFFF;
+    --sidebar-accent: #192428;
+    --sidebar-accent-foreground: #F2F7F8;
+    --sidebar-border: #202E33;
+    --sidebar-ring: #10919A;
+
+    /* Scrollbars in Dark */
+    --scrollbar-thumb: #374B52;
+    --scrollbar-thumb-hover: #4D656E;
 }
 
 @theme inline {
@@ -123,13 +231,17 @@
     --color-primary-foreground: var(--primary-foreground);
     --color-primary-soft: var(--primary-soft);
     --color-primary-soft-foreground: var(--primary-soft-foreground);
-    --color-brand-tint: var(--brand-tint);
+    --color-primary-border: var(--primary-border);
     --color-secondary: var(--secondary);
     --color-secondary-foreground: var(--secondary-foreground);
     --color-muted: var(--muted);
     --color-muted-foreground: var(--muted-foreground);
     --color-accent: var(--accent);
     --color-accent-foreground: var(--accent-foreground);
+    --color-streak: var(--streak);
+    --color-streak-soft: var(--streak-soft);
+    --color-xp: var(--xp);
+    --color-xp-soft: var(--xp-soft);
     --color-destructive: var(--destructive);
     --color-destructive-foreground: var(--destructive-foreground);
     --color-destructive-soft: var(--destructive-soft);
@@ -140,10 +252,12 @@
     --color-warning-foreground: var(--warning-foreground);
     --color-warning-soft: var(--warning-soft);
     --color-info: var(--info);
+    --color-info-foreground: var(--info-foreground);
     --color-info-soft: var(--info-soft);
     --color-border: var(--border);
     --color-input: var(--input);
     --color-ring: var(--ring);
+    --color-overlay: var(--overlay);
 
     --color-sidebar: var(--sidebar);
     --color-sidebar-foreground: var(--sidebar-foreground);
@@ -153,6 +267,10 @@
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
+
+    /* Resolved per element, so a thumb inside a code surface turns dark */
+    --color-scrollbar-thumb: var(--scrollbar-thumb);
+    --color-scrollbar-thumb-hover: var(--scrollbar-thumb-hover);
 
     --color-editor: var(--editor);
     --color-editor-panel: var(--editor-panel);
@@ -165,12 +283,13 @@
     --color-editor-success: var(--editor-success);
     --color-editor-danger: var(--editor-danger);
     --color-editor-warning: var(--editor-warning);
+    --color-syntax-foreground: var(--syntax-foreground);
+    --color-syntax-line: var(--syntax-line);
+    --color-syntax-selection: var(--syntax-selection);
 
-    --font-sans: var(--font-plus-jakarta), system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-    --font-mono: var(--font-jetbrains-mono), ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+    --font-sans: var(--font-body);
+    --font-mono: var(--font-code);
 
-    /* The legacy layer defines --radius-* and --shadow-* with other values;
-       inlining keeps Tailwind utilities on these tokens. */
     --radius-xs: calc(var(--radius) - 4px);
     --radius-sm: calc(var(--radius) - 2px);
     --radius-md: var(--radius);
@@ -184,13 +303,44 @@
     --shadow-lg: 0 12px 32px -8px rgb(15 31 36 / 0.18), 0 4px 8px -4px rgb(15 31 36 / 0.08);
 }
 
-/* The parts of Tailwind preflight the shadcn/ui layer depends on. Kept in
-   the base layer so any legacy rule still wins on the legacy screens. */
 @layer base {
     *,
     ::before,
     ::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        border-width: 0;
+        border-style: solid;
         border-color: var(--border);
+    }
+
+    /* One scrollbar for every scroll container (page, panels, menus, code).
+       scrollbar-color is declared per element so a container that overrides
+       --scrollbar-thumb restyles every scroller inside it. */
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--scrollbar-thumb) transparent;
+    }
+
+    html {
+        -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        width: 100%;
+        height: 100dvh;
+        overflow: hidden;
+        background: var(--background);
+        color: var(--foreground);
+        font-family: var(--font-body);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
+        -webkit-touch-callout: none;
     }
 
     a {
@@ -212,19 +362,77 @@
         cursor: pointer;
     }
 
+    input:disabled,
+    textarea:disabled,
+    button:disabled,
+    svg {
+        pointer-events: none;
+    }
+
     img,
     svg,
     video {
         vertical-align: middle;
     }
+
+    input:-webkit-autofill {
+        -webkit-box-shadow: 0 0 0 1000px var(--background) inset !important;
+        -webkit-text-fill-color: var(--foreground) !important;
+    }
+
+    /* Stops iOS Safari from zooming into focused fields */
+    @media (max-width: 425px) {
+        input,
+        textarea {
+            font-size: 16px !important;
+        }
+    }
+
+    @media (max-width: 768px) {
+        button,
+        a,
+        input,
+        textarea {
+            -webkit-tap-highlight-color: transparent;
+        }
+    }
+}
+
+/* Safari has no scrollbar-color yet: same thumb through the WebKit pseudos. */
+@supports not (scrollbar-color: auto) {
+    ::-webkit-scrollbar {
+        width: 0.5rem;
+        height: 0.5rem;
+    }
+
+    ::-webkit-scrollbar-track,
+    ::-webkit-scrollbar-corner {
+        background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        border: 2px solid transparent;
+        border-radius: 9999px;
+        background-color: var(--scrollbar-thumb);
+        background-clip: padding-box;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background-color: var(--scrollbar-thumb-hover);
+    }
 }
 
 @layer components {
-    /* Visible keyboard focus everywhere, including legacy screens that
-       removed outlines. Utilities (shadcn focus rings) still override. */
+    /* Visible keyboard focus everywhere. Utilities (shadcn focus rings) still override. */
     :where(a, button, input, textarea, select, summary, [role="button"], [role="tab"], [tabindex]):focus-visible {
         outline: 2px solid var(--ring);
         outline-offset: 2px;
+    }
+
+    /* Dark code surfaces (editor, terminal, landing snippet) get the dark thumb. */
+    :where(.bg-editor, .bg-editor-panel) {
+        --scrollbar-thumb: var(--editor-scrollbar-thumb);
+        --scrollbar-thumb-hover: var(--editor-scrollbar-thumb-hover);
     }
 
     .tabular {

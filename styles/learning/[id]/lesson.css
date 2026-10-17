@@ -1,4 +1,4 @@
-@layer theme, base, legacy, components, utilities;
+@layer theme, base, components, utilities;
 
 /*
  * Lesson body typography for PortableTextRenderer output.
@@ -50,7 +50,7 @@
         border: 1px solid var(--border);
         border-radius: calc(var(--radius) - 0.25rem);
         background: var(--muted);
-        font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+        font-family: var(--font-code);
         font-size: 0.85em;
     }
 
@@ -139,6 +139,8 @@
 
     /* Code blocks: same dark surface as the challenge editor */
     .lesson-prose .code_block {
+        --scrollbar-thumb: var(--editor-scrollbar-thumb);
+        --scrollbar-thumb-hover: var(--editor-scrollbar-thumb-hover);
         overflow: hidden;
         border: 1px solid var(--editor-border);
         border-radius: var(--radius);
@@ -162,7 +164,7 @@
         gap: 0.5rem;
         min-width: 0;
         color: var(--editor-muted);
-        font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+        font-family: var(--font-code);
         font-size: 0.75rem;
     }
 
@@ -212,15 +214,6 @@
     .lesson-prose .code_content_wrapper:focus-visible {
         outline: 0.125rem solid var(--editor-accent);
         outline-offset: -0.125rem;
-    }
-
-    .lesson-prose .code_content_wrapper::-webkit-scrollbar {
-        height: 0.5rem;
-    }
-
-    .lesson-prose .code_content_wrapper::-webkit-scrollbar-thumb {
-        border-radius: var(--radius);
-        background: var(--editor-border);
     }
 
     /* Callouts: full hairline border, status carried by icon and title */

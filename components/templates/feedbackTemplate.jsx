@@ -52,7 +52,7 @@ export default function FeedbackTemplate() {
 }
 
 const bodyStyle = {
-    backgroundColor: "#f6f9fc",
+    backgroundColor: "#F6F8F8",
     padding: "40px 0",
 };
 
@@ -62,7 +62,7 @@ const containerStyle = {
     borderRadius: "8px",
     maxWidth: "520px",
     margin: "0 auto",
-    border: "1px solid #e5e5e5",
+    border: "1px solid #E2E8E9",
 };
 
 const sectionStyle = {
@@ -85,5 +85,5 @@ const textStyle = {
 const footerStyle = {
     fontSize: "14px",
     marginTop: "20px",
-    color: "#04BADE",
+    color: "#0B6E75",
 };

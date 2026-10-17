@@ -134,7 +134,12 @@ export default function Dashboard() {
                   const Icon = item.icon;
                   return (
                     <SidebarMenuItem key={item.value}>
-                      <SidebarMenuButton asChild isActive={active} tooltip={item.name}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={active}
+                        tooltip={item.name}
+                        className="data-[active=true]:bg-primary-soft/70 data-[active=true]:text-primary data-[active=true]:font-semibold"
+                      >
                         <Link
                           href={hrefFor(item.value, session)}
                           aria-current={active ? 'page' : undefined}

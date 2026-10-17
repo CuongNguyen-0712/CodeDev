@@ -80,61 +80,6 @@ export const AppProvider = ({ children }) => {
         setIsRedirect(Boolean(value));
     }, []);
 
-    useEffect(() => {
-        let frameId;
-
-        const updateBackdrop = () => {
-            const el = document.getElementById('overlay') || document.getElementById('backdrop');
-            if (!el) return;
-
-            const dashboardEl = document.getElementById('dashboard') || document.getElementById('aside');
-
-            let shouldShow = false;
-            if (isDashboard && typeof window !== 'undefined' && window.innerWidth <= 768 && Boolean(dashboardEl)) {
-                shouldShow = true;
-            } else if (overlay === 'account' && typeof window !== 'undefined' && window.innerWidth <= 425) {
-                shouldShow = true;
-            } else if (Boolean(overlay)) {
-                shouldShow = true;
-            }
-
-            if (shouldShow) {
-                el.classList.remove('hidden');
-                el.setAttribute('aria-hidden', 'false');
-            } else {
-                el.classList.add('hidden');
-                el.setAttribute('aria-hidden', 'true');
-            }
-        };
-
-        frameId = requestAnimationFrame(updateBackdrop);
-        window.addEventListener('resize', updateBackdrop);
-
-        return () => {
-            cancelAnimationFrame(frameId);
-            window.removeEventListener('resize', updateBackdrop);
-        };
-    }, [isDashboard, overlay, pathname]);
-
-    useEffect(() => {
-        const el = document.getElementById('overlay') || document.getElementById('backdrop');
-        if (!el) return;
-
-        const handleBackdropClick = (e) => {
-            if (e.target === el) {
-                setOverlayState(null);
-                if (typeof window !== 'undefined' && window.innerWidth <= 768) {
-                    setIsDashboard(false);
-                }
-            }
-        };
-
-        el.addEventListener('click', handleBackdropClick);
-        return () => {
-            el.removeEventListener('click', handleBackdropClick);
-        };
-    }, []);
-
     const value = useMemo(() => ({
         overlay,
         setOverlay,

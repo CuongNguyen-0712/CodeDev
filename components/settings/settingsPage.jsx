@@ -12,6 +12,7 @@ import { validate } from "@/lib/validate";
 import { UpdateInfoSchema } from "@/lib/definition";
 import { uploadImageAction } from "@/actions/upload.actions";
 import { updateUserProfileAction } from "@/actions/user.actions";
+import { callWithAuthRetry } from "@/lib/actionResult";
 
 import { ErrorReload } from "@/components/ui/error";
 import SessionsSection from "@/components/settings/sessionsSection";
@@ -149,13 +150,13 @@ function PhotoSection({ data, onSaved }) {
             formData.append('file', file);
             formData.append('folder', 'uploads');
 
-            const uploadResponse = await uploadImageAction(formData);
+            const uploadResponse = await callWithAuthRetry(() => uploadImageAction(formData));
             if (!uploadResponse.success) {
                 alert(uploadResponse.status || 400, uploadResponse.message || 'Failed to upload image, try again later');
                 return;
             }
 
-            const response = await updateUserProfileAction({ image: uploadResponse.data });
+            const response = await callWithAuthRetry(() => updateUserProfileAction({ image: uploadResponse.data }));
             if (response.success) {
                 alert(200, 'Your profile photo has been updated.');
                 clearSelection();
@@ -269,7 +270,7 @@ function useProfileForm({ data, fields, onSaved, successMessage }) {
 
         setPending(true);
         try {
-            const response = await updateUserProfileAction(changed);
+            const response = await callWithAuthRetry(() => updateUserProfileAction(changed));
             if (response.success) {
                 alert(200, successMessage);
                 await onSaved();
@@ -297,8 +298,8 @@ function PersonalSection({ data, onSaved }) {
 
     return (
         <form onSubmit={form.handleSubmit} noValidate>
-            <FieldGroup className="gap-4 p-4">
-                <div className="grid gap-4 sm:grid-cols-2">
+            <FieldGroup className="gap-2.5 p-4">
+                <div className="grid gap-3 sm:grid-cols-2">
                     <InputGroup
                         name="surname"
                         label="Surname"
@@ -320,7 +321,7 @@ function PersonalSection({ data, onSaved }) {
                         autoComplete="given-name"
                     />
                 </div>
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-2">
                     <InputGroup
                         name="nickname"
                         label="Nickname"
@@ -382,7 +383,7 @@ function AccountSection({ data, onSaved }) {
 
     return (
         <form onSubmit={form.handleSubmit} noValidate>
-            <FieldGroup className="gap-4 p-4">
+            <FieldGroup className="gap-2.5 p-4">
                 <InputGroup
                     name="username"
                     label="Username"

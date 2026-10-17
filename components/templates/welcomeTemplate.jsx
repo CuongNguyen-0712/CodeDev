@@ -67,7 +67,7 @@ export default function WelcomeTemplate() {
 }
 
 const bodyStyle = {
-    backgroundColor: "#f6f9fc",
+    backgroundColor: "#F6F8F8",
     padding: "40px 0",
 };
 
@@ -77,7 +77,7 @@ const containerStyle = {
     borderRadius: "8px",
     maxWidth: "520px",
     margin: "0 auto",
-    border: "1px solid #e5e5e5",
+    border: "1px solid #E2E8E9",
 };
 
 const sectionStyle = {
@@ -106,7 +106,7 @@ const buttonWrapperStyle = {
 const buttonStyle = {
     display: "inline-block",
     padding: "12px 24px",
-    backgroundColor: "#007bff",
+    backgroundColor: "#0B6E75",
     color: "#ffffff",
     fontSize: "16px",
     fontWeight: "bold",
@@ -117,5 +117,5 @@ const buttonStyle = {
 const footerStyle = {
     fontSize: "14px",
     marginTop: "20px",
-    color: "#04BADE",
+    color: "#0B6E75",
 };

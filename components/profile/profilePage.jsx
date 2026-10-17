@@ -17,6 +17,7 @@ import { Button } from "@/components/shadcn/button";
 import { Progress } from "@/components/shadcn/progress";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
+import { cn } from "@/lib/utils";
 
 import {
     LuArrowRight,
@@ -61,11 +62,11 @@ function toPercent(done, total) {
     return Math.min(100, Math.max(0, Math.round((Number(done) || 0) / totalNum * 100)));
 }
 
-function Stat({ icon: Icon, label, children }) {
+function Stat({ icon: Icon, label, iconClassName, children }) {
     return (
         <div className="flex min-w-0 flex-col gap-1 bg-card px-4 py-3">
             <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                <Icon className="size-3.5" aria-hidden="true" />
+                <Icon className={cn("size-3.5", iconClassName)} aria-hidden="true" />
                 {label}
             </dt>
             <dd className="m-0 truncate text-lg font-semibold text-foreground">{children}</dd>
@@ -390,18 +391,18 @@ export default function ProfilePage() {
                     </header>
 
                     <dl className="m-0 grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-4">
-                        <Stat icon={LuCoins} label="Points">
-                            <span className="font-mono tabular" title={`${points} points`}>{formatPoints(points)}</span>
+                        <Stat icon={LuCoins} iconClassName="text-warning" label="Points">
+                            <span className="font-mono tabular font-semibold" title={`${points} points`}>{formatPoints(points)}</span>
                         </Stat>
-                        <Stat icon={LuGauge} label="Level">
+                        <Stat icon={LuGauge} iconClassName="text-primary" label="Level">
                             {levelLabel || <span className="text-sm font-medium text-muted-foreground">Not set</span>}
                         </Stat>
-                        <Stat icon={LuStar} label="Stars">
-                            <span className="font-mono tabular">{Number(data?.star) || 0}</span>
+                        <Stat icon={LuStar} iconClassName="text-xp fill-xp/20" label="Stars">
+                            <span className="font-mono tabular font-semibold text-xp">{Number(data?.star) || 0}</span>
                         </Stat>
-                        <Stat icon={LuTrophy} label="Rank">
+                        <Stat icon={LuTrophy} iconClassName="text-streak" label="Rank">
                             {rank !== null && rank !== undefined ? (
-                                <span className="font-mono tabular">#{rank}</span>
+                                <span className="font-mono tabular font-semibold text-streak">#{rank}</span>
                             ) : (
                                 <span className="text-sm font-medium text-muted-foreground">Unranked</span>
                             )}

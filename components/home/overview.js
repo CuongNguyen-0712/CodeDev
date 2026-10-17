@@ -10,6 +10,7 @@ import { ErrorReload } from "../ui/error";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn/avatar";
 import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { cn } from "@/lib/utils";
 
 import { LuGauge, LuLibrary, LuLogIn, LuStar, LuTrophy, LuUserPen } from "react-icons/lu";
 
@@ -44,11 +45,11 @@ function OverviewSkeleton() {
     );
 }
 
-function Stat({ icon: Icon, label, children }) {
+function Stat({ icon: Icon, label, iconClassName, children }) {
     return (
         <div className="flex min-w-0 flex-col gap-1 px-3 py-3 sm:px-4">
             <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Icon className="size-3.5 shrink-0" aria-hidden="true" />
+                <Icon className={cn("size-3.5 shrink-0", iconClassName)} aria-hidden="true" />
                 <span className="truncate">{label}</span>
             </dt>
             <dd className="m-0 truncate text-base font-semibold text-foreground">
@@ -146,15 +147,15 @@ export default function HomeOverview() {
             </div>
 
             <dl className="m-0 grid w-full shrink-0 grid-cols-3 divide-x rounded-lg border bg-card lg:w-96">
-                <Stat icon={LuGauge} label="Level">
+                <Stat icon={LuGauge} iconClassName="text-primary" label="Level">
                     {currentLevel?.label || 'Beginner'}
                 </Stat>
-                <Stat icon={LuStar} label="Stars">
-                    <span className="font-mono tabular">{starsCount}</span>
+                <Stat icon={LuStar} iconClassName="text-xp fill-xp/20" label="Stars">
+                    <span className="font-mono tabular font-semibold text-xp">{starsCount}</span>
                 </Stat>
-                <Stat icon={LuTrophy} label="Rank">
+                <Stat icon={LuTrophy} iconClassName="text-streak" label="Rank">
                     {rank !== null && rank !== undefined ? (
-                        <span className="font-mono tabular">#{rank}</span>
+                        <span className="font-mono tabular font-semibold text-streak">#{rank}</span>
                     ) : (
                         <span className="text-sm font-medium text-muted-foreground">Unranked</span>
                     )}

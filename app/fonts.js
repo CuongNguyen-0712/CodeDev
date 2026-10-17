@@ -1,7 +1,7 @@
 import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 
-// Interface text. Exposed as --font-plus-jakarta for Tailwind (font-sans)
-// and for the legacy stylesheets through --font-jakarta.
+// Interface text. Exposed as --font-plus-jakarta; app/globals.css maps it
+// to --font-body (body, font-sans).
 export const fontSans = Plus_Jakarta_Sans({
     subsets: ["latin", "vietnamese"],
     weight: ["400", "500", "600", "700"],

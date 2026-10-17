@@ -175,7 +175,7 @@ export default function HomeRecommend() {
         isError,
         error,
         refetch
-    } = useInfiniteQuery(courseQueries.list({ limit: 10, rating: ['5'] }));
+    } = useInfiniteQuery(courseQueries.list({ rating: '5' }, { limit: 10 }));
 
     const courses = data?.pages.flatMap(page => page.data) || [];
 
@@ -332,7 +332,7 @@ export default function HomeRecommend() {
                     onMouseLeave={handleMouseLeave}
                     onMouseUp={handleMouseUp}
                     onMouseMove={handleMouseMove}
-                    className={`m-0 flex list-none gap-3 overflow-x-auto overscroll-x-contain p-0 pb-3 [scrollbar-width:thin] ${isDragging ? "cursor-grabbing select-none" : "snap-x snap-mandatory"}`}
+                    className={`m-0 flex list-none gap-3 overflow-x-auto overscroll-x-contain p-0 pb-3 ${isDragging ? "cursor-grabbing select-none" : "snap-x snap-mandatory"}`}
                 >
                     {isLoading
                         ? Array.from({ length: 4 }, (_, index) => <CardSkeleton key={index} />)

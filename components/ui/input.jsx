@@ -1,7 +1,7 @@
 'use client';
 import { useState } from "react";
 
-import { LuEye, LuEyeOff, LuX } from "react-icons/lu";
+import { LuCircleAlert, LuEye, LuEyeOff, LuX } from "react-icons/lu";
 
 import { Field, FieldError, FieldLabel } from "@/components/shadcn/field";
 import {
@@ -13,7 +13,7 @@ import {
 } from "@/components/shadcn/input-group";
 
 // App-level labelled field built on shadcn Field + InputGroup.
-// The props match the original API so existing forms keep working.
+// Uses a reserved helper slot (min-h-4) to completely eliminate layout shifts when validating.
 export function InputGroup({
     name,
     label,
@@ -38,8 +38,13 @@ export function InputGroup({
     const canClear = !disabled && !isPassword && typeof reset === "function" && Boolean(value);
 
     return (
-        <Field data-invalid={error ? true : undefined}>
-            <FieldLabel htmlFor={name}>{label}</FieldLabel>
+        <Field data-invalid={error ? true : undefined} className="group/field gap-1">
+            <FieldLabel
+                htmlFor={name}
+                className="text-xs font-semibold text-foreground/90 transition-colors group-focus-within/field:text-primary group-data-[invalid=true]/field:text-destructive"
+            >
+                {label}
+            </FieldLabel>
             <InputGroupRoot data-disabled={disabled ? true : undefined}>
                 {icon && (
                     <InputGroupAddon aria-hidden="true">{icon}</InputGroupAddon>
@@ -84,10 +89,20 @@ export function InputGroup({
                     </InputGroupAddon>
                 )}
             </InputGroupRoot>
-            {description && !error && (
-                <p className="text-xs text-muted-foreground">{description}</p>
-            )}
-            {error && <FieldError id={errorId}>{error}</FieldError>}
+            {/* Reserved slot: compact 16px height eliminates shift without bloated spacing */}
+            <div className="min-h-4 flex items-center text-[11px] leading-4">
+                {error ? (
+                    <FieldError
+                        id={errorId}
+                        className="flex items-center gap-1 font-medium text-[11px] leading-4 text-destructive animate-in fade-in-50 duration-150"
+                    >
+                        <LuCircleAlert className="size-3 shrink-0" aria-hidden="true" />
+                        <span>{error}</span>
+                    </FieldError>
+                ) : description ? (
+                    <p className="text-[11px] leading-4 text-muted-foreground">{description}</p>
+                ) : null}
+            </div>
         </Field>
     );
 }
@@ -108,8 +123,13 @@ export function TextAreaGroup({
     const errorId = `${name}-error`;
 
     return (
-        <Field data-invalid={error ? true : undefined}>
-            <FieldLabel htmlFor={name}>{label}</FieldLabel>
+        <Field data-invalid={error ? true : undefined} className="group/field gap-1">
+            <FieldLabel
+                htmlFor={name}
+                className="text-xs font-semibold text-foreground/90 transition-colors group-focus-within/field:text-primary group-data-[invalid=true]/field:text-destructive"
+            >
+                {label}
+            </FieldLabel>
             <InputGroupRoot data-disabled={disabled ? true : undefined}>
                 <InputGroupTextarea
                     id={name}
@@ -132,7 +152,17 @@ export function TextAreaGroup({
                     </InputGroupAddon>
                 )}
             </InputGroupRoot>
-            {error && <FieldError id={errorId}>{error}</FieldError>}
+            <div className="min-h-4 flex items-center text-[11px] leading-4">
+                {error && (
+                    <FieldError
+                        id={errorId}
+                        className="flex items-center gap-1 font-medium text-[11px] leading-4 text-destructive animate-in fade-in-50 duration-150"
+                    >
+                        <LuCircleAlert className="size-3 shrink-0" aria-hidden="true" />
+                        <span>{error}</span>
+                    </FieldError>
+                )}
+            </div>
         </Field>
     );
 }
