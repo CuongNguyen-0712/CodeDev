@@ -2,6 +2,11 @@
 const nextConfig = {
     output: 'standalone',
     reactStrictMode: false,
+    experimental: {
+        // Avatar uploads go through a server action; the service enforces the real 5 MB limit
+        // (the default 1 MB would reject larger photos before validation runs).
+        serverActions: { bodySizeLimit: '6mb' },
+    },
     images: {
         remotePatterns: [
             {

@@ -1,14 +1,17 @@
 'use server';
 
-import { uploadService } from "@/services/upload.service";
+import { mediaService } from "@/services/media.service";
 import { rateLimiters } from "@/lib/rateLimit";
 import { runAction } from "@/lib/serverAction";
 
-export async function uploadImageAction(formData) {
-    return runAction(async () => {
-        const file = formData.get("file");
-        const folder = formData.get("folder") || "uploads";
+/**
+ * Uploads the signed-in user's avatar and makes it their profile image in one step. The client
+ * sends only the file: the Cloudinary folder, file name and the stored URL are decided here.
+ */
+export async function uploadAvatarAction(formData) {
+    return runAction(async ({ userId }) => {
+        const file = formData?.get?.("file");
 
-        return uploadService.uploadImage({ file, folder });
-    }, { limiter: rateLimiters.upload, context: "uploadImageAction" });
+        return mediaService.uploadAvatar({ userId, file });
+    }, { limiter: rateLimiters.upload, context: "uploadAvatarAction" });
 }

@@ -10,6 +10,8 @@ decides which; `lib/appEnv.mjs` is the single definition used by the app, the te
 | PostgreSQL | local (`pg` driver) | Neon (serverless driver) |
 | Redis | local container (`docker compose up -d redis`) | Upstash |
 | Object storage | **MinIO** (`docker-compose.dev.yml`, `MINIO_ENDPOINT`) | **Neon S3** (`AWS_ENDPOINT_URL_S3`) |
+| Images (Cloudinary) | folder `codedev/development/...` | folder `codedev/production/...` |
+| Schema | `npm run db:migrate` | `npm run db:migrate:prod -- --yes`; `npm run db:compare` must report "in sync" |
 | Buckets | `public`, `private` | `public`, `private` |
 
 `.env.local` is loaded by `next start` too, and it sets `APP_ENV=development`: a production build

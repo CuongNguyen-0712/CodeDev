@@ -7,9 +7,11 @@ import { runAction } from "@/lib/serverAction";
 
 export async function updateUserProfileAction(data) {
     return runAction(async ({ userId }) => {
-        const { nickname, surname, phone, name, email, image, bio } = data || {};
+        // The profile image is set only by uploadAvatarAction (server-chosen Cloudinary asset);
+        // an image URL sent here is ignored so a client cannot point it at an arbitrary URL.
+        const { nickname, surname, phone, name, email, bio } = data || {};
 
-        const isUpdate = nickname || surname || phone || name || email || image || bio;
+        const isUpdate = nickname || surname || phone || name || email || bio;
         if (!isUpdate) {
             throw new ApiError("No data to update", 400);
         }
@@ -21,7 +23,6 @@ export async function updateUserProfileAction(data) {
             phone,
             name,
             email,
-            image,
             bio,
         });
     }, { limiter: rateLimiters.profile, context: "updateUserProfileAction" });

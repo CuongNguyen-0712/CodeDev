@@ -10,7 +10,10 @@ import { userQueries } from "@/queries/user.query";
 import { userKeys } from "@/keys/user.keys";
 import { validate } from "@/lib/validate";
 import { UpdateInfoSchema } from "@/lib/definition";
-import { uploadImageAction } from "@/actions/upload.actions";
+import { uploadAvatarAction } from "@/actions/upload.actions";
+
+const AVATAR_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 import { updateUserProfileAction } from "@/actions/user.actions";
 import { callWithAuthRetry } from "@/lib/actionResult";
 
@@ -131,8 +134,14 @@ function PhotoSection({ data, onSaved }) {
             clearSelection();
             return;
         }
-        if (!next.type?.startsWith('image/')) {
-            alert(400, 'Choose an image file (PNG, JPG, WebP or GIF).');
+        // Quick feedback only: the server checks the real format and size again.
+        if (!AVATAR_TYPES.includes(next.type)) {
+            alert(400, 'Choose a PNG, JPG, WebP or GIF image.');
+            e.target.value = '';
+            return;
+        }
+        if (next.size > AVATAR_MAX_BYTES) {
+            alert(413, 'Images can be at most 5 MB.');
             e.target.value = '';
             return;
         }
@@ -148,15 +157,9 @@ function PhotoSection({ data, onSaved }) {
         try {
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('folder', 'uploads');
 
-            const uploadResponse = await callWithAuthRetry(() => uploadImageAction(formData));
-            if (!uploadResponse.success) {
-                alert(uploadResponse.status || 400, uploadResponse.message || 'Failed to upload image, try again later');
-                return;
-            }
-
-            const response = await callWithAuthRetry(() => updateUserProfileAction({ image: uploadResponse.data }));
+            // One server step: upload, store the asset and set it as the profile image.
+            const response = await callWithAuthRetry(() => uploadAvatarAction(formData));
             if (response.success) {
                 alert(200, 'Your profile photo has been updated.');
                 clearSelection();
@@ -185,7 +188,7 @@ function PhotoSection({ data, onSaved }) {
                         ref={inputRef}
                         id="avatar-file"
                         type="file"
-                        accept="image/*"
+                        accept={AVATAR_TYPES.join(',')}
                         className="sr-only"
                         onChange={handlePick}
                         disabled={pending}
