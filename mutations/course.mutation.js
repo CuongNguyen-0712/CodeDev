@@ -9,14 +9,14 @@ import {
     voteCommentAction,
 } from "@/actions/course.actions";
 
-import { unwrapActionResult } from "@/lib/actionResult";
+import { unwrapActionResult, callWithAuthRetry } from "@/lib/actionResult";
 
 import { userKeys } from "@/keys/user.keys";
 import { courseKeys } from "@/keys/course.keys";
 
 // Server actions return { success, data | status, message }; failures become thrown errors.
 async function callAction(action, variables) {
-    return { success: true, data: unwrapActionResult(await action(variables)) };
+    return { success: true, data: unwrapActionResult(await callWithAuthRetry(() => action(variables))) };
 }
 
 function extractId(variables) {

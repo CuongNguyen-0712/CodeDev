@@ -35,7 +35,7 @@ export default async function Page({ params }) {
     const queryClient = new QueryClient();
 
     // Prefetch with the viewer's id so the hydrated data carries their status / progress.
-    const session = await getAuthSession();
+    const session = await getAuthSession({ soft: true });
     const data = await courseService
         .getDetails({ courseId: id, userId: session?.user?.id ?? null })
         .catch((error) => {

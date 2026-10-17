@@ -7,14 +7,30 @@ import { SignInSchema } from "@/lib/definition"
 import { authClient } from "@/clients/auth.client"
 import { useLogin } from "@/mutations/auth.mutation"
 
+import AuthAlert from "./authAlert"
+
 import { InputGroup } from "../ui/input"
 
 import { Button } from "@/components/shadcn/button"
 import { FieldGroup } from "@/components/shadcn/field"
 import { Spinner } from "@/components/shadcn/spinner"
 
-import { LuCircleAlert, LuLock, LuLogIn, LuUser } from "react-icons/lu"
+import { LuLock, LuLogIn, LuUser } from "react-icons/lu"
 import { SiGithub, SiGoogle } from "react-icons/si"
+
+function formatLoginError(error) {
+    const raw = String(error || "")
+    if (raw.includes("CredentialsSignin") || raw.includes("check your credentials") || raw.includes("401")) {
+        return "Incorrect username or password. Please verify your credentials and try again."
+    }
+    if (raw.includes("429") || raw.includes("Too many")) {
+        return "Too many sign-in attempts. Please wait a moment before trying again."
+    }
+    if (raw.includes("500") || raw.includes("fetch failed") || raw.includes("Network")) {
+        return "Unable to connect to the authentication server. Please check your network connection."
+    }
+    return error || "Sign in failed. Please check your credentials."
+}
 
 export default function Login({ active, changeForm }) {
     const [formData, setFormData] = useState({
@@ -24,7 +40,6 @@ export default function Login({ active, changeForm }) {
 
     const [validation, setValidation] = useState({})
     const [isPending, setIsPending] = useState(null)
-    // Presentation only: mirrors the toast so the reason stays visible next to the submit button.
     const [serverError, setServerError] = useState(null)
 
     const { navigateReplace } = useRouterActions()
@@ -49,8 +64,7 @@ export default function Login({ active, changeForm }) {
         loginMutation.mutate(formData, {
             onSuccess: (response) => {
                 if (!response?.ok) {
-                    alert(response?.status || 500, response?.error || "Login failed, please check your credentials.")
-                    setServerError(response?.error || "Login failed, please check your credentials.")
+                    setServerError(formatLoginError(response?.error))
                     return
                 }
 
@@ -59,8 +73,7 @@ export default function Login({ active, changeForm }) {
             },
 
             onError: (error) => {
-                alert(error.status || 500, error.message || "Login failed, please try again.")
-                setServerError(error.message || "Login failed, please try again.")
+                setServerError(formatLoginError(error?.message || error?.status))
             },
 
             onSettled: () => {
@@ -71,6 +84,8 @@ export default function Login({ active, changeForm }) {
 
     const handleValidation = (e) => {
         const { name, value } = e.target
+        if (!value && !formData[name]) return
+
         const nextUpdate = {
             ...formData,
             [name]: value
@@ -87,6 +102,17 @@ export default function Login({ active, changeForm }) {
     const handleChange = (e) => {
         const { name, value } = e.target
         setFormData((prev) => ({ ...prev, [name]: value }))
+
+        // Clear field validation and server error once the user begins editing
+        if (validation?.[name]) {
+            setValidation((prev) => {
+                const { [name]: removed, ...rest } = prev || {}
+                return rest
+            })
+        }
+        if (serverError) {
+            setServerError(null)
+        }
     }
 
     const handleClearInput = (name) => {
@@ -95,18 +121,14 @@ export default function Login({ active, changeForm }) {
             const { [name]: removed, ...rest } = prev || {}
             return rest
         })
-    }
-
-    const handleClearValidation = (e) => {
-        const { name } = e.target
-        setValidation((prev) => {
-            const { [name]: removed, ...rest } = prev || {}
-            return rest
-        })
+        if (serverError) {
+            setServerError(null)
+        }
     }
 
     const handleCallback = async (value) => {
         setIsPending(value)
+        setServerError(null)
 
         try {
             const response = await authClient.loginWithProvider(value)
@@ -115,14 +137,14 @@ export default function Login({ active, changeForm }) {
             if (response?.redirecting) return
 
             if (!response?.ok) {
-                alert(response?.status || 500, response?.error || "OAuth login failed, please try again.")
+                setServerError(response?.error || `Sign in with ${value} failed. Please try again.`)
                 return
             }
 
             alert(200, "Login successful! Redirecting...")
             navigateReplace('/home')
         } catch (error) {
-            alert(error.status || 500, error.message || "OAuth login failed, please try again.")
+            setServerError(error?.message || `Sign in with ${value} failed. Please try again.`)
         } finally {
             setIsPending(null)
         }
@@ -142,7 +164,7 @@ export default function Login({ active, changeForm }) {
             noValidate
             aria-label="Sign in"
         >
-            <FieldGroup className="gap-4">
+            <FieldGroup className="gap-2.5">
                 <InputGroup
                     name="username"
                     label="Username"
@@ -154,7 +176,6 @@ export default function Login({ active, changeForm }) {
                     reset={(name) => handleClearInput(name)}
                     disabled={isBusy}
                     onBlur={handleValidation}
-                    onFocus={handleClearValidation}
                     autoComplete="username"
                 />
                 <InputGroup
@@ -169,21 +190,12 @@ export default function Login({ active, changeForm }) {
                     disabled={isBusy}
                     isPassword={true}
                     onBlur={handleValidation}
-                    onFocus={handleClearValidation}
                     autoComplete="current-password"
                 />
             </FieldGroup>
 
             <div className="flex flex-col gap-3">
-                {serverError && !loginMutation.isPending && (
-                    <p
-                        role="alert"
-                        className="flex items-start gap-2 rounded-md border border-destructive/20 bg-destructive-soft px-3 py-2 text-sm text-destructive"
-                    >
-                        <LuCircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                        <span>{serverError}</span>
-                    </p>
-                )}
+                <AuthAlert error={serverError} onDismiss={() => setServerError(null)} />
 
                 <Button type="submit" size="lg" className="w-full" disabled={isBusy}>
                     {loginMutation.isPending ? <Spinner /> : <LuLogIn />}

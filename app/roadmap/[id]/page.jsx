@@ -37,7 +37,7 @@ export default async function Page({ params }) {
     // Include the signed-in user so the prefetched data carries their progress
     let userId = null;
     try {
-        const session = await getAuthSession();
+        const session = await getAuthSession({ soft: true });
         userId = session?.user?.id ?? null;
     } catch {
         userId = null;

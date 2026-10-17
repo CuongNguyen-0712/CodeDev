@@ -4,6 +4,7 @@ import { signOut } from "next-auth/react";
 import { authClient } from "@/clients/auth.client";
 import { markSigningOut } from "@/lib/authSignal";
 import { disconnectPusher } from "@/lib/pusherClient";
+import { resetAuthRefreshState } from "@/lib/authRefresh";
 
 export function useLogin() {
     return useMutation({
@@ -33,6 +34,7 @@ export function useLogOut() {
             }
 
             disconnectPusher();
+            resetAuthRefreshState();
             await signOut({ redirect: false });
 
             return { ok: true, revoked };

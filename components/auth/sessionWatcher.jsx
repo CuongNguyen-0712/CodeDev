@@ -1,44 +1,95 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 
 import { useQueryClient } from "@tanstack/react-query";
 
-import { isFatalSessionError } from "@/constants/auth";
+import { SESSION_ERROR, isFatalSessionError } from "@/constants/auth";
 import { isSigningOut, markSigningOut } from "@/lib/authSignal";
 import { disconnectPusher } from "@/lib/pusherClient";
+import {
+    REFRESH_MARGIN_MS,
+    getKnownAccessExpiry,
+    onAuthEvent,
+    refreshSession,
+    resetAuthRefreshState,
+    setKnownAccessExpiry,
+} from "@/lib/authRefresh";
 
 import { UserRealtimeBridge } from "@/components/realtime/userRealtimeBridge";
 
 /**
- * Signs the browser out once the server reports the session as revoked / expired / invalid
- * (`session.error`, refreshed every 60s by SessionProvider and on window focus).
- * The server-side session is already dead in those cases, so only the cookie needs clearing:
- * no logout API call that could fail and leave the user stuck.
+ * Client side of the session lifecycle:
+ *   - refreshes the access state shortly before it expires, only while the tab is visible
+ *     (hidden tabs refresh on demand when a request gets 401 ACCESS_TOKEN_EXPIRED);
+ *   - signs the browser out when the server reports the session as revoked / expired / invalid
+ *     (`session.error`) or when any tab's refresh failed for good. The server-side session is
+ *     already over in those cases, so only local state and cookies are cleared.
  */
 export function SessionWatcher() {
     const handlingRef = useRef(false);
 
     const { data: session, status } = useSession();
     const queryClient = useQueryClient();
+    const [accessExpiresAt, setAccessExpiresAt] = useState(0);
 
-    useEffect(() => {
-        if (status !== "authenticated") return;
-
-        const error = session?.error;
-        if (!isFatalSessionError(error) || handlingRef.current || isSigningOut()) return;
+    const endSession = useCallback((error) => {
+        if (handlingRef.current || isSigningOut()) return;
 
         handlingRef.current = true;
         markSigningOut();
+        // Private data of this user must not stay on screen or in memory.
         queryClient.clear();
         disconnectPusher();
+        resetAuthRefreshState();
 
-        signOut({ callbackUrl: `/auth/error?error=${encodeURIComponent(error)}` }).catch(() => {
-            // Network failure: fall back to a hard navigation, the proxy clears the cookie.
-            window.location.assign(`/auth/error?error=${encodeURIComponent(error)}`);
+        const target = `/auth/error?error=${encodeURIComponent(error)}`;
+        signOut({ callbackUrl: target }).catch(() => {
+            // Network failure: fall back to a hard navigation, the proxy clears the cookies.
+            window.location.assign(target);
         });
-    }, [session?.error, status, queryClient]);
+    }, [queryClient]);
+
+    // Revoked / expired / invalid session reported by /api/auth/session.
+    useEffect(() => {
+        if (status !== "authenticated") return;
+        if (isFatalSessionError(session?.error)) endSession(session.error);
+    }, [session?.error, status, endSession]);
+
+    // Known access expiry: from the session, raised by refreshes in this or another tab.
+    useEffect(() => {
+        if (status !== "authenticated") return;
+        setKnownAccessExpiry(session?.accessExpiresAt);
+        setAccessExpiresAt(getKnownAccessExpiry());
+    }, [session?.accessExpiresAt, status]);
+
+    useEffect(() => onAuthEvent((message) => {
+        if (message?.type === "refreshed") setAccessExpiresAt(getKnownAccessExpiry());
+        if (message?.type === "signed-out") endSession(SESSION_ERROR.EXPIRED);
+    }), [endSession]);
+
+    // Proactive refresh: REFRESH_MARGIN_MS before expiry, or as soon as the tab becomes visible.
+    useEffect(() => {
+        if (status !== "authenticated" || !accessExpiresAt) return;
+
+        const refreshIfDue = () => {
+            if (document.visibilityState !== "visible") return;
+            if (getKnownAccessExpiry() - Date.now() > REFRESH_MARGIN_MS) return;
+            refreshSession().catch((error) => {
+                // Terminal failures are broadcast as `signed-out`; transient ones retry on demand.
+                if (!error?.terminal) console.warn("[auth] Session refresh failed:", error?.message);
+            });
+        };
+
+        const timer = setTimeout(refreshIfDue, Math.max(0, accessExpiresAt - Date.now() - REFRESH_MARGIN_MS));
+        document.addEventListener("visibilitychange", refreshIfDue);
+
+        return () => {
+            clearTimeout(timer);
+            document.removeEventListener("visibilitychange", refreshIfDue);
+        };
+    }, [accessExpiresAt, status]);
 
     return null;
 }

@@ -4,6 +4,9 @@ import { requireAuthSession } from "@/lib/session";
 import { ApiError, errorResponse } from "@/lib/error/apiError";
 import { rateLimiters } from "@/lib/rateLimit";
 
+import { assertSameOrigin } from "@/lib/requestGuard";
+import { clearRefreshCookie, clearSessionCookie } from "@/lib/authCookies";
+
 import { authService } from "@/services/auth.service";
 
 /** Lists the signed-in user's active sessions (devices). */
@@ -25,11 +28,14 @@ export async function GET(req) {
 
 /**
  * Signs out other devices.
- * Body: `{ sessionId }` for one session, or `{ others: true }` for every session except this one.
- * The current session is ended through PATCH /api/user/logout instead.
+ * Body: `{ sessionId }` for one session, `{ others: true }` for every session except this one,
+ * or `{ all: true }` to sign out everywhere including here (cookies are cleared).
+ * The current session alone is ended through PATCH /api/user/logout.
  */
 export async function DELETE(req) {
     try {
+        assertSameOrigin(req);
+
         const session = await requireAuthSession();
         const { id: userId, sessionId: currentSessionId } = session.user;
 
@@ -37,6 +43,13 @@ export async function DELETE(req) {
         if (!limit.allowed) return limit.response;
 
         const body = await req.json().catch(() => ({}));
+
+        if (body?.all === true) {
+            const revoked = await authService.revokeAllSessions({ userId });
+            await clearRefreshCookie();
+            await clearSessionCookie();
+            return NextResponse.json({ success: true, data: { revoked, signedOut: true } }, { status: 200, headers: limit.headers });
+        }
 
         if (body?.others === true) {
             const revoked = await authService.revokeOtherSessions({ userId, currentSessionId });

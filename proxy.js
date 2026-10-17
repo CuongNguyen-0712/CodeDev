@@ -8,10 +8,12 @@ import { routeConfig } from "@/auth/route.config";
 import { ACCESS } from "@/auth/access";
 
 import { isFatalSessionError } from "@/constants/auth";
+import { decodeAuthJwt } from "@/lib/authJwt";
 
 import { match } from "path-to-regexp";
 
-const SESSION_COOKIE_NAMES = ['next-auth.session-token', '__Secure-next-auth.session-token']
+// Session JWT (possibly chunked) and the refresh cookie of a session the server already ended.
+const SESSION_COOKIE_NAMES = ['next-auth.session-token', '__Secure-next-auth.session-token', 'cd_refresh', '__Host-cd_refresh']
 
 const findRoute = (pathname) => {
     return routeConfig.find(route => (
@@ -30,7 +32,8 @@ const clearSessionCookie = (req, res) => {
 }
 
 export default async function proxy(req) {
-    const rawToken = await getToken({ req })
+    // Same codec as next-auth: algorithm allowlist + iss/aud checks (lib/authJwt).
+    const rawToken = await getToken({ req, decode: decodeAuthJwt })
     const pathname = req.nextUrl.pathname
 
     // A token flagged revoked / expired / invalid is as good as no token.

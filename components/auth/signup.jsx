@@ -2,12 +2,13 @@ import { useState } from "react"
 
 import { useRouterActions } from "@/router/useRouterActions"
 import { useSignUp } from "@/mutations/user.mutation"
-import { SignUpSchema } from "@/lib/definition"
+import { SignUpSchema, SignUpStep1Schema, SignUpStep2Schema } from "@/lib/definition"
 import { validate } from "@/lib/validate"
 import { useApp } from "@/contexts/appContext"
 import { authClient } from "@/clients/auth.client"
 import { cn } from "@/lib/utils"
 
+import AuthAlert from "./authAlert"
 import { InputGroup } from "../ui/input"
 
 import { Button } from "@/components/shadcn/button"
@@ -19,7 +20,6 @@ import {
     LuArrowRight,
     LuAtSign,
     LuCheck,
-    LuCircleAlert,
     LuKeyRound,
     LuLock,
     LuUser,
@@ -49,29 +49,19 @@ export default function Signup({ active, changeForm }) {
 
     const [validation, setValidation] = useState({})
     const [isPending, setIsPending] = useState(null)
-    // Presentation only: mirrors the toast so the reason stays visible next to the submit button.
     const [serverError, setServerError] = useState(null)
 
     const isBusy = signUpMutation.isPending || !!isPending
 
     const validateStep1 = () => {
-        const step1Data = {
-            ...formData,
-            // dummy values for step 2 so zod doesn't fail whole object prematurely
-            username: formData.username || 'dummy_user',
-            password: formData.password || 'Dummy12345!',
-            re_password: formData.password || 'Dummy12345!',
-        }
+        const { errors } = validate(SignUpStep1Schema, {
+            surname: formData.surname,
+            name: formData.name,
+            email: formData.email,
+        })
 
-        const { errors } = validate(SignUpSchema, step1Data)
-        const step1Errors = {}
-
-        if (errors?.surname) step1Errors.surname = errors.surname
-        if (errors?.name) step1Errors.name = errors.name
-        if (errors?.email) step1Errors.email = errors.email
-
-        if (Object.keys(step1Errors).length > 0) {
-            setValidation(prev => ({ ...prev, ...step1Errors }))
+        if (errors && Object.keys(errors).length > 0) {
+            setValidation(prev => ({ ...prev, ...errors }))
             return false
         }
 
@@ -80,10 +70,12 @@ export default function Signup({ active, changeForm }) {
 
     const handleNextStep = () => {
         if (!validateStep1()) return
+        setServerError(null)
         setStep(1)
     }
 
     const handlePrevStep = () => {
+        setServerError(null)
         setStep(0)
     }
 
@@ -117,21 +109,51 @@ export default function Signup({ active, changeForm }) {
 
             onError: (error) => {
                 const status = error.status || error.response?.status || 500
-                const message = error.message || error.response?.data?.message || error.response?.data?.error || "Sign up failed, please try again."
-                alert(status, message)
-                setServerError(message)
+                const rawMessage = String(error.message || error.response?.data?.message || error.response?.data?.error || "")
+
+                // Smart error mapping: if email is already registered
+                if (rawMessage.toLowerCase().includes("email") || status === 409) {
+                    setStep(0)
+                    setValidation(prev => ({ ...prev, email: "This email is already registered" }))
+                    setServerError({
+                        message: "An account with this email already exists.",
+                        actionLabel: "Sign in instead",
+                        onAction: changeForm,
+                    })
+                    return
+                }
+
+                // If username is taken
+                if (rawMessage.toLowerCase().includes("username")) {
+                    setStep(1)
+                    setValidation(prev => ({ ...prev, username: "This username is already taken" }))
+                    setServerError("This username is already taken. Please choose another username.")
+                    return
+                }
+
+                // General error formatting
+                if (status === 429) {
+                    setServerError("Too many sign-up attempts. Please wait a moment before trying again.")
+                    return
+                }
+
+                setServerError(rawMessage || "Sign up failed. Please check your information and try again.")
             }
         })
     }
 
     const handleValidation = (e) => {
         const { name, value } = e.target
+        if (!value && !formData[name]) return
+
         const nextUpdate = {
             ...formData,
             [name]: value
         }
 
-        const { errors } = validate(SignUpSchema, nextUpdate)
+        // Validate against appropriate step schema
+        const schema = step === 0 ? SignUpStep1Schema : SignUpStep2Schema
+        const { errors } = validate(schema, nextUpdate)
 
         setValidation((prev) => {
             const { [name]: removed, ...rest } = prev || {}
@@ -142,6 +164,16 @@ export default function Signup({ active, changeForm }) {
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target
         setFormData((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
+
+        if (validation?.[name]) {
+            setValidation((prev) => {
+                const { [name]: removed, ...rest } = prev || {}
+                return rest
+            })
+        }
+        if (serverError) {
+            setServerError(null)
+        }
     }
 
     const handleClearInput = (name) => {
@@ -150,18 +182,14 @@ export default function Signup({ active, changeForm }) {
             const { [name]: removed, ...rest } = prev || {}
             return rest
         })
-    }
-
-    const handleClearValidation = (e) => {
-        const { name } = e.target
-        setValidation((prev) => {
-            const { [name]: removed, ...rest } = prev || {}
-            return rest
-        })
+        if (serverError) {
+            setServerError(null)
+        }
     }
 
     const handleCallback = async (value) => {
         setIsPending(value)
+        setServerError(null)
 
         try {
             const response = await authClient.loginWithProvider(value)
@@ -170,14 +198,14 @@ export default function Signup({ active, changeForm }) {
             if (response?.redirecting) return
 
             if (!response?.ok) {
-                alert(response?.status || 500, response?.error || "OAuth sign in failed, please try again.")
+                setServerError(response?.error || `Sign in with ${value} failed. Please try again.`)
                 return
             }
 
             alert(200, "Sign in successful! Redirecting...")
             navigateReplace('/home')
         } catch (error) {
-            alert(error.status || 500, error.message || "OAuth sign in failed, please try again.")
+            setServerError(error?.message || `Sign in with ${value} failed. Please try again.`)
         } finally {
             setIsPending(null)
         }
@@ -241,8 +269,8 @@ export default function Signup({ active, changeForm }) {
             </ol>
 
             {step === 0 ? (
-                <FieldGroup className="gap-4">
-                    <div className="grid gap-4 sm:grid-cols-2">
+                <FieldGroup className="gap-2.5">
+                    <div className="grid gap-3 sm:grid-cols-2">
                         <InputGroup
                             name="surname"
                             label="Surname"
@@ -250,7 +278,6 @@ export default function Signup({ active, changeForm }) {
                             value={formData.surname}
                             onChange={handleChange}
                             onBlur={handleValidation}
-                            onFocus={handleClearValidation}
                             error={validation?.surname}
                             reset={(name) => handleClearInput(name)}
                             disabled={isBusy}
@@ -263,7 +290,6 @@ export default function Signup({ active, changeForm }) {
                             value={formData.name}
                             onChange={handleChange}
                             onBlur={handleValidation}
-                            onFocus={handleClearValidation}
                             error={validation?.name}
                             reset={(name) => handleClearInput(name)}
                             disabled={isBusy}
@@ -277,7 +303,6 @@ export default function Signup({ active, changeForm }) {
                         value={formData.email}
                         onChange={handleChange}
                         onBlur={handleValidation}
-                        onFocus={handleClearValidation}
                         error={validation?.email}
                         icon={<LuAtSign />}
                         reset={(name) => handleClearInput(name)}
@@ -287,7 +312,7 @@ export default function Signup({ active, changeForm }) {
                     />
                 </FieldGroup>
             ) : (
-                <FieldGroup className="gap-4">
+                <FieldGroup className="gap-2.5">
                     <InputGroup
                         name="username"
                         label="Username"
@@ -295,7 +320,6 @@ export default function Signup({ active, changeForm }) {
                         value={formData.username}
                         onChange={handleChange}
                         onBlur={handleValidation}
-                        onFocus={handleClearValidation}
                         error={validation?.username}
                         icon={<LuUser />}
                         reset={(name) => handleClearInput(name)}
@@ -309,7 +333,6 @@ export default function Signup({ active, changeForm }) {
                         value={formData.password}
                         onChange={handleChange}
                         onBlur={handleValidation}
-                        onFocus={handleClearValidation}
                         error={validation?.password}
                         icon={<LuKeyRound />}
                         reset={(name) => handleClearInput(name)}
@@ -325,7 +348,6 @@ export default function Signup({ active, changeForm }) {
                         value={formData.re_password}
                         onChange={handleChange}
                         onBlur={handleValidation}
-                        onFocus={handleClearValidation}
                         error={validation?.re_password}
                         icon={<LuLock />}
                         reset={(name) => handleClearInput(name)}
@@ -337,15 +359,7 @@ export default function Signup({ active, changeForm }) {
             )}
 
             <div className="flex flex-col gap-3">
-                {step === 1 && serverError && !signUpMutation.isPending && (
-                    <p
-                        role="alert"
-                        className="flex items-start gap-2 rounded-md border border-destructive/20 bg-destructive-soft px-3 py-2 text-sm text-destructive"
-                    >
-                        <LuCircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                        <span>{serverError}</span>
-                    </p>
-                )}
+                <AuthAlert error={serverError} onDismiss={() => setServerError(null)} />
 
                 {step === 0 ? (
                     <Button

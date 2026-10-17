@@ -1,69 +1,68 @@
 import { userDb } from "@/db/user.db";
+import { sessionDb } from "@/db/session.db";
 import bycrypt from "bcryptjs";
 import { ApiError } from "@/lib/error/apiError";
 import { generateSonyflake } from "@/lib/sonyflake";
-import { hashRefreshToken, generateRefreshToken, compareTokenHash, sealToken, openToken } from "@/lib/auth.util";
+import {
+    hashRefreshToken,
+    hashIdempotencyKey,
+    generateRefreshToken,
+    sealRecovery,
+    openRecovery,
+    recoveryContext,
+} from "@/lib/auth.util";
 import { ulid } from "ulid";
-import { TOKEN } from "@/constants/auth";
+import { TOKEN, AUTH_ERROR } from "@/constants/auth";
+import { AUTH } from "@/lib/authConfig";
 import { redis } from "@/lib/cache";
-import { cacheKeys, TTL } from "@/lib/cacheKeys";
-import { publishToUser } from "@/lib/pusher";
-import { events } from "@/lib/realtime";
+import { cacheKeys } from "@/lib/cacheKeys";
+import { auditAuth } from "@/lib/authAudit";
+import { processAuthOutbox, ensureAuthOutboxWorker } from "@/services/authOutbox.service";
 
-const SESSION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+// Revoked / expired sessions are remembered briefly to spare PostgreSQL repeated lookups.
 const INACTIVE_CACHE_TTL_SEC = 60;
-const CONCURRENT_POLL_ATTEMPTS = 6;
-const CONCURRENT_POLL_DELAY_MS = 150;
 
-// Per-instance dedupe of refreshes for the same token (several tabs / requests at once).
-const pendingRefreshPromises = new Map();
+ensureAuthOutboxWorker();
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-function sessionTtlSeconds(expiresAt) {
-    const remaining = Math.floor((Number(expiresAt) - Date.now()) / 1000);
-    return Math.max(1, Math.min(remaining, TTL.SESSION));
-}
-
-async function cacheActiveSession({ sessionId, userId, expiresAt }) {
-    const data = { sessionId: String(sessionId), userId, status: "active", expiresAt: Number(expiresAt) };
-    await redis.set(cacheKeys.session(sessionId), data, { ex: sessionTtlSeconds(expiresAt) });
-}
-
-/** Removes every cached trace of a session and remembers it as inactive for a short while. */
-async function purgeSession(sessionId) {
-    pendingRefreshPromises.forEach((_, key) => {
-        if (key.startsWith(`${sessionId}:`)) pendingRefreshPromises.delete(key);
-    });
-
-    try {
-        await redis.del(cacheKeys.sessionRotation(sessionId));
-        await redis.set(cacheKeys.session(sessionId), { sessionId: String(sessionId), status: "inactive" }, { ex: INACTIVE_CACHE_TTL_SEC });
-    } catch (error) {
-        console.error("[Session] purge failed:", error?.message);
-    }
-}
+const toMs = (value) => (value ? new Date(value).getTime() : 0);
 
 /**
- * Rotation grace cache: lets concurrent refreshes with the *previous* token receive the token
- * that was just issued. The new refresh token is stored sealed (AES-GCM) and is only released
- * to a caller that proves possession of the old refresh token.
+ * Redis session cache: `session:{sessionId}` -> { sessionId, userId, status, idleExpiresAt,
+ * absoluteExpiresAt }. Written only after PostgreSQL committed. The TTL never outlives the
+ * session and is capped (AUTH_SESSION_CACHE_MAX_TTL_SECONDS) so PostgreSQL is re-read regularly.
+ * Best effort: a failed write only costs a PostgreSQL lookup later.
  */
-async function readRotation({ sessionId, tokenId, refreshToken }) {
-    const cached = await redis.get(cacheKeys.sessionRotation(sessionId));
-    if (!cached || String(cached.oldTokenId) !== String(tokenId)) return null;
-    if (!compareTokenHash(hashRefreshToken(refreshToken), cached.oldTokenHash)) return null;
+async function cacheActiveSession({ sessionId, userId, idleExpiresAt, absoluteExpiresAt }) {
+    const endsAt = Math.min(toMs(idleExpiresAt), toMs(absoluteExpiresAt));
+    const remaining = Math.floor((endsAt - Date.now()) / 1000);
+    if (remaining <= 0) return;
 
-    const plain = openToken(cached.sealed);
-    if (!plain) return null;
-
-    return {
-        sessionId: cached.sessionId,
-        tokenId: cached.tokenId,
-        refreshToken: plain,
-        status: TOKEN.REFRESH,
-    };
+    await redis.set(cacheKeys.session(sessionId), {
+        sessionId: String(sessionId),
+        userId,
+        status: "active",
+        idleExpiresAt: toMs(idleExpiresAt),
+        absoluteExpiresAt: toMs(absoluteExpiresAt),
+    }, { ex: Math.min(remaining, AUTH.SESSION_CACHE_MAX_TTL_SEC) });
 }
+
+async function cacheInactiveSession(sessionId) {
+    await redis.set(cacheKeys.session(sessionId), { sessionId: String(sessionId), status: "inactive" }, { ex: INACTIVE_CACHE_TTL_SEC });
+}
+
+/** Cache invalidation for a revocation that just committed; the outbox worker retries failures. */
+async function dispatchOutbox(outboxId) {
+    if (!outboxId) return;
+    await processAuthOutbox({ ids: [outboxId], limit: 1 });
+}
+
+const FAILURE = {
+    [TOKEN.INVALID]: { code: AUTH_ERROR.REFRESH_TOKEN_INVALID, message: "Your session is no longer valid. Please sign in again." },
+    [TOKEN.EXPIRED]: { code: AUTH_ERROR.REFRESH_TOKEN_EXPIRED, message: "Your session has expired. Please sign in again." },
+    [TOKEN.REVOKED]: { code: AUTH_ERROR.SESSION_REVOKED, message: "This session was signed out. Please sign in again." },
+    [TOKEN.REUSED]: { code: AUTH_ERROR.REFRESH_TOKEN_REUSED, message: "This session was signed out for your security. Please sign in again." },
+    [TOKEN.SESSION_MISMATCH]: { code: AUTH_ERROR.SESSION_MISMATCH, message: "Your session is no longer valid. Please sign in again." },
+};
 
 function describeUserAgent(userAgent) {
     const ua = String(userAgent || "");
@@ -88,7 +87,7 @@ function describeUserAgent(userAgent) {
 
 export const authService = {
     login: async (data) => {
-        const { username, password, userAgent = null } = data;
+        const { username, password, userAgent = null, ip = null } = data;
 
         const response = await userDb.login({ username });
 
@@ -113,18 +112,13 @@ export const authService = {
         }
 
         user.permissions = permissions.rows.map(p => p.permissions);
-
-        const session = await authService.createSession({ userId: user.id, userAgent });
-
-        user.sessionId = session.sessionId;
-        user.tokenId = session.tokenId;
-        user.refreshToken = session.refreshToken;
+        user.session = await authService.createSession({ userId: user.id, userAgent, ip });
 
         return user;
     },
 
     signUpWithProvider: async (data) => {
-        const { userAgent = null, ...profile } = data;
+        const { userAgent = null, ip = null, ...profile } = data;
         const id = generateSonyflake();
         const public_id = ulid();
 
@@ -143,240 +137,215 @@ export const authService = {
         }
 
         user.permissions = permissions.rows.map(p => p.permissions);
-
-        const session = await authService.createSession({ userId: user.id, userAgent });
-
-        user.sessionId = session.sessionId;
-        user.refreshToken = session.refreshToken;
-        user.tokenId = session.tokenId;
+        user.session = await authService.createSession({ userId: user.id, userAgent, ip });
 
         return user;
     },
 
-    createSession: async (data) => {
-        const { userId, userAgent = null } = data;
-        const sessionId = generateSonyflake();
-        const tokenId = generateSonyflake();
-
+    /**
+     * Login: PostgreSQL commit first (session + first refresh token), then Redis.
+     * @returns {{ sessionId, refreshToken, refreshExpiresAt, absoluteExpiresAt }} — the refresh
+     *   token goes straight into the HttpOnly cookie and nowhere else.
+     */
+    createSession: async ({ userId, userAgent = null, ip = null }) => {
+        const sessionId = String(generateSonyflake());
+        const tokenId = String(generateSonyflake());
         const refreshToken = generateRefreshToken();
-        const refreshTokenHash = hashRefreshToken(refreshToken);
 
-        const expiresAt = new Date(Date.now() + SESSION_LIFETIME_MS);
-
-        const response = await userDb.createSession({
+        const created = await sessionDb.createSession({
             sessionId,
             tokenId,
-            userId,
-            refreshTokenHash,
-            expiresAt,
+            userPublicId: userId,
+            tokenHash: hashRefreshToken(refreshToken),
             userAgent: userAgent ? String(userAgent).slice(0, 255) : null,
+            ip: ip ? String(ip).slice(0, 64) : null,
+            idleTtlSec: AUTH.SESSION_IDLE_TTL_SEC,
+            absoluteTtlSec: AUTH.SESSION_ABSOLUTE_TTL_SEC,
         });
 
-        if (!response || response.rowCount === 0) {
+        if (!created) {
             throw new ApiError("Failed to create session, try again", 500);
         }
 
-        const session = response.rows[0];
+        await cacheActiveSession({
+            sessionId,
+            userId,
+            idleExpiresAt: created.idle_expires_at,
+            absoluteExpiresAt: created.absolute_expires_at,
+        }).catch(() => { });
 
-        await cacheActiveSession({ sessionId: session.sessionId, userId, expiresAt: expiresAt.getTime() });
+        auditAuth("session.created", { userId, sessionId, ip });
 
         return {
-            sessionId: String(session.sessionId),
-            tokenId: String(session.tokenId),
-            refreshToken: refreshToken,
+            sessionId,
+            refreshToken,
+            refreshExpiresAt: toMs(created.idle_expires_at),
+            absoluteExpiresAt: toMs(created.absolute_expires_at),
         };
     },
 
     /**
-     * Rotates the refresh token. Safe to call concurrently for the same token:
-     * - same instance: requests share one in-flight promise;
-     * - other instances: the DB row lock serializes them and the loser reads the freshly
-     *   issued token from the sealed rotation cache (CONCURRENT -> REFRESH).
-     * Replaying a rotated token after the grace window revokes the whole session.
+     * Refresh-token rotation (see sessionDb.rotateRefreshToken for the transaction).
+     * Redis is only updated after the commit, and a Redis failure never fails the refresh.
+     *
+     * @returns {Promise<
+     *   { ok: true, status, sessionId, userId, refreshToken, refreshExpiresAt, absoluteExpiresAt } |
+     *   { ok: false, status, code, message }
+     * >}
      */
-    refreshSession: async (data) => {
-        const { sessionId, tokenId, userId, refreshToken } = data;
+    rotateRefreshToken: async ({ refreshToken, idempotencyKey, expectedSessionId, ip = null }) => {
+        const newRefreshToken = generateRefreshToken();
+        const keyHash = hashIdempotencyKey(idempotencyKey);
 
-        // 1. Another request already rotated this exact token.
-        try {
-            const rotated = await readRotation({ sessionId, tokenId, refreshToken });
-            if (rotated) return rotated;
-        } catch (err) {
-            console.error("[Session] Rotation cache read failed:", err?.message);
-        }
-
-        // 2. Same-instance dedupe.
-        const flightKey = `${sessionId}:${tokenId}`;
-        if (pendingRefreshPromises.has(flightKey)) {
-            return pendingRefreshPromises.get(flightKey);
-        }
-
-        // 3. Atomic refresh in the DB (row-level locks).
-        const refreshPromise = (async () => {
-            const updatedSession = await userDb.refreshSession({ sessionId, tokenId, userId, refreshToken });
-
-            if (!updatedSession) {
-                return { status: TOKEN.FAILED };
-            }
-
-            if (updatedSession.status === TOKEN.REFRESH) {
-                const result = {
-                    sessionId: String(updatedSession.sessionId),
-                    tokenId: String(updatedSession.tokenId),
-                    refreshToken: updatedSession.refreshToken,
-                    status: TOKEN.REFRESH,
-                };
-
-                await redis.set(cacheKeys.sessionRotation(sessionId), {
-                    sessionId: result.sessionId,
-                    tokenId: result.tokenId,
-                    sealed: sealToken(result.refreshToken),
-                    oldTokenId: String(tokenId),
-                    oldTokenHash: hashRefreshToken(refreshToken),
-                    timestamp: Date.now(),
-                }, { ex: TTL.SESSION_ROTATION });
-
-                // Keep the cached session alive with its real expiry.
-                const cached = await redis.get(cacheKeys.session(sessionId));
-                await cacheActiveSession({
-                    sessionId: result.sessionId,
-                    userId,
-                    expiresAt: cached?.expiresAt || Date.now() + SESSION_LIFETIME_MS,
-                });
-
-                return result;
-            }
-
-            if (updatedSession.status === TOKEN.CONCURRENT) {
-                // The winner may not have written the rotation cache yet: poll briefly.
-                for (let attempt = 0; attempt < CONCURRENT_POLL_ATTEMPTS; attempt++) {
-                    const rotated = await readRotation({ sessionId, tokenId, refreshToken }).catch(() => null);
-                    if (rotated) return rotated;
-                    await sleep(CONCURRENT_POLL_DELAY_MS);
-                }
-
-                return { sessionId: String(sessionId), status: TOKEN.CONCURRENT };
-            }
-
-            if ([TOKEN.REVOKED, TOKEN.INVALID, TOKEN.EXPIRED].includes(updatedSession.status)) {
-                await purgeSession(sessionId);
-            }
-
-            if (updatedSession.reuseDetected) {
-                console.warn(`[Session] Refresh token reuse detected, session ${sessionId} revoked.`);
-                publishToUser(userId, events.SESSION_REVOKED, {
-                    sessionIds: [String(sessionId)],
-                    reason: "reuse",
-                });
-            }
-
-            return { status: updatedSession.status };
-        })().finally(() => {
-            pendingRefreshPromises.delete(flightKey);
+        const result = await sessionDb.rotateRefreshToken({
+            tokenHash: hashRefreshToken(refreshToken),
+            expectedSessionId,
+            idempotencyKeyHash: keyHash,
+            newTokenId: String(generateSonyflake()),
+            newTokenHash: hashRefreshToken(newRefreshToken),
+            idleTtlSec: AUTH.SESSION_IDLE_TTL_SEC,
+            recoveryTtlSec: AUTH.REFRESH_RECOVERY_TTL_SEC,
+            seal: ({ sessionId, tokenId }) => sealRecovery(newRefreshToken, recoveryContext({ sessionId, tokenId, keyHash })),
         });
 
-        pendingRefreshPromises.set(flightKey, refreshPromise);
-        return refreshPromise;
-    },
+        if (result.status === TOKEN.REFRESH || result.status === TOKEN.RECOVERED) {
+            const issued = result.status === TOKEN.REFRESH
+                ? newRefreshToken
+                : openRecovery(result.sealed, recoveryContext({ sessionId: result.sessionId, tokenId: result.consumedTokenId, keyHash }));
 
-    logout: async (data) => {
-        const { userId, sessionId } = data;
+            if (!issued) {
+                // Sealed with a key that is no longer configured: cannot recover, do not revoke.
+                auditAuth("session.refresh.failed", { userId: result.userId, sessionId: result.sessionId, ip, reason: "recovery_unreadable" });
+                return { ok: false, status: TOKEN.INVALID, ...FAILURE[TOKEN.INVALID] };
+            }
 
-        await purgeSession(sessionId);
+            await cacheActiveSession({
+                sessionId: result.sessionId,
+                userId: result.userId,
+                idleExpiresAt: result.idleExpiresAt,
+                absoluteExpiresAt: result.absoluteExpiresAt,
+            }).catch(() => { });
 
-        const response = await userDb.logout({ userId, sessionId });
+            auditAuth(result.status === TOKEN.REFRESH ? "session.refreshed" : "session.refresh.recovered", {
+                userId: result.userId,
+                sessionId: result.sessionId,
+                ip,
+            });
 
-        if (!response || response.rowCount === 0) {
-            return null;
+            return {
+                ok: true,
+                status: result.status,
+                sessionId: result.sessionId,
+                userId: result.userId,
+                refreshToken: issued,
+                refreshExpiresAt: toMs(result.refreshExpiresAt),
+                absoluteExpiresAt: toMs(result.absoluteExpiresAt),
+            };
         }
 
-        // Other tabs of this session sign out immediately.
-        publishToUser(userId, events.SESSION_REVOKED, {
-            sessionIds: [String(sessionId)],
-            reason: "logout",
-        });
-
-        return response.rows[0];
-    },
-
-    /**
-     * @returns {Promise<object|null>} the active session, or null when it is revoked / expired / unknown.
-     * @throws when neither Redis nor PostgreSQL can answer (callers decide whether to fail open).
-     */
-    getSessionStatus: async (sessionId) => {
-        if (!sessionId) return null;
-
-        const cached = await redis.get(cacheKeys.session(sessionId));
-        if (cached?.status === "inactive") return null;
-        if (cached?.status === "active") {
-            if (!cached.expiresAt || cached.expiresAt > Date.now()) return cached;
-            return null;
+        if (result.status === TOKEN.REUSED) {
+            auditAuth("session.refresh.reuse_detected", { userId: result.userId, sessionId: result.sessionId, ip, outboxId: result.outboxId });
+            await dispatchOutbox(result.outboxId);
+        } else {
+            auditAuth("session.refresh.failed", { userId: result.userId, sessionId: result.sessionId, ip, reason: result.status });
+            if (result.sessionId && [TOKEN.REVOKED, TOKEN.EXPIRED].includes(result.status)) {
+                await cacheInactiveSession(result.sessionId).catch(() => { });
+            }
         }
 
-        // Cache miss (evicted, Redis restarted or down): PostgreSQL is the source of truth.
-        const response = await userDb.getSessionById({ sessionId });
-        const row = response?.rows?.[0];
-
-        const expiresAt = row ? new Date(row.expires_at).getTime() : 0;
-        if (!row || row.is_revoked || expiresAt <= Date.now()) {
-            await redis.set(cacheKeys.session(sessionId), { sessionId: String(sessionId), status: "inactive" }, { ex: INACTIVE_CACHE_TTL_SEC });
-            return null;
-        }
-
-        const active = {
-            sessionId: String(row.session_id),
-            userId: row.public_id,
-            status: "active",
-            expiresAt,
-        };
-
-        await cacheActiveSession(active);
-        return active;
+        return { ok: false, status: result.status, ...(FAILURE[result.status] || FAILURE[TOKEN.INVALID]) };
     },
 
-    listSessions: async ({ userId, currentSessionId }) => {
-        const response = await userDb.listSessions({ userId });
-
-        return (response?.rows || []).map((row) => ({
-            id: row.session_id,
-            ...describeUserAgent(row.user_agent),
-            createdAt: row.created_at,
-            lastActiveAt: row.updated_at,
-            expiresAt: row.expires_at,
-            current: String(row.session_id) === String(currentSessionId),
-        }));
+    logout: async ({ userId, sessionId }) => {
+        const result = await sessionDb.revokeSessions({ userPublicId: userId, sessionIds: [String(sessionId)], reason: "logout" });
+        auditAuth("session.logout", { userId, sessionId, count: result.sessionIds.length });
+        await dispatchOutbox(result.outboxId);
+        return result.sessionIds.length > 0;
     },
 
     revokeSession: async ({ userId, sessionId }) => {
-        const response = await userDb.revokeSession({ userId, sessionId });
+        const result = await sessionDb.revokeSessions({ userPublicId: userId, sessionIds: [String(sessionId)], reason: "user_revoked" });
 
-        if (!response || response.rowCount === 0) {
+        if (result.sessionIds.length === 0) {
             throw new ApiError("Session not found or already signed out", 404);
         }
 
-        await purgeSession(sessionId);
-        publishToUser(userId, events.SESSION_REVOKED, {
-            sessionIds: [String(sessionId)],
-            reason: "revoked",
-        });
-
+        auditAuth("session.revoked", { userId, sessionId, reason: "user_revoked" });
+        await dispatchOutbox(result.outboxId);
         return true;
     },
 
     revokeOtherSessions: async ({ userId, currentSessionId }) => {
-        const response = await userDb.revokeOtherSessions({ userId, keepSessionId: currentSessionId });
-        const revoked = (response?.rows || []).map((row) => String(row.session_id));
+        const result = await sessionDb.revokeSessions({ userPublicId: userId, exceptSessionId: String(currentSessionId), reason: "user_revoked_others" });
+        auditAuth("session.revoked_others", { userId, sessionId: currentSessionId, count: result.sessionIds.length });
+        await dispatchOutbox(result.outboxId);
+        return result.sessionIds.length;
+    },
 
-        await Promise.all(revoked.map((id) => purgeSession(id)));
+    revokeAllSessions: async ({ userId }) => {
+        const result = await sessionDb.revokeSessions({ userPublicId: userId, reason: "user_revoked_all" });
+        auditAuth("session.revoked_all", { userId, count: result.sessionIds.length });
+        await dispatchOutbox(result.outboxId);
+        return result.sessionIds.length;
+    },
 
-        if (revoked.length > 0) {
-            publishToUser(userId, events.SESSION_REVOKED, {
-                sessionIds: revoked,
-                reason: "revoked",
+    /**
+     * @returns {Promise<object|null>} the active session, or null when revoked / expired / unknown.
+     * @throws ApiError(503, AUTH_UNAVAILABLE) when PostgreSQL cannot answer and Redis has no entry:
+     *   an outage is reported as such, never as "signed out".
+     */
+    getSessionStatus: async (sessionId) => {
+        if (!sessionId) return null;
+
+        // redis.get never throws: when Redis is down it answers from the in-process fallback.
+        const cached = await redis.get(cacheKeys.session(sessionId));
+        if (cached?.status === "inactive") return null;
+        if (cached?.status === "active") {
+            const endsAt = Math.min(Number(cached.idleExpiresAt) || 0, Number(cached.absoluteExpiresAt) || 0);
+            if (endsAt > Date.now()) return cached;
+        }
+
+        let row;
+        try {
+            row = await sessionDb.getSessionState({ sessionId });
+        } catch (error) {
+            console.error("[Session] PostgreSQL session lookup failed:", error?.message);
+            throw new ApiError("Authentication is temporarily unavailable, please try again shortly.", 503, {
+                code: AUTH_ERROR.AUTH_UNAVAILABLE,
+                expose: true,
+                retryAfter: 5,
             });
         }
 
-        return revoked.length;
+        const now = Date.now();
+        if (!row || row.revoked_at || toMs(row.idle_expires_at) <= now || toMs(row.absolute_expires_at) <= now) {
+            await cacheInactiveSession(sessionId).catch(() => { });
+            return null;
+        }
+
+        const active = {
+            sessionId: row.session_id,
+            userId: row.user_id,
+            status: "active",
+            idleExpiresAt: toMs(row.idle_expires_at),
+            absoluteExpiresAt: toMs(row.absolute_expires_at),
+        };
+
+        await cacheActiveSession(active).catch(() => { });
+        return active;
+    },
+
+    listSessions: async ({ userId, currentSessionId }) => {
+        const rows = await sessionDb.listSessions({ userPublicId: userId });
+
+        return rows.map((row) => ({
+            id: row.session_id,
+            ...describeUserAgent(row.user_agent),
+            createdAt: row.created_at,
+            lastActiveAt: row.last_seen_at,
+            expiresAt: new Date(Math.min(toMs(row.idle_expires_at), toMs(row.absolute_expires_at))).toISOString(),
+            current: String(row.session_id) === String(currentSessionId),
+        }));
     },
 };
 
