@@ -15,7 +15,7 @@ Project codedev {
   - **learning**: Learner state: enrollments, lesson progress, favorites, recovery
   - **community**: Comments, votes, events, feedback, teams, friendships, messages
   - **commerce**: Cart and orders
-  - Views: learning.user_progress
+  - Views: learning.user_progress, profile.point_balance_drift
   '''
 }
 
@@ -46,11 +46,15 @@ Enum public.order_status {
   "completed"
   "cancelled"
   "refunded"
+  "failed"
+  "expired"
 }
 
 Enum public.payment_method {
   "banking"
   "master_card"
+  "points"
+  "gateway"
 }
 
 Enum public.provider_enum {
@@ -119,6 +123,37 @@ Enum public.voting_enum {
   "downvote"
 }
 
+Table catalog.career_role {
+  id int [pk, increment]
+  code varchar(50) [not null, unique]
+  name varchar(100) [not null]
+  description text
+  sort_order int [not null, default: 0]
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz
+
+  Note: '''
+  Career roles a learner picks during onboarding (not RBAC roles: see identity.roles)
+  chk_career_role_code: CHECK (((code)::text ~ '^[a-z0-9_]+$'::text))
+  '''
+}
+
+Table catalog.career_role_skill {
+  career_role_id int
+  skill_id int
+  weight smallint [not null, default: 1]
+
+  indexes {
+    (career_role_id, skill_id) [pk]
+    skill_id [name: 'idx_career_role_skill_skill']
+  }
+
+  Note: '''
+  chk_career_role_skill_weight: CHECK (((weight >= 1) AND (weight <= 5)))
+  '''
+}
+
 Table catalog.category {
   id int [pk, increment]
   name varchar(255) [not null]
@@ -136,7 +171,7 @@ Table catalog.course {
   duration int [not null, default: 0]
   instructor text [not null]
   students int [not null, default: 0]
-  cost numeric(10,2) [default: 0]
+  cost numeric(10,2) [default: 0, note: 'Deprecated: prices live in commerce.offer']
   is_hidden boolean [default: false]
   is_deleted boolean [default: false]
   created_at timestamptz [default: `now()`]
@@ -147,19 +182,101 @@ Table catalog.course {
   level public.level_enum
   id bigint [pk, increment]
   public_id varchar(255) [not null, unique]
-  point_price bigint [default: 0]
+  point_price bigint [default: 0, note: 'Deprecated: prices live in commerce.offer']
   reward bigint [default: 0]
   reviews bigint [default: 0]
+  publish_status varchar(20) [not null, note: 'draft | published | unpublished | archived. Source of truth for visibility; is_hidden is derived from it']
+  published_at timestamptz
+  course_type varchar(20) [not null, default: 'course']
+  access_model varchar(20) [not null, default: 'free', note: 'free: anyone may enrol (a free entitlement is granted). premium: needs an entitlement from a purchase, points or an admin grant']
 
   indexes {
     title [name: 'course_title']
     category_id [name: 'idx_course_category']
     language_id [name: 'idx_course_language']
     id [name: 'idx_course_listing', note: 'WHERE ((is_hidden = false) AND (is_deleted = false))']
+    id [name: 'idx_course_published', note: 'WHERE (((publish_status)::text = \'published\'::text) AND (is_deleted = false))']
   }
 
   Note: '''
+  chk_course_access_model: CHECK (((access_model)::text = ANY ((ARRAY['free'::character varying, 'premium'::character varying])::text[])))
   chk_course_counters: CHECK (((modules >= 0) AND (lessons >= 0) AND (students >= 0) AND (duration >= 0) AND (COALESCE(cost, (0)::numeric) >= (0)::numeric)))
+  chk_course_publish_status: CHECK (((publish_status)::text = ANY ((ARRAY['draft'::character varying, 'published'::character varying, 'unpublished'::character varying, 'archived'::character varying])::text[])))
+  chk_course_type: CHECK (((course_type)::text = ANY ((ARRAY['course'::character varying, 'project'::character varying, 'workshop'::character varying])::text[])))
+  '''
+}
+
+Table catalog.course_career_role {
+  course_id bigint
+  career_role_id int
+
+  indexes {
+    (course_id, career_role_id) [pk]
+    career_role_id [name: 'idx_course_career_role_role']
+  }
+}
+
+Table catalog.course_industry {
+  course_id bigint
+  industry_id int
+
+  indexes {
+    (course_id, industry_id) [pk]
+    industry_id [name: 'idx_course_industry_industry']
+  }
+}
+
+Table catalog.course_learning_goal {
+  course_id bigint
+  learning_goal_id int
+
+  indexes {
+    (course_id, learning_goal_id) [pk]
+    learning_goal_id [name: 'idx_course_learning_goal_goal']
+  }
+}
+
+Table catalog.course_prerequisite {
+  course_id bigint
+  prerequisite_course_id bigint
+
+  indexes {
+    (course_id, prerequisite_course_id) [pk]
+    prerequisite_course_id [name: 'idx_course_prerequisite_prereq']
+  }
+
+  Note: '''
+  chk_course_prerequisite_not_self: CHECK ((course_id <> prerequisite_course_id))
+  '''
+}
+
+Table catalog.course_skill {
+  course_id bigint
+  skill_id int
+  weight smallint [not null, default: 1]
+
+  indexes {
+    (course_id, skill_id) [pk]
+    skill_id [name: 'idx_course_skill_skill']
+  }
+
+  Note: '''
+  chk_course_skill_weight: CHECK (((weight >= 1) AND (weight <= 5)))
+  '''
+}
+
+Table catalog.industry {
+  id int [pk, increment]
+  code varchar(50) [not null, unique]
+  name varchar(100) [not null]
+  description text
+  sort_order int [not null, default: 0]
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz
+
+  Note: '''
+  chk_industry_code: CHECK (((code)::text ~ '^[a-z0-9_]+$'::text))
   '''
 }
 
@@ -170,6 +287,34 @@ Table catalog.language {
   created_at timestamp [default: `now()`]
   updated_at timestamp
   id int [pk, increment]
+}
+
+Table catalog.learning_goal {
+  id int [pk, increment]
+  code varchar(50) [not null, unique]
+  name varchar(100) [not null]
+  description text
+  sort_order int [not null, default: 0]
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz
+
+  Note: '''
+  chk_learning_goal_code: CHECK (((code)::text ~ '^[a-z0-9_]+$'::text))
+  '''
+}
+
+Table catalog.skill {
+  id int [pk, increment]
+  code varchar(50) [not null, unique]
+  name varchar(100) [not null]
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz
+
+  Note: '''
+  chk_skill_code: CHECK (((code)::text ~ '^[a-z0-9_]+$'::text))
+  '''
 }
 
 Table challenge.challenge_test_cases {
@@ -426,12 +571,68 @@ Table commerce.cart_items {
   }
 }
 
+Table commerce.entitlement {
+  id bigint [pk, increment]
+  public_id varchar(50) [not null, unique]
+  user_id bigint [not null]
+  course_id bigint [not null]
+  source varchar(20) [not null]
+  status varchar(20) [not null, default: 'active']
+  order_id bigint
+  granted_by bigint
+  granted_at timestamptz [not null, default: `now()`]
+  expires_at timestamptz
+  revoked_at timestamptz
+  revoke_reason varchar(50)
+
+  indexes {
+    course_id [name: 'idx_entitlement_course']
+    (user_id, course_id) [unique, name: 'uq_entitlement_active', note: 'WHERE ((status)::text = \'active\'::text)']
+    order_id [unique, name: 'uq_entitlement_order', note: 'WHERE (order_id IS NOT NULL)']
+  }
+
+  Note: '''
+  Course access. Checked by public.has_course_access for courses, lessons and challenges
+  chk_entitlement_order: CHECK ((((source)::text <> ALL ((ARRAY['purchase'::character varying, 'points'::character varying])::text[])) OR (order_id IS NOT NULL)))
+  chk_entitlement_revoked: CHECK ((((status)::text <> 'revoked'::text) OR (revoked_at IS NOT NULL)))
+  chk_entitlement_source: CHECK (((source)::text = ANY ((ARRAY['free'::character varying, 'purchase'::character varying, 'points'::character varying, 'admin_grant'::character varying, 'subscription'::character varying, 'bundle'::character varying])::text[])))
+  chk_entitlement_status: CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'revoked'::character varying, 'expired'::character varying])::text[])))
+  '''
+}
+
+Table commerce.offer {
+  id bigint [pk, increment]
+  public_id varchar(50) [not null, unique]
+  course_id bigint [not null]
+  price_type varchar(10) [not null]
+  amount bigint [not null]
+  currency char(3)
+  is_active boolean [not null, default: true]
+  created_by bigint
+  created_at timestamptz [not null, default: `now()`]
+  deactivated_at timestamptz
+
+  indexes {
+    (course_id, price_type) [unique, name: 'uq_offer_active', note: 'WHERE is_active']
+  }
+
+  Note: '''
+  Course prices. money: amount in minor units of currency; points: amount in points. Never updated in place except to deactivate
+  chk_offer_amount: CHECK ((amount > 0))
+  chk_offer_currency: CHECK (((((price_type)::text = 'money'::text) AND (currency ~ '^[A-Z]{3}$'::text)) OR (((price_type)::text = 'points'::text) AND (currency IS NULL))))
+  chk_offer_price_type: CHECK (((price_type)::text = ANY ((ARRAY['money'::character varying, 'points'::character varying])::text[])))
+  '''
+}
+
 Table commerce.order_items {
   id bigint [pk, increment]
   order_id bigint [not null]
   course_id bigint [not null]
   price numeric(12,2) [not null, default: 0]
   created_at timestamp [not null, default: `now()`]
+  offer_id bigint
+  amount_minor bigint
+  points bigint
 
   indexes {
     (order_id, course_id) [unique, name: 'uq_order_course']
@@ -439,6 +640,7 @@ Table commerce.order_items {
   }
 
   Note: '''
+  chk_order_items_amounts: CHECK (((COALESCE(amount_minor, (0)::bigint) >= 0) AND (COALESCE(points, (0)::bigint) >= 0)))
   order_items_price_check: CHECK ((price >= (0)::numeric))
   '''
 }
@@ -452,13 +654,78 @@ Table commerce.orders {
   total numeric(12,2) [not null, default: 0]
   created_at timestamp [not null, default: `now()`]
   updated_at timestamp
+  currency char(3)
+  amount_minor bigint
+  points_total bigint
+  idempotency_key varchar(100)
+  expires_at timestamptz
+  paid_at timestamptz
+  failed_at timestamptz
+  cancelled_at timestamptz
+  refunded_at timestamptz
+  failure_reason varchar(100)
 
   indexes {
+    (user_id, expires_at) [name: 'idx_orders_pending', note: 'WHERE (status = \'pending\'::order_status)']
     (user_id, created_at) [name: 'idx_orders_user']
+    (user_id, idempotency_key) [unique, name: 'uq_orders_user_idempotency', note: 'WHERE (idempotency_key IS NOT NULL)']
   }
 
   Note: '''
+  chk_orders_amounts: CHECK (((COALESCE(amount_minor, (0)::bigint) >= 0) AND (COALESCE(points_total, (0)::bigint) >= 0)))
+  chk_orders_currency: CHECK (((currency IS NULL) OR (currency ~ '^[A-Z]{3}$'::text)))
   orders_total_check: CHECK ((total >= (0)::numeric))
+  '''
+}
+
+Table commerce.payment {
+  id bigint [pk, increment]
+  public_id varchar(50) [not null, unique]
+  order_id bigint [not null]
+  provider varchar(30) [not null]
+  provider_ref varchar(255)
+  checkout_url text
+  status varchar(20) [not null, default: 'pending']
+  amount_minor bigint [not null]
+  currency char(3) [not null]
+  failure_code varchar(100)
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  succeeded_at timestamptz
+  refunded_at timestamptz
+
+  indexes {
+    order_id [name: 'idx_payment_order']
+    (provider, provider_ref) [unique, name: 'uq_payment_provider_ref', note: 'WHERE (provider_ref IS NOT NULL)']
+  }
+
+  Note: '''
+  chk_payment_amount: CHECK ((amount_minor > 0))
+  chk_payment_currency: CHECK ((currency ~ '^[A-Z]{3}$'::text))
+  chk_payment_provider: CHECK (((provider)::text ~ '^[a-z0-9_]+$'::text))
+  chk_payment_status: CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'succeeded'::character varying, 'failed'::character varying, 'cancelled'::character varying, 'refunded'::character varying, 'disputed'::character varying])::text[])))
+  '''
+}
+
+Table commerce.payment_event {
+  id bigint [pk, increment]
+  provider varchar(30) [not null]
+  event_id varchar(255) [not null]
+  event_type varchar(50) [not null]
+  provider_ref varchar(255)
+  payment_id bigint
+  payload_sha256 char(64) [not null]
+  result varchar(40)
+  received_at timestamptz [not null, default: `now()`]
+  processed_at timestamptz
+
+  indexes {
+    (provider, event_id) [unique, name: 'uq_payment_event']
+    payment_id [name: 'idx_payment_event_payment']
+  }
+
+  Note: '''
+  Verified webhook deliveries; the unique key makes duplicate deliveries no-ops. Raw payloads are not stored
   '''
 }
 
@@ -642,6 +909,28 @@ Table identity.accounts {
     (provider_account_id, provider) [unique, name: 'account_provider_pkey']
     user_id [name: 'idx_accounts_user']
   }
+}
+
+Table identity.audit_log {
+  id bigint [pk, increment]
+  actor_id bigint
+  action varchar(60) [not null]
+  target_type varchar(40) [not null]
+  target_id varchar(100) [not null]
+  reason text
+  before jsonb
+  after jsonb
+  ip_address varchar(64)
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (actor_id, created_at) [name: 'idx_audit_log_actor']
+    (target_type, target_id, created_at) [name: 'idx_audit_log_target']
+  }
+
+  Note: '''
+  Append-only log of privileged (admin / course manager) actions
+  '''
 }
 
 Table identity.auth_outbox {
@@ -848,6 +1137,19 @@ Table profile.info {
   '''
 }
 
+Table profile.learning_preference {
+  user_id bigint [pk]
+  career_role_id int
+  experience_level varchar(20)
+  preferred_language_id int [note: 'Optional: programming language favoured by recommendations']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  Note: '''
+  chk_learning_preference_level: CHECK (((experience_level IS NULL) OR ((experience_level)::text = ANY ((ARRAY['beginner'::character varying, 'junior'::character varying, 'intermediate'::character varying, 'advanced'::character varying])::text[]))))
+  '''
+}
+
 Table profile.notification {
   id uuid [pk, default: `gen_random_uuid()`]
   user_id bigint [not null]
@@ -863,6 +1165,25 @@ Table profile.notification {
   }
 }
 
+Table profile.onboarding {
+  user_id bigint [pk]
+  status varchar(20) [not null, default: 'not_started']
+  current_step varchar(20) [not null, default: 'role']
+  started_at timestamptz
+  completed_at timestamptz
+  skipped_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  Note: '''
+  Explicit onboarding state per user; current_step is where an in-progress onboarding resumes
+  chk_onboarding_completed_at: CHECK ((((status)::text <> 'completed'::text) OR (completed_at IS NOT NULL)))
+  chk_onboarding_skipped_at: CHECK ((((status)::text <> 'skipped'::text) OR (skipped_at IS NOT NULL)))
+  chk_onboarding_status: CHECK (((status)::text = ANY ((ARRAY['not_started'::character varying, 'in_progress'::character varying, 'skipped'::character varying, 'completed'::character varying])::text[])))
+  chk_onboarding_step: CHECK (((current_step)::text = ANY ((ARRAY['role'::character varying, 'industry'::character varying, 'level_goals'::character varying, 'review'::character varying, 'recommendations'::character varying])::text[])))
+  '''
+}
+
 Table profile.point_transaction {
   id uuid [pk, default: `gen_random_uuid()`]
   user_id bigint [not null]
@@ -871,13 +1192,24 @@ Table profile.point_transaction {
   source_type varchar [not null]
   source_id bigint [not null]
   created_at timestamptz [default: `now()`]
+  entry_type varchar(20) [not null]
+  balance_after bigint
+  idempotency_key varchar(120)
+  order_id bigint
+  actor_id bigint
+  reason text
 
   indexes {
     (user_id, source_type, source_id, action) [unique, name: 'uq_point_transaction_source']
+    (user_id, created_at) [name: 'idx_point_transaction_user_created']
+    (user_id, idempotency_key) [unique, name: 'uq_point_transaction_idempotency', note: 'WHERE (idempotency_key IS NOT NULL)']
   }
 
   Note: '''
   check_amount: CHECK ((amount > 0))
+  chk_point_transaction_action: CHECK (((action)::text = ANY ((ARRAY['credit'::character varying, 'debit'::character varying])::text[])))
+  chk_point_transaction_balance: CHECK (((balance_after IS NULL) OR (balance_after >= 0)))
+  chk_point_transaction_entry_type: CHECK (((((entry_type)::text = ANY ((ARRAY['earned'::character varying, 'refunded'::character varying])::text[])) AND ((action)::text = 'credit'::text)) OR (((entry_type)::text = ANY ((ARRAY['spent'::character varying, 'expired'::character varying])::text[])) AND ((action)::text = 'debit'::text)) OR ((entry_type)::text = 'adjusted'::text)))
   '''
 }
 
@@ -893,6 +1225,28 @@ Table profile.task {
 
   indexes {
     (user_id, status) [name: 'idx_task_user']
+  }
+}
+
+Table profile.user_industry {
+  user_id bigint
+  industry_id int
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (user_id, industry_id) [pk]
+    industry_id [name: 'idx_user_industry_industry']
+  }
+}
+
+Table profile.user_learning_goal {
+  user_id bigint
+  learning_goal_id int
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (user_id, learning_goal_id) [pk]
+    learning_goal_id [name: 'idx_user_learning_goal_goal']
   }
 }
 
@@ -954,6 +1308,7 @@ Table roadmap.roadmaps {
   public_id uuid [unique, default: `gen_random_uuid()`]
   id bigint [pk, increment]
   level public.level_enum
+  career_role_id int
 }
 
 Table roadmap.user_progress {
@@ -1005,8 +1360,20 @@ Table storage.assets {
 }
 
 // ---------------------------------------------------------------- relationships
+Ref career_role_skill_career_role_id_fkey: catalog.career_role_skill.career_role_id > catalog.career_role.id [delete: cascade]
+Ref career_role_skill_skill_id_fkey: catalog.career_role_skill.skill_id > catalog.skill.id [delete: cascade]
 Ref fk_course_category: catalog.course.category_id > catalog.category.id
 Ref fk_course_language: catalog.course.language_id > catalog.language.id
+Ref course_career_role_career_role_id_fkey: catalog.course_career_role.career_role_id > catalog.career_role.id [delete: cascade]
+Ref course_career_role_course_id_fkey: catalog.course_career_role.course_id > catalog.course.id [delete: cascade]
+Ref course_industry_course_id_fkey: catalog.course_industry.course_id > catalog.course.id [delete: cascade]
+Ref course_industry_industry_id_fkey: catalog.course_industry.industry_id > catalog.industry.id [delete: cascade]
+Ref course_learning_goal_course_id_fkey: catalog.course_learning_goal.course_id > catalog.course.id [delete: cascade]
+Ref course_learning_goal_learning_goal_id_fkey: catalog.course_learning_goal.learning_goal_id > catalog.learning_goal.id [delete: cascade]
+Ref course_prerequisite_course_id_fkey: catalog.course_prerequisite.course_id > catalog.course.id [delete: cascade]
+Ref course_prerequisite_prerequisite_course_id_fkey: catalog.course_prerequisite.prerequisite_course_id > catalog.course.id [delete: cascade]
+Ref course_skill_course_id_fkey: catalog.course_skill.course_id > catalog.course.id [delete: cascade]
+Ref course_skill_skill_id_fkey: catalog.course_skill.skill_id > catalog.skill.id [delete: cascade]
 Ref fk_test_cases_challenge: challenge.challenge_test_cases.challenge_id > challenge.challenges.id [delete: cascade]
 Ref fk_challenge_course_id: challenge.challenges.course_id > catalog.course.id [delete: cascade]
 Ref fk_challenge_lesson: challenge.challenges.lesson_id > course.lesson.id [delete: cascade]
@@ -1033,9 +1400,18 @@ Ref fk_qsub_user: challenge.question_submissions.user_id > identity.users.id [de
 Ref fk_questions_challenge: challenge.questions.challenge_id > challenge.challenges.id [delete: cascade]
 Ref cart_items_course_id_fkey: commerce.cart_items.course_id > catalog.course.id [delete: cascade]
 Ref cart_items_user_id_fkey: commerce.cart_items.user_id > identity.users.id [delete: cascade]
+Ref entitlement_course_id_fkey: commerce.entitlement.course_id > catalog.course.id [delete: cascade]
+Ref entitlement_granted_by_fkey: commerce.entitlement.granted_by > identity.users.id [delete: set null]
+Ref entitlement_order_id_fkey: commerce.entitlement.order_id > commerce.orders.id
+Ref entitlement_user_id_fkey: commerce.entitlement.user_id > identity.users.id [delete: cascade]
+Ref offer_course_id_fkey: commerce.offer.course_id > catalog.course.id [delete: cascade]
+Ref offer_created_by_fkey: commerce.offer.created_by > identity.users.id [delete: set null]
 Ref order_items_course_id_fkey: commerce.order_items.course_id > catalog.course.id [delete: restrict]
+Ref order_items_offer_id_fkey: commerce.order_items.offer_id > commerce.offer.id [delete: restrict]
 Ref order_items_order_id_fkey: commerce.order_items.order_id > commerce.orders.id [delete: cascade]
 Ref orders_user_id_fkey: commerce.orders.user_id > identity.users.id [delete: restrict]
+Ref payment_order_id_fkey: commerce.payment.order_id > commerce.orders.id [delete: restrict]
+Ref payment_event_payment_id_fkey: commerce.payment_event.payment_id > commerce.payment.id [delete: set null]
 Ref fk_comment_course: community.comment.reference_id > catalog.course.id [delete: cascade]
 Ref fk_comment_user: community.comment.user_id > identity.users.id [delete: cascade]
 Ref fk_event_creator: community.event.created_by > identity.users.id [delete: cascade]
@@ -1054,6 +1430,7 @@ Ref fk_voting_user: community.voting.user_id > identity.users.id [delete: cascad
 Ref fk_lesson_module: course.lesson.module_id > course.module.id [delete: cascade]
 Ref fk_module_course: course.module.course_id > catalog.course.id [delete: cascade]
 Ref fk_accounts_user: identity.accounts.user_id > identity.users.id [delete: cascade]
+Ref audit_log_actor_id_fkey: identity.audit_log.actor_id > identity.users.id [delete: set null]
 Ref fk_refresh_tokens_replaced_by: identity.refresh_tokens.replaced_by_id > identity.refresh_tokens.id [delete: set null]
 Ref fk_refresh_tokens_session: identity.refresh_tokens.session_id > identity.sessions.id [delete: cascade]
 Ref fk_role_permissions_permission: identity.role_permissions.permission_id > identity.permissions.id [delete: cascade]
@@ -1073,15 +1450,26 @@ Ref fk_register_course: learning.register.course_id > catalog.course.id [delete:
 Ref fk_register_user: learning.register.user_id > identity.users.id [delete: cascade]
 Ref fk_info_avatar_asset: profile.info.avatar_asset_id > storage.assets.id [delete: set null]
 Ref fk_info_user: profile.info.user_id > identity.users.id [delete: cascade]
+Ref learning_preference_career_role_id_fkey: profile.learning_preference.career_role_id > catalog.career_role.id [delete: set null]
+Ref learning_preference_preferred_language_id_fkey: profile.learning_preference.preferred_language_id > catalog.language.id [delete: set null]
+Ref learning_preference_user_id_fkey: profile.learning_preference.user_id > identity.users.id [delete: cascade]
 Ref fk_notification_user: profile.notification.user_id > identity.users.id [delete: cascade]
+Ref onboarding_user_id_fkey: profile.onboarding.user_id > identity.users.id [delete: cascade]
 Ref fk_point_transaction_user: profile.point_transaction.user_id > identity.users.id [delete: cascade]
+Ref point_transaction_actor_id_fkey: profile.point_transaction.actor_id > identity.users.id [delete: set null]
+Ref point_transaction_order_id_fkey: profile.point_transaction.order_id > commerce.orders.id
 Ref fk_task_user: profile.task.user_id > identity.users.id [delete: cascade]
+Ref user_industry_industry_id_fkey: profile.user_industry.industry_id > catalog.industry.id [delete: cascade]
+Ref user_industry_user_id_fkey: profile.user_industry.user_id > identity.users.id [delete: cascade]
+Ref user_learning_goal_learning_goal_id_fkey: profile.user_learning_goal.learning_goal_id > catalog.learning_goal.id [delete: cascade]
+Ref user_learning_goal_user_id_fkey: profile.user_learning_goal.user_id > identity.users.id [delete: cascade]
 Ref node_course_course_id_fkey: roadmap.node_course.course_id > catalog.course.id [delete: cascade]
 Ref node_course_node_id_fkey: roadmap.node_course.node_id > roadmap.nodes.id [delete: cascade]
 Ref fk_nodes_roadmap: roadmap.nodes.roadmap_id > roadmap.roadmaps.id [delete: cascade]
 Ref fk_current_node_id: roadmap.roadmap_users.current_node_id > roadmap.nodes.id
 Ref fk_roadmap_id: roadmap.roadmap_users.roadmap_id > roadmap.roadmaps.id
 Ref fk_user_id: roadmap.roadmap_users.user_id > identity.users.id
+Ref roadmaps_career_role_id_fkey: roadmap.roadmaps.career_role_id > catalog.career_role.id [delete: set null]
 Ref fk_node_id: roadmap.user_progress.node_id > roadmap.nodes.id
 Ref fk_roadmap_id: roadmap.user_progress.roadmap_id > roadmap.roadmaps.id
 Ref fk_user_id: roadmap.user_progress.user_id > identity.users.id
@@ -1094,6 +1482,7 @@ TableGroup public {
 
 TableGroup identity {
   identity.accounts
+  identity.audit_log
   identity.auth_outbox
   identity.permissions
   identity.refresh_tokens
@@ -1106,15 +1495,29 @@ TableGroup identity {
 
 TableGroup profile {
   profile.info
+  profile.learning_preference
   profile.notification
+  profile.onboarding
   profile.point_transaction
   profile.task
+  profile.user_industry
+  profile.user_learning_goal
 }
 
 TableGroup catalog {
+  catalog.career_role
+  catalog.career_role_skill
   catalog.category
   catalog.course
+  catalog.course_career_role
+  catalog.course_industry
+  catalog.course_learning_goal
+  catalog.course_prerequisite
+  catalog.course_skill
+  catalog.industry
   catalog.language
+  catalog.learning_goal
+  catalog.skill
 }
 
 TableGroup course {
@@ -1167,8 +1570,12 @@ TableGroup community {
 
 TableGroup commerce {
   commerce.cart_items
+  commerce.entitlement
+  commerce.offer
   commerce.order_items
   commerce.orders
+  commerce.payment
+  commerce.payment_event
 }
 
 TableGroup storage {

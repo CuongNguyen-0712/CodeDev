@@ -19,6 +19,7 @@ import { callWithAuthRetry } from "@/lib/actionResult";
 
 import { ErrorReload } from "@/components/ui/error";
 import SessionsSection from "@/components/settings/sessionsSection";
+import PreferencesSection from "@/components/settings/preferencesSection";
 import { InputGroup, TextAreaGroup } from "@/components/ui/input";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn/avatar";
@@ -77,8 +78,9 @@ function fieldErrors(values, changed) {
 function SettingsSection({ id, title, description, children }) {
     return (
         <section
+            id={id}
             aria-labelledby={`${id}-heading`}
-            className="grid gap-4 border-t pt-6 first:border-t-0 first:pt-0 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] md:gap-8"
+            className="grid scroll-mt-6 gap-4 border-t pt-6 first:border-t-0 first:pt-0 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] md:gap-8"
         >
             <div className="space-y-1">
                 <h2 id={`${id}-heading`} className="text-base font-semibold text-foreground">{title}</h2>
@@ -465,7 +467,7 @@ export default function SettingsPage() {
                 <div className="space-y-2">
                     <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">Settings</h1>
                     <p className="max-w-[60ch] text-sm text-muted-foreground">
-                        Update your profile photo, personal details and the email on your account.
+                        Update your profile photo, personal details, learning preferences and the email on your account.
                     </p>
                 </div>
                 <Button asChild variant="outline" className="self-start sm:self-auto">
@@ -515,6 +517,26 @@ export default function SettingsPage() {
                         description="Your username and the email address used to sign in."
                     >
                         <AccountSection key={data?.id || 'account'} data={data} onSaved={handleSaved} />
+                    </SettingsSection>
+
+                    <SettingsSection
+                        id="settings-preferences"
+                        title="Learning preferences"
+                        description="Your role, industries, level, goals and preferred language. Used to personalise course recommendations."
+                    >
+                        <PreferencesSection />
+                    </SettingsSection>
+
+                    <SettingsSection
+                        id="settings-orders"
+                        title="Orders & points"
+                        description="Your course purchases, point redemptions and point history."
+                    >
+                        <div>
+                            <Button asChild variant="outline">
+                                <Link href="/orders">View orders and points</Link>
+                            </Button>
+                        </div>
                     </SettingsSection>
 
                     <SettingsSection

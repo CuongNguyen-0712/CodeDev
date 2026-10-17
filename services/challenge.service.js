@@ -52,8 +52,8 @@ async function resolveContext({ userId, challengeId }) {
         throw new ApiError("This challenge is not open for submissions yet", 403);
     }
 
-    if (!ctx.lesson_status) {
-        throw new ApiError("Register for this course to take its challenges", 403);
+    if (!ctx.lesson_status || !ctx.has_access) {
+        throw new ApiError("Register for this course to take its challenges", 403, { code: "COURSE_ACCESS_REQUIRED" });
     }
 
     if (ctx.lesson_status === "enrolled") {

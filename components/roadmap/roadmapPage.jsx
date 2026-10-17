@@ -2,20 +2,23 @@
 
 import { useMemo } from 'react';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
 import { roadmapQueries } from '@/queries/roadmap.query';
+import { onboardingQueries } from '@/queries/premium.query';
 import { levelMapping } from '@/constants/constants';
 import { useListQueryState } from '@/hooks/useListQueryState';
 import { LEVELS } from '@/lib/listFilters';
 
 import { ErrorReload } from '@/components/ui/error';
 import SearchBar from '@/components/ui/searchBar';
+import { RecommendationCard, RecommendationCardSkeleton } from '@/components/onboarding/recommendationCard';
 
 import { Badge } from '@/components/shadcn/badge';
 import { Button } from '@/components/shadcn/button';
 import { Skeleton } from '@/components/shadcn/skeleton';
 
-import { LuChevronRight, LuMap, LuRoute, LuSearchX } from 'react-icons/lu';
+import { LuArrowRight, LuChevronRight, LuMap, LuRoute, LuSearchX, LuSparkles } from 'react-icons/lu';
 
 // roadmap.roadmaps.level is a level_enum.
 const FILTER_MAPPING = [
@@ -87,6 +90,64 @@ function LanguageStack({ languages }) {
     );
 }
 
+// Signed-in learners get three personalised courses next to the roadmaps; guests see nothing.
+function RecommendedStrip() {
+    const { status } = useSession();
+    const { data, isLoading, isError, error, refetch } = useQuery(onboardingQueries.recommendations(status, 3));
+
+    if (status !== 'authenticated') return null;
+
+    const items = Array.isArray(data?.items) ? data.items.slice(0, 3) : [];
+    if (!isLoading && !isError && items.length === 0) return null;
+
+    return (
+        <section aria-labelledby="roadmap-recommended-heading" className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-end justify-between gap-2">
+                <div className="min-w-0 space-y-0.5">
+                    <h2 id="roadmap-recommended-heading" className="flex items-center gap-2 text-sm font-medium text-foreground">
+                        <LuSparkles className="size-4 text-primary" aria-hidden="true" />
+                        Recommended for you
+                    </h2>
+                    {data?.fallback && (
+                        <p className="text-xs text-muted-foreground">
+                            Popular courses for now.{' '}
+                            <Link href="/onboarding" className="text-primary underline-offset-4 hover:underline">
+                                Personalise your recommendations
+                            </Link>
+                        </p>
+                    )}
+                </div>
+                <Button asChild variant="ghost" size="sm">
+                    <Link href="/home">
+                        See more
+                        <LuArrowRight />
+                    </Link>
+                </Button>
+            </div>
+
+            {isError ? (
+                <ErrorReload compact data={error} refetch={refetch} title="Could not load your recommendations" />
+            ) : (
+                <ul
+                    className="m-0 grid list-none gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3"
+                    aria-busy={isLoading || undefined}
+                    aria-label="Recommended courses"
+                >
+                    {isLoading
+                        ? Array.from({ length: 3 }, (_, index) => (
+                            <li key={index}><RecommendationCardSkeleton compact /></li>
+                        ))
+                        : items.map((item, index) => (
+                            <li key={item?.course?.id || index}>
+                                <RecommendationCard item={item} compact maxReasons={2} />
+                            </li>
+                        ))}
+                </ul>
+            )}
+        </section>
+    );
+}
+
 export default function RoadmapPage() {
     const { data, isLoading, isError, error, refetch } = useQuery(roadmapQueries.list());
 
@@ -135,6 +196,8 @@ export default function RoadmapPage() {
                     Ordered learning paths for developer roles. Each step links to the courses that cover it, so you always know what to study next.
                 </p>
             </header>
+
+            <RecommendedStrip />
 
             <section className="w-full" aria-label="Search and filter roadmaps">
                 <SearchBar

@@ -27,6 +27,10 @@ BEGIN
         RAISE EXCEPTION 'Missing course id';
     END IF;
 
+    IF public.assert_lesson_access(v_user_id, _lesson_id) <> v_course_id THEN
+        RAISE EXCEPTION 'Lesson % does not belong to course %', _lesson_id, _course_id;
+    END IF;
+
     SELECT h.status INTO v_status
     FROM learning.history h
     WHERE h.user_id = v_user_id AND h.course_id = v_course_id AND h.lesson_id = _lesson_id;
@@ -44,16 +48,8 @@ BEGIN
     SET status = 'completed', updated_at = now()
     WHERE user_id = v_user_id AND course_id = v_course_id AND lesson_id = _lesson_id;
 
-    -- Lesson reward, once per lesson (unique constraint keeps it idempotent).
-    WITH ins AS (
-        INSERT INTO profile.point_transaction (user_id, action, amount, source_type, source_id)
-        VALUES (v_user_id, 'credit', 10, 'lesson', _lesson_id)
-        ON CONFLICT (user_id, source_type, source_id, action) DO NOTHING
-        RETURNING amount
-    )
-    UPDATE profile.info
-    SET points = COALESCE(points, 0) + (SELECT amount FROM ins)
-    WHERE user_id = v_user_id AND EXISTS (SELECT 1 FROM ins);
+    -- Lesson reward, once per lesson (post_points is idempotent per source).
+    PERFORM public.post_points(v_user_id, 'credit', 'earned', 10, 'lesson', _lesson_id);
 
     -- Unlock the next lesson in course order.
     SELECT l2.id INTO next_lesson_id
@@ -96,15 +92,7 @@ BEGIN
         WHERE user_id = v_user_id AND course_id = v_course_id;
 
         IF v_reward > 0 THEN
-            WITH ins AS (
-                INSERT INTO profile.point_transaction (user_id, action, amount, source_type, source_id)
-                VALUES (v_user_id, 'credit', v_reward, 'course', v_course_id)
-                ON CONFLICT (user_id, source_type, source_id, action) DO NOTHING
-                RETURNING amount
-            )
-            UPDATE profile.info
-            SET points = COALESCE(points, 0) + (SELECT amount FROM ins)
-            WHERE user_id = v_user_id AND EXISTS (SELECT 1 FROM ins);
+            PERFORM public.post_points(v_user_id, 'credit', 'earned', v_reward, 'course', v_course_id);
         END IF;
     END IF;
 

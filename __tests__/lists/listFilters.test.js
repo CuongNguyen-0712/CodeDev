@@ -9,7 +9,7 @@ const qs = (s) => new URLSearchParams(s);
 
 describe("list filters: parsing", () => {
     it("reads the canonical URL, axios array style and repeated keys alike", () => {
-        const expected = { level: ["beginner", "advanced"], price: [], rating: [], language: [], category: [] };
+        const expected = { level: ["beginner", "advanced"], price: [], rating: [], language: [], category: [], role: [], industry: [], skill: [] };
         expect(parseListQuery("course", qs("level=advanced,beginner")).filter).toEqual(expected);
         expect(parseListQuery("course", qs("level[]=beginner&level[]=advanced")).filter).toEqual(expected);
         expect(parseListQuery("course", qs("level=beginner&level=advanced")).filter).toEqual(expected);
@@ -17,8 +17,11 @@ describe("list filters: parsing", () => {
     });
 
     it("drops values the database would reject", () => {
-        const { filter } = parseListQuery("course", qs("level=beginner,godlike&price=gratis&rating=9&language=1,abc,-2,0,3&category=99999999999"));
-        expect(filter).toEqual({ level: ["beginner"], price: [], rating: [], language: ["1", "3"], category: [] });
+        const { filter } = parseListQuery("course", qs("level=beginner,godlike&price=gratis&rating=9&language=1,abc,-2,0,3&category=99999999999&role=backend_developer,DROP%20TABLE&skill=a'b,nodejs"));
+        expect(filter).toEqual({
+            level: ["beginner"], price: [], rating: [], language: ["1", "3"], category: [],
+            role: ["backend_developer"], industry: [], skill: ["nodejs"],
+        });
         // "dropped" was offered by the old UI but is not in status_course_enum.
         expect(parseListQuery("learning", qs("status=dropped,paused")).filter.status).toEqual(["paused"]);
     });

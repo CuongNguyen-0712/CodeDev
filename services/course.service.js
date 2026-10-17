@@ -68,6 +68,9 @@ export const courseService = {
             minRating: Number(filter.rating?.[0]) || null,
             languageIds: (filter.language || []).map(Number),
             categoryIds: (filter.category || []).map(Number),
+            roleCodes: filter.role || [],
+            industryCodes: filter.industry || [],
+            skillCodes: filter.skill || [],
             lastId,
             limit,
             // Searching also finds the courses the learner is already enrolled in.
@@ -96,7 +99,13 @@ export const courseService = {
                 .filter((row) => row.kind === kind)
                 .map(({ id, name, courses }) => ({ id: String(id), name, courses: Number(courses) }));
 
-            return { languages: pick("language"), categories: pick("category") };
+            return {
+                languages: pick("language"),
+                categories: pick("category"),
+                roles: pick("role"),
+                industries: pick("industry"),
+                skills: pick("skill"),
+            };
         });
     },
 

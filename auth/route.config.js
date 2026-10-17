@@ -6,6 +6,7 @@ import learning from './route/learning.route'
 import blog from './route/blog.route'
 import roadmap from './route/roadmap.route'
 import settings from './route/settings.route'
+import premium from './route/premium.route'
 
 export const routeConfig = [
     ...index,
@@ -16,4 +17,5 @@ export const routeConfig = [
     ...blog,
     ...roadmap,
     ...settings,
+    ...premium,
 ]

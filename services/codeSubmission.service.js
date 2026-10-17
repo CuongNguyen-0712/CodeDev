@@ -23,6 +23,10 @@ async function resolveCodingChallenge({ userId, challengeId }) {
         throw new ApiError("Challenge not found", 404);
     }
 
+    if (!ctx.has_access) {
+        throw new ApiError("You do not have access to this course", 403, { code: "COURSE_ACCESS_REQUIRED" });
+    }
+
     if (!CODING_TYPES.has(ctx.type)) {
         throw new ApiError("This challenge is not a coding challenge", 400);
     }

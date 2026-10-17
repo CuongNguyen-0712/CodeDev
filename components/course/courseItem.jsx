@@ -1,18 +1,25 @@
 import { useState, useTransition } from "react";
 
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 
 import { levelMapping } from "@/constants/constants";
 import { useRouterActions } from "@/router/useRouterActions";
 import { useApp } from "@/contexts/appContext";
 import { useSession } from "next-auth/react";
 import { useCourseRegister } from "@/mutations/course.mutation";
+import { commerceQueries } from "@/queries/premium.query";
 
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 
+import { PriceTag } from "@/components/commerce/priceTag";
+import { OwnershipBadge } from "@/components/commerce/ownershipBadge";
+import { commerceErrorMessage, isPremium } from "@/components/commerce/format";
+
 import {
     LuArrowRight,
+    LuCrown,
     LuLoaderCircle,
     LuPlus,
     LuSignal,
@@ -42,7 +49,7 @@ export const formatDuration = (minutes) => {
 export const CourseItem = ({ item }) => {
     const level = levelMapping[item.level] || levelMapping['beginner'];
     const LevelIcon = LEVEL_ICON[item.level] || LuSignalLow;
-    const cost = Number(item.cost || 0);
+    const premium = isPremium(item);
     const rating = Number(item.rating || 0);
 
     const { status } = useSession();
@@ -55,14 +62,27 @@ export const CourseItem = ({ item }) => {
 
     const registerMutation = useCourseRegister();
 
+    // Ownership is shown only once the entitlements query has succeeded (never while loading / failed).
+    const entitlements = useQuery({
+        ...commerceQueries.entitlements(status),
+        enabled: status === 'authenticated' && premium,
+    });
+    const isOwned = premium && entitlements.isSuccess
+        && (entitlements.data?.courseIds || []).map(String).includes(String(item.id));
+
     const isEnrolled = dataRegistered.includes(item.id) || Boolean(item?.is_registered);
     const isBusy = registerMutation.isPending || isNavigating;
 
-    const handleSubmit = async ({ id, isCost }) => {
+    // Premium courses the learner does not (yet) own are bought or redeemed on the details page.
+    const canEnrollHere = !premium || isOwned;
+
+    const handleSubmit = async (id) => {
         if (!id) return;
 
-        if (isCost) {
-            alert(400, 'The payment feature is not supported yet. Please try again later.');
+        if (!canEnrollHere) {
+            startTransition(() => {
+                navigate({ path: `/course/${id}` });
+            });
             return;
         }
 
@@ -80,7 +100,7 @@ export const CourseItem = ({ item }) => {
             alert(201, 'Successfully registered for the course.', () => navigate({ path: `/learning/${id}` }));
         }
         catch (error) {
-            alert(error.status || 500, error.message || 'An error occurred while registering for the course.');
+            alert(error.status || 500, commerceErrorMessage(error, 'An error occurred while registering for the course.'));
         }
     };
 
@@ -129,11 +149,8 @@ export const CourseItem = ({ item }) => {
                     <LevelIcon aria-hidden="true" />
                     {level.label}
                 </Badge>
-                {cost > 0 ? (
-                    <Badge variant="outline" className="font-mono tabular">${cost.toFixed(2)}</Badge>
-                ) : (
-                    <Badge variant="success">Free</Badge>
-                )}
+                <PriceTag course={item} />
+                {isOwned && <OwnershipBadge />}
                 {isEnrolled && <Badge variant="primary">Enrolled</Badge>}
                 <span
                     className="ml-auto flex items-center gap-1 font-mono text-xs font-medium text-foreground tabular"
@@ -167,23 +184,27 @@ export const CourseItem = ({ item }) => {
                         size="sm"
                         variant={isEnrolled ? 'soft' : 'default'}
                         className="flex-1"
-                        onClick={() => handleSubmit({ id: item.id, isCost: cost > 0 && !isEnrolled })}
+                        onClick={() => handleSubmit(item.id)}
                         disabled={isBusy}
                     >
                         {isBusy ? (
                             <LuLoaderCircle className="animate-spin" aria-hidden="true" />
                         ) : isEnrolled ? (
                             <LuArrowRight aria-hidden="true" />
-                        ) : (
+                        ) : canEnrollHere ? (
                             <LuPlus aria-hidden="true" />
+                        ) : (
+                            <LuCrown aria-hidden="true" />
                         )}
                         {registerMutation.isPending
                             ? 'Enrolling...'
-                            : isEnrolled
+                            : isEnrolled && canEnrollHere
                                 ? 'Continue learning'
-                                : cost === 0
-                                    ? 'Enroll for free'
-                                    : `Enroll for $${cost.toFixed(2)}`}
+                                : !canEnrollHere
+                                    ? 'View pricing'
+                                    : premium
+                                        ? 'Start learning'
+                                        : 'Enroll for free'}
                     </Button>
                 )}
 

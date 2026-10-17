@@ -2,157 +2,30 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { courseQueries } from "@/queries/course.query";
-import { levelMapping } from "@/constants/constants";
+import { useSession } from "next-auth/react";
+import { useQuery } from "@tanstack/react-query";
+import { onboardingQueries } from "@/queries/premium.query";
 
 import { ErrorReload } from "../ui/error";
+import { RecommendationCard, RecommendationCardSkeleton } from "@/components/onboarding/recommendationCard";
 
-import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
-import { Skeleton } from "@/components/shadcn/skeleton";
 
 import {
     LuArrowRight,
-    LuBookOpen,
     LuChevronLeft,
     LuChevronRight,
-    LuClock,
-    LuLayers,
     LuLibrary,
     LuRoute,
-    LuStar,
+    LuSlidersHorizontal,
 } from "react-icons/lu";
 
-const FALLBACK_IMAGE = "/image/static/no_image.png";
 const CARD_WIDTH = "w-64 sm:w-72";
-
-function handleImageError(e) {
-    e.currentTarget.onerror = null;
-    e.currentTarget.src = FALLBACK_IMAGE;
-}
 
 function CardSkeleton() {
     return (
         <li className={`${CARD_WIDTH} shrink-0`}>
-            <div className="flex h-full flex-col overflow-hidden rounded-lg border bg-card">
-                <Skeleton className="aspect-video w-full rounded-none" />
-                <div className="flex flex-col gap-3 p-3.5">
-                    <Skeleton className="h-4 w-32" />
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-3 w-40" />
-                    <div className="flex items-center justify-between border-t pt-3">
-                        <Skeleton className="h-4 w-16" />
-                        <Skeleton className="h-5 w-20" />
-                    </div>
-                </div>
-            </div>
-        </li>
-    );
-}
-
-function CourseCard({ item, onClickGuard }) {
-    const level = levelMapping[item.level] || levelMapping["beginner"];
-    const cost = Number(item.cost || 0);
-    const point_price = Number(item.point_price || 0);
-
-    const subtitle = [item.language_name, item.category_name].filter(Boolean).join(" / ");
-    const stats = [
-        item?.modules ? { Icon: LuLayers, value: item.modules, label: Number(item.modules) === 1 ? "module" : "modules" } : null,
-        item?.lessons ? { Icon: LuBookOpen, value: item.lessons, label: Number(item.lessons) === 1 ? "lesson" : "lessons" } : null,
-        item?.duration ? { Icon: LuClock, value: `${item.duration}m`, label: "total" } : null,
-    ].filter(Boolean);
-
-    return (
-        <li className={`${CARD_WIDTH} shrink-0 snap-start`}>
-            <Link
-                href={`/course/${item.id}`}
-                draggable={false}
-                onClick={onClickGuard}
-                className="group/card flex h-full flex-col overflow-hidden rounded-lg border bg-card text-card-foreground transition-colors outline-none hover:border-primary/40 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 active:bg-accent/40"
-            >
-                <div className="aspect-video w-full overflow-hidden border-b bg-muted">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                        src={item.image || FALLBACK_IMAGE}
-                        alt=""
-                        loading="lazy"
-                        draggable={false}
-                        className="block size-full object-cover"
-                        onError={handleImageError}
-                    />
-                </div>
-
-                <div className="flex flex-1 flex-col gap-2.5 p-3.5">
-                    <div className="flex min-w-0 items-center gap-2">
-                        <span className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-sm border bg-background">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                                src={item.language_logo || FALLBACK_IMAGE}
-                                alt=""
-                                width={16}
-                                height={16}
-                                draggable={false}
-                                className="size-4 object-contain"
-                                onError={handleImageError}
-                            />
-                        </span>
-                        <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
-                            {subtitle || "General"}
-                        </span>
-                        {item?.rating ? (
-                            <span className="flex shrink-0 items-center gap-1 font-mono text-xs text-foreground tabular">
-                                <LuStar className="size-3.5 fill-current text-muted-foreground" aria-hidden="true" />
-                                <span className="sr-only">Rating</span>
-                                {item.rating}
-                            </span>
-                        ) : null}
-                    </div>
-
-                    <h3
-                        className="line-clamp-2 text-sm leading-snug font-semibold text-foreground group-hover/card:text-primary"
-                        title={item.title}
-                    >
-                        {item.title}
-                    </h3>
-
-                    {stats.length > 0 && (
-                        <ul className="m-0 flex list-none flex-wrap gap-x-3 gap-y-1 p-0 text-xs text-muted-foreground">
-                            {stats.map(({ Icon, value, label }) => (
-                                <li key={label} className="flex items-center gap-1">
-                                    <Icon className="size-3.5" aria-hidden="true" />
-                                    <span className="font-mono text-foreground tabular">{value}</span>
-                                    {label}
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-
-                    {item.instructor && (
-                        <p className="truncate text-xs text-muted-foreground">
-                            By <span className="text-foreground">{item.instructor}</span>
-                        </p>
-                    )}
-
-                    <div className="mt-auto flex items-center justify-between gap-2 border-t pt-3">
-                        {cost === 0 ? (
-                            <Badge variant="success">Free</Badge>
-                        ) : (
-                            <span className="flex min-w-0 items-baseline gap-1.5 text-xs text-muted-foreground">
-                                <span className="font-mono text-sm font-semibold text-foreground tabular">
-                                    ${cost.toFixed(2)}
-                                </span>
-                                {point_price > 0 && (
-                                    <span className="truncate">
-                                        or <span className="font-mono tabular">{point_price}</span> points
-                                    </span>
-                                )}
-                            </span>
-                        )}
-                        <Badge variant="muted">{level.label}</Badge>
-                    </div>
-                </div>
-            </Link>
+            <RecommendationCardSkeleton />
         </li>
     );
 }
@@ -169,15 +42,23 @@ export default function HomeRecommend() {
     const [scrollStart, setScrollStart] = useState(0);
     const [hasDragged, setHasDragged] = useState(false);
 
+    const { status } = useSession();
+
     const {
         data,
-        isLoading,
+        isLoading: isQueryLoading,
         isError,
         error,
         refetch
-    } = useInfiniteQuery(courseQueries.list({ rating: '5' }, { limit: 10 }));
+    } = useQuery(onboardingQueries.recommendations(status, 6));
 
-    const courses = data?.pages.flatMap(page => page.data) || [];
+    // Only used to pick where the "personalise" link goes (onboarding vs Settings).
+    const { data: onboarding } = useQuery(onboardingQueries.status(status));
+
+    const isLoading = status === "loading" || isQueryLoading;
+    const items = Array.isArray(data?.items) ? data.items : [];
+    const isFallback = Boolean(data?.fallback);
+    const personaliseHref = onboarding?.status === "completed" ? "/settings#settings-preferences" : "/onboarding";
 
     const checkScroll = () => {
         if (!sliderRef.current) return;
@@ -244,22 +125,24 @@ export default function HomeRecommend() {
         }
     };
 
-    const showEmpty = !isLoading && !isError && courses.length === 0;
+    const showEmpty = !isLoading && !isError && items.length === 0;
     const showTrack = !isError && !showEmpty;
 
     return (
         <section
             id="home_recommend"
-            aria-labelledby="home-featured-heading"
+            aria-labelledby="home-recommend-heading"
             className="flex min-w-0 flex-col gap-4 lg:col-start-1 lg:row-start-1"
         >
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <div className="min-w-0 space-y-1">
-                    <h2 id="home-featured-heading" className="text-base font-semibold text-foreground">
-                        Featured courses
+                    <h2 id="home-recommend-heading" className="text-base font-semibold text-foreground">
+                        Recommended for you
                     </h2>
                     <p className="text-sm text-muted-foreground">
-                        Top rated courses you are not enrolled in yet.
+                        {isFallback
+                            ? "Popular courses while we learn what you are looking for."
+                            : "Picked from your role, experience level and goals."}
                     </p>
                 </div>
 
@@ -273,7 +156,7 @@ export default function HomeRecommend() {
                                 onClick={() => scroll("left")}
                                 disabled={isLoading || !canScrollLeft}
                                 aria-label="Scroll to previous courses"
-                                aria-controls="home-featured-track"
+                                aria-controls="home-recommend-track"
                             >
                                 <LuChevronLeft />
                             </Button>
@@ -284,7 +167,7 @@ export default function HomeRecommend() {
                                 onClick={() => scroll("right")}
                                 disabled={isLoading || !canScrollRight}
                                 aria-label="Scroll to next courses"
-                                aria-controls="home-featured-track"
+                                aria-controls="home-recommend-track"
                             >
                                 <LuChevronRight />
                             </Button>
@@ -299,6 +182,28 @@ export default function HomeRecommend() {
                 </div>
             </div>
 
+            {!isLoading && !isError && isFallback && (
+                <div className="flex flex-col gap-3 rounded-lg border border-dashed bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-start gap-3">
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary-soft text-primary-soft-foreground">
+                            <LuSlidersHorizontal className="size-4" aria-hidden="true" />
+                        </span>
+                        <div className="min-w-0 space-y-0.5">
+                            <h3 className="text-sm font-semibold text-foreground">Personalise your recommendations</h3>
+                            <p className="text-sm text-muted-foreground">
+                                We could not match your profile yet. Tell us your role, level and goals to get courses picked for you.
+                            </p>
+                        </div>
+                    </div>
+                    <Button asChild size="sm" className="self-start sm:self-auto">
+                        <Link href={personaliseHref}>
+                            Personalise
+                            <LuArrowRight />
+                        </Link>
+                    </Button>
+                </div>
+            )}
+
             {isError ? (
                 <ErrorReload
                     data={error || { status: 500, message: "Could not load recommendations" }}
@@ -310,9 +215,9 @@ export default function HomeRecommend() {
                         <LuLibrary className="size-5" aria-hidden="true" />
                     </span>
                     <div className="space-y-1">
-                        <h3 className="text-sm font-semibold text-foreground">No featured courses right now</h3>
+                        <h3 className="text-sm font-semibold text-foreground">No recommendations right now</h3>
                         <p className="max-w-[48ch] text-sm text-muted-foreground">
-                            You are already enrolled in every top rated course. Browse the catalog to find something new.
+                            There is nothing new to suggest at the moment. Browse the catalog to find something to learn next.
                         </p>
                     </div>
                     <Button asChild size="sm">
@@ -324,9 +229,9 @@ export default function HomeRecommend() {
                 </div>
             ) : (
                 <ul
-                    id="home-featured-track"
+                    id="home-recommend-track"
                     ref={sliderRef}
-                    aria-label="Featured courses"
+                    aria-label="Recommended courses"
                     aria-busy={isLoading || undefined}
                     onMouseDown={handleMouseDown}
                     onMouseLeave={handleMouseLeave}
@@ -338,12 +243,10 @@ export default function HomeRecommend() {
                         ? Array.from({ length: 4 }, (_, index) => <CardSkeleton key={index} />)
                         : (
                             <>
-                                {courses.map((item, index) => (
-                                    <CourseCard
-                                        key={item.id || index}
-                                        item={item}
-                                        onClickGuard={handleClickGuard}
-                                    />
+                                {items.map((item, index) => (
+                                    <li key={item?.course?.id || index} className={`${CARD_WIDTH} shrink-0 snap-start`}>
+                                        <RecommendationCard item={item} onClickGuard={handleClickGuard} />
+                                    </li>
                                 ))}
 
                                 <li className={`${CARD_WIDTH} shrink-0 snap-start`}>

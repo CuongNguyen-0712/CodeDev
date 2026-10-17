@@ -1,6 +1,7 @@
 import crypto from "crypto";
 
 import { userDb } from "@/db/user.db";
+import { commerceDb } from "@/db/commerce.db";
 import { listCacheIdentity } from "@/lib/listFilters";
 import { ApiError } from "@/lib/error/apiError";
 import { challengeService } from "@/services/challenge.service";
@@ -47,7 +48,7 @@ export const userService = {
     },
 
     getMe: async (userId) => {
-        return rememberForUser(userId, (v) => cacheKeys.userMe(userId, v), TTL.USER_ME, async () => {
+        const profile = await rememberForUser(userId, (v) => cacheKeys.userMe(userId, v), TTL.USER_ME, async () => {
             const response = await userDb.getMe(userId);
 
             if (!response) {
@@ -60,8 +61,13 @@ export const userService = {
                 throw new ApiError('User not found', 404);
             }
 
-            return user;
+            // The point balance is never cached in Redis: it is read from PostgreSQL below.
+            const { points: _balance, ...rest } = user;
+            return rest;
         });
+
+        const points = await commerceDb.getPointBalance({ userId });
+        return { ...profile, points };
     },
 
     getOverview: async (userId) => {

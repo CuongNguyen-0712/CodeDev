@@ -25,35 +25,17 @@ async function withTransaction(callback) {
     }
 }
 
-// Credits challenge points once per (user, challenge). The advisory lock
-// serialises concurrent submissions so the NOT EXISTS check cannot race.
+// Credits challenge points once per (user, challenge) through the ledger's single writer
+// (public.post_points locks the balance row and is idempotent per source).
 async function awardChallengePoints(client, { userDbId, challengeId, amount }) {
     if (!amount || amount <= 0) return 0;
 
-    await client.query(
-        `SELECT pg_advisory_xact_lock(hashtext('challenge-award:' || $1::text || ':' || $2::text))`,
-        [userDbId, challengeId]
-    );
-
-    const inserted = await client.query(
-        `INSERT INTO profile.point_transaction (user_id, action, amount, source_type, source_id)
-         SELECT $1, 'credit', $3, 'challenge', $2
-         WHERE NOT EXISTS (
-             SELECT 1 FROM profile.point_transaction
-             WHERE user_id = $1 AND source_type = 'challenge' AND source_id = $2
-         )
-         RETURNING amount;`,
+    const { rows } = await client.query(
+        `SELECT created FROM public.post_points($1::bigint, 'credit', 'earned', $3::bigint, 'challenge', $2::bigint)`,
         [userDbId, challengeId, amount]
     );
 
-    if (inserted.rowCount === 0) return 0;
-
-    await client.query(
-        `UPDATE profile.info SET points = COALESCE(points, 0) + $2 WHERE user_id = $1;`,
-        [userDbId, amount]
-    );
-
-    return amount;
+    return rows[0]?.created ? amount : 0;
 }
 
 export const challengeDb = {
@@ -69,7 +51,12 @@ export const challengeDb = {
                 COALESCE(ch.points, 0) AS points,
                 ch.lesson_id::text AS lesson_id,
                 u.id::text AS user_db_id,
-                h.status AS lesson_status
+                h.status AS lesson_status,
+                -- Entitlement (single source of truth for access) + active enrolment.
+                (public.has_course_access(u.id, ch.course_id) AND EXISTS (
+                    SELECT 1 FROM learning.register r
+                    WHERE r.user_id = u.id AND r.course_id = ch.course_id AND r.is_deleted = false
+                )) AS has_access
             FROM challenge.challenges ch
             JOIN identity.users u ON u.public_id = $1
             LEFT JOIN learning.history h

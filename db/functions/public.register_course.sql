@@ -8,37 +8,53 @@ CREATE OR REPLACE FUNCTION public.register_course(_user_id character varying, _c
 AS $function$
 DECLARE
   p_user_id bigint;
-  p_course_id bigint;
+  v_course record;
 BEGIN
     SELECT id INTO p_user_id FROM identity.users WHERE public_id = _user_id;
     IF p_user_id IS NULL THEN
         RAISE EXCEPTION 'User not found';
     END IF;
 
-    SELECT id INTO p_course_id
-    FROM catalog.course
-    WHERE public_id = _course_id AND is_deleted = false AND is_hidden = false;
-    IF p_course_id IS NULL THEN
-        RAISE EXCEPTION 'Course not found';
+    SELECT c.id, c.publish_status, c.access_model, c.is_deleted INTO v_course
+    FROM catalog.course c
+    WHERE c.public_id = _course_id;
+
+    IF NOT FOUND OR v_course.is_deleted OR v_course.publish_status IN ('archived', 'draft') THEN
+        RAISE EXCEPTION USING ERRCODE = 'CD404', MESSAGE = 'Course not found';
     END IF;
 
-    IF EXISTS (SELECT 1 FROM learning.register WHERE user_id = p_user_id AND course_id = p_course_id) THEN
+    IF NOT public.has_course_access(p_user_id, v_course.id) THEN
+        IF v_course.publish_status <> 'published' THEN
+            RAISE EXCEPTION USING ERRCODE = 'CD404', MESSAGE = 'Course not found';
+        ELSIF v_course.access_model = 'free' THEN
+            UPDATE commerce.entitlement e SET status = 'expired'
+            WHERE e.user_id = p_user_id AND e.course_id = v_course.id AND e.status = 'active' AND e.expires_at <= now();
+
+            INSERT INTO commerce.entitlement (public_id, user_id, course_id, source)
+            VALUES ('ent_' || replace(gen_random_uuid()::text, '-', ''), p_user_id, v_course.id, 'free')
+            ON CONFLICT DO NOTHING;
+        ELSE
+            RAISE EXCEPTION USING ERRCODE = 'CD403', MESSAGE = 'This course requires a purchase';
+        END IF;
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM learning.register WHERE user_id = p_user_id AND course_id = v_course.id) THEN
         UPDATE learning.register
         SET is_deleted = false, deleted_at = NULL
-        WHERE user_id = p_user_id AND course_id = p_course_id;
+        WHERE user_id = p_user_id AND course_id = v_course.id;
     ELSE
         INSERT INTO learning.register (user_id, course_id)
-        VALUES (p_user_id, p_course_id);
+        VALUES (p_user_id, v_course.id);
 
         UPDATE catalog.course
         SET students = students + 1
-        WHERE id = p_course_id;
+        WHERE id = v_course.id;
 
         INSERT INTO learning.history (user_id, course_id, module_id, lesson_id)
-        SELECT p_user_id, p_course_id, m.id, l.id
+        SELECT p_user_id, v_course.id, m.id, l.id
         FROM course.lesson l
         JOIN course.module m ON m.id = l.module_id
-        WHERE m.course_id = p_course_id
+        WHERE m.course_id = v_course.id
           AND l.is_deleted = false
           AND m.is_deleted = false
         ON CONFLICT DO NOTHING;

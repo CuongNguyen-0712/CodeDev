@@ -1,4 +1,8 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
+
+import { getAuthSession } from "@/lib/session";
+import { onboardingService } from "@/services/onboarding.service";
 
 import { LoadingRedirect } from "@/components/ui/loading";
 
@@ -13,7 +17,14 @@ export async function generateMetadata() {
     };
 }
 
-export default function Page() {
+export default async function Page() {
+    // Login and signup land here: a learner whose onboarding is not started / in progress is sent
+    // to it (skipped and completed are not asked again). Server-side, from the database.
+    const session = await getAuthSession({ soft: true });
+    if (session?.user?.id && await onboardingService.needsOnboarding({ userId: session.user.id })) {
+        redirect("/onboarding");
+    }
+
     return (
         <Suspense fallback={<LoadingRedirect />}>
             <HomeLayout>

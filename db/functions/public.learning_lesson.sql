@@ -11,6 +11,8 @@ DECLARE
 BEGIN
   SELECT id INTO v_user_id FROM identity.users WHERE public_id = p_user_id;
 
+  PERFORM public.assert_lesson_access(v_user_id, p_lesson_id);
+
   IF EXISTS (
     SELECT 1 FROM learning.history h
     WHERE h.user_id = v_user_id AND h.lesson_id = p_lesson_id AND h.status = 'enrolled'

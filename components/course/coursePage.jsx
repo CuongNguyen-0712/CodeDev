@@ -20,8 +20,9 @@ import { CourseItem } from "./courseItem";
 
 import { LuLibrary, LuLoaderCircle, LuSearchX } from "react-icons/lu";
 
-// Static fields mirror the database (level_enum, cost = 0 / > 0, rating 1..5 as a minimum);
-// language and category options come from /api/course/filters (only ones that have courses).
+// Static fields mirror the database (level_enum, access_model / commerce offers, rating 1..5 as a
+// minimum); language, category, role, industry and skill options come from /api/course/filters
+// (only ones that have courses; roles / industries / skills use their code as the value).
 const STATIC_FILTERS = [
     {
         name: 'level',
@@ -31,7 +32,9 @@ const STATIC_FILTERS = [
         name: 'price',
         items: [
             { name: 'Free', value: 'free' },
-            { name: 'Paid', value: 'paid' }
+            { name: 'Premium', value: 'paid' },
+            { name: 'Redeemable with points', value: 'points' },
+            { name: 'Buy with money', value: 'money' },
         ]
     },
     {
@@ -80,6 +83,9 @@ export default function CoursePage() {
         const dynamic = [
             { name: 'language', items: toItems(filterOptions?.languages) },
             { name: 'category', items: toItems(filterOptions?.categories) },
+            { name: 'role', items: toItems(filterOptions?.roles) },
+            { name: 'industry', items: toItems(filterOptions?.industries) },
+            { name: 'skill', items: toItems(filterOptions?.skills) },
         ].filter((field) => field.items.length > 0);
         return [...STATIC_FILTERS, ...dynamic];
     }, [filterOptions]);
@@ -115,7 +121,7 @@ export default function CoursePage() {
                     Course catalog
                 </h1>
                 <p className="max-w-[60ch] text-sm text-muted-foreground">
-                    Filter courses by level, price, rating, language and category, then open one to review its syllabus.
+                    Filter courses by level, price, rating, language, category, career role, industry or skill, then open one to review its syllabus.
                 </p>
             </header>
 

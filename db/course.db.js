@@ -14,9 +14,17 @@ export const courseDb = {
 
         params.push(courseId)
         conditions.push(`c.id = (select id from catalog.course where public_id = $${params.length})`)
+        // Published courses for everyone; an unpublished (not archived) course only for its owners.
+        conditions.push(`c.is_deleted = false`)
+        conditions.push(userId
+            ? `(c.publish_status = 'published' OR (c.publish_status = 'unpublished'
+                    AND public.has_course_access((SELECT id FROM identity.users WHERE public_id = $1), c.id)))`
+            : `c.publish_status = 'published'`)
 
         const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
+        // Lesson content ids (Sanity) are not returned: lesson bodies are served only through the
+        // access-checked /api/course/learning.
         const query = `
         SELECT
             c.*,
@@ -27,6 +35,22 @@ export const courseDb = {
             COALESCE(f.id, null) AS is_favorite,
             ${userId ? `COALESCE(r.status, null) AS status,` : ''}
             ${userId ? `COALESCE(r.progress, 0) AS progress,` : ''}
+            ${userId ? `public.has_course_access((SELECT id FROM identity.users WHERE public_id = $1), c.id) AS owned,` : ''}
+            json_build_object(
+                'money', (SELECT json_build_object('amountMinor', o.amount, 'currency', o.currency)
+                          FROM commerce.offer o WHERE o.course_id = c.id AND o.price_type = 'money' AND o.is_active),
+                'points', (SELECT json_build_object('amount', o.amount)
+                           FROM commerce.offer o WHERE o.course_id = c.id AND o.price_type = 'points' AND o.is_active)
+            ) AS offers,
+            COALESCE((SELECT json_agg(json_build_object('code', s.code, 'name', s.name) ORDER BY cs.weight DESC, s.name)
+                      FROM catalog.course_skill cs JOIN catalog.skill s ON s.id = cs.skill_id
+                      WHERE cs.course_id = c.id), '[]') AS skills,
+            COALESCE((SELECT json_agg(json_build_object('code', cr.code, 'name', cr.name) ORDER BY cr.sort_order)
+                      FROM catalog.course_career_role ccr JOIN catalog.career_role cr ON cr.id = ccr.career_role_id
+                      WHERE ccr.course_id = c.id), '[]') AS career_roles,
+            COALESCE((SELECT json_agg(json_build_object('id', pc.public_id, 'title', pc.title))
+                      FROM catalog.course_prerequisite cp JOIN catalog.course pc ON pc.id = cp.prerequisite_course_id
+                      WHERE cp.course_id = c.id AND pc.publish_status = 'published'), '[]') AS prerequisites,
             (
                 SELECT json_agg(
                     json_build_object(
@@ -38,8 +62,7 @@ export const courseDb = {
                                     json_build_object(
                                         'title', lesson.title,
                                         'order_index', lesson.order_index,
-                                        'content_type', lesson.content_type,
-                                        'content_source', lesson.content_source
+                                        'content_type', lesson.content_type
                                     )
                                     ORDER BY lesson.order_index
                                 )
@@ -83,13 +106,16 @@ export const courseDb = {
             minRating = null,
             languageIds = [],
             categoryIds = [],
+            roleCodes = [],
+            industryCodes = [],
+            skillCodes = [],
             lastId = null,
             limit = 20,
             hideEnrolled = false,
         } = data;
 
         const params = [userId];
-        const conditions = [`c.is_hidden = false`, `c.is_deleted = false`];
+        const conditions = [`c.publish_status = 'published'`, `c.is_deleted = false`];
 
         if (search) {
             params.push(`%${escapeLike(search)}%`);
@@ -101,8 +127,39 @@ export const courseDb = {
             conditions.push(`c.level = ANY($${params.length}::level_enum[])`);
         }
 
-        if (price === "free") conditions.push(`c.cost = 0`);
-        if (price === "paid") conditions.push(`c.cost > 0`);
+        // Access model / offers (catalog.course.cost is deprecated).
+        if (price === "free") conditions.push(`c.access_model = 'free'`);
+        if (price === "paid") conditions.push(`c.access_model = 'premium'`);
+        if (price === "points" || price === "money") {
+            params.push(price);
+            conditions.push(`c.access_model = 'premium' AND EXISTS (
+                SELECT 1 FROM commerce.offer ofr WHERE ofr.course_id = c.id AND ofr.is_active AND ofr.price_type = $${params.length}
+            )`);
+        }
+
+        if (roleCodes.length > 0) {
+            params.push(roleCodes);
+            conditions.push(`EXISTS (
+                SELECT 1 FROM catalog.course_career_role ccr JOIN catalog.career_role cr ON cr.id = ccr.career_role_id
+                WHERE ccr.course_id = c.id AND cr.code = ANY($${params.length}::varchar[])
+            )`);
+        }
+
+        if (industryCodes.length > 0) {
+            params.push(industryCodes);
+            conditions.push(`EXISTS (
+                SELECT 1 FROM catalog.course_industry ci JOIN catalog.industry i ON i.id = ci.industry_id
+                WHERE ci.course_id = c.id AND i.code = ANY($${params.length}::varchar[])
+            )`);
+        }
+
+        if (skillCodes.length > 0) {
+            params.push(skillCodes);
+            conditions.push(`EXISTS (
+                SELECT 1 FROM catalog.course_skill cs JOIN catalog.skill s ON s.id = cs.skill_id
+                WHERE cs.course_id = c.id AND s.code = ANY($${params.length}::varchar[])
+            )`);
+        }
 
         if (minRating) {
             params.push(minRating);
@@ -148,6 +205,11 @@ export const courseDb = {
                 c.duration,
                 c.instructor,
                 c.point_price,
+                c.access_model,
+                c.course_type,
+                (SELECT json_build_object('amountMinor', o.amount, 'currency', o.currency)
+                 FROM commerce.offer o WHERE o.course_id = c.id AND o.price_type = 'money' AND o.is_active) AS money_price,
+                (SELECT o.amount FROM commerce.offer o WHERE o.course_id = c.id AND o.price_type = 'points' AND o.is_active) AS points_price,
                 l.id AS language_id,
                 l.name AS language_name,
                 l.logo AS language_logo,
@@ -172,17 +234,37 @@ export const courseDb = {
     /** Languages and categories that have at least one visible course (filter options). */
     getCourseFilterOptions: async () => {
         const query = `
-            SELECT 'language' AS kind, l.id, l.name, COUNT(*)::int AS courses
-            FROM catalog.course c
+            WITH visible AS (
+                SELECT id, language_id, category_id FROM catalog.course
+                WHERE publish_status = 'published' AND is_deleted = false
+            )
+            SELECT 'language' AS kind, l.id::text AS id, l.name, COUNT(*)::int AS courses
+            FROM visible c
             JOIN catalog.language l ON l.id = c.language_id
-            WHERE c.is_hidden = false AND c.is_deleted = false
             GROUP BY l.id, l.name
             UNION ALL
-            SELECT 'category' AS kind, cat.id, cat.name, COUNT(*)::int AS courses
-            FROM catalog.course c
+            SELECT 'category' AS kind, cat.id::text, cat.name, COUNT(*)::int AS courses
+            FROM visible c
             JOIN catalog.category cat ON cat.id = c.category_id
-            WHERE c.is_hidden = false AND c.is_deleted = false
             GROUP BY cat.id, cat.name
+            UNION ALL
+            SELECT 'role' AS kind, cr.code, cr.name, COUNT(*)::int AS courses
+            FROM visible c
+            JOIN catalog.course_career_role ccr ON ccr.course_id = c.id
+            JOIN catalog.career_role cr ON cr.id = ccr.career_role_id AND cr.is_active
+            GROUP BY cr.code, cr.name
+            UNION ALL
+            SELECT 'industry' AS kind, i.code, i.name, COUNT(*)::int AS courses
+            FROM visible c
+            JOIN catalog.course_industry ci ON ci.course_id = c.id
+            JOIN catalog.industry i ON i.id = ci.industry_id AND i.is_active
+            GROUP BY i.code, i.name
+            UNION ALL
+            SELECT 'skill' AS kind, s.code, s.name, COUNT(*)::int AS courses
+            FROM visible c
+            JOIN catalog.course_skill cs ON cs.course_id = c.id
+            JOIN catalog.skill s ON s.id = cs.skill_id AND s.is_active
+            GROUP BY s.code, s.name
             ORDER BY kind, courses DESC, name;
         `;
 

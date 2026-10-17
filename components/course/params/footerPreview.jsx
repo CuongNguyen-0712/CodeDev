@@ -1,109 +1,103 @@
-import { useTransition } from "react";
-import Link from "next/link";
+'use client'
 
-import { useRouterActions } from "@/router/useRouterActions";
-import { useCourseRegister } from "@/mutations/course.mutation";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+
+import { courseQueries } from "@/queries/course.query";
 import { useApp } from "@/contexts/appContext";
-import { useSession } from 'next-auth/react';
 import { cn } from "@/lib/utils";
 
+import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 
-import { LuArrowRight, LuLink, LuLoaderCircle, LuLogIn, LuPlay, LuPlus, LuRotateCcw } from "react-icons/lu";
+import { PriceTag } from "@/components/commerce/priceTag";
+import { PurchaseActions } from "@/components/commerce/purchaseActions";
+import { isPremium } from "@/components/commerce/format";
 
-// Primary enroll / continue action for the course details header, plus a copy-link button.
-// The name is kept from the old bottom bar so existing imports keep working.
-export default function FooterPreview({ courseId, cost = 0, status = 'not_enrolled', loading = false, className }) {
-    const [isPending, startTransition] = useTransition();
+import { LuLink } from "react-icons/lu";
 
-    const { showAlert: alert } = useApp();
-    const { navigate } = useRouterActions();
-    const { status: authStatus } = useSession();
+function ChipGroup({ label, items, renderItem }) {
+    if (!items.length) return null;
+    return (
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <dt className="mr-0.5 text-xs font-medium text-muted-foreground">{label}</dt>
+            {items.map((item) => (
+                <dd key={item.code ?? item.id}>{renderItem(item)}</dd>
+            ))}
+        </div>
+    );
+}
 
-    const useRegister = useCourseRegister();
-    const numericCost = Number(cost || 0);
-    const isBusy = useRegister.isPending || isPending || loading;
+// Price, skills, roles and prerequisites, shown under the action row.
+function CourseCommerceMeta({ course }) {
+    const skills = Array.isArray(course?.skills) ? course.skills : [];
+    const roles = Array.isArray(course?.career_roles) ? course.career_roles : [];
+    const prerequisites = Array.isArray(course?.prerequisites) ? course.prerequisites : [];
 
-    const handleSubmit = async () => {
-        if (!courseId) return;
-        if (useRegister.isPending || isPending) return;
-
-        if (status !== 'not_enrolled') {
-            startTransition(() => {
-                navigate({ path: `/learning/${courseId}` });
-            });
-            return;
-        }
-
-        if (numericCost > 0) {
-            alert(400, "Paid enrollment feature is currently in preview. Please try free courses.");
-            return;
-        }
-
-        try {
-            await useRegister.mutateAsync(courseId);
-            startTransition(() => {
-                navigate({ path: `/learning/${courseId}` });
-            });
-        } catch (error) {
-            alert(500, error.message || "An error occurred while registering for the course.");
-        }
-    };
-
-    const handleShare = async () => {
-        if (typeof window !== 'undefined') {
-            try {
-                if (navigator.clipboard) {
-                    await navigator.clipboard.writeText(window.location.href);
-                    alert(200, "Course link copied to clipboard!");
-                }
-            } catch {
-                alert(0, "Copy this link: " + window.location.href);
-            }
-        }
-    };
-
-    const getAction = () => {
-        switch (status) {
-            case 'enrolled':
-                return { label: 'Start learning', Icon: LuPlay };
-            case 'in_progress':
-                return { label: 'Continue learning', Icon: LuArrowRight };
-            case 'completed':
-                return { label: 'Review course', Icon: LuRotateCcw };
-            case 'not_enrolled':
-                return {
-                    label: numericCost === 0 ? 'Enroll for free' : `Enroll for $${numericCost.toFixed(2)}`,
-                    Icon: LuPlus,
-                };
-            default:
-                return { label: 'Continue learning', Icon: LuArrowRight };
-        }
-    };
-
-    const action = getAction();
+    if (!course) return null;
+    if (!isPremium(course) && !skills.length && !roles.length && !prerequisites.length) return null;
 
     return (
-        <div className={cn("flex flex-wrap items-center gap-2", className)}>
-            {authStatus === 'authenticated' ? (
-                <Button
-                    type="button"
-                    onClick={handleSubmit}
-                    disabled={isBusy}
-                    className="min-w-40"
-                >
-                    {isBusy ? <LuLoaderCircle className="animate-spin" aria-hidden="true" /> : <action.Icon aria-hidden="true" />}
-                    {useRegister.isPending ? 'Enrolling...' : action.label}
-                </Button>
-            ) : authStatus === 'unauthenticated' ? (
-                <Button asChild>
-                    <Link href="/auth">
-                        <LuLogIn aria-hidden="true" />
-                        Sign in to enroll
-                    </Link>
-                </Button>
-            ) : null}
+        <dl className="order-last flex basis-full flex-col gap-2 pt-1" aria-label="Course pricing and topics">
+            {isPremium(course) && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                    <dt className="sr-only">Price</dt>
+                    <dd><PriceTag course={course} /></dd>
+                </div>
+            )}
+            <ChipGroup
+                label="Skills"
+                items={skills}
+                renderItem={(skill) => <Badge variant="outline" className="text-muted-foreground">{skill.name}</Badge>}
+            />
+            <ChipGroup
+                label="Roles"
+                items={roles}
+                renderItem={(role) => <Badge variant="muted">{role.name}</Badge>}
+            />
+            <ChipGroup
+                label="Prerequisites"
+                items={prerequisites}
+                renderItem={(course) => (
+                    <Badge asChild variant="link" className="px-0">
+                        <Link href={`/course/${course.id}`}>{course.title}</Link>
+                    </Badge>
+                )}
+            />
+        </dl>
+    );
+}
+
+// Primary purchase / enroll / continue action for the course details header, plus a copy-link
+// button. The name and props are kept from the old bottom bar so existing imports keep working;
+// The `cost` and `status` props are still accepted but ignored: price, ownership and enrolment
+// come from the (shared, already cached) details query.
+export default function FooterPreview({ courseId, loading = false, className }) {
+    const { showAlert: alert } = useApp();
+    const { data, isLoading, error, refetch } = useQuery(courseQueries.details(courseId));
+
+    const handleShare = async () => {
+        if (typeof window === 'undefined') return;
+        try {
+            if (navigator.clipboard) {
+                await navigator.clipboard.writeText(window.location.href);
+                alert(200, "Course link copied to clipboard!");
+            }
+        } catch {
+            alert(0, "Copy this link: " + window.location.href);
+        }
+    };
+
+    return (
+        <div className={cn("contents", className)}>
+            <PurchaseActions
+                courseId={courseId}
+                course={data}
+                isLoading={loading || isLoading}
+                error={error}
+                onRetry={refetch}
+            />
 
             <Tooltip>
                 <TooltipTrigger asChild>
@@ -119,6 +113,8 @@ export default function FooterPreview({ courseId, cost = 0, status = 'not_enroll
                 </TooltipTrigger>
                 <TooltipContent>Copy course link</TooltipContent>
             </Tooltip>
+
+            <CourseCommerceMeta course={data} />
         </div>
     );
 }

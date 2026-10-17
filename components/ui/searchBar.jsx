@@ -31,6 +31,9 @@ const FIELD_LABELS = {
     type: 'Type',
     language: 'Language',
     category: 'Category',
+    role: 'Career role',
+    industry: 'Industry',
+    skill: 'Skill',
 };
 
 const labelFor = (name) => FIELD_LABELS[name] || (name ? name.charAt(0).toUpperCase() + name.slice(1) : '');
