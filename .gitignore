@@ -35,6 +35,7 @@ next-env.d.ts
 
 # env
 .env*
+!.env.example
 
 # sanity local
 /sanity
@@ -53,6 +54,10 @@ sanity.config.js
 
 # Local database backups
 /db/backups
+
+# Generated Sanity lesson documents: rebuilt from lesson.source.mjs + assets.json
+# by content/tools/build-lesson.mjs (build-course.mjs runs it for every lesson)
+/content/courses/*/*/lesson.sanity.json
 
 # Claude Code local config & worktrees
 /.claude
