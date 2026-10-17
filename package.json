@@ -14,7 +14,11 @@
     "services:down": "docker compose --env-file .env.local -f docker-compose.dev.yml down",
     "storage:sync": "node scripts/storage-sync.mjs",
     "storage:seed-harness": "node scripts/seed-challenge-harness.mjs",
-    "storage:init": "node scripts/storage-sync.mjs --init"
+    "storage:init": "node scripts/storage-sync.mjs --init",
+    "db:migrate": "node db/tools/migrate.mjs",
+    "db:migrate:prod": "node db/tools/migrate.mjs --env .env.production",
+    "db:compare": "node db/tools/compare-schema.mjs",
+    "db:export": "node db/tools/export-schema.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",

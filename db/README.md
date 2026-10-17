@@ -11,6 +11,8 @@ query modules in this folder (`*.db.js`, `roadmap.js`) via `lib/db.js`.
 | `views/` | One file per view (generated) |
 | `triggers/` | One file per trigger (generated) |
 | `schema.dbml` | Full diagram for [dbdiagram.io](https://dbdiagram.io) (generated) |
+| `tools/migrate.mjs` | Applies pending migrations and records them in `public.schema_migrations` |
+| `tools/compare-schema.mjs` | Read-only drift check between two databases (local vs production) |
 | `tools/export-schema.mjs` | Regenerates the generated folders/files from a live database |
 | `seeds/` | Course content seeds (generated from `content/courses/`, see [content/README.md](../content/README.md)) |
 | `backups/` | Local `pg_dump` files (git-ignored) |
@@ -19,8 +21,8 @@ query modules in this folder (`*.db.js`, `roadmap.js`) via `lib/db.js`.
 
 | Schema | Tables |
 |---|---|
-| `identity` | users, accounts, sessions, refresh_tokens, roles, permissions, user_roles, role_permissions |
-| `profile` | info, point_transaction, notification, task |
+| `identity` | users, accounts, sessions, refresh_tokens, auth_outbox, roles, permissions, user_roles, role_permissions |
+| `profile` | info (`avatar_asset_id` -> `storage.assets`), point_transaction, notification, task |
 | `catalog` | course, category, language |
 | `course` | module, lesson |
 | `learning` | register, history, favorite, recovery, view `user_progress` |
@@ -28,8 +30,23 @@ query modules in this folder (`*.db.js`, `roadmap.js`) via `lib/db.js`.
 | `roadmap` | roadmaps, nodes, node_course, roadmap_users, user_progress |
 | `community` | comment, voting, event, event_join, feedback, team, team_members, friend, messages |
 | `commerce` | cart_items, orders, order_items |
-| `storage` | assets |
-| `public` | shared enum types and the API functions called by the app |
+| `storage` | assets: every stored file, S3 objects and Cloudinary images |
+| `public` | shared enum types, the API functions called by the app, `schema_migrations` |
+
+### storage.assets
+
+One row per stored object, unique on `(provider, object_key)`.
+
+| Provider | `object_key` | `external_url` | Written by |
+|---|---|---|---|
+| `s3` | object key in `S3_BUCKET` / `S3_PRIVATE_BUCKET` | NULL (read through the API) | challenge seeding, code submissions |
+| `cloudinary` | Cloudinary `public_id` (`codedev/<APP_ENV>/users/<user>/avatars/<ulid>`) | `secure_url` | `media.db.js` → `setAvatar` |
+
+`owner_id` (uploading user), `purpose` (`avatar`, ...), `width` / `height` / `format` /
+`version`, `checksum` (SHA-256 of the uploaded bytes) and `deleted_at` (file replaced or removed)
+describe the file. `mine_type` holds the MIME type; the misspelled name is kept for compatibility.
+`profile.info.image` is the URL shown for a user: an uploaded avatar (then `avatar_asset_id` is
+set) or an OAuth provider picture (no asset).
 
 ## SQL functions called by the app
 
@@ -46,16 +63,51 @@ query modules in this folder (`*.db.js`, `roadmap.js`) via `lib/db.js`.
 | `voting_comment(3)` | `course.db.js` → `postVotingComment` |
 | `default_role_id()` | used inside `sign_up` / `auth_with_provider` |
 | `lesson_module_change()`, `lesson_course_change()` | trigger functions keeping `course.module.lessons` and `catalog.course.modules/lessons` in sync |
+| `identity.sessions_sync_columns()`, `identity.refresh_tokens_sync_columns()` | trigger functions keeping the legacy session / token columns in sync (migration `20261016_001`) |
 
 ## Changing the schema
 
-1. Add `migrations/<YYYYMMDD>_<NNN>_<name>.sql` (wrap it in `BEGIN; … COMMIT;`).
-2. Test it on a Neon branch of production, then apply it to production and local.
-3. Regenerate the exported objects and the diagram:
+Local and production must stay identical. `public.schema_migrations` records which migration
+files each database has run (version, SHA-256 of the file, time, who).
+
+1. Add `migrations/<YYYYMMDD>_<NNN>_<name>.sql`, wrapped in `BEGIN; … COMMIT;`. Prefer
+   expand-only changes (add columns / tables / indexes) so the deployed app keeps working.
+2. Apply it locally and test:
 
    ```bash
-   node db/tools/export-schema.mjs
+   npm run db:migrate
    ```
+
+3. Test it on a Neon branch of production (Neon console or MCP: create a branch from
+   `production`), then run the integration tests against it:
+
+   ```bash
+   DATABASE_URL="<branch url>" node db/tools/migrate.mjs --yes
+   DATABASE_URL="<branch url>" npx vitest run __tests__/auth __tests__/lists __tests__/media
+   ```
+
+4. Apply it to production (prints the pending list first; non-local targets need `--yes`):
+
+   ```bash
+   npm run db:migrate:prod -- --dry-run
+   npm run db:migrate:prod -- --yes
+   ```
+
+5. Check that both databases match and regenerate the exported objects and the diagram:
+
+   ```bash
+   npm run db:compare   # exit 1 on any difference
+   npm run db:export
+   ```
+
+`db:compare` compares applied migrations, columns, functions, procedures, views, triggers,
+indexes, constraints and enums. It ignores what only the server version changes (production is
+PostgreSQL 16, local 18: same CHECK / partial index printed differently, NOT NULL constraints
+listed in `pg_constraint` by 18 only).
+
+A database migrated by hand before the runner existed is marked with
+`node db/tools/migrate.mjs --baseline <last applied version>` (both databases were baselined on
+2026-10-17: production at `20261015_002`, local at `20261016_001`).
 
 Identity columns: `storage.assets`, `community.comment`, `learning.favorite` use
 `GENERATED ALWAYS AS IDENTITY` — never insert an explicit `id`. `identity.sessions`,

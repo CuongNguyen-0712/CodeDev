@@ -1,0 +1,9 @@
+# Generated database objects (db/tools/export-schema.mjs) and migrations are compared byte for
+# byte: keep them LF on every OS so re-exporting on Windows does not show every file as changed.
+db/** text eol=lf
+*.sql text eol=lf
+*.dbml text eol=lf
+*.sh text eol=lf
+# pg_dump archives are binary (and git-ignored): never convert them.
+db/backups/** -text
+*.dump -text
