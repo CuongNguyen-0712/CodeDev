@@ -1,6 +1,7 @@
 export const courseKeys = {
     all: ['course'],
     list: (params) => [...courseKeys.all, 'list', params],
+    filters: () => [...courseKeys.all, 'filters'],
     details: (courseId) => [...courseKeys.all, 'details', courseId],
     register: () => [...courseKeys.all, 'register'],
     withdraw: () => [...courseKeys.all, 'withdraw'],

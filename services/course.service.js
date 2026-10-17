@@ -3,9 +3,11 @@ import crypto from "crypto";
 import { courseDb } from "@/db/course.db";
 import { ApiError } from "@/lib/error/apiError";
 import { redis } from "@/lib/cache";
-import { cacheKeys, TTL, invalidateUserCache } from "@/lib/cacheKeys";
+import { cacheKeys, TTL, invalidateUserCache, rememberForUser } from "@/lib/cacheKeys";
+import { listCacheIdentity } from "@/lib/listFilters";
 import { publish, publishToUser } from "@/lib/pusher";
 import { channels, events, progressReasons } from "@/lib/realtime";
+import { challengeService } from "@/services/challenge.service";
 
 /** Cache + realtime side effects after a write that changes a user's learning state. */
 async function afterProgressChange({ userId, courseId, reason }) {
@@ -17,14 +19,9 @@ async function afterProgressChange({ userId, courseId, reason }) {
     publishToUser(userId, events.PROGRESS_UPDATED, { courseId: courseId || null, reason });
 }
 
-function listCacheKey(params) {
-    const { lastId = null, prices = [], levels = [], ratings = [], limit = 20 } = params;
-    const hash = crypto
-        .createHash("sha1")
-        .update(JSON.stringify({ lastId, prices: [...prices].sort(), levels: [...levels].sort(), ratings: [...ratings].sort(), limit: Number(limit) }))
-        .digest("hex")
-        .slice(0, 16);
-    return cacheKeys.courseListPublic(hash);
+/** Short hash of a normalised list query (search case-folded, filters canonical). */
+function listHash(kind, state, extra) {
+    return crypto.createHash("sha1").update(listCacheIdentity(kind, state, extra)).digest("hex").slice(0, 16);
 }
 
 export const courseService = {
@@ -45,31 +42,62 @@ export const courseService = {
         return redis.remember(cacheKeys.courseDetailsPublic(data.courseId), TTL.COURSE_DETAILS_PUBLIC, load);
     },
 
-    getList: async (params) => {
-        // Guests browsing without a search term all see the same pages.
-        if (!params.userId && !params.search) {
-            return redis.remember(listCacheKey(params), TTL.COURSE_LIST_PUBLIC, () => courseService.loadList(params));
+    /**
+     * Catalog list. `filter` comes from lib/listFilters (validated). Results are cached per
+     * normalised query: guests share one entry, signed-in users get a versioned per-user entry
+     * because enrolment hides courses and fills `is_registered`.
+     */
+    getList: async ({ userId = null, search = "", filter = {}, lastId = null, limit = 20 } = {}) => {
+        const hash = listHash("course", { search, filter }, { lastId, limit });
+        const load = () => courseService.loadList({ userId, search, filter, lastId, limit });
+
+        if (!userId) {
+            const ttl = search ? TTL.COURSE_SEARCH_PUBLIC : TTL.COURSE_LIST_PUBLIC;
+            return redis.remember(cacheKeys.courseListPublic(hash), ttl, load);
         }
 
-        return courseService.loadList(params);
+        return rememberForUser(userId, (v) => cacheKeys.userCourseList(userId, v, hash), TTL.USER_COURSE_LIST, load);
     },
 
-    loadList: async (params) => {
-        const response = await courseDb.getCourseList(params);
+    loadList: async ({ userId = null, search = "", filter = {}, lastId = null, limit = 20 }) => {
+        const response = await courseDb.getCourseList({
+            userId,
+            search,
+            levels: filter.level || [],
+            price: filter.price?.[0] || null,
+            minRating: Number(filter.rating?.[0]) || null,
+            languageIds: (filter.language || []).map(Number),
+            categoryIds: (filter.category || []).map(Number),
+            lastId,
+            limit,
+            // Searching also finds the courses the learner is already enrolled in.
+            hideEnrolled: Boolean(userId) && !search,
+        });
 
         if (!response) {
             throw new Error('Failed to fetch course list, try again later');
         }
 
-        const LIMIT = params.limit || 20
-        const hasMore = response.rowCount > LIMIT
-        const data = response.rows.slice(0, LIMIT)
+        const hasMore = response.rowCount > limit;
+        const data = response.rows.slice(0, limit);
 
         return {
             data,
             hasMore,
-            lastId: hasMore ? data[LIMIT - 1]?.id : null
-        }
+            lastId: hasMore ? data[data.length - 1]?.id : null
+        };
+    },
+
+    /** Filter options that actually match courses: languages and categories with counts. */
+    getFilterOptions: async () => {
+        return redis.remember(cacheKeys.courseFilterOptions(), TTL.COURSE_FILTER_OPTIONS, async () => {
+            const response = await courseDb.getCourseFilterOptions();
+            const pick = (kind) => response.rows
+                .filter((row) => row.kind === kind)
+                .map(({ id, name, courses }) => ({ id: String(id), name, courses: Number(courses) }));
+
+            return { languages: pick("language"), categories: pick("category") };
+        });
     },
 
     postRegister: async (data) => {
@@ -98,6 +126,22 @@ export const courseService = {
         return true;
     },
 
+    /**
+     * Saves the resume point (lesson + course last_seen) and drops the user's cached views, so
+     * "continue where you left off" and the My learning order never read a stale lesson.
+     */
+    recordLessonVisit: async ({ userId, courseId, lessonId }) => {
+        const response = await courseDb.touchLesson({ userId, courseId, lessonId });
+        const touched = Number(response?.rows?.[0]?.lessons) > 0;
+
+        if (touched) {
+            // last_seen orders "My learning" and the overview: drop every cached view of the user.
+            await invalidateUserCache(userId);
+        }
+
+        return { recorded: touched };
+    },
+
     getLearning: async (data) => {
         const response = await courseDb.getLearning(data);
 
@@ -122,6 +166,9 @@ export const courseService = {
         if (lessonStatus === 'enrolled') {
             throw new ApiError('Complete the previous lessons to unlock this one', 403);
         }
+
+        // Completing a lesson unlocks the next one, so every challenge must be passed first.
+        await challengeService.assertLessonChallengesPassed({ userId: data.userId, lessonId: data.lessonId });
 
         const response = await courseDb.postSubmitLesson(data);
 

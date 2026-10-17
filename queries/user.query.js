@@ -1,3 +1,5 @@
+import { keepPreviousData } from "@tanstack/react-query";
+
 import { userClient } from "@/clients/user.client";
 
 import { userKeys } from "@/keys/user.keys";
@@ -36,13 +38,14 @@ export const userQueries = {
             queryFn: ({ pageParam }) =>
                 userClient.getCourseProgress({
                     ...params,
-                    nextCursor: pageParam,
+                    ...(pageParam ? { nextCursor: pageParam } : {}),
                 }),
 
             getNextPageParam: (lastPage) =>
                 lastPage?.hasMore ? lastPage.nextCursor : undefined,
 
-            staleTime: 0,
+            placeholderData: keepPreviousData,
+            staleTime: 15 * 1000,
 
             gcTime: 10 * 60 * 1000, // 10 minutes
 

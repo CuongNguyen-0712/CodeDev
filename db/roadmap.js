@@ -18,7 +18,7 @@ export const roadmapDb = {
                             'logo', l.logo,
                             'color', l.color
                         )
-                    ),
+                    ) FILTER (WHERE l.id IS NOT NULL),
                     '[]'::jsonb
                 ) AS languages
             FROM roadmap.roadmaps r
@@ -26,7 +26,8 @@ export const roadmapDb = {
             LEFT JOIN roadmap.node_course nc ON nc.node_id = n.id
             LEFT JOIN catalog.course c ON c.id = nc.course_id
             LEFT JOIN catalog.language l ON c.language_id = l.id
-            GROUP BY r.id;
+            GROUP BY r.id
+            ORDER BY r.id;
         `
 
         return await sql(query, params)
@@ -97,81 +98,5 @@ export const roadmapDb = {
             ...roadmap,
             nodes: nodesResult.rows || []
         };
-    },
-
-    getRoadmapById: async ({ roadmapId }) => {
-        const params = [];
-        const conditions = [];
-
-        // roadmapId is the public id (uuid), same as getRoadmapNodes.
-        if (roadmapId) {
-            params.push(roadmapId);
-            conditions.push(`r.public_id::text = $${params.length}`);
-        }
-
-        const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-        const query = `
-            SELECT
-                r.public_id as id,
-                r.title as title,
-                r.description as description,
-                COUNT(n.id) nodes
-            FROM roadmap.roadmaps r
-            LEFT JOIN roadmap.nodes n ON n.roadmap_id = r.id
-            ${whereSQL}
-            GROUP BY r.id
-        `;
-
-        return await sql(query, params);
-    },
-
-    getRoadmapNodes: async ({ userId, roadmapId }) => {
-        const params = [];
-        const conditions = [];
-
-        params.push(userId, roadmapId);
-        conditions.push(`n.roadmap_id = (select id from roadmap.roadmaps where public_id = $${params.length})`);
-
-        const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-        const query = `
-            SELECT 
-                n.id,
-                n.title,
-                n.description,
-                n.order_index,
-                COALESCE(
-                    json_agg(
-                        json_build_object(
-                            'id', c.public_id,
-                            'title', c.title,
-                            'image', c.image,
-                            'rating', c.rating,
-                            'lessons', c.lessons,
-                            'progress', COALESCE(r.progress, 0),
-                            'cost', c.cost,
-                            'logo', l.logo,
-                            'color', l.color,
-                            'language', l.name,
-                            'category', cat.name,
-                            'reward', c.reward,
-                            'priority', nc.priority
-                        ) ORDER BY nc.priority ASC
-                    ) FILTER (WHERE c.id IS NOT NULL),
-                    '[]'
-                ) AS courses
-            FROM roadmap.nodes n
-            LEFT JOIN roadmap.node_course nc ON nc.node_id = n.id
-            LEFT JOIN catalog.course c ON c.id = nc.course_id
-            LEFT JOIN catalog.language l ON c.language_id = l.id
-            LEFT JOIN catalog.category cat ON c.category_id = cat.id
-            LEFT JOIN learning.register r ON r.course_id = c.id AND r.user_id = (select id from identity.users where public_id = $1) AND r.is_deleted = false
-            ${whereSQL}
-            GROUP BY n.id, n.title, n.description, n.order_index
-            ORDER BY n.order_index ASC
-        `;
-
-        return await sql(query, params);
     }
-}        
+}

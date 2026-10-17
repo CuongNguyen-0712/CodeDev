@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo, useCallback } from "react"
+
 import Link from "next/link"
 
 import { ErrorReload } from "../ui/error";
@@ -8,6 +8,8 @@ import SearchBar from "../ui/searchBar";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { userQueries } from "@/queries/user.query";
 import { useSession } from "next-auth/react";
+import { useListQueryState } from "@/hooks/useListQueryState";
+import { LEVELS, defaultFilter } from "@/lib/listFilters";
 import useInfiniteScroll from "@/hooks/useInfiniteScroll";
 
 import { Button } from "@/components/shadcn/button";
@@ -18,32 +20,25 @@ import LearningCourse from "./course";
 
 import { LuLibrary, LuLoaderCircle, LuSearchX, LuBookOpen } from "react-icons/lu";
 
+// Values mirror the database: level_enum and status_course_enum (learning.register.status).
 const FILTER_MAPPING = [
     {
         name: 'level',
-        items: [
-            { name: 'Beginner', value: 'beginner' },
-            { name: 'Intermediate', value: 'intermediate' },
-            { name: 'Advanced', value: 'advanced' },
-            { name: 'Expert', value: 'expert' },
-            { name: 'Master', value: 'master' }
-        ]
+        items: LEVELS.map((value) => ({ name: value.charAt(0).toUpperCase() + value.slice(1), value })),
     },
     {
         name: 'status',
         items: [
             { name: 'Enrolled', value: 'enrolled' },
             { name: 'In Progress', value: 'in_progress' },
-            { name: 'Completed', value: 'completed' },
             { name: 'Paused', value: 'paused' },
-            { name: 'Dropped', value: 'dropped' }
+            { name: 'Completed', value: 'completed' },
+            { name: 'Cancelled', value: 'cancelled' }
         ]
     },
 ];
 
-const DEFAULT_FILTER = {
-    status: ['enrolled', 'in_progress'],
-};
+const DEFAULT_FILTER = defaultFilter('learning');
 
 function RowSkeleton() {
     return (
@@ -68,39 +63,8 @@ function RowSkeleton() {
 export default function LearningPage() {
     const { status } = useSession();
 
-    const [state, setState] = useState({
-        search: '',
-        filter: { ...DEFAULT_FILTER },
-    });
-
-    const isFiltered = Boolean(
-        state.search ||
-        (state.filter?.status && (
-            state.filter.status.length !== DEFAULT_FILTER.status.length ||
-            !DEFAULT_FILTER.status.every(s => state.filter.status.includes(s))
-        )) ||
-        state.filter?.level?.length
-    );
-
-    const resetFilters = useCallback(() => {
-        setState({
-            search: '',
-            filter: { ...DEFAULT_FILTER },
-        });
-    }, []);
-
-    const handleSearchChange = useCallback((value) => {
-        setState(prev => (prev.search === value ? prev : { ...prev, search: value }));
-    }, []);
-
-    const handleFilterChange = useCallback((value) => {
-        setState(prev => ({ ...prev, filter: value }));
-    }, []);
-
-    const queryParams = useMemo(() => ({
-        ...state.filter,
-        search: state.search?.trim() || '',
-    }), [state.filter, state.search]);
+    // `?status=` absent = enrolled + in progress; `?status=all` = every enrolment.
+    const { search, filter, params: queryParams, isFiltered, setSearch, setFilter, reset: resetFilters } = useListQueryState('learning');
 
     const {
         data,
@@ -110,7 +74,9 @@ export default function LearningPage() {
         isError,
         refetch,
         hasNextPage,
-        fetchNextPage
+        fetchNextPage,
+        isFetching,
+        isPlaceholderData,
     } = useInfiniteQuery(userQueries.courseProgress(status, queryParams));
 
     const courses = data?.pages?.flatMap(page => page?.data || []) || [];
@@ -118,10 +84,10 @@ export default function LearningPage() {
     // The sentinel sits under the table, so the next page loads when the
     // user reaches the end of the list rather than whenever it is visible.
     const { setRef } = useInfiniteScroll({
-        hasMore: hasNextPage,
+        hasMore: hasNextPage && !isPlaceholderData,
         isLoading: isFetchingNextPage,
         onLoadMore: () => {
-            if (hasNextPage) {
+            if (hasNextPage && !isPlaceholderData) {
                 fetchNextPage();
             }
         },
@@ -152,13 +118,13 @@ export default function LearningPage() {
             <section className="w-full" aria-label="Search and filter courses">
                 <SearchBar
                     data={FILTER_MAPPING}
-                    filter={state.filter}
-                    search={state.search}
+                    filter={filter}
+                    search={search}
                     resultsCount={courses.length}
-                    setSearch={handleSearchChange}
-                    setFilter={handleFilterChange}
+                    setSearch={setSearch}
+                    setFilter={setFilter}
                     defaultFilter={DEFAULT_FILTER}
-                    pending={isLoading}
+                    pending={isLoading || (isFetching && isPlaceholderData)}
                     placeholderText="Search your courses..."
                 />
             </section>

@@ -1,10 +1,12 @@
 'use client'
-import { useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 
 import { courseQueries } from "@/queries/course.query";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useListQueryState } from "@/hooks/useListQueryState";
+import { LEVELS } from "@/lib/listFilters";
 
 import { ErrorReload } from "../ui/error";
 import SearchBar from "../ui/searchBar";
@@ -18,37 +20,29 @@ import { CourseItem } from "./courseItem";
 
 import { LuLibrary, LuLoaderCircle, LuSearchX } from "react-icons/lu";
 
-const FILTER_MAPPING = [
+// Static fields mirror the database (level_enum, cost = 0 / > 0, rating 1..5 as a minimum);
+// language and category options come from /api/course/filters (only ones that have courses).
+const STATIC_FILTERS = [
     {
         name: 'level',
-        items: [
-            { name: 'Beginner', value: 'beginner' },
-            { name: 'Intermediate', value: 'intermediate' },
-            { name: 'Advanced', value: 'advanced' },
-            { name: 'Expert', value: 'expert' },
-            { name: 'Master', value: 'master' }
-        ]
+        items: LEVELS.map((value) => ({ name: levelLabel(value), value })),
     },
     {
         name: 'price',
         items: [
-            { name: 'Free', value: 'false' },
-            { name: 'Paid', value: 'true' }
+            { name: 'Free', value: 'free' },
+            { name: 'Paid', value: 'paid' }
         ]
     },
     {
         name: 'rating',
-        items: [
-            { name: '1 Star', value: '1' },
-            { name: '2 Stars', value: '2' },
-            { name: '3 Stars', value: '3' },
-            { name: '4 Stars', value: '4' },
-            { name: '5 Stars', value: '5' }
-        ]
+        items: [1, 2, 3, 4, 5].map((value) => ({ name: `${value}+ stars`, value: String(value) }))
     }
 ];
 
-const DEFAULT_FILTER = {};
+function levelLabel(value) {
+    return value.charAt(0).toUpperCase() + value.slice(1);
+}
 
 function CourseItemSkeleton() {
     return (
@@ -74,43 +68,38 @@ function CourseItemSkeleton() {
 }
 
 export default function CoursePage() {
-    const [state, setState] = useState({
-        filter: {
-            ...DEFAULT_FILTER
-        },
-        search: ''
-    });
+    const { search, filter, params, isFiltered: hasActiveFilters, setSearch, setFilter, reset } = useListQueryState('course');
 
     const { status: sessionStatus } = useSession();
     const isSignedIn = sessionStatus === 'authenticated';
 
-    const hasActiveFilters = Boolean(
-        state.search.trim() ||
-        Object.values(state.filter).some(val => Array.isArray(val) ? val.length > 0 : Boolean(val))
+    const { data: filterOptions } = useQuery(courseQueries.filters());
+
+    const filterFields = useMemo(() => {
+        const toItems = (rows = []) => rows.map((row) => ({ name: row.name, value: row.id }));
+        const dynamic = [
+            { name: 'language', items: toItems(filterOptions?.languages) },
+            { name: 'category', items: toItems(filterOptions?.categories) },
+        ].filter((field) => field.items.length > 0);
+        return [...STATIC_FILTERS, ...dynamic];
+    }, [filterOptions]);
+
+    const { data, isLoading, isError, isFetching, isPlaceholderData, fetchNextPage, hasNextPage, isFetchingNextPage, error, refetch } = useInfiniteQuery(
+        courseQueries.list(params)
     );
 
-    const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage, error, refetch } = useInfiniteQuery(
-        courseQueries.list({ ...state.filter, search: state.search.trim() })
-    );
-
+    // While a new query loads, the previous results are only a placeholder: never page them.
     const { setRef } = useInfiniteScroll({
-        hasMore: hasNextPage,
+        hasMore: hasNextPage && !isPlaceholderData,
         isLoading: isFetchingNextPage,
         onLoadMore: () => {
-            if (hasNextPage) {
+            if (hasNextPage && !isPlaceholderData) {
                 fetchNextPage();
             }
         },
     });
 
     const courses = data?.pages?.flatMap(page => page.data) ?? [];
-
-    const handleClearFilters = () => {
-        setState({
-            filter: {},
-            search: ''
-        });
-    };
 
     const countLabel = isLoading
         ? 'Loading courses...'
@@ -126,21 +115,20 @@ export default function CoursePage() {
                     Course catalog
                 </h1>
                 <p className="max-w-[60ch] text-sm text-muted-foreground">
-                    Filter courses by level, price and rating, then open one to review its syllabus.
+                    Filter courses by level, price, rating, language and category, then open one to review its syllabus.
                 </p>
             </header>
 
             <section className="w-full" aria-label="Search and filter courses">
                 <SearchBar
-                    data={FILTER_MAPPING}
-                    filter={state.filter}
-                    search={state.search}
+                    data={filterFields}
+                    filter={filter}
+                    search={search}
                     resultsCount={courses.length}
-                    setSearch={(value) => setState(prev => ({ ...prev, search: value }))}
-                    setFilter={(value) => setState(prev => ({ ...prev, filter: value }))}
-                    defaultFilter={DEFAULT_FILTER}
-                    pending={isLoading}
-                    placeholderText="Search courses by title..."
+                    setSearch={setSearch}
+                    setFilter={setFilter}
+                    pending={isLoading || (isFetching && isPlaceholderData)}
+                    placeholderText="Search courses by title or instructor..."
                 />
             </section>
 
@@ -173,7 +161,7 @@ export default function CoursePage() {
                             </p>
                         </div>
                         {hasActiveFilters ? (
-                            <Button variant="outline" size="sm" onClick={handleClearFilters}>
+                            <Button variant="outline" size="sm" onClick={reset}>
                                 Reset filters
                             </Button>
                         ) : isSignedIn && (

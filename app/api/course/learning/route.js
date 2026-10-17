@@ -3,18 +3,9 @@ import { getAuthSession } from "@/lib/session";
 
 import { ApiError, errorResponse } from "@/lib/error/apiError";
 
-import { client } from "@/lib/sanity";
-import { redis } from "@/lib/cache";
-import { cacheKeys, TTL } from "@/lib/cacheKeys";
+import { getLessonContent } from "@/lib/lessonContent";
 
 import { courseService } from "@/services/course.service";
-
-const LESSON_QUERY = `*[_type == "lesson" && _id == $id][0]{
-    title,
-    slug,
-    description,
-    content
-}`;
 
 export async function GET(req) {
     try {
@@ -44,9 +35,7 @@ export async function GET(req) {
         }
 
         // Access was checked above per user; the lesson body itself is the same for everyone.
-        const lesson = await redis.remember(cacheKeys.lessonContent(source), TTL.LESSON_CONTENT, () =>
-            client.fetch(LESSON_QUERY, { id: source })
-        );
+        const lesson = await getLessonContent(source);
 
         if (!lesson) {
             throw new ApiError("Lesson content not found", 404);

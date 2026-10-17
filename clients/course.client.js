@@ -11,6 +11,11 @@ export const courseClient = {
         return res.data;
     },
 
+    getFilters: async () => {
+        const res = await apiClient.get('/course/filters');
+        return res.data;
+    },
+
     getLearning: async (params) => {
         const res = await apiClient.get('/course/learning', { params });
         return res.data;

@@ -1,7 +1,9 @@
 import { roadmapDb } from '@/db/roadmap'
 import { redis } from '@/lib/cache'
-import { cacheKeys, TTL } from '@/lib/cacheKeys'
+import { cacheKeys, TTL, rememberForUser } from '@/lib/cacheKeys'
 import { ApiError } from '@/lib/error/apiError'
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export const roadmapService = {
     // Same for every visitor and rarely edited: shared Redis cache.
@@ -22,8 +24,20 @@ export const roadmapService = {
             throw new ApiError('Roadmap ID is required', 400);
         }
 
+        // roadmaps.public_id is a uuid: anything else can neither exist nor become a cache key.
+        if (!UUID.test(publicId)) {
+            throw new ApiError('Roadmap not found', 404);
+        }
+
+        // Guests share one entry; signed-in visitors see their own course progress, so their
+        // entry is versioned and dropped with the rest of their cache on any progress change.
+        const load = () => roadmapDb.getDetails(publicId, userId);
+        const details = userId
+            ? rememberForUser(userId, (v) => cacheKeys.userRoadmapDetails(userId, v, publicId), TTL.USER_ROADMAP_DETAILS, load)
+            : redis.remember(cacheKeys.roadmapDetailsPublic(publicId), TTL.ROADMAP_DETAILS_PUBLIC, load, { cacheNull: true });
+
         const [roadmap, allRoadmaps] = await Promise.all([
-            roadmapDb.getDetails(publicId, userId),
+            details,
             roadmapService.getList().catch(() => []),
         ]);
 
@@ -35,25 +49,5 @@ export const roadmapService = {
             ...roadmap,
             allRoadmaps
         };
-    },
-
-    getRoadmap: async ({ roadmapId }) => {
-        const response = await roadmapDb.getRoadmapById({ roadmapId });
-
-        if (!response) {
-            throw new Error('Failed to load roadmap, try again later');
-        }
-
-        return response.rows || response;
-    },
-
-    getRoadmapNodes: async ({ userId, roadmapId }) => {
-        const response = await roadmapDb.getRoadmapNodes({ userId, roadmapId });
-
-        if (!response) {
-            throw new Error('Failed to load roadmap nodes, try again later');
-        }
-
-        return response.rows || response;
     }
 }

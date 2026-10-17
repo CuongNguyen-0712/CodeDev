@@ -1,3 +1,5 @@
+import { keepPreviousData } from "@tanstack/react-query";
+
 import { courseClient } from "../clients/course.client";
 
 import { courseKeys } from "@/keys/course.keys";
@@ -12,16 +14,22 @@ export const courseQueries = {
         }
     },
 
-    list(params) {
+    /**
+     * @param {Record<string,string>} params canonical query from lib/listFilters (`toQueryParams`)
+     * Each distinct query is its own cache entry, so going back to an earlier search is instant;
+     * the previous results stay on screen while a new query loads.
+     */
+    list(params = {}, { limit } = {}) {
+        const query = limit ? { ...params, limit: String(limit) } : params;
         return {
-            queryKey: courseKeys.list(params),
+            queryKey: courseKeys.list(query),
 
             initialPageParam: null,
 
             queryFn: ({ pageParam }) =>
                 courseClient.getList({
-                    ...params,
-                    lastId: pageParam,
+                    ...query,
+                    ...(pageParam ? { lastId: pageParam } : {}),
                 }),
 
             getNextPageParam: (lastPage) => {
@@ -30,8 +38,18 @@ export const courseQueries = {
                 return lastPage.lastId;
             },
 
-            staleTime: 0,
-            gcTime: 1000 * 60 * 1, // 5 minutes
+            placeholderData: keepPreviousData,
+            staleTime: 30 * 1000,
+            gcTime: 5 * 60 * 1000,
+        };
+    },
+
+    filters() {
+        return {
+            queryKey: courseKeys.filters(),
+            queryFn: () => courseClient.getFilters(),
+            staleTime: 10 * 60 * 1000,
+            gcTime: 30 * 60 * 1000,
         };
     },
 

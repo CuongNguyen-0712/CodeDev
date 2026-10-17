@@ -1,4 +1,5 @@
 import { sql } from "@/lib/db";
+import { escapeLike } from "@/lib/listFilters";
 
 export const courseDb = {
     getCourseDetails: async (data) => {
@@ -69,26 +70,30 @@ export const courseDb = {
         return await sql(query, params)
     },
 
+    /**
+     * Catalog page. Every filter arrives validated by lib/listFilters (enum values, integer ids),
+     * so the casts below never see user-controlled strings. Keyset pagination on c.id.
+     */
     getCourseList: async (data) => {
-        const { userId, search, lastId, prices, levels, ratings } = data;
+        const {
+            userId = null,
+            search = "",
+            levels = [],
+            price = null,
+            minRating = null,
+            languageIds = [],
+            categoryIds = [],
+            lastId = null,
+            limit = 20,
+            hideEnrolled = false,
+        } = data;
 
-        const conditions = [];
-        const params = [];
-
-        params.push(userId);
+        const params = [userId];
+        const conditions = [`c.is_hidden = false`, `c.is_deleted = false`];
 
         if (search) {
-            params.push(`%${search.toLowerCase()}%`);
-            conditions.push(`LOWER(c.title) LIKE $${params.length}`);
-        }
-
-        if (prices) {
-            const priceArray = prices.map(p => p.trim());
-
-            if (priceArray.length == 1) {
-                const isFree = priceArray[0] === false || priceArray[0] === "false";
-                conditions.push(isFree ? `c.cost = 0` : `c.cost <> 0`);
-            }
+            params.push(`%${escapeLike(search)}%`);
+            conditions.push(`(c.title ILIKE $${params.length} ESCAPE '\\' OR c.instructor ILIKE $${params.length} ESCAPE '\\')`);
         }
 
         if (levels.length > 0) {
@@ -96,27 +101,43 @@ export const courseDb = {
             conditions.push(`c.level = ANY($${params.length}::level_enum[])`);
         }
 
-        if (ratings.length > 0) {
-            const ratingArray = ratings.map(r => parseInt(r.trim(), 10)).filter(Number.isInteger);
-            params.push(ratingArray);
-            conditions.push(`c.rating = ANY($${params.length}::integer[])`);
+        if (price === "free") conditions.push(`c.cost = 0`);
+        if (price === "paid") conditions.push(`c.cost > 0`);
+
+        if (minRating) {
+            params.push(minRating);
+            conditions.push(`c.rating >= $${params.length}::int`);
+        }
+
+        if (languageIds.length > 0) {
+            params.push(languageIds);
+            conditions.push(`c.language_id = ANY($${params.length}::int[])`);
+        }
+
+        if (categoryIds.length > 0) {
+            params.push(categoryIds);
+            conditions.push(`c.category_id = ANY($${params.length}::int[])`);
         }
 
         if (lastId) {
             params.push(lastId);
-            conditions.push(`c.id < (select id from catalog.course where public_id = $${params.length})`);
+            conditions.push(`c.id < (SELECT id FROM catalog.course WHERE public_id = $${params.length})`);
         }
 
-        conditions.push(`c.is_hidden = false`);
-        conditions.push(`c.is_deleted = false`);
+        if (hideEnrolled && userId) {
+            conditions.push(`NOT EXISTS (
+                SELECT 1 FROM learning.register er
+                WHERE er.course_id = c.id AND er.user_id = (SELECT id FROM me) AND er.is_deleted = false
+            )`);
+        }
 
-        const whereSQL = conditions.length
-            ? `WHERE ${conditions.join(" AND ")}`
-            : "";
+        params.push(Number(limit) + 1);
+        const limitParam = `$${params.length}`;
 
         const query = `
-            SELECT 
-                c.public_id as id,
+            WITH me AS (SELECT id FROM identity.users WHERE public_id = $1)
+            SELECT
+                c.public_id AS id,
                 c.title,
                 c.image,
                 c.rating,
@@ -127,25 +148,45 @@ export const courseDb = {
                 c.duration,
                 c.instructor,
                 c.point_price,
-                c.duration,
-                l.name as language_name,
-                l.logo as language_logo,
-                l.color as language_color,
-                cat.name as category_name,
-                COALESCE(r.status, null) as is_registered
+                l.id AS language_id,
+                l.name AS language_name,
+                l.logo AS language_logo,
+                l.color AS language_color,
+                cat.id AS category_id,
+                cat.name AS category_name,
+                r.status AS is_registered
             FROM catalog.course c
             JOIN catalog.language l ON c.language_id = l.id
             JOIN catalog.category cat ON c.category_id = cat.id
-            LEFT JOIN learning.register r ON r.course_id = c.id 
-                AND r.user_id = (SELECT id FROM identity.users WHERE public_id = $1)
+            LEFT JOIN learning.register r ON r.course_id = c.id
+                AND r.user_id = (SELECT id FROM me)
                 AND r.is_deleted = false
-            ${whereSQL}
-            ${!search ? 'AND c.id not in (select course_id from learning.register where user_id = (select id from identity.users where public_id = $1) and is_deleted = false)' : ''}
+            WHERE ${conditions.join(" AND ")}
             ORDER BY c.id DESC
-            LIMIT 21;
+            LIMIT ${limitParam};
         `;
 
         return await sql(query, params);
+    },
+
+    /** Languages and categories that have at least one visible course (filter options). */
+    getCourseFilterOptions: async () => {
+        const query = `
+            SELECT 'language' AS kind, l.id, l.name, COUNT(*)::int AS courses
+            FROM catalog.course c
+            JOIN catalog.language l ON l.id = c.language_id
+            WHERE c.is_hidden = false AND c.is_deleted = false
+            GROUP BY l.id, l.name
+            UNION ALL
+            SELECT 'category' AS kind, cat.id, cat.name, COUNT(*)::int AS courses
+            FROM catalog.course c
+            JOIN catalog.category cat ON cat.id = c.category_id
+            WHERE c.is_hidden = false AND c.is_deleted = false
+            GROUP BY cat.id, cat.name
+            ORDER BY kind, courses DESC, name;
+        `;
+
+        return await sql(query);
     },
 
     postRegister: async (data) => {
@@ -196,6 +237,36 @@ export const courseDb = {
         const query = `select * from learning_lesson($${params.length - 1}, $${params.length});`;
 
         return await sql(query, params);
+    },
+
+    // Records that the learner opened a lesson (resume point) and touched the course.
+    // Locked lessons are ignored.
+    touchLesson: async ({ userId, courseId, lessonId }) => {
+        const query = `
+            WITH u AS (SELECT id FROM identity.users WHERE public_id = $1),
+                 c AS (SELECT id FROM catalog.course WHERE public_id = $2),
+                 lesson AS (
+                     UPDATE learning.history h
+                     SET last_seen = now()
+                     WHERE h.user_id = (SELECT id FROM u)
+                       AND h.course_id = (SELECT id FROM c)
+                       AND h.lesson_id = $3::bigint
+                       AND h.status <> 'enrolled'
+                     RETURNING h.lesson_id
+                 ),
+                 course AS (
+                     UPDATE learning.register r
+                     SET last_seen = now()
+                     WHERE r.user_id = (SELECT id FROM u)
+                       AND r.course_id = (SELECT id FROM c)
+                       AND r.is_deleted = false
+                       AND EXISTS (SELECT 1 FROM lesson)
+                     RETURNING r.course_id
+                 )
+            SELECT (SELECT COUNT(*) FROM lesson)::int AS lessons, (SELECT COUNT(*) FROM course)::int AS courses;
+        `;
+
+        return await sql(query, [userId, courseId, lessonId]);
     },
 
     getLessonStatus: async (data) => {

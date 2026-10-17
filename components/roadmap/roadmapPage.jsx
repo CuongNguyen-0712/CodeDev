@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useMemo } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { roadmapQueries } from '@/queries/roadmap.query';
 import { levelMapping } from '@/constants/constants';
+import { useListQueryState } from '@/hooks/useListQueryState';
+import { LEVELS } from '@/lib/listFilters';
 
 import { ErrorReload } from '@/components/ui/error';
 import SearchBar from '@/components/ui/searchBar';
@@ -15,18 +17,13 @@ import { Skeleton } from '@/components/shadcn/skeleton';
 
 import { LuChevronRight, LuMap, LuRoute, LuSearchX } from 'react-icons/lu';
 
+// roadmap.roadmaps.level is a level_enum.
 const FILTER_MAPPING = [
     {
         name: 'level',
-        items: [
-            { name: 'Beginner', value: 'beginner' },
-            { name: 'Intermediate', value: 'intermediate' },
-            { name: 'Advanced', value: 'advanced' },
-        ],
+        items: LEVELS.map((value) => ({ name: value.charAt(0).toUpperCase() + value.slice(1), value })),
     },
 ];
-
-const DEFAULT_FILTER = {};
 
 const FALLBACK_LOGO = '/image/static/no_image.png';
 
@@ -93,10 +90,9 @@ function LanguageStack({ languages }) {
 export default function RoadmapPage() {
     const { data, isLoading, isError, error, refetch } = useQuery(roadmapQueries.list());
 
-    const [state, setState] = useState({
-        filter: { ...DEFAULT_FILTER },
-        search: '',
-    });
+    // The list is small and cached for every visitor, so it is filtered here; the URL keeps
+    // the view (`?q=frontend&level=beginner`) shareable.
+    const { search, filter, isFiltered: hasActiveFilters, setSearch, setFilter, reset } = useListQueryState('roadmap');
 
     // Safely extract roadmaps array
     const roadmaps = useMemo(() => {
@@ -106,45 +102,21 @@ export default function RoadmapPage() {
         return [];
     }, [data]);
 
-    const hasActiveFilters = Boolean(
-        state.search.trim() ||
-        (state.filter?.level && state.filter.level.length > 0)
-    );
-
-    // Filter roadmaps by search query & level filter
     const filteredRoadmaps = useMemo(() => {
+        const query = search.toLowerCase();
+        const selectedLevels = filter.level || [];
+
         return roadmaps.filter((item) => {
-            const query = state.search.trim().toLowerCase();
             const matchesSearch =
                 !query ||
                 item.title?.toLowerCase().includes(query) ||
                 item.description?.toLowerCase().includes(query);
 
-            const selectedLevels = state.filter?.level || [];
-            const matchesLevel =
-                selectedLevels.length === 0 ||
-                selectedLevels.some(
-                    (lvl) => item.level && item.level.toLowerCase() === lvl.toLowerCase()
-                );
+            const matchesLevel = selectedLevels.length === 0 || selectedLevels.includes(item.level);
 
             return matchesSearch && matchesLevel;
         });
-    }, [roadmaps, state.search, state.filter?.level]);
-
-    const handleClearFilters = useCallback(() => {
-        setState({
-            filter: { ...DEFAULT_FILTER },
-            search: '',
-        });
-    }, []);
-
-    const handleSearchChange = useCallback((value) => {
-        setState((prev) => (prev.search === value ? prev : { ...prev, search: value }));
-    }, []);
-
-    const handleFilterChange = useCallback((value) => {
-        setState((prev) => ({ ...prev, filter: value }));
-    }, []);
+    }, [roadmaps, search, filter.level]);
 
     const showError = !isLoading && isError;
     const showEmpty = !isLoading && !isError && filteredRoadmaps.length === 0;
@@ -167,12 +139,11 @@ export default function RoadmapPage() {
             <section className="w-full" aria-label="Search and filter roadmaps">
                 <SearchBar
                     data={FILTER_MAPPING}
-                    filter={state.filter}
-                    search={state.search}
+                    filter={filter}
+                    search={search}
                     resultsCount={filteredRoadmaps.length}
-                    setSearch={handleSearchChange}
-                    setFilter={handleFilterChange}
-                    defaultFilter={DEFAULT_FILTER}
+                    setSearch={setSearch}
+                    setFilter={setFilter}
                     pending={isLoading}
                     placeholderText="Search roadmaps by role, title or skill..."
                 />
@@ -202,7 +173,7 @@ export default function RoadmapPage() {
                             </p>
                         </div>
                         {hasActiveFilters ? (
-                            <Button variant="outline" size="sm" onClick={handleClearFilters}>Reset filters</Button>
+                            <Button variant="outline" size="sm" onClick={reset}>Reset filters</Button>
                         ) : (
                             <Button asChild size="sm">
                                 <Link href="/course">Browse courses</Link>

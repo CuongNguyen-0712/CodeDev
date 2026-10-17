@@ -1,4 +1,7 @@
+import crypto from "crypto";
+
 import { userDb } from "@/db/user.db";
+import { listCacheIdentity } from "@/lib/listFilters";
 import { ApiError } from "@/lib/error/apiError";
 import { challengeService } from "@/services/challenge.service";
 import { cacheKeys, TTL, rememberForUser, invalidateUserCache } from "@/lib/cacheKeys";
@@ -79,7 +82,26 @@ export const userService = {
         });
     },
 
-    getCourseProgress: async (params) => {
+    /**
+     * "My learning" list. Cached per user (versioned: enrol / withdraw / progress / lesson visit
+     * bump the version) and per normalised query, cursor included.
+     */
+    getCourseProgress: async ({ userId, search = "", filter = {}, nextCursor = null }) => {
+        const hash = crypto
+            .createHash("sha1")
+            .update(listCacheIdentity("learning", { search, filter }, { cursor: nextCursor }))
+            .digest("hex")
+            .slice(0, 16);
+
+        return rememberForUser(
+            userId,
+            (v) => cacheKeys.userCourseProgressList(userId, v, hash),
+            TTL.USER_COURSE_PROGRESS_LIST,
+            () => userService.loadCourseProgress({ userId, search, levels: filter.level || [], statuses: filter.status || [], nextCursor })
+        );
+    },
+
+    loadCourseProgress: async (params) => {
         const response = await userDb.getCourseProgress(params);
 
         if (!response) {
