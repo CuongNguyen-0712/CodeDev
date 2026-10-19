@@ -10,9 +10,10 @@ import { useLogOut } from "@/mutations/auth.mutation";
 import { useApp } from "@/contexts/appContext";
 import { useTheme } from "@/contexts/themeContext";
 import { userQueries } from "@/queries/user.query";
-import { useRouterActions } from "@/router/useRouterActions";
+import { leaveSignedOut, LANDING_PATH } from "@/lib/authNavigation";
 import { useQueryParams } from "@/router/useQueryParams";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn/avatar";
 import {
@@ -39,9 +40,11 @@ import { Separator } from "@/components/shadcn/separator";
 import { SidebarTrigger } from "@/components/shadcn/sidebar";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
+import { ExpProgress, levelProgress } from "@/components/ui/level";
 
 import {
   LuChevronsUpDown,
+  LuChevronRight,
   LuCircleHelp,
   LuCoins,
   LuLoaderCircle,
@@ -49,8 +52,10 @@ import {
   LuLogOut,
   LuMessageSquareText,
   LuMoon,
+  LuReceipt,
   LuSettings,
   LuSun,
+  LuTrophy,
   LuUser,
 } from "react-icons/lu";
 
@@ -67,6 +72,24 @@ const SECTION_LABELS = {
   profile: 'Profile',
   settings: 'Settings',
 };
+
+// Account menu entries, shared by the desktop dropdown and the phone sheet.
+// The theme switch is not here: the navbar shows its own toggle at every width.
+const MENU_GROUPS = [
+  {
+    label: 'Your account',
+    links: [
+      { href: '/profile', label: 'Profile', icon: LuUser },
+      { href: '/orders', label: 'Orders and points', icon: LuReceipt },
+      { href: '/settings', label: 'Settings', icon: LuSettings },
+    ],
+  },
+  {
+    label: 'Support',
+    links: [{ href: '/help', label: 'Help center', icon: LuCircleHelp }],
+    feedback: true,
+  },
+];
 
 export function formatPoints(value) {
   const points = Number(value || 0);
@@ -113,13 +136,11 @@ function PageBreadcrumb() {
 function AccountMenu() {
   const { showAlert: alert } = useApp();
   const { status } = useSession();
-  const { navigateReplace } = useRouterActions();
   const updateQuery = useQueryParams();
   const queryClient = useQueryClient();
   const logoutMutation = useLogOut();
 
   const { data, isLoading, error, isError } = useQuery(userQueries.me(status));
-  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     if (!isError) return;
@@ -132,11 +153,15 @@ function AccountMenu() {
 
     logoutMutation.mutate(null, {
       onSuccess: ({ revoked }) => {
-        queryClient.clear();
-        if (!revoked) {
-          alert(503, 'Signed out on this device, but the server could not be reached. Use Settings > Active sessions on another device to end this session remotely.');
-        }
-        navigateReplace('/');
+        // Full page load to the landing page: drops React Query, the router cache (which still
+        // holds /home and the signed-in `/` redirect) and this history entry.
+        leaveSignedOut(queryClient, {
+          target: LANDING_PATH,
+          notice: revoked ? null : {
+            status: 503,
+            message: 'Signed out on this device, but the server could not be reached. Use Settings > Active sessions on another device to end this session remotely.',
+          },
+        });
       },
       onError: (error) => {
         alert(error.status || 500, error.message || 'Could not sign out, please try again.');
@@ -146,130 +171,173 @@ function AccountMenu() {
 
   const name = data?.username || data?.email || 'Account';
   const points = formatPoints(data?.points);
+  const progress = levelProgress(data);
   const isMobile = useIsMobile();
+  const pathname = usePathname() || '/';
   const [sheetOpen, setSheetOpen] = useState(false);
+  const isCurrent = (href) => pathname === href || pathname.startsWith(`${href}/`);
+  const signingOut = logoutMutation.isPending;
 
   const triggerButton = (
     <Button
       variant="ghost"
       className="h-9 gap-2 px-1.5 sm:px-2 data-[state=open]:bg-accent"
-      aria-label={`Account menu for ${name}`}
     >
+      {/* No aria-label: the accessible name must contain the visible text (WCAG 2.5.3),
+          so the name, level and points are read as shown, then "Account menu". */}
       <Avatar className="size-7 rounded-md">
         <AvatarImage src={data?.image || undefined} alt="" />
         <AvatarFallback className="rounded-md bg-primary-soft text-xs font-semibold text-primary-soft-foreground">
           {initials(name)}
         </AvatarFallback>
       </Avatar>
-      <span className="hidden max-w-[10rem] flex-col items-start leading-tight sm:flex">
+      <span className="sr-only sm:hidden">{name}</span>
+      <span className="hidden max-w-[10rem] flex-col items-start gap-0.5 leading-tight sm:flex">
         {isLoading ? (
-          <Skeleton className="h-3.5 w-20" />
+          // Level and points are unknown until /me answers: no placeholder "Lv 1 · 0 pts".
+          <>
+            <Skeleton className="h-3.5 w-20" />
+            <Skeleton className="h-3 w-14" />
+          </>
         ) : (
-          <span className="max-w-full truncate text-[13px] font-medium">{name}</span>
+          <>
+            <span className="max-w-full truncate text-[13px] font-medium">{name}</span>
+            <span className="flex items-center gap-1 font-mono text-xs text-muted-foreground tabular">
+              <span className="font-semibold text-xp">Lv {Number(data?.level) || 1}</span>
+              <span aria-hidden="true">·</span>
+              <LuCoins className="size-3 text-warning" aria-hidden="true" />
+              {points} pts
+            </span>
+          </>
         )}
-        <span className="flex items-center gap-1 font-mono text-[11px] text-muted-foreground tabular">
-          <LuCoins className="size-3 text-warning" aria-hidden="true" />
-          {points} pts
-        </span>
       </span>
       <LuChevronsUpDown className="hidden size-3.5 text-muted-foreground sm:block" aria-hidden="true" />
+      <span className="sr-only">Account menu</span>
     </Button>
   );
 
+  // Who is signed in, level progress and the points balance (links to the wallet).
+  const summary = (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3">
+        <Avatar className="size-10 rounded-full border border-border/60 shadow-xs">
+          <AvatarImage src={data?.image || undefined} alt="" />
+          <AvatarFallback className="rounded-full bg-primary-soft text-sm font-semibold text-primary-soft-foreground">
+            {initials(name)}
+          </AvatarFallback>
+        </Avatar>
+        <span className="grid min-w-0 flex-1 leading-tight">
+          <span className="truncate text-sm font-semibold text-foreground">{data?.username || data?.name || '-'}</span>
+          <span className="truncate text-xs text-muted-foreground">{data?.email || '-'}</span>
+        </span>
+      </div>
+
+      <div className="rounded-xl border border-border/50 bg-muted/40 p-2.5 transition-colors">
+        <div className="flex items-center justify-between gap-2">
+          <span className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold text-xp">
+            <LuTrophy className="size-3.5 shrink-0" aria-hidden="true" />
+            Lv {progress.level}
+            {progress.title && (
+              <span className="max-w-[90px] truncate font-sans text-xs font-normal text-muted-foreground">
+                · {progress.title}
+              </span>
+            )}
+          </span>
+          <Link
+            href="/orders"
+            className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-warning hover:underline"
+          >
+            <LuCoins className="size-3.5 shrink-0" aria-hidden="true" />
+            {points} pts
+          </Link>
+        </div>
+
+        <div
+          role="progressbar"
+          aria-label={`Level ${progress.level}: ${progress.percent}% progress`}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={progress.percent}
+          className="my-2 h-1.5 w-full overflow-hidden rounded-full bg-xp-soft"
+        >
+          <div
+            className="h-full rounded-full bg-xp transition-all duration-500 motion-reduce:transition-none"
+            style={{ width: `${progress.percent}%` }}
+          />
+        </div>
+
+        <div className="flex items-center justify-between font-mono text-xs text-muted-foreground">
+          <span>{progress.exp.toLocaleString()} EXP</span>
+          <span>
+            {progress.isMax ? "Max level" : `${progress.toNext.toLocaleString()} to Lv ${progress.nextLevel}`}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+
+  const openFeedback = () => updateQuery({ modal: 'feedback' });
+  const logoutLabel = signingOut ? 'Signing out...' : 'Log out';
+  const LogoutIcon = signingOut ? LuLoaderCircle : LuLogOut;
+
   if (isMobile) {
+    const row = "flex h-12 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium text-foreground transition-colors hover:bg-muted active:bg-accent aria-[current=page]:bg-primary-soft aria-[current=page]:text-primary-soft-foreground [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-muted-foreground aria-[current=page]:[&>svg]:text-primary-soft-foreground";
+    const close = () => setSheetOpen(false);
+
     return (
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetTrigger asChild>
           {triggerButton}
         </SheetTrigger>
 
-        <SheetContent side="bottom" showCloseButton={false} className="flex max-h-[85vh] flex-col gap-0 rounded-t-2xl border-t bg-background p-0">
+        <SheetContent side="bottom" showCloseButton={false} className="flex max-h-[85dvh] flex-col gap-0 rounded-t-2xl border-t bg-background p-0">
           <div className="mx-auto my-2.5 h-1 w-10 shrink-0 rounded-full bg-muted-foreground/30" aria-hidden="true" />
           <SheetHeader className="sr-only">
             <SheetTitle>Account menu</SheetTitle>
-            <SheetDescription>Profile, settings and account navigation</SheetDescription>
+            <SheetDescription>Profile, orders, settings and help</SheetDescription>
           </SheetHeader>
 
-          {/* User profile card */}
-          <div className="flex items-center gap-3 p-4 border-b">
-            <Avatar className="size-11 rounded-lg">
-              <AvatarImage src={data?.image || undefined} alt="" />
-              <AvatarFallback className="rounded-lg bg-primary-soft text-base font-semibold text-primary-soft-foreground">
-                {initials(name)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="grid min-w-0 leading-tight flex-1">
-              <span className="truncate text-base font-semibold">{data?.username || '-'}</span>
-              <span className="truncate text-xs text-muted-foreground">{data?.email || '-'}</span>
-            </div>
-            <div className="flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-mono font-medium tabular">
-              <LuCoins className="size-3.5 text-warning" aria-hidden="true" />
-              {points}
-            </div>
-          </div>
+          <div className="border-b px-4 pb-4">{summary}</div>
 
-          {/* Menu Items */}
-          <div className="flex flex-col p-2 space-y-0.5">
-            <Link
-              href="/profile"
-              onClick={() => setSheetOpen(false)}
-              className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-foreground hover:bg-muted active:bg-accent transition-colors"
-            >
-              <LuUser className="size-4 text-muted-foreground" />
-              <span>Profile</span>
-            </Link>
-            <Link
-              href="/settings"
-              onClick={() => setSheetOpen(false)}
-              className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-foreground hover:bg-muted active:bg-accent transition-colors"
-            >
-              <LuSettings className="size-4 text-muted-foreground" />
-              <span>Settings</span>
-            </Link>
-            <Link
-              href="/help"
-              onClick={() => setSheetOpen(false)}
-              className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-foreground hover:bg-muted active:bg-accent transition-colors"
-            >
-              <LuCircleHelp className="size-4 text-muted-foreground" />
-              <span>Help center</span>
-            </Link>
-            <button
-              type="button"
-              onClick={() => {
-                setSheetOpen(false);
-                updateQuery({ modal: 'feedback' });
-              }}
-              className="flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-medium text-foreground hover:bg-muted active:bg-accent transition-colors"
-            >
-              <LuMessageSquareText className="size-4 text-muted-foreground" />
-              <span>Send feedback</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                toggleTheme();
-              }}
-              className="flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-medium text-foreground hover:bg-muted active:bg-accent transition-colors"
-            >
-              {theme === 'dark' ? <LuSun className="size-4 text-warning" /> : <LuMoon className="size-4 text-muted-foreground" />}
-              <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
-            </button>
-          </div>
+          <nav aria-label="Account" className="min-h-0 flex-1 overflow-y-auto p-2">
+            {MENU_GROUPS.map((group, index) => (
+              <Fragment key={group.label}>
+                {index > 0 && <Separator className="my-1.5" />}
+                <ul className="list-none" aria-label={group.label}>
+                  {group.links.map(({ href, label, icon: Icon }) => (
+                    <li key={href}>
+                      <Link href={href} onClick={close} className={row} aria-current={isCurrent(href) ? 'page' : undefined}>
+                        <Icon aria-hidden="true" />
+                        {label}
+                      </Link>
+                    </li>
+                  ))}
+                  {group.feedback && (
+                    <li>
+                      <button type="button" className={row} onClick={() => { close(); openFeedback(); }}>
+                        <LuMessageSquareText aria-hidden="true" />
+                        Send feedback
+                      </button>
+                    </li>
+                  )}
+                </ul>
+              </Fragment>
+            ))}
+          </nav>
 
-          {/* Log out */}
-          <div className="p-3 border-t mt-auto">
+          <div className="border-t p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            {/* Signing out is undone by signing in again: an outline button, no confirm step. */}
             <Button
-              variant="destructive"
-              className="w-full h-11"
-              onClick={(e) => {
-                setSheetOpen(false);
-                handleLogout(e);
+              variant="outline"
+              className="h-11 w-full text-destructive hover:bg-destructive-soft hover:text-destructive"
+              onClick={(event) => {
+                close();
+                handleLogout(event);
               }}
-              disabled={logoutMutation.isPending}
+              disabled={signingOut}
             >
-              {logoutMutation.isPending ? <LuLoaderCircle className="animate-spin" /> : <LuLogOut />}
-              {logoutMutation.isPending ? 'Signing out...' : 'Log out'}
+              <LogoutIcon className={signingOut ? 'animate-spin' : undefined} aria-hidden="true" />
+              {logoutLabel}
             </Button>
           </div>
         </SheetContent>
@@ -283,53 +351,42 @@ function AccountMenu() {
         {triggerButton}
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" className="w-60">
-        <DropdownMenuLabel className="flex items-center gap-2.5 py-2 font-normal">
-          <Avatar className="size-9 rounded-md">
-            <AvatarImage src={data?.image || undefined} alt="" />
-            <AvatarFallback className="rounded-md bg-primary-soft text-sm font-semibold text-primary-soft-foreground">
-              {initials(name)}
-            </AvatarFallback>
-          </Avatar>
-          <span className="grid min-w-0 leading-tight">
-            <span className="truncate text-sm font-semibold">{data?.username || '-'}</span>
-            <span className="truncate text-xs text-muted-foreground">{data?.email || '-'}</span>
-          </span>
-        </DropdownMenuLabel>
-        <div className="mx-2 mb-1 flex items-center justify-between rounded-md bg-muted px-2.5 py-1.5 text-xs">
-          <span className="text-muted-foreground">Reward points</span>
-          <span className="flex items-center gap-1 font-mono font-medium tabular">
-            <LuCoins className="size-3.5 text-warning" aria-hidden="true" />
-            {points}
-          </span>
-        </div>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem asChild>
-            <Link href="/profile"><LuUser />Profile</Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/settings"><LuSettings />Settings</Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/help"><LuCircleHelp />Help center</Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => updateQuery({ modal: 'feedback' })}>
-            <LuMessageSquareText />Send feedback
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={toggleTheme}>
-            {theme === 'dark' ? <LuSun /> : <LuMoon />}
-            {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
+      <DropdownMenuContent align="end" className="w-72 sm:w-80 p-1.5 shadow-lg rounded-xl border-border/80">
+        <DropdownMenuLabel className="p-2 font-normal">{summary}</DropdownMenuLabel>
+        {MENU_GROUPS.map((group) => (
+          <Fragment key={group.label}>
+            <DropdownMenuSeparator className="my-1" />
+            <DropdownMenuGroup aria-label={group.label}>
+              {group.links.map(({ href, label, icon: Icon }) => (
+                <DropdownMenuItem key={href} asChild className="rounded-lg px-2.5 py-2 text-sm cursor-pointer">
+                  <Link
+                    href={href}
+                    aria-current={isCurrent(href) ? 'page' : undefined}
+                    className="aria-[current=page]:bg-accent aria-[current=page]:font-medium"
+                  >
+                    <Icon className="size-4 text-muted-foreground" aria-hidden="true" />
+                    <span>{label}</span>
+                  </Link>
+                </DropdownMenuItem>
+              ))}
+              {group.feedback && (
+                <DropdownMenuItem onSelect={openFeedback} className="rounded-lg px-2.5 py-2 text-sm cursor-pointer">
+                  <LuMessageSquareText className="size-4 text-muted-foreground" aria-hidden="true" />
+                  <span>Send feedback</span>
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuGroup>
+          </Fragment>
+        ))}
+        <DropdownMenuSeparator className="my-1" />
         <DropdownMenuItem
           variant="destructive"
           onSelect={handleLogout}
-          disabled={logoutMutation.isPending}
+          disabled={signingOut}
+          className="rounded-lg px-2.5 py-2 text-sm cursor-pointer"
         >
-          {logoutMutation.isPending ? <LuLoaderCircle className="animate-spin" /> : <LuLogOut />}
-          {logoutMutation.isPending ? 'Signing out...' : 'Log out'}
+          <LogoutIcon className={cn("size-4", signingOut ? 'animate-spin' : undefined)} aria-hidden="true" />
+          <span>{logoutLabel}</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -293,7 +293,7 @@ export default function RoadmapDetailsPage({ params, initialData = null }) {
                                                 aria-current={isCurrent ? 'page' : undefined}
                                                 className="flex items-center gap-2"
                                             >
-                                                <LuCheck className={isCurrent ? 'text-primary' : 'invisible'} aria-hidden="true" />
+                                                <LuCheck className={isCurrent ? 'text-primary-ink' : 'invisible'} aria-hidden="true" />
                                                 <span className="min-w-0 flex-1 truncate">{roadmap.title}</span>
                                                 <span className="shrink-0 font-mono text-xs text-muted-foreground tabular">
                                                     {steps} {steps === 1 ? 'step' : 'steps'}

@@ -95,7 +95,7 @@ export default function MockCheckoutPage({ orderId }) {
                     {order.status !== 'pending' && (
                         <p className="text-sm text-muted-foreground">
                             This order is no longer pending.{' '}
-                            <Link href={`/orders/${orderId}`} className="text-primary underline-offset-4 hover:underline">View the order</Link>
+                            <Link href={`/orders/${orderId}`} className="text-primary-ink underline-offset-4 hover:underline">View the order</Link>
                         </p>
                     )}
 

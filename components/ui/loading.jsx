@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from "react"
-import Image from "next/image"
+import { LogoMark } from "@/components/ui/logo"
 
 import { Spinner } from "@/components/shadcn/spinner"
 
@@ -18,8 +18,8 @@ export function LoadingRedirect() {
 
     return (
         <div className="flex h-dvh w-full flex-col items-center justify-center gap-4 bg-background" role="status" aria-live="polite">
-            <Image src="/image/static/logo.svg" alt="" width={28} height={28} className="size-7 opacity-90" priority />
-            <Spinner className="size-5 text-primary" aria-hidden="true" />
+            <LogoMark size={28} />
+            <Spinner className="size-5 text-primary-ink" aria-hidden="true" />
             <p className="min-h-5 text-sm text-muted-foreground">
                 {message ?? <span className="sr-only">Loading CodeDev</span>}
             </p>
@@ -36,7 +36,7 @@ export function LoadingContent({ scale = 1, color, message = null }) {
         <div className="flex flex-col items-center justify-center gap-2" role="status" aria-live="polite">
             <Spinner
                 aria-hidden="true"
-                className={color ? undefined : "text-primary"}
+                className={color ? undefined : "text-primary-ink"}
                 style={{ width: size, height: size, color }}
             />
             {message ? (

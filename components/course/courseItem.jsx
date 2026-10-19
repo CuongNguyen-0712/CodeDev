@@ -9,6 +9,8 @@ import { useApp } from "@/contexts/appContext";
 import { useSession } from "next-auth/react";
 import { useCourseRegister } from "@/mutations/course.mutation";
 import { commerceQueries } from "@/queries/premium.query";
+import { userQueries } from "@/queries/user.query";
+import { FIT_LABELS, courseFit, recommendedLevel } from "@/lib/levels";
 
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
@@ -53,6 +55,11 @@ export const CourseItem = ({ item }) => {
     const rating = Number(item.rating || 0);
 
     const { status } = useSession();
+    // Level suggestion only (never blocks access): the learner's level comes from the cached `me` query.
+    const { data: me } = useQuery(userQueries.me(status));
+    const recommended = recommendedLevel(item.level);
+    const estimatedExp = Number(item.estimated_exp) || 0;
+    const fit = me ? courseFit(me.level, item.level) : null;
 
     const [dataRegistered, setDataRegistered] = useState([]);
     const [isNavigating, startTransition] = useTransition();
@@ -132,7 +139,7 @@ export const CourseItem = ({ item }) => {
                     <h3 className="text-sm leading-snug font-semibold">
                         <Link
                             href={`/course/${item.id}`}
-                            className="line-clamp-2 rounded-sm text-foreground hover:text-primary hover:underline hover:underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                            className="line-clamp-2 rounded-sm text-foreground hover:text-primary-ink hover:underline hover:underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                             title={item.title}
                         >
                             {item.title}
@@ -152,20 +159,37 @@ export const CourseItem = ({ item }) => {
                 <PriceTag course={item} />
                 {isOwned && <OwnershipBadge />}
                 {isEnrolled && <Badge variant="primary">Enrolled</Badge>}
-                <span
-                    className="ml-auto flex items-center gap-1 font-mono text-xs font-medium text-foreground tabular"
-                    title={`Rated ${rating.toFixed(1)} out of 5`}
-                >
-                    <LuStar className="size-3.5 text-xp fill-xp/20" aria-hidden="true" />
-                    <span className="sr-only">Rating</span>
-                    {rating.toFixed(1)}
-                </span>
+                {/* Ratings run 1-5, so 0 means nobody has rated the course yet. */}
+                {rating > 0 ? (
+                    <span
+                        className="ml-auto flex items-center gap-1 font-mono text-xs font-medium text-foreground tabular"
+                        title={`Rated ${rating.toFixed(1)} out of 5`}
+                    >
+                        <LuStar className="size-3.5 text-xp fill-xp/20" aria-hidden="true" />
+                        <span className="sr-only">Rating</span>
+                        {rating.toFixed(1)}
+                    </span>
+                ) : (
+                    <span className="ml-auto text-xs text-muted-foreground">No ratings yet</span>
+                )}
             </div>
+
+            {(recommended || estimatedExp > 0) && (
+                <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                    {recommended && <span>Recommended <span className="font-mono tabular text-foreground">Lv {recommended.min}–{recommended.max}</span></span>}
+                    {estimatedExp > 0 && <span className="font-mono tabular text-xp">≈ {estimatedExp.toLocaleString()} EXP</span>}
+                    {fit && (
+                        <Badge variant={fit === 'suitable' ? 'success' : fit === 'too_early' ? 'warning' : 'muted'} className="ml-auto">
+                            {FIT_LABELS[fit]}
+                        </Badge>
+                    )}
+                </p>
+            )}
 
             <dl className="grid grid-cols-3 gap-px overflow-hidden rounded-md border bg-border">
                 {stats.map((stat) => (
                     <div key={stat.label} className="bg-card px-2.5 py-1.5">
-                        <dt className="text-[11px] text-muted-foreground">{stat.label}</dt>
+                        <dt className="text-xs text-muted-foreground">{stat.label}</dt>
                         <dd className="font-mono text-sm font-medium tabular">{stat.value}</dd>
                     </div>
                 ))}

@@ -203,10 +203,11 @@ export default function HomeLearning() {
                                             type="button"
                                             onClick={() => setTarget(s)}
                                             className="flex min-h-12 w-full items-center gap-3 px-4 py-2.5 text-left transition-colors outline-none hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset active:bg-accent"
-                                            aria-label={`${meta.label}: ${pluralCourses(count)}. Show courses`}
                                         >
+                                            {/* Read as "Not started 0 courses. Show courses": starts with the visible text (WCAG 2.5.3). */}
                                             <Badge variant={meta.variant}>{meta.label}</Badge>
                                             <span className="ml-auto font-mono text-sm text-foreground tabular">{count}</span>
+                                            <span className="sr-only">{count === 1 ? 'course' : 'courses'}. Show courses</span>
                                             <LuChevronRight className="size-4 text-muted-foreground" aria-hidden="true" />
                                         </button>
                                     </li>
@@ -244,7 +245,7 @@ export default function HomeLearning() {
                                                 </span>
                                                 <div className="min-w-0">
                                                     <p
-                                                        className="truncate text-sm font-medium text-foreground group-hover/course:text-primary"
+                                                        className="truncate text-sm font-medium text-foreground group-hover/course:text-primary-ink"
                                                         title={course.title}
                                                     >
                                                         {course.title}

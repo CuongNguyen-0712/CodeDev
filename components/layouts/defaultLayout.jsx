@@ -1,20 +1,10 @@
 'use client';
-import { useApp } from "@/contexts/appContext";
 
-import AlertPush from "@/components/ui/alert";
-
+// Toasts are rendered once by the root providers (AppToaster), not per page layout.
 function LayoutContent({ children }) {
-    const { alert, clearAlert } = useApp();
-
     return (
         <section className='flex h-dvh w-full flex-col overflow-y-auto bg-background'>
             {children}
-            <AlertPush
-                message={alert?.message}
-                status={alert?.status}
-                reset={clearAlert}
-                callback={alert?.callback}
-            />
         </section>
     )
 }

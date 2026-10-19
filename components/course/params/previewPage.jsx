@@ -68,6 +68,15 @@ const getLessonFormat = (type) => {
     return { Icon: LuFileText, label: null };
 };
 
+// Covers are usually 16:9 photos, but some courses only have a square language
+// logo (often SVG): cropping that to 16:9 cuts it apart, so it is fitted instead.
+// Runs from the ref too, for an image the browser finished before hydration.
+function fitCover(img) {
+    if (!img?.complete || !img.naturalWidth || !img.naturalHeight) return;
+    const ratio = img.naturalWidth / img.naturalHeight;
+    img.dataset.fit = Math.abs(ratio - 16 / 9) < 0.25 ? 'cover' : 'contain';
+}
+
 const getInitials = (name) => String(name || '')
     .split(/\s+/)
     .filter(Boolean)
@@ -133,7 +142,7 @@ function Syllabus({ modules }) {
                                             aria-hidden="true"
                                         />
                                         <span className="min-w-0 flex-1">
-                                            <span className="block font-mono text-[11px] text-muted-foreground">
+                                            <span className="block font-mono text-xs text-muted-foreground">
                                                 Chapter {pad(index + 1)}
                                             </span>
                                             <span className="block text-sm leading-snug font-medium text-foreground">
@@ -154,7 +163,7 @@ function Syllabus({ modules }) {
                                                     return (
                                                         <li key={idx} className="flex min-h-9 items-center gap-3 py-1.5 pr-4 pl-11">
                                                             <LessonIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                                                            <span className="w-8 shrink-0 font-mono text-[11px] text-muted-foreground tabular">
+                                                            <span className="w-8 shrink-0 font-mono text-xs text-muted-foreground tabular">
                                                                 {index + 1}.{idx + 1}
                                                             </span>
                                                             <span className="min-w-0 flex-1 truncate text-[13px] text-foreground" title={child.title}>
@@ -343,17 +352,22 @@ export default function PreviewPage({ params } = {}) {
                                     <Badge variant="success">Free</Badge>
                                 )}
                                 {enrollment && <Badge variant={enrollment.variant}>{enrollment.label}</Badge>}
-                                <span
-                                    className="ml-1 flex items-center gap-1 font-mono text-xs font-medium text-foreground tabular"
-                                    title={`Rated ${rating.toFixed(1)} out of 5`}
-                                >
-                                    <LuStar className="size-3.5 text-xp fill-xp/20" aria-hidden="true" />
-                                    <span className="sr-only">Rating</span>
-                                    {rating.toFixed(1)}
-                                    {reviews > 0 && (
-                                        <span className="font-normal text-muted-foreground">({reviews.toLocaleString('en-US')} {reviews === 1 ? 'review' : 'reviews'})</span>
-                                    )}
-                                </span>
+                                {/* Ratings run 1-5, so 0 means nobody has rated the course yet. */}
+                                {rating > 0 ? (
+                                    <span
+                                        className="ml-1 flex items-center gap-1 font-mono text-xs font-medium text-foreground tabular"
+                                        title={`Rated ${rating.toFixed(1)} out of 5`}
+                                    >
+                                        <LuStar className="size-3.5 text-xp fill-xp/20" aria-hidden="true" />
+                                        <span className="sr-only">Rating</span>
+                                        {rating.toFixed(1)}
+                                        {reviews > 0 && (
+                                            <span className="font-normal text-muted-foreground">({reviews.toLocaleString('en-US')} {reviews === 1 ? 'review' : 'reviews'})</span>
+                                        )}
+                                    </span>
+                                ) : (
+                                    <span className="ml-1 text-xs text-muted-foreground">No ratings yet</span>
+                                )}
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2">
@@ -394,15 +408,19 @@ export default function PreviewPage({ params } = {}) {
 
                         <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-12">
                             {/* Course info, first on phones so it sits under the header */}
-                            <aside className="flex flex-col gap-4 lg:order-last lg:sticky lg:top-16 lg:self-start" aria-label="Course information">
+                            {/* Tablets: cover and details side by side, so a full-width 16:9 cover does not push the course down. */}
+                            <aside className="grid items-start gap-4 sm:grid-cols-2 lg:order-last lg:sticky lg:top-16 lg:flex lg:flex-col lg:self-start" aria-label="Course information">
                                 {data.image && (
-                                    <div className="overflow-hidden rounded-lg border bg-muted">
+                                    // The frame owns the 16:9 box, so nothing shifts while the image loads.
+                                    <div className="aspect-video overflow-hidden rounded-lg border bg-muted">
                                         {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img
+                                            ref={fitCover}
                                             src={data.image}
                                             alt=""
-                                            loading="lazy"
-                                            className="aspect-video w-full object-cover"
+                                            decoding="async"
+                                            className="size-full object-cover data-[fit=contain]:object-contain data-[fit=contain]:p-[10%]"
+                                            onLoad={(e) => fitCover(e.currentTarget)}
                                             onError={(e) => {
                                                 // A broken cover adds nothing; hide the frame instead of a placeholder.
                                                 e.currentTarget.parentElement.hidden = true;
@@ -414,7 +432,7 @@ export default function PreviewPage({ params } = {}) {
                                 <div className="rounded-lg border bg-card">
                                     <div className="flex items-center gap-3 border-b px-4 py-3">
                                         <Avatar className="size-9">
-                                            <AvatarFallback className="font-mono text-xs">
+                                            <AvatarFallback className="bg-primary-soft font-mono text-xs font-semibold text-primary-soft-foreground">
                                                 {getInitials(data.instructor)}
                                             </AvatarFallback>
                                         </Avatar>

@@ -1,6 +1,6 @@
 'use client';
 import Link from "next/link";
-import Image from "next/image";
+import { LogoMark, LogoWordmark } from "@/components/ui/logo";
 import { usePathname } from "next/navigation";
 
 import { useAuth } from "@/contexts/authContext";
@@ -99,14 +99,8 @@ export default function Dashboard() {
           <SidebarMenuItem>
             <SidebarMenuButton asChild className="font-semibold" tooltip="CodeDev">
               <Link href={hrefFor('home', session)} onClick={closeOnMobile}>
-                <Image
-                  src="/image/static/logo.svg"
-                  alt=""
-                  width={20}
-                  height={20}
-                  className="size-5 shrink-0"
-                />
-                <span className="tracking-tight">CodeDev</span>
+                <LogoMark size={20} />
+                <LogoWordmark />
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -138,7 +132,7 @@ export default function Dashboard() {
                         asChild
                         isActive={active}
                         tooltip={item.name}
-                        className="data-[active=true]:bg-primary-soft/70 data-[active=true]:text-primary data-[active=true]:font-semibold"
+                        className="data-[active=true]:bg-primary-soft/70 data-[active=true]:text-primary-ink data-[active=true]:font-semibold"
                       >
                         <Link
                           href={hrefFor(item.value, session)}
@@ -196,7 +190,7 @@ export default function Dashboard() {
               <SidebarMenuButton
                 asChild
                 tooltip="Sign in"
-                className="bg-primary text-primary-foreground hover:bg-primary-hover hover:text-primary-foreground active:bg-primary-hover active:text-primary-foreground"
+                className="bg-primary text-primary-foreground hover:bg-primary-hover hover:text-primary-foreground active:bg-primary-hover active:text-primary-foreground dark:text-white dark:hover:text-white"
               >
                 <Link href="/auth" onClick={closeOnMobile}>
                   <LuLogIn />

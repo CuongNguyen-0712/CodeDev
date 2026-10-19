@@ -61,7 +61,7 @@ const CommentItem = ({ data, courseId }) => {
         <>
             <Avatar className="size-8">
                 <AvatarImage src={data.avatar || undefined} alt="" />
-                <AvatarFallback className="text-xs font-medium">
+                <AvatarFallback className="bg-primary-soft text-xs font-semibold text-primary-soft-foreground">
                     {username.charAt(0).toUpperCase()}
                 </AvatarFallback>
             </Avatar>

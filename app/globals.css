@@ -22,18 +22,21 @@
 
 /* ==========================================================
    DESIGN TOKENS
-   One source of truth for every page. Neutrals share the brand
-   hue (teal-grey) so surfaces never drift to a cool slate grey.
+   One source of truth for every page. The brand follows the logo:
+   violet (its end stop) for actions, links and focus; orange (its
+   start stop) stays a sparing accent through --streak. Neutrals carry
+   a faint violet hue so surfaces sit with the brand.
    Contrast pairs, measured with the UI/UX kit's contrast.py:
-     primary-foreground on primary        6.00:1
-     foreground on background            16.91:1
-     muted-foreground on background       5.55:1
-     muted-foreground on muted            4.96:1
-     muted-foreground on sidebar-accent   4.72:1
-     primary on primary-soft              5.33:1
-     input (control border) on white      3.47:1
+     primary-foreground on primary        5.70:1   (hover 7.10:1)
+     primary as text on background        5.70:1
+     foreground on background            18.16:1
+     muted-foreground on background       6.52:1
+     muted-foreground on muted            5.72:1
+     muted-foreground on sidebar-accent   5.49:1
+     primary-soft-foreground on soft      6.25:1
+     input (control border) on white      3.55:1
      status text on its soft surface     >= 4.60:1
-     editor-muted on editor               6.65:1
+     editor-muted on editor               6.53:1
    Scrollbar thumbs are decorative chrome, kept quiet on purpose.
    ========================================================== */
 :root {
@@ -41,33 +44,37 @@
 
     /* Surfaces */
     --background: #FFFFFF;
-    --foreground: #0F1F24;
+    --foreground: #17141F;
     --card: #FFFFFF;
-    --card-foreground: #0F1F24;
+    --card-foreground: #17141F;
     --popover: #FFFFFF;
-    --popover-foreground: #0F1F24;
-    --canvas: #F6F8F8;
+    --popover-foreground: #17141F;
+    --canvas: #F7F6FA;
 
-    /* Brand: deep teal for actions and links */
-    --primary: #0B6E75;
-    --primary-hover: #095C62;
+    /* Brand: violet for actions and links */
+    --primary: #7C3AED;
+    --primary-hover: #6D28D9;
     --primary-foreground: #FFFFFF;
-    --primary-soft: #E8F4F4;
-    --primary-soft-foreground: #0B6E75;
-    --primary-border: #C7E8EA;
+    --primary-soft: #F3EEFF;
+    --primary-soft-foreground: #6D28D9;
+    --primary-border: #DDD0FB;
+    /* Primary used as text (links, active labels, icons). Same as --primary
+       here; lifted in .dark where the button violet is too dark to read. */
+    --primary-ink: #7C3AED;
 
     /* One neutral fill for secondary buttons, hovers and skeletons */
-    --secondary: #EEF3F3;
-    --secondary-foreground: #0F1F24;
-    --muted: #EEF3F3;
-    --muted-foreground: #5B6B70;
-    --accent: #EEF3F3;
-    --accent-foreground: #0F1F24;
+    --secondary: #F1EFF6;
+    --secondary-foreground: #17141F;
+    --muted: #F1EFF6;
+    --muted-foreground: #605B6E;
+    --accent: #F1EFF6;
+    --accent-foreground: #17141F;
 
-    /* Gamification & Accents */
-    --streak: #EA580C;
+    /* Gamification & Accents: tuned for >= 5:1 contrast on white */
+    --streak: #C2410C;
     --streak-soft: #FFF7ED;
-    --xp: #D97706;
+    /* Amber dark enough for text: >= 5:1 on white, xp-soft, muted and sidebar-accent */
+    --xp: #A3480A;
     --xp-soft: #FEF3C7;
 
     /* Status */
@@ -85,37 +92,38 @@
     --info-soft: #EEF3FE;
 
     /* Lines and focus: border is decorative only, input carries 3:1 for controls */
-    --border: #E2E8E9;
-    --input: #7A8D92;
-    --ring: #0B6E75;
+    --border: #E5E2EC;
+    --input: #8B859A;
+    --ring: #7C3AED;
 
     /* Modal backdrop: the foreground ink at half strength, not pure black */
-    --overlay: rgb(15 31 36 / 0.5);
+    --overlay: rgb(23 20 31 / 0.5);
 
     /* Sidebar */
-    --sidebar: #F6F8F8;
-    --sidebar-foreground: #0F1F24;
-    --sidebar-primary: #0B6E75;
+    --sidebar: #F7F6FA;
+    --sidebar-foreground: #17141F;
+    --sidebar-primary: #7C3AED;
     --sidebar-primary-foreground: #FFFFFF;
-    --sidebar-accent: #E7EEEE;
-    --sidebar-accent-foreground: #0F1F24;
-    --sidebar-border: #E2E8E9;
-    --sidebar-ring: #0B6E75;
+    --sidebar-accent: #EDEAF4;
+    --sidebar-accent-foreground: #17141F;
+    --sidebar-border: #E5E2EC;
+    --sidebar-ring: #7C3AED;
 
     /* Scrollbars: every scroll container reads these through the base layer.
        Dark code surfaces swap them for the editor pair below. */
-    --scrollbar-thumb: #C3CFD1;
-    --scrollbar-thumb-hover: #93A4A9;
+    --scrollbar-thumb: #CDC9D6;
+    --scrollbar-thumb-hover: #9F99AD;
 
-    /* Code surfaces: editor, terminal and lesson code blocks share one dark theme */
-    --editor: #0F1719;
-    --editor-panel: #141E21;
-    --editor-raised: #1B272B;
-    --editor-border: #24333A;
-    --editor-foreground: #D6E2E4;
-    --editor-muted: #8CA0A6;
-    --editor-gutter: #71868D;
-    --editor-accent: #5CC8CF;
+    /* Code surfaces: editor, terminal and lesson code blocks share one dark,
+       violet-ink theme that the Dracula syntax colours below were made for. */
+    --editor: #15131C;
+    --editor-panel: #1A1823;
+    --editor-raised: #221F2D;
+    --editor-border: #2E2A3B;
+    --editor-foreground: #E3E0EB;
+    --editor-muted: #9C97AF;
+    --editor-gutter: #88839C;
+    --editor-accent: #B794F6;
     --editor-success: #4ADE80;
     --editor-danger: #F87171;
     --editor-warning: #FBBF24;
@@ -131,46 +139,67 @@
     --syntax-parameter: #FFB86C;
     --syntax-regex: #FF5555;
     --syntax-punctuation: #C9D1D3;
-    --syntax-line: #17242A;
+    --syntax-line: #1E1B28;
     --syntax-selection: rgb(98 114 164 / 0.45);
-    --editor-scrollbar-thumb: #34474E;
-    --editor-scrollbar-thumb-hover: #4D646C;
+    --editor-scrollbar-thumb: #3B3749;
+    --editor-scrollbar-thumb-hover: #544F66;
 
-    /* Fonts come from next/font (app/fonts.js) */
-    --font-body: var(--font-plus-jakarta), system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-    --font-code: var(--font-jetbrains-mono), ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+    /* Brand logo gradient: components/ui/logo.jsx and the favicon (public/image/static/logo.svg).
+       A logotype is exempt from text contrast rules; each stop still reads >= 3.4:1 on
+       white and the .dark stops >= 6:1 on the dark surfaces. */
+    --logo-start: #EA580C;
+    --logo-mid: #DB2777;
+    --logo-end: #7C3AED;
+
+    /* Fonts come from next/font (app/fonts.js), which also sets their fallbacks.
+       Each var() carries its own default: a var() with no default that is not
+       defined (a page outside the root layout, an email, a test harness) would
+       void the whole font-family and drop the text to the browser serif. */
+    --font-body: var(--font-plus-jakarta, 'Plus Jakarta Sans'), system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', Arial, sans-serif;
+    --font-code: var(--font-jetbrains-mono, 'JetBrains Mono'), ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Consolas, 'Liberation Mono', 'DejaVu Sans Mono', monospace;
 }
 
 /* ==========================================================
    DARK THEME (CALIBRATED)
-   Comfort Dark (Dimmed Slate-Teal): Reduces glare and eye fatigue.
-   Buttons have pure white text (--primary-foreground: #FFFFFF).
+   Comfort Dark (dimmed violet ink): reduces glare and eye fatigue.
+   Buttons keep violet-600 with white text (5.70:1), but violet-600 as
+   text on these surfaces is only 3.0-3.3:1, so text uses --primary-ink
+   (#A78BFA) instead: `text-primary-ink`, never `text-primary`.
+     primary-foreground on primary        5.70:1
+     primary-ink on background / card    6.88:1 / 6.56:1
+     primary-ink on active sidebar item   6.38:1
+     foreground on background            13.37:1
+     muted-foreground on background       6.02:1
+     muted-foreground on sidebar-accent   5.57:1
+     primary-soft-foreground on soft      8.89:1
+     input / ring on background           3.35:1 / 6.88:1
    ========================================================== */
 .dark {
-    /* Surfaces: lifted from pitch-black to a soft, ergonomic slate-teal */
-    --background: #131B1E;
-    --foreground: #CFD9DC;
-    --card: #182226;
-    --card-foreground: #CFD9DC;
-    --popover: #1B262B;
-    --popover-foreground: #CFD9DC;
-    --canvas: #0F1517;
+    /* Surfaces: lifted from pitch-black to a soft violet ink */
+    --background: #131118;
+    --foreground: #DCD8E4;
+    --card: #19161F;
+    --card-foreground: #DCD8E4;
+    --popover: #1D1A24;
+    --popover-foreground: #DCD8E4;
+    --canvas: #0E0C12;
 
-    /* Brand: Balanced Deep Teal with crisp pure white text */
-    --primary: #0D7E86;
-    --primary-hover: #10919A;
+    /* Brand: vibrant violet with white text for buttons */
+    --primary: #7C3AED;
+    --primary-hover: #6D28D9;
     --primary-foreground: #FFFFFF;
-    --primary-soft: #14282D;
-    --primary-soft-foreground: #48C4CC;
-    --primary-border: #1E3D44;
+    --primary-soft: #231B35;
+    --primary-soft-foreground: #C4B5FD;
+    --primary-border: #3A2C5C;
+    --primary-ink: #A78BFA;
 
     /* Neutrals: soft contrast pairs */
-    --secondary: #1D292E;
-    --secondary-foreground: #CFD9DC;
-    --muted: #1A252A;
-    --muted-foreground: #7F9399;
-    --accent: #212F35;
-    --accent-foreground: #F2F7F8;
+    --secondary: #1F1C26;
+    --secondary-foreground: #DCD8E4;
+    --muted: #1B1822;
+    --muted-foreground: #958FA5;
+    --accent: #252130;
+    --accent-foreground: #F4F2F8;
 
     /* Gamification in Dark */
     --streak: #F97316;
@@ -178,39 +207,51 @@
     --xp: #FBBF24;
     --xp-soft: #2B210C;
 
-    /* Status: softened and desaturated for eye comfort, with white text for solid badges/buttons */
-    --destructive: #E05252;
-    --destructive-foreground: #FFFFFF;
+    /* Status: tuned for eye comfort and >= 6:1 contrast in dark theme */
+    --destructive: #F87171;
+    --destructive-foreground: #140F1F;
     --destructive-soft: #2E191B;
     --success: #2EA063;
     --success-foreground: #FFFFFF;
     --success-soft: #142A1F;
-    --warning: #D97706;
-    --warning-foreground: #FFFFFF;
+    --warning: #FBBF24;
+    --warning-foreground: #140F1F;
     --warning-soft: #2D2214;
     --info: #3B82F6;
     --info-foreground: #FFFFFF;
     --info-soft: #16253B;
 
     /* Lines and focus */
-    --border: #233339;
-    --input: #3E535A;
-    --ring: #10919A;
+    --border: #2A2633;
+    --input: #6B6480;
+    --ring: #A78BFA;
     --overlay: rgb(0 0 0 / 0.7);
 
     /* Sidebar in Dark */
-    --sidebar: #11181B;
-    --sidebar-foreground: #CFD9DC;
-    --sidebar-primary: #0D7E86;
+    --sidebar: #100E14;
+    --sidebar-foreground: #DCD8E4;
+    --sidebar-primary: #7C3AED;
     --sidebar-primary-foreground: #FFFFFF;
-    --sidebar-accent: #192428;
-    --sidebar-accent-foreground: #F2F7F8;
-    --sidebar-border: #202E33;
-    --sidebar-ring: #10919A;
+    --sidebar-accent: #1C1923;
+    --sidebar-accent-foreground: #F4F2F8;
+    --sidebar-border: #26222F;
+    --sidebar-ring: #A78BFA;
 
     /* Scrollbars in Dark */
-    --scrollbar-thumb: #374B52;
-    --scrollbar-thumb-hover: #4D656E;
+    --scrollbar-thumb: #3D384A;
+    --scrollbar-thumb-hover: #575168;
+
+    /* Logo gradient lifted for dark surfaces */
+    --logo-start: #FB923C;
+    --logo-mid: #F472B6;
+    --logo-end: #A78BFA;
+}
+
+/* A dark surface inside the light theme (code panels, the landing snippet). */
+.logo-on-dark {
+    --logo-start: #FB923C;
+    --logo-mid: #F472B6;
+    --logo-end: #A78BFA;
 }
 
 @theme inline {
@@ -232,6 +273,7 @@
     --color-primary-soft: var(--primary-soft);
     --color-primary-soft-foreground: var(--primary-soft-foreground);
     --color-primary-border: var(--primary-border);
+    --color-primary-ink: var(--primary-ink);
     --color-secondary: var(--secondary);
     --color-secondary-foreground: var(--secondary-foreground);
     --color-muted: var(--muted);

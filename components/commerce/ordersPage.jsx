@@ -199,6 +199,9 @@ function PointsTab({ status }) {
                     ) : (
                         <p className="font-mono text-xl font-semibold tabular">{formatPoints(balance)}</p>
                     )}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                        Earned by completing lessons and passing challenges; spend them on courses. Your EXP and level are separate and never go down when you spend points.
+                    </p>
                 </div>
             </section>
 

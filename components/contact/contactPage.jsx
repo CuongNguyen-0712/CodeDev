@@ -8,14 +8,13 @@ import SearchBar from "../ui/searchBar";
 
 import { uniqWith } from "lodash";
 import { api } from "@/lib/axios";
-import { levelMapping } from "@/constants/constants";
+import { LevelBadge } from "@/components/ui/level";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn/avatar";
-import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
 
-import { LuLoaderCircle, LuStar, LuTrophy, LuUsers, LuUserSearch, LuX } from "react-icons/lu";
+import { LuLoaderCircle, LuUsers, LuUserSearch, LuX } from "react-icons/lu";
 
 function initials(name = '') {
     const parts = String(name).trim().split(/[\s._-]+/).filter(Boolean);
@@ -290,7 +289,6 @@ export default function Contact({ state, setState }) {
                         <ul className="m-0 list-none divide-y overflow-hidden rounded-lg border bg-card p-0">
                             {people.map((item) => {
                                 const name = item.username || item.name || 'Unknown user';
-                                const level = levelMapping[item.level]?.label;
                                 return (
                                     <li key={item.id} className="flex items-center gap-3 px-4 py-3">
                                         <Avatar className="size-9">
@@ -305,21 +303,7 @@ export default function Contact({ state, setState }) {
                                                 {item.nickname || 'No nickname'}
                                             </p>
                                         </div>
-                                        {level && (
-                                            <Badge variant="muted" className="max-sm:hidden">{level}</Badge>
-                                        )}
-                                        <dl className="m-0 flex shrink-0 items-center gap-3 font-mono text-xs text-muted-foreground tabular">
-                                            <div className="flex items-center gap-1" title="Stars">
-                                                <dt><LuStar className="size-3.5" aria-label="Stars" /></dt>
-                                                <dd className="m-0">{Number(item.star) || 0}</dd>
-                                            </div>
-                                            <div className="flex items-center gap-1 max-[400px]:hidden" title="Rank">
-                                                <dt><LuTrophy className="size-3.5" aria-label="Rank" /></dt>
-                                                <dd className="m-0">
-                                                    {item.rank !== null && item.rank !== undefined ? `#${item.rank}` : '-'}
-                                                </dd>
-                                            </div>
-                                        </dl>
+                                        <LevelBadge level={item.level} title={item.levelTitle} className="shrink-0 [&>span]:max-sm:hidden" />
                                     </li>
                                 );
                             })}

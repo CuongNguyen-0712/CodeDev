@@ -105,13 +105,13 @@ function RecommendedStrip() {
             <div className="flex flex-wrap items-end justify-between gap-2">
                 <div className="min-w-0 space-y-0.5">
                     <h2 id="roadmap-recommended-heading" className="flex items-center gap-2 text-sm font-medium text-foreground">
-                        <LuSparkles className="size-4 text-primary" aria-hidden="true" />
+                        <LuSparkles className="size-4 text-primary-ink" aria-hidden="true" />
                         Recommended for you
                     </h2>
                     {data?.fallback && (
                         <p className="text-xs text-muted-foreground">
                             Popular courses for now.{' '}
-                            <Link href="/onboarding" className="text-primary underline-offset-4 hover:underline">
+                            <Link href="/onboarding" className="text-primary-ink underline-offset-4 hover:underline">
                                 Personalise your recommendations
                             </Link>
                         </p>
@@ -263,7 +263,7 @@ export default function RoadmapPage() {
 
                                             <div className="min-w-0 flex-1 space-y-1">
                                                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                                    <h3 className="text-sm font-semibold text-foreground group-hover:text-primary">
+                                                    <h3 className="text-sm font-semibold text-foreground group-hover:text-primary-ink">
                                                         {roadmap.title}
                                                     </h3>
                                                     <Badge variant="muted" className="sm:hidden">{levelLabel}</Badge>

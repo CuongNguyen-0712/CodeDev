@@ -123,7 +123,7 @@ export function RecommendationCard({ item, compact = false, onClickGuard, maxRea
                 </div>
 
                 <h3
-                    className="line-clamp-2 text-sm leading-snug font-semibold text-foreground group-hover/card:text-primary"
+                    className="line-clamp-2 text-sm leading-snug font-semibold text-foreground group-hover/card:text-primary-ink"
                     title={course.title}
                 >
                     {course.title}
@@ -144,7 +144,7 @@ export function RecommendationCard({ item, compact = false, onClickGuard, maxRea
                 {reasons.length > 0 && (
                     <div className="space-y-1 rounded-md bg-muted/50 px-2.5 py-2">
                         <p className="flex items-center gap-1 text-xs font-medium text-foreground">
-                            <LuSparkles className="size-3.5 text-primary" aria-hidden="true" />
+                            <LuSparkles className="size-3.5 text-primary-ink" aria-hidden="true" />
                             Why this course
                         </p>
                         <ul className="m-0 list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">

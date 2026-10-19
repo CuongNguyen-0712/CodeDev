@@ -14,7 +14,7 @@ export default function WelcomeTemplate() {
     return (
         <Html>
             <Head />
-            <Preview>Welcome to CodeDev — We're happy to have you!</Preview>
+            <Preview>Welcome to CodeDev — We&apos;re happy to have you!</Preview>
 
             <Body style={bodyStyle}>
                 <Container style={containerStyle}>
@@ -39,7 +39,7 @@ export default function WelcomeTemplate() {
                         </Text>
 
                         <Text style={textStyle}>
-                            We're excited to have you on board. You'll find tutorials, roadmaps, challenges
+                            We&apos;re excited to have you on board. You&apos;ll find tutorials, roadmaps, challenges
                             and everything to help you master programming the right way.
                         </Text>
 
@@ -67,7 +67,7 @@ export default function WelcomeTemplate() {
 }
 
 const bodyStyle = {
-    backgroundColor: "#F6F8F8",
+    backgroundColor: "#F7F6FA",
     padding: "40px 0",
 };
 
@@ -77,7 +77,7 @@ const containerStyle = {
     borderRadius: "8px",
     maxWidth: "520px",
     margin: "0 auto",
-    border: "1px solid #E2E8E9",
+    border: "1px solid #E5E2EC",
 };
 
 const sectionStyle = {
@@ -106,7 +106,7 @@ const buttonWrapperStyle = {
 const buttonStyle = {
     display: "inline-block",
     padding: "12px 24px",
-    backgroundColor: "#0B6E75",
+    backgroundColor: "#7C3AED",
     color: "#ffffff",
     fontSize: "16px",
     fontWeight: "bold",
@@ -117,5 +117,5 @@ const buttonStyle = {
 const footerStyle = {
     fontSize: "14px",
     marginTop: "20px",
-    color: "#0B6E75",
+    color: "#7C3AED",
 };

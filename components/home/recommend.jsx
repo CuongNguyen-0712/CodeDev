@@ -265,7 +265,7 @@ export default function HomeRecommend() {
                                                 Filter every course by level, price and rating.
                                             </span>
                                         </span>
-                                        <span className="flex items-center gap-1 text-sm font-medium text-primary">
+                                        <span className="flex items-center gap-1 text-sm font-medium text-primary-ink">
                                             All courses
                                             <LuArrowRight className="size-4" aria-hidden="true" />
                                         </span>

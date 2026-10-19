@@ -142,8 +142,8 @@ export default function LearningCourse({ item }) {
                         <div className="flex items-center gap-1.5">
                             <button
                                 type="button"
-                                onClick={handleNavigate}
-                                className="min-h-6 truncate rounded-sm text-left text-sm font-semibold text-foreground hover:text-primary hover:underline hover:underline-offset-4"
+                                onClick={() => navigate({ path: `/course/${item.id}` })}
+                                className="min-h-6 truncate rounded-sm text-left text-sm font-semibold text-foreground hover:text-primary-ink hover:underline hover:underline-offset-4"
                                 title={item.title}
                             >
                                 {item.title}

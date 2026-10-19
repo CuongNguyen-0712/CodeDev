@@ -3,7 +3,6 @@ import Navbar from '@/components/ui/navbar';
 import Dashboard from '@/components/ui/dashboard';
 import Feedback from '@/components/ui/feedback';
 import Footer from '@/components/ui/footer';
-import AlertPush from '@/components/ui/alert';
 
 import { SidebarInset, SidebarProvider } from '@/components/shadcn/sidebar';
 
@@ -13,8 +12,6 @@ function LayoutContent({ children }) {
     const {
         isDashboard,
         setDashboard,
-        alert,
-        clearAlert
     } = useApp();
 
     return (
@@ -39,13 +36,7 @@ function LayoutContent({ children }) {
             </SidebarInset>
 
             <Feedback />
-
-            <AlertPush
-                status={alert?.status}
-                message={alert?.message}
-                reset={clearAlert}
-                callback={alert?.callback}
-            />
+            {/* Toasts: rendered once by the root providers (AppToaster), not per page layout. */}
         </SidebarProvider>
     );
 }

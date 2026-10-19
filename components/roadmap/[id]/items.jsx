@@ -161,7 +161,7 @@ function CourseRow({ course }) {
                 </span>
                 <span className="min-w-0 flex-1 space-y-1.5">
                     <span className="flex items-start justify-between gap-2">
-                        <span className="min-w-0 text-sm leading-snug font-medium text-foreground group-hover:text-primary">
+                        <span className="min-w-0 text-sm leading-snug font-medium text-foreground group-hover:text-primary-ink">
                             {course.title}
                         </span>
                         <LuChevronRight

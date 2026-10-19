@@ -172,7 +172,7 @@ export default function OrderStatusPage({ orderId }) {
                         <div className="min-w-0">
                             <p className="text-xs text-muted-foreground">Course</p>
                             {courseId ? (
-                                <Link href={`/course/${courseId}`} className="block truncate font-medium hover:text-primary hover:underline hover:underline-offset-4">
+                                <Link href={`/course/${courseId}`} className="block truncate font-medium hover:text-primary-ink hover:underline hover:underline-offset-4">
                                     {order.course?.title || 'Course'}
                                 </Link>
                             ) : (
