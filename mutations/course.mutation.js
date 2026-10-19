@@ -120,8 +120,10 @@ export const useCourseSubmitLesson = () => {
     const queryClient = useQueryClient();
 
     return useMutation({
+        // Resolves to the rewards themselves ({ awardedPoints, awardedExp, courseCompleted, level... }),
+        // not the { success, data } wrapper: lessons.jsx hands this straight to announceRewards.
         mutationFn: async (data) => {
-            return callAction(submitLessonAction, data);
+            return unwrapActionResult(await callWithAuthRetry(() => submitLessonAction(data)));
         },
 
         onSuccess: (_, variables) => {

@@ -108,11 +108,11 @@ export default function LearningCourse({ item }) {
         }
     }
 
+    // A course without published lessons cannot be opened: the button says so instead of a toast.
+    const hasLessons = totalLessons > 0
+
     const handleNavigate = () => {
-        if (totalLessons === 0) {
-            alert(500, "This course has no lessons available yet.")
-            return
-        }
+        if (!hasLessons) return
 
         startTransition(() => {
             navigate({ path: `/learning/${item.id}` })
@@ -190,11 +190,11 @@ export default function LearningCourse({ item }) {
                         size="sm"
                         variant={item.status === 'completed' ? 'outline' : 'default'}
                         onClick={handleNavigate}
-                        disabled={withdrawMutation.isPending || isNavigating}
+                        disabled={withdrawMutation.isPending || isNavigating || !hasLessons}
                         className="min-w-24"
                     >
                         {isNavigating ? <LuLoaderCircle className="animate-spin" /> : <action.Icon />}
-                        {action.label}
+                        {hasLessons ? action.label : 'No lessons yet'}
                     </Button>
 
                     <DropdownMenu>
