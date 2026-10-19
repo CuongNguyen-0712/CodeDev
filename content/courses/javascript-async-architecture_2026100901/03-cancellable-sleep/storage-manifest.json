@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_103",
+      "key": "challenges/javascript/chal_coding_103/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "sleep.js",
+      "size": 1307
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_coding_103",
+      "key": "challenges/javascript/chal_coding_103/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 4246
+    }
+  ]
+}

@@ -1,0 +1,132 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_101",
+      "name": "execution-order-quiz",
+      "type": "quiz",
+      "title": "Predict the order before you read on",
+      "description": "One click handler mixes synchronous code, a timer, promise callbacks and an async function. Predict what is logged and why the success modal shows a stale balance.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "This runs inside a click handler:\n\nconsole.log('1 handler start');\nsetTimeout(() => console.log('2 timeout'), 0);\nPromise.resolve().then(() => console.log('3 then'));\nqueueMicrotask(() => console.log('4 microtask'));\n(async () => {\n  console.log('5 async body');\n  await null;\n  console.log('6 after await');\n})();\nconsole.log('7 handler end');\n\nIn which order are the lines logged?",
+          "explanation": "Synchronous code runs to completion first, and an async function runs synchronously until its first await: 1, 5, 7. When the handler's task finishes, the microtask checkpoint drains the whole microtask queue in FIFO order: the then callback (3), the queueMicrotask callback (4) and the continuation after await (6), which was queued third. Only then can the event loop pick the next task, the timer (2). setTimeout(fn, 0) means \"in a later task\", never \"right after this line\".",
+          "options": [
+            { "text": "1, 5, 7, 3, 4, 6, 2", "correct": true },
+            { "text": "1, 7, 5, 3, 4, 6, 2", "correct": false },
+            { "text": "1, 5, 7, 2, 3, 4, 6", "correct": false },
+            { "text": "1, 5, 6, 7, 3, 4, 2", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "The wallet store defers rendering: subscribe(state => setTimeout(() => renderBalance(state.balance), 0)). After a top-up, confirmTopUp() runs store.set({ balance: 250 }), then await track('topup_success') (an already-resolved promise), then showModal(`New balance: ${balanceEl.textContent}`). The modal says \"New balance: $0.00\". Which statements are true? (Select all that apply.)",
+          "explanation": "store.set() only schedules the render as a task. The await continuation is a microtask, and microtasks always run before the next task, so showModal reads the DOM before renderBalance has written it. Increasing the delay changes nothing about the order relative to a microtask, it just makes the gap longer. The robust fix is to remove the hidden ordering dependency: build the message from the state you just set (or render synchronously and then show the modal), instead of reading a DOM value that some other task is expected to have updated.",
+          "options": [
+            { "text": "The continuation after await runs in a microtask, before the setTimeout render task, so balanceEl still holds the old value.", "correct": true },
+            { "text": "Changing the render delay from 0 to 50 ms makes the render run before the modal.", "correct": false },
+            { "text": "Building the message from the new state (balance 250) instead of reading balanceEl removes the ordering dependency.", "correct": true },
+            { "text": "Removing the await would fix it, because setTimeout(..., 0) runs as soon as the current line finishes.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_js_112",
+      "name": "deterministic-event-loop-simulator",
+      "type": "mini_coding",
+      "title": "Build a deterministic event loop",
+      "description": "Write createEventLoop(): a virtual clock with setTimeout/clearTimeout, a microtask queue and run(main, onError). After every task the microtask queue is drained completely (including microtasks queued by microtasks); timers run by due time, ties in scheduling order; an exception in one callback is reported and the loop carries on. The tests describe programs as data and compare the exact log, including the virtual time of every line.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "eventLoop.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The top-up incident: the modal (microtask) runs before the deferred render (task)",
+          "input": {
+            "main": [
+              { "log": "store.set" },
+              { "timeout": 0, "do": [{ "log": "renderBalance" }] },
+              { "micro": [{ "log": "showModal" }] },
+              { "log": "handler end" }
+            ]
+          },
+          "expected": ["store.set@0", "handler end@0", "showModal@0", "renderBalance@0"],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Microtasks queued by microtasks run before the next task",
+          "input": {
+            "main": [
+              { "timeout": 0, "do": [{ "log": "T1" }, { "micro": [{ "log": "T1 micro" }] }] },
+              { "timeout": 0, "do": [{ "log": "T2" }] },
+              { "micro": [{ "log": "M1" }, { "micro": [{ "log": "M2" }, { "micro": [{ "log": "M3" }] }] }] },
+              { "log": "main" }
+            ]
+          },
+          "expected": ["main@0", "M1@0", "M2@0", "M3@0", "T1@0", "T1 micro@0", "T2@0"],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Timers run by due time, ties in scheduling order, and the clock jumps",
+          "input": {
+            "main": [
+              { "timeout": 50, "do": [{ "log": "slow" }] },
+              { "timeout": 10, "do": [{ "log": "fast" }, { "timeout": 0, "do": [{ "log": "fast child" }] }] },
+              { "timeout": 10, "do": [{ "log": "fast 2" }] },
+              { "timeout": -5, "do": [{ "log": "negative" }] }
+            ]
+          },
+          "expected": ["negative@0", "fast@10", "fast 2@10", "fast child@10", "slow@50"],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "clearTimeout cancels a pending timer, even from a microtask",
+          "input": {
+            "main": [
+              { "timeout": 100, "id": "poll", "do": [{ "log": "poll" }] },
+              { "timeout": 5, "id": "tick", "do": [{ "log": "tick" }, { "clear": "tick" }, { "clear": "nope" }] },
+              { "micro": [{ "clear": "poll" }] },
+              { "timeout": 200, "do": [{ "log": "late" }] }
+            ]
+          },
+          "expected": ["tick@5", "late@200"],
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "An exception is reported and the loop carries on",
+          "input": {
+            "main": [
+              { "log": "A" },
+              { "micro": [{ "throw": "micro-boom" }, { "log": "never" }] },
+              { "micro": [{ "log": "after micro" }] },
+              { "timeout": 0, "do": [{ "throw": "task-boom" }] },
+              { "timeout": 0, "do": [{ "log": "next task" }] },
+              { "throw": "main-boom" },
+              { "log": "unreachable" }
+            ]
+          },
+          "expected": ["A@0", "error:main-boom@0", "error:micro-boom@0", "after micro@0", "error:task-boom@0", "next task@0"],
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

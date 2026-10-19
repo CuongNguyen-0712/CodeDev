@@ -1,0 +1,167 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_js_231",
+      "name": "promise-all-fan-out-quiz",
+      "type": "quiz",
+      "title": "What does Promise.all over 2,000 uploads really do?",
+      "description": "Predict what happens when a bulk uploader starts everything at once - and why a limiter must receive tasks, not promises.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A teammate adds a limiter to the bulk photo uploader:\n\nconst uploads = files.map((file) => uploadPhoto(file));   // 2,000 files\nconst results = await runWithLimit(uploads, 4);          // \"at most 4 at a time\"\n\nHow many uploads have been started by the time runWithLimit is called?",
+          "explanation": "Calling uploadPhoto(file) starts the upload immediately and returns a promise for an operation that is already running. files.map(...) therefore starts all 2,000 before runWithLimit even sees them; whatever it does with the promises, it can only wait for them, not delay them. A limiter has to receive tasks - functions like () => uploadPhoto(file) - and call them itself when a slot is free.",
+          "options": [
+            { "text": "4 - runWithLimit starts the first four promises and the rest wait.", "correct": false },
+            { "text": "None - promises are lazy and only start when something awaits them.", "correct": false },
+            { "text": "All 2,000 - calling uploadPhoto starts the upload; the limiter receives operations that are already running.", "correct": true },
+            { "text": "About 6 - the browser only allows six connections, so map stops after six calls.", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "The uploader runs await Promise.all(files.map(uploadPhoto)) for 2,000 photos against an HTTP/1.1 upload origin. Each uploadPhoto first resizes the photo into an in-memory Blob, then calls fetch with signal: AbortSignal.timeout(30_000). Which statements are true? (Select all that apply.)",
+          "explanation": "Browsers open only about six HTTP/1.1 connections per origin and queue the rest of the requests internally. AbortSignal.timeout starts counting when fetch is called, not when the request leaves the queue, so requests that wait more than 30 s in the browser's own queue fail with TimeoutError before a byte was sent. All 2,000 resize steps run up front, so all resized blobs exist at once and stay in memory until their upload finishes. The browser does not reject the extra requests - it queues them - and the queue is no substitute for a limiter: there is no backpressure on the work before fetch, no control over errors, and on HTTP/2 the browser happily multiplexes about a hundred requests at once into the API's rate limit.",
+          "options": [
+            { "text": "Only about six requests are on the wire at once; the browser queues the rest internally.", "correct": true },
+            { "text": "Requests still waiting in the browser's queue can hit the 30 s timeout before they are even sent.", "correct": true },
+            { "text": "All 2,000 resized blobs are created up front and kept in memory until their uploads finish.", "correct": true },
+            { "text": "The browser rejects every request beyond the sixth with a \"too many requests\" error.", "correct": false },
+            { "text": "Because the browser queues requests anyway, this is as safe as a limiter with a limit of 6.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_203",
+      "name": "map-with-concurrency-worker-pool",
+      "type": "mini_coding",
+      "title": "Build mapWithConcurrency: a worker pool for promises",
+      "description": "Write mapWithConcurrency(items, limit, task, options). At most `limit` tasks run at once, a free slot is refilled immediately, results come back in input order, and the error policy is either fail-fast (reject on the first error and start nothing new) or collect (allSettled-style entries). The tests run every task on a fake clock and record when each one starts and how many run at the same time.",
+      "difficulty": "hard",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "mapWithConcurrency.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Six uploads, limit 2: free slots are refilled at once, results in input order",
+          "input": {
+            "limit": 2,
+            "tasks": [
+              { "ms": 300, "value": "cdn/0" },
+              { "ms": 100, "value": "cdn/1" },
+              { "ms": 200, "value": "cdn/2" },
+              { "ms": 100, "value": "cdn/3" },
+              { "ms": 400, "value": "cdn/4" },
+              { "ms": 100, "value": "cdn/5" }
+            ]
+          },
+          "expected": {
+            "outcome": "resolved",
+            "at": 700,
+            "value": ["cdn/0", "cdn/1", "cdn/2", "cdn/3", "cdn/4", "cdn/5"],
+            "maxInFlight": 2,
+            "startedAt": [0, 0, 100, 300, 300, 400]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Limit larger than the list: everything starts at once, order is still the input order",
+          "input": {
+            "limit": 10,
+            "tasks": [
+              { "ms": 300, "value": "cdn/0" },
+              { "ms": 200, "value": "cdn/1" },
+              { "ms": 100, "value": "cdn/2" }
+            ]
+          },
+          "expected": {
+            "outcome": "resolved",
+            "at": 300,
+            "value": ["cdn/0", "cdn/1", "cdn/2"],
+            "maxInFlight": 3,
+            "startedAt": [0, 0, 0]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Fail fast: the first error rejects and no further uploads start",
+          "input": {
+            "limit": 2,
+            "tasks": [
+              { "ms": 200, "value": "cdn/0" },
+              { "ms": 100, "error": "HTTP 429" },
+              { "ms": 100, "value": "cdn/2" },
+              { "ms": 100, "value": "cdn/3" },
+              { "ms": 100, "value": "cdn/4" }
+            ]
+          },
+          "expected": {
+            "outcome": "rejected",
+            "at": 100,
+            "error": "HTTP 429",
+            "maxInFlight": 2,
+            "startedAt": [0, 0, null, null, null]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Collect mode: every item gets an outcome, a synchronous throw included",
+          "input": {
+            "limit": 2,
+            "stopOnError": false,
+            "tasks": [
+              { "ms": 100, "value": "cdn/0" },
+              { "ms": 50, "error": "HTTP 413" },
+              { "throws": "invalid file name" },
+              { "ms": 100, "value": "cdn/3" },
+              { "ms": 50, "error": "HTTP 503" }
+            ]
+          },
+          "expected": {
+            "outcome": "resolved",
+            "at": 150,
+            "value": [
+              { "status": "fulfilled", "value": "cdn/0" },
+              { "status": "rejected", "reason": "HTTP 413" },
+              { "status": "rejected", "reason": "invalid file name" },
+              { "status": "fulfilled", "value": "cdn/3" },
+              { "status": "rejected", "reason": "HTTP 503" }
+            ],
+            "maxInFlight": 2,
+            "startedAt": [0, 0, 50, 50, 100]
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "An empty selection resolves immediately with []",
+          "input": { "limit": 3, "tasks": [] },
+          "expected": {
+            "outcome": "resolved",
+            "at": 0,
+            "value": [],
+            "maxInFlight": 0,
+            "startedAt": []
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

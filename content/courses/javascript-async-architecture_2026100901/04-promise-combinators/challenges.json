@@ -1,0 +1,177 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_201",
+      "name": "promise-combinators-dashboard-quiz",
+      "type": "quiz",
+      "title": "What does the dashboard do when one service fails?",
+      "description": "Predict how Promise.all and its siblings behave on the account dashboard before you read on.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The dashboard runs:\n\nconst [profile, loyalty, activity, offers] = await Promise.all([\n  getProfile(),   // resolves after 120 ms\n  getLoyalty(),   // resolves after 300 ms\n  getActivity(),  // resolves after 450 ms\n  getOffers(),    // rejects with HTTP 500 after 80 ms\n]);\n\nWhat happens?",
+          "explanation": "Promise.all rejects with the first rejection it sees - here the offers error at 80 ms - and the await throws. The other three requests are not cancelled: promises are not cancellable, so the fetches keep running and their results are simply discarded. The dashboard throws away three good responses because of one optional widget.",
+          "options": [
+            { "text": "At 80 ms the await throws the offers error. The other three requests keep running, but their results are discarded.", "correct": true },
+            { "text": "At 80 ms the await throws, and Promise.all cancels the three requests that are still running.", "correct": false },
+            { "text": "At 450 ms the await resolves with offers set to undefined.", "correct": false },
+            { "text": "At 450 ms the await throws an AggregateError that contains only the offers error.", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Static assets are served from three CDN mirrors. You want the first mirror that answers SUCCESSFULLY and want to ignore mirrors that fail. One mirror is down and rejects after 5 ms; the others answer after 40 ms and 70 ms. Which call gives you the 40 ms response?",
+          "explanation": "Promise.any resolves with the first fulfilled promise and only rejects - with an AggregateError holding every reason - when all of them fail. Promise.race settles with whichever promise settles first, success or failure, so it would reject at 5 ms with the dead mirror's error. Promise.all would also reject at 5 ms, and Promise.allSettled waits for all three (70 ms) and never picks a winner for you.",
+          "options": [
+            { "text": "Promise.race([a, b, c])", "correct": false },
+            { "text": "Promise.any([a, b, c])", "correct": true },
+            { "text": "Promise.all([a, b, c])", "correct": false },
+            { "text": "Promise.allSettled([a, b, c])", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_js_212",
+      "name": "load-dashboard-required-optional-timeouts",
+      "type": "mini_coding",
+      "title": "Load the dashboard: required vs optional sources with timeouts",
+      "description": "Write loadDashboard(sources, timers). All sources load in parallel; each can have its own timeout. A failed or timed-out optional source falls back and is reported in errors, a failed required source rejects the dashboard immediately, and no timer outlives a resolved dashboard. The tests replay every source on a fake clock and compare when and how the dashboard settles.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "loadDashboard.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "All four services healthy: the dashboard renders when the slowest one answers",
+          "input": {
+            "sources": [
+              { "name": "profile", "required": true, "timeoutMs": 2000, "after": 120, "value": { "name": "Lan", "tier": "gold" } },
+              { "name": "loyalty", "timeoutMs": 2000, "fallback": { "points": null }, "after": 300, "value": { "points": 1840 } },
+              { "name": "activity", "timeoutMs": 2000, "after": 450, "value": ["login", "transfer"] },
+              { "name": "offers", "timeoutMs": 2000, "fallback": [], "after": 200, "value": ["2x points weekend"] }
+            ]
+          },
+          "expected": {
+            "outcome": "resolved",
+            "at": 450,
+            "data": {
+              "profile": { "name": "Lan", "tier": "gold" },
+              "loyalty": { "points": 1840 },
+              "activity": ["login", "transfer"],
+              "offers": ["2x points weekend"]
+            },
+            "errors": {},
+            "pendingTimers": 0
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Offers returns HTTP 500: the dashboard still renders, with the fallback",
+          "input": {
+            "sources": [
+              { "name": "profile", "required": true, "timeoutMs": 2000, "after": 120, "value": { "name": "Lan", "tier": "gold" } },
+              { "name": "loyalty", "timeoutMs": 2000, "fallback": { "points": null }, "after": 300, "value": { "points": 1840 } },
+              { "name": "activity", "timeoutMs": 2000, "after": 450, "value": ["login", "transfer"] },
+              { "name": "offers", "timeoutMs": 2000, "fallback": [], "after": 80, "error": "HTTP 500" }
+            ]
+          },
+          "expected": {
+            "outcome": "resolved",
+            "at": 450,
+            "data": {
+              "profile": { "name": "Lan", "tier": "gold" },
+              "loyalty": { "points": 1840 },
+              "activity": ["login", "transfer"],
+              "offers": []
+            },
+            "errors": { "offers": "HTTP 500" },
+            "pendingTimers": 0
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A 9-second activity feed is cut off at its 1.5 s timeout",
+          "input": {
+            "sources": [
+              { "name": "profile", "required": true, "timeoutMs": 2000, "after": 120, "value": { "name": "Lan", "tier": "gold" } },
+              { "name": "loyalty", "timeoutMs": 2000, "fallback": { "points": null }, "after": 300, "value": { "points": 1840 } },
+              { "name": "activity", "timeoutMs": 1500, "after": 9000, "value": ["login", "transfer"] },
+              { "name": "offers", "timeoutMs": 2000, "fallback": [], "after": 200, "value": ["2x points weekend"] }
+            ]
+          },
+          "expected": {
+            "outcome": "resolved",
+            "at": 1500,
+            "data": {
+              "profile": { "name": "Lan", "tier": "gold" },
+              "loyalty": { "points": 1840 },
+              "activity": null,
+              "offers": ["2x points weekend"]
+            },
+            "errors": { "activity": "timeout" },
+            "pendingTimers": 0
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A failed required source rejects at once, without waiting for slow optional ones",
+          "input": {
+            "sources": [
+              { "name": "profile", "required": true, "timeoutMs": 2000, "after": 250, "error": "HTTP 503" },
+              { "name": "loyalty", "timeoutMs": 2000, "fallback": { "points": null }, "after": 300, "value": { "points": 1840 } },
+              { "name": "activity", "timeoutMs": 3000, "after": 1800, "value": ["login", "transfer"] },
+              { "name": "offers", "timeoutMs": 2000, "fallback": [], "after": 200, "value": ["2x points weekend"] }
+            ]
+          },
+          "expected": {
+            "outcome": "rejected",
+            "at": 250,
+            "error": "profile: HTTP 503"
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "A broken optional client and a hung request: both fall back, timers are cleaned up",
+          "input": {
+            "sources": [
+              { "name": "profile", "required": true, "timeoutMs": 2000, "after": 100, "value": { "name": "Lan", "tier": "gold" } },
+              { "name": "loyalty", "timeoutMs": 2000, "fallback": { "points": null }, "throws": "loyalty client not initialised" },
+              { "name": "activity", "timeoutMs": 2000, "after": 300, "value": ["login"] },
+              { "name": "offers", "timeoutMs": 800, "fallback": [], "never": true }
+            ]
+          },
+          "expected": {
+            "outcome": "resolved",
+            "at": 800,
+            "data": {
+              "profile": { "name": "Lan", "tier": "gold" },
+              "loyalty": { "points": null },
+              "activity": ["login"],
+              "offers": []
+            },
+            "errors": { "loyalty": "loyalty client not initialised", "offers": "timeout" },
+            "pendingTimers": 0
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

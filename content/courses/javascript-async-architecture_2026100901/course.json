@@ -1,7 +1,7 @@
 {
   "publicId": "javascript-async-architecture_2026100901",
   "existing": true,
-  "update": { "durationMinutes": 345 },
+  "update": { "durationMinutes": 452 },
   "title": "JavaScript: Asynchronous Architecture & Production Patterns",
   "language": "JavaScript",
   "category": "Web Development",
@@ -10,27 +10,27 @@
       "orderIndex": 1,
       "title": "Event Loop, Microtasks & Macrotasks",
       "lessons": [
-        { "orderIndex": 1, "existing": true, "title": "Call Stack, Web APIs & Execution Order", "sanityId": "lesson-js-1-1" },
-        { "orderIndex": 2, "existing": true, "title": "Resolving Event Loop Blocking & UI Freeze", "sanityId": "lesson-js-1-2" },
-        { "orderIndex": 3, "existing": true, "title": "Building a Cancellable Sleep Utility", "sanityId": "lesson-js-1-3" }
+        { "orderIndex": 1, "folder": "01-event-loop-execution-order", "title": "Call stack, task queues & execution order", "sanityId": "lesson-js-1-1" },
+        { "orderIndex": 2, "folder": "02-event-loop-blocking-ui-freeze", "title": "Event loop blocking: finding and breaking up long tasks", "sanityId": "lesson-js-1-2" },
+        { "orderIndex": 3, "folder": "03-cancellable-sleep", "title": "Cancellable sleep: timers that stop with AbortSignal", "sanityId": "lesson-js-1-3" }
       ]
     },
     {
       "orderIndex": 2,
       "title": "Promises in Depth & Concurrency Control",
       "lessons": [
-        { "orderIndex": 1, "existing": true, "title": "Promise Combinators in Practice", "sanityId": "lesson-js-2-1" },
-        { "orderIndex": 2, "existing": true, "title": "Eliminating Unhandled Rejections & Leaks", "sanityId": "lesson-js-2-2" },
-        { "orderIndex": 3, "existing": true, "title": "Building a Concurrency Limiter (Worker Pool)", "sanityId": "lesson-js-2-3" }
+        { "orderIndex": 1, "folder": "04-promise-combinators", "title": "Promise combinators in practice", "sanityId": "lesson-js-2-1" },
+        { "orderIndex": 2, "folder": "05-unhandled-rejections", "title": "Eliminating unhandled rejections & leaks", "sanityId": "lesson-js-2-2" },
+        { "orderIndex": 3, "folder": "06-concurrency-limiter", "title": "Building a concurrency limiter (worker pool)", "sanityId": "lesson-js-2-3" }
       ]
     },
     {
       "orderIndex": 3,
       "title": "Async/Await, Error Recovery & Retry Strategy",
       "lessons": [
-        { "orderIndex": 1, "existing": true, "title": "Async/Await Pitfalls & Return Patterns", "sanityId": "lesson-js-3-1" },
-        { "orderIndex": 2, "existing": true, "title": "Fixing Search Race Conditions with AbortController", "sanityId": "lesson-js-3-2" },
-        { "orderIndex": 3, "existing": true, "title": "Exponential Backoff & Jitter Retry Engine", "sanityId": "lesson-js-3-3" }
+        { "orderIndex": 1, "folder": "07-async-await-pitfalls", "title": "Async/await pitfalls & return patterns", "sanityId": "lesson-js-3-1" },
+        { "orderIndex": 2, "folder": "08-search-race-abortcontroller", "title": "Search race conditions & AbortController", "sanityId": "lesson-js-3-2" },
+        { "orderIndex": 3, "folder": "09-backoff-jitter-retry", "title": "Exponential backoff, jitter & a retry engine", "sanityId": "lesson-js-3-3" }
       ]
     },
     {

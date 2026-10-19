@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Two overlapping searches, answered out of order</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The user types "reac", then "react" 150 ms later. "reac" takes 900 ms, "react" takes 200 ms.</text>
+
+  <!-- Without cancellation -->
+  <text x="40" y="128" font-size="18" font-weight="700" fill="#b91c1c">Without cancellation</text>
+
+  <text x="40" y="168" font-size="14" fill="#334155">GET ?q=reac</text>
+  <line x1="250" y1="163" x2="1150" y2="163" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="6 6"/>
+  <rect x="260" y="151" width="765" height="24" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+  <text x="642" y="168" font-size="13" text-anchor="middle" fill="#475569">900 ms - big result set, slow</text>
+
+  <text x="40" y="208" font-size="14" fill="#334155">GET ?q=react</text>
+  <line x1="250" y1="203" x2="1150" y2="203" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="6 6"/>
+  <rect x="388" y="191" width="170" height="24" rx="6" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="473" y="208" font-size="13" text-anchor="middle" fill="#0e7490">200 ms</text>
+
+  <text x="40" y="258" font-size="14" font-weight="700" fill="#334155">Screen</text>
+  <text x="40" y="276" font-size="12" fill="#64748b">input says "react"</text>
+  <line x1="250" y1="258" x2="1150" y2="258" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="6 6"/>
+  <rect x="558" y="244" width="467" height="28" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="791" y="263" font-size="13" font-weight="700" text-anchor="middle" fill="#166534">results for "react"</text>
+  <rect x="1025" y="244" width="125" height="28" rx="6" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="1087" y="263" font-size="13" font-weight="700" text-anchor="middle" fill="#991b1b">"reac" (stale)</text>
+  <line x1="1025" y1="175" x2="1025" y2="242" stroke="#dc2626" stroke-width="2" stroke-dasharray="4 4"/>
+  <line x1="558" y1="215" x2="558" y2="242" stroke="#16a34a" stroke-width="2" stroke-dasharray="4 4"/>
+  <text x="1025" y="296" font-size="12" text-anchor="middle" fill="#991b1b">last response wins</text>
+
+  <!-- Latest request wins -->
+  <text x="40" y="350" font-size="18" font-weight="700" fill="#15803d">Latest request wins</text>
+
+  <text x="40" y="390" font-size="14" fill="#334155">GET ?q=reac</text>
+  <line x1="250" y1="385" x2="1150" y2="385" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="6 6"/>
+  <rect x="260" y="373" width="128" height="24" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="388" y="373" width="637" height="24" rx="6" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="6 5"/>
+  <text x="706" y="390" font-size="13" text-anchor="middle" fill="#94a3b8">never downloaded - connection closed</text>
+  <circle cx="388" cy="385" r="11" fill="#7c3aed"/>
+  <path d="M382 379 L394 391 M394 379 L382 391" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+  <text x="388" y="364" font-size="12" font-weight="700" text-anchor="middle" fill="#6d28d9">abort()</text>
+
+  <text x="40" y="430" font-size="14" fill="#334155">GET ?q=react</text>
+  <line x1="250" y1="425" x2="1150" y2="425" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="6 6"/>
+  <rect x="388" y="413" width="170" height="24" rx="6" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="473" y="430" font-size="13" text-anchor="middle" fill="#0e7490">200 ms, signal</text>
+
+  <text x="40" y="480" font-size="14" font-weight="700" fill="#334155">Screen</text>
+  <text x="40" y="498" font-size="12" fill="#64748b">input says "react"</text>
+  <line x1="250" y1="480" x2="1150" y2="480" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="6 6"/>
+  <rect x="558" y="466" width="592" height="28" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="854" y="485" font-size="13" font-weight="700" text-anchor="middle" fill="#166534">results for "react" - and they stay</text>
+  <line x1="558" y1="437" x2="558" y2="464" stroke="#16a34a" stroke-width="2" stroke-dasharray="4 4"/>
+  <text x="388" y="518" font-size="12" text-anchor="middle" fill="#6d28d9">AbortError: ignored, not shown</text>
+
+  <!-- time axis -->
+  <line x1="260" y1="550" x2="1150" y2="550" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="1150,544 1162,550 1150,556" fill="#94a3b8"/>
+  <line x1="260" y1="545" x2="260" y2="555" stroke="#94a3b8" stroke-width="2"/>
+  <text x="260" y="575" font-size="13" text-anchor="middle" fill="#64748b">0 ms</text>
+  <line x1="388" y1="545" x2="388" y2="555" stroke="#94a3b8" stroke-width="2"/>
+  <text x="388" y="575" font-size="13" text-anchor="middle" fill="#64748b">150</text>
+  <line x1="558" y1="545" x2="558" y2="555" stroke="#94a3b8" stroke-width="2"/>
+  <text x="558" y="575" font-size="13" text-anchor="middle" fill="#64748b">350</text>
+  <line x1="685" y1="545" x2="685" y2="555" stroke="#94a3b8" stroke-width="2"/>
+  <text x="685" y="575" font-size="13" text-anchor="middle" fill="#64748b">500</text>
+  <line x1="1025" y1="545" x2="1025" y2="555" stroke="#94a3b8" stroke-width="2"/>
+  <text x="1025" y="575" font-size="13" text-anchor="middle" fill="#64748b">900 ms</text>
+</svg>

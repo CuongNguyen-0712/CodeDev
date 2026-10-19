@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_202",
+      "key": "challenges/javascript/chal_fix_202/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "placeOrder.js",
+      "size": 2165
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_fix_202",
+      "key": "challenges/javascript/chal_fix_202/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 4492
+    }
+  ]
+}

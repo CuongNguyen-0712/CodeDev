@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_203",
+      "key": "challenges/javascript/chal_coding_203/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "mapWithConcurrency.js",
+      "size": 1741
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_coding_203",
+      "key": "challenges/javascript/chal_coding_203/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 2964
+    }
+  ]
+}

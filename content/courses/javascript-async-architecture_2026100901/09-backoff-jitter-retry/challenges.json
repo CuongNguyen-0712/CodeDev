@@ -1,0 +1,129 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_js_331",
+      "name": "thundering-herd-retry-quiz",
+      "type": "quiz",
+      "title": "What does the gateway see when it comes back?",
+      "description": "Thousands of checkout tabs retry the same failed request. Predict the load on the recovering gateway, then decide which errors deserve a retry at all.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "120,000 open checkout tabs call confirmPayment() at roughly the same moment, 10:02:00, and the gateway answers 503 to all of them for 40 seconds. Each tab runs the retry loop above (wait 1000 ms after every failure, retry forever). What does the gateway receive when it starts up again?",
+          "explanation": "The clients failed together, and they all wait exactly the same time, so they retry together: the gateway sees about 120,000 requests in the same few milliseconds, every second. A server that is warming up its connection pools and caches cannot absorb that wave, fails again, and the next wave arrives one second later. Fixed delays keep the herd in formation; only randomness (jitter) spreads it out. Exponential backoff alone would make the waves rarer but just as tall.",
+          "options": [
+            { "text": "A smooth 120,000 requests per second, because network latency naturally spreads the clients out.", "correct": false },
+            { "text": "Synchronised waves of about 120,000 requests every second, which can knock it over again as soon as it recovers.", "correct": true },
+            { "text": "Almost nothing: browsers limit retries of failed requests to one per origin.", "correct": false },
+            { "text": "A single burst of 120,000 requests, after which every tab succeeds.", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "The checkout gets these failures from POST /orders/:id/confirm (which uses an idempotency key). Which should the client retry automatically? (Select all that apply.)",
+          "explanation": "Retry failures that describe the state of the server or the network: a 503 (try again later), a 429 once the Retry-After delay has passed, and a network failure, where fetch rejects with a TypeError before any response arrives. A 402 card decline is a final answer about this request - retrying it changes nothing and repeated declines look like card testing to the issuer. An AbortError means the user cancelled; retrying it would ignore their decision.",
+          "options": [
+            { "text": "503 Service Unavailable", "correct": true },
+            { "text": "429 Too Many Requests with Retry-After: 3 - after waiting 3 seconds", "correct": true },
+            { "text": "fetch rejected with TypeError: Failed to fetch", "correct": true },
+            { "text": "402 Payment Required: card declined", "correct": false },
+            { "text": "AbortError, because the user pressed Cancel", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_303",
+      "name": "retry-engine-backoff-jitter-abort",
+      "type": "mini_coding",
+      "title": "Build a retry engine with backoff, jitter and cancellation",
+      "description": "Write retry(fn, options): call fn until it succeeds, retry only transient errors, wait with capped exponential backoff and full jitter (or Retry-After when the server sends it), give up after maxAttempts with the original error, and stop immediately - with no timer left behind - when the AbortSignal fires. Randomness and timers are injected, so the tests check every delay exactly.",
+      "difficulty": "hard",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "retry.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Honours Retry-After, then backs off with full jitter",
+          "input": {
+            "options": { "baseMs": 100 },
+            "random": [0.5],
+            "outcomes": [
+              { "error": { "status": 429, "retryAfterMs": 2000 } },
+              { "error": { "status": 503 } },
+              { "value": "confirmed" }
+            ]
+          },
+          "expected": { "outcome": "resolved:confirmed", "calls": [0, 2000, 2100], "settledAt": 2100, "timersLeft": 0 },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A declined card is never retried",
+          "input": {
+            "random": [0.5],
+            "outcomes": [
+              { "error": { "status": 402, "message": "Card declined" } },
+              { "value": "confirmed" }
+            ]
+          },
+          "expected": { "outcome": "rejected:Error:Card declined", "calls": [0], "settledAt": 0, "timersLeft": 0 },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Delays grow exponentially, stop at the cap, and the engine gives up after maxAttempts",
+          "input": {
+            "options": { "maxAttempts": 5, "baseMs": 1000, "maxDelayMs": 4000 },
+            "random": [0.5],
+            "outcomes": [{ "error": { "network": true } }]
+          },
+          "expected": { "outcome": "rejected:TypeError:Failed to fetch", "calls": [0, 500, 1500, 3500, 5500], "settledAt": 5500, "timersLeft": 0 },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Cancel during the backoff stops at once and leaves no timer",
+          "input": {
+            "options": { "baseMs": 1000 },
+            "random": [0.5],
+            "abortAt": 300,
+            "outcomes": [
+              { "error": { "status": 503 } },
+              { "value": "confirmed" }
+            ]
+          },
+          "expected": { "outcome": "rejected:AbortError:Checkout cancelled", "calls": [0], "settledAt": 300, "timersLeft": 0 },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Cancel during a slow attempt aborts the attempt itself",
+          "input": {
+            "options": { "baseMs": 100 },
+            "random": [0.5],
+            "abortAt": 400,
+            "outcomes": [
+              { "error": { "status": 503 } },
+              { "latencyMs": 2000, "value": "confirmed" }
+            ]
+          },
+          "expected": { "outcome": "rejected:AbortError:Checkout cancelled", "calls": [0, 50], "settledAt": 400, "timersLeft": 0 },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

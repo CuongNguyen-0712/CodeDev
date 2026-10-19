@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">500,000 log entries, three ways to run them</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The browser handles input and paints only between tasks - or all the time, if the work is on another thread.</text>
+  <text x="40" y="170" font-size="18" font-weight="700" fill="#b91c1c">One loop</text>
+  <text x="40" y="192" font-size="13" fill="#64748b">main thread</text>
+  <rect x="220" y="150" width="787.5" height="50" rx="6" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="613.8" y="181" font-size="15" text-anchor="middle" fill="#b91c1c">auditLogs(): one 7,000 ms long task - no input, no paint</text>
+  <rect x="1007.5" y="150" width="12" height="50" rx="4" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <rect x="1019.5" y="150" width="9" height="50" rx="4" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="332.5" y="126" font-size="13" font-weight="700" text-anchor="middle" fill="#7c3aed">Cancel click</text>
+  <line x1="332.5" y1="132" x2="332.5" y2="144" stroke="#7c3aed" stroke-width="2"/>
+  <polygon points="327.5,140 337.5,140 332.5,148" fill="#7c3aed"/>
+  <path d="M332.5 214 L332.5 222 L1019.5 222 L1019.5 214" fill="none" stroke="#b91c1c" stroke-width="2"/>
+  <text x="676.0" y="242" font-size="14" font-weight="700" text-anchor="middle" fill="#b91c1c">the click waits 6 seconds; the progress bar jumps from 0% to 100%</text>
+  <text x="40" y="300" font-size="18" font-weight="700" fill="#0e7490">Chunks + yield</text>
+  <text x="40" y="322" font-size="13" fill="#64748b">1,000 entries per task</text>
+  <rect x="220.0" y="280" width="34.6" height="50" rx="4" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <rect x="256.6" y="292" width="3" height="26" fill="#16a34a"/>
+  <rect x="261.6" y="280" width="34.6" height="50" rx="4" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <rect x="298.3" y="292" width="3" height="26" fill="#16a34a"/>
+  <rect x="303.3" y="280" width="34.6" height="50" rx="4" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <rect x="339.9" y="292" width="3" height="26" fill="#16a34a"/>
+  <rect x="344.9" y="280" width="34.6" height="50" rx="4" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <rect x="381.5" y="292" width="3" height="26" fill="#16a34a"/>
+  <rect x="386.5" y="280" width="34.6" height="50" rx="4" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <rect x="423.1" y="292" width="3" height="26" fill="#16a34a"/>
+  <rect x="428.1" y="280" width="34.6" height="50" rx="4" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <rect x="464.8" y="292" width="3" height="26" fill="#16a34a"/>
+  <rect x="469.8" y="280" width="34.6" height="50" rx="4" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <rect x="506.4" y="292" width="3" height="26" fill="#16a34a"/>
+  <rect x="511.4" y="280" width="34.6" height="50" rx="4" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <rect x="548.0" y="292" width="3" height="26" fill="#16a34a"/>
+  <rect x="553.0" y="280" width="34.6" height="50" rx="4" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <rect x="589.6" y="292" width="3" height="26" fill="#16a34a"/>
+  <rect x="594.6" y="280" width="34.6" height="50" rx="4" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <rect x="631.3" y="292" width="3" height="26" fill="#16a34a"/>
+  <rect x="636.3" y="280" width="34.6" height="50" rx="4" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <rect x="672.9" y="292" width="3" height="26" fill="#16a34a"/>
+  <rect x="677.9" y="280" width="34.6" height="50" rx="4" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <rect x="714.5" y="292" width="3" height="26" fill="#16a34a"/>
+  <rect x="719.5" y="280" width="34.6" height="50" rx="4" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <rect x="756.1" y="292" width="3" height="26" fill="#16a34a"/>
+  <rect x="761.1" y="280" width="34.6" height="50" rx="4" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <rect x="797.8" y="292" width="3" height="26" fill="#16a34a"/>
+  <rect x="802.8" y="280" width="34.6" height="50" rx="4" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <rect x="839.4" y="292" width="3" height="26" fill="#16a34a"/>
+  <rect x="844.4" y="280" width="34.6" height="50" rx="4" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <rect x="881.0" y="292" width="3" height="26" fill="#16a34a"/>
+  <rect x="886.0" y="280" width="34.6" height="50" rx="4" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <rect x="922.6" y="292" width="3" height="26" fill="#16a34a"/>
+  <rect x="927.6" y="280" width="34.6" height="50" rx="4" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <rect x="964.3" y="292" width="3" height="26" fill="#16a34a"/>
+  <rect x="969.3" y="280" width="34.6" height="50" rx="4" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <rect x="1005.9" y="292" width="3" height="26" fill="#16a34a"/>
+  <rect x="1010.9" y="280" width="34.6" height="50" rx="4" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <rect x="1047.5" y="292" width="3" height="26" fill="#16a34a"/>
+  <text x="332.5" y="256" font-size="13" font-weight="700" text-anchor="middle" fill="#7c3aed">Cancel click</text>
+  <line x1="332.5" y1="262" x2="332.5" y2="274" stroke="#7c3aed" stroke-width="2"/>
+  <polygon points="327.5,270 337.5,270 332.5,278" fill="#7c3aed"/>
+  <rect x="338.9" y="280" width="5" height="50" fill="#7c3aed"/>
+  <path d="M332.5 344 L332.5 352 L343.9 352 L343.9 344" fill="none" stroke="#15803d" stroke-width="2"/>
+  <text x="362.5" y="372" font-size="14" font-weight="700" fill="#15803d">handled within one chunk; the bar moves every chunk; ~5% slower overall</text>
+  <text x="40" y="424" font-size="18" font-weight="700" fill="#b45309">Web Worker</text>
+  <text x="40" y="446" font-size="13" fill="#64748b">main thread / worker thread</text>
+  <line x1="220" y1="425" x2="1150" y2="425" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="6 6"/>
+  <rect x="276.3" y="413" width="3" height="24" fill="#16a34a"/>
+  <rect x="332.5" y="413" width="3" height="24" fill="#16a34a"/>
+  <rect x="388.8" y="413" width="3" height="24" fill="#16a34a"/>
+  <rect x="445" y="413" width="3" height="24" fill="#16a34a"/>
+  <rect x="501.3" y="413" width="3" height="24" fill="#16a34a"/>
+  <rect x="557.5" y="413" width="3" height="24" fill="#16a34a"/>
+  <rect x="613.8" y="413" width="3" height="24" fill="#16a34a"/>
+  <rect x="670" y="413" width="3" height="24" fill="#16a34a"/>
+  <rect x="726.3" y="413" width="3" height="24" fill="#16a34a"/>
+  <rect x="782.5" y="413" width="3" height="24" fill="#16a34a"/>
+  <rect x="838.8" y="413" width="3" height="24" fill="#16a34a"/>
+  <rect x="895" y="413" width="3" height="24" fill="#16a34a"/>
+  <rect x="951.3" y="413" width="3" height="24" fill="#16a34a"/>
+  <rect x="1007.5" y="413" width="3" height="24" fill="#16a34a"/>
+  <rect x="332.5" y="410" width="6" height="30" fill="#7c3aed"/>
+  <rect x="220" y="455" width="798.8" height="40" rx="6" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="619.4" y="481" font-size="15" text-anchor="middle" fill="#b45309">worker: parse + tally 500,000 entries, posts progress and the summary</text>
+  <rect x="1018.8" y="410" width="10" height="30" rx="3" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="1034.8" y="430" font-size="12" fill="#0e7490">render summary</text>
+  <line x1="220" y1="524" x2="1150" y2="524" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="1150,518 1162,524 1150,530" fill="#94a3b8"/>
+  <line x1="220" y1="519" x2="220" y2="529" stroke="#94a3b8" stroke-width="2"/>
+  <text x="220" y="548" font-size="13" text-anchor="middle" fill="#64748b">0 s</text>
+  <line x1="445" y1="519" x2="445" y2="529" stroke="#94a3b8" stroke-width="2"/>
+  <text x="445" y="548" font-size="13" text-anchor="middle" fill="#64748b">2 s</text>
+  <line x1="670" y1="519" x2="670" y2="529" stroke="#94a3b8" stroke-width="2"/>
+  <text x="670" y="548" font-size="13" text-anchor="middle" fill="#64748b">4 s</text>
+  <line x1="895" y1="519" x2="895" y2="529" stroke="#94a3b8" stroke-width="2"/>
+  <text x="895" y="548" font-size="13" text-anchor="middle" fill="#64748b">6 s</text>
+  <line x1="1120" y1="519" x2="1120" y2="529" stroke="#94a3b8" stroke-width="2"/>
+  <text x="1120" y="548" font-size="13" text-anchor="middle" fill="#64748b">8 s</text>
+  <rect x="220" y="568" width="22" height="16" rx="3" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="252" y="582" font-size="14" fill="#334155">long task</text>
+  <rect x="410" y="568" width="22" height="16" rx="3" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="442" y="582" font-size="14" fill="#334155">chunk (one task)</text>
+  <rect x="600" y="568" width="22" height="16" rx="3" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="632" y="582" font-size="14" fill="#334155">click handler</text>
+  <rect x="790" y="568" width="22" height="16" rx="3" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="822" y="582" font-size="14" fill="#334155">paint (frame)</text>
+  <rect x="980" y="568" width="22" height="16" rx="3" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="1012" y="582" font-size="14" fill="#334155">worker thread</text>
+</svg>

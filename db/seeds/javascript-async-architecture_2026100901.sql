@@ -23,7 +23,7 @@ DO $$ BEGIN
         RAISE EXCEPTION 'course javascript-async-architecture_2026100901 does not exist';
     END IF;
 END $$;
-UPDATE catalog.course SET duration = 345, updated_at = now() WHERE public_id = 'javascript-async-architecture_2026100901';
+UPDATE catalog.course SET duration = 452, updated_at = now() WHERE public_id = 'javascript-async-architecture_2026100901';
 
 -- module 1: Event Loop, Microtasks & Macrotasks
 UPDATE course.module SET title = 'Event Loop, Microtasks & Macrotasks', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 1 AND is_deleted = false LIMIT 1);
@@ -31,11 +31,263 @@ INSERT INTO course.module (course_id, title, order_index)
 SELECT (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), 'Event Loop, Microtasks & Macrotasks', 1
 WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 1 AND is_deleted = false);
 
--- lesson 1.1: Call Stack, Web APIs & Execution Order (existing, Sanity lesson-js-1-1)
+-- lesson 1.1: Call stack, task queues & execution order (Sanity lesson-js-1-1)
+UPDATE course.lesson SET title = 'Call stack, task queues & execution order', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-1-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 1 AND is_deleted = false LIMIT 1), 'Call stack, task queues & execution order', 'sanity', 'lesson-js-1-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-js-1-1' AND is_deleted = false);
 
--- lesson 1.2: Resolving Event Loop Blocking & UI Freeze (existing, Sanity lesson-js-1-2)
+-- challenge chal_quiz_101 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_101', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-1-1' AND is_deleted = false LIMIT 1), 'execution-order-quiz', 'Predict the order before you read on', 'One click handler mixes synchronous code, a timer, promise callbacks and an async function. Predict what is logged and why the success modal shows a stale balance.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_101'), 'This runs inside a click handler:
 
--- lesson 1.3: Building a Cancellable Sleep Utility (existing, Sanity lesson-js-1-3)
+console.log(''1 handler start'');
+setTimeout(() => console.log(''2 timeout''), 0);
+Promise.resolve().then(() => console.log(''3 then''));
+queueMicrotask(() => console.log(''4 microtask''));
+(async () => {
+  console.log(''5 async body'');
+  await null;
+  console.log(''6 after await'');
+})();
+console.log(''7 handler end'');
+
+In which order are the lines logged?', 'single_choice'::question_type, 'Synchronous code runs to completion first, and an async function runs synchronously until its first await: 1, 5, 7. When the handler''s task finishes, the microtask checkpoint drains the whole microtask queue in FIFO order: the then callback (3), the queueMicrotask callback (4) and the continuation after await (6), which was queued third. Only then can the event loop pick the next task, the timer (2). setTimeout(fn, 0) means "in a later task", never "right after this line".', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_101') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('1, 5, 7, 3, 4, 6, 2', true),
+        ('1, 7, 5, 3, 4, 6, 2', false),
+        ('1, 5, 7, 2, 3, 4, 6', false),
+        ('1, 5, 6, 7, 3, 4, 2', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_101'), 'The wallet store defers rendering: subscribe(state => setTimeout(() => renderBalance(state.balance), 0)). After a top-up, confirmTopUp() runs store.set({ balance: 250 }), then await track(''topup_success'') (an already-resolved promise), then showModal(`New balance: ${balanceEl.textContent}`). The modal says "New balance: $0.00". Which statements are true? (Select all that apply.)', 'multiple_choice'::question_type, 'store.set() only schedules the render as a task. The await continuation is a microtask, and microtasks always run before the next task, so showModal reads the DOM before renderBalance has written it. Increasing the delay changes nothing about the order relative to a microtask, it just makes the gap longer. The robust fix is to remove the hidden ordering dependency: build the message from the state you just set (or render synchronously and then show the modal), instead of reading a DOM value that some other task is expected to have updated.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_101') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('The continuation after await runs in a microtask, before the setTimeout render task, so balanceEl still holds the old value.', true),
+        ('Changing the render delay from 0 to 50 ms makes the render run before the modal.', false),
+        ('Building the message from the new state (balance 250) instead of reading balanceEl removes the ordering dependency.', true),
+        ('Removing the await would fix it, because setTimeout(..., 0) runs as soon as the current line finishes.', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_js_112 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_js_112', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-1-1' AND is_deleted = false LIMIT 1), 'deterministic-event-loop-simulator', 'Build a deterministic event loop', 'Write createEventLoop(): a virtual clock with setTimeout/clearTimeout, a microtask queue and run(main, onError). After every task the microtask queue is drained completely (including microtasks queued by microtasks); timers run by due time, ties in scheduling order; an exception in one callback is reported and the loop carries on. The tests describe programs as data and compare the exact log, including the virtual time of every line.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_112'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_112');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_112'), 'The top-up incident: the modal (microtask) runs before the deferred render (task)', '{"main":[{"log":"store.set"},{"timeout":0,"do":[{"log":"renderBalance"}]},{"micro":[{"log":"showModal"}]},{"log":"handler end"}]}', '["store.set@0","handler end@0","showModal@0","renderBalance@0"]', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_112'), 'Microtasks queued by microtasks run before the next task', '{"main":[{"timeout":0,"do":[{"log":"T1"},{"micro":[{"log":"T1 micro"}]}]},{"timeout":0,"do":[{"log":"T2"}]},{"micro":[{"log":"M1"},{"micro":[{"log":"M2"},{"micro":[{"log":"M3"}]}]}]},{"log":"main"}]}', '["main@0","M1@0","M2@0","M3@0","T1@0","T1 micro@0","T2@0"]', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_112'), 'Timers run by due time, ties in scheduling order, and the clock jumps', '{"main":[{"timeout":50,"do":[{"log":"slow"}]},{"timeout":10,"do":[{"log":"fast"},{"timeout":0,"do":[{"log":"fast child"}]}]},{"timeout":10,"do":[{"log":"fast 2"}]},{"timeout":-5,"do":[{"log":"negative"}]}]}', '["negative@0","fast@10","fast 2@10","fast child@10","slow@50"]', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_112'), 'clearTimeout cancels a pending timer, even from a microtask', '{"main":[{"timeout":100,"id":"poll","do":[{"log":"poll"}]},{"timeout":5,"id":"tick","do":[{"log":"tick"},{"clear":"tick"},{"clear":"nope"}]},{"micro":[{"clear":"poll"}]},{"timeout":200,"do":[{"log":"late"}]}]}', '["tick@5","late@200"]', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_112'), 'An exception is reported and the loop carries on', '{"main":[{"log":"A"},{"micro":[{"throw":"micro-boom"},{"log":"never"}]},{"micro":[{"log":"after micro"}]},{"timeout":0,"do":[{"throw":"task-boom"}]},{"timeout":0,"do":[{"log":"next task"}]},{"throw":"main-boom"},{"log":"unreachable"}]}', '["A@0","error:main-boom@0","error:micro-boom@0","after micro@0","error:task-boom@0","next task@0"]', 6, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_js_112_starter', 's3', 'challenges/javascript/chal_coding_js_112/starter.js', 'raw', 'application/javascript', 2156, 'eventLoop.js')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_112'), 'javascript', 'eventLoop.js', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_js_112_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_js_112_harness', 's3', 'challenges/javascript/chal_coding_js_112/harness.js', 'raw', 'application/javascript', 1579, 'harness.js')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_112'), 'javascript', 'harness.js', 'harness', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_js_112_harness'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 1.2: Event loop blocking: finding and breaking up long tasks (Sanity lesson-js-1-2)
+UPDATE course.lesson SET title = 'Event loop blocking: finding and breaking up long tasks', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-1-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 1 AND is_deleted = false LIMIT 1), 'Event loop blocking: finding and breaking up long tasks', 'sanity', 'lesson-js-1-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-js-1-2' AND is_deleted = false);
+
+-- challenge chal_quiz_js_121 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_js_121', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-1-2' AND is_deleted = false LIMIT 1), 'does-async-unfreeze-quiz', 'Does async unfreeze the tab?', 'The audit tool freezes for 7 seconds. A teammate''s pull request adds async and await. Predict whether the page becomes responsive before you read on.', 'open', 'easy'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_121'), 'Auditing 500,000 log lines takes 7 s of synchronous work. The pull request changes the loop to:
+
+async function runAudit(lines) {
+  for (let i = 0; i < lines.length; i++) {
+    tally(parse(lines[i]));
+    if (i % 5000 === 0) {
+      progressBar.value = i / lines.length;
+      await Promise.resolve(); // "let the browser breathe"
+    }
+  }
+}
+
+What does the user see after clicking "Run audit"?', 'single_choice'::question_type, 'await Promise.resolve() pauses the function only until the next microtask checkpoint, and the checkpoint runs the continuation straight away. The browser renders and dispatches input only between tasks, and the whole loop - all 100 awaits included - is still one task. The progress bar value changes 100 times in memory but is painted once, at the end, and the Cancel click waits in the task queue until the audit is over. Marking a function async never moves work off the main thread.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_121') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('Clicks still wait for about 7 s, but the progress bar moves smoothly, because every write to progressBar.value is painted immediately.', false),
+        ('The progress bar moves every 5,000 lines and the Cancel button works, because every await returns control to the browser.', false),
+        ('The audit runs on a background thread now that the function is async, so the page stays fully responsive.', false),
+        ('The tab still freezes for about 7 s, the bar jumps from 0 to 100% at the end, and the Cancel click is processed only after the audit finishes.', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_121'), 'Which of these, awaited between two chunks, end the current task so that the browser can paint and handle input before the next chunk? (Select all that apply.)', 'multiple_choice'::question_type, 'A yield must schedule the continuation as a new task. setTimeout(resolve, 0), a MessageChannel message and scheduler.yield() all do that (scheduler.yield() is available in Chromium-based browsers and keeps the continuation ahead of other queued tasks). queueMicrotask and Promise.resolve() only queue microtasks, which run before the browser gets a chance to render or dispatch input, so the loop remains one long task.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_121') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('new Promise((resolve) => setTimeout(resolve, 0))', true),
+        ('new Promise((resolve) => queueMicrotask(resolve))', false),
+        ('A promise resolved from a MessageChannel port1.onmessage handler after port2.postMessage(null)', true),
+        ('scheduler.yield(), where the browser supports it', true)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_fix_102 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_fix_102', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-1-2' AND is_deleted = false LIMIT 1), 'fix-event-loop-freeze', 'Fix the chunked log audit', 'auditLogs() was split into chunks to stop the audit tool freezing, but the tab still locks up, the Cancel button only reacts at the end and the progress bar stops short of 100%. Fix the chunking so that every chunk runs in its own task, progress is reported after every chunk including a smaller last one, and the result is returned without an extra yield. Hint: what kind of queue does await Promise.resolve() use, and which progress call is missing when the entry count is not a multiple of chunkSize?', 'open', 'medium'::difficulty_question, 'fix_bug', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_102'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_102');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_102'), '5 entries in chunks of 2: keystrokes are handled between chunks', '{"chunkSize":2,"keystrokes":2,"entries":[["info",12],["error",340],["warn",88],["info",19],["error",1204]]}', '{"timeline":["progress 2/5","key","progress 4/5","key","progress 5/5","done"],"summary":{"total":5,"errors":2,"warnings":1,"slowestMs":1204}}', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_102'), 'Exact multiple of chunkSize: the result does not wait behind other tasks', '{"chunkSize":2,"keystrokes":3,"entries":[["warn",40],["info",7],["info",950],["error",61]]}', '{"timeline":["progress 2/4","key","progress 4/4","done","key","key"],"summary":{"total":4,"errors":1,"warnings":1,"slowestMs":950}}', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_102'), 'An empty file resolves at once', '{"chunkSize":1000,"keystrokes":1,"entries":[]}', '{"timeline":["done","key"],"summary":{"total":0,"errors":0,"warnings":0,"slowestMs":0}}', 4, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_102'), '10 entries in chunks of 4: the smaller last chunk still reaches 100%', '{"chunkSize":4,"keystrokes":5,"generate":{"count":10}}', '{"timeline":["progress 4/10","key","progress 8/10","key","progress 10/10","done","key","key","key"],"summary":{"total":10,"errors":1,"warnings":3,"slowestMs":333}}', 4, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_102'), 'A file smaller than one chunk: one progress call, no yield', '{"chunkSize":10,"keystrokes":1,"entries":[["info",5],["warn",15],["info",25]]}', '{"timeline":["progress 3/3","done","key"],"summary":{"total":3,"errors":0,"warnings":1,"slowestMs":25}}', 4, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_102_starter', 's3', 'challenges/javascript/chal_fix_102/starter.js', 'raw', 'application/javascript', 1804, 'auditLogs.js')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_102'), 'javascript', 'auditLogs.js', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_102_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_102_harness', 's3', 'challenges/javascript/chal_fix_102/harness.js', 'raw', 'application/javascript', 2065, 'harness.js')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_102'), 'javascript', 'harness.js', 'harness', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_102_harness'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 1.3: Cancellable sleep: timers that stop with AbortSignal (Sanity lesson-js-1-3)
+UPDATE course.lesson SET title = 'Cancellable sleep: timers that stop with AbortSignal', order_index = 3, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-1-3' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 1 AND is_deleted = false LIMIT 1), 'Cancellable sleep: timers that stop with AbortSignal', 'sanity', 'lesson-js-1-3', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-js-1-3' AND is_deleted = false);
+
+-- challenge chal_quiz_js_131 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_js_131', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-1-3' AND is_deleted = false LIMIT 1), 'polling-after-abort-quiz', 'What does abort() actually stop?', 'The order page polls the delivery status and calls controller.abort() when the user leaves. Predict what keeps running before you read on.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_131'), 'const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function pollOrderStatus(orderId, signal) {
+  while (!signal.aborted) {
+    const status = await fetchStatus(orderId); // ~300 ms
+    renderStatus(status);
+    if (status === ''delivered'') return;
+    await sleep(10000);
+  }
+}
+
+The user opens order #1 at t = 0. The first status is rendered at t = 0.3 s. At t = 2 s they open order #2, and the page calls controller.abort() for order #1. What happens to the first loop?', 'single_choice'::question_type, 'abort() only flips signal.aborted, sets signal.reason and fires the abort event. Nothing in this loop listens for that event: the plain sleep holds an ordinary timer, so the loop stays suspended inside await sleep(10000) until t = 10.3 s. Only then does the while condition read signal.aborted and exit. No further request is sent, but the timer and everything the loop''s closure references stay alive for another 8 seconds - and a page that does this for every order the user opens keeps one sleeping loop per order.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_131') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('It stops at t = 2 s: abort() rejects every promise created while the signal was active.', false),
+        ('It stays suspended in sleep until t = 10.3 s, then the while condition sees the abort and exits without another fetch.', true),
+        ('It keeps polling every 10 s forever, because signal.aborted was read once when the loop started.', false),
+        ('sleep() throws an AbortError at t = 2 s, which surfaces as an unhandled rejection.', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_131'), 'Which changes are needed so that the loop stops within milliseconds of abort() - whether it is waiting for the network or sleeping - and leaves no timer or request behind? (Select all that apply.)', 'multiple_choice'::question_type, 'The loop waits in two places, and each one needs to hear the signal. fetch(url, { signal }) aborts the request and rejects with signal.reason; a sleep that takes the signal clears its timer and rejects the same way. A shorter interval only shortens the leak and multiplies the traffic, and catching and ignoring every error hides real failures without stopping anything.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_131') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('Pass the signal to the request: fetch(url, { signal }).', true),
+        ('Use sleep(ms, { signal }), which clears its timer and rejects when the signal aborts.', true),
+        ('Reduce the interval from 10 s to 1 s so the while condition is checked more often.', false),
+        ('Wrap the loop body in try/catch and ignore every error.', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_103 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_103', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-1-3' AND is_deleted = false LIMIT 1), 'cancellable-sleep-utility', 'Build sleep(ms, { signal })', 'Write a promise-based sleep that an AbortSignal can cancel. It rejects at once with signal.reason if the signal is already aborted, clears its timer and rejects with signal.reason when the signal aborts mid-sleep, and removes its abort listener when it resolves normally, so a polling loop that shares one signal leaks nothing. The tests run on a fake clock and check outcomes, timers and listeners.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_103'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_103');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_103'), 'Resolves after ms and leaves nothing behind', '{"sleeps":[200]}', '{"outcome":[{"resolvedAt":200}],"timersCreated":1,"pendingTimers":0,"listenersAtEnd":0,"maxListeners":1}', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_103'), 'Abort mid-sleep rejects with signal.reason and clears the timer', '{"sleeps":[5000],"abortAt":1200}', '{"outcome":[{"rejectedAt":1200,"name":"AbortError","isReason":true}],"timersCreated":1,"pendingTimers":0}', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_103'), 'An already-aborted signal rejects at once and never starts a timer', '{"sleeps":[1000],"abortBefore":true,"reason":"user left the page"}', '{"outcome":[{"rejectedAt":0,"name":"Error","message":"user left the page","isReason":true}],"timersCreated":0,"pendingTimers":0}', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_103'), 'A polling loop shares one signal: listeners do not pile up', '{"sleeps":[100,100,100]}', '{"outcome":[{"resolvedAt":100},{"resolvedAt":200},{"resolvedAt":300}],"timersCreated":3,"pendingTimers":0,"listenersAtEnd":0,"maxListeners":1}', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_103'), 'Abort during the second poll with a custom reason', '{"sleeps":[100,1000,100],"abortAt":400,"reason":"navigated away"}', '{"outcome":[{"resolvedAt":100},{"rejectedAt":400,"name":"Error","message":"navigated away","isReason":true}],"timersCreated":2,"pendingTimers":0}', 6, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_103_starter', 's3', 'challenges/javascript/chal_coding_103/starter.js', 'raw', 'application/javascript', 1307, 'sleep.js')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_103'), 'javascript', 'sleep.js', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_103_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_103_harness', 's3', 'challenges/javascript/chal_coding_103/harness.js', 'raw', 'application/javascript', 4246, 'harness.js')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_103'), 'javascript', 'harness.js', 'harness', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_103_harness'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
 
 -- module 2: Promises in Depth & Concurrency Control
 UPDATE course.module SET title = 'Promises in Depth & Concurrency Control', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 2 AND is_deleted = false LIMIT 1);
@@ -43,11 +295,256 @@ INSERT INTO course.module (course_id, title, order_index)
 SELECT (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), 'Promises in Depth & Concurrency Control', 2
 WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 2 AND is_deleted = false);
 
--- lesson 2.1: Promise Combinators in Practice (existing, Sanity lesson-js-2-1)
+-- lesson 2.1: Promise combinators in practice (Sanity lesson-js-2-1)
+UPDATE course.lesson SET title = 'Promise combinators in practice', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-2-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Promise combinators in practice', 'sanity', 'lesson-js-2-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-js-2-1' AND is_deleted = false);
 
--- lesson 2.2: Eliminating Unhandled Rejections & Leaks (existing, Sanity lesson-js-2-2)
+-- challenge chal_quiz_201 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_201', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-2-1' AND is_deleted = false LIMIT 1), 'promise-combinators-dashboard-quiz', 'What does the dashboard do when one service fails?', 'Predict how Promise.all and its siblings behave on the account dashboard before you read on.', 'open', 'easy'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_201'), 'The dashboard runs:
 
--- lesson 2.3: Building a Concurrency Limiter (Worker Pool) (existing, Sanity lesson-js-2-3)
+const [profile, loyalty, activity, offers] = await Promise.all([
+  getProfile(),   // resolves after 120 ms
+  getLoyalty(),   // resolves after 300 ms
+  getActivity(),  // resolves after 450 ms
+  getOffers(),    // rejects with HTTP 500 after 80 ms
+]);
+
+What happens?', 'single_choice'::question_type, 'Promise.all rejects with the first rejection it sees - here the offers error at 80 ms - and the await throws. The other three requests are not cancelled: promises are not cancellable, so the fetches keep running and their results are simply discarded. The dashboard throws away three good responses because of one optional widget.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_201') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('At 80 ms the await throws the offers error. The other three requests keep running, but their results are discarded.', true),
+        ('At 80 ms the await throws, and Promise.all cancels the three requests that are still running.', false),
+        ('At 450 ms the await resolves with offers set to undefined.', false),
+        ('At 450 ms the await throws an AggregateError that contains only the offers error.', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_201'), 'Static assets are served from three CDN mirrors. You want the first mirror that answers SUCCESSFULLY and want to ignore mirrors that fail. One mirror is down and rejects after 5 ms; the others answer after 40 ms and 70 ms. Which call gives you the 40 ms response?', 'single_choice'::question_type, 'Promise.any resolves with the first fulfilled promise and only rejects - with an AggregateError holding every reason - when all of them fail. Promise.race settles with whichever promise settles first, success or failure, so it would reject at 5 ms with the dead mirror''s error. Promise.all would also reject at 5 ms, and Promise.allSettled waits for all three (70 ms) and never picks a winner for you.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_201') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('Promise.race([a, b, c])', false),
+        ('Promise.any([a, b, c])', true),
+        ('Promise.all([a, b, c])', false),
+        ('Promise.allSettled([a, b, c])', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_js_212 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_js_212', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-2-1' AND is_deleted = false LIMIT 1), 'load-dashboard-required-optional-timeouts', 'Load the dashboard: required vs optional sources with timeouts', 'Write loadDashboard(sources, timers). All sources load in parallel; each can have its own timeout. A failed or timed-out optional source falls back and is reported in errors, a failed required source rejects the dashboard immediately, and no timer outlives a resolved dashboard. The tests replay every source on a fake clock and compare when and how the dashboard settles.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_212'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_212');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_212'), 'All four services healthy: the dashboard renders when the slowest one answers', '{"sources":[{"name":"profile","required":true,"timeoutMs":2000,"after":120,"value":{"name":"Lan","tier":"gold"}},{"name":"loyalty","timeoutMs":2000,"fallback":{"points":null},"after":300,"value":{"points":1840}},{"name":"activity","timeoutMs":2000,"after":450,"value":["login","transfer"]},{"name":"offers","timeoutMs":2000,"fallback":[],"after":200,"value":["2x points weekend"]}]}', '{"outcome":"resolved","at":450,"data":{"profile":{"name":"Lan","tier":"gold"},"loyalty":{"points":1840},"activity":["login","transfer"],"offers":["2x points weekend"]},"errors":{},"pendingTimers":0}', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_212'), 'Offers returns HTTP 500: the dashboard still renders, with the fallback', '{"sources":[{"name":"profile","required":true,"timeoutMs":2000,"after":120,"value":{"name":"Lan","tier":"gold"}},{"name":"loyalty","timeoutMs":2000,"fallback":{"points":null},"after":300,"value":{"points":1840}},{"name":"activity","timeoutMs":2000,"after":450,"value":["login","transfer"]},{"name":"offers","timeoutMs":2000,"fallback":[],"after":80,"error":"HTTP 500"}]}', '{"outcome":"resolved","at":450,"data":{"profile":{"name":"Lan","tier":"gold"},"loyalty":{"points":1840},"activity":["login","transfer"],"offers":[]},"errors":{"offers":"HTTP 500"},"pendingTimers":0}', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_212'), 'A 9-second activity feed is cut off at its 1.5 s timeout', '{"sources":[{"name":"profile","required":true,"timeoutMs":2000,"after":120,"value":{"name":"Lan","tier":"gold"}},{"name":"loyalty","timeoutMs":2000,"fallback":{"points":null},"after":300,"value":{"points":1840}},{"name":"activity","timeoutMs":1500,"after":9000,"value":["login","transfer"]},{"name":"offers","timeoutMs":2000,"fallback":[],"after":200,"value":["2x points weekend"]}]}', '{"outcome":"resolved","at":1500,"data":{"profile":{"name":"Lan","tier":"gold"},"loyalty":{"points":1840},"activity":null,"offers":["2x points weekend"]},"errors":{"activity":"timeout"},"pendingTimers":0}', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_212'), 'A failed required source rejects at once, without waiting for slow optional ones', '{"sources":[{"name":"profile","required":true,"timeoutMs":2000,"after":250,"error":"HTTP 503"},{"name":"loyalty","timeoutMs":2000,"fallback":{"points":null},"after":300,"value":{"points":1840}},{"name":"activity","timeoutMs":3000,"after":1800,"value":["login","transfer"]},{"name":"offers","timeoutMs":2000,"fallback":[],"after":200,"value":["2x points weekend"]}]}', '{"outcome":"rejected","at":250,"error":"profile: HTTP 503"}', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_212'), 'A broken optional client and a hung request: both fall back, timers are cleaned up', '{"sources":[{"name":"profile","required":true,"timeoutMs":2000,"after":100,"value":{"name":"Lan","tier":"gold"}},{"name":"loyalty","timeoutMs":2000,"fallback":{"points":null},"throws":"loyalty client not initialised"},{"name":"activity","timeoutMs":2000,"after":300,"value":["login"]},{"name":"offers","timeoutMs":800,"fallback":[],"never":true}]}', '{"outcome":"resolved","at":800,"data":{"profile":{"name":"Lan","tier":"gold"},"loyalty":{"points":null},"activity":["login"],"offers":[]},"errors":{"loyalty":"loyalty client not initialised","offers":"timeout"},"pendingTimers":0}', 6, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_js_212_starter', 's3', 'challenges/javascript/chal_coding_js_212/starter.js', 'raw', 'application/javascript', 1915, 'loadDashboard.js')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_212'), 'javascript', 'loadDashboard.js', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_js_212_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_js_212_harness', 's3', 'challenges/javascript/chal_coding_js_212/harness.js', 'raw', 'application/javascript', 3442, 'harness.js')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_212'), 'javascript', 'harness.js', 'harness', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_js_212_harness'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 2.2: Eliminating unhandled rejections & leaks (Sanity lesson-js-2-2)
+UPDATE course.lesson SET title = 'Eliminating unhandled rejections & leaks', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-2-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Eliminating unhandled rejections & leaks', 'sanity', 'lesson-js-2-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-js-2-2' AND is_deleted = false);
+
+-- challenge chal_quiz_js_221 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_js_221', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-2-2' AND is_deleted = false LIMIT 1), 'floating-promise-predict-quiz', 'Where did the error go?', 'Predict what happens to rejections that nobody awaits before you read on.', 'open', 'easy'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_221'), 'A "Save all" button runs:
+
+async function saveAll(drafts) {
+  try {
+    drafts.forEach(async (draft) => {
+      await api.save(draft);   // the 2nd save rejects with HTTP 409
+    });
+    toast("All drafts saved");
+  } catch (error) {
+    toast("Saving failed: " + error.message);
+  }
+}
+
+What does the user see, and what happens to the 409?', 'single_choice'::question_type, 'forEach calls the async callback for each draft and throws away the promises it returns - it never waits for them. saveAll reaches toast("All drafts saved") synchronously, before any save has finished, and the try block is already left when the 409 arrives. That callback''s promise rejects with no handler attached: the browser fires an unhandledrejection event (and logs "Uncaught (in promise)"), and Node.js would by default terminate the process. Use Promise.all(drafts.map(...)) and await it, so the error reaches the catch.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_221') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('"Saving failed: HTTP 409" - the catch block receives the error from the callback.', false),
+        ('"All drafts saved", shown before any save has finished; the 409 becomes an unhandled rejection.', true),
+        ('"All drafts saved", shown after all saves finished; the 409 is silently ignored by forEach.', false),
+        ('Nothing - forEach stops at the first rejected callback and saveAll never resumes.', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_221'), 'send() returns a promise that rejects after 100 ms. Which snippets end up reporting an unhandled rejection? (Select all that apply.)', 'multiple_choice'::question_type, 'void only discards the value - it attaches no handler. The DOM ignores whatever an event listener returns, so the promise returned by an async listener is never observed by anyone. A promise that rejects while you are still awaiting something else has no handler at that moment: the runtime reports it at the end of that task, and attaching the handler 2 seconds later only produces a rejectionhandled event afterwards. .catch() attaches a handler immediately, and Promise.all attaches handlers to every input, so the rejection is delivered to the await.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_221') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('void send();', true),
+        ('send().catch(reportError);', false),
+        ('button.addEventListener("click", async () => { await send(); });  // then the button is clicked', true),
+        ('const p = send(); await otherWork(); /* takes 2 s */ await p;', true),
+        ('await Promise.all([send(), otherWork()]);  // inside try/catch', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_fix_202 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_fix_202', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-2-2' AND is_deleted = false LIMIT 1), 'fix-fire-and-forget-checkout', 'Fix the fire-and-forget checkout', 'placeOrder() tracks analytics, prefetches the receipt template, creates the order and reserves stock. In production it floods error tracking with unhandled rejections, confirms orders whose reservations failed and leaves the spinner running after errors. Fix it so every promise has a handler from the moment it exists, the order waits for all reservations, optional work falls back instead of failing, and the spinner always stops. The tests run the checkout on a virtual clock and count every unhandled rejection the runtime reports.', 'open', 'medium'::difficulty_question, 'fix_bug', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_202'), 'browser', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_202');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_202'), 'Happy path: the order is confirmed only after every reservation', '{"items":["sku-1","sku-2","sku-3"]}', '{"outcome":"confirmed","value":{"orderId":"ord-1001","template":"receipt-v2"},"at":400,"reservedBeforeConfirm":3,"spinner":"hidden","unhandledRejections":0}', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_202'), 'Ad blocker: analytics rejects, the order goes through without an error report', '{"items":["sku-1","sku-2"],"trackFails":"Failed to fetch"}', '{"outcome":"confirmed","value":{"orderId":"ord-1001","template":"receipt-v2"},"at":350,"reservedBeforeConfirm":2,"spinner":"hidden","unhandledRejections":0}', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_202'), 'Out of stock: the order fails and the spinner stops', '{"items":["sku-1","sku-2","sku-3"],"outOfStock":{"sku-2":"OUT_OF_STOCK sku-2"}}', '{"outcome":"failed","error":"OUT_OF_STOCK sku-2","spinner":"hidden","unhandledRejections":0}', 4, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_202'), 'Receipt template service down: confirm with the plain template', '{"items":["sku-1"],"templateFails":"HTTP 502"}', '{"outcome":"confirmed","value":{"orderId":"ord-1001","template":"plain"},"at":300,"reservedBeforeConfirm":1,"spinner":"hidden","unhandledRejections":0}', 4, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_202'), 'createOrder fails while analytics and the template fail too', '{"items":["sku-1"],"createFails":"HTTP 500","trackFails":"Failed to fetch","templateFails":"HTTP 502"}', '{"outcome":"failed","error":"HTTP 500","spinner":"hidden","unhandledRejections":0}', 4, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_202_starter', 's3', 'challenges/javascript/chal_fix_202/starter.js', 'raw', 'application/javascript', 2165, 'placeOrder.js')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_202'), 'javascript', 'placeOrder.js', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_202_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_202_harness', 's3', 'challenges/javascript/chal_fix_202/harness.js', 'raw', 'application/javascript', 4492, 'harness.js')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_202'), 'javascript', 'harness.js', 'harness', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_202_harness'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 2.3: Building a concurrency limiter (worker pool) (Sanity lesson-js-2-3)
+UPDATE course.lesson SET title = 'Building a concurrency limiter (worker pool)', order_index = 3, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-2-3' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Building a concurrency limiter (worker pool)', 'sanity', 'lesson-js-2-3', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-js-2-3' AND is_deleted = false);
+
+-- challenge chal_quiz_js_231 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_js_231', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-2-3' AND is_deleted = false LIMIT 1), 'promise-all-fan-out-quiz', 'What does Promise.all over 2,000 uploads really do?', 'Predict what happens when a bulk uploader starts everything at once - and why a limiter must receive tasks, not promises.', 'open', 'easy'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_231'), 'A teammate adds a limiter to the bulk photo uploader:
+
+const uploads = files.map((file) => uploadPhoto(file));   // 2,000 files
+const results = await runWithLimit(uploads, 4);          // "at most 4 at a time"
+
+How many uploads have been started by the time runWithLimit is called?', 'single_choice'::question_type, 'Calling uploadPhoto(file) starts the upload immediately and returns a promise for an operation that is already running. files.map(...) therefore starts all 2,000 before runWithLimit even sees them; whatever it does with the promises, it can only wait for them, not delay them. A limiter has to receive tasks - functions like () => uploadPhoto(file) - and call them itself when a slot is free.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_231') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('4 - runWithLimit starts the first four promises and the rest wait.', false),
+        ('None - promises are lazy and only start when something awaits them.', false),
+        ('All 2,000 - calling uploadPhoto starts the upload; the limiter receives operations that are already running.', true),
+        ('About 6 - the browser only allows six connections, so map stops after six calls.', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_231'), 'The uploader runs await Promise.all(files.map(uploadPhoto)) for 2,000 photos against an HTTP/1.1 upload origin. Each uploadPhoto first resizes the photo into an in-memory Blob, then calls fetch with signal: AbortSignal.timeout(30_000). Which statements are true? (Select all that apply.)', 'multiple_choice'::question_type, 'Browsers open only about six HTTP/1.1 connections per origin and queue the rest of the requests internally. AbortSignal.timeout starts counting when fetch is called, not when the request leaves the queue, so requests that wait more than 30 s in the browser''s own queue fail with TimeoutError before a byte was sent. All 2,000 resize steps run up front, so all resized blobs exist at once and stay in memory until their upload finishes. The browser does not reject the extra requests - it queues them - and the queue is no substitute for a limiter: there is no backpressure on the work before fetch, no control over errors, and on HTTP/2 the browser happily multiplexes about a hundred requests at once into the API''s rate limit.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_231') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('Only about six requests are on the wire at once; the browser queues the rest internally.', true),
+        ('Requests still waiting in the browser''s queue can hit the 30 s timeout before they are even sent.', true),
+        ('All 2,000 resized blobs are created up front and kept in memory until their uploads finish.', true),
+        ('The browser rejects every request beyond the sixth with a "too many requests" error.', false),
+        ('Because the browser queues requests anyway, this is as safe as a limiter with a limit of 6.', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_203 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_203', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-2-3' AND is_deleted = false LIMIT 1), 'map-with-concurrency-worker-pool', 'Build mapWithConcurrency: a worker pool for promises', 'Write mapWithConcurrency(items, limit, task, options). At most `limit` tasks run at once, a free slot is refilled immediately, results come back in input order, and the error policy is either fail-fast (reject on the first error and start nothing new) or collect (allSettled-style entries). The tests run every task on a fake clock and record when each one starts and how many run at the same time.', 'open', 'hard'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_203'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_203');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_203'), 'Six uploads, limit 2: free slots are refilled at once, results in input order', '{"limit":2,"tasks":[{"ms":300,"value":"cdn/0"},{"ms":100,"value":"cdn/1"},{"ms":200,"value":"cdn/2"},{"ms":100,"value":"cdn/3"},{"ms":400,"value":"cdn/4"},{"ms":100,"value":"cdn/5"}]}', '{"outcome":"resolved","at":700,"value":["cdn/0","cdn/1","cdn/2","cdn/3","cdn/4","cdn/5"],"maxInFlight":2,"startedAt":[0,0,100,300,300,400]}', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_203'), 'Limit larger than the list: everything starts at once, order is still the input order', '{"limit":10,"tasks":[{"ms":300,"value":"cdn/0"},{"ms":200,"value":"cdn/1"},{"ms":100,"value":"cdn/2"}]}', '{"outcome":"resolved","at":300,"value":["cdn/0","cdn/1","cdn/2"],"maxInFlight":3,"startedAt":[0,0,0]}', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_203'), 'Fail fast: the first error rejects and no further uploads start', '{"limit":2,"tasks":[{"ms":200,"value":"cdn/0"},{"ms":100,"error":"HTTP 429"},{"ms":100,"value":"cdn/2"},{"ms":100,"value":"cdn/3"},{"ms":100,"value":"cdn/4"}]}', '{"outcome":"rejected","at":100,"error":"HTTP 429","maxInFlight":2,"startedAt":[0,0,null,null,null]}', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_203'), 'Collect mode: every item gets an outcome, a synchronous throw included', '{"limit":2,"stopOnError":false,"tasks":[{"ms":100,"value":"cdn/0"},{"ms":50,"error":"HTTP 413"},{"throws":"invalid file name"},{"ms":100,"value":"cdn/3"},{"ms":50,"error":"HTTP 503"}]}', '{"outcome":"resolved","at":150,"value":[{"status":"fulfilled","value":"cdn/0"},{"status":"rejected","reason":"HTTP 413"},{"status":"rejected","reason":"invalid file name"},{"status":"fulfilled","value":"cdn/3"},{"status":"rejected","reason":"HTTP 503"}],"maxInFlight":2,"startedAt":[0,0,50,50,100]}', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_203'), 'An empty selection resolves immediately with []', '{"limit":3,"tasks":[]}', '{"outcome":"resolved","at":0,"value":[],"maxInFlight":0,"startedAt":[]}', 6, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_203_starter', 's3', 'challenges/javascript/chal_coding_203/starter.js', 'raw', 'application/javascript', 1741, 'mapWithConcurrency.js')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_203'), 'javascript', 'mapWithConcurrency.js', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_203_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_203_harness', 's3', 'challenges/javascript/chal_coding_203/harness.js', 'raw', 'application/javascript', 2964, 'harness.js')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_203'), 'javascript', 'harness.js', 'harness', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_203_harness'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
 
 -- module 3: Async/Await, Error Recovery & Retry Strategy
 UPDATE course.module SET title = 'Async/Await, Error Recovery & Retry Strategy', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 3 AND is_deleted = false LIMIT 1);
@@ -55,11 +552,244 @@ INSERT INTO course.module (course_id, title, order_index)
 SELECT (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), 'Async/Await, Error Recovery & Retry Strategy', 3
 WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 3 AND is_deleted = false);
 
--- lesson 3.1: Async/Await Pitfalls & Return Patterns (existing, Sanity lesson-js-3-1)
+-- lesson 3.1: Async/await pitfalls & return patterns (Sanity lesson-js-3-1)
+UPDATE course.lesson SET title = 'Async/await pitfalls & return patterns', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-3-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Async/await pitfalls & return patterns', 'sanity', 'lesson-js-3-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-js-3-1' AND is_deleted = false);
 
--- lesson 3.2: Fixing Search Race Conditions with AbortController (existing, Sanity lesson-js-3-2)
+-- challenge chal_quiz_301 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_301', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-3-1' AND is_deleted = false LIMIT 1), 'return-vs-return-await-quiz', 'Does the catch block ever run?', 'loadProfile wraps the profile request in try/catch/finally and falls back to a cached profile. Predict what happens when the API answers 503.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_301'), 'fetchProfile(id) returns a promise that rejects with an Error(''503'') after 300 ms.
 
--- lesson 3.3: Exponential Backoff & Jitter Retry Engine (existing, Sanity lesson-js-3-3)
+async function loadProfile(id) {
+  showSpinner();
+  try {
+    return fetchProfile(id);
+  } catch (error) {
+    report(error);
+    return readCachedProfile(id);
+  } finally {
+    hideSpinner();
+  }
+}
+
+const profile = await loadProfile(42);
+
+What happens?', 'single_choice'::question_type, 'return fetchProfile(id) hands the pending promise to the async function''s own promise, and the function body finishes immediately - nothing inside the try block ever throws. The rejection happens 300 ms later, outside the try, so the catch block never runs, the cached profile is never read and the caller''s await throws the 503. With return await fetchProfile(id), the function pauses inside the try, the rejection is thrown at that line and the catch returns the cached profile.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_301') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('The catch block runs after 300 ms and the caller gets the cached profile.', false),
+        ('The catch block never runs: the caller''s await throws the 503 error, and the cached profile is never read.', true),
+        ('The 503 is swallowed: the caller gets undefined, because the function already returned.', false),
+        ('A SyntaxError: an async function cannot return a promise without awaiting it.', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_301'), 'Same function, still without await. Which statements are true? (Select all that apply.)', 'multiple_choice'::question_type, 'Without await, the function leaves the try block as soon as fetchProfile(id) has created its promise, so finally runs right away: the spinner is hidden while the request is still in flight. Adding await changes both behaviours - the rejection is caught and finally runs after the request has settled. Outside a try block the two forms behave the same for the caller; return await costs at most an extra microtask, never an extra network request, and it keeps the function in async stack traces.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_301') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('hideSpinner() runs before the request has finished, so the spinner disappears while the profile is still loading.', true),
+        ('Changing the line to return await fetchProfile(id) makes the catch block handle the 503 and the finally block run after the request settles.', true),
+        ('return await always sends the request a second time, so it should only be used inside try blocks.', false),
+        ('Outside any try/catch/finally, return fetchProfile(id) and return await fetchProfile(id) give the caller the same result.', true)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_fix_js_312 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_fix_js_312', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-3-1' AND is_deleted = false LIMIT 1), 'fix-memoised-async-initialiser', 'Fix the client loader that connects three times', 'getClient() is called by several widgets during the same page load. It opens a new connection for every concurrent caller, and when the connection fails, the error that reaches Sentry has lost its root cause. Fix createClientLoader: concurrent callers share one connection attempt, a failed attempt can be retried by the next call, and failures are wrapped with their cause.', 'open', 'medium'::difficulty_question, 'fix_bug', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_312'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_312');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_312'), 'A single caller gets the connected client', '{"steps":[{"op":"call"},{"op":"resolve","connect":0,"value":"client#1"},{"op":"call"}]}', '{"connectCalls":1,"results":[{"ok":true,"value":"client#1"},{"ok":true,"value":"client#1"}]}', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_312'), 'Three widgets loading at once share one connection', '{"steps":[{"op":"call"},{"op":"call"},{"op":"call"},{"op":"resolve","connect":0,"value":"client#1"}]}', '{"connectCalls":1,"results":[{"ok":true,"value":"client#1"},{"ok":true,"value":"client#1"},{"ok":true,"value":"client#1"}]}', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_312'), 'A failed connection is reported with its root cause', '{"steps":[{"op":"call"},{"op":"reject","connect":0,"message":"401 API key expired"}]}', '{"connectCalls":1,"results":[{"ok":false,"message":"Client initialisation failed","cause":"401 API key expired"}]}', 4, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_312'), 'One network blip does not break the client for the rest of the session', '{"steps":[{"op":"call"},{"op":"reject","connect":0,"message":"Failed to fetch"},{"op":"call"},{"op":"resolve","connect":1,"value":"client#2"}]}', '{"connectCalls":2,"results":[{"ok":false,"message":"Client initialisation failed","cause":"Failed to fetch"},{"ok":true,"value":"client#2"}]}', 4, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_312'), 'Concurrent callers share a failure, then the retry is shared and kept', '{"steps":[{"op":"call"},{"op":"call"},{"op":"reject","connect":0,"message":"503 Service Unavailable"},{"op":"call"},{"op":"call"},{"op":"resolve","connect":1,"value":"client#2"},{"op":"call"}]}', '{"connectCalls":2,"results":[{"ok":false,"message":"Client initialisation failed","cause":"503 Service Unavailable"},{"ok":false,"message":"Client initialisation failed","cause":"503 Service Unavailable"},{"ok":true,"value":"client#2"},{"ok":true,"value":"client#2"},{"ok":true,"value":"client#2"}]}', 4, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_js_312_starter', 's3', 'challenges/javascript/chal_fix_js_312/starter.js', 'raw', 'application/javascript', 1226, 'clientLoader.js')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_312'), 'javascript', 'clientLoader.js', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_js_312_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_js_312_harness', 's3', 'challenges/javascript/chal_fix_js_312/harness.js', 'raw', 'application/javascript', 1871, 'harness.js')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_312'), 'javascript', 'harness.js', 'harness', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_js_312_harness'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 3.2: Search race conditions & AbortController (Sanity lesson-js-3-2)
+UPDATE course.lesson SET title = 'Search race conditions & AbortController', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-3-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Search race conditions & AbortController', 'sanity', 'lesson-js-3-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-js-3-2' AND is_deleted = false);
+
+-- challenge chal_quiz_js_321 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_js_321', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-3-2' AND is_deleted = false LIMIT 1), 'search-race-out-of-order-quiz', 'Which results end up on screen?', 'Two search requests overlap and answer in the opposite order. Predict what the user sees, then pick the fixes that actually close the race.', 'open', 'easy'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_321'), 'With the search handler above, the user types "reac" and, 150 ms later, "react". The request for "reac" takes 900 ms, the one for "react" takes 200 ms. Both succeed. What does the page show one second after the first keystroke?', 'single_choice'::question_type, 'Each handler renders whatever it receives, as soon as it receives it. "react" answers at 350 ms and renders correctly; "reac" answers at 900 ms and renders on top of it. The input says "react", the list belongs to "reac". The order in which requests were sent says nothing about the order in which they finish - the last response wins, not the last request.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_321') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('Results for "react": the second request was sent last, so its results are the final ones.', false),
+        ('Results for "reac" under an input that says "react": the fast response rendered at 350 ms and the slow, stale one overwrote it at 900 ms.', true),
+        ('Results for "reac" and "react" merged into one list.', false),
+        ('An error: the browser cancels the first fetch automatically when a second one starts from the same handler.', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_321'), 'Which changes guarantee that the list always matches the latest query, whatever the latencies? (Select all that apply.)', 'multiple_choice'::question_type, 'Two approaches close the race: cancel the superseded request (AbortController) and treat the cancellation as silence, or tag each request with an id captured at start and drop any result whose id is not the latest. Both enforce "only the latest request may update the screen". A debounce reduces how many requests start, but two requests can still overlap after a pause. Checking res.ok only filters failed responses - a stale response is a perfectly successful one.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_321') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('Abort the previous request with an AbortController when a new query starts, pass the signal to fetch, and ignore the cancellation instead of showing an error.', true),
+        ('Give every request an incrementing id captured when it starts, and render a response only if its id is still the latest.', true),
+        ('Debounce the input by 300 ms, so only one request is sent per pause.', false),
+        ('Render only when res.ok is true.', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_fix_302 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_fix_302', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-3-2' AND is_deleted = false LIMIT 1), 'fix-search-latest-request-wins', 'Fix the search controller that renders stale results', 'createSearchController creates an AbortController for every query, yet stale results still overwrite fresh ones, cancelled searches show an error, and results render after the overlay is closed. Fix it so only the latest query can ever reach onResults or onError, and dispose() cancels the request in flight.', 'open', 'medium'::difficulty_question, 'fix_bug', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_302'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_302');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_302'), 'Searches that do not overlap render results and real errors', '{"steps":[{"op":"input","query":"react"},{"op":"resolve","call":0,"results":["react","react-dom"]},{"op":"input","query":"react-q"},{"op":"reject","call":1,"message":"HTTP 500"}]}', '{"log":["results:react:react,react-dom","error:react-q:HTTP 500"],"aborted":[]}', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_302'), 'A slow, older search never overwrites the newer results', '{"steps":[{"op":"input","query":"reac"},{"op":"input","query":"react"},{"op":"resolve","call":1,"results":["react","react-dom"]},{"op":"resolve","call":0,"results":["reactive-cache","reach-router"]}]}', '{"log":["results:react:react,react-dom"],"aborted":[0]}', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_302'), 'Typing fast cancels every superseded search without showing an error', '{"steps":[{"op":"input","query":"r"},{"op":"input","query":"re"},{"op":"input","query":"rea"},{"op":"resolve","call":2,"results":["read-pkg","react"]}]}', '{"log":["results:rea:read-pkg,react"],"aborted":[0,1]}', 4, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_302'), 'Closing the overlay cancels the search in flight', '{"steps":[{"op":"input","query":"vue"},{"op":"dispose"},{"op":"resolve","call":0,"results":["vue","vue-router"]}]}', '{"log":[],"aborted":[0]}', 4, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_302'), 'A source that ignores the signal still cannot deliver a stale answer', '{"ignoresAbort":true,"steps":[{"op":"input","query":"reac"},{"op":"input","query":"react"},{"op":"resolve","call":1,"results":["react"]},{"op":"resolve","call":0,"results":["reach-router"]},{"op":"input","query":"svelte"},{"op":"dispose"},{"op":"reject","call":2,"message":"HTTP 503"}]}', '{"log":["results:react:react"],"aborted":[0,2]}', 4, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_302_starter', 's3', 'challenges/javascript/chal_fix_302/starter.js', 'raw', 'application/javascript', 1640, 'searchController.js')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_302'), 'javascript', 'searchController.js', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_302_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_302_harness', 's3', 'challenges/javascript/chal_fix_302/harness.js', 'raw', 'application/javascript', 2349, 'harness.js')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_302'), 'javascript', 'harness.js', 'harness', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_302_harness'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 3.3: Exponential backoff, jitter & a retry engine (Sanity lesson-js-3-3)
+UPDATE course.lesson SET title = 'Exponential backoff, jitter & a retry engine', order_index = 3, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-3-3' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Exponential backoff, jitter & a retry engine', 'sanity', 'lesson-js-3-3', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-js-3-3' AND is_deleted = false);
+
+-- challenge chal_quiz_js_331 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_js_331', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-3-3' AND is_deleted = false LIMIT 1), 'thundering-herd-retry-quiz', 'What does the gateway see when it comes back?', 'Thousands of checkout tabs retry the same failed request. Predict the load on the recovering gateway, then decide which errors deserve a retry at all.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_331'), '120,000 open checkout tabs call confirmPayment() at roughly the same moment, 10:02:00, and the gateway answers 503 to all of them for 40 seconds. Each tab runs the retry loop above (wait 1000 ms after every failure, retry forever). What does the gateway receive when it starts up again?', 'single_choice'::question_type, 'The clients failed together, and they all wait exactly the same time, so they retry together: the gateway sees about 120,000 requests in the same few milliseconds, every second. A server that is warming up its connection pools and caches cannot absorb that wave, fails again, and the next wave arrives one second later. Fixed delays keep the herd in formation; only randomness (jitter) spreads it out. Exponential backoff alone would make the waves rarer but just as tall.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_331') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('A smooth 120,000 requests per second, because network latency naturally spreads the clients out.', false),
+        ('Synchronised waves of about 120,000 requests every second, which can knock it over again as soon as it recovers.', true),
+        ('Almost nothing: browsers limit retries of failed requests to one per origin.', false),
+        ('A single burst of 120,000 requests, after which every tab succeeds.', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_331'), 'The checkout gets these failures from POST /orders/:id/confirm (which uses an idempotency key). Which should the client retry automatically? (Select all that apply.)', 'multiple_choice'::question_type, 'Retry failures that describe the state of the server or the network: a 503 (try again later), a 429 once the Retry-After delay has passed, and a network failure, where fetch rejects with a TypeError before any response arrives. A 402 card decline is a final answer about this request - retrying it changes nothing and repeated declines look like card testing to the issuer. An AbortError means the user cancelled; retrying it would ignore their decision.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_331') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('503 Service Unavailable', true),
+        ('429 Too Many Requests with Retry-After: 3 - after waiting 3 seconds', true),
+        ('fetch rejected with TypeError: Failed to fetch', true),
+        ('402 Payment Required: card declined', false),
+        ('AbortError, because the user pressed Cancel', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_303 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_303', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-3-3' AND is_deleted = false LIMIT 1), 'retry-engine-backoff-jitter-abort', 'Build a retry engine with backoff, jitter and cancellation', 'Write retry(fn, options): call fn until it succeeds, retry only transient errors, wait with capped exponential backoff and full jitter (or Retry-After when the server sends it), give up after maxAttempts with the original error, and stop immediately - with no timer left behind - when the AbortSignal fires. Randomness and timers are injected, so the tests check every delay exactly.', 'open', 'hard'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_303'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_303');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_303'), 'Honours Retry-After, then backs off with full jitter', '{"options":{"baseMs":100},"random":[0.5],"outcomes":[{"error":{"status":429,"retryAfterMs":2000}},{"error":{"status":503}},{"value":"confirmed"}]}', '{"outcome":"resolved:confirmed","calls":[0,2000,2100],"settledAt":2100,"timersLeft":0}', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_303'), 'A declined card is never retried', '{"random":[0.5],"outcomes":[{"error":{"status":402,"message":"Card declined"}},{"value":"confirmed"}]}', '{"outcome":"rejected:Error:Card declined","calls":[0],"settledAt":0,"timersLeft":0}', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_303'), 'Delays grow exponentially, stop at the cap, and the engine gives up after maxAttempts', '{"options":{"maxAttempts":5,"baseMs":1000,"maxDelayMs":4000},"random":[0.5],"outcomes":[{"error":{"network":true}}]}', '{"outcome":"rejected:TypeError:Failed to fetch","calls":[0,500,1500,3500,5500],"settledAt":5500,"timersLeft":0}', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_303'), 'Cancel during the backoff stops at once and leaves no timer', '{"options":{"baseMs":1000},"random":[0.5],"abortAt":300,"outcomes":[{"error":{"status":503}},{"value":"confirmed"}]}', '{"outcome":"rejected:AbortError:Checkout cancelled","calls":[0],"settledAt":300,"timersLeft":0}', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_303'), 'Cancel during a slow attempt aborts the attempt itself', '{"options":{"baseMs":100},"random":[0.5],"abortAt":400,"outcomes":[{"error":{"status":503}},{"latencyMs":2000,"value":"confirmed"}]}', '{"outcome":"rejected:AbortError:Checkout cancelled","calls":[0,50],"settledAt":400,"timersLeft":0}', 6, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_303_starter', 's3', 'challenges/javascript/chal_coding_303/starter.js', 'raw', 'application/javascript', 2339, 'retry.js')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_303'), 'javascript', 'retry.js', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_303_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_303_harness', 's3', 'challenges/javascript/chal_coding_303/harness.js', 'raw', 'application/javascript', 3792, 'harness.js')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_303'), 'javascript', 'harness.js', 'harness', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_303_harness'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
 
 -- module 4: Async Iteration & Streaming Data
 UPDATE course.module SET title = 'Async Iteration & Streaming Data', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 4 AND is_deleted = false LIMIT 1);

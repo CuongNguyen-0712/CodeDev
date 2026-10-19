@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Four calls, four combinators, four different outcomes</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The account page loads four services in parallel. Offers fails at 80 ms, activity takes 9 seconds.</text>
+
+  <!-- service calls -->
+  <text x="40" y="124" font-size="15" font-weight="700" fill="#334155">Service calls</text>
+  <text x="40" y="156" font-size="16" font-weight="700" fill="#0f172a">profile</text>
+  <text x="120" y="156" font-size="12" fill="#b91c1c">required</text>
+  <rect x="260" y="141" width="120" height="18" rx="5" fill="#bbf7d0" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="392" y="155" font-size="13" fill="#166534">120 ms</text>
+
+  <text x="40" y="196" font-size="16" font-weight="700" fill="#0f172a">loyalty</text>
+  <text x="120" y="196" font-size="12" fill="#64748b">optional</text>
+  <rect x="260" y="181" width="300" height="18" rx="5" fill="#bbf7d0" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="572" y="195" font-size="13" fill="#166534">300 ms</text>
+
+  <text x="40" y="236" font-size="16" font-weight="700" fill="#0f172a">activity</text>
+  <text x="120" y="236" font-size="12" fill="#64748b">optional</text>
+  <rect x="260" y="221" width="514" height="18" rx="5" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+  <rect x="790" y="221" width="320" height="18" rx="5" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+  <path d="M774 216 L782 244 M784 216 L792 244" stroke="#94a3b8" stroke-width="2"/>
+  <text x="1110" y="214" font-size="13" text-anchor="end" fill="#b45309">9 s (p99 tail)</text>
+
+  <text x="40" y="276" font-size="16" font-weight="700" fill="#0f172a">offers</text>
+  <text x="120" y="276" font-size="12" fill="#64748b">optional</text>
+  <rect x="260" y="261" width="80" height="18" rx="5" fill="#fecaca" stroke="#dc2626" stroke-width="1.5"/>
+  <text x="352" y="275" font-size="13" font-weight="700" fill="#b91c1c">HTTP 500 at 80 ms</text>
+
+  <line x1="40" y1="304" x2="1160" y2="304" stroke="#e2e8f0" stroke-width="2"/>
+  <text x="40" y="330" font-size="15" font-weight="700" fill="#334155">How the page settles</text>
+
+  <!-- strategies -->
+  <text x="40" y="368" font-size="17" font-weight="700" fill="#b91c1c">Promise.all</text>
+  <line x1="260" y1="362" x2="1150" y2="362" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="6 6"/>
+  <circle cx="340" cy="362" r="10" fill="#dc2626" stroke="#ffffff" stroke-width="2"/>
+  <text x="360" y="367" font-size="14" fill="#b91c1c">rejects at 80 ms: error page, three good responses discarded</text>
+
+  <text x="40" y="414" font-size="17" font-weight="700" fill="#b45309">Promise.allSettled</text>
+  <line x1="260" y1="408" x2="1150" y2="408" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="6 6"/>
+  <circle cx="1110" cy="408" r="10" fill="#d97706" stroke="#ffffff" stroke-width="2"/>
+  <text x="1090" y="413" font-size="14" text-anchor="end" fill="#b45309">survives the 500, but renders only after 9 s</text>
+
+  <text x="40" y="460" font-size="17" font-weight="700" fill="#6d28d9">Promise.race</text>
+  <line x1="260" y1="454" x2="1150" y2="454" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="6 6"/>
+  <circle cx="340" cy="454" r="10" fill="#7c3aed" stroke="#ffffff" stroke-width="2"/>
+  <text x="360" y="459" font-size="14" fill="#6d28d9">settles with the first to settle - here the offers failure</text>
+
+  <text x="40" y="500" font-size="17" font-weight="700" fill="#15803d">Required / optional</text>
+  <text x="40" y="520" font-size="13" fill="#64748b">+ per-call timeouts</text>
+  <line x1="260" y1="500" x2="1150" y2="500" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="6 6"/>
+  <line x1="900" y1="140" x2="900" y2="245" stroke="#16a34a" stroke-width="2" stroke-dasharray="4 4"/>
+  <text x="906" y="258" font-size="12" fill="#15803d">activity timeout 1.5 s</text>
+  <circle cx="900" cy="500" r="10" fill="#16a34a" stroke="#ffffff" stroke-width="2"/>
+  <text x="880" y="505" font-size="14" text-anchor="end" fill="#15803d">renders at 1.5 s: offers = [], activity = retry placeholder</text>
+
+  <!-- axis -->
+  <line x1="260" y1="552" x2="1150" y2="552" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="1150,546 1162,552 1150,558" fill="#94a3b8"/>
+  <path d="M774 544 L782 560 M784 544 L792 560" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="260" y1="547" x2="260" y2="557" stroke="#94a3b8" stroke-width="2"/>
+  <text x="260" y="578" font-size="13" text-anchor="middle" fill="#64748b">0 ms</text>
+  <line x1="510" y1="547" x2="510" y2="557" stroke="#94a3b8" stroke-width="2"/>
+  <text x="510" y="578" font-size="13" text-anchor="middle" fill="#64748b">250 ms</text>
+  <line x1="760" y1="547" x2="760" y2="557" stroke="#94a3b8" stroke-width="2"/>
+  <text x="760" y="578" font-size="13" text-anchor="middle" fill="#64748b">500 ms</text>
+  <line x1="900" y1="547" x2="900" y2="557" stroke="#94a3b8" stroke-width="2"/>
+  <text x="900" y="578" font-size="13" text-anchor="middle" fill="#64748b">1.5 s</text>
+  <line x1="1110" y1="547" x2="1110" y2="557" stroke="#94a3b8" stroke-width="2"/>
+  <text x="1110" y="578" font-size="13" text-anchor="middle" fill="#64748b">9 s</text>
+</svg>

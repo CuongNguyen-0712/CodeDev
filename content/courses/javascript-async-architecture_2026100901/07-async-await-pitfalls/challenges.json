@@ -1,0 +1,137 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_301",
+      "name": "return-vs-return-await-quiz",
+      "type": "quiz",
+      "title": "Does the catch block ever run?",
+      "description": "loadProfile wraps the profile request in try/catch/finally and falls back to a cached profile. Predict what happens when the API answers 503.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "fetchProfile(id) returns a promise that rejects with an Error('503') after 300 ms.\n\nasync function loadProfile(id) {\n  showSpinner();\n  try {\n    return fetchProfile(id);\n  } catch (error) {\n    report(error);\n    return readCachedProfile(id);\n  } finally {\n    hideSpinner();\n  }\n}\n\nconst profile = await loadProfile(42);\n\nWhat happens?",
+          "explanation": "return fetchProfile(id) hands the pending promise to the async function's own promise, and the function body finishes immediately - nothing inside the try block ever throws. The rejection happens 300 ms later, outside the try, so the catch block never runs, the cached profile is never read and the caller's await throws the 503. With return await fetchProfile(id), the function pauses inside the try, the rejection is thrown at that line and the catch returns the cached profile.",
+          "options": [
+            { "text": "The catch block runs after 300 ms and the caller gets the cached profile.", "correct": false },
+            { "text": "The catch block never runs: the caller's await throws the 503 error, and the cached profile is never read.", "correct": true },
+            { "text": "The 503 is swallowed: the caller gets undefined, because the function already returned.", "correct": false },
+            { "text": "A SyntaxError: an async function cannot return a promise without awaiting it.", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Same function, still without await. Which statements are true? (Select all that apply.)",
+          "explanation": "Without await, the function leaves the try block as soon as fetchProfile(id) has created its promise, so finally runs right away: the spinner is hidden while the request is still in flight. Adding await changes both behaviours - the rejection is caught and finally runs after the request has settled. Outside a try block the two forms behave the same for the caller; return await costs at most an extra microtask, never an extra network request, and it keeps the function in async stack traces.",
+          "options": [
+            { "text": "hideSpinner() runs before the request has finished, so the spinner disappears while the profile is still loading.", "correct": true },
+            { "text": "Changing the line to return await fetchProfile(id) makes the catch block handle the 503 and the finally block run after the request settles.", "correct": true },
+            { "text": "return await always sends the request a second time, so it should only be used inside try blocks.", "correct": false },
+            { "text": "Outside any try/catch/finally, return fetchProfile(id) and return await fetchProfile(id) give the caller the same result.", "correct": true }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_js_312",
+      "name": "fix-memoised-async-initialiser",
+      "type": "fix_bug",
+      "title": "Fix the client loader that connects three times",
+      "description": "getClient() is called by several widgets during the same page load. It opens a new connection for every concurrent caller, and when the connection fails, the error that reaches Sentry has lost its root cause. Fix createClientLoader: concurrent callers share one connection attempt, a failed attempt can be retried by the next call, and failures are wrapped with their cause.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "javascript",
+        "filePath": "clientLoader.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A single caller gets the connected client",
+          "input": { "steps": [
+            { "op": "call" },
+            { "op": "resolve", "connect": 0, "value": "client#1" },
+            { "op": "call" }
+          ] },
+          "expected": { "connectCalls": 1, "results": [
+            { "ok": true, "value": "client#1" },
+            { "ok": true, "value": "client#1" }
+          ] },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Three widgets loading at once share one connection",
+          "input": { "steps": [
+            { "op": "call" },
+            { "op": "call" },
+            { "op": "call" },
+            { "op": "resolve", "connect": 0, "value": "client#1" }
+          ] },
+          "expected": { "connectCalls": 1, "results": [
+            { "ok": true, "value": "client#1" },
+            { "ok": true, "value": "client#1" },
+            { "ok": true, "value": "client#1" }
+          ] },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A failed connection is reported with its root cause",
+          "input": { "steps": [
+            { "op": "call" },
+            { "op": "reject", "connect": 0, "message": "401 API key expired" }
+          ] },
+          "expected": { "connectCalls": 1, "results": [
+            { "ok": false, "message": "Client initialisation failed", "cause": "401 API key expired" }
+          ] },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "One network blip does not break the client for the rest of the session",
+          "input": { "steps": [
+            { "op": "call" },
+            { "op": "reject", "connect": 0, "message": "Failed to fetch" },
+            { "op": "call" },
+            { "op": "resolve", "connect": 1, "value": "client#2" }
+          ] },
+          "expected": { "connectCalls": 2, "results": [
+            { "ok": false, "message": "Client initialisation failed", "cause": "Failed to fetch" },
+            { "ok": true, "value": "client#2" }
+          ] },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Concurrent callers share a failure, then the retry is shared and kept",
+          "input": { "steps": [
+            { "op": "call" },
+            { "op": "call" },
+            { "op": "reject", "connect": 0, "message": "503 Service Unavailable" },
+            { "op": "call" },
+            { "op": "call" },
+            { "op": "resolve", "connect": 1, "value": "client#2" },
+            { "op": "call" }
+          ] },
+          "expected": { "connectCalls": 2, "results": [
+            { "ok": false, "message": "Client initialisation failed", "cause": "503 Service Unavailable" },
+            { "ok": false, "message": "Client initialisation failed", "cause": "503 Service Unavailable" },
+            { "ok": true, "value": "client#2" },
+            { "ok": true, "value": "client#2" },
+            { "ok": true, "value": "client#2" }
+          ] },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

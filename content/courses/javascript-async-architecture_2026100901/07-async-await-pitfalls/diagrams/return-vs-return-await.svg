@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#334155"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Where does the 503 go? return vs return await</text>
+  <text x="40" y="82" font-size="16" fill="#475569">loadProfile() inside try / catch / finally. fetchProfile() rejects with 503 after 300 ms.</text>
+
+  <!-- Lane A: return without await -->
+  <text x="40" y="140" font-size="18" font-weight="700" fill="#b91c1c">return fetchProfile(id)</text>
+  <text x="40" y="162" font-size="13" fill="#64748b">no await inside try</text>
+
+  <text x="40" y="203" font-size="14" fill="#334155">function body</text>
+  <line x1="250" y1="198" x2="1150" y2="198" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="6 6"/>
+  <rect x="260" y="186" width="34" height="24" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="306" y="203" font-size="13" fill="#991b1b">try exits at once, finally runs: hideSpinner() at 0 ms</text>
+
+  <text x="40" y="253" font-size="14" fill="#334155">fetchProfile</text>
+  <line x1="250" y1="248" x2="1150" y2="248" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="6 6"/>
+  <rect x="260" y="236" width="600" height="24" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+  <text x="560" y="253" font-size="13" text-anchor="middle" fill="#475569">pending - spinner already hidden</text>
+  <circle cx="860" cy="248" r="11" fill="#dc2626"/>
+  <path d="M854 242 L866 254 M866 242 L854 254" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+  <text x="880" y="253" font-size="13" font-weight="700" fill="#991b1b">rejects: 503</text>
+
+  <text x="40" y="303" font-size="14" fill="#334155">caller</text>
+  <line x1="250" y1="298" x2="1150" y2="298" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="6 6"/>
+  <path d="M860 260 L860 286" stroke="#dc2626" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="872" y="285" width="268" height="28" rx="6" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="1006" y="304" font-size="13" font-weight="700" text-anchor="middle" fill="#991b1b">await throws - catch never ran</text>
+
+  <!-- Lane B: return await -->
+  <text x="40" y="370" font-size="18" font-weight="700" fill="#15803d">return await fetchProfile(id)</text>
+  <text x="40" y="392" font-size="13" fill="#64748b">paused inside try</text>
+
+  <text x="40" y="433" font-size="14" fill="#334155">function body</text>
+  <line x1="250" y1="428" x2="1150" y2="428" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="6 6"/>
+  <rect x="260" y="416" width="600" height="24" rx="6" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="560" y="433" font-size="13" text-anchor="middle" fill="#0e7490">suspended at await, still inside try - spinner visible</text>
+  <rect x="866" y="416" width="130" height="24" rx="6" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="931" y="433" font-size="13" text-anchor="middle" fill="#92400e">catch: cache</text>
+  <rect x="1002" y="416" width="140" height="24" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="1072" y="433" font-size="13" text-anchor="middle" fill="#6d28d9">finally: hide</text>
+
+  <text x="40" y="483" font-size="14" fill="#334155">fetchProfile</text>
+  <line x1="250" y1="478" x2="1150" y2="478" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="6 6"/>
+  <rect x="260" y="466" width="600" height="24" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+  <text x="560" y="483" font-size="13" text-anchor="middle" fill="#475569">pending</text>
+  <circle cx="860" cy="478" r="11" fill="#dc2626"/>
+  <path d="M854 472 L866 484 M866 472 L854 484" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M866 468 L900 444" stroke="#d97706" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="880" y="508" font-size="13" fill="#92400e">thrown at the await line</text>
+
+  <text x="40" y="533" font-size="14" fill="#334155">caller</text>
+  <line x1="250" y1="528" x2="1150" y2="528" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="6 6"/>
+  <circle cx="1072" cy="528" r="9" fill="#16a34a" stroke="#ffffff" stroke-width="2"/>
+  <text x="1058" y="533" font-size="13" font-weight="700" text-anchor="end" fill="#166534">gets the cached profile</text>
+
+  <!-- time axis -->
+  <line x1="260" y1="565" x2="1150" y2="565" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="1150,559 1162,565 1150,571" fill="#94a3b8"/>
+  <line x1="260" y1="560" x2="260" y2="570" stroke="#94a3b8" stroke-width="2"/>
+  <text x="260" y="590" font-size="13" text-anchor="middle" fill="#64748b">0 ms</text>
+  <line x1="460" y1="560" x2="460" y2="570" stroke="#94a3b8" stroke-width="2"/>
+  <text x="460" y="590" font-size="13" text-anchor="middle" fill="#64748b">100 ms</text>
+  <line x1="660" y1="560" x2="660" y2="570" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="590" font-size="13" text-anchor="middle" fill="#64748b">200 ms</text>
+  <line x1="860" y1="560" x2="860" y2="570" stroke="#94a3b8" stroke-width="2"/>
+  <text x="860" y="590" font-size="13" text-anchor="middle" fill="#64748b">300 ms</text>
+</svg>

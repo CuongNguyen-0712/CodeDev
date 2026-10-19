@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Eight uploads, three ways to run them</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Same tasks T0-T7 with different durations. A pool refills a slot the moment it frees up.</text>
+  <text x="40" y="128" font-size="18" font-weight="700" fill="#b91c1c">Promise.all(map)</text>
+  <text x="40" y="150" font-size="13" fill="#64748b">everything at once</text>
+  <text x="40" y="170" font-size="13" fill="#64748b">in flight: 8 (2,000 in prod)</text>
+  <rect x="252" y="110" width="266" height="10" rx="5" fill="#cffafe" stroke="#0891b2" stroke-width="1.5"/>
+  <rect x="252" y="123" width="86" height="10" rx="5" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.5"/>
+  <rect x="252" y="136" width="176" height="10" rx="5" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+  <rect x="252" y="149" width="86" height="10" rx="5" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+  <rect x="252" y="162" width="356" height="10" rx="5" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+  <rect x="252" y="175" width="86" height="10" rx="5" fill="#fce7f3" stroke="#db2777" stroke-width="1.5"/>
+  <rect x="252" y="188" width="176" height="10" rx="5" fill="#e0e7ff" stroke="#4f46e5" stroke-width="1.5"/>
+  <rect x="252" y="201" width="86" height="10" rx="5" fill="#ffedd5" stroke="#ea580c" stroke-width="1.5"/>
+  <text x="626" y="160" font-size="13" fill="#b91c1c">done at 4 - if the browser, the API and memory survive it</text>
+  <text x="40" y="250" font-size="18" font-weight="700" fill="#b45309">Batches of 3</text>
+  <text x="40" y="272" font-size="13" fill="#64748b">wait for the slowest,</text>
+  <text x="40" y="290" font-size="13" fill="#64748b">then start the next batch</text>
+  <rect x="252" y="232" width="266" height="28" rx="5" fill="#cffafe" stroke="#0891b2" stroke-width="1.5"/>
+  <text x="385" y="251" font-size="14" font-weight="700" text-anchor="middle" fill="#0f172a">T0</text>
+  <rect x="252" y="266" width="86" height="28" rx="5" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="295" y="285" font-size="14" font-weight="700" text-anchor="middle" fill="#0f172a">T1</text>
+  <rect x="252" y="300" width="176" height="28" rx="5" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+  <text x="340" y="319" font-size="14" font-weight="700" text-anchor="middle" fill="#0f172a">T2</text>
+  <line x1="520" y1="226" x2="520" y2="336" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 4"/>
+  <rect x="522" y="232" width="86" height="28" rx="5" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="565" y="251" font-size="14" font-weight="700" text-anchor="middle" fill="#0f172a">T3</text>
+  <rect x="522" y="266" width="356" height="28" rx="5" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="700" y="285" font-size="14" font-weight="700" text-anchor="middle" fill="#0f172a">T4</text>
+  <rect x="522" y="300" width="86" height="28" rx="5" fill="#fce7f3" stroke="#db2777" stroke-width="1.5"/>
+  <text x="565" y="319" font-size="14" font-weight="700" text-anchor="middle" fill="#0f172a">T5</text>
+  <line x1="880" y1="226" x2="880" y2="336" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 4"/>
+  <rect x="882" y="232" width="176" height="28" rx="5" fill="#e0e7ff" stroke="#4f46e5" stroke-width="1.5"/>
+  <text x="970" y="251" font-size="14" font-weight="700" text-anchor="middle" fill="#0f172a">T6</text>
+  <rect x="882" y="266" width="86" height="28" rx="5" fill="#ffedd5" stroke="#ea580c" stroke-width="1.5"/>
+  <text x="925" y="285" font-size="14" font-weight="700" text-anchor="middle" fill="#0f172a">T7</text>
+  <text x="1070" y="290" font-size="13" fill="#b45309">done at 9</text>
+  <text x="40" y="392" font-size="18" font-weight="700" fill="#15803d">Pool, limit 3</text>
+  <text x="40" y="414" font-size="13" fill="#64748b">a free slot takes the</text>
+  <text x="40" y="432" font-size="13" fill="#64748b">next task immediately</text>
+  <text x="238" y="393" font-size="12" text-anchor="end" fill="#64748b">slot 1</text>
+  <rect x="252" y="374" width="266" height="28" rx="5" fill="#cffafe" stroke="#0891b2" stroke-width="1.5"/>
+  <text x="385" y="393" font-size="14" font-weight="700" text-anchor="middle" fill="#0f172a">T0</text>
+  <rect x="522" y="374" width="176" height="28" rx="5" fill="#e0e7ff" stroke="#4f46e5" stroke-width="1.5"/>
+  <text x="610" y="393" font-size="14" font-weight="700" text-anchor="middle" fill="#0f172a">T6</text>
+  <text x="238" y="427" font-size="12" text-anchor="end" fill="#64748b">slot 2</text>
+  <rect x="252" y="408" width="86" height="28" rx="5" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="295" y="427" font-size="14" font-weight="700" text-anchor="middle" fill="#0f172a">T1</text>
+  <rect x="342" y="408" width="86" height="28" rx="5" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="385" y="427" font-size="14" font-weight="700" text-anchor="middle" fill="#0f172a">T3</text>
+  <rect x="432" y="408" width="86" height="28" rx="5" fill="#fce7f3" stroke="#db2777" stroke-width="1.5"/>
+  <text x="475" y="427" font-size="14" font-weight="700" text-anchor="middle" fill="#0f172a">T5</text>
+  <rect x="522" y="408" width="86" height="28" rx="5" fill="#ffedd5" stroke="#ea580c" stroke-width="1.5"/>
+  <text x="565" y="427" font-size="14" font-weight="700" text-anchor="middle" fill="#0f172a">T7</text>
+  <text x="238" y="461" font-size="12" text-anchor="end" fill="#64748b">slot 3</text>
+  <rect x="252" y="442" width="176" height="28" rx="5" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+  <text x="340" y="461" font-size="14" font-weight="700" text-anchor="middle" fill="#0f172a">T2</text>
+  <rect x="432" y="442" width="356" height="28" rx="5" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="610" y="461" font-size="14" font-weight="700" text-anchor="middle" fill="#0f172a">T4</text>
+  <text x="800" y="432" font-size="13" fill="#15803d">done at 6 - never more than 3 in flight</text>
+  <line x1="250" y1="520" x2="1100" y2="520" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="1100,514 1112,520 1100,526" fill="#94a3b8"/>
+  <line x1="250" y1="515" x2="250" y2="525" stroke="#94a3b8" stroke-width="2"/>
+  <text x="250" y="546" font-size="13" text-anchor="middle" fill="#64748b">0</text>
+  <line x1="340" y1="515" x2="340" y2="525" stroke="#94a3b8" stroke-width="2"/>
+  <text x="340" y="546" font-size="13" text-anchor="middle" fill="#64748b">1</text>
+  <line x1="430" y1="515" x2="430" y2="525" stroke="#94a3b8" stroke-width="2"/>
+  <text x="430" y="546" font-size="13" text-anchor="middle" fill="#64748b">2</text>
+  <line x1="520" y1="515" x2="520" y2="525" stroke="#94a3b8" stroke-width="2"/>
+  <text x="520" y="546" font-size="13" text-anchor="middle" fill="#64748b">3</text>
+  <line x1="610" y1="515" x2="610" y2="525" stroke="#94a3b8" stroke-width="2"/>
+  <text x="610" y="546" font-size="13" text-anchor="middle" fill="#64748b">4</text>
+  <line x1="700" y1="515" x2="700" y2="525" stroke="#94a3b8" stroke-width="2"/>
+  <text x="700" y="546" font-size="13" text-anchor="middle" fill="#64748b">5</text>
+  <line x1="790" y1="515" x2="790" y2="525" stroke="#94a3b8" stroke-width="2"/>
+  <text x="790" y="546" font-size="13" text-anchor="middle" fill="#64748b">6</text>
+  <line x1="880" y1="515" x2="880" y2="525" stroke="#94a3b8" stroke-width="2"/>
+  <text x="880" y="546" font-size="13" text-anchor="middle" fill="#64748b">7</text>
+  <line x1="970" y1="515" x2="970" y2="525" stroke="#94a3b8" stroke-width="2"/>
+  <text x="970" y="546" font-size="13" text-anchor="middle" fill="#64748b">8</text>
+  <line x1="1060" y1="515" x2="1060" y2="525" stroke="#94a3b8" stroke-width="2"/>
+  <text x="1060" y="546" font-size="13" text-anchor="middle" fill="#64748b">9</text>
+  <text x="250" y="578" font-size="13" fill="#64748b">time (seconds)</text>
+</svg>

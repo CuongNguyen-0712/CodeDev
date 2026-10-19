@@ -1,0 +1,121 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_js_121",
+      "name": "does-async-unfreeze-quiz",
+      "type": "quiz",
+      "title": "Does async unfreeze the tab?",
+      "description": "The audit tool freezes for 7 seconds. A teammate's pull request adds async and await. Predict whether the page becomes responsive before you read on.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Auditing 500,000 log lines takes 7 s of synchronous work. The pull request changes the loop to:\n\nasync function runAudit(lines) {\n  for (let i = 0; i < lines.length; i++) {\n    tally(parse(lines[i]));\n    if (i % 5000 === 0) {\n      progressBar.value = i / lines.length;\n      await Promise.resolve(); // \"let the browser breathe\"\n    }\n  }\n}\n\nWhat does the user see after clicking \"Run audit\"?",
+          "explanation": "await Promise.resolve() pauses the function only until the next microtask checkpoint, and the checkpoint runs the continuation straight away. The browser renders and dispatches input only between tasks, and the whole loop - all 100 awaits included - is still one task. The progress bar value changes 100 times in memory but is painted once, at the end, and the Cancel click waits in the task queue until the audit is over. Marking a function async never moves work off the main thread.",
+          "options": [
+            { "text": "Clicks still wait for about 7 s, but the progress bar moves smoothly, because every write to progressBar.value is painted immediately.", "correct": false },
+            { "text": "The progress bar moves every 5,000 lines and the Cancel button works, because every await returns control to the browser.", "correct": false },
+            { "text": "The audit runs on a background thread now that the function is async, so the page stays fully responsive.", "correct": false },
+            { "text": "The tab still freezes for about 7 s, the bar jumps from 0 to 100% at the end, and the Cancel click is processed only after the audit finishes.", "correct": true }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which of these, awaited between two chunks, end the current task so that the browser can paint and handle input before the next chunk? (Select all that apply.)",
+          "explanation": "A yield must schedule the continuation as a new task. setTimeout(resolve, 0), a MessageChannel message and scheduler.yield() all do that (scheduler.yield() is available in Chromium-based browsers and keeps the continuation ahead of other queued tasks). queueMicrotask and Promise.resolve() only queue microtasks, which run before the browser gets a chance to render or dispatch input, so the loop remains one long task.",
+          "options": [
+            { "text": "new Promise((resolve) => setTimeout(resolve, 0))", "correct": true },
+            { "text": "new Promise((resolve) => queueMicrotask(resolve))", "correct": false },
+            { "text": "A promise resolved from a MessageChannel port1.onmessage handler after port2.postMessage(null)", "correct": true },
+            { "text": "scheduler.yield(), where the browser supports it", "correct": true }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_102",
+      "name": "fix-event-loop-freeze",
+      "type": "fix_bug",
+      "title": "Fix the chunked log audit",
+      "description": "auditLogs() was split into chunks to stop the audit tool freezing, but the tab still locks up, the Cancel button only reacts at the end and the progress bar stops short of 100%. Fix the chunking so that every chunk runs in its own task, progress is reported after every chunk including a smaller last one, and the result is returned without an extra yield. Hint: what kind of queue does await Promise.resolve() use, and which progress call is missing when the entry count is not a multiple of chunkSize?",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "javascript",
+        "filePath": "auditLogs.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "5 entries in chunks of 2: keystrokes are handled between chunks",
+          "input": {
+            "chunkSize": 2,
+            "keystrokes": 2,
+            "entries": [["info", 12], ["error", 340], ["warn", 88], ["info", 19], ["error", 1204]]
+          },
+          "expected": {
+            "timeline": ["progress 2/5", "key", "progress 4/5", "key", "progress 5/5", "done"],
+            "summary": { "total": 5, "errors": 2, "warnings": 1, "slowestMs": 1204 }
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Exact multiple of chunkSize: the result does not wait behind other tasks",
+          "input": {
+            "chunkSize": 2,
+            "keystrokes": 3,
+            "entries": [["warn", 40], ["info", 7], ["info", 950], ["error", 61]]
+          },
+          "expected": {
+            "timeline": ["progress 2/4", "key", "progress 4/4", "done", "key", "key"],
+            "summary": { "total": 4, "errors": 1, "warnings": 1, "slowestMs": 950 }
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "An empty file resolves at once",
+          "input": { "chunkSize": 1000, "keystrokes": 1, "entries": [] },
+          "expected": {
+            "timeline": ["done", "key"],
+            "summary": { "total": 0, "errors": 0, "warnings": 0, "slowestMs": 0 }
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "10 entries in chunks of 4: the smaller last chunk still reaches 100%",
+          "input": { "chunkSize": 4, "keystrokes": 5, "generate": { "count": 10 } },
+          "expected": {
+            "timeline": ["progress 4/10", "key", "progress 8/10", "key", "progress 10/10", "done", "key", "key", "key"],
+            "summary": { "total": 10, "errors": 1, "warnings": 3, "slowestMs": 333 }
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A file smaller than one chunk: one progress call, no yield",
+          "input": {
+            "chunkSize": 10,
+            "keystrokes": 1,
+            "entries": [["info", 5], ["warn", 15], ["info", 25]]
+          },
+          "expected": {
+            "timeline": ["progress 3/3", "done", "key"],
+            "summary": { "total": 3, "errors": 0, "warnings": 1, "slowestMs": 25 }
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

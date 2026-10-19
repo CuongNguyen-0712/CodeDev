@@ -1,0 +1,16 @@
+// Wrong variant: really yields now, but a smaller last chunk never reports progress,
+// so the bar stops short of 100%.
+async function auditLogs(entries, { chunkSize, yieldToMain, onProgress }) {
+  const summary = { total: entries.length, errors: 0, warnings: 0, slowestMs: 0 };
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    if (entry.level === "error") summary.errors++;
+    else if (entry.level === "warn") summary.warnings++;
+    if (entry.durationMs > summary.slowestMs) summary.slowestMs = entry.durationMs;
+    if ((i + 1) % chunkSize === 0) {
+      onProgress(i + 1, entries.length);
+      if (i + 1 < entries.length) await yieldToMain();
+    }
+  }
+  return summary;
+}

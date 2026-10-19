@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_102",
+      "key": "challenges/javascript/chal_fix_102/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "auditLogs.js",
+      "size": 1804
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_fix_102",
+      "key": "challenges/javascript/chal_fix_102/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 2065
+    }
+  ]
+}

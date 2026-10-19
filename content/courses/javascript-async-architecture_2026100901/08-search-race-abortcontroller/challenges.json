@@ -1,0 +1,121 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_js_321",
+      "name": "search-race-out-of-order-quiz",
+      "type": "quiz",
+      "title": "Which results end up on screen?",
+      "description": "Two search requests overlap and answer in the opposite order. Predict what the user sees, then pick the fixes that actually close the race.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "With the search handler above, the user types \"reac\" and, 150 ms later, \"react\". The request for \"reac\" takes 900 ms, the one for \"react\" takes 200 ms. Both succeed. What does the page show one second after the first keystroke?",
+          "explanation": "Each handler renders whatever it receives, as soon as it receives it. \"react\" answers at 350 ms and renders correctly; \"reac\" answers at 900 ms and renders on top of it. The input says \"react\", the list belongs to \"reac\". The order in which requests were sent says nothing about the order in which they finish - the last response wins, not the last request.",
+          "options": [
+            { "text": "Results for \"react\": the second request was sent last, so its results are the final ones.", "correct": false },
+            { "text": "Results for \"reac\" under an input that says \"react\": the fast response rendered at 350 ms and the slow, stale one overwrote it at 900 ms.", "correct": true },
+            { "text": "Results for \"reac\" and \"react\" merged into one list.", "correct": false },
+            { "text": "An error: the browser cancels the first fetch automatically when a second one starts from the same handler.", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which changes guarantee that the list always matches the latest query, whatever the latencies? (Select all that apply.)",
+          "explanation": "Two approaches close the race: cancel the superseded request (AbortController) and treat the cancellation as silence, or tag each request with an id captured at start and drop any result whose id is not the latest. Both enforce \"only the latest request may update the screen\". A debounce reduces how many requests start, but two requests can still overlap after a pause. Checking res.ok only filters failed responses - a stale response is a perfectly successful one.",
+          "options": [
+            { "text": "Abort the previous request with an AbortController when a new query starts, pass the signal to fetch, and ignore the cancellation instead of showing an error.", "correct": true },
+            { "text": "Give every request an incrementing id captured when it starts, and render a response only if its id is still the latest.", "correct": true },
+            { "text": "Debounce the input by 300 ms, so only one request is sent per pause.", "correct": false },
+            { "text": "Render only when res.ok is true.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_302",
+      "name": "fix-search-latest-request-wins",
+      "type": "fix_bug",
+      "title": "Fix the search controller that renders stale results",
+      "description": "createSearchController creates an AbortController for every query, yet stale results still overwrite fresh ones, cancelled searches show an error, and results render after the overlay is closed. Fix it so only the latest query can ever reach onResults or onError, and dispose() cancels the request in flight.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "javascript",
+        "filePath": "searchController.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Searches that do not overlap render results and real errors",
+          "input": { "steps": [
+            { "op": "input", "query": "react" },
+            { "op": "resolve", "call": 0, "results": ["react", "react-dom"] },
+            { "op": "input", "query": "react-q" },
+            { "op": "reject", "call": 1, "message": "HTTP 500" }
+          ] },
+          "expected": { "log": ["results:react:react,react-dom", "error:react-q:HTTP 500"], "aborted": [] },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A slow, older search never overwrites the newer results",
+          "input": { "steps": [
+            { "op": "input", "query": "reac" },
+            { "op": "input", "query": "react" },
+            { "op": "resolve", "call": 1, "results": ["react", "react-dom"] },
+            { "op": "resolve", "call": 0, "results": ["reactive-cache", "reach-router"] }
+          ] },
+          "expected": { "log": ["results:react:react,react-dom"], "aborted": [0] },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Typing fast cancels every superseded search without showing an error",
+          "input": { "steps": [
+            { "op": "input", "query": "r" },
+            { "op": "input", "query": "re" },
+            { "op": "input", "query": "rea" },
+            { "op": "resolve", "call": 2, "results": ["read-pkg", "react"] }
+          ] },
+          "expected": { "log": ["results:rea:read-pkg,react"], "aborted": [0, 1] },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Closing the overlay cancels the search in flight",
+          "input": { "steps": [
+            { "op": "input", "query": "vue" },
+            { "op": "dispose" },
+            { "op": "resolve", "call": 0, "results": ["vue", "vue-router"] }
+          ] },
+          "expected": { "log": [], "aborted": [0] },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A source that ignores the signal still cannot deliver a stale answer",
+          "input": { "ignoresAbort": true, "steps": [
+            { "op": "input", "query": "reac" },
+            { "op": "input", "query": "react" },
+            { "op": "resolve", "call": 1, "results": ["react"] },
+            { "op": "resolve", "call": 0, "results": ["reach-router"] },
+            { "op": "input", "query": "svelte" },
+            { "op": "dispose" },
+            { "op": "reject", "call": 2, "message": "HTTP 503" }
+          ] },
+          "expected": { "log": ["results:react:react"], "aborted": [0, 2] },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

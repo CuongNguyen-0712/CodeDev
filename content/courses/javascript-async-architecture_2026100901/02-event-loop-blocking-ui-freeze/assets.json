@@ -1,0 +1,10 @@
+{
+  "images": {
+    "long-task-three-ways": {
+      "publicId": "codedev/courses/javascript-async-architecture_2026100901/02-event-loop-blocking-ui-freeze/long-task-three-ways",
+      "url": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/q_auto/v1792338716/codedev/courses/javascript-async-architecture_2026100901/02-event-loop-blocking-ui-freeze/long-task-three-ways.png?_a=BAMAROWQ0",
+      "width": 1200,
+      "height": 600
+    }
+  }
+}

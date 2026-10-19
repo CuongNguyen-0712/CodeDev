@@ -1,0 +1,126 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_js_221",
+      "name": "floating-promise-predict-quiz",
+      "type": "quiz",
+      "title": "Where did the error go?",
+      "description": "Predict what happens to rejections that nobody awaits before you read on.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A \"Save all\" button runs:\n\nasync function saveAll(drafts) {\n  try {\n    drafts.forEach(async (draft) => {\n      await api.save(draft);   // the 2nd save rejects with HTTP 409\n    });\n    toast(\"All drafts saved\");\n  } catch (error) {\n    toast(\"Saving failed: \" + error.message);\n  }\n}\n\nWhat does the user see, and what happens to the 409?",
+          "explanation": "forEach calls the async callback for each draft and throws away the promises it returns - it never waits for them. saveAll reaches toast(\"All drafts saved\") synchronously, before any save has finished, and the try block is already left when the 409 arrives. That callback's promise rejects with no handler attached: the browser fires an unhandledrejection event (and logs \"Uncaught (in promise)\"), and Node.js would by default terminate the process. Use Promise.all(drafts.map(...)) and await it, so the error reaches the catch.",
+          "options": [
+            { "text": "\"Saving failed: HTTP 409\" - the catch block receives the error from the callback.", "correct": false },
+            { "text": "\"All drafts saved\", shown before any save has finished; the 409 becomes an unhandled rejection.", "correct": true },
+            { "text": "\"All drafts saved\", shown after all saves finished; the 409 is silently ignored by forEach.", "correct": false },
+            { "text": "Nothing - forEach stops at the first rejected callback and saveAll never resumes.", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "send() returns a promise that rejects after 100 ms. Which snippets end up reporting an unhandled rejection? (Select all that apply.)",
+          "explanation": "void only discards the value - it attaches no handler. The DOM ignores whatever an event listener returns, so the promise returned by an async listener is never observed by anyone. A promise that rejects while you are still awaiting something else has no handler at that moment: the runtime reports it at the end of that task, and attaching the handler 2 seconds later only produces a rejectionhandled event afterwards. .catch() attaches a handler immediately, and Promise.all attaches handlers to every input, so the rejection is delivered to the await.",
+          "options": [
+            { "text": "void send();", "correct": true },
+            { "text": "send().catch(reportError);", "correct": false },
+            { "text": "button.addEventListener(\"click\", async () => { await send(); });  // then the button is clicked", "correct": true },
+            { "text": "const p = send(); await otherWork(); /* takes 2 s */ await p;", "correct": true },
+            { "text": "await Promise.all([send(), otherWork()]);  // inside try/catch", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_202",
+      "name": "fix-fire-and-forget-checkout",
+      "type": "fix_bug",
+      "title": "Fix the fire-and-forget checkout",
+      "description": "placeOrder() tracks analytics, prefetches the receipt template, creates the order and reserves stock. In production it floods error tracking with unhandled rejections, confirms orders whose reservations failed and leaves the spinner running after errors. Fix it so every promise has a handler from the moment it exists, the order waits for all reservations, optional work falls back instead of failing, and the spinner always stops. The tests run the checkout on a virtual clock and count every unhandled rejection the runtime reports.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "javascript",
+        "filePath": "placeOrder.js",
+        "executionMode": "browser",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Happy path: the order is confirmed only after every reservation",
+          "input": { "items": ["sku-1", "sku-2", "sku-3"] },
+          "expected": {
+            "outcome": "confirmed",
+            "value": { "orderId": "ord-1001", "template": "receipt-v2" },
+            "at": 400,
+            "reservedBeforeConfirm": 3,
+            "spinner": "hidden",
+            "unhandledRejections": 0
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Ad blocker: analytics rejects, the order goes through without an error report",
+          "input": { "items": ["sku-1", "sku-2"], "trackFails": "Failed to fetch" },
+          "expected": {
+            "outcome": "confirmed",
+            "value": { "orderId": "ord-1001", "template": "receipt-v2" },
+            "at": 350,
+            "reservedBeforeConfirm": 2,
+            "spinner": "hidden",
+            "unhandledRejections": 0
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Out of stock: the order fails and the spinner stops",
+          "input": { "items": ["sku-1", "sku-2", "sku-3"], "outOfStock": { "sku-2": "OUT_OF_STOCK sku-2" } },
+          "expected": {
+            "outcome": "failed",
+            "error": "OUT_OF_STOCK sku-2",
+            "spinner": "hidden",
+            "unhandledRejections": 0
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Receipt template service down: confirm with the plain template",
+          "input": { "items": ["sku-1"], "templateFails": "HTTP 502" },
+          "expected": {
+            "outcome": "confirmed",
+            "value": { "orderId": "ord-1001", "template": "plain" },
+            "at": 300,
+            "reservedBeforeConfirm": 1,
+            "spinner": "hidden",
+            "unhandledRejections": 0
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "createOrder fails while analytics and the template fail too",
+          "input": { "items": ["sku-1"], "createFails": "HTTP 500", "trackFails": "Failed to fetch", "templateFails": "HTTP 502" },
+          "expected": {
+            "outcome": "failed",
+            "error": "HTTP 500",
+            "spinner": "hidden",
+            "unhandledRejections": 0
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

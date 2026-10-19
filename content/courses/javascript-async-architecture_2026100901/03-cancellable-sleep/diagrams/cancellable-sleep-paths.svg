@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">sleep(ms, { signal }): three ways out, nothing left behind</text>
+  <text x="40" y="82" font-size="16" fill="#475569">A timer and an abort listener are armed together. Whichever fires first disarms the other.</text>
+
+  <!-- Start -->
+  <rect x="40" y="200" width="220" height="70" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="150" y="231" font-size="16" font-weight="700" text-anchor="middle" fill="#334155">sleep(5000,</text>
+  <text x="150" y="254" font-size="16" font-weight="700" text-anchor="middle" fill="#334155">{ signal })</text>
+  <line x1="260" y1="235" x2="282" y2="235" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="280,229 292,235 280,241" fill="#94a3b8"/>
+
+  <!-- Decision -->
+  <polygon points="402,175 512,235 402,295 292,235" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="402" y="230" font-size="14" font-weight="700" text-anchor="middle" fill="#b45309">signal already</text>
+  <text x="402" y="249" font-size="14" font-weight="700" text-anchor="middle" fill="#b45309">aborted?</text>
+
+  <!-- yes -->
+  <path d="M402 175 L402 142 L608 142" fill="none" stroke="#ef4444" stroke-width="2"/>
+  <polygon points="606,136 618,142 606,148" fill="#ef4444"/>
+  <text x="414" y="160" font-size="13" font-weight="700" fill="#b91c1c">yes</text>
+  <rect x="620" y="110" width="520" height="64" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="640" y="137" font-size="15" font-weight="700" fill="#b91c1c">Reject at once with signal.reason</text>
+  <text x="640" y="159" font-size="13" fill="#64748b">the abort event has already fired and never fires again - no timer, no listener</text>
+
+  <!-- no -->
+  <line x1="512" y1="235" x2="608" y2="235" stroke="#0891b2" stroke-width="2"/>
+  <polygon points="606,229 618,235 606,241" fill="#0891b2"/>
+  <text x="540" y="227" font-size="13" font-weight="700" fill="#0e7490">no</text>
+  <rect x="620" y="210" width="520" height="84" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="640" y="237" font-size="15" font-weight="700" fill="#0e7490">Arm both</text>
+  <text x="640" y="259" font-size="13" fill="#334155">id = timers.setTimeout(onTimer, ms)</text>
+  <text x="640" y="279" font-size="13" fill="#334155">signal.addEventListener("abort", onAbort, { once: true })</text>
+
+  <!-- branches -->
+  <line x1="745" y1="294" x2="745" y2="348" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="739,346 751,346 745,358" fill="#16a34a"/>
+  <line x1="1015" y1="294" x2="1015" y2="348" stroke="#7c3aed" stroke-width="2"/>
+  <polygon points="1009,346 1021,346 1015,358" fill="#7c3aed"/>
+  <rect x="620" y="360" width="250" height="110" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="640" y="388" font-size="15" font-weight="700" fill="#15803d">Timer fires first</text>
+  <text x="640" y="414" font-size="13" fill="#334155">remove the abort listener</text>
+  <text x="640" y="436" font-size="13" fill="#334155">resolve()</text>
+  <text x="640" y="458" font-size="12" fill="#64748b">the polling loop continues</text>
+  <rect x="890" y="360" width="250" height="110" rx="8" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="910" y="388" font-size="15" font-weight="700" fill="#6d28d9">Signal aborts first</text>
+  <text x="910" y="414" font-size="13" fill="#334155">clear the timer</text>
+  <text x="910" y="436" font-size="13" fill="#334155">reject(signal.reason)</text>
+  <text x="910" y="458" font-size="12" fill="#64748b">the loop's await throws, it exits</text>
+
+  <!-- What leaks -->
+  <rect x="40" y="340" width="540" height="130" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="60" y="368" font-size="15" font-weight="700" fill="#334155">Skip a step and something outlives the promise</text>
+  <text x="60" y="396" font-size="13" fill="#475569">No clear on abort: the callback and its closure live until the full delay ends.</text>
+  <text x="60" y="420" font-size="13" fill="#475569">No remove on resolve: one listener per sleep piles up on a long-lived signal.</text>
+  <text x="60" y="444" font-size="13" fill="#475569">No aborted check: the sleep waits the full delay for an event that already fired.</text>
+
+  <!-- Banner -->
+  <rect x="40" y="500" width="1100" height="60" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="590" y="536" font-size="16" font-weight="700" text-anchor="middle" fill="#15803d">Every path ends with nothing scheduled and nothing listening - and rejections carry signal.reason unchanged.</text>
+</svg>
