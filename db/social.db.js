@@ -24,7 +24,8 @@ export const socialDb = {
                 i.image,
                 i.nickname,
                 i.exp_level AS level,
-                lvl.title AS "levelTitle"
+                lvl.title AS "levelTitle",
+                i.show_profile AS "showProfile"
             FROM identity.users me
             JOIN identity.users u ON true
             LEFT JOIN profile.info i ON i.user_id = u.id

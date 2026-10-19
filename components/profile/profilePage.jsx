@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { userQueries } from "@/queries/user.query";
 import { ExpProgress, levelProgress } from "@/components/ui/level";
 import ExperienceSection from "@/components/profile/experienceSection";
+import { MyRankSummary } from "@/components/ranking/rankSummary";
 
 import { ErrorReload } from "@/components/ui/error";
 import { formatPoints } from "@/components/ui/navbar";
@@ -26,6 +27,8 @@ import {
     LuCircleCheck,
     LuCircleAlert,
     LuCode,
+    LuEye,
+    LuEyeOff,
     LuCoins,
     LuSparkles,
     LuLibrary,
@@ -51,7 +54,7 @@ const EMPTY_COPY = {
     },
 };
 
-function initials(name = '') {
+export function initials(name = '') {
     const parts = String(name).trim().split(/[\s._-]+/).filter(Boolean);
     return (parts[0]?.[0] || 'U').concat(parts[1]?.[0] || '').toUpperCase();
 }
@@ -62,7 +65,7 @@ function toPercent(done, total) {
     return Math.min(100, Math.max(0, Math.round((Number(done) || 0) / totalNum * 100)));
 }
 
-function Stat({ icon: Icon, label, iconClassName, children }) {
+export function Stat({ icon: Icon, label, iconClassName, children }) {
     return (
         <div className="flex min-w-0 flex-col gap-1 bg-card px-3 py-2.5 transition-colors sm:px-4 sm:py-3 hover:bg-accent/30">
             <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
@@ -94,7 +97,7 @@ function ProfileSkeleton() {
     );
 }
 
-function CourseList({ status, courses, total }) {
+export function CourseList({ status, courses, total }) {
     if (courses.length === 0) {
         const copy = EMPTY_COPY[status];
         return (
@@ -175,6 +178,52 @@ function CourseList({ status, courses, total }) {
                 </div>
             )}
         </>
+    );
+}
+
+/** Share of courses per language (`percentage` from the API). */
+export function LanguageList({ languages }) {
+    return (
+        <ul className="m-0 flex list-none flex-col gap-4 rounded-lg border bg-card p-4">
+            {languages.map((lang) => {
+                const percent = Math.round(Number(lang.percentage) || 0);
+                const count = Number(lang.total) || 0;
+                return (
+                    <li key={lang.name || 'unknown'} className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src={lang.logo || '/image/static/default.svg'}
+                                alt=""
+                                width={16}
+                                height={16}
+                                className="size-4 shrink-0 object-contain"
+                                onError={(e) => {
+                                    e.currentTarget.onerror = null;
+                                    e.currentTarget.src = '/image/static/default.svg';
+                                }}
+                            />
+                            <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                                {lang.name || 'Other'}
+                            </span>
+                            <span className="font-mono text-xs text-muted-foreground tabular">
+                                {count} {count === 1 ? 'course' : 'courses'}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <Progress
+                                value={percent}
+                                className="h-1.5 flex-1 bg-muted"
+                                aria-label={`${lang.name || 'Other'} share of courses`}
+                            />
+                            <span className="w-10 text-right font-mono text-xs text-muted-foreground tabular">
+                                {percent}%
+                            </span>
+                        </div>
+                    </li>
+                );
+            })}
+        </ul>
     );
 }
 
@@ -273,46 +322,7 @@ function ActivitySection({ status }) {
                         </Button>
                     </div>
                 ) : (
-                    <ul className="m-0 flex list-none flex-col gap-4 rounded-lg border bg-card p-4">
-                        {languages.map((lang) => {
-                            const percent = Math.round(Number(lang.percentage) || 0);
-                            const count = Number(lang.total) || 0;
-                            return (
-                                <li key={lang.name || 'unknown'} className="flex flex-col gap-2">
-                                    <div className="flex items-center gap-2">
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img
-                                            src={lang.logo || '/image/static/default.svg'}
-                                            alt=""
-                                            width={16}
-                                            height={16}
-                                            className="size-4 shrink-0 object-contain"
-                                            onError={(e) => {
-                                                e.currentTarget.onerror = null;
-                                                e.currentTarget.src = '/image/static/default.svg';
-                                            }}
-                                        />
-                                        <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                                            {lang.name || 'Other'}
-                                        </span>
-                                        <span className="font-mono text-xs text-muted-foreground tabular">
-                                            {count} {count === 1 ? 'course' : 'courses'}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <Progress
-                                            value={percent}
-                                            className="h-1.5 flex-1 bg-muted"
-                                            aria-label={`${lang.name || 'Other'} share of your courses`}
-                                        />
-                                        <span className="w-10 text-right font-mono text-xs text-muted-foreground tabular">
-                                            {percent}%
-                                        </span>
-                                    </div>
-                                </li>
-                            );
-                        })}
-                    </ul>
+                    <LanguageList languages={languages} />
                 )}
             </section>
         </div>
@@ -323,6 +333,7 @@ export default function ProfilePage() {
     const { status } = useSession();
 
     const { data, isLoading, error, isError, refetch } = useQuery(userQueries.me(status));
+    const { data: privacy } = useQuery(userQueries.privacy(status));
 
     const isSessionLoading = status === 'loading';
     const showLoading = isSessionLoading || (status === 'authenticated' && isLoading);
@@ -384,9 +395,29 @@ export default function ProfilePage() {
                                 )}
                             </div>
                         </div>
-                        <Button asChild variant="outline" className="self-start">
-                            <Link href="/settings"><LuUserPen />Edit profile</Link>
-                        </Button>
+                        <div className="flex flex-col items-start gap-2 sm:items-end">
+                            <div className="flex flex-wrap gap-2">
+                                {privacy?.showProfile && data?.username ? (
+                                    <Button asChild variant="outline">
+                                        <Link href={`/profile/${encodeURIComponent(data.username)}`}><LuEye />Public profile</Link>
+                                    </Button>
+                                ) : null}
+                                <Button asChild variant="outline">
+                                    <Link href="/settings"><LuUserPen />Edit profile</Link>
+                                </Button>
+                            </div>
+                            {privacy ? (
+                                <Link
+                                    href="/settings#settings-privacy"
+                                    className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:underline"
+                                >
+                                    {privacy.showProfile ? <LuEye className="size-3.5" aria-hidden="true" /> : <LuEyeOff className="size-3.5" aria-hidden="true" />}
+                                    {privacy.showProfile
+                                        ? `Visible to other learners · courses ${privacy.showLearning ? 'shown' : 'hidden'}`
+                                        : 'Hidden from other learners'}
+                                </Link>
+                            ) : null}
+                        </div>
                     </header>
 
                     <div className="overflow-hidden rounded-lg border">
@@ -411,6 +442,7 @@ export default function ProfilePage() {
                         </div>
                     </div>
 
+                    <MyRankSummary />
                     <ActivitySection status={status} />
                     <ExperienceSection status={status} currentLevel={progress.level} />
                 </>

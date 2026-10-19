@@ -1,14 +1,17 @@
 'use client';
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { useQuery } from "@tanstack/react-query";
-import { LuCoins, LuSparkles, LuTrophy } from "react-icons/lu";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { LuAward, LuCoins, LuCrown, LuSparkles, LuTrophy } from "react-icons/lu";
 
 import { cn } from "@/lib/utils";
 import { userQueries } from "@/queries/user.query";
+import { userKeys } from "@/keys/user.keys";
+import { BOARD_LABELS, rankUps } from "@/lib/ranking";
 import { notify } from "@/components/ui/alert";
 import { Button } from "@/components/shadcn/button";
+import { Progress } from "@/components/shadcn/progress";
 import {
     Dialog,
     DialogContent,
@@ -93,6 +96,56 @@ export function ExpProgress({ user, compact = false, className }) {
     );
 }
 
+// --------------------------------------------------------------------------- ranks
+// Tier 1-6 tints from the existing status tokens; the tier name is always shown as text.
+const TIER_STYLES = {
+    1: "bg-muted text-muted-foreground border-border",
+    2: "bg-info-soft text-info border-info/20",
+    3: "bg-success-soft text-success border-success/20",
+    4: "bg-warning-soft text-warning border-warning/20",
+    5: "bg-xp-soft text-xp border-xp/20",
+    6: "bg-primary-soft text-primary-soft-foreground border-primary/15",
+};
+
+export const tierStyle = (tier) => TIER_STYLES[tier] || TIER_STYLES[1];
+
+/** Tier name of a leaderboard (docs/ranking-plan.md §3). */
+export function RankBadge({ tier, title, className }) {
+    const Icon = Number(tier) >= 6 ? LuCrown : LuAward;
+    return (
+        <span
+            className={cn(
+                "inline-flex w-fit shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold whitespace-nowrap",
+                tierStyle(Number(tier)),
+                className
+            )}
+        >
+            <Icon className="size-3" aria-hidden="true" />
+            {title || "Unranked"}
+        </span>
+    );
+}
+
+/** Progress of a standing (lib/ranking toStanding) towards the next tier. */
+export function RankProgress({ standing, unit = "pts", className }) {
+    if (!standing) return null;
+    const label = standing.next
+        ? `${standing.toNext.toLocaleString()} ${unit} to ${standing.next.title}`
+        : `Top tier reached`;
+
+    return (
+        <div className={cn("grid gap-1", className)}>
+            <Progress
+                value={standing.percent}
+                getValueLabel={() => label}
+                aria-label={`Progress to the next tier: ${label}`}
+                className="h-1.5 bg-muted"
+            />
+            <span className="font-mono text-xs text-muted-foreground tabular">{label}</span>
+        </div>
+    );
+}
+
 /**
  * Level, a thin EXP bar and the point balance for pages without the app navbar (learning
  * workspace, course detail). Links to the profile, where the EXP history lives.
@@ -124,6 +177,7 @@ export function LevelPointsChip({ className }) {
 
 // --------------------------------------------------------------------------- reward feedback
 const LEVEL_UP_EVENT = "codedev:level-up";
+const REWARDS_EVENT = "codedev:rewards";
 
 /**
  * One toast per award ("+20 points · +15 EXP") and, when the level went up, the level-up dialog.
@@ -143,11 +197,47 @@ export function announceRewards(rewards, { title, id } = {}) {
         notify(200, title, { id });
     }
 
+    // RankUpWatcher refetches the ranks and toasts a new tier.
+    if ((points > 0 || exp > 0) && typeof window !== "undefined") {
+        window.dispatchEvent(new Event(REWARDS_EVENT));
+    }
+
     const level = Number(rewards?.level) || 0;
     const previousLevel = Number(rewards?.previousLevel) || 0;
     if (level > previousLevel && previousLevel > 0 && typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent(LEVEL_UP_EVENT, { detail: { level, previousLevel } }));
     }
+}
+
+/**
+ * Mounted once in the root providers: after a reward, refetches the learner's ranks and toasts each
+ * board whose tier went up (no dialog: the level-up dialog stays the main moment, ranking-plan §8).
+ */
+export function RankUpWatcher() {
+    const { data: session, status } = useSession();
+    const queryClient = useQueryClient();
+    const { data } = useQuery(userQueries.ranks(status));
+    const last = useRef(null);
+    const userId = session?.user?.id;
+
+    useEffect(() => {
+        if (!data || !userId) return;
+        // Compare only snapshots of the same account (sign-out / switch resets the baseline).
+        if (last.current?.userId === userId) {
+            for (const up of rankUps(last.current.ranks, data)) {
+                notify(200, `Rank up! ${up.title} on the ${BOARD_LABELS[up.board]} board`, { id: `rank-up-${up.board}-${up.title}` });
+            }
+        }
+        last.current = { userId, ranks: data };
+    }, [data, userId]);
+
+    useEffect(() => {
+        const onRewards = () => queryClient.invalidateQueries({ queryKey: userKeys.ranks() });
+        window.addEventListener(REWARDS_EVENT, onRewards);
+        return () => window.removeEventListener(REWARDS_EVENT, onRewards);
+    }, [queryClient]);
+
+    return null;
 }
 
 /** Mounted once in the root providers; opens when announceRewards reports a level-up. */

@@ -65,6 +65,7 @@ set) or an OAuth provider picture (no asset).
 | `post_exp(9)` | the only writer of EXP (one award per source / idempotency key, never below 0, recomputes `exp_level`): `award_exp`, `admin.db.js` → `postExp` |
 | `award_exp(6)`, `award_challenge_exp(4)` | EXP of an active `exp_rule` (`lesson`, `quiz.<difficulty>`, `coding.<type>.<difficulty>`, `course.<level>`): `submit_lesson`, `challenge.db.js` → `awardChallengeRewards` |
 | `level_for_exp(1)` | level of an EXP total (`profile.exp_level`) |
+| `ranking_scores(1)` | `ranking.db.js`: per-user EXP, earned points, first-try accuracy and overall score from the ledgers (all time, or since a time); tiers in `profile.rank_tier` |
 | `redeem_course_points(3)` | `commerce.db.js` → `redeem` (order + debit + entitlement in one transaction) |
 | `create_money_order(5)` | `commerce.db.js` → `createMoneyOrder` |
 | `apply_payment_event(8)` | `commerce.db.js` → `applyPaymentEvent` (verified webhooks; idempotent per event id) |

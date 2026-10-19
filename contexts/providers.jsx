@@ -6,7 +6,7 @@ import { QueryProvider } from "./queryContext"
 import { AppProvider } from "./appContext"
 import { TooltipProvider } from "@/components/shadcn/tooltip"
 import AppToaster from "@/components/ui/alert"
-import { LevelUpDialog } from "@/components/ui/level"
+import { LevelUpDialog, RankUpWatcher } from "@/components/ui/level"
 
 export function Provider({ children }) {
     return (
@@ -24,6 +24,7 @@ export function Provider({ children }) {
                             {/* The only toast region: survives navigation (see components/ui/alert.jsx). */}
                             <AppToaster />
                             <LevelUpDialog />
+                            <RankUpWatcher />
                         </AppProvider>
                     </ThemeProvider>
                 </QueryProvider>

@@ -34,6 +34,28 @@ export const userClient = {
         return res.data;
     },
 
+    // ?board=overall|exp|points&period=all|30d -> { entries, me, tiers, isPublic, updatedAt }
+    getRanking: async ({ board, period }) => {
+        const res = await apiClient.get('/ranking', { params: { board, period } });
+        return res.data;
+    },
+
+    // { overall, exp, points }: the caller's all-time standing on each board.
+    getMyRanks: async () => {
+        const res = await apiClient.get('/ranking/me');
+        return res.data;
+    },
+
+    getPrivacy: async () => {
+        const res = await apiClient.get('/user/privacy');
+        return res.data;
+    },
+
+    updatePrivacy: async (data) => {
+        const res = await apiClient.patch('/user/privacy', data);
+        return res.data;
+    },
+
     getSessions: async () => {
         const res = await apiClient.get('/user/sessions');
         return res.data || [];

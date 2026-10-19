@@ -62,6 +62,35 @@ export const userQueries = {
         };
     },
 
+    /** One leaderboard (board + period); shown while the next one loads. */
+    ranking(status, board, period) {
+        return {
+            queryKey: userKeys.ranking(board, period),
+            queryFn: () => userClient.getRanking({ board, period }),
+            enabled: status === 'authenticated',
+            placeholderData: keepPreviousData,
+            ...QUERY_TIMES.personal,
+        };
+    },
+
+    ranks(status) {
+        return {
+            queryKey: userKeys.ranks(),
+            queryFn: () => userClient.getMyRanks(),
+            enabled: status === 'authenticated',
+            ...QUERY_TIMES.personal,
+        };
+    },
+
+    privacy(status) {
+        return {
+            queryKey: userKeys.privacy(),
+            queryFn: () => userClient.getPrivacy(),
+            enabled: status === 'authenticated',
+            ...QUERY_TIMES.profile,
+        };
+    },
+
     sessions(status) {
         return {
             queryKey: userKeys.sessions(),

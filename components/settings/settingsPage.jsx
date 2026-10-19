@@ -20,6 +20,7 @@ import { callWithAuthRetry } from "@/lib/actionResult";
 import { ErrorReload } from "@/components/ui/error";
 import SessionsSection from "@/components/settings/sessionsSection";
 import PreferencesSection from "@/components/settings/preferencesSection";
+import PrivacySection from "@/components/settings/privacySection";
 import { InputGroup, TextAreaGroup } from "@/components/ui/input";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn/avatar";
@@ -537,6 +538,14 @@ export default function SettingsPage() {
                                 <Link href="/orders">View orders and points</Link>
                             </Button>
                         </div>
+                    </SettingsSection>
+
+                    <SettingsSection
+                        id="settings-privacy"
+                        title="Privacy"
+                        description="Who can see your profile, your courses and your place on the leaderboard."
+                    >
+                        <PrivacySection />
                     </SettingsSection>
 
                     <SettingsSection

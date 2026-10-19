@@ -1,6 +1,6 @@
 import { memo, useMemo } from "react";
-import Link from "next/link";
 import { useSession } from 'next-auth/react';
+import Link from "next/link";
 
 import { useCourseVotingComment } from "@/mutations/course.mutation";
 import { cn } from "@/lib/utils";
@@ -74,10 +74,11 @@ const CommentItem = ({ data, courseId }) => {
     return (
         <article className="flex flex-col gap-2 px-4 py-3.5">
             <header className="flex min-w-0 items-center gap-2.5">
-                {data.user_id ? (
+                {data.showProfile && data.username ? (
                     <Link
-                        href={`/profile/${data.user_id}`}
-                        className="group/user flex min-w-0 items-center gap-2.5 rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                        href={`/profile/${encodeURIComponent(data.username)}`}
+                        aria-label={`View profile of ${username}`}
+                        className="group/user flex min-w-0 items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                     >
                         {identity}
                     </Link>

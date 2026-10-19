@@ -7,4 +7,7 @@ export const userKeys = {
     learningProgress: (courseId) => [...userKeys.all, 'learningProgress', courseId],
     sessions: () => [...userKeys.all, 'sessions'],
     experience: () => [...userKeys.all, 'experience'],
+    privacy: () => [...userKeys.all, 'privacy'],
+    ranks: () => [...userKeys.all, 'ranks'],
+    ranking: (board, period) => [...userKeys.all, 'ranking', board, period],
 }

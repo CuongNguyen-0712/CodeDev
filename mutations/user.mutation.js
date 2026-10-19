@@ -38,3 +38,17 @@ export function useRevokeOtherSessions() {
         onSettled: () => queryClient.invalidateQueries({ queryKey: userKeys.sessions() }),
     });
 }
+
+// Privacy switches: the saved values replace the cache; ranking views refetch (opt-out changes them).
+export function useUpdatePrivacy() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (data) => userClient.updatePrivacy(data),
+        onSuccess: (saved) => {
+            queryClient.setQueryData(userKeys.privacy(), saved);
+            queryClient.invalidateQueries({ queryKey: [...userKeys.all, 'ranking'] });
+            queryClient.invalidateQueries({ queryKey: userKeys.ranks() });
+        },
+    });
+}

@@ -28,6 +28,7 @@ import {
   LuMap,
   LuNewspaper,
   LuContact,
+  LuTrophy,
   LuInfo,
   LuMessageSquareText,
   LuSettings,
@@ -56,6 +57,7 @@ const NAVIGATION = [
     title: 'Community',
     items: [
       { name: 'Contacts', value: 'contact', icon: LuContact, access: 'auth' },
+      { name: 'Leaderboard', value: 'ranking', icon: LuTrophy, access: 'auth' },
     ]
   },
 ];

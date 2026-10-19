@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { userQueries } from "@/queries/user.query";
 import { useSession } from "next-auth/react";
-import { ExpProgress, levelProgress } from "@/components/ui/level";
+import { ExpProgress, RankBadge, levelProgress } from "@/components/ui/level";
 import { ErrorReload } from "../ui/error";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn/avatar";
@@ -41,6 +41,24 @@ function OverviewSkeleton() {
                 </div>
             </div>
             <Skeleton className="h-[210px] w-full rounded-2xl lg:w-[26rem]" />
+        </div>
+    );
+}
+
+function OverallRank({ status }) {
+    const { data } = useQuery(userQueries.ranks(status));
+    const overall = data?.overall;
+
+    return (
+        <div className="mt-3 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span className="flex min-w-0 items-center gap-2">
+                <span className="shrink-0">Overall rank</span>
+                {overall ? <RankBadge tier={overall.tier} title={overall.title} /> : null}
+                {overall?.position ? <span className="font-mono font-semibold text-foreground tabular">#{overall.position.toLocaleString()}</span> : null}
+            </span>
+            <Link href="/ranking" className="ml-2 shrink-0 font-medium text-primary-ink hover:underline">
+                Leaderboard
+            </Link>
         </div>
     );
 }
@@ -215,16 +233,8 @@ export default function HomeOverview() {
                     </div>
                 </div>
 
-                {/* Footer hint */}
-                <div className="mt-3 flex items-center justify-between font-mono text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1.5 truncate">
-                        <span className="size-1.5 shrink-0 rounded-full bg-success" aria-hidden="true" />
-                        Earn EXP from lessons & challenges
-                    </span>
-                    <Link href="/profile" className="shrink-0 font-medium text-primary-ink hover:underline ml-2">
-                        Ledger details
-                    </Link>
-                </div>
+                {/* Overall rank: tier, position, link to the leaderboard */}
+                <OverallRank status={status} />
             </div>
         </header>
     );
