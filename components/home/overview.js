@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { userQueries } from "@/queries/user.query";
 import { useSession } from "next-auth/react";
-import { levelMapping } from "@/constants/constants";
+import { ExpProgress, levelProgress } from "@/components/ui/level";
 import { ErrorReload } from "../ui/error";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn/avatar";
@@ -12,7 +12,7 @@ import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { cn } from "@/lib/utils";
 
-import { LuGauge, LuLibrary, LuLogIn, LuStar, LuTrophy, LuUserPen } from "react-icons/lu";
+import { LuChevronRight, LuCoins, LuLibrary, LuLogIn, LuSparkles, LuTrophy, LuUserPen } from "react-icons/lu";
 
 function getInitials(name) {
     return String(name || '')
@@ -40,21 +40,7 @@ function OverviewSkeleton() {
                     <Skeleton className="h-8 w-28" />
                 </div>
             </div>
-            <Skeleton className="h-[72px] w-full rounded-lg lg:w-96" />
-        </div>
-    );
-}
-
-function Stat({ icon: Icon, label, iconClassName, children }) {
-    return (
-        <div className="flex min-w-0 flex-col gap-1 px-3 py-3 sm:px-4">
-            <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Icon className={cn("size-3.5 shrink-0", iconClassName)} aria-hidden="true" />
-                <span className="truncate">{label}</span>
-            </dt>
-            <dd className="m-0 truncate text-base font-semibold text-foreground">
-                {children}
-            </dd>
+            <Skeleton className="h-[210px] w-full rounded-2xl lg:w-[26rem]" />
         </div>
     );
 }
@@ -71,11 +57,7 @@ export default function HomeOverview() {
 
     const displayName = data?.name || data?.username || 'User';
 
-    const currentLevel = (data?.level && levelMapping[data.level])
-        ? levelMapping[data.level] : levelMapping['beginner'];
-
-    const starsCount = data?.star ?? data?.stars ?? 0;
-    const rank = data?.rank;
+    const progress = levelProgress(data);
 
     if (showLoading) {
         return <OverviewSkeleton />;
@@ -124,7 +106,7 @@ export default function HomeOverview() {
             <div className="flex min-w-0 items-start gap-4">
                 <Avatar className="size-14 border sm:size-16">
                     <AvatarImage src={data?.image || undefined} alt="" className="object-cover" />
-                    <AvatarFallback className="text-base font-medium">
+                    <AvatarFallback className="bg-primary-soft text-base font-semibold text-primary-soft-foreground">
                         {getInitials(displayName)}
                     </AvatarFallback>
                 </Avatar>
@@ -146,21 +128,104 @@ export default function HomeOverview() {
                 </div>
             </div>
 
-            <dl className="m-0 grid w-full shrink-0 grid-cols-3 divide-x rounded-lg border bg-card lg:w-96">
-                <Stat icon={LuGauge} iconClassName="text-primary" label="Level">
-                    {currentLevel?.label || 'Beginner'}
-                </Stat>
-                <Stat icon={LuStar} iconClassName="text-xp fill-xp/20" label="Stars">
-                    <span className="font-mono tabular font-semibold text-xp">{starsCount}</span>
-                </Stat>
-                <Stat icon={LuTrophy} iconClassName="text-streak" label="Rank">
-                    {rank !== null && rank !== undefined ? (
-                        <span className="font-mono tabular font-semibold text-streak">#{rank}</span>
-                    ) : (
-                        <span className="text-sm font-medium text-muted-foreground">Unranked</span>
-                    )}
-                </Stat>
-            </dl>
+            {/* Level, EXP, and Points Gamified Card */}
+            <div className="w-full shrink-0 rounded-2xl border border-border bg-card p-5 lg:w-[26rem]">
+                {/* Card Top: Level Badge + Rank Title + Ledger link */}
+                <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-xp-soft text-xp">
+                            <LuTrophy className="size-5" aria-hidden="true" />
+                        </div>
+                        <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                                <span className="font-mono text-base font-bold text-foreground">
+                                    Level {progress.level}
+                                </span>
+                                {progress.title && (
+                                    <span className="truncate rounded-full bg-xp-soft px-2.5 py-0.5 font-mono text-xs font-semibold text-xp">
+                                        {progress.title}
+                                    </span>
+                                )}
+                            </div>
+                            <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                                {progress.isMax
+                                    ? "Maximum level reached"
+                                    : `${progress.toNext.toLocaleString()} EXP to Level ${progress.nextLevel}`}
+                            </p>
+                        </div>
+                    </div>
+
+                    <Link
+                        href="/profile"
+                        className="flex shrink-0 items-center gap-1 font-mono text-xs font-medium text-muted-foreground hover:text-foreground"
+                        title="View EXP history and levels"
+                    >
+                        <span>Ledger</span>
+                        <LuChevronRight className="size-3.5" aria-hidden="true" />
+                    </Link>
+                </div>
+
+                {/* Progress Bar Section */}
+                <div className="mt-4 space-y-1.5">
+                    <div className="flex items-center justify-between font-mono text-xs">
+                        <span className="text-muted-foreground">Level progress</span>
+                        <span className="font-bold text-foreground">{progress.percent}%</span>
+                    </div>
+                    <div
+                        role="progressbar"
+                        aria-label={`Level ${progress.level}: ${progress.percent}% progress`}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={progress.percent}
+                        className="h-2 w-full overflow-hidden rounded-full bg-xp-soft"
+                    >
+                        <div
+                            className="h-full rounded-full bg-xp"
+                            style={{ width: `${progress.percent}%` }}
+                        />
+                    </div>
+                </div>
+
+                {/* Metric Chips Grid (2 distinct tokenized cards for EXP & Points) */}
+                <div className="mt-4 grid grid-cols-2 gap-3 pt-3 border-t border-border">
+                    <div className="rounded-xl border border-border bg-muted p-3">
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <LuSparkles className="size-3.5 text-primary-ink" aria-hidden="true" />
+                            <span>Experience</span>
+                        </div>
+                        <div className="mt-1 flex items-baseline gap-1">
+                            <span className="font-mono text-lg font-bold tabular tracking-tight text-foreground">
+                                {progress.exp.toLocaleString()}
+                            </span>
+                            <span className="font-mono text-xs font-medium text-muted-foreground">EXP</span>
+                        </div>
+                    </div>
+
+                    <div className="rounded-xl border border-border bg-muted p-3">
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <LuCoins className="size-3.5 text-warning" aria-hidden="true" />
+                            <span>Points</span>
+                        </div>
+                        <div className="mt-1 flex items-baseline gap-1">
+                            <span className="font-mono text-lg font-bold tabular tracking-tight text-foreground">
+                                {(Number(data?.points) || 0).toLocaleString()}
+                            </span>
+                            <span className="font-mono text-xs font-medium text-muted-foreground">pts</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer hint */}
+                <div className="mt-3 flex items-center justify-between font-mono text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1.5 truncate">
+                        <span className="size-1.5 shrink-0 rounded-full bg-success" aria-hidden="true" />
+                        Earn EXP from lessons & challenges
+                    </span>
+                    <Link href="/profile" className="shrink-0 font-medium text-primary-ink hover:underline ml-2">
+                        Ledger details
+                    </Link>
+                </div>
+            </div>
         </header>
     );
 }

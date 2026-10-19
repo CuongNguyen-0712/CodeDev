@@ -22,7 +22,7 @@ query modules in this folder (`*.db.js`, `roadmap.js`) via `lib/db.js`.
 | Schema | Tables |
 |---|---|
 | `identity` | users, accounts, sessions, refresh_tokens, auth_outbox, roles, permissions, user_roles, role_permissions, audit_log (append-only admin log) |
-| `profile` | info (`avatar_asset_id` -> `storage.assets`, `points` = cache of the ledger), point_transaction (append-only points ledger), onboarding, learning_preference, user_industry, user_learning_goal, notification, task, view `point_balance_drift` |
+| `profile` | info (`avatar_asset_id` -> `storage.assets`, `points` = cache of the points ledger, `exp` / `exp_level` = cache of the EXP ledger), point_transaction (append-only points ledger), exp_transaction (append-only EXP ledger), exp_rule (EXP per activity), exp_level (the 20 level thresholds), onboarding, learning_preference, user_industry, user_learning_goal, notification, task, views `point_balance_drift`, `exp_drift` |
 | `catalog` | course (`publish_status`, `access_model`, `course_type`), category, language, career_role, industry, learning_goal, skill, career_role_skill, course_skill, course_career_role, course_industry, course_learning_goal, course_prerequisite |
 | `course` | module, lesson |
 | `learning` | register, history, favorite, recovery, view `user_progress` |
@@ -59,9 +59,12 @@ set) or an OAuth provider picture (no asset).
 | `learning_progress(2)` | `user.db.js` → `getLearningProgress` (entitlement check, then `learning_progress_content`) |
 | `register_course(2)` | `course.db.js` → `postRegister` (grants the `free` entitlement of a free course; premium needs one) |
 | `learning_lesson(2)` | `course.db.js` → `getLearning` (`assert_lesson_access`) |
-| `submit_lesson(3)` | `course.db.js` → `postSubmitLesson` (`assert_lesson_access`, points via `post_points`) |
+| `submit_lesson(3)` | `course.db.js` → `postSubmitLesson` (`assert_lesson_access`; lesson points via `post_points`, lesson EXP and the course completion bonus as EXP via `award_exp`; returns what was awarded). Completing a course credits no points. |
 | `has_course_access(2)` | `course.db.js`, `challenge.db.js`, `commerce.db.js`: the single course access rule (active entitlement) |
 | `post_points(10)` | the only writer of points: `submit_lesson`, `challenge.db.js`, `redeem_course_points`, `admin.db.js` |
+| `post_exp(9)` | the only writer of EXP (one award per source / idempotency key, never below 0, recomputes `exp_level`): `award_exp`, `admin.db.js` → `postExp` |
+| `award_exp(6)`, `award_challenge_exp(4)` | EXP of an active `exp_rule` (`lesson`, `quiz.<difficulty>`, `coding.<type>.<difficulty>`, `course.<level>`): `submit_lesson`, `challenge.db.js` → `awardChallengeRewards` |
+| `level_for_exp(1)` | level of an EXP total (`profile.exp_level`) |
 | `redeem_course_points(3)` | `commerce.db.js` → `redeem` (order + debit + entitlement in one transaction) |
 | `create_money_order(5)` | `commerce.db.js` → `createMoneyOrder` |
 | `apply_payment_event(8)` | `commerce.db.js` → `applyPaymentEvent` (verified webhooks; idempotent per event id) |

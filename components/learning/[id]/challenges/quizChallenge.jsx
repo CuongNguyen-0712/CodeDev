@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { useApp } from "@/contexts/appContext";
+import { announceRewards } from "@/components/ui/level";
 import { useSubmitQuiz } from "@/mutations/challenge.mutation";
 import { challengeQueries } from "@/queries/challenge.query";
 import { cn } from "@/lib/utils";
@@ -170,8 +171,10 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
             setAnswers({});
 
             if (res.passed) {
-                const bonus = res.awardedPoints > 0 ? ` +${res.awardedPoints} points added to your profile.` : "";
-                alert(200, `Challenge passed: ${res.earnedPoints}/${res.totalPoints} points.${bonus}`);
+                announceRewards(res, {
+                    title: `Challenge passed: ${res.earnedPoints}/${res.totalPoints} points`,
+                    id: `challenge-passed:${challenge.id}`,
+                });
                 onPassed?.(challenge.id);
             } else if (res.attemptsLeft > 0) {
                 alert(400, `You scored ${res.earnedPoints}/${res.totalPoints}. ${res.attemptsLeft} attempt(s) left, the next one opens in ${Math.round(res.cooldownSeconds / 60)} minutes.`);
@@ -229,7 +232,7 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                                 className={cn(
                                     'flex size-6 items-center justify-center rounded-sm border font-mono text-[11px] tabular transition-colors',
                                     isCurrent
-                                        ? 'border-primary bg-primary text-primary-foreground'
+                                        ? 'border-primary bg-primary text-primary-foreground dark:text-white'
                                         : graded
                                             ? graded.isCorrect
                                                 ? 'border-success/40 bg-success-soft text-success'
@@ -296,7 +299,7 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                                     className={cn(
                                         'flex size-5 shrink-0 items-center justify-center border text-[10px] font-medium',
                                         isMultiple ? 'rounded-sm' : 'rounded-full',
-                                        selected ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background text-muted-foreground',
+                                        selected ? 'border-primary bg-primary text-primary-foreground dark:text-white' : 'border-input bg-background text-muted-foreground',
                                         outcome === 'correct' && 'border-success bg-success text-success-foreground',
                                         outcome === 'incorrect' && 'border-destructive bg-destructive text-destructive-foreground'
                                     )}

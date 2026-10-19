@@ -76,17 +76,21 @@ export const userDb = {
                 i.name as name, 
                 i.image as image, 
                 i.bio as bio, 
-                i.nickname as nickname, 
-                i.rank as rank, 
-                i.star as star, 
-                i.level as level, 
+                i.nickname as nickname,
                 i.phone as phone,
                 i.points as points,
-                u.username as username, 
+                i.exp as exp,
+                i.exp_level as level,
+                lvl.title as "levelTitle",
+                lvl.min_exp as "levelMinExp",
+                nxt.min_exp as "nextLevelMinExp",
+                u.username as username,
                 u.email as email,
-                u.email_verified as email_verified 
+                u.email_verified as email_verified
             from identity.users u
             join profile.info i on u.id = i.user_id
+            left join profile.exp_level lvl on lvl.level = i.exp_level
+            left join profile.exp_level nxt on nxt.level = i.exp_level + 1 and nxt.is_active
             ${whereSQL}
             limit 1
         `;
@@ -408,12 +412,12 @@ export const userDb = {
                 u.username,
                 i.image,
                 i.nickname,
-                i.level,
-                i.rank,
-                i.star,
+                i.exp_level AS level,
+                lvl.title AS "levelTitle",
                 f.status
             FROM identity.users u
             INNER JOIN profile.info i ON i.user_id = u.id AND i.user_id != (select id from identity.users where public_id = $1)
+            LEFT JOIN profile.exp_level lvl ON lvl.level = i.exp_level
             INNER JOIN community.friend f ON (
                 (f.sender_id = (select id from identity.users where public_id = $1) AND f.receiver_id = u.id)
                 OR

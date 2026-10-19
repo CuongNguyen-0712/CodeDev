@@ -79,6 +79,7 @@ BEGIN
                                     'difficulty', ch.difficulty,
                                     'type', ch.type,
                                     'points', COALESCE(ch.points, 0),
+                                    'exp', (SELECT r.amount FROM profile.exp_rule r WHERE r.is_active AND r.rule_key = CASE WHEN ch.type = 'quiz' THEN 'quiz.' || ch.difficulty ELSE 'coding.' || ch.type || '.' || ch.difficulty END),
                                     'questions', CASE WHEN ch.type = 'quiz' THEN COALESCE((
                                         SELECT jsonb_agg(
                                             jsonb_build_object(

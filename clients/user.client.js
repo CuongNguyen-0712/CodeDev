@@ -26,6 +26,14 @@ export const userClient = {
         return res.data;
     },
 
+    // Level table + one page of EXP history; `cursor` is the previous page's `next`.
+    getExperience: async (cursor) => {
+        const res = await apiClient.get('/user/experience', {
+            params: cursor ? { beforeAt: cursor.createdAt, beforeId: cursor.id } : {},
+        });
+        return res.data;
+    },
+
     getSessions: async () => {
         const res = await apiClient.get('/user/sessions');
         return res.data || [];

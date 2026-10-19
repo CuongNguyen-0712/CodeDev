@@ -153,13 +153,22 @@ export const adminDb = {
 
     findUserForUpdate: async (client, userPublicId) => {
         const { rows } = await client.query(
-            `SELECT u.id, u.public_id, COALESCE(i.points, 0)::bigint AS points
+            `SELECT u.id, u.public_id, COALESCE(i.points, 0)::bigint AS points, i.exp, i.exp_level
              FROM identity.users u JOIN profile.info i ON i.user_id = u.id
              WHERE u.public_id = $1
              FOR UPDATE OF i`,
             [userPublicId]
         );
         return rows[0] || null;
+    },
+
+    /** EXP adjustment through public.post_exp (never below 0, once per idempotency key). */
+    postExp: async (client, { userDbId, amount, idempotencyKey, actorId, reason }) => {
+        const { rows } = await client.query(
+            `SELECT * FROM public.post_exp($1::bigint, $2::int, 'adjustment', NULL, NULL, $3, $4::bigint, $5)`,
+            [userDbId, amount, idempotencyKey, actorId, reason]
+        );
+        return rows[0];
     },
 
     postPoints: async (client, args) => {
@@ -228,7 +237,7 @@ export const adminDb = {
     /** Admin search: username / email prefix or exact public id. */
     findUsers: async ({ query }) => {
         return sql(
-            `SELECT u.public_id AS id, u.username, u.email, COALESCE(i.points, 0)::bigint AS points
+            `SELECT u.public_id AS id, u.username, u.email, COALESCE(i.points, 0)::bigint AS points, COALESCE(i.exp, 0)::bigint AS exp, COALESCE(i.exp_level, 1) AS level
              FROM identity.users u LEFT JOIN profile.info i ON i.user_id = u.id
              WHERE u.public_id = $1 OR u.username ILIKE $2 ESCAPE '\\' OR u.email ILIKE $2 ESCAPE '\\'
              ORDER BY u.username

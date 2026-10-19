@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import PortableTextRenderer from "../../ui/portableTextRenderer";
 import { useCourseSubmitLesson } from "@/mutations/course.mutation";
 import { useApp } from "@/contexts/appContext";
+import { announceRewards } from "@/components/ui/level";
 import { useQuery } from "@tanstack/react-query";
 import { courseQueries } from "@/queries/course.query";
 import { ErrorReload } from "../../ui/error";
@@ -30,8 +31,11 @@ export function SubmitLessonButton({ lessonId, courseId, onSubmitted, blocked = 
     const handleSubmit = async () => {
         if (blocked) return;
         try {
-            await submitLesson.mutateAsync({ lessonId, courseId });
-            alert(200, "Lesson marked as completed.");
+            const rewards = await submitLesson.mutateAsync({ lessonId, courseId });
+            announceRewards(rewards, {
+                title: rewards?.courseCompleted ? "Course completed" : "Lesson completed",
+                id: `lesson-completed:${lessonId}`,
+            });
             onSubmitted?.();
         }
         catch (error) {
@@ -92,7 +96,7 @@ function StepButton({ lesson, unlocked, direction, onSelect }) {
                 isNext && 'flex-row-reverse text-right'
             )}
         >
-            <Arrow className="size-4 shrink-0 text-muted-foreground group-hover:text-primary group-disabled:group-hover:text-muted-foreground" aria-hidden="true" />
+            <Arrow className="size-4 shrink-0 text-muted-foreground group-hover:text-primary-ink group-disabled:group-hover:text-muted-foreground" aria-hidden="true" />
             <span className="min-w-0">
                 <span className="block text-xs text-muted-foreground">
                     {isNext ? 'Next lesson' : 'Previous lesson'}{!unlocked && ' (locked)'}

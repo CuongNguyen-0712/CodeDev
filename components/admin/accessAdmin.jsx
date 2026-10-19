@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { useApp } from "@/contexts/appContext";
 import { adminQueries } from "@/queries/premium.query";
-import { newIdempotencyKey, useAdminAdjustPoints, useAdminGrant, useAdminRevoke } from "@/mutations/premium.mutation";
+import { newIdempotencyKey, useAdminAdjustExperience, useAdminAdjustPoints, useAdminGrant, useAdminRevoke } from "@/mutations/premium.mutation";
 
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
@@ -60,7 +60,8 @@ export default function AccessAdmin({ can }) {
                         <h2 className="text-lg font-semibold">{selected.username}</h2>
                         <p className="font-mono text-xs text-muted-foreground">{selected.id}</p>
                     </header>
-                    {can("points.adjust") && <AdjustPoints key={selected.id} user={selected} onAdjusted={(balance) => setSelected({ ...selected, points: balance })} />}
+                    {can("points.adjust") && <AdjustBalance key={selected.id} kind="points" user={selected} onAdjusted={(points) => setSelected({ ...selected, points })} />}
+                    {can("points.adjust") && <AdjustBalance key={`x-${selected.id}`} kind="exp" user={selected} onAdjusted={(exp) => setSelected({ ...selected, exp })} />}
                     {can("entitlement.grant") && <Entitlements key={`e-${selected.id}`} user={selected} />}
                 </div>
             ) : (
@@ -70,27 +71,41 @@ export default function AccessAdmin({ can }) {
     );
 }
 
-function AdjustPoints({ user, onAdjusted }) {
+// Points can never go below 0 (the adjustment is refused); EXP is floored at 0 (and the level recomputed).
+const BALANCE_KINDS = {
+    points: { title: "Points", unit: "pts", field: "points", resultField: "balanceAfter", floors: false },
+    exp: { title: "Experience (EXP)", unit: "EXP", field: "exp", resultField: "expAfter", floors: true },
+};
+
+function AdjustBalance({ kind, user, onAdjusted }) {
+    const config = BALANCE_KINDS[kind];
     const { showAlert } = useApp();
-    const adjust = useAdminAdjustPoints();
+    const adjustPoints = useAdminAdjustPoints();
+    const adjustExperience = useAdminAdjustExperience();
+    const adjust = kind === "exp" ? adjustExperience : adjustPoints;
     const [amount, setAmount] = useState("");
     const [reason, setReason] = useState("");
     // One key per form submission intent: a double click or a retry is applied once.
     const [idempotencyKey, setIdempotencyKey] = useState(newIdempotencyKey);
 
+    const current = Number(user[config.field]) || 0;
     const value = Number.parseInt(amount, 10);
     const valid = Number.isInteger(value) && value !== 0 && reason.trim().length >= 5;
-    const after = Number.isInteger(value) ? Number(user.points) + value : null;
+    const rawAfter = Number.isInteger(value) ? current + value : null;
+    const after = rawAfter !== null && config.floors ? Math.max(0, rawAfter) : rawAfter;
+    const blocked = !config.floors && after !== null && after < 0;
+    const id = `adjust-${kind}`;
 
     const submit = (event) => {
         event.preventDefault();
-        if (!valid) return;
+        if (!valid || blocked) return;
         adjust.mutate(
             { userId: user.id, amount: value, reason: reason.trim(), idempotencyKey },
             {
                 onSuccess: (result) => {
-                    showAlert(200, result.replayed ? "Already applied" : `Balance is now ${result.balanceAfter} pts`);
-                    onAdjusted(result.balanceAfter);
+                    const next = result[config.resultField];
+                    showAlert(200, result.replayed ? "Already applied" : `${config.title} is now ${next} ${config.unit}${kind === "exp" ? ` (level ${result.level})` : ""}`);
+                    onAdjusted(next);
                     setAmount("");
                     setReason("");
                     setIdempotencyKey(newIdempotencyKey());
@@ -101,24 +116,26 @@ function AdjustPoints({ user, onAdjusted }) {
     };
 
     return (
-        <section className="space-y-3 rounded-lg border border-border p-4" aria-labelledby="adjust-heading">
-            <h3 id="adjust-heading" className="text-sm font-semibold">Points</h3>
-            <p className="text-sm">Current balance: <span className="font-mono tabular-nums">{Number(user.points).toLocaleString()} pts</span></p>
+        <section className="space-y-3 rounded-lg border border-border p-4" aria-labelledby={`${id}-heading`}>
+            <h3 id={`${id}-heading`} className="text-sm font-semibold">{config.title}</h3>
+            <p className="text-sm">Current: <span className="font-mono tabular-nums">{current.toLocaleString()} {config.unit}</span></p>
             <form onSubmit={submit} className="space-y-3">
                 <div className="space-y-1.5">
-                    <Label htmlFor="adjust-amount">Amount (negative to deduct)</Label>
-                    <Input id="adjust-amount" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d-]/g, ""))} className="w-40" />
+                    <Label htmlFor={`${id}-amount`}>Amount (negative to deduct)</Label>
+                    <Input id={`${id}-amount`} inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d-]/g, ""))} className="w-40" />
                     {after !== null && (
-                        <p className={after < 0 ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>
-                            Balance after: {after.toLocaleString()} pts{after < 0 ? " (not allowed: balances never go below 0)" : ""}
+                        <p className={blocked ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>
+                            After: {after.toLocaleString()} {config.unit}
+                            {blocked ? " (not allowed: balances never go below 0)" : ""}
+                            {config.floors && rawAfter < 0 ? " (EXP never goes below 0)" : ""}
                         </p>
                     )}
                 </div>
                 <div className="space-y-1.5">
-                    <Label htmlFor="adjust-reason">Reason (kept in the audit log)</Label>
-                    <Textarea id="adjust-reason" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />
+                    <Label htmlFor={`${id}-reason`}>Reason (kept in the audit log)</Label>
+                    <Textarea id={`${id}-reason`} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />
                 </div>
-                <Button type="submit" disabled={!valid || adjust.isPending || (after !== null && after < 0)}>
+                <Button type="submit" disabled={!valid || adjust.isPending || blocked}>
                     {adjust.isPending ? "Applying..." : "Apply adjustment"}
                 </Button>
             </form>

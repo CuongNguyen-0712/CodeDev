@@ -24,6 +24,7 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 
 import LearningLesson from "./lessons";
+import { LevelPointsChip } from "@/components/ui/level";
 
 import {
     LuArrowLeft,
@@ -46,7 +47,7 @@ const pad = (value) => String(value).padStart(2, '0');
 function LessonStatusIcon({ status, locked }) {
     if (locked) return <LuLock className="size-3.5 text-muted-foreground" aria-hidden="true" />;
     if (status === 'completed') return <LuCircleCheck className="size-3.5 text-success" aria-hidden="true" />;
-    if (status === 'in_progress') return <LuCircleDot className="size-3.5 text-primary" aria-hidden="true" />;
+    if (status === 'in_progress') return <LuCircleDot className="size-3.5 text-primary-ink" aria-hidden="true" />;
     return <LuCircle className="size-3.5 text-muted-foreground" aria-hidden="true" />;
 }
 
@@ -462,6 +463,8 @@ export default function StudyingPage({ params }) {
                         </div>
                     )}
                 </div>
+
+                <LevelPointsChip />
 
                 <Button variant="ghost" size="sm" onClick={() => setDetailsOpen(true)} className="text-muted-foreground hover:text-foreground">
                     <LuInfo />

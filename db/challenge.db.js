@@ -25,18 +25,35 @@ async function withTransaction(callback) {
     }
 }
 
-// Credits challenge points once per (user, challenge) through the ledger's single writer
-// (public.post_points locks the balance row and is idempotent per source).
-async function awardChallengePoints(client, { userDbId, challengeId, amount }) {
-    if (!amount || amount <= 0) return 0;
+// Credits a passed challenge once per (user, challenge): points through public.post_points and EXP
+// through public.award_challenge_exp (rule from the challenge type/difficulty, times expMultiplier).
+// Both writers lock the profile row and are idempotent per source; points first, then EXP.
+async function awardChallengeRewards(client, { userDbId, challengeId, amount, expMultiplier = 1 }) {
+    let awardedPoints = 0;
+    if (amount > 0) {
+        const { rows } = await client.query(
+            `SELECT created FROM public.post_points($1::bigint, 'credit', 'earned', $3::bigint, 'challenge', $2::bigint)`,
+            [userDbId, challengeId, amount]
+        );
+        if (rows[0]?.created) awardedPoints = amount;
+    }
 
-    const { rows } = await client.query(
-        `SELECT created FROM public.post_points($1::bigint, 'credit', 'earned', $3::bigint, 'challenge', $2::bigint)`,
-        [userDbId, challengeId, amount]
+    const { rows: expRows } = await client.query(
+        `SELECT awarded, exp_after, previous_level, new_level FROM public.award_challenge_exp($1::bigint, $2::bigint, $3::numeric)`,
+        [userDbId, challengeId, expMultiplier]
     );
+    const exp = expRows[0] || {};
 
-    return rows[0]?.created ? amount : 0;
+    return {
+        awardedPoints,
+        awardedExp: Number(exp.awarded) || 0,
+        exp: Number(exp.exp_after) || 0,
+        level: Number(exp.new_level) || 1,
+        previousLevel: Number(exp.previous_level) || 1,
+    };
 }
+
+const NO_REWARD = { awardedPoints: 0, awardedExp: 0 };
 
 export const challengeDb = {
     // Challenge row + the caller's access state for the owning lesson.
@@ -165,11 +182,10 @@ export const challengeDb = {
                 ]
             );
 
-            const awardedPoints = passed
-                ? await awardChallengePoints(client, { userDbId, challengeId, amount: points })
-                : 0;
-
-            return { awardedPoints };
+            // EXP: full on the first attempt, half when passed on a later one (attempts = earlier attempts).
+            return passed
+                ? await awardChallengeRewards(client, { userDbId, challengeId, amount: points, expMultiplier: attempts === 0 ? 1 : 0.5 })
+                : NO_REWARD;
         });
     },
 
@@ -417,11 +433,11 @@ export const challengeDb = {
                 );
             }
 
-            const awardedPoints = passed
-                ? await awardChallengePoints(client, { userDbId, challengeId, amount: points })
-                : 0;
+            const rewards = passed
+                ? await awardChallengeRewards(client, { userDbId, challengeId, amount: points })
+                : NO_REWARD;
 
-            return { submission: submissionRow, awardedPoints };
+            return { submission: submissionRow, ...rewards };
         });
     },
 };

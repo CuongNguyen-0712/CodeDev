@@ -6,4 +6,5 @@ export const userKeys = {
     courseProgressList: (params) => [...userKeys.courseProgress(), params],
     learningProgress: (courseId) => [...userKeys.all, 'learningProgress', courseId],
     sessions: () => [...userKeys.all, 'sessions'],
+    experience: () => [...userKeys.all, 'experience'],
 }

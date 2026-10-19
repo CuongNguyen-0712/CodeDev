@@ -9,6 +9,8 @@ import { publishToUser } from "@/lib/pusher";
 import { events } from "@/lib/realtime";
 import { ApiError } from "@/lib/error/apiError";
 import { outputsMatch, parseJsonSafe, toJsonValue } from "@/lib/challenges/compare";
+import { executeTests, serverExecutionEnabled } from "@/lib/challenges/codeRunner";
+import { detectEntryName } from "@/lib/challenges/entry";
 
 export const QUIZ_PASS_RATIO = 0.7;
 export const MAX_SOURCE_BYTES = 64 * 1024;
@@ -82,14 +84,29 @@ async function readStorageFile(objectKey, { cache = true } = {}) {
     return content;
 }
 
-/** Points, overview and learning progress changed: drop caches and tell the user's other tabs. */
-async function afterSubmission({ userId, ctx, passed, awardedPoints }) {
+// What a submission earned, as returned to the browser: points and EXP, plus the level after the
+// award (level / previousLevel only when EXP was awarded, so the client can show a level-up).
+function rewardView(rewards = {}) {
+    const view = {
+        awardedPoints: Number(rewards.awardedPoints) || 0,
+        awardedExp: Number(rewards.awardedExp) || 0,
+    };
+    if (view.awardedExp > 0) {
+        view.exp = Number(rewards.exp) || 0;
+        view.level = Number(rewards.level) || 1;
+        view.previousLevel = Number(rewards.previousLevel) || view.level;
+    }
+    return view;
+}
+
+/** Points, EXP, overview and learning progress changed: drop caches and tell the user's other tabs. */
+async function afterSubmission({ userId, ctx, passed, rewards }) {
     await invalidateUserCache(userId);
     publishToUser(userId, events.CHALLENGE_SUBMITTED, {
         challengeId: String(ctx.id),
         type: ctx.type,
         passed: Boolean(passed),
-        awardedPoints: Number(awardedPoints) || 0,
+        ...rewards,
     });
 }
 
@@ -361,6 +378,29 @@ function submissionView(row) {
     return { ...row, status };
 }
 
+/**
+ * Runs the tests in the code runner (sandbox) with the challenge's own limits and harness.
+ * Returns outputs in the browser's report shape, so gradeTests grades both the same way.
+ */
+async function runOnServer({ definition, code, testCases }) {
+    const files = definition.files || [];
+    const starterFile = files.find((f) => f.role === "starter" || !f.role) || null;
+    const harnessFile = files.find((f) => f.role === "harness") || null;
+    const [starterCode, harnessCode] = await Promise.all([
+        readStorageFile(starterFile?.object_key),
+        readStorageFile(harnessFile?.object_key),
+    ]);
+
+    return executeTests({
+        code,
+        harness: harnessCode,
+        entry: detectEntryName(starterCode || code),
+        tests: testCases.map((tc) => ({ id: tc.id, input: tc.input })),
+        timeLimitMs: Number(definition.time_limit_ms) || 2000,
+        memoryLimitMb: Number(definition.memory_limit_mb) || 128,
+    });
+}
+
 async function loadCodingDefinition(ctx) {
     if (!CODING_TYPES.has(ctx.type)) {
         throw new ApiError("This challenge is not a coding challenge", 400);
@@ -412,7 +452,7 @@ export const challengeService = {
         const graded = gradeQuiz(questions, answers || {});
 
         // Attempt limit and cooldown are re-checked under a lock inside the transaction.
-        const { awardedPoints } = await challengeDb.saveQuizAttempt({
+        const saved = await challengeDb.saveQuizAttempt({
             userDbId: ctx.user_db_id,
             challengeId: ctx.id,
             rows: graded.rows,
@@ -422,11 +462,12 @@ export const challengeService = {
             cooldownSec: QUIZ_COOLDOWN_SECONDS,
         });
 
-        await afterSubmission({ userId, ctx, passed: graded.passed, awardedPoints });
+        const rewards = rewardView(saved);
+        await afterSubmission({ userId, ctx, passed: graded.passed, rewards });
 
         const state = quizStateView(ctx, await loadQuizHistory(ctx, questions));
 
-        return { ...state, awardedPoints };
+        return { ...state, ...rewards };
     },
 
     /**
@@ -566,7 +607,12 @@ export const challengeService = {
             throw new ApiError("This challenge has no test cases yet", 409);
         }
 
-        const publicGraded = gradeTests(publicCases, results);
+        // With a code runner configured, the server runs every test itself before an attempt is
+        // used (a runner outage costs no attempt) and ignores the outputs the browser reported.
+        const serverRun = serverExecutionEnabled();
+        const executed = serverRun ? await runOnServer({ definition, code, testCases }) : results;
+
+        const publicGraded = gradeTests(publicCases, executed);
         const failingSample = publicGraded.find((t) => t.status !== "passed");
         if (failingSample) {
             throw new ApiError(`Pass every sample test before submitting ("${failingSample.name}" did not pass).`, 409);
@@ -636,6 +682,8 @@ export const challengeService = {
             attempts: created.attempts,
             codeSha256,
             publicGraded,
+            serverRun,
+            hiddenGraded: serverRun ? gradeTests(hiddenCases, executed) : null,
         }, { ex: PENDING_SUBMISSION_TTL_SEC });
 
         return {
@@ -643,7 +691,10 @@ export const challengeService = {
             submissionId,
             attempts: created.attempts,
             maxAttempts: maxCodingAttempts(definition),
-            hiddenTests: hiddenCases.map((tc) => ({ id: tc.id, name: tc.name, input: tc.input, isHidden: true })),
+            // Graded on the server already: hidden inputs never need to reach the browser.
+            hiddenTests: serverRun
+                ? []
+                : hiddenCases.map((tc) => ({ id: tc.id, name: tc.name, input: tc.input, isHidden: true })),
         };
     },
 
@@ -663,7 +714,9 @@ export const challengeService = {
         const definition = await loadCodingDefinition(ctx);
         const points = Number(ctx.points) || 0;
         const hiddenCases = normaliseTestCases(definition.test_cases).filter((tc) => tc.isHidden);
-        const graded = [...(pending.publicGraded || []), ...gradeTests(hiddenCases, results)];
+        // Server-graded at start: the browser's report for this step is ignored.
+        const hiddenGraded = pending.serverRun ? (pending.hiddenGraded || []) : gradeTests(hiddenCases, results);
+        const graded = [...(pending.publicGraded || []), ...hiddenGraded];
         const grading = summariseGrading(graded, { scoringMode: definition.scoring_mode, points });
 
         const starterFile = (definition.files || []).find((f) => f.role === "starter" || !f.role) || null;
@@ -701,7 +754,8 @@ export const challengeService = {
         });
 
         await redis.del(pendingKey(submissionId));
-        await afterSubmission({ userId, ctx, passed: grading.allPassed, awardedPoints: saved.awardedPoints });
+        const rewards = rewardView(saved);
+        await afterSubmission({ userId, ctx, passed: grading.allPassed, rewards });
 
         return {
             challengeId: ctx.id,
@@ -713,7 +767,7 @@ export const challengeService = {
             points,
             testsPassed: grading.testsPassed,
             testsTotal: grading.testsTotal,
-            awardedPoints: saved.awardedPoints,
+            ...rewards,
             attempts: Number(pending.attempts) || null,
             maxAttempts: maxCodingAttempts(definition),
             tests: graded.map(testView),

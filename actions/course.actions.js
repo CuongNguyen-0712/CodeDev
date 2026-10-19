@@ -36,8 +36,8 @@ export async function submitLessonAction({ courseId, lessonId } = {}) {
             throw new ApiError("Course ID and Lesson ID are required.", 400);
         }
 
-        const success = await courseService.postSubmitLesson({ userId, courseId, lessonId });
-        return Boolean(success);
+        // { awardedPoints, awardedExp, courseCompleted, exp?, level?, previousLevel? }
+        return await courseService.postSubmitLesson({ userId, courseId, lessonId });
     }, { context: "submitLessonAction" });
 }
 

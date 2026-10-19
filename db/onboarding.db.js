@@ -155,6 +155,8 @@ export const onboardingDb = {
                 r.name AS role_name,
                 p.experience_level,
                 p.preferred_language_id,
+                (SELECT i.exp FROM profile.info i WHERE i.user_id = u.id) AS exp,
+                (SELECT i.exp_level FROM profile.info i WHERE i.user_id = u.id) AS exp_level,
                 COALESCE((SELECT json_agg(json_build_object('code', s.code, 'name', s.name, 'weight', rs.weight))
                           FROM catalog.career_role_skill rs JOIN catalog.skill s ON s.id = rs.skill_id
                           WHERE rs.career_role_id = r.id AND s.is_active), '[]') AS role_skills,

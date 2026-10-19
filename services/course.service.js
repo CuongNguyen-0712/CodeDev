@@ -185,11 +185,22 @@ export const courseService = {
             throw new Error('Failed to submit lesson, try again later');
         }
 
-        const course = response.rows[0];
+        const row = response.rows[0];
 
         await afterProgressChange({ userId: data.userId, courseId: data.courseId, reason: progressReasons.LESSON_COMPLETED });
 
-        return !!course;
+        // What this completion earned (0 when the lesson was already completed before).
+        const awardedExp = Number(row.awardedExp) || 0;
+        return {
+            awardedPoints: Number(row.awardedPoints) || 0,
+            awardedExp,
+            courseCompleted: Boolean(row.courseCompleted),
+            ...(awardedExp > 0 && {
+                exp: Number(row.exp) || 0,
+                level: Number(row.level) || 1,
+                previousLevel: Number(row.previousLevel) || Number(row.level) || 1,
+            }),
+        };
     },
 
     postFavorite: async (data) => {

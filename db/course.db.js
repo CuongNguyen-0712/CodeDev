@@ -210,6 +210,17 @@ export const courseDb = {
                 (SELECT json_build_object('amountMinor', o.amount, 'currency', o.currency)
                  FROM commerce.offer o WHERE o.course_id = c.id AND o.price_type = 'money' AND o.is_active) AS money_price,
                 (SELECT o.amount FROM commerce.offer o WHERE o.course_id = c.id AND o.price_type = 'points' AND o.is_active) AS points_price,
+                -- Maximum EXP of the course: lessons + first pass of every published challenge + completion bonus.
+                (
+                    (SELECT COALESCE(SUM(r.amount), 0) FROM course.module m JOIN course.lesson ls ON ls.module_id = m.id AND ls.is_deleted = false
+                     JOIN profile.exp_rule r ON r.rule_key = 'lesson' AND r.is_active
+                     WHERE m.course_id = c.id AND m.is_deleted = false)
+                  + (SELECT COALESCE(SUM(r.amount), 0) FROM challenge.challenges ch
+                     JOIN profile.exp_rule r ON r.is_active AND r.rule_key = CASE WHEN ch.type = 'quiz' THEN 'quiz.' || ch.difficulty
+                                                                               ELSE 'coding.' || ch.type || '.' || ch.difficulty END
+                     WHERE ch.course_id = c.id AND ch.is_published AND ch.is_deleted = false)
+                  + COALESCE((SELECT r.amount FROM profile.exp_rule r WHERE r.rule_key = 'course.' || c.level AND r.is_active), 0)
+                )::int AS estimated_exp,
                 l.id AS language_id,
                 l.name AS language_name,
                 l.logo AS language_logo,

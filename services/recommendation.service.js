@@ -1,4 +1,5 @@
 import { onboardingDb } from "@/db/onboarding.db";
+import { courseFit, recommendedLevel } from "@/lib/levels";
 
 /**
  * Recommendation v1: transparent rules, every point of score comes with a human-readable reason.
@@ -48,6 +49,22 @@ function levelSignal(experienceLevel, courseLevel) {
     return { score: WEIGHTS.levelTooBasic, reason: "May be too basic for you" };
 }
 
+// Once the learner has earned EXP, their User Level replaces the self-declared onboarding level.
+const FIT_SIGNALS = {
+    suitable: { score: WEIGHTS.levelFit, reason: (level) => `Suits your level ${level}` },
+    challenge: { score: WEIGHTS.levelStretch, reason: () => "A step up from your current level" },
+    review: { score: WEIGHTS.levelTooBasic, reason: () => "May be too basic for you" },
+    too_early: { score: WEIGHTS.levelTooHard, reason: () => "May be too advanced for now" },
+};
+
+function learnerLevelSignal(profile, courseLevel) {
+    if (profile.userExp > 0) {
+        const signal = FIT_SIGNALS[courseFit(profile.userLevel, courseLevel)];
+        return signal ? { score: signal.score, reason: signal.reason(profile.userLevel) } : null;
+    }
+    return profile.experienceLevel ? levelSignal(profile.experienceLevel, courseLevel) : null;
+}
+
 function listNames(items, max = 3) {
     return items.slice(0, max).map((item) => item.name).join(", ");
 }
@@ -92,10 +109,8 @@ export function scoreCourse(profile, course) {
         if (hits) add(Math.min(WEIGHTS.goalMax, hits * WEIGHTS.goal), hits > 1 ? "Serves several of your goals" : "Serves one of your goals");
     }
 
-    if (profile.experienceLevel) {
-        const level = levelSignal(profile.experienceLevel, course.level);
-        if (level) add(level.score, level.reason);
-    }
+    const level = learnerLevelSignal(profile, course.level);
+    if (level) add(level.score, level.reason);
 
     for (const prerequisite of course.prerequisites || []) {
         if (profile.completedCourseIds.has(prerequisite.id)) {
@@ -136,6 +151,7 @@ function toItem({ course, score, reasons }, ownedCourseIds) {
             title: course.title,
             image: course.image,
             level: course.level,
+            recommendedLevel: recommendedLevel(course.level),
             rating: course.rating,
             students: course.students,
             duration: course.duration,
@@ -186,8 +202,7 @@ export function rankCourses(profile, candidates, { limit = 6 } = {}) {
     // Fallback: popular open courses that are not obviously too hard, with an honest reason.
     const fallback = scored
         .filter((item) => {
-            if (!profile.experienceLevel) return true;
-            const level = levelSignal(profile.experienceLevel, item.course.level);
+            const level = learnerLevelSignal(profile, item.course.level);
             return !level || level.score > WEIGHTS.levelTooHard;
         })
         .map((item) => ({
@@ -206,6 +221,8 @@ export function normaliseProfile(row = {}) {
         roleCode: row.role_code || null,
         roleName: row.role_name || null,
         experienceLevel: row.experience_level || null,
+        userExp: Number(row.exp) || 0,
+        userLevel: Number(row.exp_level) || 1,
         preferredLanguageId: row.preferred_language_id || null,
         roleSkills: Array.isArray(row.role_skills) ? row.role_skills : [],
         industryCodes: row.industry_codes || [],

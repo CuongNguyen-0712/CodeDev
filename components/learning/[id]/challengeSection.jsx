@@ -63,6 +63,11 @@ function ChallengeHeader({ challenge, isDone, isExhausted }) {
                     {points > 0 && (
                         <Badge variant="outline" className="font-mono tabular">{points} pts</Badge>
                     )}
+                    {Number(challenge.exp) > 0 && (
+                        <Badge variant="outline" className="font-mono tabular text-xp" title="EXP for your first pass">
+                            +{challenge.exp} EXP
+                        </Badge>
+                    )}
                     {isDone && (
                         <Badge variant="success"><LuCheck aria-hidden="true" />Passed</Badge>
                     )}

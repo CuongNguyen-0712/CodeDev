@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { useApp } from "@/contexts/appContext";
+import { announceRewards } from "@/components/ui/level";
 import { challengeQueries } from "@/queries/challenge.query";
 import { codeSubmissionKeys, codeSubmissionQueries } from "@/queries/codeSubmission.query";
 import { useSubmitCoding } from "@/mutations/challenge.mutation";
@@ -294,8 +295,10 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
             await draft.markSubmitted({ code: submittedCode, submissionId: res.submissionId, submittedAt: res.submittedAt });
 
             if (res.passed) {
-                const bonus = res.awardedPoints > 0 ? ` +${res.awardedPoints} points added to your profile.` : "";
-                alert(200, `All ${res.testsTotal} tests passed.${bonus}`);
+                announceRewards(res, {
+                    title: `All ${res.testsTotal} tests passed`,
+                    id: `challenge-passed:${challenge.id}`,
+                });
                 onPassed?.(challenge.id);
             } else {
                 alert(400, `${res.testsPassed}/${res.testsTotal} tests passed. Your submission was saved.`);
@@ -591,6 +594,7 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
                         <p className="font-mono text-xs text-muted-foreground tabular">
                             {submission.testsPassed}/{submission.testsTotal} tests &middot; score {submission.score}/{submission.points} pts
                             {submission.awardedPoints > 0 && ` · +${submission.awardedPoints} pts earned`}
+                            {submission.awardedExp > 0 && ` · +${submission.awardedExp} EXP`}
                         </p>
                     </div>
                 </div>

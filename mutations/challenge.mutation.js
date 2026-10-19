@@ -10,6 +10,7 @@ import { userKeys } from "@/keys/user.keys";
 function invalidateRewards(queryClient) {
     queryClient.invalidateQueries({ queryKey: userKeys.me() });
     queryClient.invalidateQueries({ queryKey: userKeys.overview() });
+    queryClient.invalidateQueries({ queryKey: userKeys.experience() });
 }
 
 export const useSubmitQuiz = () => {

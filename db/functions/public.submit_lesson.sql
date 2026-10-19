@@ -3,24 +3,33 @@
 -- change the database through a migration in db/migrations, then re-run the exporter.
 
 CREATE OR REPLACE FUNCTION public.submit_lesson(_user_id character varying, _course_id character varying, _lesson_id bigint)
- RETURNS TABLE("nextLessonId" bigint, "completedLessons" integer)
+ RETURNS TABLE("nextLessonId" bigint, "completedLessons" integer, "awardedPoints" integer, "awardedExp" integer, exp bigint, level integer, "previousLevel" integer, "courseCompleted" boolean)
  LANGUAGE plpgsql
 AS $function$
 DECLARE
     v_user_id bigint;
     v_course_id bigint;
-    v_reward bigint;
+    v_course_level text;
     v_status status_progress_enum;
     total_lessons int;
     completed_lessons int;
     next_lesson_id bigint;
+    v_points record;
+    v_exp record;
+    v_course_exp record;
+    v_awarded_points int := 0;
+    v_awarded_exp int := 0;
+    v_previous_level int;
+    v_level int;
+    v_total_exp bigint;
+    v_course_completed boolean := false;
 BEGIN
     SELECT u.id INTO v_user_id FROM identity.users u WHERE u.public_id = _user_id;
     IF v_user_id IS NULL THEN
         RAISE EXCEPTION 'Missing user id';
     END IF;
 
-    SELECT c.id, COALESCE(c.reward, 0) INTO v_course_id, v_reward
+    SELECT c.id, c.level::text INTO v_course_id, v_course_level
     FROM catalog.course c
     WHERE c.public_id = _course_id;
     IF v_course_id IS NULL THEN
@@ -48,8 +57,17 @@ BEGIN
     SET status = 'completed', updated_at = now()
     WHERE user_id = v_user_id AND course_id = v_course_id AND lesson_id = _lesson_id;
 
-    -- Lesson reward, once per lesson (post_points is idempotent per source).
-    PERFORM public.post_points(v_user_id, 'credit', 'earned', 10, 'lesson', _lesson_id);
+    -- Lesson reward, once per lesson: points and EXP (both idempotent per source).
+    SELECT * INTO v_points FROM public.post_points(v_user_id, 'credit', 'earned', 10, 'lesson', _lesson_id);
+    IF v_points.created THEN
+        v_awarded_points := 10;
+    END IF;
+
+    SELECT * INTO v_exp FROM public.award_exp(v_user_id, 'lesson', 'lesson', _lesson_id);
+    v_awarded_exp := v_exp.awarded;
+    v_previous_level := v_exp.previous_level;
+    v_level := v_exp.new_level;
+    v_total_exp := v_exp.exp_after;
 
     -- Unlock the next lesson in course order.
     SELECT l2.id INTO next_lesson_id
@@ -90,13 +108,18 @@ BEGIN
         UPDATE learning.register
         SET status = 'completed'
         WHERE user_id = v_user_id AND course_id = v_course_id;
+        v_course_completed := true;
 
-        IF v_reward > 0 THEN
-            PERFORM public.post_points(v_user_id, 'credit', 'earned', v_reward, 'course', v_course_id);
+        -- Course completion bonus is EXP only (points come from lessons and challenges).
+        IF v_course_level IS NOT NULL THEN
+            SELECT * INTO v_course_exp FROM public.award_exp(v_user_id, 'course.' || v_course_level, 'course', v_course_id);
+            v_awarded_exp := v_awarded_exp + v_course_exp.awarded;
+            v_level := v_course_exp.new_level;
+            v_total_exp := v_course_exp.exp_after;
         END IF;
     END IF;
 
     RETURN QUERY
-    SELECT next_lesson_id AS "nextLessonId", completed_lessons AS "completedLessons";
+    SELECT next_lesson_id, completed_lessons, v_awarded_points, v_awarded_exp, v_total_exp, v_level, v_previous_level, v_course_completed;
 END;
 $function$;

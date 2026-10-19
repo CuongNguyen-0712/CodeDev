@@ -168,6 +168,45 @@ export const adminService = {
         return result;
     },
 
+    /** Add (amount > 0) or remove (amount < 0, floored at 0) a user's EXP, with a reason, exactly once per key. */
+    adjustExperience: async ({ actor, input, ip }) => {
+        const result = await withTransaction(async (client) => {
+            const user = await adminDb.findUserForUpdate(client, input.userId);
+            if (!user) throw new ApiError("User not found", 404);
+
+            const entry = await adminDb.postExp(client, {
+                userDbId: user.id,
+                amount: input.amount,
+                idempotencyKey: `adjust-exp:${input.idempotencyKey}`,
+                actorId: actor.id,
+                reason: input.reason,
+            });
+
+            if (entry.created) {
+                await adminDb.audit(client, {
+                    actorId: actor.id,
+                    action: "experience.adjust",
+                    targetType: "user",
+                    targetId: input.userId,
+                    reason: input.reason,
+                    before: { exp: toNumber(user.exp), level: user.exp_level },
+                    after: { exp: toNumber(entry.exp_after), level: entry.new_level, amount: entry.awarded },
+                    ip,
+                });
+            }
+
+            return {
+                userId: input.userId,
+                expAfter: toNumber(entry.exp_after),
+                level: entry.new_level,
+                replayed: !entry.created,
+            };
+        });
+
+        await invalidateUserCache(input.userId);
+        return result;
+    },
+
     /**
      * Refunds a points order: points back (ledger 'refunded'), order refunded, entitlement
      * revoked. Money orders are refunded at the provider; its webhook revokes access.

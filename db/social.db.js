@@ -23,12 +23,12 @@ export const socialDb = {
                 u.username,
                 i.image,
                 i.nickname,
-                i.level,
-                i.rank,
-                i.star
+                i.exp_level AS level,
+                lvl.title AS "levelTitle"
             FROM identity.users me
             JOIN identity.users u ON true
             LEFT JOIN profile.info i ON i.user_id = u.id
+            LEFT JOIN profile.exp_level lvl ON lvl.level = i.exp_level
             LEFT JOIN community.friend f
                 ON LEAST(f.sender_id, f.receiver_id) = LEAST(me.id, u.id)
                AND GREATEST(f.sender_id, f.receiver_id) = GREATEST(me.id, u.id)

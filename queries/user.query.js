@@ -3,6 +3,7 @@ import { keepPreviousData } from "@tanstack/react-query";
 import { userClient } from "@/clients/user.client";
 
 import { userKeys } from "@/keys/user.keys";
+import { QUERY_TIMES } from "@/lib/queryTimes";
 
 export const userQueries = {
     me(status) {
@@ -10,8 +11,8 @@ export const userQueries = {
             queryKey: userKeys.me(),
             queryFn: () => userClient.getMe(),
             enabled: status === 'authenticated',
-            staleTime: 5 * 60 * 1000,
-            gcTime: 30 * 60 * 1000,
+            // Profile / points: changed by the user's own actions, which invalidate userKeys.
+            ...QUERY_TIMES.profile,
             refetchOnWindowFocus: false,
         };
     },
@@ -21,8 +22,7 @@ export const userQueries = {
             queryKey: userKeys.overview(),
             queryFn: () => userClient.getOverview(),
             enabled: status === 'authenticated',
-            staleTime: 0,
-            gcTime: 1000 * 60 * 30,
+            ...QUERY_TIMES.personal,
             refetchOnWindowFocus: true,
         };
     },
@@ -45,11 +45,20 @@ export const userQueries = {
                 lastPage?.hasMore ? lastPage.nextCursor : undefined,
 
             placeholderData: keepPreviousData,
-            staleTime: 15 * 1000,
-
-            gcTime: 10 * 60 * 1000, // 10 minutes
-
+            ...QUERY_TIMES.personal,
             refetchOnWindowFocus: true,
+        };
+    },
+
+    /** Level table + EXP history pages (useInfiniteQuery). */
+    experience(status) {
+        return {
+            queryKey: userKeys.experience(),
+            queryFn: ({ pageParam }) => userClient.getExperience(pageParam),
+            initialPageParam: null,
+            getNextPageParam: (lastPage) => lastPage?.next || undefined,
+            enabled: status === 'authenticated',
+            ...QUERY_TIMES.personal,
         };
     },
 
@@ -58,8 +67,7 @@ export const userQueries = {
             queryKey: userKeys.sessions(),
             queryFn: () => userClient.getSessions(),
             enabled: status === 'authenticated',
-            staleTime: 30 * 1000,
-            gcTime: 5 * 60 * 1000,
+            ...QUERY_TIMES.personal,
             refetchOnWindowFocus: true,
         };
     },
@@ -69,8 +77,7 @@ export const userQueries = {
             queryKey: userKeys.learningProgress(courseId),
             queryFn: () => userClient.getLearningProgress({ courseId }),
             enabled: status === 'authenticated',
-            staleTime: 30 * 1000,
-            gcTime: 5 * 60 * 1000,
+            ...QUERY_TIMES.personal,
             refetchOnWindowFocus: true,
         };
     }

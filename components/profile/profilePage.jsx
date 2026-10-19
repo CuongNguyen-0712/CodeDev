@@ -5,7 +5,8 @@ import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 
 import { userQueries } from "@/queries/user.query";
-import { levelMapping } from "@/constants/constants";
+import { ExpProgress, levelProgress } from "@/components/ui/level";
+import ExperienceSection from "@/components/profile/experienceSection";
 
 import { ErrorReload } from "@/components/ui/error";
 import { formatPoints } from "@/components/ui/navbar";
@@ -26,9 +27,8 @@ import {
     LuCircleAlert,
     LuCode,
     LuCoins,
-    LuGauge,
+    LuSparkles,
     LuLibrary,
-    LuStar,
     LuTrophy,
     LuUserPen,
 } from "react-icons/lu";
@@ -64,12 +64,12 @@ function toPercent(done, total) {
 
 function Stat({ icon: Icon, label, iconClassName, children }) {
     return (
-        <div className="flex min-w-0 flex-col gap-1 bg-card px-4 py-3">
+        <div className="flex min-w-0 flex-col gap-1 bg-card px-3 py-2.5 transition-colors sm:px-4 sm:py-3 hover:bg-accent/30">
             <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                <Icon className={cn("size-3.5", iconClassName)} aria-hidden="true" />
-                {label}
+                <Icon className={cn("size-3.5 shrink-0", iconClassName)} aria-hidden="true" />
+                <span className="truncate">{label}</span>
             </dt>
-            <dd className="m-0 truncate text-lg font-semibold text-foreground">{children}</dd>
+            <dd className="m-0 truncate text-base font-semibold text-foreground sm:text-lg">{children}</dd>
         </div>
     );
 }
@@ -139,7 +139,7 @@ function CourseList({ status, courses, total }) {
                                     />
                                 </span>
                                 <span className="min-w-0 flex-1">
-                                    <span className="block truncate text-sm font-medium text-foreground group-hover/course:text-primary">
+                                    <span className="block truncate text-sm font-medium text-foreground group-hover/course:text-primary-ink">
                                         {course.title}
                                     </span>
                                     <span className="block truncate font-mono text-xs text-muted-foreground">
@@ -329,8 +329,7 @@ export default function ProfilePage() {
 
     const fullName = [data?.surname, data?.name].filter(Boolean).join(' ');
     const displayName = fullName || data?.username || 'Your profile';
-    const levelLabel = levelMapping[data?.level]?.label;
-    const rank = data?.rank;
+    const progress = levelProgress(data);
     const points = Number(data?.points) || 0;
 
     return (
@@ -390,26 +389,30 @@ export default function ProfilePage() {
                         </Button>
                     </header>
 
-                    <dl className="m-0 grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-4">
-                        <Stat icon={LuCoins} iconClassName="text-warning" label="Points">
-                            <span className="font-mono tabular font-semibold" title={`${points} points`}>{formatPoints(points)}</span>
-                        </Stat>
-                        <Stat icon={LuGauge} iconClassName="text-primary" label="Level">
-                            {levelLabel || <span className="text-sm font-medium text-muted-foreground">Not set</span>}
-                        </Stat>
-                        <Stat icon={LuStar} iconClassName="text-xp fill-xp/20" label="Stars">
-                            <span className="font-mono tabular font-semibold text-xp">{Number(data?.star) || 0}</span>
-                        </Stat>
-                        <Stat icon={LuTrophy} iconClassName="text-streak" label="Rank">
-                            {rank !== null && rank !== undefined ? (
-                                <span className="font-mono tabular font-semibold text-streak">#{rank}</span>
-                            ) : (
-                                <span className="text-sm font-medium text-muted-foreground">Unranked</span>
-                            )}
-                        </Stat>
-                    </dl>
+                    <div className="overflow-hidden rounded-lg border">
+                        <dl className="m-0 grid grid-cols-3 gap-px bg-border">
+                            <Stat icon={LuTrophy} iconClassName="text-xp" label="Level">
+                                <span className="font-mono tabular font-semibold text-xp">{progress.level}</span>
+                                {progress.title ? <span className="ml-1.5 hidden text-xs font-medium text-muted-foreground sm:inline sm:truncate">{progress.title}</span> : null}
+                            </Stat>
+                            <Stat icon={LuSparkles} iconClassName="text-primary-ink" label="Experience">
+                                <span className="font-mono tabular font-semibold">{progress.exp.toLocaleString()}</span>
+                                <span className="ml-1 text-xs font-medium text-muted-foreground">EXP</span>
+                            </Stat>
+                            <Stat icon={LuCoins} iconClassName="text-warning" label="Points">
+                                <span className="font-mono tabular font-semibold" title={`${points} points`}>{formatPoints(points)}</span>
+                            </Stat>
+                        </dl>
+                        <div className="border-t bg-card px-4 py-3">
+                            <ExpProgress user={data} />
+                            <p className="mt-2 text-xs text-muted-foreground">
+                                Level grows with the EXP you earn from lessons, challenges and finished courses. Points are a separate balance you can spend on courses; spending them never lowers your level.
+                            </p>
+                        </div>
+                    </div>
 
                     <ActivitySection status={status} />
+                    <ExperienceSection status={status} currentLevel={progress.level} />
                 </>
             )}
         </div>

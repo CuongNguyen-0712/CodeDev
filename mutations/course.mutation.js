@@ -140,6 +140,10 @@ export const useCourseSubmitLesson = () => {
             queryClient.invalidateQueries({
                 queryKey: userKeys.me(),
             });
+
+            queryClient.invalidateQueries({
+                queryKey: userKeys.experience(),
+            });
         }
     });
 };
