@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import crypto from "crypto";
 
-/** Real round trip through lib/s3 against the docker-compose.dev.yml MinIO (skipped when it is down). */
+/** Real round trip through lib/s3 against the compose.yml MinIO (skipped when it is down). */
 const endpoint = process.env.MINIO_ENDPOINT;
 const reachable = endpoint
     ? await fetch(`${endpoint}/minio/health/live`, { signal: AbortSignal.timeout(3000) }).then((r) => r.ok).catch(() => false)

@@ -8,15 +8,17 @@ decides which; `lib/appEnv.mjs` is the single definition used by the app, the te
 | Started by | `next dev`, scripts, vitest (`APP_ENV=test`) | Vercel / `next start` / Docker |
 | Env files | `.env.local` > `.env` | Vercel project settings, or `.env.production` > `.env` |
 | PostgreSQL | local (`pg` driver) | Neon (serverless driver) |
-| Redis | local container (`docker compose up -d redis`) | Upstash |
-| Object storage | **MinIO** (`docker-compose.dev.yml`, `MINIO_ENDPOINT`) | **Neon S3** (`AWS_ENDPOINT_URL_S3`) |
+| Redis | local container (`npm run services:up`, `compose.yml`) | Upstash |
+| Object storage | **MinIO** (`compose.yml` profile `dev`, `MINIO_ENDPOINT`) | **Neon S3** (`AWS_ENDPOINT_URL_S3`) |
+| Code runner | `compose.yml` profile `dev` (`CODE_RUNNER_URL=http://127.0.0.1:4100`) | optional; browser-reported grading when unset ([sandbox.md](sandbox.md)) |
 | Images (Cloudinary) | folder `codedev/development/...` | folder `codedev/production/...` |
 | Schema | `npm run db:migrate` | `npm run db:migrate:prod -- --yes`; `npm run db:compare` must report "in sync" |
 | Buckets | `public`, `private` | `public`, `private` |
 
 `.env.local` is loaded by `next start` too, and it sets `APP_ENV=development`: a production build
-run on this machine still uses the local services. `.dockerignore` keeps `.env*.local` out of the
-image, and Vercel never sees the git-ignored files.
+run on this machine still uses the local services. `.dockerignore` keeps every `.env*` file out of
+the Docker build context (the container gets its configuration from `env_file` at run time, see
+[docker.md](docker.md)), and Vercel never sees the git-ignored files.
 
 ## Guards
 
@@ -49,7 +51,7 @@ consistent with the database rows.
 
 ### Development storage (MinIO)
 
-`docker-compose.dev.yml` runs MinIO (S3 API `127.0.0.1:9000`, console `127.0.0.1:9001`) on a
+`compose.yml` (profile `dev`) runs MinIO (S3 API `127.0.0.1:9000`, console `127.0.0.1:9001`) on a
 named volume, so data survives restarts. The official `minio/minio` images are no longer
 published; the service uses Chainguard's source build, pinned by digest.
 
@@ -63,7 +65,6 @@ published; the service uses Chainguard's source build, pinned by digest.
 npm run services:up            # start MinIO
 npm run storage:init           # create the public / private buckets
 npm run storage:sync           # copy every folder / file of the Neon buckets into MinIO
-npm run storage:seed-harness   # optional: upload scripts/challenges/harness/* and register them
 ```
 
 `storage:sync` creates missing buckets, is read-only on Neon, never deletes in MinIO, skips

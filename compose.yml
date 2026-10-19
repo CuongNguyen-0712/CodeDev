@@ -1,0 +1,187 @@
+# CodeDev: every container in one file. See docs/docker.md.
+#
+#   npm run services:up                     # dev: redis + minio + sandbox (+ loopback gateway) for `npm run dev`
+#   npm run services:down
+#   docker compose --env-file .env.local --profile db up -d postgres     # optional local PostgreSQL
+#   docker compose --env-file .env.production --profile app up -d --build  # production app container
+#
+# Images built here: codedev_app (./Dockerfile), codedev_sandbox (./sandbox/Dockerfile).
+# Values are interpolated from the --env-file (or .env); no secret is baked into an image.
+# Services reach each other by service name; only loopback ports are published, except the app.
+name: codedev
+
+x-hardened: &hardened
+  init: true
+  restart: unless-stopped
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+
+services:
+  # ------------------------------------------------------------------ cache
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-data:/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ------------------------------------------------------------------ object storage (development)
+  # Production uses Neon S3 (AWS_* variables); the app container does not depend on MinIO.
+  minio:
+    profiles: [dev]
+    # The official minio/minio images are no longer published; Chainguard builds MinIO from
+    # source. Pinned by digest so every machine runs the same server. The image has no shell,
+    # so it has no healthcheck; scripts/storage-sync.mjs and the app retry until it answers.
+    image: cgr.dev/chainguard/minio:latest@sha256:2136d593beacf4461187035eca949fe49abd589d5079735025c711ca58fee0c8
+    restart: unless-stopped
+    command: ["server", "/data", "--address", ":9000", "--console-address", ":9001"]
+    # Named volumes are created root-owned and the image has no shell to chown them.
+    user: "0:0"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-}
+    ports:
+      - "127.0.0.1:9000:9000" # S3 API
+      - "127.0.0.1:9001:9001" # console
+    volumes:
+      - minio-data:/data
+    networks: [backend]
+
+  # ------------------------------------------------------------------ optional local database
+  # The usual setup is a natively installed PostgreSQL 18 on 5432; this one listens on 5433.
+  postgres:
+    profiles: [db]
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-codedev}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      # Development-only default; the port is bound to loopback.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ------------------------------------------------------------------ code runner
+  # Runs untrusted challenge code (docs/sandbox.md). Internal network only: no route out of
+  # Docker, no published port, no app secrets (only its own token).
+  sandbox:
+    <<: *hardened
+    profiles: [dev, app]
+    image: codedev_sandbox
+    build:
+      context: ./sandbox
+    environment:
+      CODE_RUNNER_TOKEN: ${CODE_RUNNER_TOKEN:-}
+      MAX_CONCURRENCY: ${CODE_RUNNER_CONCURRENCY:-2}
+      MAX_QUEUE: ${CODE_RUNNER_QUEUE:-16}
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    pids_limit: 64
+    mem_limit: 768m
+    memswap_limit: 768m
+    cpus: 1.0
+    ulimits:
+      nofile: { soft: 256, hard: 256 }
+    networks: [sandbox]
+    stop_grace_period: 15s
+
+  # Forwards 127.0.0.1:4100 on the host to sandbox:4100 for `next dev` (CODE_RUNNER_URL=http://127.0.0.1:4100).
+  sandbox-gateway:
+    <<: *hardened
+    profiles: [dev]
+    image: codedev_sandbox
+    command: ["node", "gateway.mjs"]
+    depends_on:
+      sandbox:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:4100:4100"
+    # Two Node processes at times: the gateway and the image healthcheck (`node -e fetch(...)`).
+    pids_limit: 32
+    mem_limit: 192m
+    networks: [sandbox, gateway]
+
+  # ------------------------------------------------------------------ application (production build)
+  app:
+    profiles: [app]
+    image: codedev_app
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Public values are inlined into the client bundle at build time.
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
+        NEXT_PUBLIC_PUSHER_KEY: ${NEXT_PUBLIC_PUSHER_KEY:-}
+        NEXT_PUBLIC_PUSHER_CLUSTER: ${NEXT_PUBLIC_PUSHER_CLUSTER:-}
+        NEXT_PUBLIC_SANITY_PROJECT_ID: ${NEXT_PUBLIC_SANITY_PROJECT_ID:-}
+        NEXT_PUBLIC_SANITY_DATASET: ${NEXT_PUBLIC_SANITY_DATASET:-}
+        NEXT_PUBLIC_SANITY_API_VERSION: ${NEXT_PUBLIC_SANITY_API_VERSION:-}
+    init: true
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    # Runtime configuration (database, auth, storage, ...) from an env file, never from the image.
+    env_file:
+      - path: .env
+        required: false
+      - path: ${CODEDEV_ENV_FILE:-.env.production}
+        required: false
+    environment:
+      NODE_ENV: production
+      APP_ENV: ${APP_ENV:-production}
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      # Cache in the redis service (overrides an Upstash REST URL/token from the env file).
+      REDIS_URL: redis://redis:6379
+      REDIS_TOKEN: ""
+      CODE_RUNNER_URL: http://sandbox:4100
+      CODE_RUNNER_TOKEN: ${CODE_RUNNER_TOKEN:-}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      sandbox:
+        condition: service_healthy
+    networks: [backend, sandbox]
+    healthcheck:
+      # /api/health is 200 while PostgreSQL answers (cache/storage outages only degrade).
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+    stop_grace_period: 20s
+
+networks:
+  backend: {}
+  # No external connectivity: what runs in the sandbox cannot reach the internet, the host or
+  # cloud metadata endpoints. Only the app (and the dev gateway) join it.
+  sandbox:
+    internal: true
+  gateway: {}
+
+volumes:
+  # Same volumes as the former docker-compose.yml / docker-compose.dev.yml: data is kept.
+  redis-data:
+    name: codedev_redis-data
+  minio-data:
+    name: codedev-dev_minio-data
+  postgres-data:
+    name: codedev_postgres-data

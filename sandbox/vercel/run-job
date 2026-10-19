@@ -1,0 +1,322 @@
+#!/usr/local/bin/node
+"use strict";
+/**
+ * run-job: grades one submission inside a codedev-runner Vercel Sandbox (one VM per language,
+ * a few slots per VM; see docs/sandbox.md).
+ *
+ *   sudo /opt/codedev/run-job <jobId> <slot>        slot: run01..run08
+ *
+ * The app writes /vercel/jobs/<jobId>.json and runs this as root:
+ *   { language, mode: "stdio"|"function", code, harness?, entry?, tests: [{ id, input }], timeLimitMs, memoryLimitMb }
+ * The job file is read and deleted before learner code runs. Learner code (compiler included) runs
+ * as the slot user (no sudo) in /work/<slot>, one process group per test, under prlimit and a hard
+ * kill. Prints one JSON line:
+ *   { compile: { ok, error, timeMs }, results: { [testId]: { ok, output, error, timedOut, timeMs, logs } } }
+ *
+ * stdio:    input (string, or JSON for anything else) on stdin; output = stdout as text.
+ * function: javascript only, the runner.cjs harness contract (same as the Docker runner).
+ *
+ * The slot user's processes and files are removed before and after the job.
+ */
+const fs = require("node:fs");
+const path = require("node:path");
+const { spawn, spawnSync, execFileSync } = require("node:child_process");
+const { randomBytes } = require("node:crypto");
+const { performance } = require("node:perf_hooks");
+
+const JOBS_DIR = "/vercel/jobs";
+const WORK_ROOT = "/work";
+const RUNNER = "/opt/codedev/runner.cjs";
+const GO_CACHE = "/opt/gocache";
+// Every world-writable directory in the image (others are made read-only in the Dockerfile);
+// selftest.mjs fails if a new one appears.
+const SHARED_TMP = ["/tmp", "/var/tmp", "/dev/shm", "/run/lock"];
+
+const MAX_SOURCE_BYTES = 64 * 1024;
+const MAX_INPUT_BYTES = 128 * 1024;
+const MAX_TESTS = 50;
+const LIMITS = { timeLimitMs: [100, 10_000], memoryLimitMb: [32, 256] };
+const STARTUP_MS = 1000;          // process start-up, not counted against the challenge limit
+const COMPILE_MS = 20_000;
+const MAX_STDOUT = 256 * 1024;
+const MAX_STDERR = 8 * 1024;
+const NPROC = 64;                 // per slot user (threads count): stops fork bombs
+const OUTPUT_FILE_BYTES = 16 * 1024 * 1024;
+
+const LANGS = {
+    javascript: { file: "main.js", run: (mb) => ["/usr/local/bin/node", `--max-old-space-size=${mb}`, "main.js"] },
+    python: { file: "main.py", run: () => ["/usr/bin/python3", "-I", "-B", "main.py"], addressSpace: 128 },
+    c: { file: "main.c", compile: ["/usr/bin/gcc", "-O2", "-std=c17", "-pipe", "-o", "main", "main.c", "-lm"], run: () => ["./main"], addressSpace: 64 },
+    cpp: { file: "main.cpp", compile: ["/usr/bin/g++", "-O2", "-std=c++20", "-pipe", "-o", "main", "main.cpp"], run: () => ["./main"], addressSpace: 64 },
+    java: {
+        file: "Main.java",
+        compile: ["/usr/bin/javac", "-J-Xmx256m", "-J-XX:-UsePerfData", "-encoding", "UTF-8", "-d", ".", "Main.java"],
+        run: (mb) => ["/usr/bin/java", `-Xmx${mb}m`, "-Xss64m", "-XX:+UseSerialGC", "-XX:-UsePerfData", "-cp", ".", "Main"],
+    },
+    go: { file: "main.go", compile: ["/usr/bin/go", "build", "-o", "main", "main.go"], run: () => ["./main"] },
+    rust: { file: "main.rs", compile: ["/usr/bin/rustc", "-O", "--edition", "2021", "-o", "main", "main.rs"], run: () => ["./main"], addressSpace: 64 },
+};
+// RLIMIT_AS is only set where the runtime does not reserve huge virtual ranges (V8, the JVM and
+// the Go runtime do); those are held by their own heap flags and the VM's memory instead.
+
+function fail(message, code = 2) {
+    process.stdout.write(JSON.stringify({ error: message }) + "\n");
+    process.exit(code);
+}
+
+const clamp = (value, [min, max]) => Math.min(max, Math.max(min, Math.round(Number(value) || min)));
+
+function readJob(jobId) {
+    const file = path.join(JOBS_DIR, `${jobId}.json`);
+    let raw;
+    try {
+        raw = fs.readFileSync(file, "utf8");
+    } catch {
+        fail("job file not found");
+    } finally {
+        fs.rmSync(file, { force: true });
+    }
+    let job;
+    try { job = JSON.parse(raw); } catch { fail("job file is not JSON"); }
+
+    const lang = LANGS[job.language];
+    if (!lang) fail(`unsupported language: ${job.language}`);
+    const mode = job.mode === "function" ? "function" : "stdio";
+    if (mode === "function" && job.language !== "javascript") fail("function mode is javascript only");
+    if (typeof job.code !== "string" || !job.code || Buffer.byteLength(job.code) > MAX_SOURCE_BYTES) fail("code must be 1 byte to 64KB");
+    if (job.harness != null && (typeof job.harness !== "string" || Buffer.byteLength(job.harness) > MAX_SOURCE_BYTES)) fail("harness must be a string up to 64KB");
+    if (job.entry != null && !/^[A-Za-z_$][\w$]{0,63}$/.test(job.entry)) fail("entry must be an identifier");
+    if (!Array.isArray(job.tests) || job.tests.length < 1 || job.tests.length > MAX_TESTS) fail(`tests must contain 1-${MAX_TESTS} items`);
+    const tests = job.tests.map((t) => {
+        if (!t || typeof t.id !== "string" || !t.id || t.id.length > 64) fail("every test needs a string id");
+        const input = t.input === undefined ? null : t.input;
+        if (Buffer.byteLength(JSON.stringify(input)) > MAX_INPUT_BYTES) fail(`input of test ${t.id} is too large`);
+        return { id: t.id, input };
+    });
+    return {
+        language: job.language, lang, mode, tests,
+        code: job.code, harness: job.harness || null, entry: job.entry || null,
+        timeLimitMs: clamp(job.timeLimitMs ?? 2000, LIMITS.timeLimitMs),
+        memoryLimitMb: clamp(job.memoryLimitMb ?? 128, LIMITS.memoryLimitMb),
+    };
+}
+
+// ------------------------------------------------------------ slot lifecycle
+function slotUser(slot) {
+    if (!/^run0[1-8]$/.test(slot)) fail("slot must be run01..run08");
+    const uid = Number(execFileSync("id", ["-u", slot], { encoding: "utf8" }).trim());
+    const gid = Number(execFileSync("id", ["-g", slot], { encoding: "utf8" }).trim());
+    return { name: slot, uid, gid, dir: path.join(WORK_ROOT, slot) };
+}
+
+// One job per slot at a time (the app leases slots; this guards against a double lease).
+function lockSlot(user) {
+    const lock = path.join("/run/codedev", `${user.name}.lock`);
+    fs.mkdirSync("/run/codedev", { recursive: true, mode: 0o700 });
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            fs.writeFileSync(lock, String(process.pid), { flag: "wx", mode: 0o600 });
+            return () => fs.rmSync(lock, { force: true });
+        } catch {
+            const holder = Number(fs.readFileSync(lock, "utf8")) || 0;
+            let alive = false;
+            try { process.kill(holder, 0); alive = holder > 0; } catch { /* stale */ }
+            if (alive) fail("slot is busy", 3);
+            fs.rmSync(lock, { force: true });
+        }
+    }
+    fail("slot is busy", 3);
+}
+
+// kill(-1) as the slot user signals all of its processes in one syscall, which a fork bomb cannot
+// outrun the way a pkill scan can; NPROC caps how many there are.
+function killUser(user) {
+    for (let i = 0; i < 20; i++) {
+        // The shell builtin: procps' /usr/bin/kill rejects "-1".
+        spawnSync("/bin/sh", ["-c", "kill -KILL -1"], { uid: user.uid, gid: user.gid, env: {} });
+        if (spawnSync("/usr/bin/pgrep", ["-U", String(user.uid)]).status !== 0) return;
+    }
+}
+
+function cleanSlot(user) {
+    killUser(user);
+    fs.rmSync(user.dir, { recursive: true, force: true });
+    for (const dir of SHARED_TMP) {
+        if (fs.existsSync(dir)) spawnSync("/usr/bin/find", [dir, "-xdev", "-mindepth", "1", "-user", String(user.uid), "-delete"]);
+    }
+}
+
+function prepareSlot(user, job) {
+    fs.mkdirSync(user.dir, { mode: 0o700 });
+    fs.chownSync(user.dir, user.uid, user.gid);
+    const own = (p) => fs.chownSync(p, user.uid, user.gid);
+    const write = (name, content) => {
+        const p = path.join(user.dir, name);
+        fs.writeFileSync(p, content, { mode: 0o600 });
+        own(p);
+    };
+    fs.mkdirSync(path.join(user.dir, "tmp"), { mode: 0o700 });
+    own(path.join(user.dir, "tmp"));
+    if (job.mode === "stdio") write(job.lang.file, job.code);
+    if (job.language === "go") {
+        // Private copy of the pre-built std cache: learners must not be able to poison a shared one.
+        const cache = path.join(user.dir, "gocache");
+        execFileSync("/usr/bin/cp", ["-r", GO_CACHE, cache]);
+        execFileSync("/usr/bin/chown", ["-R", `${user.uid}:${user.gid}`, cache]);
+    }
+}
+
+function userEnv(user) {
+    return {
+        PATH: "/usr/local/bin:/usr/bin:/bin",
+        LANG: "C.UTF-8",
+        HOME: user.dir,
+        TMPDIR: path.join(user.dir, "tmp"),
+        GOCACHE: path.join(user.dir, "gocache"),
+        GOPATH: path.join(user.dir, "gopath"),
+        GOFLAGS: "-trimpath",   // must match the image build, or the pre-built cache misses
+        GOTOOLCHAIN: "local",
+        GOPROXY: "off",
+        GOTELEMETRY: "off",
+    };
+}
+
+// ------------------------------------------------------------ process execution
+function limited(argv, { cpuSeconds, addressSpaceMb, fileBytes }) {
+    const limits = [`--nproc=${NPROC}`, "--nofile=128", "--core=0", `--fsize=${fileBytes}`, `--cpu=${cpuSeconds}`];
+    if (addressSpaceMb) limits.push(`--as=${addressSpaceMb * 1024 * 1024}`);
+    return ["/usr/bin/prlimit", ...limits, "--", ...argv];
+}
+
+/** Runs argv as the slot user; resolves { exitCode, signal, stdout, stderr, fd3, timedOut, overflow, timeMs }. */
+function exec(user, argv, { stdin = "", wallMs, fd3 = false }) {
+    return new Promise((resolve) => {
+        const started = performance.now();
+        const child = spawn(argv[0], argv.slice(1), {
+            cwd: user.dir,
+            uid: user.uid,
+            gid: user.gid,
+            env: userEnv(user),
+            detached: true, // own process group, killed as a whole
+            stdio: ["pipe", "pipe", "pipe", ...(fd3 ? ["pipe"] : [])],
+        });
+        const out = { stdout: "", stderr: "", fd3: "", timedOut: false, overflow: false };
+        let done = false;
+        const killGroup = () => { try { process.kill(-child.pid, "SIGKILL"); } catch { /* gone */ } };
+        const timer = setTimeout(() => { out.timedOut = true; killGroup(); }, wallMs);
+
+        child.stdout.on("data", (chunk) => {
+            if (out.stdout.length + chunk.length > MAX_STDOUT) { out.overflow = true; killGroup(); return; }
+            out.stdout += chunk.toString("utf8");
+        });
+        child.stderr.on("data", (chunk) => {
+            if (out.stderr.length < MAX_STDERR) out.stderr += chunk.toString("utf8").slice(0, MAX_STDERR - out.stderr.length);
+        });
+        if (fd3) child.stdio[3].on("data", (chunk) => { if (out.fd3.length < 2 * MAX_STDOUT) out.fd3 += chunk.toString("utf8"); });
+
+        const finish = (exitCode, signal) => {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            killGroup();
+            killUser(user); // also catches processes that left the group (setsid)
+            resolve({ exitCode, signal, ...out, timeMs: Math.round(performance.now() - started) });
+        };
+        child.on("error", (error) => { out.stderr = `failed to start: ${error.message}`; finish(null, null); });
+        // A leftover child (even outside the group) keeps the pipes open, so "close" alone could
+        // wait for the timeout: on exit, kill everything of the slot user, then let the pipes drain.
+        let exited = null;
+        child.on("exit", (exitCode, signal) => { exited = { exitCode, signal }; killGroup(); killUser(user); });
+        child.on("close", (exitCode, signal) => finish(exited ? exited.exitCode : exitCode, exited ? exited.signal : signal));
+        child.stdin.on("error", () => { /* exited before reading stdin */ });
+        child.stdin.end(stdin);
+    });
+}
+
+const tail = (text, n = 1000) => (text.length > n ? "..." + text.slice(-n) : text).trim();
+
+function failure(run, job, fallback) {
+    if (run.timedOut) return `Time limit exceeded (${job.timeLimitMs}ms)`;
+    if (run.overflow) return "Output limit exceeded";
+    if (/OutOfMemoryError|heap out of memory|MemoryError|std::bad_alloc|memory allocation of .* failed/i.test(run.stderr)) {
+        return `Memory limit exceeded (${job.memoryLimitMb}MB)`;
+    }
+    if (run.signal === "SIGXCPU") return `Time limit exceeded (${job.timeLimitMs}ms)`;
+    return tail(run.stderr) || fallback || `Exited with ${run.signal || `code ${run.exitCode}`}`;
+}
+
+async function compile(user, job) {
+    if (!job.lang.compile) return { ok: true, error: null, timeMs: 0 };
+    const run = await exec(user, limited(job.lang.compile, { cpuSeconds: COMPILE_MS / 1000, fileBytes: 64 * 1024 * 1024 }), { wallMs: COMPILE_MS });
+    const ok = run.exitCode === 0 && !run.timedOut;
+    return {
+        ok,
+        error: ok ? null : run.timedOut ? `Compilation timed out (${COMPILE_MS}ms)` : tail(run.stderr, 4000) || "Compilation failed",
+        timeMs: run.timeMs,
+    };
+}
+
+async function runStdio(user, job, test) {
+    const argv = limited(job.lang.run(job.memoryLimitMb), {
+        cpuSeconds: Math.ceil(job.timeLimitMs / 1000) + 1,
+        addressSpaceMb: job.lang.addressSpace ? job.memoryLimitMb + job.lang.addressSpace : 0,
+        fileBytes: OUTPUT_FILE_BYTES,
+    });
+    const stdin = typeof test.input === "string" ? test.input : JSON.stringify(test.input);
+    const run = await exec(user, argv, { stdin, wallMs: job.timeLimitMs + STARTUP_MS });
+    const ok = run.exitCode === 0 && !run.timedOut && !run.overflow;
+    return { ok, output: ok ? run.stdout : null, error: ok ? null : failure(run, job), timedOut: run.timedOut, timeMs: run.timeMs, logs: [] };
+}
+
+async function runFunction(user, job, test) {
+    const nonce = randomBytes(24).toString("hex");
+    const argv = limited([
+        "/usr/local/bin/node", "--permission", `--allow-fs-read=${RUNNER}`, `--max-old-space-size=${job.memoryLimitMb}`,
+        "--max-semi-space-size=4", "--stack-size=984", "--disable-proto=delete", RUNNER,
+    ], { cpuSeconds: Math.ceil(job.timeLimitMs / 1000) + 1, fileBytes: OUTPUT_FILE_BYTES });
+    const payload = JSON.stringify({ code: job.code, harness: job.harness, entry: job.entry, input: test.input, nonce });
+    const run = await exec(user, argv, { stdin: payload, wallMs: job.timeLimitMs + STARTUP_MS, fd3: true });
+
+    // Only the line carrying our nonce is the result; anything else was written by user code.
+    const line = run.timedOut ? null : run.fd3.split("\n").find((l) => l.startsWith(nonce));
+    if (line) {
+        try {
+            const parsed = JSON.parse(line.slice(nonce.length));
+            return {
+                ok: Boolean(parsed.ok),
+                output: parsed.ok ? parsed.output ?? null : null,
+                error: parsed.ok ? null : String(parsed.error || "Error").slice(0, 1000),
+                timedOut: false,
+                timeMs: Number(parsed.timeMs) || run.timeMs,
+                logs: Array.isArray(parsed.logs) ? parsed.logs.slice(0, 50) : [],
+            };
+        } catch { /* fall through */ }
+    }
+    return { ok: false, output: null, error: failure(run, job, "Process exited without a result"), timedOut: run.timedOut, timeMs: run.timeMs, logs: [] };
+}
+
+// ------------------------------------------------------------ main
+(async () => {
+    if (process.getuid() !== 0) fail("run-job must run as root (sudo)");
+    const [jobId, slot] = process.argv.slice(2);
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(jobId || "")) fail("invalid job id");
+    const user = slotUser(slot || "");
+    const job = readJob(jobId);
+    const unlock = lockSlot(user);
+
+    const response = { compile: null, results: {} };
+    try {
+        cleanSlot(user);
+        prepareSlot(user, job);
+        response.compile = job.mode === "function" ? { ok: true, error: null, timeMs: 0 } : await compile(user, job);
+        for (const test of job.tests) {
+            response.results[test.id] = !response.compile.ok
+                ? { ok: false, output: null, error: "Compilation failed", timedOut: false, timeMs: 0, logs: [] }
+                : job.mode === "function" ? await runFunction(user, job, test) : await runStdio(user, job, test);
+        }
+    } finally {
+        cleanSlot(user);
+        unlock();
+    }
+    process.stdout.write(JSON.stringify(response) + "\n");
+})().catch((error) => fail(`internal error: ${error.message}`, 1));

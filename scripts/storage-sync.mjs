@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Copies the object storage of the remote environment (Neon S3, AWS_* variables) into the local
- * MinIO of docker-compose.dev.yml (MINIO_* variables): every bucket, folder placeholder and file,
+ * MinIO of compose.yml (MINIO_* variables): every bucket, folder placeholder and file,
  * keeping keys, content type and metadata. Read-only on the source; never deletes on the target.
  *
  * Usage:
