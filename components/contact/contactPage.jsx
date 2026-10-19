@@ -8,7 +8,8 @@ import SearchBar from "../ui/searchBar";
 
 import { uniqWith } from "lodash";
 import { api } from "@/lib/axios";
-import { LevelBadge } from "@/components/ui/level";
+import Link from "next/link";
+import { LevelBadge, RankBadge } from "@/components/ui/level";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn/avatar";
 import { Button } from "@/components/shadcn/button";
@@ -82,8 +83,9 @@ export default function Contact({ state, setState }) {
                 }
             })
 
-            if (response.data.success) {
-                const data = Array.isArray(response.data.data) ? response.data.data : [];
+            // lib/axios resolves to the response body: { success, data, message }.
+            if (response?.success) {
+                const data = Array.isArray(response.data) ? response.data : [];
                 setSocial(prev => ({
                     ...prev,
                     data: {
@@ -96,7 +98,7 @@ export default function Contact({ state, setState }) {
                 }))
             }
             else {
-                setSocial(prev => ({ ...prev, error: { status: response.status, message: response.data.message }, pending: false }))
+                setSocial(prev => ({ ...prev, error: { status: response?.status || 500, message: response?.message }, pending: false }))
             }
         } catch (err) {
             setSocial(prev => ({ ...prev, error: { status: 500, message: 'Something is wrong, please try again' }, pending: false }))
@@ -223,7 +225,7 @@ export default function Contact({ state, setState }) {
                 <div className="space-y-2">
                     <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">Contacts</h1>
                     <p className="max-w-[60ch] text-sm text-muted-foreground">
-                        Find other CodeDev learners by username and see their level, stars and rank.
+                        Find other CodeDev learners by username, see their level and open their profile.
                     </p>
                 </div>
                 {typeof setState === 'function' && (
@@ -298,12 +300,25 @@ export default function Contact({ state, setState }) {
                                             </AvatarFallback>
                                         </Avatar>
                                         <div className="min-w-0 flex-1">
-                                            <p className="m-0 truncate text-sm font-medium text-foreground">{name}</p>
+                                            <p className="m-0 truncate text-sm font-medium text-foreground">
+                                                {item.showProfile && item.username ? (
+                                                    <Link
+                                                        href={`/profile/${encodeURIComponent(item.username)}`}
+                                                        aria-label={`View profile of ${name}`}
+                                                        className="rounded-sm hover:underline hover:underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                                                    >
+                                                        {name}
+                                                    </Link>
+                                                ) : name}
+                                            </p>
                                             <p className="m-0 truncate text-xs text-muted-foreground">
-                                                {item.nickname || 'No nickname'}
+                                                {item.nickname && item.nickname !== 'None' ? item.nickname : 'No nickname'}
                                             </p>
                                         </div>
-                                        <LevelBadge level={item.level} title={item.levelTitle} className="shrink-0 [&>span]:max-sm:hidden" />
+                                        <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
+                                            {item.rank ? <RankBadge tier={item.rank.tier} title={item.rank.title} /> : null}
+                                            <LevelBadge level={item.level} title={item.levelTitle} className="[&>span]:max-sm:hidden" />
+                                        </div>
                                     </li>
                                 );
                             })}

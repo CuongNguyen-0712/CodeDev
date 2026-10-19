@@ -82,9 +82,11 @@ export function ErrorReload({
     );
 }
 
+// `onRetry`: shown as "Try again" (route error boundaries pass Next's `reset`).
 export function PageError({
     title = "Something went wrong",
-    message = null
+    message = null,
+    onRetry = null,
 }) {
     const { navigateBack } = useRouterActions();
 
@@ -101,11 +103,17 @@ export function PageError({
                     </p>
                 </div>
                 <div className="flex flex-wrap justify-center gap-2">
+                    {onRetry ? (
+                        <Button onClick={() => onRetry()}>
+                            <LuRotateCw />
+                            Try again
+                        </Button>
+                    ) : null}
                     <Button variant="outline" onClick={() => navigateBack()}>
                         <LuArrowLeft />
                         Go back
                     </Button>
-                    <Button asChild>
+                    <Button asChild variant={onRetry ? "outline" : "default"}>
                         <Link href="/"><LuHouse />Back to home</Link>
                     </Button>
                 </div>

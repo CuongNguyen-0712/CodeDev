@@ -557,7 +557,7 @@ export default function CodeEditor({
         </SyntaxHighlighter>
     ), [value, language]);
 
-    const displayFile = fileName || (language === "python" ? "main.py" : "solution.js");
+    const displayFile = fileName || "solution.js";
     const modLabel = isMac ? "Cmd" : "Ctrl";
 
     return (

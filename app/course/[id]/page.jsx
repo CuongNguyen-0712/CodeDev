@@ -1,4 +1,5 @@
 import { Suspense } from "react"
+import { notFound } from "next/navigation"
 
 import PreviewPage from "@/components/course/params/previewPage"
 
@@ -36,12 +37,15 @@ export default async function Page({ params }) {
 
     // Prefetch with the viewer's id so the hydrated data carries their status / progress.
     const session = await getAuthSession({ soft: true });
+    // undefined = the lookup failed (the client shows Retry); null = no such course (real 404).
     const data = await courseService
         .getDetails({ courseId: id, userId: session?.user?.id ?? null })
         .catch((error) => {
             console.error("Failed to prefetch course details:", error);
-            return null;
+            return undefined;
         });
+
+    if (data === null) notFound();
 
     if (data) {
         queryClient.setQueryData(courseQueries.details(id).queryKey, data);

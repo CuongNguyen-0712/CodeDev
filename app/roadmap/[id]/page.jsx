@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { notFound } from "next/navigation";
 import { getAuthSession } from "@/lib/session";
 import { LoadingRedirect } from "@/components/ui/loading";
 import DefaultLayout from "@/components/layouts/defaultLayout";
@@ -44,6 +45,7 @@ export default async function Page({ params }) {
     }
 
     let roadmapData = null;
+    let missing = false;
     try {
         roadmapData = await roadmapService.getDetails({ publicId: id, userId });
         if (roadmapData) {
@@ -53,8 +55,13 @@ export default async function Page({ params }) {
             });
         }
     } catch (err) {
-        console.error("Failed to prefetch roadmap details:", err);
+        // roadmapService throws ApiError 404 for unknown ids; other errors leave the client to retry.
+        if (err?.status === 404) missing = true;
+        else console.error("Failed to prefetch roadmap details:", err);
     }
+
+    // Outside the try: notFound() works by throwing.
+    if (missing) notFound();
 
     return (
         <Suspense fallback={<LoadingRedirect />}>

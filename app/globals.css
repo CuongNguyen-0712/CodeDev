@@ -175,30 +175,30 @@
      input / ring on background           3.35:1 / 6.88:1
    ========================================================== */
 .dark {
-    /* Surfaces: lifted from pitch-black to a soft violet ink */
-    --background: #131118;
-    --foreground: #DCD8E4;
-    --card: #19161F;
-    --card-foreground: #DCD8E4;
-    --popover: #1D1A24;
-    --popover-foreground: #DCD8E4;
-    --canvas: #0E0C12;
+    /* Surfaces: violet ink with clear elevation steps (canvas < sidebar < background < card < popover) */
+    --background: #100E15;
+    --foreground: #EEEBF4;
+    --card: #1D1A26;
+    --card-foreground: #EEEBF4;
+    --popover: #24202E;
+    --popover-foreground: #EEEBF4;
+    --canvas: #0B0A0F;
 
     /* Brand: vibrant violet with white text for buttons */
     --primary: #7C3AED;
-    --primary-hover: #6D28D9;
+    --primary-hover: #8550F2;
     --primary-foreground: #FFFFFF;
-    --primary-soft: #231B35;
-    --primary-soft-foreground: #C4B5FD;
-    --primary-border: #3A2C5C;
-    --primary-ink: #A78BFA;
+    --primary-soft: #2A2142;
+    --primary-soft-foreground: #D2C6FE;
+    --primary-border: #57439A;
+    --primary-ink: #B49CFB;
 
     /* Neutrals: soft contrast pairs */
-    --secondary: #1F1C26;
-    --secondary-foreground: #DCD8E4;
-    --muted: #1B1822;
-    --muted-foreground: #958FA5;
-    --accent: #252130;
+    --secondary: #24202E;
+    --secondary-foreground: #EEEBF4;
+    --muted: #221E2C;
+    --muted-foreground: #ABA5BB;
+    --accent: #2D2839;
     --accent-foreground: #F4F2F8;
 
     /* Gamification in Dark */
@@ -207,39 +207,39 @@
     --xp: #FBBF24;
     --xp-soft: #2B210C;
 
-    /* Status: tuned for eye comfort and >= 6:1 contrast in dark theme */
+    /* Status: text on its -soft tint >= 6:1; solid fills take dark foreground text */
     --destructive: #F87171;
     --destructive-foreground: #140F1F;
     --destructive-soft: #2E191B;
-    --success: #2EA063;
-    --success-foreground: #FFFFFF;
-    --success-soft: #142A1F;
+    --success: #3DBE7B;
+    --success-foreground: #07140D;
+    --success-soft: #13291E;
     --warning: #FBBF24;
     --warning-foreground: #140F1F;
     --warning-soft: #2D2214;
-    --info: #3B82F6;
-    --info-foreground: #FFFFFF;
-    --info-soft: #16253B;
+    --info: #60A5FA;
+    --info-foreground: #08121F;
+    --info-soft: #152539;
 
     /* Lines and focus */
-    --border: #2A2633;
-    --input: #6B6480;
+    --border: #3D3749;
+    --input: #7A7390;
     --ring: #A78BFA;
     --overlay: rgb(0 0 0 / 0.7);
 
     /* Sidebar in Dark */
-    --sidebar: #100E14;
-    --sidebar-foreground: #DCD8E4;
+    --sidebar: #0D0B12;
+    --sidebar-foreground: #EEEBF4;
     --sidebar-primary: #7C3AED;
     --sidebar-primary-foreground: #FFFFFF;
-    --sidebar-accent: #1C1923;
+    --sidebar-accent: #241F30;
     --sidebar-accent-foreground: #F4F2F8;
-    --sidebar-border: #26222F;
+    --sidebar-border: #2D2838;
     --sidebar-ring: #A78BFA;
 
     /* Scrollbars in Dark */
-    --scrollbar-thumb: #3D384A;
-    --scrollbar-thumb-hover: #575168;
+    --scrollbar-thumb: #4A4458;
+    --scrollbar-thumb-hover: #645D78;
 
     /* Logo gradient lifted for dark surfaces */
     --logo-start: #FB923C;

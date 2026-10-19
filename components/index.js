@@ -2,7 +2,11 @@
 
 import Link from "next/link";
 
+import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
+import javascript from "react-syntax-highlighter/dist/esm/languages/prism/javascript";
+
 import { Button } from "@/components/shadcn/button";
+import { syntaxTheme } from "@/lib/syntaxTheme";
 
 import { SiJavascript } from "react-icons/si";
 import {
@@ -91,9 +95,10 @@ const STEPS = [
     },
 ];
 
-function CodeSample() {
-    const lines = SAMPLE_CODE.split("\n");
+// Light build with only JavaScript registered: the landing page should not ship every Prism grammar.
+SyntaxHighlighter.registerLanguage("javascript", javascript);
 
+function CodeSample() {
     return (
         <figure
             aria-label="Example coding challenge"
@@ -104,27 +109,24 @@ function CodeSample() {
                 <span className="font-mono text-xs">solution.js</span>
             </div>
 
-            <pre
+            {/* Same Dracula theme as the editor and lesson code blocks (lib/syntaxTheme.js). */}
+            <div
                 tabIndex={0}
+                role="region"
                 aria-label="Example solution code"
                 className="overflow-x-auto py-3 font-mono text-[13px] leading-6 outline-none focus-visible:ring-2 focus-visible:ring-editor-accent/60 focus-visible:ring-inset"
             >
-                <code className="grid min-w-max">
-                    {lines.map((line, index) => (
-                        <span key={index} className="flex">
-                            <span
-                                aria-hidden="true"
-                                className="tabular w-10 shrink-0 select-none pr-4 text-right text-editor-gutter"
-                            >
-                                {index + 1}
-                            </span>
-                            <span className={line.trim().startsWith("//") ? "pr-4 text-editor-muted" : "pr-4"}>
-                                {line || " "}
-                            </span>
-                        </span>
-                    ))}
-                </code>
-            </pre>
+                <SyntaxHighlighter
+                    language="javascript"
+                    style={syntaxTheme}
+                    PreTag="div"
+                    showLineNumbers
+                    lineNumberStyle={{ minWidth: "2.5em", paddingRight: "1em", color: "var(--editor-gutter)", textAlign: "right", userSelect: "none" }}
+                    customStyle={{ margin: 0, padding: "0 1em 0 0", background: "transparent", overflow: "visible", width: "max-content", minWidth: "100%" }}
+                >
+                    {SAMPLE_CODE}
+                </SyntaxHighlighter>
+            </div>
 
             <figcaption className="border-t border-editor-border bg-editor-panel px-3 py-3">
                 <p className="mb-2 text-xs font-medium text-editor-muted">Sample tests</p>

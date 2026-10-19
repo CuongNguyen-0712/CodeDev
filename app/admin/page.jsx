@@ -31,7 +31,8 @@ export default async function Page() {
 
     // Fresh from the database (not the JWT): a removed role takes effect immediately.
     const actor = await loadActor(session.user.id);
-    if (!actor?.permissions.has("admin.read")) return <Forbidden />;
+    // Keep the app shell so a denied user can still navigate away.
+    if (!actor?.permissions.has("admin.read")) return <HomeLayout><Forbidden /></HomeLayout>;
 
     const permissions = ADMIN_PERMISSIONS.filter((permission) => actor.permissions.has(permission));
 

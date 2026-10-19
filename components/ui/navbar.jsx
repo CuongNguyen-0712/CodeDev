@@ -66,11 +66,15 @@ const SECTION_LABELS = {
   roadmap: 'Roadmap',
   blog: 'Blog',
   contact: 'Contacts',
-  connect: 'Connect',
+  ranking: 'Leaderboard',
   about: 'About',
   help: 'Help',
   profile: 'Profile',
   settings: 'Settings',
+  orders: 'Orders and points',
+  admin: 'Admin',
+  onboarding: 'Get started',
+  checkout: 'Checkout',
 };
 
 // Account menu entries, shared by the desktop dropdown and the phone sheet.

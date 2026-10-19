@@ -28,7 +28,8 @@ export const AppProvider = ({ children }) => {
     }, []);
 
     useEffect(() => {
-        if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+        // Same boundary as hooks/use-mobile.js: below 768 px the sidebar is a Sheet.
+        if (typeof window !== 'undefined' && window.innerWidth < 768) {
             setIsDashboard(false);
         }
         setOverlayState(null);

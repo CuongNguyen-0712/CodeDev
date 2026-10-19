@@ -334,7 +334,8 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
         setConfirm(null);
     };
 
-    const displayFile = workspace.filePath || (workspace.language === "python" ? "main.py" : "solution.js");
+    // Only JavaScript runs (docs/sandbox.md), so there is no other default file name to offer.
+    const displayFile = workspace.filePath || "solution.js";
     const ranVisible = visibleTests.filter((t) => testResults[t.id] && testResults[t.id].status !== "running");
     const passedVisible = ranVisible.filter((t) => testResults[t.id].status === "passed").length;
 
