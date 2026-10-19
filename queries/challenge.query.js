@@ -3,6 +3,7 @@ import { unwrapActionResult, callWithAuthRetry } from "@/lib/actionResult";
 
 export { unwrapActionResult };
 import { challengeKeys } from "@/keys/challenge.keys";
+import { QUERY_TIMES } from "@/lib/queryTimes";
 
 // Server actions resolve to { success, data | message, status }; surface failures as errors.
 
@@ -25,8 +26,8 @@ export const challengeQueries = {
         return {
             queryKey: challengeKeys.quizState(challengeId),
             queryFn: async () => unwrapActionResult(await callWithAuthRetry(() => getQuizStateAction({ challengeId }))),
-            staleTime: 1000 * 60 * 5,
-            gcTime: 1000 * 60 * 30,
+            // Attempts / cooldown change with time and with submits in other tabs.
+            ...QUERY_TIMES.live,
             refetchOnWindowFocus: false,
             retry: retryServerErrors,
         };

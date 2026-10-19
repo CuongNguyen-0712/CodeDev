@@ -3,14 +3,17 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
 
+import { QUERY_TIMES, retryTransient } from '@/lib/queryTimes'
+
 export function QueryProvider({ children }) {
     const [queryClient] = useState(
         () =>
             new QueryClient({
                 defaultOptions: {
                     queries: {
-                        staleTime: 1000 * 60 * 5,   // 5 phút
-                        retry: 2,
+                        // Queries without their own preset (queries/*.query.js) count as personal data.
+                        ...QUERY_TIMES.personal,
+                        retry: retryTransient,
                         refetchOnWindowFocus: false
                     }
                 }

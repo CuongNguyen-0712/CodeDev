@@ -3,8 +3,7 @@ import { signOut } from "next-auth/react";
 
 import { authClient } from "@/clients/auth.client";
 import { markSigningOut } from "@/lib/authSignal";
-import { disconnectPusher } from "@/lib/pusherClient";
-import { resetAuthRefreshState } from "@/lib/authRefresh";
+import { announceLoggedOut } from "@/lib/authRefresh";
 
 export function useLogin() {
     return useMutation({
@@ -16,8 +15,10 @@ export function useLogin() {
 }
 
 /**
- * Revokes the server session, then clears the cookie. The cookie is cleared even when the
+ * Revokes the server session, then clears the cookies. The cookies are cleared even when the
  * revoke call fails (offline, 5xx): the user asked to leave, so never keep them signed in.
+ * Other tabs are told to leave too. The caller finishes with `leaveSignedOut` (lib/authNavigation),
+ * which drops every client cache and loads the landing page.
  * Resolves to `{ ok, revoked }` — `revoked: false` means the server session may still be alive.
  */
 export function useLogOut() {
@@ -33,9 +34,8 @@ export function useLogOut() {
                 console.error("[auth] Server logout failed, clearing the local session anyway:", error?.message);
             }
 
-            disconnectPusher();
-            resetAuthRefreshState();
             await signOut({ redirect: false });
+            announceLoggedOut();
 
             return { ok: true, revoked };
         },

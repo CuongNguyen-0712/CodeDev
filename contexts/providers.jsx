@@ -5,6 +5,8 @@ import { AuthProvider } from "./authContext"
 import { QueryProvider } from "./queryContext"
 import { AppProvider } from "./appContext"
 import { TooltipProvider } from "@/components/shadcn/tooltip"
+import AppToaster from "@/components/ui/alert"
+import { LevelUpDialog } from "@/components/ui/level"
 
 export function Provider({ children }) {
     return (
@@ -19,6 +21,9 @@ export function Provider({ children }) {
                             <TooltipProvider delayDuration={300}>
                                 {children}
                             </TooltipProvider>
+                            {/* The only toast region: survives navigation (see components/ui/alert.jsx). */}
+                            <AppToaster />
+                            <LevelUpDialog />
                         </AppProvider>
                     </ThemeProvider>
                 </QueryProvider>

@@ -1,6 +1,7 @@
 import { useState } from "react"
 
-import { useRouterActions } from '@/router/useRouterActions'
+import { useQueryClient } from '@tanstack/react-query'
+import { enterSignedIn, HOME_PATH } from '@/lib/authNavigation'
 import { validate } from "@/lib/validate"
 import { useApp } from "@/contexts/appContext"
 import { SignInSchema } from "@/lib/definition"
@@ -42,7 +43,8 @@ export default function Login({ active, changeForm }) {
     const [isPending, setIsPending] = useState(null)
     const [serverError, setServerError] = useState(null)
 
-    const { navigateReplace } = useRouterActions()
+    // After sign-in: full page load to /home (guest caches and prefetched redirects dropped).
+    const queryClient = useQueryClient()
     const { showAlert: alert } = useApp()
     const loginMutation = useLogin()
 
@@ -69,7 +71,7 @@ export default function Login({ active, changeForm }) {
                 }
 
                 alert(200, "Login successful! Redirecting...")
-                navigateReplace('/home')
+                enterSignedIn(queryClient, HOME_PATH)
             },
 
             onError: (error) => {
@@ -142,7 +144,7 @@ export default function Login({ active, changeForm }) {
             }
 
             alert(200, "Login successful! Redirecting...")
-            navigateReplace('/home')
+            enterSignedIn(queryClient, HOME_PATH)
         } catch (error) {
             setServerError(error?.message || `Sign in with ${value} failed. Please try again.`)
         } finally {

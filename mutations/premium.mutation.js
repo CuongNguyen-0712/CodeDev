@@ -94,6 +94,7 @@ export const useAdminPublish = () => useAdminWrite((input) => adminClient.setPub
 export const useAdminSetOffer = () => useAdminWrite((input) => adminClient.setOffer(input));
 export const useAdminRemoveOffer = () => useAdminWrite((input) => adminClient.removeOffer(input));
 export const useAdminAdjustPoints = () => useAdminWrite((input) => adminClient.adjustPoints(input));
+export const useAdminAdjustExperience = () => useAdminWrite((input) => adminClient.adjustExperience(input));
 export const useAdminGrant = () => useAdminWrite((input) => adminClient.grantEntitlement(input));
 export const useAdminRevoke = () => useAdminWrite((input) => adminClient.revokeEntitlement(input));
 export const useAdminRefund = () => useAdminWrite((input) => adminClient.refundOrder(input));

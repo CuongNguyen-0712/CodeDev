@@ -3,14 +3,15 @@ import { keepPreviousData } from "@tanstack/react-query";
 import { courseClient } from "../clients/course.client";
 
 import { courseKeys } from "@/keys/course.keys";
+import { QUERY_TIMES } from "@/lib/queryTimes";
 
 export const courseQueries = {
+    // Public course page (+ the viewer's enrolment); register / withdraw / progress invalidate it.
     details(courseId) {
         return {
             queryKey: courseKeys.details(courseId),
             queryFn: () => courseClient.getDetails(courseId),
-            staleTime: 0,
-            gcTime: 1000 * 60 * 5, // 5 minutes
+            ...QUERY_TIMES.catalog,
         }
     },
 
@@ -39,8 +40,7 @@ export const courseQueries = {
             },
 
             placeholderData: keepPreviousData,
-            staleTime: 30 * 1000,
-            gcTime: 5 * 60 * 1000,
+            ...QUERY_TIMES.catalog,
         };
     },
 
@@ -48,21 +48,22 @@ export const courseQueries = {
         return {
             queryKey: courseKeys.filters(),
             queryFn: () => courseClient.getFilters(),
-            staleTime: 10 * 60 * 1000,
-            gcTime: 30 * 60 * 1000,
+            ...QUERY_TIMES.reference,
         };
     },
 
+    // Lesson content + the learner's lesson state; submitting a lesson invalidates courseKeys.all.
+    // Kept for a while so switching back to a lesson is instant.
     learning(lessonId) {
         return {
             queryKey: courseKeys.learning(lessonId),
             queryFn: () => courseClient.getLearning({ lessonId }),
             enabled: !!lessonId,
-            staleTime: 0,
-            gcTime: 1000 * 30, // 30 seconds
+            ...QUERY_TIMES.personal,
         };
     },
 
+    // Other learners post and vote: short stale time, refreshed when the tab regains focus.
     comments(courseId) {
         return {
             queryKey: courseKeys.comments(courseId),
@@ -78,8 +79,7 @@ export const courseQueries = {
                 return lastPage.lastCreated;
             },
             enabled: !!courseId,
-            staleTime: 0,
-            gcTime: 1000 * 30, // 30 seconds
+            ...QUERY_TIMES.live,
             refetchOnWindowFocus: true,
         };
     }

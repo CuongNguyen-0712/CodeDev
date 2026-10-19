@@ -2,9 +2,11 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 /**
  * Integration tests against the real PostgreSQL in DATABASE_URL (migration
- * 20261016_001_auth_session_hardening applied). They create sessions for an existing user,
- * tagged with a dedicated user agent, and delete them afterwards. Redis is disabled
- * (in-memory fallback), Pusher is not configured.
+ * 20261016_001_auth_session_hardening applied). They run as a throwaway user created here and
+ * deleted afterwards (with its sessions, tokens and outbox rows): logout-others / logout-all
+ * revoke every session of the user, so running them as a real account (the old "first user"
+ * fixture) signed that account out in the browser. Redis is disabled (in-memory fallback),
+ * Pusher is not configured.
  */
 
 const hasDb = Boolean(process.env.DATABASE_URL);
@@ -18,7 +20,6 @@ describe.skipIf(!hasDb)("session lifecycle (PostgreSQL)", () => {
     let redis;
     let hashRefreshToken;
     let userId;
-    const created = [];
 
     const one = async (text, params) => (await sql(text, params)).rows[0];
 
@@ -33,11 +34,7 @@ describe.skipIf(!hasDb)("session lifecycle (PostgreSQL)", () => {
         [sessionId]
     )).n;
 
-    const newSession = async () => {
-        const session = await authService.createSession({ userId, userAgent: TAG });
-        created.push(session.sessionId);
-        return session;
-    };
+    const newSession = () => authService.createSession({ userId, userAgent: TAG });
 
     const rotate = (refreshToken, idempotencyKey, expectedSessionId) =>
         authService.rotateRefreshToken({ refreshToken, idempotencyKey, expectedSessionId });
@@ -49,13 +46,19 @@ describe.skipIf(!hasDb)("session lifecycle (PostgreSQL)", () => {
         ({ processAuthOutbox } = await import("@/services/authOutbox.service"));
         ({ redis } = await import("@/lib/cache"));
         ({ hashRefreshToken } = await import("@/lib/auth.util"));
-        userId = (await one(`SELECT public_id FROM identity.users ORDER BY id LIMIT 1`)).public_id;
+        const { generateSonyflake } = await import("@/lib/sonyflake");
+        userId = `${TAG}-${Date.now().toString(36)}`;
+        await sql(
+            `INSERT INTO identity.users (id, public_id, username, email) VALUES ($1, $2, $2, $3)`,
+            [String(generateSonyflake()), userId, `${userId}@test.invalid`]
+        );
     });
 
     afterAll(async () => {
-        if (!sql || created.length === 0) return;
-        await sql(`DELETE FROM identity.auth_outbox WHERE payload->'sessionIds' ?| $1::text[]`, [created]);
-        await sql(`DELETE FROM identity.sessions WHERE user_agent = $1`, [TAG]);
+        if (!sql || !userId) return;
+        await sql(`DELETE FROM identity.auth_outbox WHERE payload->>'userId' = $1`, [userId]);
+        // Sessions and refresh tokens cascade.
+        await sql(`DELETE FROM identity.users WHERE public_id = $1`, [userId]);
     });
 
     it("login creates one session with exactly one current token, stored only as a hash", async () => {

@@ -2,6 +2,7 @@ import { getCodingHistoryAction, getSubmissionCodeAction } from "@/actions/codeS
 import { unwrapActionResult } from "@/lib/actionResult";
 import { callWithAuthRetry } from "@/lib/actionResult";
 import { challengeKeys } from "@/keys/challenge.keys";
+import { QUERY_TIMES } from "@/lib/queryTimes";
 
 const retryServerErrors = (count, error) => (error?.status ?? 500) >= 500 && count < 2;
 
@@ -16,8 +17,7 @@ export const codeSubmissionQueries = {
         return {
             queryKey: codeSubmissionKeys.history(challengeId),
             queryFn: async () => unwrapActionResult(await callWithAuthRetry(() => getCodingHistoryAction({ challengeId }))),
-            staleTime: 1000 * 30,
-            gcTime: 1000 * 60 * 10,
+            ...QUERY_TIMES.personal,
             refetchOnWindowFocus: false,
             retry: retryServerErrors,
         };
@@ -28,8 +28,7 @@ export const codeSubmissionQueries = {
         return {
             queryKey: codeSubmissionKeys.code(challengeId, submissionId),
             queryFn: async () => unwrapActionResult(await callWithAuthRetry(() => getSubmissionCodeAction({ challengeId, submissionId }))),
-            staleTime: Infinity,
-            gcTime: 1000 * 60 * 30,
+            ...QUERY_TIMES.immutable,
             refetchOnWindowFocus: false,
             retry: retryServerErrors,
         };

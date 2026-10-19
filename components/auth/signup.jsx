@@ -1,6 +1,7 @@
 import { useState } from "react"
 
-import { useRouterActions } from "@/router/useRouterActions"
+import { useQueryClient } from "@tanstack/react-query"
+import { enterSignedIn, HOME_PATH } from "@/lib/authNavigation"
 import { useSignUp } from "@/mutations/user.mutation"
 import { SignUpSchema, SignUpStep1Schema, SignUpStep2Schema } from "@/lib/definition"
 import { validate } from "@/lib/validate"
@@ -33,7 +34,8 @@ export default function Signup({ active, changeForm }) {
     const [step, setStep] = useState(0)
 
     const { showAlert: alert } = useApp()
-    const { navigateReplace } = useRouterActions()
+    // After sign-in: full page load to /home (guest caches and prefetched redirects dropped).
+    const queryClient = useQueryClient()
 
     const signUpMutation = useSignUp()
 
@@ -203,7 +205,7 @@ export default function Signup({ active, changeForm }) {
             }
 
             alert(200, "Sign in successful! Redirecting...")
-            navigateReplace('/home')
+            enterSignedIn(queryClient, HOME_PATH)
         } catch (error) {
             setServerError(error?.message || `Sign in with ${value} failed. Please try again.`)
         } finally {
@@ -251,7 +253,7 @@ export default function Signup({ active, changeForm }) {
                                 />
                                 <span className="flex items-center gap-1.5 text-xs">
                                     {isDone ? (
-                                        <LuCheck className="size-3.5 text-primary" aria-hidden="true" />
+                                        <LuCheck className="size-3.5 text-primary-ink" aria-hidden="true" />
                                     ) : (
                                         <span className={cn("tabular font-mono", isCurrent ? "text-foreground" : "text-muted-foreground")}>
                                             {index + 1}.

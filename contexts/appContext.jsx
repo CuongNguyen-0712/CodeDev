@@ -3,6 +3,8 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 
+import { notify } from '@/components/ui/alert';
+
 const AppContext = createContext(null);
 
 const STORAGE_KEY = 'codedev_dashboard_state';
@@ -11,7 +13,6 @@ export const AppProvider = ({ children }) => {
     const pathname = usePathname();
     const [overlay, setOverlayState] = useState(null);
     const [isDashboard, setIsDashboard] = useState(false);
-    const [alert, setAlert] = useState(null);
     const [isRedirect, setIsRedirect] = useState(false);
 
     useEffect(() => {
@@ -68,12 +69,11 @@ export const AppProvider = ({ children }) => {
         });
     }, []);
 
-    const showAlert = useCallback((status, message, callback) => {
-        setAlert({ status, message, callback });
-    }, []);
-
-    const clearAlert = useCallback(() => {
-        setAlert(null);
+    // Goes straight to the toast store (not through state): the single AppToaster in the root
+    // providers owns each toast's timer, so navigation can neither replay nor restart it.
+    // `options.id` collapses repeats of one event (e.g. a realtime event delivered twice).
+    const showAlert = useCallback((status, message, callback, options) => {
+        notify(status, message, { callback, ...options });
     }, []);
 
     const setRedirect = useCallback((value) => {
@@ -90,9 +90,7 @@ export const AppProvider = ({ children }) => {
         setAccountMobile,
         isRedirect,
         setRedirect,
-        alert,
         showAlert,
-        clearAlert,
     }), [
         overlay,
         setOverlay,
@@ -103,9 +101,7 @@ export const AppProvider = ({ children }) => {
         setAccountMobile,
         isRedirect,
         setRedirect,
-        alert,
         showAlert,
-        clearAlert,
     ]);
 
     return (
@@ -128,9 +124,7 @@ export const useApp = () => {
             setAccountMobile: () => { },
             isRedirect: false,
             setRedirect: () => { },
-            alert: null,
-            showAlert: () => { },
-            clearAlert: () => { },
+            showAlert: (status, message, callback, options) => notify(status, message, { callback, ...options }),
         };
     }
     return context;

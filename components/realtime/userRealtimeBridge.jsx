@@ -7,12 +7,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { usePusherChannel } from "@/hooks/usePusherChannel";
 import { channels, events } from "@/lib/realtime";
 import { isSigningOut, markSigningOut } from "@/lib/authSignal";
-import { disconnectPusher } from "@/lib/pusherClient";
+import { LANDING_PATH, leaveSignedOut } from "@/lib/authNavigation";
 import { SESSION_ERROR } from "@/constants/auth";
-import { useApp } from "@/contexts/appContext";
+import { announceRewards } from "@/components/ui/level";
 
 import { userKeys } from "@/keys/user.keys";
 import { courseKeys } from "@/keys/course.keys";
+import { roadmapKeys } from "@/keys/roadmap.keys";
 
 /**
  * Listens on the signed-in user's private channel and keeps every open tab / device in sync:
@@ -23,7 +24,6 @@ import { courseKeys } from "@/keys/course.keys";
 export function UserRealtimeBridge() {
     const { data: session, status } = useSession();
     const queryClient = useQueryClient();
-    const { showAlert: alert } = useApp();
 
     const userId = status === "authenticated" && !session?.error ? session?.user?.id : null;
     const sessionId = session?.user?.sessionId;
@@ -50,28 +50,36 @@ export function UserRealtimeBridge() {
                 }
 
                 markSigningOut();
-                queryClient.clear();
-                disconnectPusher();
 
-                const callbackUrl = reason === "logout"
-                    ? "/auth"
+                // A logout of this session (from another tab or device) lands on the landing page.
+                const target = reason === "logout"
+                    ? LANDING_PATH
                     : `/auth/error?error=${SESSION_ERROR.REVOKED}`;
-                await signOut({ callbackUrl });
+                await signOut({ redirect: false }).catch(() => { });
+                leaveSignedOut(queryClient, { target });
             },
 
             [events.PROGRESS_UPDATED]: ({ courseId } = {}) => {
                 refreshUserData();
+                // Roadmap pages show the learner's course progress.
+                queryClient.invalidateQueries({ queryKey: [...roadmapKeys.all, 'details'] });
                 if (courseId) {
                     queryClient.invalidateQueries({ queryKey: courseKeys.details(courseId) });
                 }
             },
 
-            [events.CHALLENGE_SUBMITTED]: ({ passed, awardedPoints } = {}) => {
+            [events.CHALLENGE_SUBMITTED]: ({ challengeId, passed, ...rewards } = {}) => {
                 // Not the open challenge workspace: refetching it could reset the editor.
                 refreshUserData();
-                if (passed && awardedPoints > 0 && document.visibilityState !== "visible") {
-                    // Surfaced when the user returns to a background tab.
-                    alert?.(200, `Challenge passed: +${awardedPoints} points`);
+                const earned = (Number(rewards.awardedPoints) || 0) + (Number(rewards.awardedExp) || 0);
+                if (passed && earned > 0 && document.visibilityState !== "visible") {
+                    // Surfaced when the user returns to a background tab. Rewards are given once
+                    // per challenge, so the challenge id identifies the event: a redelivery
+                    // updates the same toast instead of stacking another one.
+                    announceRewards(rewards, {
+                        title: "Challenge passed",
+                        id: challengeId ? `challenge-passed:${challengeId}` : undefined,
+                    });
                 }
             },
 

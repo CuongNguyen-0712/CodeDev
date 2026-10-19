@@ -38,6 +38,7 @@ export const adminClient = {
     findUsers: async (q) => (await apiClient.get('/admin/users', { params: { q } })).data,
     getUserEntitlements: async (userId) => (await apiClient.get('/admin/entitlements', { params: { userId } })).data,
     adjustPoints: async (input) => (await apiClient.post('/admin/points/adjust', input)).data,
+    adjustExperience: async (input) => (await apiClient.post('/admin/experience/adjust', input)).data,
     grantEntitlement: async (input) => (await apiClient.post('/admin/entitlements', input)).data,
     revokeEntitlement: async (input) => (await apiClient.delete('/admin/entitlements', { data: input })).data,
     getOrders: async () => (await apiClient.get('/admin/orders')).data,

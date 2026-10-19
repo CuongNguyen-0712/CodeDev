@@ -1,7 +1,7 @@
 'use client'
 import { useState } from "react"
 import Link from "next/link"
-import Image from "next/image"
+import Logo from "@/components/ui/logo"
 
 import Login from "./login"
 import Signup from "./signup"
@@ -58,10 +58,9 @@ export default function AuthPage() {
                 <div className="flex h-14 shrink-0 items-center justify-between gap-3 px-4 sm:px-6">
                     <Link
                         href="/"
-                        className="flex items-center gap-2 rounded-md text-sm font-semibold text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                        className="rounded-md text-base outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                     >
-                        <Image src="/image/static/logo.svg" width={24} height={24} alt="" priority />
-                        CodeDev
+                        <Logo size={24} />
                     </Link>
                     <Button asChild variant="ghost" size="sm">
                         <Link href="/">

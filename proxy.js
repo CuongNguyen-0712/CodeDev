@@ -69,6 +69,11 @@ export default async function proxy(req) {
                 return NextResponse.redirect(new URL('/403', req.url))
             }
         }
+
+        // Signed-in pages must not be served from a browser / CDN cache after the user signs out.
+        const res = pass()
+        res.headers.set('Cache-Control', 'private, no-store, max-age=0')
+        return res
     }
 
     return pass()

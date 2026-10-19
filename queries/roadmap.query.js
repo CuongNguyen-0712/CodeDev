@@ -1,24 +1,24 @@
 import { roadmapClient } from '../clients/roadmap.client'
 
 import { roadmapKeys } from '@/keys/roadmap.keys'
+import { QUERY_TIMES } from '@/lib/queryTimes'
 
 export const roadmapQueries = {
+    // Same for every visitor, rarely edited.
     list() {
         return {
             queryKey: roadmapKeys.list(),
             queryFn: () => roadmapClient.getList(),
-            staleTime: 1000 * 60 * 5, // 5 minutes
-            gcTime: 1000 * 60 * 10, // 10 minutes
+            ...QUERY_TIMES.reference,
         }
     },
 
+    // Includes the signed-in learner's course progress; PROGRESS_UPDATED events invalidate it.
     details(id) {
         return {
             queryKey: roadmapKeys.details(id),
             queryFn: () => roadmapClient.getDetails(id),
-            staleTime: 1000 * 60 * 5, // 5 minutes
-            gcTime: 1000 * 60 * 5, // 5 minutes
+            ...QUERY_TIMES.catalog,
         }
     }
 }
-
