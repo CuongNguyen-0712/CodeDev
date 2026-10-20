@@ -1,0 +1,272 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_py_rag_221",
+      "name": "reciprocal-rank-fusion",
+      "type": "mini_coding",
+      "title": "Write rrf(rankings, top, k, weights)",
+      "description": "Merge the rankings of several retrievers with weighted Reciprocal Rank Fusion: score(d) = sum of weights[i] / (k + rank_i(d)) over the rankings that contain d, with 1-based ranks and k = 60 by default. A document repeated inside one ranking counts once, at its first position. weights default to 1 and must have one entry per ranking (ValueError otherwise). Return the top documents as [[id, score], ...], highest first, scores rounded to 6 decimals; equal scores are ordered by id.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "fusion.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "BM25 and vector results for \"sync error E1042\"",
+          "input": {
+            "rankings": [
+              [
+                "kb-e1042",
+                "kb-errors",
+                "blog-launch"
+              ],
+              [
+                "kb-sync",
+                "kb-errors",
+                "kb-e1042"
+              ]
+            ],
+            "top": 3
+          },
+          "expected": [
+            [
+              "kb-e1042",
+              0.032266
+            ],
+            [
+              "kb-errors",
+              0.032258
+            ],
+            [
+              "kb-sync",
+              0.016393
+            ]
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Found by both retrievers beats first place in one",
+          "input": {
+            "rankings": [
+              [
+                "kb-cancel",
+                "kb-billing",
+                "kb-refund"
+              ],
+              [
+                "kb-plans",
+                "kb-refund",
+                "kb-billing"
+              ]
+            ],
+            "top": 4
+          },
+          "expected": [
+            [
+              "kb-billing",
+              0.032002
+            ],
+            [
+              "kb-refund",
+              0.032002
+            ],
+            [
+              "kb-cancel",
+              0.016393
+            ],
+            [
+              "kb-plans",
+              0.016393
+            ]
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "One weight per ranking",
+          "input": {
+            "rankings": [
+              [
+                "a",
+                "b"
+              ],
+              [
+                "b",
+                "a"
+              ]
+            ],
+            "top": 2,
+            "weights": [
+              1
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A repeated id counts once, at its best rank",
+          "input": {
+            "rankings": [
+              [
+                "kb-sso",
+                "kb-saml",
+                "kb-sso",
+                "kb-scim"
+              ],
+              [
+                "kb-saml",
+                "kb-scim"
+              ]
+            ],
+            "top": 3
+          },
+          "expected": [
+            [
+              "kb-saml",
+              0.032522
+            ],
+            [
+              "kb-scim",
+              0.031754
+            ],
+            [
+              "kb-sso",
+              0.016393
+            ]
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Keyword results weighted twice as much",
+          "input": {
+            "rankings": [
+              [
+                "kb-e1042",
+                "kb-errors"
+              ],
+              [
+                "kb-sync",
+                "kb-errors",
+                "kb-e1042"
+              ]
+            ],
+            "top": 3,
+            "weights": [
+              2,
+              1
+            ]
+          },
+          "expected": [
+            [
+              "kb-e1042",
+              0.04866
+            ],
+            [
+              "kb-errors",
+              0.048387
+            ],
+            [
+              "kb-sync",
+              0.016393
+            ]
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Equal scores are ordered by id",
+          "input": {
+            "rankings": [
+              [
+                "kb-webhooks",
+                "kb-api-keys"
+              ],
+              [
+                "kb-api-keys",
+                "kb-webhooks"
+              ]
+            ],
+            "top": 2
+          },
+          "expected": [
+            [
+              "kb-api-keys",
+              0.032522
+            ],
+            [
+              "kb-webhooks",
+              0.032522
+            ]
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A small k favours the top of each list",
+          "input": {
+            "rankings": [
+              [
+                "a",
+                "b",
+                "c"
+              ],
+              [
+                "c",
+                "b",
+                "a"
+              ],
+              [
+                "b",
+                "c",
+                "a"
+              ]
+            ],
+            "top": 3,
+            "k": 1
+          },
+          "expected": [
+            [
+              "b",
+              1.166667
+            ],
+            [
+              "c",
+              1.083333
+            ],
+            [
+              "a",
+              1
+            ]
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "No results from any retriever",
+          "input": {
+            "rankings": [
+              [],
+              []
+            ],
+            "top": 5
+          },
+          "expected": [],
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

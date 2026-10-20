@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_py_rag_112",
+      "key": "challenges/python/chal_coding_py_rag_112/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "chunker.py",
+      "size": 1365
+    }
+  ]
+}

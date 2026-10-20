@@ -1,0 +1,194 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_py_rag_111",
+      "name": "chunk-count-and-overlap-quiz",
+      "type": "quiz",
+      "title": "How many chunks, and why overlap?",
+      "description": "Work out what a sliding window does to a real document before you write one.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A help-center article has 1,000 words. The chunker uses windows of 200 words with an overlap of 50 words, and it stops as soon as a window reaches the last word. How many chunks does it produce?",
+          "explanation": "Each window starts 200 - 50 = 150 words after the previous one: at words 0, 150, 300, 450, 600, 750 and 900. The window starting at 750 ends at word 949, which is not the last word, so one more window starts at 900 and covers words 900-999. That window reaches the last word, so the chunker stops: 7 chunks, and 6 x 50 = 300 words are embedded twice. Overlap is not free: it adds roughly overlap / (size - overlap) extra chunks.",
+          "options": [
+            {
+              "text": "5",
+              "correct": false
+            },
+            {
+              "text": "6",
+              "correct": false
+            },
+            {
+              "text": "7",
+              "correct": true
+            },
+            {
+              "text": "8",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Why do production RAG pipelines add overlap between chunks? (Select all that apply.)",
+          "explanation": "Overlap means the words around every boundary appear in two chunks. A fact shorter than the overlap - \"refunds are processed within 30 days\" - is therefore whole in at least one chunk instead of being split across two, and a question about text near a boundary can match a chunk that contains its context on both sides. Overlap does the opposite of saving space: it adds chunks (and embedding cost), and it does nothing about the model's token limit - the window size still has to stay below it.",
+          "options": [
+            {
+              "text": "A fact shorter than the overlap is never split: it is whole in at least one chunk.",
+              "correct": true
+            },
+            {
+              "text": "Questions about text near a boundary match a chunk that has the surrounding context.",
+              "correct": true
+            },
+            {
+              "text": "It reduces the number of chunks, so embedding is cheaper.",
+              "correct": false
+            },
+            {
+              "text": "It removes the need to keep chunks under the embedding model's token limit.",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_py_rag_112",
+      "name": "overlapping-word-chunker",
+      "type": "mini_coding",
+      "title": "Write chunk_words(text, size, overlap)",
+      "description": "Split a document into word windows of at most `size` words, where consecutive windows share exactly `overlap` words. Words are separated by any whitespace and joined with one space. Stop as soon as a window reaches the last word, so no trailing chunk repeats words already indexed. Raise ValueError unless size >= 1 and 0 <= overlap < size, and return [] for an empty text. The test runner at the bottom of the file prints your result as JSON (or {\"error\": \"ValueError\"}).",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "chunker.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Windows of 4 words that share 1 word",
+          "input": {
+            "text": "a b c d e f g h i j",
+            "size": 4,
+            "overlap": 1
+          },
+          "expected": [
+            "a b c d",
+            "d e f g",
+            "g h i j"
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A text shorter than one window is one chunk",
+          "input": {
+            "text": "Refunds are processed within 30 days.",
+            "size": 10,
+            "overlap": 2
+          },
+          "expected": [
+            "Refunds are processed within 30 days."
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Overlap equal to the size is rejected",
+          "input": {
+            "text": "a b c d e f",
+            "size": 3,
+            "overlap": 3
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "No empty or repeated tail when the words divide evenly",
+          "input": {
+            "text": "one two three four five six",
+            "size": 3,
+            "overlap": 0
+          },
+          "expected": [
+            "one two three",
+            "four five six"
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Tabs, new lines and repeated spaces between words",
+          "input": {
+            "text": "  Reset\n\nyour\tpassword   from  Settings  ",
+            "size": 2,
+            "overlap": 1
+          },
+          "expected": [
+            "Reset your",
+            "your password",
+            "password from",
+            "from Settings"
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A whitespace-only text has no chunks",
+          "input": {
+            "text": " \n\t ",
+            "size": 5,
+            "overlap": 1
+          },
+          "expected": [],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Overlap of 2 in a 10-word document",
+          "input": {
+            "text": "w0 w1 w2 w3 w4 w5 w6 w7 w8 w9",
+            "size": 4,
+            "overlap": 2
+          },
+          "expected": [
+            "w0 w1 w2 w3",
+            "w2 w3 w4 w5",
+            "w4 w5 w6 w7",
+            "w6 w7 w8 w9"
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A negative overlap is rejected (it would skip words)",
+          "input": {
+            "text": "a b c d e f g h",
+            "size": 3,
+            "overlap": -1
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

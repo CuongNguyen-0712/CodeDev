@@ -3,7 +3,7 @@
  * Uploads a lesson's object-storage files to the PUBLIC bucket of the environment's storage
  * (lib/storageConfig.mjs: MinIO in development, Neon/S3 in production):
  *
- *   challenges/javascript/<public_id>/starter.js   (+ harness.js when present)
+ *   challenges/<language>/<public_id>/starter.<ext>   (+ harness.js for javascript)
  *   courses/<course>/<lesson>/starter-template.zip  (zipped from <lesson>/starter-template/)
  *
  * Writes <lesson>/storage-manifest.json (keys, sizes, content types) for the DB seed.
@@ -19,6 +19,8 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
+
+import { LANGUAGES, challengeLanguage } from "./languages.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const require = createRequire(path.join(root, "package.json"));
@@ -38,16 +40,19 @@ const { challenges } = JSON.parse(fs.readFileSync(path.join(lessonDir, "challeng
 // ------------------------------------------------------------- collect files
 const files = [];
 for (const challenge of challenges.filter((c) => c.type !== "quiz")) {
-    for (const role of ["starter", "harness"]) {
-        const source = path.join(lessonDir, "challenges", challenge.publicId, `${role}.js`);
+    const language = challengeLanguage(challenge);
+    const { ext, contentType } = LANGUAGES[language];
+    // The harness contract is javascript only.
+    for (const role of language === "javascript" ? ["starter", "harness"] : ["starter"]) {
+        const source = path.join(lessonDir, "challenges", challenge.publicId, `${role}.${ext}`);
         if (!fs.existsSync(source)) continue;
         files.push({
             role,
             challengePublicId: challenge.publicId,
             source,
-            key: `challenges/javascript/${challenge.publicId}/${role}.js`,
-            contentType: "application/javascript; charset=utf-8",
-            originalName: role === "starter" ? (challenge.coding?.filePath || "starter.js") : "harness.js",
+            key: `challenges/${language}/${challenge.publicId}/${role}.${ext}`,
+            contentType,
+            originalName: role === "starter" ? (challenge.coding?.filePath || `starter.${ext}`) : "harness.js",
         });
     }
 }

@@ -4,13 +4,15 @@
 # `vercel/sandbox/ubuntu` image (user `ubuntu` with sudo, HOME /vercel); learner code runs as the
 # slot users run01..run08 (no sudo) through /opt/codedev/run-job.
 #
+# The `docker` stage is codedev_sandbox: the same toolchains behind sandbox/server.mjs for compose.
+#
 # Build context is sandbox/ (runner.cjs is shared with the Docker runner):
 #   docker buildx build --platform linux/amd64 -f sandbox/vercel/Dockerfile -t codedev-runner:v1 --load sandbox
 #   docker run --rm --init --network none codedev-runner:v1 node /opt/codedev/selftest.mjs
 # Push (after `vercel vcr login docker --project codedev --scope codedevteam`):
 #   docker buildx build --platform linux/amd64 -f sandbox/vercel/Dockerfile \
 #     --output type=image,name=vcr.vercel.com/codedevteam/codedev/codedev-runner:v1,push=true,oci-mediatypes=true,compression=zstd sandbox
-FROM ubuntu:26.04
+FROM ubuntu:26.04 AS runner
 
 ENV LANG=C.UTF-8
 ARG DEBIAN_FRONTEND=noninteractive
@@ -62,3 +64,19 @@ RUN node --version && python3 --version && gcc --version | head -1 && g++ --vers
 ENV HOME=/vercel SHELL=/bin/bash
 USER ubuntu
 WORKDIR /vercel
+
+# ------------------------------------------------------------ codedev_sandbox (compose `sandbox`)
+# server.mjs runs as root so run-job can switch to the slot users; compose drops every capability
+# except the few run-job needs (docs/sandbox.md). Learner code never runs as root.
+FROM runner AS docker
+COPY --chown=root:root --chmod=0444 server.mjs gateway.mjs /opt/codedev/
+ENV PORT=4100 RUN_JOB=/opt/codedev/run-job HOME=/root
+USER root
+WORKDIR /opt/codedev
+EXPOSE 4100
+HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
+    CMD ["node", "-e", "fetch('http://127.0.0.1:4100/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+CMD ["node", "/opt/codedev/server.mjs"]
+
+# ------------------------------------------------------------ default target: the Vercel Sandbox image
+FROM runner

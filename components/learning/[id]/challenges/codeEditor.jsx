@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { SiPython, SiJavascript, SiTypescript } from "react-icons/si";
+import { SiC, SiCplusplus, SiGo, SiJavascript, SiOpenjdk, SiPython, SiRust, SiTypescript } from "react-icons/si";
 import { LuAlignLeft, LuFileCode, LuKeyboard } from "react-icons/lu";
 
 import { Button } from "@/components/shadcn/button";
@@ -42,14 +42,22 @@ const SHORTCUTS = [
     { label: "Leave the editor", keys: ["Esc", "Tab"], sequence: true },
 ];
 
+const LANGUAGE_ICONS = {
+    javascript: SiJavascript, js: SiJavascript, jsx: SiJavascript,
+    typescript: SiTypescript, ts: SiTypescript, tsx: SiTypescript,
+    python: SiPython, py: SiPython,
+    c: SiC, h: SiC,
+    cpp: SiCplusplus, hpp: SiCplusplus,
+    java: SiOpenjdk,
+    go: SiGo,
+    rust: SiRust, rs: SiRust,
+};
+
 function LanguageIcon({ language = "", fileName = "" }) {
-    const l = (language || "").toLowerCase();
-    const f = (fileName || "").toLowerCase();
-    const className = "size-3.5 shrink-0 text-editor-muted";
-    if (l.includes("py") || f.endsWith(".py")) return <SiPython className={className} aria-hidden="true" />;
-    if (l.includes("type") || f.endsWith(".ts") || f.endsWith(".tsx")) return <SiTypescript className={className} aria-hidden="true" />;
-    if (l.includes("js") || f.endsWith(".js") || f.endsWith(".jsx")) return <SiJavascript className={className} aria-hidden="true" />;
-    return <LuFileCode className={className} aria-hidden="true" />;
+    const Icon = LANGUAGE_ICONS[(language || "").toLowerCase()]
+        || LANGUAGE_ICONS[(fileName || "").toLowerCase().split(".").pop()]
+        || LuFileCode;
+    return <Icon className="size-3.5 shrink-0 text-editor-muted" aria-hidden="true" />;
 }
 
 // ------------------------------------------------------------------ text edits

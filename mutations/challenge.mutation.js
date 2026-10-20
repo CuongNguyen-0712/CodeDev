@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { submitQuizAction, startCodingSubmissionAction, finishCodingSubmissionAction } from "@/actions/challenge.actions";
+import { submitQuizAction, runCodingSamplesAction, startCodingSubmissionAction, finishCodingSubmissionAction } from "@/actions/challenge.actions";
 import { unwrapActionResult } from "@/queries/challenge.query";
 import { callWithAuthRetry } from "@/lib/actionResult";
 
@@ -33,6 +33,11 @@ export const useSubmitQuiz = () => {
         },
     });
 };
+
+/** Runs the sample tests in the code runner (languages other than javascript). variables: { challengeId, code } */
+export const useRunCodingSamples = () => useMutation({
+    mutationFn: async (data) => unwrapActionResult(await callWithAuthRetry(() => runCodingSamplesAction(data))),
+});
 
 /**
  * Two-step coding submission:

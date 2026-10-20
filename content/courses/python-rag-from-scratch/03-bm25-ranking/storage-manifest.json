@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_py_rag_212",
+      "key": "challenges/python/chal_coding_py_rag_212/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "bm25.py",
+      "size": 2026
+    }
+  ]
+}

@@ -15,7 +15,8 @@ browser ──Run──> Web Worker (lib/challenges/runner.js)          quick fe
 browser ──Submit──> codedev_app: startCodingSubmission
                       1. auth, lesson/course access, source size (64 KB), attempts left
                       2. POST sandbox:4100/v1/execute  {code, harness, entry, tests:[{id,input}], limits}
-                         └─ one throw-away Node process per test (sandbox/runner.cjs)
+                         └─ run-job in a slot (sandbox/vercel/run-job): compile once, one process per test
+                            javascript: runner.cjs harness ("function"); other languages: stdin/stdout ("stdio")
                       3. grade outputs against expected (expected never leaves the app)
                       4. a sample failed -> 409, no attempt used
                       5. snapshot code to S3, record the attempt (pending), keep server grades in Redis
@@ -42,14 +43,22 @@ browser ──Submit──> codedev_app: startCodingSubmission
 
 -> `{ "results": { "12": { "ok": true, "output": ..., "error": null, "timedOut": false, "timeMs": 7, "logs": [] } } }`
 
-400 invalid request (only `javascript`, identifier entry, 1–50 tests), 401 bad token, 413 too
+`language`: `javascript`, `python`, `c`, `cpp`, `java`, `go`, `rust` (`GET /health` lists them; without
+`RUN_JOB`, i.e. `node sandbox/server.mjs` on the host, only `javascript`). For stdio languages `harness`
+and `entry` are ignored, `input` goes to stdin and `output` is stdout; a compile error is reported on every
+test as `Compilation failed:\n<compiler output>`. The app grades stdout with `stdoutMatches`
+(`lib/challenges/compare.js`), and "Run" for those languages goes through `runCodingSamplesAction`
+(sample tests only, no attempt used, 503 without a runner).
+
+400 invalid request (unknown language, identifier entry, 1–50 tests), 401 bad token, 413 too
 large, 503 + `Retry-After` when `MAX_CONCURRENCY` jobs run and `MAX_QUEUE` wait.
 
 ## Isolation layers
 
 | Layer | Setting |
 |---|---|
-| Container (compose `sandbox`) | read-only root, tmpfs `/tmp` (`noexec`, 16 MB), `cap_drop: ALL`, `no-new-privileges`, non-root `node` (uid 1000), `pids_limit: 64`, 768 MB memory, 1 CPU, `nofile` 256 |
+| Container (compose `sandbox`) | read-only root, tmpfs `/tmp` `/var/tmp` `/run` `/vercel/jobs` (`noexec`) and `/work` (exec, 768 MB), `no-new-privileges`, `cap_drop: ALL` + `cap_add` SETUID, SETGID, CHOWN, DAC_OVERRIDE, FOWNER, KILL (server.mjs/run-job are root to switch to the slot users), `pids_limit: 256`, 2 GB memory, 2 CPUs, `nofile` 256 |
+| Slot (per job, run-job) | learner code and compilers run as `run01..run0N` (no capabilities, `CapEff` 0), own work dir (0700), `prlimit` (64 processes, 128 files, CPU seconds, address space for C/C++/Rust/Python), wall-clock kill; job file, server environment and other slots unreadable (checked 2026-10-20) |
 | Network | `internal` network: no egress, no host, no metadata endpoint, cannot reach redis/postgres; no published port |
 | Secrets | the sandbox gets only `CODE_RUNNER_TOKEN`; no database, auth or storage credentials. No Docker socket anywhere |
 | Process (per test) | `node --permission`: no file system access (except reading `runner.cjs`), no child processes, no worker threads, no native addons; empty environment; `--max-old-space-size` = challenge limit; SIGKILL after the time limit + 1 s start-up |
@@ -65,17 +74,40 @@ internet, 169.254.169.254, the host and `redis` all unreachable), `CapEff` 0, re
 - Containers share the host kernel. A kernel or V8 sandbox escape would reach the host. For
   hostile traffic at scale, run the sandbox under gVisor (`runtime: runsc`) or a microVM
   (Firecracker / Kata), or use a dedicated execution service.
-- Runs of different learners share one container (separate processes, same uid). The runner
-  removes signalling APIs and the permission model blocks file and process access, but they are
-  not separated by a PID namespace. A container per execution would need Docker daemon access,
-  which is deliberately not granted.
+- Runs of different learners share one container, separated by slot users (run-job), not by a
+  PID namespace. The server and run-job are root inside the container with six capabilities, so a
+  bug in server.mjs or run-job is more serious than before; learner code itself has none. A
+  container per execution would need Docker daemon access, which is deliberately not granted.
+- The previous JavaScript-only `sandbox/Dockerfile` is no longer used by compose.
 - The Node permission model does not restrict network access in Node 24; the internal network
   is what blocks it. Do not attach the sandbox to another network.
-- CPU-heavy code is limited by the per-test time limit and `cpus: 1`, not by a per-process quota.
+- CPU-heavy code is limited by the per-test time limit, `prlimit --cpu` and `cpus: 2`.
 - Production on Vercel cannot reach a Docker sandbox. Enabling server grading there needs the
   sandbox hosted somewhere reachable over TLS (keep the token secret, restrict by network).
 
-## Vercel Sandbox (production, in progress)
+## Vercel Sandbox (production)
+
+Live since 2026-10-20 (`lib/challenges/vercelRunner.js`, selected by `CODE_RUNNER_PROVIDER=vercel`):
+
+- **One shared, named, persistent sandbox** `codedev-runner-v2` (image `codedev-runner:v2` from VCR,
+  `deny-all` network, 2 vCPU = slots `run01`/`run02`, `keepLastSnapshots: 1`). Chosen over one
+  sandbox per language: on the Hobby plan (10 concurrent sandboxes, 15 GB snapshot storage, 5 h
+  Active CPU/month) a single warm VM has fewer cold starts and one snapshot, and the image already
+  has every toolchain. `CODE_RUNNER_SANDBOXES='{"java":"codedev-runner-java-v2"}'` moves a language
+  to its own sandbox later without code changes; `CODE_RUNNER_VCPUS` raises the slots (max 4 on Hobby).
+- `Sandbox.getOrCreate({ name })` creates it on first use; afterwards every call resumes it from its
+  snapshot. The session timeout is 10 minutes and each job extends it by its budget, so an idle
+  sandbox stops on its own (memory is billed while it runs).
+- Per job: lease a slot in Redis (`code-runner:<name>:<slot>`), `writeFiles` the job to
+  `/vercel/jobs/<id>.json`, `runCommand('/opt/codedev/run-job', [id, slot], { sudo: true })`.
+  No free slot, or the sandbox unreachable, is a 503 before any attempt is recorded.
+- New image: build/push `codedev-runner:vN`, set `CODE_RUNNER_IMAGE` and a new `CODE_RUNNER_SANDBOX`
+  name (`-vN`), deploy, then remove the old sandbox (`vercel sandbox remove <name> --delete-orphan-snapshots`).
+  Recycle the sandbox the same way periodically so a compromise cannot persist.
+- Test: `__tests__/sandbox/vercel.integration.test.js` (opt-in, needs `VERCEL_OIDC_TOKEN` and a
+  `CODE_RUNNER_SANDBOX` name containing "test"); 8/8 on 2026-10-20.
+
+### Background (design notes)
 
 Design: one long-lived Vercel Sandbox (Firecracker microVM) **per language** (`javascript`,
 `python`, `c`, `cpp`, `java`, `go`, `rust`), started from the `codedev-runner` image with

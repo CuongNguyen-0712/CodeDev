@@ -3,7 +3,7 @@
   "title": "Node.js High Performance: Concurrency & Consistency",
   "concept": "Keep a Node.js backend correct and fast under concurrent traffic: race conditions, atomicity, distributed locks and idempotency.",
   "description": "A hands-on course for backend developers running Node.js services with real money and real traffic. Each lesson starts from a production incident, reproduces it, and fixes it with patterns you can ship: atomic updates and distributed locks, idempotent APIs and reliable messaging, rate limiting and backpressure, and the operational basics - CPU-bound work, graceful shutdown and observability.",
-  "image": "/icons/nodejs/nodejs-original.svg",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792425606/codedev/courses/nodejs-high-performance/cover",
   "level": "intermediate",
   "durationMinutes": 270,
   "instructor": "CodeDev Engineering Team",

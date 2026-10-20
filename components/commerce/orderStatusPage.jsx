@@ -163,7 +163,7 @@ export default function OrderStatusPage({ orderId }) {
                     <div className="flex items-center gap-3 rounded-md border p-3">
                         {order.course?.image ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={order.course.image} alt="" width={48} height={48} className="size-12 shrink-0 rounded-md border object-cover" />
+                            <img src={order.course.image} alt="" width={85} height={48} className="aspect-video h-12 w-auto shrink-0 rounded-md border bg-muted object-cover" />
                         ) : (
                             <span className="flex size-12 shrink-0 items-center justify-center rounded-md border bg-muted text-muted-foreground">
                                 <LuReceipt className="size-5" aria-hidden="true" />

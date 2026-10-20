@@ -1,19 +1,28 @@
 /**
  * CodeDev code runner (codedev_sandbox).
  *
- * Executes untrusted JavaScript challenge code for the app, one throw-away Node process per test
- * case (runner.cjs). It only returns what the code produced; the app keeps the expected outputs
- * and grades. The container is the outer boundary (compose.yml: read-only root, no capabilities,
- * internal network without egress, memory/CPU/PID limits); this server adds per-process limits.
+ * Executes untrusted challenge code for the app. It only returns what the code produced; the app
+ * keeps the expected outputs and grades. The container is the outer boundary (compose.yml:
+ * read-only root, internal network without egress, memory/CPU/PID limits).
  *
- *   GET  /health        -> 200 { status: "ok", running, queued }
+ * Two back ends:
+ *   - RUN_JOB set (the codedev_sandbox image, sandbox/vercel/Dockerfile target `docker`): every
+ *     language goes through run-job, the same grader as the Vercel Sandbox. Learner code runs as
+ *     a per-slot user (run01..run08), one slot per concurrent job. javascript keeps the runner.cjs
+ *     harness contract ("function" mode); python, c, cpp, java, go and rust read stdin and write
+ *     stdout ("stdio" mode).
+ *   - RUN_JOB unset (host, tests): javascript only, one throw-away Node process per test (runner.cjs).
+ *
+ *   GET  /health        -> 200 { status: "ok", running, queued, languages }
  *   POST /v1/execute    -> 200 { results: { [testId]: { ok, output, error, timedOut, timeMs, logs } } }
  *        Authorization: Bearer <CODE_RUNNER_TOKEN>
- *        body: { language: "javascript", code, harness?, entry?, tests: [{ id, input }], timeLimitMs, memoryLimitMb }
+ *        body: { language, code, harness?, entry?, tests: [{ id, input }], timeLimitMs, memoryLimitMb }
  *
- * Environment: CODE_RUNNER_TOKEN (required), PORT (4100), MAX_CONCURRENCY (2), MAX_QUEUE (16).
+ * Environment: CODE_RUNNER_TOKEN (required), PORT (4100), MAX_CONCURRENCY (2), MAX_QUEUE (16), RUN_JOB.
  */
 import http from "node:http";
+import fs from "node:fs";
+import path from "node:path";
 import { spawn } from "node:child_process";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -26,8 +35,13 @@ const intEnv = (name, fallback, min) => {
 
 const PORT = intEnv("PORT", 4100, 1);
 const TOKEN = process.env.CODE_RUNNER_TOKEN || "";
-const MAX_CONCURRENCY = intEnv("MAX_CONCURRENCY", 2, 1);
+const RUN_JOB = process.env.RUN_JOB || "";
+// run-job has 8 slot users; each running job holds one.
+const MAX_CONCURRENCY = Math.min(intEnv("MAX_CONCURRENCY", 2, 1), RUN_JOB ? 8 : Infinity);
 const MAX_QUEUE = intEnv("MAX_QUEUE", 16, 0);
+const LANGUAGES = RUN_JOB ? ["javascript", "python", "c", "cpp", "java", "go", "rust"] : ["javascript"];
+const JOBS_DIR = "/vercel/jobs";
+const COMPILE_BUDGET_MS = 20_000; // run-job's own compile limit
 
 const RUNNER = fileURLToPath(new URL("./runner.cjs", import.meta.url));
 const MAX_BODY_BYTES = 512 * 1024;
@@ -54,22 +68,21 @@ class HttpError extends Error {
 }
 
 // ------------------------------------------------------------ concurrency (backpressure)
-let running = 0;
+// One slot per running job: run01..run0N (run-job's slot users; only a counter without RUN_JOB).
+const freeSlots = Array.from({ length: MAX_CONCURRENCY }, (_, i) => `run0${i + 1}`);
+const slotCount = freeSlots.length;
 const waiting = [];
 
 function acquire() {
-    if (running < MAX_CONCURRENCY) {
-        running++;
-        return Promise.resolve();
-    }
+    if (freeSlots.length) return Promise.resolve(freeSlots.pop());
     if (waiting.length >= MAX_QUEUE) throw new HttpError(503, "Code runner is busy, try again shortly");
     return new Promise((resolve) => waiting.push(resolve));
 }
 
-function release() {
+function release(slot) {
     const next = waiting.shift();
-    if (next) next();
-    else running--;
+    if (next) next(slot);
+    else freeSlots.push(slot);
 }
 
 // ------------------------------------------------------------ validation
@@ -81,7 +94,7 @@ function clamp(value, [min, max], name) {
 
 function validate(body) {
     if (!body || typeof body !== "object") throw new HttpError(400, "JSON body required");
-    if (body.language !== "javascript") throw new HttpError(400, "Only javascript is supported");
+    if (!LANGUAGES.includes(body.language)) throw new HttpError(400, `language must be one of: ${LANGUAGES.join(", ")}`);
     if (typeof body.code !== "string" || body.code.length === 0) throw new HttpError(400, "code is required");
     if (Buffer.byteLength(body.code) > MAX_SOURCE_BYTES) throw new HttpError(413, "code is too large");
     if (body.harness != null && (typeof body.harness !== "string" || Buffer.byteLength(body.harness) > MAX_SOURCE_BYTES)) {
@@ -99,10 +112,13 @@ function validate(body) {
         if (Buffer.byteLength(JSON.stringify(input)) > MAX_INPUT_BYTES) throw new HttpError(413, `input of test ${t.id} is too large`);
         return { id: t.id, input };
     });
+    const javascript = body.language === "javascript";
     return {
+        language: body.language,
         code: body.code,
-        harness: body.harness || null,
-        entry: body.entry || null,
+        // The harness contract is javascript only; other languages read stdin.
+        harness: javascript ? body.harness || null : null,
+        entry: javascript ? body.entry || null : null,
         tests,
         timeLimitMs: clamp(body.timeLimitMs ?? 2000, LIMITS.timeLimitMs, "timeLimitMs"),
         memoryLimitMb: clamp(body.memoryLimitMb ?? 128, LIMITS.memoryLimitMb, "memoryLimitMb"),
@@ -182,16 +198,75 @@ function runTest({ code, harness, entry, input, timeLimitMs, memoryLimitMb }) {
     });
 }
 
+/** One job through run-job in `slot`: compile once, run every test (see sandbox/vercel/run-job). */
+function runJob(job, slot) {
+    return new Promise((resolve, reject) => {
+        const jobId = randomBytes(12).toString("hex");
+        fs.writeFileSync(path.join(JOBS_DIR, `${jobId}.json`), JSON.stringify({
+            language: job.language,
+            mode: job.language === "javascript" ? "function" : "stdio",
+            code: job.code,
+            harness: job.harness,
+            entry: job.entry,
+            tests: job.tests,
+            timeLimitMs: job.timeLimitMs,
+            memoryLimitMb: job.memoryLimitMb,
+        }), { mode: 0o600 });
+
+        const child = spawn(RUN_JOB, [jobId, slot], {
+            env: { PATH: "/usr/local/bin:/usr/bin:/bin", LANG: "C.UTF-8" },
+            stdio: ["ignore", "pipe", "pipe"],
+        });
+        let stdout = "";
+        let stderr = "";
+        // run-job kills each test at its own limit; this only catches a stuck run-job.
+        const budget = COMPILE_BUDGET_MS + job.tests.length * (job.timeLimitMs + 2 * STARTUP_OVERHEAD_MS) + 5000;
+        const timer = setTimeout(() => child.kill("SIGKILL"), budget);
+
+        child.stdout.on("data", (chunk) => { if (stdout.length < 4 * MAX_RESULT_BYTES) stdout += chunk.toString("utf8"); });
+        child.stderr.on("data", (chunk) => { if (stderr.length < MAX_STDERR_BYTES) stderr += chunk.toString("utf8"); });
+        child.on("error", (error) => {
+            clearTimeout(timer);
+            reject(new Error(`run-job failed to start: ${error.message}`));
+        });
+        child.on("close", (exitCode, signal) => {
+            clearTimeout(timer);
+            fs.rmSync(path.join(JOBS_DIR, `${jobId}.json`), { force: true });
+            let response = null;
+            try { response = JSON.parse(stdout.trim().split("\n").pop()); } catch { /* below */ }
+            if (!response || response.error || !response.results) {
+                return reject(new Error(`run-job ${response?.error || signal || `exit ${exitCode}`}: ${stderr.slice(0, 300)}`));
+            }
+            // A compile error is the learner's to fix: show it on every test.
+            const compileError = response.compile && !response.compile.ok
+                ? `Compilation failed:\n${String(response.compile.error || "").slice(0, 4000)}`
+                : null;
+            resolve(Object.fromEntries(job.tests.map((t) => {
+                const r = response.results[t.id] || { ok: false, error: "No result" };
+                return [t.id, {
+                    ok: Boolean(r.ok),
+                    output: r.ok ? r.output ?? null : undefined,
+                    error: r.ok ? null : compileError || String(r.error || "Error").slice(0, 1000),
+                    timedOut: Boolean(r.timedOut),
+                    timeMs: Number(r.timeMs) || 0,
+                    logs: Array.isArray(r.logs) ? r.logs.slice(0, 50) : [],
+                }];
+            })));
+        });
+    });
+}
+
 async function execute(job) {
-    await acquire();
+    const slot = await acquire();
     try {
+        if (RUN_JOB) return await runJob(job, slot);
         const results = {};
         for (const test of job.tests) {
             results[test.id] = await runTest({ ...job, input: test.input });
         }
         return results;
     } finally {
-        release();
+        release(slot);
     }
 }
 
@@ -235,7 +310,12 @@ function send(res, status, body, headers = {}) {
 const server = http.createServer(async (req, res) => {
     try {
         if (req.method === "GET" && req.url === "/health") {
-            return send(res, 200, { status: CONFIGURED ? "ok" : "unconfigured", running, queued: waiting.length });
+            return send(res, 200, {
+                status: CONFIGURED ? "ok" : "unconfigured",
+                running: slotCount - freeSlots.length,
+                queued: waiting.length,
+                languages: LANGUAGES,
+            });
         }
         if (req.method !== "POST" || req.url !== "/v1/execute") throw new HttpError(404, "Not found");
         if (!CONFIGURED) throw new HttpError(503, "Code runner token is not configured");
@@ -252,7 +332,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.requestTimeout = 120_000;
-server.listen(PORT, () => console.log(`[sandbox] listening on :${PORT} (concurrency ${MAX_CONCURRENCY}, queue ${MAX_QUEUE})`));
+server.listen(PORT, () => console.log(`[sandbox] listening on :${PORT} (concurrency ${MAX_CONCURRENCY}, queue ${MAX_QUEUE}, ${LANGUAGES.join(" ")})`));
 
 // Graceful shutdown: stop accepting, let running jobs finish (compose stop_grace_period).
 for (const signal of ["SIGTERM", "SIGINT"]) {

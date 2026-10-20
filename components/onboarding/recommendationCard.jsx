@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { levelMapping } from "@/constants/constants";
 import { cn } from "@/lib/utils";
+import { fitCover } from "@/lib/coverFit";
 
 import { Badge } from "@/components/shadcn/badge";
 import { Skeleton } from "@/components/shadcn/skeleton";
@@ -86,11 +87,13 @@ export function RecommendationCard({ item, compact = false, onClickGuard, maxRea
                 <div className="aspect-video w-full overflow-hidden border-b bg-muted">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
+                        ref={fitCover}
                         src={course.image || FALLBACK_IMAGE}
                         alt=""
                         loading="lazy"
                         draggable={false}
-                        className="block size-full object-cover"
+                        className="block size-full object-cover data-[fit=contain]:object-contain data-[fit=contain]:p-[12%]"
+                        onLoad={(e) => fitCover(e.currentTarget)}
                         onError={handleImageError}
                     />
                 </div>

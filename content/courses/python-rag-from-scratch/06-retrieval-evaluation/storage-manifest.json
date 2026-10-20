@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_py_rag_321",
+      "key": "challenges/python/chal_fix_py_rag_321/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "metrics.py",
+      "size": 2117
+    }
+  ]
+}

@@ -1,0 +1,380 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_py_rag_311",
+      "name": "token-budget-context-packer",
+      "type": "mini_coding",
+      "title": "Write pack_context(chunks, budget, max_per_source)",
+      "description": "Build the context block of the prompt from ranked chunks. Each used chunk becomes a line \"[n] text\", where n is the citation number of its source (numbered from 1 in order of first use). Keep the total count_tokens() cost of the lines within budget: skip a chunk that does not fit and keep going, use at most max_per_source chunks per source, and skip text already in the context. A skipped chunk never takes a citation number. Return the context, the cited sources in number order, the ids used and the token total.",
+      "difficulty": "hard",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "packer.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Everything fits: one number per source",
+          "input": {
+            "chunks": [
+              {
+                "id": "c1",
+                "source": "kb-refunds",
+                "text": "Refunds are processed within 30 days of the request."
+              },
+              {
+                "id": "c2",
+                "source": "kb-credit",
+                "text": "Store credit is issued instantly."
+              },
+              {
+                "id": "c3",
+                "source": "kb-refunds",
+                "text": "Partial refunds are possible for annual plans."
+              }
+            ],
+            "budget": 100,
+            "max_per_source": 2
+          },
+          "expected": {
+            "context": "[1] Refunds are processed within 30 days of the request.\n[2] Store credit is issued instantly.\n[1] Partial refunds are possible for annual plans.",
+            "citations": [
+              "kb-refunds",
+              "kb-credit"
+            ],
+            "used": [
+              "c1",
+              "c2",
+              "c3"
+            ],
+            "tokens": 33
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A chunk that does not fit is skipped, a later one still fits",
+          "input": {
+            "chunks": [
+              {
+                "id": "c1",
+                "source": "kb-refunds",
+                "text": "Refunds are processed within 30 days of the request."
+              },
+              {
+                "id": "c2",
+                "source": "kb-payments",
+                "text": "Refunds go back to the original payment method; bank transfers can take 5-7 business days after approval, and card refunds appear as a separate line on the statement."
+              },
+              {
+                "id": "c3",
+                "source": "kb-credit",
+                "text": "Store credit is issued instantly."
+              }
+            ],
+            "budget": 30,
+            "max_per_source": 2
+          },
+          "expected": {
+            "context": "[1] Refunds are processed within 30 days of the request.\n[2] Store credit is issued instantly.",
+            "citations": [
+              "kb-refunds",
+              "kb-credit"
+            ],
+            "used": [
+              "c1",
+              "c3"
+            ],
+            "tokens": 22
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "At most one chunk per source",
+          "input": {
+            "chunks": [
+              {
+                "id": "c1",
+                "source": "kb-refunds",
+                "text": "Refunds are processed within 30 days of the request."
+              },
+              {
+                "id": "c2",
+                "source": "kb-refunds",
+                "text": "Partial refunds are possible for annual plans."
+              },
+              {
+                "id": "c3",
+                "source": "kb-cancel",
+                "text": "Cancel any time from Settings > Billing."
+              }
+            ],
+            "budget": 100,
+            "max_per_source": 1
+          },
+          "expected": {
+            "context": "[1] Refunds are processed within 30 days of the request.\n[2] Cancel any time from Settings > Billing.",
+            "citations": [
+              "kb-refunds",
+              "kb-cancel"
+            ],
+            "used": [
+              "c1",
+              "c3"
+            ],
+            "tokens": 24
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Skipped chunks never take a citation number",
+          "input": {
+            "chunks": [
+              {
+                "id": "c1",
+                "source": "kb-refunds",
+                "text": "Refunds are processed within 30 days of the request."
+              },
+              {
+                "id": "c2",
+                "source": "kb-payments",
+                "text": "Refunds go back to the original payment method; bank transfers can take 5-7 business days after approval, and card refunds appear as a separate line on the statement."
+              },
+              {
+                "id": "c3",
+                "source": "kb-cancel",
+                "text": "Cancel any time from Settings > Billing."
+              },
+              {
+                "id": "c4",
+                "source": "kb-payments",
+                "text": "Card refunds appear within 5 days."
+              }
+            ],
+            "budget": 40,
+            "max_per_source": 2
+          },
+          "expected": {
+            "context": "[1] Refunds are processed within 30 days of the request.\n[2] Cancel any time from Settings > Billing.\n[3] Card refunds appear within 5 days.",
+            "citations": [
+              "kb-refunds",
+              "kb-cancel",
+              "kb-payments"
+            ],
+            "used": [
+              "c1",
+              "c3",
+              "c4"
+            ],
+            "tokens": 34
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "The same text from another export is not packed twice",
+          "input": {
+            "chunks": [
+              {
+                "id": "c1",
+                "source": "kb-refunds",
+                "text": "Refunds are processed within 30 days of the request."
+              },
+              {
+                "id": "c2",
+                "source": "pdf-refunds",
+                "text": "  Refunds are processed within 30 days of the request.  "
+              },
+              {
+                "id": "c3",
+                "source": "kb-credit",
+                "text": "Store credit is issued instantly."
+              }
+            ],
+            "budget": 100,
+            "max_per_source": 2
+          },
+          "expected": {
+            "context": "[1] Refunds are processed within 30 days of the request.\n[2] Store credit is issued instantly.",
+            "citations": [
+              "kb-refunds",
+              "kb-credit"
+            ],
+            "used": [
+              "c1",
+              "c3"
+            ],
+            "tokens": 22
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A budget of 0 packs nothing",
+          "input": {
+            "chunks": [
+              {
+                "id": "c1",
+                "source": "kb-refunds",
+                "text": "Refunds are processed within 30 days of the request."
+              }
+            ],
+            "budget": 0,
+            "max_per_source": 2
+          },
+          "expected": {
+            "context": "",
+            "citations": [],
+            "used": [],
+            "tokens": 0
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A total exactly equal to the budget fits",
+          "input": {
+            "chunks": [
+              {
+                "id": "c1",
+                "source": "kb-refunds",
+                "text": "Refunds are processed within 30 days of the request."
+              },
+              {
+                "id": "c2",
+                "source": "kb-cancel",
+                "text": "Cancel any time from Settings > Billing."
+              }
+            ],
+            "budget": 24,
+            "max_per_source": 2
+          },
+          "expected": {
+            "context": "[1] Refunds are processed within 30 days of the request.\n[2] Cancel any time from Settings > Billing.",
+            "citations": [
+              "kb-refunds",
+              "kb-cancel"
+            ],
+            "used": [
+              "c1",
+              "c2"
+            ],
+            "tokens": 24
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "One long article cannot fill the context",
+          "input": {
+            "chunks": [
+              {
+                "id": "c1",
+                "source": "kb-refunds",
+                "text": "Refunds are processed within 30 days of the request."
+              },
+              {
+                "id": "c2",
+                "source": "kb-refunds",
+                "text": "Partial refunds are possible for annual plans."
+              },
+              {
+                "id": "c3",
+                "source": "kb-refunds",
+                "text": "Refund requests need the order number."
+              },
+              {
+                "id": "c4",
+                "source": "kb-credit",
+                "text": "Store credit is issued instantly."
+              }
+            ],
+            "budget": 100,
+            "max_per_source": 2
+          },
+          "expected": {
+            "context": "[1] Refunds are processed within 30 days of the request.\n[1] Partial refunds are possible for annual plans.\n[2] Store credit is issued instantly.",
+            "citations": [
+              "kb-refunds",
+              "kb-credit"
+            ],
+            "used": [
+              "c1",
+              "c2",
+              "c4"
+            ],
+            "tokens": 33
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    },
+    {
+      "publicId": "chal_quiz_py_rag_312",
+      "name": "prompt-budget-and-t-strings-quiz",
+      "type": "quiz",
+      "title": "Budgets and t-string templates",
+      "description": "Check how the context budget is computed and what Python 3.14 template strings give you.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "The model has a 16,000-token context window. Which of these must be subtracted from it before you know how many tokens the retrieved chunks may use? (Select all that apply.)",
+          "explanation": "Everything the model reads or writes in one call shares the window: the system prompt, the user's question (and any conversation history you send), the formatting around the chunks, and the tokens the answer will need - if you do not reserve them, the API either rejects the request or cuts the answer short. The size of the index is irrelevant: only the chunks you actually put in the prompt count.",
+          "options": [
+            {
+              "text": "The system prompt and instructions.",
+              "correct": true
+            },
+            {
+              "text": "The user's question and the conversation history you send.",
+              "correct": true
+            },
+            {
+              "text": "Tokens reserved for the model's answer.",
+              "correct": true
+            },
+            {
+              "text": "The number of chunks stored in the vector index.",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "In Python 3.14, what is the value of prompt after\n\nprompt = t\"<context>\\n{context}\\n</context>\\nQuestion: {question}\"",
+          "explanation": "A t-string (PEP 750) evaluates its expressions like an f-string, but does not join the result into a str. It returns a string.templatelib.Template: iterating it yields the static strings and Interpolation objects (value, expression, conversion, format_spec), and .interpolations lists the values. Code that renders the template decides how each value is inserted - for a prompt, for example, by neutralising a retrieved chunk that contains \"</context>\" so it cannot close the block early.",
+          "options": [
+            {
+              "text": "A str with context and question already substituted, like an f-string.",
+              "correct": false
+            },
+            {
+              "text": "A string.templatelib.Template holding the static text and Interpolation objects, to be rendered by your own code.",
+              "correct": true
+            },
+            {
+              "text": "A lazy f-string that is rendered the first time it is converted with str().",
+              "correct": false
+            },
+            {
+              "text": "A SyntaxError: the t prefix is only valid for bytes literals.",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,7 +1,8 @@
 {
   "publicId": "javascript-async-architecture_2026100901",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792425603/codedev/courses/javascript-async-architecture_2026100901/cover",
   "existing": true,
-  "update": { "durationMinutes": 452 },
+  "update": { "durationMinutes": 452, "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792425603/codedev/courses/javascript-async-architecture_2026100901/cover" },
   "title": "JavaScript: Asynchronous Architecture & Production Patterns",
   "language": "JavaScript",
   "category": "Web Development",

@@ -9,6 +9,7 @@ import { useSession } from "next-auth/react";
 import { ErrorReload } from "../ui/error";
 import { progressMapping } from "@/constants/constants";
 import { COURSE_STATUS } from "@/components/learning/course";
+import { cn } from "@/lib/utils";
 
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
@@ -27,6 +28,8 @@ import {
 
 const FALLBACK_IMAGE = '/image/static/no_image.png';
 const SKILLS_COLLAPSED_COUNT = 3;
+// Status rows on the progress panel: what to continue, then what to start, then what is done.
+const STATUS_ORDER = ["in_progress", "enrolled", "completed"];
 
 function handleImageError(e) {
     e.currentTarget.onerror = null;
@@ -112,8 +115,9 @@ export default function HomeLearning() {
     // The query waits for the session, so treat a loading session as loading data.
     const showLoading = isLoading || status === 'loading';
 
+    // Fixed order (what to continue first), whatever order the API returns the counts in.
     const statusRows = data?.summary?.by_status
-        ? Object.entries(data.summary.by_status).filter(([s]) => progressMapping[s])
+        ? STATUS_ORDER.filter((s) => s in data.summary.by_status).map((s) => [s, Number(data.summary.by_status[s]) || 0])
         : [];
     const totalCourses = Number(data?.summary?.total ?? 0);
 
@@ -206,7 +210,7 @@ export default function HomeLearning() {
                                         >
                                             {/* Read as "Not started 0 courses. Show courses": starts with the visible text (WCAG 2.5.3). */}
                                             <Badge variant={meta.variant}>{meta.label}</Badge>
-                                            <span className="ml-auto font-mono text-sm text-foreground tabular">{count}</span>
+                                            <span className={cn("ml-auto font-mono text-sm tabular", count ? "text-foreground" : "text-muted-foreground")}>{count}</span>
                                             <span className="sr-only">{count === 1 ? 'course' : 'courses'}. Show courses</span>
                                             <LuChevronRight className="size-4 text-muted-foreground" aria-hidden="true" />
                                         </button>
@@ -301,7 +305,7 @@ export default function HomeLearning() {
                 <PanelHeader
                     id="home-skills-heading"
                     title="Language skills"
-                    meta={showLoading || isError ? null : `${languages.length} ${languages.length === 1 ? 'language' : 'languages'}`}
+                    meta={showLoading || isError || languages.length < 2 ? null : `${languages.length} languages`}
                 />
 
                 {showLoading ? (
@@ -337,13 +341,18 @@ export default function HomeLearning() {
                                                     </p>
                                                 )}
                                             </div>
-                                            <span className="shrink-0 font-mono text-sm text-foreground tabular">{percent}%</span>
+                                            {/* A share only means something next to other languages. */}
+                                            {languages.length > 1 && (
+                                                <span className="shrink-0 font-mono text-sm text-foreground tabular">{percent}%</span>
+                                            )}
                                         </div>
-                                        <Progress
-                                            value={percent}
-                                            className="h-1.5 bg-muted"
-                                            aria-label={`${item.name} share of your active and completed courses`}
-                                        />
+                                        {languages.length > 1 && (
+                                            <Progress
+                                                value={percent}
+                                                className="h-1.5 bg-muted"
+                                                aria-label={`${item.name} share of your active and completed courses`}
+                                            />
+                                        )}
                                     </li>
                                 );
                             })}

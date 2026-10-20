@@ -48,7 +48,8 @@ describe.skipIf(!hasDb)("course / learning lists (PostgreSQL)", () => {
             expect(byRating.data.every((c) => Number(c.rating) >= minRating)).toBe(true);
             expect(byRating.data.map((c) => c.id)).toContain(course.id);
 
-            const price = Number(course.cost) === 0 ? "free" : "paid";
+            // The price filter follows access_model (prices live in commerce.offer, cost is deprecated).
+            const price = course.access_model === "premium" ? "paid" : "free";
             const other = price === "free" ? "paid" : "free";
             const filter = { level: [course.level], price: [price], language: [String(course.language_id)], category: [String(course.category_id)] };
             expect((await courseService.loadList({ filter, limit: 50 })).data.map((c) => c.id)).toContain(course.id);

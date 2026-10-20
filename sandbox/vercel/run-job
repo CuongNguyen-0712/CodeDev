@@ -46,15 +46,15 @@ const OUTPUT_FILE_BYTES = 16 * 1024 * 1024;
 const LANGS = {
     javascript: { file: "main.js", run: (mb) => ["/usr/local/bin/node", `--max-old-space-size=${mb}`, "main.js"] },
     python: { file: "main.py", run: () => ["/usr/bin/python3", "-I", "-B", "main.py"], addressSpace: 128 },
-    c: { file: "main.c", compile: ["/usr/bin/gcc", "-O2", "-std=c17", "-pipe", "-o", "main", "main.c", "-lm"], run: () => ["./main"], addressSpace: 64 },
-    cpp: { file: "main.cpp", compile: ["/usr/bin/g++", "-O2", "-std=c++20", "-pipe", "-o", "main", "main.cpp"], run: () => ["./main"], addressSpace: 64 },
+    c: { file: "main.c", compile: ["/usr/bin/gcc", "-O2", "-std=c23", "-pipe", "-o", "main", "main.c", "-lm"], run: () => ["./main"], addressSpace: 64 },
+    cpp: { file: "main.cpp", compile: ["/usr/bin/g++", "-O2", "-std=c++23", "-pipe", "-o", "main", "main.cpp"], run: () => ["./main"], addressSpace: 64 },
     java: {
         file: "Main.java",
         compile: ["/usr/bin/javac", "-J-Xmx256m", "-J-XX:-UsePerfData", "-encoding", "UTF-8", "-d", ".", "Main.java"],
         run: (mb) => ["/usr/bin/java", `-Xmx${mb}m`, "-Xss64m", "-XX:+UseSerialGC", "-XX:-UsePerfData", "-cp", ".", "Main"],
     },
     go: { file: "main.go", compile: ["/usr/bin/go", "build", "-o", "main", "main.go"], run: () => ["./main"] },
-    rust: { file: "main.rs", compile: ["/usr/bin/rustc", "-O", "--edition", "2021", "-o", "main", "main.rs"], run: () => ["./main"], addressSpace: 64 },
+    rust: { file: "main.rs", compile: ["/usr/bin/rustc", "-O", "--edition", "2024", "-o", "main", "main.rs"], run: () => ["./main"], addressSpace: 64 },
 };
 // RLIMIT_AS is only set where the runtime does not reserve huge virtual ranges (V8, the JVM and
 // the Go runtime do); those are held by their own heap flags and the VM's memory instead.

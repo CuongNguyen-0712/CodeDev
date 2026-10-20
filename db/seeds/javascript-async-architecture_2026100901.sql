@@ -23,7 +23,7 @@ DO $$ BEGIN
         RAISE EXCEPTION 'course javascript-async-architecture_2026100901 does not exist';
     END IF;
 END $$;
-UPDATE catalog.course SET duration = 452, updated_at = now() WHERE public_id = 'javascript-async-architecture_2026100901';
+UPDATE catalog.course SET duration = 452, image = 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792425603/codedev/courses/javascript-async-architecture_2026100901/cover', updated_at = now() WHERE public_id = 'javascript-async-architecture_2026100901';
 
 -- module 1: Event Loop, Microtasks & Macrotasks
 UPDATE course.module SET title = 'Event Loop, Microtasks & Macrotasks', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 1 AND is_deleted = false LIMIT 1);

@@ -53,7 +53,7 @@ END $$;`);
 out.push("");
 if (course.existing) {
     // Course authored before this pipeline: keep its catalog row, only apply `update`.
-    const columns = { durationMinutes: "duration", reward: "reward", description: "description", concept: "concept" };
+    const columns = { durationMinutes: "duration", reward: "reward", description: "description", concept: "concept", image: "image" };
     const sets = Object.entries(course.update || {}).filter(([k]) => columns[k]).map(([k, v]) => `${columns[k]} = ${lit(v)}`);
     out.push(`DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM catalog.course WHERE public_id = ${lit(course.publicId)} AND is_deleted = false) THEN
@@ -61,16 +61,37 @@ if (course.existing) {
     END IF;
 END $$;`);
     if (sets.length) out.push(`UPDATE catalog.course SET ${sets.join(", ")}, updated_at = now() WHERE public_id = ${lit(course.publicId)};`);
-} else out.push(`INSERT INTO catalog.course (public_id, title, concept, description, image, level, duration, instructor, cost, point_price, reward, language_id, category_id, is_hidden, is_deleted)
+} else {
+    // publishStatus only applies to a new row (NULL lets the trigger derive it); after that the
+    // admin publishes. accessModel "premium" needs an entitlement: a purchase, points or a grant.
+    out.push(`INSERT INTO catalog.course (public_id, title, concept, description, image, level, duration, instructor, cost, point_price, reward, language_id, category_id, access_model, publish_status, is_hidden, is_deleted)
 VALUES (${lit(course.publicId)}, ${lit(course.title)}, ${lit(course.concept)}, ${lit(course.description)}, ${lit(course.image)}, ${lit(course.level)}::level_enum, ${lit(course.durationMinutes)}, ${lit(course.instructor)}, ${lit(course.cost)}, ${lit(course.pointPrice)}, ${lit(course.reward)},
         (SELECT id FROM catalog.language WHERE name = ${lit(course.language)}),
         (SELECT id FROM catalog.category WHERE name = ${lit(course.category)}),
-        false, false)
+        ${lit(course.accessModel || "free")}, ${lit(course.publishStatus)}, ${lit(["draft", "unpublished"].includes(course.publishStatus))}, false)
 ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, concept = EXCLUDED.concept, description = EXCLUDED.description, image = EXCLUDED.image,
     level = EXCLUDED.level, duration = EXCLUDED.duration, instructor = EXCLUDED.instructor, cost = EXCLUDED.cost,
     point_price = EXCLUDED.point_price, reward = EXCLUDED.reward, language_id = EXCLUDED.language_id,
-    category_id = EXCLUDED.category_id, updated_at = now();`);
+    category_id = EXCLUDED.category_id, access_model = EXCLUDED.access_model, updated_at = now();`);
+
+    // Prices (commerce.offer): never updated in place. A changed amount deactivates the active
+    // offer of that price type and adds a new one; price types no longer listed are deactivated.
+    if (Array.isArray(course.offers)) {
+        const listed = course.offers.map((o) => o.priceType);
+        out.push(`UPDATE commerce.offer SET is_active = false, deactivated_at = now()
+WHERE course_id = ${courseId} AND is_active AND price_type <> ALL (ARRAY[${listed.map(lit).join(", ") || "''"}]::text[]);`);
+        for (const offer of course.offers) {
+            const currency = offer.priceType === "money" ? offer.currency || "VND" : null;
+            out.push(`UPDATE commerce.offer SET is_active = false, deactivated_at = now()
+WHERE course_id = ${courseId} AND price_type = ${lit(offer.priceType)} AND is_active
+  AND (amount <> ${offer.amount} OR currency IS DISTINCT FROM ${lit(currency)});
+INSERT INTO commerce.offer (public_id, course_id, price_type, amount, currency)
+SELECT 'ofr_' || replace(gen_random_uuid()::text, '-', ''), ${courseId}, ${lit(offer.priceType)}, ${offer.amount}, ${lit(currency)}
+WHERE NOT EXISTS (SELECT 1 FROM commerce.offer WHERE course_id = ${courseId} AND price_type = ${lit(offer.priceType)} AND is_active);`);
+        }
+    }
+}
 out.push("");
 
 for (const module of course.modules) {

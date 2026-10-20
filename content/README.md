@@ -7,7 +7,7 @@ Source of truth for courses built with the content pipeline. Each course lives i
 |---|---|---|
 | Sanity (`lesson` documents) | Lesson narrative, diagrams (Cloudinary URLs), `challengeEmbed` blocks | Read by the browser |
 | Postgres `challenge.*` | Quiz options with `is_correct`, test cases, coding configs | Answers stay server-side |
-| Object storage, public bucket | `challenges/javascript/<id>/{starter,harness}.js`, lesson starter zips | Loaded by the browser sandbox |
+| Object storage, public bucket | `challenges/<language>/<id>/starter.<ext>` (+ `harness.js` for javascript), lesson starter zips | Loaded by the editor and the browser sandbox |
 | Cloudinary | `diagrams/*.svg` rendered as PNG | Image delivery |
 
 ## Layout
@@ -15,10 +15,11 @@ Source of truth for courses built with the content pipeline. Each course lives i
 ```
 courses/<course>/
   course.json                    course, modules and lessons (lesson.sanityId = Sanity _id)
+  cover.svg                      course cover, 1600x900 (16:9); upload-cover.mjs writes its URL to course.json "image"
   <NN-lesson>/
     lesson.source.mjs            narrative (helpers: h2, p, code, callout, image, challenge ...)
     challenges.json              challenges, quiz questions, coding config and tests
-    challenges/<id>/             starter.js, harness.js, solution.js, variants/*.js (known-wrong answers)
+    challenges/<id>/             starter.<ext>, solution.<ext>, variants/*.<ext> (known-wrong answers), harness.js (javascript)
     diagrams/*.svg               lesson diagrams
     starter-template/            optional local lab (zipped and uploaded)
     assets.json                  written by upload-images.mjs (commit it)
@@ -37,6 +38,11 @@ node content/tools/build-course.mjs content/courses/<course>          # every le
 node content/tools/build-course.mjs content/courses/<course> --push   # also write the Sanity drafts
 ```
 
+Course cover: `node content/tools/upload-cover.mjs content/courses/<course>` renders `cover.svg` to PNG,
+uploads it to Cloudinary (`codedev/courses/<course>/cover`) and sets `image` in `course.json`
+(`update.image` for an `existing` course). Rebuild the seed afterwards; covers are 16:9, logos and other
+shapes are shown whole (`lib/coverFit.js`).
+
 Step by step, per lesson (`tools/`):
 
 1. `verify-challenges.mjs <lesson>`: starter fails, solution passes every test, variants fail.
@@ -52,7 +58,18 @@ then apply `db/seeds/<course>.sql` (test it on a Neon branch first).
 
 ## Rules for challenges
 
-- JavaScript only, runnable in a Web Worker: no DOM, no Node-only APIs, no imports. The entry is the
+- Languages and file extensions: `tools/languages.mjs` (javascript, python, c, cpp, java, go, rust).
+  Every language except javascript is a `stdio` challenge that only runs in the code runner
+  (`npm run services:up`, `CODE_RUNNER_URL`/`CODE_RUNNER_TOKEN` in `.env.local`; verify-challenges uses it too):
+  - the starter reads one test case from stdin (a string as is, anything else as JSON) and prints the
+    result; keep the small runner at the bottom of the file and let the learner write the function;
+  - `expected` is the JSON value of stdout (text otherwise); line endings, trailing whitespace and JSON
+    spacing are ignored (`lib/challenges/compare.js` `stdoutMatches`);
+  - standard library only, no network, deterministic; Java uses `public class Main`; C is `-std=c23`,
+    C++ `-std=c++23`, Rust edition 2024.
+- New courses: 1-2 challenges per lesson. Premium courses set `accessModel`, `offers` and usually
+  `publishStatus: "draft"` in `course.json` (docs/course-catalog-plan.md).
+- javascript challenges run in a Web Worker: no DOM, no Node-only APIs, no imports. The entry is the
   first function in `starter.js`; `harness.js` defines `async function __harness(input, ctx)`.
 - Deterministic harnesses (fake clocks, injected timers), well under `timeLimitMs`.
 - Never put quiz answers, test expectations or solutions in `lesson.source.mjs`.

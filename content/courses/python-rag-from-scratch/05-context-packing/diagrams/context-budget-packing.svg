@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Packing ranked chunks into the context budget</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Every request: budget = window − instructions − history and question − answer reserve. Then pack in rank order.</text>
+
+  <!-- window bar -->
+  <text x="40" y="124" font-size="15" font-weight="700" fill="#334155">16,000-token context window</text>
+  <rect x="40" y="136" width="45" height="48" fill="#e2e8f0" stroke="#64748b" stroke-width="2"/>
+  <rect x="85" y="136" width="68" height="48" fill="#e2e8f0" stroke="#64748b" stroke-width="2"/>
+  <rect x="153" y="136" width="895" height="48" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <rect x="1048" y="136" width="112" height="48" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <g font-size="12" text-anchor="middle">
+    <text x="62" y="165" fill="#334155">system</text>
+    <text x="119" y="165" fill="#334155">history + Q</text>
+    <text x="600" y="165" font-size="15" font-weight="700" fill="#15803d">chunk budget ≈ 13,000 tokens</text>
+    <text x="1104" y="165" fill="#b91c1c">answer reserve</text>
+  </g>
+
+  <!-- ranked chunks -->
+  <text x="40" y="236" font-size="18" font-weight="700" fill="#0f172a">Ranked chunks (example budget: 40 tokens)</text>
+  <g font-size="15">
+    <rect x="40" y="252" width="560" height="58" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+    <text x="58" y="278" font-weight="700" fill="#334155">c1 · kb-refunds</text><text x="58" y="298" font-size="13" fill="#475569">"Refunds are processed within 30 days..."</text>
+    <text x="584" y="285" text-anchor="end" font-weight="700" fill="#15803d">13 → [1]</text>
+
+    <rect x="40" y="320" width="560" height="58" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+    <text x="58" y="346" font-weight="700" fill="#334155">c2 · kb-payments</text><text x="58" y="366" font-size="13" fill="#475569">"Refunds go back to the original payment method; ..."</text>
+    <text x="584" y="353" text-anchor="end" font-weight="700" fill="#b91c1c">36 → 49 &gt; 40, skip</text>
+
+    <rect x="40" y="388" width="560" height="58" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+    <text x="58" y="414" font-weight="700" fill="#334155">c3 · kb-cancel</text><text x="58" y="434" font-size="13" fill="#475569">"Cancel any time from Settings &gt; Billing."</text>
+    <text x="584" y="421" text-anchor="end" font-weight="700" fill="#15803d">11 → [2]</text>
+
+    <rect x="40" y="456" width="560" height="58" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+    <text x="58" y="482" font-weight="700" fill="#334155">c4 · kb-payments</text><text x="58" y="502" font-size="13" fill="#475569">"Card refunds appear within 5 days."</text>
+    <text x="584" y="489" text-anchor="end" font-weight="700" fill="#15803d">10 → [3]</text>
+  </g>
+
+  <!-- result -->
+  <rect x="640" y="252" width="520" height="190" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="660" y="280" font-size="15" font-weight="700" fill="#334155">context (34 / 40 tokens)</text>
+  <g font-size="14" font-family="ui-monospace, 'Cascadia Code', Consolas, monospace" fill="#0f172a">
+    <text x="660" y="310">[1] Refunds are processed within 30...</text>
+    <text x="660" y="334">[2] Cancel any time from Settings...</text>
+    <text x="660" y="358">[3] Card refunds appear within 5 days.</text>
+  </g>
+  <text x="660" y="394" font-size="14" fill="#334155">citations: kb-refunds, kb-cancel, kb-payments</text>
+  <text x="660" y="418" font-size="14" fill="#334155">used: c1, c3, c4</text>
+
+  <rect x="640" y="456" width="520" height="104" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="660" y="484" font-size="15" font-weight="700" fill="#b45309">Rules</text>
+  <text x="660" y="508" font-size="14" fill="#334155">Skip what does not fit and keep going. A skipped chunk</text>
+  <text x="660" y="530" font-size="14" fill="#334155">takes no number: kb-payments becomes [3] only when c4 is</text>
+  <text x="660" y="552" font-size="14" fill="#334155">used. At most N chunks per source; repeated text skipped.</text>
+</svg>

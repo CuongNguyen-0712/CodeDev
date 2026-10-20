@@ -198,7 +198,8 @@ export default function LearningPage() {
                             <LuLoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
                             Loading more courses...
                         </span>
-                    ) : !hasNextPage && courses.length > 0 ? (
+                    ) : !hasNextPage && (data?.pages?.length || 0) > 1 ? (
+                        // Only after scrolling through more than one page; a short list needs no end marker.
                         <span>End of your enrolled courses</span>
                     ) : null}
                 </div>

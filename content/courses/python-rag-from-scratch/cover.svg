@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Python RAG pipeline (documents -> chunks -> ranked top-k context with citations). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0F1724"/>
+      <stop offset="0.55" stop-color="#0F1019"/>
+      <stop offset="1" stop-color="#0C0B12"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3776AB" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#3776AB" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="flow" gradientUnits="userSpaceOnUse" x1="1040" y1="0" x2="1120" y2="0">
+      <stop offset="0" stop-color="#7AA7D6" stop-opacity="0.15"/>
+      <stop offset="1" stop-color="#7AA7D6" stop-opacity="0.85"/>
+    </linearGradient>
+    <linearGradient id="hit" gradientUnits="userSpaceOnUse" x1="1250" y1="0" x2="1320" y2="0">
+      <stop offset="0" stop-color="#FFD43B" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="#FFD43B" stop-opacity="0.95"/>
+    </linearGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g font-family="Segoe UI, Inter, Arial, sans-serif">
+    <!-- Python badge: two interlocking rounded squares -->
+    <rect x="112" y="146" width="62" height="62" rx="16" fill="#3776AB"/>
+    <rect x="142" y="176" width="62" height="62" rx="16" fill="#FFD43B"/>
+    <circle cx="132" cy="166" r="6" fill="#0F1724"/>
+    <circle cx="184" cy="218" r="6" fill="#0F1724"/>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#FFD43B">PYTHON 3.14 · AI ENGINEERING</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">RAG Pipeline</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">from Scratch</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Chunk · Retrieve · Rank · Cite · Evaluate</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#CFE0F4">
+      <rect x="110" y="660" width="150" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="185" y="695" text-anchor="middle">BM25</text>
+      <rect x="276" y="660" width="130" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="341" y="695" text-anchor="middle">RRF</text>
+      <rect x="422" y="660" width="190" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="517" y="695" text-anchor="middle">recall@k</text>
+      <rect x="628" y="660" width="180" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="718" y="695" text-anchor="middle">t"..."</text>
+    </g>
+  </g>
+
+  <!-- Stage labels -->
+  <g font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3">
+    <text x="886" y="258" fill="#9DBCE0">DOCUMENTS</text>
+    <text x="1108" y="258" fill="#9DBCE0">CHUNKS</text>
+    <text x="1322" y="258" fill="#FFE27A">TOP-K CONTEXT</text>
+  </g>
+
+  <!-- Documents: a small stack of pages -->
+  <g>
+    <rect x="916" y="290" width="128" height="170" rx="12" fill="#18233A" stroke="#2E4A70" stroke-width="2"/>
+    <rect x="902" y="306" width="128" height="170" rx="12" fill="#1A2740" stroke="#3B5E8C" stroke-width="2"/>
+    <rect x="888" y="322" width="128" height="170" rx="12" fill="#1D2C48" stroke="#5B87BC" stroke-width="3"/>
+    <g fill="#7AA7D6" fill-opacity="0.7">
+      <rect x="908" y="350" width="88" height="8" rx="4"/>
+      <rect x="908" y="372" width="70" height="8" rx="4"/>
+      <rect x="908" y="394" width="82" height="8" rx="4"/>
+      <rect x="908" y="416" width="60" height="8" rx="4"/>
+      <rect x="908" y="438" width="76" height="8" rx="4"/>
+    </g>
+    <rect x="888" y="530" width="128" height="120" rx="12" fill="#1D2C48" stroke="#3B5E8C" stroke-width="2"/>
+    <g fill="#7AA7D6" fill-opacity="0.55">
+      <rect x="908" y="556" width="80" height="8" rx="4"/>
+      <rect x="908" y="578" width="64" height="8" rx="4"/>
+      <rect x="908" y="600" width="86" height="8" rx="4"/>
+    </g>
+  </g>
+
+  <!-- Splitting into overlapping chunks -->
+  <g fill="none" stroke="url(#flow)" stroke-width="4" stroke-linecap="round">
+    <path d="M1030 400 C 1070 400, 1080 330, 1112 330"/>
+    <path d="M1030 410 C 1075 410, 1080 430, 1112 430"/>
+    <path d="M1030 590 C 1075 590, 1080 530, 1112 530"/>
+  </g>
+
+  <!-- Chunk grid: highlighted tiles are the retrieved ones -->
+  <g>
+    <rect x="1112" y="300" width="44" height="44" rx="9" fill="#1D2C48" stroke="#3B5E8C"/>
+    <rect x="1166" y="300" width="44" height="44" rx="9" fill="#FFD43B"/>
+    <rect x="1220" y="300" width="44" height="44" rx="9" fill="#1D2C48" stroke="#3B5E8C"/>
+    <rect x="1112" y="354" width="44" height="44" rx="9" fill="#1D2C48" stroke="#3B5E8C"/>
+    <rect x="1166" y="354" width="44" height="44" rx="9" fill="#1D2C48" stroke="#3B5E8C"/>
+    <rect x="1220" y="354" width="44" height="44" rx="9" fill="#FFD43B" fill-opacity="0.85"/>
+    <rect x="1112" y="408" width="44" height="44" rx="9" fill="#3776AB"/>
+    <rect x="1166" y="408" width="44" height="44" rx="9" fill="#1D2C48" stroke="#3B5E8C"/>
+    <rect x="1220" y="408" width="44" height="44" rx="9" fill="#1D2C48" stroke="#3B5E8C"/>
+    <rect x="1112" y="462" width="44" height="44" rx="9" fill="#1D2C48" stroke="#3B5E8C"/>
+    <rect x="1166" y="462" width="44" height="44" rx="9" fill="#FFD43B" fill-opacity="0.7"/>
+    <rect x="1220" y="462" width="44" height="44" rx="9" fill="#1D2C48" stroke="#3B5E8C"/>
+    <rect x="1112" y="516" width="44" height="44" rx="9" fill="#1D2C48" stroke="#3B5E8C"/>
+    <rect x="1166" y="516" width="44" height="44" rx="9" fill="#1D2C48" stroke="#3B5E8C"/>
+    <rect x="1220" y="516" width="44" height="44" rx="9" fill="#3776AB" fill-opacity="0.8"/>
+  </g>
+
+  <!-- Retrieved chunks flow into the context -->
+  <g fill="none" stroke="url(#hit)" stroke-width="4" stroke-linecap="round">
+    <path d="M1264 322 C 1290 322, 1296 346, 1322 346"/>
+    <path d="M1264 376 C 1290 376, 1296 402, 1322 402"/>
+    <path d="M1210 484 C 1280 484, 1290 458, 1322 458"/>
+  </g>
+
+  <!-- Context card with citations -->
+  <g font-family="Consolas, Menlo, monospace">
+    <rect x="1322" y="296" width="210" height="234" rx="16" fill="#171425" stroke="#FFD43B" stroke-width="3"/>
+    <text x="1344" y="354" font-size="24" font-weight="700" fill="#FFD43B">[1]</text>
+    <rect x="1394" y="338" width="116" height="10" rx="5" fill="#E8E4F2" fill-opacity="0.75"/>
+    <text x="1344" y="410" font-size="24" font-weight="700" fill="#FFD43B">[2]</text>
+    <rect x="1394" y="394" width="92" height="10" rx="5" fill="#E8E4F2" fill-opacity="0.75"/>
+    <text x="1344" y="466" font-size="24" font-weight="700" fill="#FFD43B">[1]</text>
+    <rect x="1394" y="450" width="104" height="10" rx="5" fill="#E8E4F2" fill-opacity="0.75"/>
+    <rect x="1344" y="490" width="166" height="8" rx="4" fill="#3776AB" fill-opacity="0.5"/>
+    <rect x="1344" y="490" width="128" height="8" rx="4" fill="#FFD43B"/>
+    <text x="1322" y="570" font-size="20" letter-spacing="2" fill="#B8B2C8">budget · citations</text>
+  </g>
+
+  <!-- Evaluation chip -->
+  <g font-family="Consolas, Menlo, monospace">
+    <rect x="1322" y="604" width="210" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+    <text x="1427" y="638" text-anchor="middle" font-size="22" fill="#CFE0F4">MRR 0.92</text>
+  </g>
+</svg>

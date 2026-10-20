@@ -188,6 +188,8 @@ export function LanguageList({ languages }) {
             {languages.map((lang) => {
                 const percent = Math.round(Number(lang.percentage) || 0);
                 const count = Number(lang.total) || 0;
+                // A share only means something next to other languages.
+                const showShare = languages.length > 1;
                 return (
                     <li key={lang.name || 'unknown'} className="flex flex-col gap-2">
                         <div className="flex items-center gap-2">
@@ -210,16 +212,18 @@ export function LanguageList({ languages }) {
                                 {count} {count === 1 ? 'course' : 'courses'}
                             </span>
                         </div>
-                        <div className="flex items-center gap-3">
-                            <Progress
-                                value={percent}
-                                className="h-1.5 flex-1 bg-muted"
-                                aria-label={`${lang.name || 'Other'} share of courses`}
-                            />
-                            <span className="w-10 text-right font-mono text-xs text-muted-foreground tabular">
-                                {percent}%
-                            </span>
-                        </div>
+                        {showShare && (
+                            <div className="flex items-center gap-3">
+                                <Progress
+                                    value={percent}
+                                    className="h-1.5 flex-1 bg-muted"
+                                    aria-label={`${lang.name || 'Other'} share of courses`}
+                                />
+                                <span className="w-10 text-right font-mono text-xs text-muted-foreground tabular">
+                                    {percent}%
+                                </span>
+                            </div>
+                        )}
                     </li>
                 );
             })}

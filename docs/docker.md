@@ -11,7 +11,7 @@ data volumes are kept under their old names, so nothing is lost.
 | `redis` | `redis:7-alpine` | always | `127.0.0.1:6379` | backend | `redis-cli ping` |
 | `minio` | Chainguard MinIO (pinned digest) | `dev` | `127.0.0.1:9000`, `127.0.0.1:9001` | backend | none (image has no shell) |
 | `postgres` | `postgres:18-alpine` | `db` | `127.0.0.1:5433` | backend | `pg_isready` |
-| `sandbox` | **`codedev_sandbox`** (`sandbox/Dockerfile`) | `dev`, `app` | none | sandbox (internal) | `GET /health` |
+| `sandbox` | **`codedev_sandbox`** (`sandbox/vercel/Dockerfile`, target `docker`: Node 24, Python 3.14, gcc/g++ 15.2, JDK 21, Go 1.26, Rust 1.93) | `dev`, `app` | none | sandbox (internal) | `GET /health` |
 | `sandbox-gateway` | `codedev_sandbox` (`node gateway.mjs`) | `dev` | `127.0.0.1:4100` | sandbox, gateway | `GET /health` (proxied) |
 | `app` | **`codedev_app`** (`Dockerfile`) | `app` | `${APP_PORT:-3000}` | backend, sandbox | `GET /api/health` |
 

@@ -15,6 +15,9 @@ import { generateSonyflake } from "@/lib/sonyflake";
 
 import { ulid } from "ulid";
 
+// profile.info column defaults ('No thing' bio, 'None' nickname) mean "not set": never show them.
+const unset = (value, placeholder) => (value && value.trim() !== placeholder ? value : null);
+
 export const userService = {
     signUp: async (data) => {
         const id = generateSonyflake();
@@ -67,7 +70,7 @@ export const userService = {
         });
 
         const points = await commerceDb.getPointBalance({ userId });
-        return { ...profile, points };
+        return { ...profile, bio: unset(profile.bio, "No thing"), nickname: unset(profile.nickname, "None"), points };
     },
 
     getOverview: async (userId) => {

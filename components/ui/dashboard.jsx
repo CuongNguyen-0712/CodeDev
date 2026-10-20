@@ -1,5 +1,6 @@
 'use client';
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import { LogoMark, LogoWordmark } from "@/components/ui/logo";
 import { usePathname } from "next/navigation";
 
@@ -89,6 +90,9 @@ export default function Dashboard() {
     return pathname === `/${value}` || pathname.startsWith(`/${value}/`);
   };
 
+  // Phones: 44px rows and 16px text, a comfortable thumb target in the sheet.
+  const hit = isMobile ? "h-11 text-base [&>svg]:size-5" : undefined;
+
   // On phones the sidebar is a sheet; close it once a destination is picked.
   const closeOnMobile = () => {
     if (isMobile) setOpenMobile(false);
@@ -99,7 +103,7 @@ export default function Dashboard() {
       <SidebarHeader className="h-12 justify-center border-b border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild className="font-semibold" tooltip="CodeDev">
+            <SidebarMenuButton asChild className={cn("font-semibold", hit)} tooltip="CodeDev">
               <Link href={hrefFor('home', session)} onClick={closeOnMobile}>
                 <LogoMark size={20} />
                 <LogoWordmark />
@@ -134,7 +138,7 @@ export default function Dashboard() {
                         asChild
                         isActive={active}
                         tooltip={item.name}
-                        className="data-[active=true]:bg-primary-soft/70 data-[active=true]:text-primary-ink data-[active=true]:font-semibold"
+                        className={cn("data-[active=true]:bg-primary-soft/70 data-[active=true]:text-primary-ink data-[active=true]:font-semibold", hit)}
                       >
                         <Link
                           href={hrefFor(item.value, session)}
@@ -160,6 +164,7 @@ export default function Dashboard() {
             <>
               <SidebarMenuItem>
                 <SidebarMenuButton
+                  className={hit}
                   tooltip="Send feedback"
                   onClick={() => {
                     closeOnMobile();
@@ -171,7 +176,7 @@ export default function Dashboard() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isItemActive('help')} tooltip="Help">
+                <SidebarMenuButton asChild isActive={isItemActive('help')} tooltip="Help" className={hit}>
                   <Link href="/help" onClick={closeOnMobile}>
                     <LuCircleHelp />
                     <span>Help</span>
@@ -179,7 +184,7 @@ export default function Dashboard() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isItemActive('settings')} tooltip="Settings">
+                <SidebarMenuButton asChild isActive={isItemActive('settings')} tooltip="Settings" className={hit}>
                   <Link href="/settings" onClick={closeOnMobile}>
                     <LuSettings />
                     <span>Settings</span>
@@ -192,7 +197,7 @@ export default function Dashboard() {
               <SidebarMenuButton
                 asChild
                 tooltip="Sign in"
-                className="bg-primary text-primary-foreground hover:bg-primary-hover hover:text-primary-foreground active:bg-primary-hover active:text-primary-foreground dark:text-white dark:hover:text-white"
+                className={cn("bg-primary text-primary-foreground hover:bg-primary-hover hover:text-primary-foreground active:bg-primary-hover active:text-primary-foreground dark:text-white dark:hover:text-white", hit)}
               >
                 <Link href="/auth" onClick={closeOnMobile}>
                   <LuLogIn />

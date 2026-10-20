@@ -1,0 +1,380 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_py_rag_211",
+      "name": "bm25-parameters-quiz",
+      "type": "quiz",
+      "title": "What do k1 and b do?",
+      "description": "Predict how BM25 treats repeated words and long documents before you implement it.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Two help articles both mention \"refund\" twice. Article A has 60 words, article B has 600 words; the corpus average is 150 words. With the default b = 0.75, how does BM25 score the term \"refund\" for them?",
+          "explanation": "b controls length normalisation. The denominator of the term-frequency part grows with |D| / avgdl, so the same two occurrences are worth more in the short article (60 / 150 = 0.4) than in the long one (600 / 150 = 4): in a short text, two mentions say much more about what it is about. With b = 0 both would score the same; with b = 1 the length effect is at its strongest.",
+          "options": [
+            {
+              "text": "Equally: BM25 only counts occurrences.",
+              "correct": false
+            },
+            {
+              "text": "Higher for A: the same occurrences count for more in a shorter document.",
+              "correct": true
+            },
+            {
+              "text": "Higher for B: longer documents are more likely to be thorough.",
+              "correct": false
+            },
+            {
+              "text": "It depends on k1 only; b affects the IDF.",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which statements about BM25 are true? (Select all that apply.)",
+          "explanation": "The term-frequency part f * (k1 + 1) / (f + k1 * ...) saturates: it grows quickly for the first occurrences and flattens towards k1 + 1, so the tenth occurrence adds far less than the second - keyword stuffing stops paying off. With k1 = 0 the part is f / f = 1 for any f > 0, so a term only counts by presence. With the +1 inside the logarithm, IDF stays positive even for a term found in every document, and a query term found in no document never contributes because f = 0 everywhere. Doubling a document's length lowers, not raises, its score for the same occurrences.",
+          "options": [
+            {
+              "text": "The tenth occurrence of a term adds less to the score than the second.",
+              "correct": true
+            },
+            {
+              "text": "With k1 = 0, a term contributes only by being present, however often it appears.",
+              "correct": true
+            },
+            {
+              "text": "A query term that appears in every document gets a negative IDF.",
+              "correct": false
+            },
+            {
+              "text": "Doubling a document's length (same occurrences) doubles its score.",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_py_rag_212",
+      "name": "bm25-ranker",
+      "type": "mini_coding",
+      "title": "Write bm25_rank(docs, query, k)",
+      "description": "Replace the raw TF-IDF ranking with Okapi BM25: IDF(t) = ln((N - n(t) + 0.5) / (n(t) + 0.5) + 1), and a term-frequency part f * (k1 + 1) / (f + k1 * (1 - b + b * |D| / avgdl)) that saturates and normalises for length. Each distinct query term counts once. Return the top k documents with a score > 0 as [[id, score], ...], best first, scores rounded to 4 decimals at the end; equal scores keep the corpus order. Honour k1 and b when given (defaults 1.5 and 0.75), and return [] for an empty corpus or query.",
+      "difficulty": "hard",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "bm25.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Reset password: the precise article wins",
+          "input": {
+            "docs": [
+              {
+                "id": "kb-reset-password",
+                "text": "How to reset your password: open Settings, choose Security and click Reset password. A reset link is sent to your email."
+              },
+              {
+                "id": "kb-2fa",
+                "text": "Two-factor authentication (2FA) adds a code from your phone. To reset 2FA, contact support with a backup code."
+              },
+              {
+                "id": "blog-security",
+                "text": "Account security matters. Your account, your account settings and your account data are protected by our account team. Account account account."
+              },
+              {
+                "id": "kb-billing",
+                "text": "Invoices are sent by email on the first day of each month."
+              },
+              {
+                "id": "kb-login",
+                "text": "If you cannot log in, reset your password or check that the two-factor codes on your phone are in sync."
+              }
+            ],
+            "query": "reset password",
+            "k": 3
+          },
+          "expected": [
+            [
+              "kb-reset-password",
+              2.0781
+            ],
+            [
+              "kb-login",
+              1.3437
+            ],
+            [
+              "kb-2fa",
+              0.5364
+            ]
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Several query terms against a keyword-stuffed page",
+          "input": {
+            "docs": [
+              {
+                "id": "kb-reset-password",
+                "text": "How to reset your password: open Settings, choose Security and click Reset password. A reset link is sent to your email."
+              },
+              {
+                "id": "kb-2fa",
+                "text": "Two-factor authentication (2FA) adds a code from your phone. To reset 2FA, contact support with a backup code."
+              },
+              {
+                "id": "blog-security",
+                "text": "Account security matters. Your account, your account settings and your account data are protected by our account team. Account account account."
+              },
+              {
+                "id": "kb-billing",
+                "text": "Invoices are sent by email on the first day of each month."
+              },
+              {
+                "id": "kb-login",
+                "text": "If you cannot log in, reset your password or check that the two-factor codes on your phone are in sync."
+              }
+            ],
+            "query": "account security settings",
+            "k": 3
+          },
+          "expected": [
+            [
+              "blog-security",
+              4.542
+            ],
+            [
+              "kb-reset-password",
+              1.6633
+            ]
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Only documents with a positive score, at most k",
+          "input": {
+            "docs": [
+              {
+                "id": "kb-reset-password",
+                "text": "How to reset your password: open Settings, choose Security and click Reset password. A reset link is sent to your email."
+              },
+              {
+                "id": "kb-2fa",
+                "text": "Two-factor authentication (2FA) adds a code from your phone. To reset 2FA, contact support with a backup code."
+              },
+              {
+                "id": "blog-security",
+                "text": "Account security matters. Your account, your account settings and your account data are protected by our account team. Account account account."
+              },
+              {
+                "id": "kb-billing",
+                "text": "Invoices are sent by email on the first day of each month."
+              },
+              {
+                "id": "kb-login",
+                "text": "If you cannot log in, reset your password or check that the two-factor codes on your phone are in sync."
+              }
+            ],
+            "query": "email month",
+            "k": 5
+          },
+          "expected": [
+            [
+              "kb-billing",
+              2.7015
+            ],
+            [
+              "kb-reset-password",
+              0.8317
+            ]
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A term in every document still counts, and ties keep the corpus order",
+          "input": {
+            "docs": [
+              {
+                "id": "doc-cat",
+                "text": "the cat sat"
+              },
+              {
+                "id": "doc-dog",
+                "text": "the dog sat"
+              },
+              {
+                "id": "doc-bird",
+                "text": "the bird flew"
+              }
+            ],
+            "query": "the",
+            "k": 3
+          },
+          "expected": [
+            [
+              "doc-cat",
+              0.1335
+            ],
+            [
+              "doc-dog",
+              0.1335
+            ],
+            [
+              "doc-bird",
+              0.1335
+            ]
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Repeated query terms, case and punctuation",
+          "input": {
+            "docs": [
+              {
+                "id": "kb-reset-password",
+                "text": "How to reset your password: open Settings, choose Security and click Reset password. A reset link is sent to your email."
+              },
+              {
+                "id": "kb-2fa",
+                "text": "Two-factor authentication (2FA) adds a code from your phone. To reset 2FA, contact support with a backup code."
+              },
+              {
+                "id": "blog-security",
+                "text": "Account security matters. Your account, your account settings and your account data are protected by our account team. Account account account."
+              },
+              {
+                "id": "kb-billing",
+                "text": "Invoices are sent by email on the first day of each month."
+              },
+              {
+                "id": "kb-login",
+                "text": "If you cannot log in, reset your password or check that the two-factor codes on your phone are in sync."
+              }
+            ],
+            "query": "Reset, RESET password!",
+            "k": 3
+          },
+          "expected": [
+            [
+              "kb-reset-password",
+              2.0781
+            ],
+            [
+              "kb-login",
+              1.3437
+            ],
+            [
+              "kb-2fa",
+              0.5364
+            ]
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "b = 0 turns length normalisation off",
+          "input": {
+            "docs": [
+              {
+                "id": "short-note",
+                "text": "Refund policy: refunds within 30 days."
+              },
+              {
+                "id": "long-terms",
+                "text": "Terms of service. These terms describe accounts, payments, refunds, taxes, privacy, cookies, support hours, service levels, limitations of liability and the law that applies. A refund is issued to the original payment method."
+              }
+            ],
+            "query": "refund",
+            "k": 2,
+            "b": 0
+          },
+          "expected": [
+            [
+              "short-note",
+              0.1823
+            ],
+            [
+              "long-terms",
+              0.1823
+            ]
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "k1 = 0 counts presence only",
+          "input": {
+            "docs": [
+              {
+                "id": "kb-reset-password",
+                "text": "How to reset your password: open Settings, choose Security and click Reset password. A reset link is sent to your email."
+              },
+              {
+                "id": "kb-2fa",
+                "text": "Two-factor authentication (2FA) adds a code from your phone. To reset 2FA, contact support with a backup code."
+              },
+              {
+                "id": "blog-security",
+                "text": "Account security matters. Your account, your account settings and your account data are protected by our account team. Account account account."
+              },
+              {
+                "id": "kb-billing",
+                "text": "Invoices are sent by email on the first day of each month."
+              },
+              {
+                "id": "kb-login",
+                "text": "If you cannot log in, reset your password or check that the two-factor codes on your phone are in sync."
+              }
+            ],
+            "query": "account security",
+            "k": 3,
+            "k1": 0
+          },
+          "expected": [
+            [
+              "blog-security",
+              2.2618
+            ],
+            [
+              "kb-reset-password",
+              0.8755
+            ]
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "An empty query matches nothing",
+          "input": {
+            "docs": [
+              {
+                "id": "kb-billing",
+                "text": "Invoices are sent by email on the first day of each month."
+              }
+            ],
+            "query": "  ?! ",
+            "k": 3
+          },
+          "expected": [],
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

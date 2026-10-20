@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Reciprocal Rank Fusion: merge ranks, not scores</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Query: "sync error E1042". Each list position r earns 1 / (60 + r); a document's score is the sum over the lists.</text>
+
+  <!-- BM25 list -->
+  <text x="60" y="132" font-size="18" font-weight="700" fill="#b45309">BM25 (keywords)</text>
+  <g font-size="15">
+    <rect x="60" y="146" width="300" height="52" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+    <text x="78" y="178" font-weight="700" fill="#334155">1  kb-e1042</text><text x="342" y="178" text-anchor="end" fill="#b45309">1/61</text>
+    <rect x="60" y="208" width="300" height="52" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+    <text x="78" y="240" font-weight="700" fill="#334155">2  kb-errors</text><text x="342" y="240" text-anchor="end" fill="#b45309">1/62</text>
+    <rect x="60" y="270" width="300" height="52" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+    <text x="78" y="302" font-weight="700" fill="#334155">3  blog-launch</text><text x="342" y="302" text-anchor="end" fill="#b45309">1/63</text>
+  </g>
+
+  <!-- vector list -->
+  <text x="60" y="372" font-size="18" font-weight="700" fill="#0e7490">Vector search (meaning)</text>
+  <g font-size="15">
+    <rect x="60" y="386" width="300" height="52" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+    <text x="78" y="418" font-weight="700" fill="#334155">1  kb-sync</text><text x="342" y="418" text-anchor="end" fill="#0e7490">1/61</text>
+    <rect x="60" y="448" width="300" height="52" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+    <text x="78" y="480" font-weight="700" fill="#334155">2  kb-errors</text><text x="342" y="480" text-anchor="end" fill="#0e7490">1/62</text>
+    <rect x="60" y="510" width="300" height="52" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+    <text x="78" y="542" font-weight="700" fill="#334155">3  kb-e1042</text><text x="342" y="542" text-anchor="end" fill="#0e7490">1/63</text>
+  </g>
+
+  <!-- arrows -->
+  <line x1="380" y1="234" x2="470" y2="310" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="380" y1="474" x2="470" y2="330" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="570" y1="320" x2="594" y2="320" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="592,313 606,320 592,327" fill="#94a3b8"/>
+  <rect x="470" y="296" width="100" height="48" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="520" y="326" font-size="16" font-weight="700" text-anchor="middle" fill="#334155">RRF</text>
+
+  <!-- fused -->
+  <text x="610" y="132" font-size="18" font-weight="700" fill="#15803d">Fused ranking</text>
+  <g font-size="15">
+    <rect x="610" y="146" width="550" height="60" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+    <text x="630" y="172" font-weight="700" fill="#334155">1  kb-e1042</text><text x="630" y="194" font-size="13" fill="#475569">1/61 + 1/63 - both lists</text>
+    <text x="1140" y="183" text-anchor="end" font-weight="700" fill="#15803d">0.032266</text>
+    <rect x="610" y="216" width="550" height="60" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+    <text x="630" y="242" font-weight="700" fill="#334155">2  kb-errors</text><text x="630" y="264" font-size="13" fill="#475569">1/62 + 1/62 - both lists</text>
+    <text x="1140" y="253" text-anchor="end" font-weight="700" fill="#15803d">0.032258</text>
+    <rect x="610" y="286" width="550" height="60" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+    <text x="630" y="312" font-weight="700" fill="#334155">3  kb-sync</text><text x="630" y="334" font-size="13" fill="#475569">1/61 - vector only</text>
+    <text x="1140" y="323" text-anchor="end" font-weight="700" fill="#475569">0.016393</text>
+    <rect x="610" y="356" width="550" height="60" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+    <text x="630" y="382" font-weight="700" fill="#334155">4  blog-launch</text><text x="630" y="404" font-size="13" fill="#475569">1/63 - BM25 only</text>
+    <text x="1140" y="393" text-anchor="end" font-weight="700" fill="#475569">0.015873</text>
+  </g>
+
+  <rect x="610" y="450" width="550" height="112" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="630" y="478" font-size="15" font-weight="700" fill="#b91c1c">Why not add the scores?</text>
+  <text x="630" y="502" font-size="14" fill="#334155">cosine 0.81 + BM25 17.4 → BM25 decides alone.</text>
+  <text x="630" y="524" font-size="14" fill="#334155">Ranks are on one scale for every retriever and every</text>
+  <text x="630" y="546" font-size="14" fill="#334155">query, so agreement between retrievers wins.</text>
+</svg>

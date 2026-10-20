@@ -7,3 +7,5 @@ db/** text eol=lf
 # pg_dump archives are binary (and git-ignored): never convert them.
 db/backups/** -text
 *.dump -text
+# Executed through its shebang inside Linux images.
+sandbox/vercel/run-job text eol=lf

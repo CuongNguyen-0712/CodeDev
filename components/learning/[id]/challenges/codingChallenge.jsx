@@ -8,7 +8,7 @@ import { useApp } from "@/contexts/appContext";
 import { announceRewards } from "@/components/ui/level";
 import { challengeQueries } from "@/queries/challenge.query";
 import { codeSubmissionKeys, codeSubmissionQueries } from "@/queries/codeSubmission.query";
-import { useSubmitCoding } from "@/mutations/challenge.mutation";
+import { useRunCodingSamples, useSubmitCoding } from "@/mutations/challenge.mutation";
 import useCodeDraft from "@/hooks/useCodeDraft";
 import { detectEntryName, runTests, toSubmissionPayload } from "@/lib/challenges/runner";
 import { cn } from "@/lib/utils";
@@ -131,6 +131,7 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
     });
 
     const submitCoding = useSubmitCoding();
+    const runSamples = useRunCodingSamples();
 
     const [phase, setPhase] = useState("idle"); // idle | running | submitting
     const [testResults, setTestResults] = useState({});
@@ -208,14 +209,22 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
         }));
 
         const startTime = Date.now();
-        const results = await runTests({
-            code: draft.code,
-            harness: workspace.harnessCode,
-            entry,
-            tests: testList,
-            timeLimitMs: workspace.timeLimitMs,
-            onProgress: (result) => setTestResults((prev) => ({ ...prev, [result.id]: result })),
-        });
+        // Only javascript runs in the browser; other languages run their sample tests in the code runner.
+        const results = workspace.language === "javascript"
+            ? await runTests({
+                code: draft.code,
+                harness: workspace.harnessCode,
+                entry,
+                tests: testList,
+                timeLimitMs: workspace.timeLimitMs,
+                onProgress: (result) => setTestResults((prev) => ({ ...prev, [result.id]: result })),
+            })
+            : (await runSamples.mutateAsync({ challengeId: challenge.id, code: draft.code })).tests.map((t) => ({
+                ...t, logs: [], timedOut: t.status === "timeout",
+            }));
+        if (workspace.language !== "javascript") {
+            setTestResults((prev) => ({ ...prev, ...Object.fromEntries(results.map((r) => [r.id, r])) }));
+        }
         setLastRunMeta({
             duration: Date.now() - startTime,
             time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
@@ -247,7 +256,7 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
         } catch (error) {
             setLastRun(null);
             console.error("Run failed:", error);
-            alert(500, "Could not run your code in this browser.");
+            alert(error.status || 500, error.status ? error.message : "Could not run your code in this browser.");
         } finally {
             setPhase("idle");
         }

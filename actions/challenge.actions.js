@@ -25,6 +25,14 @@ export async function submitQuizAction({ challengeId, answers }) {
     );
 }
 
+// "Run" for languages the browser cannot execute: sample tests in the code runner, nothing recorded.
+export async function runCodingSamplesAction({ challengeId, code }) {
+    return runAction(
+        ({ userId }) => challengeService.runCodingSamples({ userId, challengeId, code }),
+        { limiter: rateLimiters.challenge, context: "runCodingSamplesAction" }
+    );
+}
+
 // Coding submissions are two calls: start (sample tests verified, snapshot stored, attempt used,
 // hidden inputs returned) then finish (hidden test outputs graded).
 export async function startCodingSubmissionAction({ challengeId, code, results }) {

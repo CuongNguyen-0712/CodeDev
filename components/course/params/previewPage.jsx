@@ -16,6 +16,8 @@ import { courseQueries } from "@/queries/course.query";
 import { useCourseFavorite, useCourseUnfavorite } from "@/mutations/course.mutation";
 
 import { levelMapping } from "@/constants/constants";
+import { fitCover } from "@/lib/coverFit";
+import { formatMoney, formatPoints, isPremium, offersOf } from "@/components/commerce/format";
 
 import { Avatar, AvatarFallback } from "@/components/shadcn/avatar";
 import { Badge } from "@/components/shadcn/badge";
@@ -71,12 +73,6 @@ const getLessonFormat = (type) => {
 // Covers are usually 16:9 photos, but some courses only have a square language
 // logo (often SVG): cropping that to 16:9 cuts it apart, so it is fitted instead.
 // Runs from the ref too, for an image the browser finished before hydration.
-function fitCover(img) {
-    if (!img?.complete || !img.naturalWidth || !img.naturalHeight) return;
-    const ratio = img.naturalWidth / img.naturalHeight;
-    img.dataset.fit = Math.abs(ratio - 16 / 9) < 0.25 ? 'cover' : 'contain';
-}
-
 const getInitials = (name) => String(name || '')
     .split(/\s+/)
     .filter(Boolean)
@@ -226,7 +222,11 @@ export default function PreviewPage({ params } = {}) {
     const modules = Array.isArray(data?.modules) ? data.modules : [];
     const level = levelMapping?.[data?.level];
     const LevelIcon = LEVEL_ICON[data?.level] || LuSignalLow;
-    const cost = Number(data?.cost || 0);
+    // Prices live in commerce offers (catalog.course.cost is deprecated).
+    const premium = isPremium(data);
+    const { money, points } = offersOf(data);
+    const priceLabel = [money && formatMoney(money.amountMinor, money.currency), points && formatPoints(points)]
+        .filter(Boolean).join(' or ') || 'Premium';
     const rating = Number(data?.rating || 0);
     const reviews = Number(data?.reviews || 0);
     const enrollment = ENROLLMENT_STATUS[data?.status];
@@ -236,13 +236,6 @@ export default function PreviewPage({ params } = {}) {
         { label: 'Lessons', value: data?.lessons ?? 0 },
         { label: 'Duration', value: formatDuration(data?.duration) },
         { label: 'Students', value: Number(data?.students ?? 0).toLocaleString('en-US') },
-    ];
-
-    const courseInfo = [
-        { label: 'Level', value: level?.label || data?.level || 'Not set' },
-        { label: 'Language', value: data?.language_name || 'Not set' },
-        { label: 'Category', value: data?.category_name || 'Not set' },
-        { label: 'Price', value: cost > 0 ? `$${cost.toFixed(2)}` : 'Free', mono: cost > 0 },
     ];
 
     return (
@@ -346,8 +339,10 @@ export default function PreviewPage({ params } = {}) {
                                         {level?.label || data.level}
                                     </Badge>
                                 )}
-                                {cost > 0 ? (
-                                    <Badge variant="outline" className="font-mono tabular">${cost.toFixed(2)}</Badge>
+                                {premium ? (
+                                    <Badge variant="outline">
+                                        {priceLabel === 'Premium' ? 'Premium' : <>Premium · <span className="font-mono tabular">{priceLabel}</span></>}
+                                    </Badge>
                                 ) : (
                                     <Badge variant="success">Free</Badge>
                                 )}
@@ -373,7 +368,6 @@ export default function PreviewPage({ params } = {}) {
                             <div className="flex flex-wrap items-center gap-2">
                                 <FooterPreview
                                     courseId={params.id}
-                                    cost={data?.cost ?? 0}
                                     status={data?.status ?? 'not_enrolled'}
                                     loading={isLoading}
                                 />
@@ -409,7 +403,7 @@ export default function PreviewPage({ params } = {}) {
                         <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-12">
                             {/* Course info, first on phones so it sits under the header */}
                             {/* Tablets: cover and details side by side, so a full-width 16:9 cover does not push the course down. */}
-                            <aside className="grid items-start gap-4 sm:grid-cols-2 lg:order-last lg:sticky lg:top-16 lg:flex lg:flex-col lg:self-start" aria-label="Course information">
+                            <aside className="grid items-start gap-4 sm:grid-cols-2 lg:order-last lg:sticky lg:top-16 lg:flex lg:flex-col lg:items-stretch lg:self-start" aria-label="Course information">
                                 {data.image && (
                                     // The frame owns the 16:9 box, so nothing shifts while the image loads.
                                     <div className="aspect-video overflow-hidden rounded-lg border bg-muted">
@@ -429,8 +423,9 @@ export default function PreviewPage({ params } = {}) {
                                     </div>
                                 )}
 
+                                {/* Level, language, category and price are already in the header badges. */}
                                 <div className="rounded-lg border bg-card">
-                                    <div className="flex items-center gap-3 border-b px-4 py-3">
+                                    <div className="flex items-center gap-3 px-4 py-3">
                                         <Avatar className="size-9">
                                             <AvatarFallback className="bg-primary-soft font-mono text-xs font-semibold text-primary-soft-foreground">
                                                 {getInitials(data.instructor)}
@@ -443,16 +438,6 @@ export default function PreviewPage({ params } = {}) {
                                             </p>
                                         </div>
                                     </div>
-                                    <dl className="divide-y">
-                                        {courseInfo.map((row) => (
-                                            <div key={row.label} className="flex items-center justify-between gap-4 px-4 py-2.5 text-sm">
-                                                <dt className="text-muted-foreground">{row.label}</dt>
-                                                <dd className={row.mono ? 'truncate font-mono tabular' : 'truncate font-medium'}>
-                                                    {row.value}
-                                                </dd>
-                                            </div>
-                                        ))}
-                                    </dl>
                                 </div>
                             </aside>
 

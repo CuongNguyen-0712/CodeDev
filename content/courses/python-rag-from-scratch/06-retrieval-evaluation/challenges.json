@@ -1,0 +1,247 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_fix_py_rag_321",
+      "name": "retrieval-metrics",
+      "type": "fix_bug",
+      "title": "Fix the retrieval metrics",
+      "description": "evaluate() computes recall@k, MRR@k and hit rate@k over a golden set, and the numbers cannot be trusted: recall changes with k even when nothing new is found, a document ranked 20th improves MRR@5, returning the same document twice raises recall, and unlabelled queries drag every average down. Fix it so that, per query with relevant ids, the top-k is the first k retrieved ids as returned, recall = relevant ids found / relevant ids (each counted once), MRR = 1 / rank of the first relevant id within the top-k, and hit = any relevant id in the top-k. Average over labelled queries only (0.0 when there are none), rounded to 4 decimals.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "python",
+        "filePath": "metrics.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Two queries at k = 3",
+          "input": {
+            "results": [
+              {
+                "query": "how long do refunds take",
+                "retrieved": [
+                  "kb-billing",
+                  "kb-refunds",
+                  "kb-plans",
+                  "kb-payments"
+                ],
+                "relevant": [
+                  "kb-refunds",
+                  "kb-payments"
+                ]
+              },
+              {
+                "query": "reset 2fa",
+                "retrieved": [
+                  "kb-2fa",
+                  "kb-login"
+                ],
+                "relevant": [
+                  "kb-2fa"
+                ]
+              }
+            ],
+            "k": 3
+          },
+          "expected": {
+            "recall_at_k": 0.75,
+            "mrr": 0.75,
+            "hit_rate": 1
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A relevant document below the top-k earns nothing",
+          "input": {
+            "results": [
+              {
+                "query": "sync error E1042",
+                "retrieved": [
+                  "kb-sync",
+                  "kb-errors",
+                  "blog-launch",
+                  "kb-status",
+                  "kb-e1042"
+                ],
+                "relevant": [
+                  "kb-e1042"
+                ]
+              }
+            ],
+            "k": 3
+          },
+          "expected": {
+            "recall_at_k": 0,
+            "mrr": 0,
+            "hit_rate": 0
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Unlabelled queries are left out of the averages",
+          "input": {
+            "results": [
+              {
+                "query": "reset 2fa",
+                "retrieved": [
+                  "kb-2fa",
+                  "kb-login"
+                ],
+                "relevant": [
+                  "kb-2fa"
+                ]
+              },
+              {
+                "query": "do you have a dark mode",
+                "retrieved": [
+                  "blog-launch"
+                ],
+                "relevant": []
+              }
+            ],
+            "k": 3
+          },
+          "expected": {
+            "recall_at_k": 1,
+            "mrr": 1,
+            "hit_rate": 1
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A document returned twice counts once (and takes a slot)",
+          "input": {
+            "results": [
+              {
+                "query": "cancel subscription",
+                "retrieved": [
+                  "kb-cancel",
+                  "kb-cancel",
+                  "kb-plans"
+                ],
+                "relevant": [
+                  "kb-cancel",
+                  "kb-plans"
+                ]
+              }
+            ],
+            "k": 2
+          },
+          "expected": {
+            "recall_at_k": 0.5,
+            "mrr": 1,
+            "hit_rate": 1
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "No labelled query at all",
+          "input": {
+            "results": [
+              {
+                "query": "hello",
+                "retrieved": [
+                  "blog-launch"
+                ],
+                "relevant": []
+              }
+            ],
+            "k": 5
+          },
+          "expected": {
+            "recall_at_k": 0,
+            "mrr": 0,
+            "hit_rate": 0
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Partial recall, and a query that found nothing",
+          "input": {
+            "results": [
+              {
+                "query": "sso setup",
+                "retrieved": [
+                  "kb-teams",
+                  "kb-sso",
+                  "kb-roles",
+                  "kb-saml",
+                  "kb-scim"
+                ],
+                "relevant": [
+                  "kb-sso",
+                  "kb-saml",
+                  "kb-scim"
+                ]
+              },
+              {
+                "query": "export invoices",
+                "retrieved": [],
+                "relevant": [
+                  "kb-invoices"
+                ]
+              }
+            ],
+            "k": 4
+          },
+          "expected": {
+            "recall_at_k": 0.3333,
+            "mrr": 0.25,
+            "hit_rate": 0.5
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "k larger than the result list",
+          "input": {
+            "results": [
+              {
+                "query": "refund policy",
+                "retrieved": [
+                  "kb-refunds"
+                ],
+                "relevant": [
+                  "kb-refunds",
+                  "kb-payments"
+                ]
+              }
+            ],
+            "k": 10
+          },
+          "expected": {
+            "recall_at_k": 0.5,
+            "mrr": 1,
+            "hit_rate": 1
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "An empty golden set",
+          "input": {
+            "results": [],
+            "k": 5
+          },
+          "expected": {
+            "recall_at_k": 0,
+            "mrr": 0,
+            "hit_rate": 0
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

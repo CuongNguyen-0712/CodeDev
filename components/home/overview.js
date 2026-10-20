@@ -129,7 +129,7 @@ export default function HomeOverview() {
                     </AvatarFallback>
                 </Avatar>
 
-                <div className="min-w-0 space-y-2">
+                <div className="min-w-0 space-y-1.5 sm:space-y-2">
                     <p className="text-sm font-medium text-muted-foreground">Welcome back</p>
                     <h1 className="text-3xl font-semibold tracking-tight break-words text-foreground sm:text-4xl">
                         {displayName}
@@ -138,7 +138,7 @@ export default function HomeOverview() {
                         {data?.bio || "Pick up your courses, check your progress and find something new to learn."}
                     </p>
                     <Button asChild variant="outline" size="sm" className="mt-1">
-                        <Link href="/profile">
+                        <Link href="/settings">
                             <LuUserPen />
                             Edit profile
                         </Link>
@@ -147,11 +147,11 @@ export default function HomeOverview() {
             </div>
 
             {/* Level, EXP, and Points Gamified Card */}
-            <div className="w-full shrink-0 rounded-2xl border border-border bg-card p-5 lg:w-[26rem]">
+            <div className="w-full shrink-0 rounded-lg border border-border bg-card p-4 lg:w-[26rem]">
                 {/* Card Top: Level Badge + Rank Title + Ledger link */}
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-xp-soft text-xp">
+                        <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-xp-soft text-xp">
                             <LuTrophy className="size-5" aria-hidden="true" />
                         </div>
                         <div className="min-w-0">
@@ -178,17 +178,13 @@ export default function HomeOverview() {
                         className="flex shrink-0 items-center gap-1 font-mono text-xs font-medium text-muted-foreground hover:text-foreground"
                         title="View EXP history and levels"
                     >
-                        <span>Ledger</span>
+                        <span>History</span>
                         <LuChevronRight className="size-3.5" aria-hidden="true" />
                     </Link>
                 </div>
 
-                {/* Progress Bar Section */}
-                <div className="mt-4 space-y-1.5">
-                    <div className="flex items-center justify-between font-mono text-xs">
-                        <span className="text-muted-foreground">Level progress</span>
-                        <span className="font-bold text-foreground">{progress.percent}%</span>
-                    </div>
+                {/* Progress bar: the EXP still needed is already written above, so no second label */}
+                <div className="mt-4">
                     <div
                         role="progressbar"
                         aria-label={`Level ${progress.level}: ${progress.percent}% progress`}
@@ -206,7 +202,7 @@ export default function HomeOverview() {
 
                 {/* Metric Chips Grid (2 distinct tokenized cards for EXP & Points) */}
                 <div className="mt-4 grid grid-cols-2 gap-3 pt-3 border-t border-border">
-                    <div className="rounded-xl border border-border bg-muted p-3">
+                    <div className="rounded-md border border-border bg-muted p-3">
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                             <LuSparkles className="size-3.5 text-primary-ink" aria-hidden="true" />
                             <span>Experience</span>
@@ -219,7 +215,7 @@ export default function HomeOverview() {
                         </div>
                     </div>
 
-                    <div className="rounded-xl border border-border bg-muted p-3">
+                    <div className="rounded-md border border-border bg-muted p-3">
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                             <LuCoins className="size-3.5 text-warning" aria-hidden="true" />
                             <span>Points</span>

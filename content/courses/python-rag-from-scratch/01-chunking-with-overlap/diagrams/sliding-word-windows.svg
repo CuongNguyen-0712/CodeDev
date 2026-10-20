@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Sliding word windows: size 4, overlap 1</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Each chunk starts size - overlap = 3 words after the previous one. Boundary words live in two chunks.</text>
+
+  <!-- chunk 1 (above): words 0-3 -->
+  <rect x="60" y="160" width="402" height="44" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="261" y="188" font-size="16" font-weight="700" text-anchor="middle" fill="#0e7490">chunk 1: "a b c d"</text>
+  <line x1="60" y1="204" x2="60" y2="236" stroke="#0891b2" stroke-width="2"/>
+  <line x1="462" y1="204" x2="462" y2="236" stroke="#0891b2" stroke-width="2"/>
+
+  <!-- chunk 3 (above): words 6-9 -->
+  <rect x="684" y="160" width="402" height="44" rx="8" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="885" y="188" font-size="16" font-weight="700" text-anchor="middle" fill="#6d28d9">chunk 3: "g h i j"</text>
+  <line x1="684" y1="204" x2="684" y2="236" stroke="#7c3aed" stroke-width="2"/>
+  <line x1="1086" y1="204" x2="1086" y2="236" stroke="#7c3aed" stroke-width="2"/>
+
+  <!-- words -->
+  <g font-size="22" font-weight="700" text-anchor="middle">
+    <rect x="60" y="240" width="90" height="60" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/><text x="105" y="278" fill="#334155">a</text>
+    <rect x="164" y="240" width="90" height="60" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/><text x="209" y="278" fill="#334155">b</text>
+    <rect x="268" y="240" width="90" height="60" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/><text x="313" y="278" fill="#334155">c</text>
+    <rect x="372" y="240" width="90" height="60" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="3"/><text x="417" y="278" fill="#b45309">d</text>
+    <rect x="476" y="240" width="90" height="60" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/><text x="521" y="278" fill="#334155">e</text>
+    <rect x="580" y="240" width="90" height="60" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/><text x="625" y="278" fill="#334155">f</text>
+    <rect x="684" y="240" width="90" height="60" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="3"/><text x="729" y="278" fill="#b45309">g</text>
+    <rect x="788" y="240" width="90" height="60" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/><text x="833" y="278" fill="#334155">h</text>
+    <rect x="892" y="240" width="90" height="60" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/><text x="937" y="278" fill="#334155">i</text>
+    <rect x="996" y="240" width="90" height="60" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/><text x="1041" y="278" fill="#334155">j</text>
+  </g>
+  <g font-size="13" fill="#64748b" text-anchor="middle">
+    <text x="105" y="318">0</text><text x="209" y="318">1</text><text x="313" y="318">2</text><text x="417" y="318">3</text><text x="521" y="318">4</text>
+    <text x="625" y="318">5</text><text x="729" y="318">6</text><text x="833" y="318">7</text><text x="937" y="318">8</text><text x="1041" y="318">9</text>
+  </g>
+
+  <!-- chunk 2 (below): words 3-6 -->
+  <line x1="372" y1="326" x2="372" y2="352" stroke="#d97706" stroke-width="2"/>
+  <line x1="774" y1="326" x2="774" y2="352" stroke="#d97706" stroke-width="2"/>
+  <rect x="372" y="352" width="402" height="44" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="573" y="380" font-size="16" font-weight="700" text-anchor="middle" fill="#b45309">chunk 2: "d e f g"</text>
+
+  <!-- notes -->
+  <rect x="60" y="440" width="520" height="120" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="80" y="470" font-size="16" font-weight="700" fill="#15803d">Starts at 0, 3, 6 - then stop</text>
+  <text x="80" y="496" font-size="14" fill="#334155">The window starting at 6 ends at word 9, the last word:</text>
+  <text x="80" y="518" font-size="14" fill="#334155">start + size &gt;= len(words), so there is no fourth chunk.</text>
+  <text x="80" y="540" font-size="14" fill="#334155">d and g (amber) are embedded twice - that is the overlap.</text>
+
+  <rect x="620" y="440" width="520" height="120" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="640" y="470" font-size="16" font-weight="700" fill="#b91c1c">range(0, len(words), 3) keeps going</text>
+  <text x="640" y="496" font-size="14" fill="#334155">It also starts a window at 9 and adds chunk 4: "j" -</text>
+  <text x="640" y="518" font-size="14" fill="#334155">a word chunk 3 already has. Duplicates like this win</text>
+  <text x="640" y="540" font-size="14" fill="#334155">retrieval ties and waste the prompt's token budget.</text>
+</svg>

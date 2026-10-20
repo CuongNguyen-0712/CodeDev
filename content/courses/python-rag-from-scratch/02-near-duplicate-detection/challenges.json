@@ -1,0 +1,227 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_fix_py_rag_121",
+      "name": "near-duplicate-filter",
+      "type": "fix_bug",
+      "title": "Fix the near-duplicate filter",
+      "description": "dedupe() is supposed to keep the first copy of every article and drop near-duplicates before indexing. In production it lets copies that differ only in capitalisation or punctuation through, drops short FAQ entries that merely quote a longer article, treats texts that differ only in their last word as identical, and crashes on empty documents. Fix tokens(), shingles() and jaccard() so that dedupe() keeps a document unless its Jaccard similarity (intersection over union of word k-shingles) to an already kept document is >= threshold.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "python",
+        "filePath": "dedupe.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Copies that differ only in case and punctuation",
+          "input": {
+            "docs": [
+              {
+                "id": "kb-101",
+                "text": "Refunds are processed within 30 days of the request."
+              },
+              {
+                "id": "pdf-17",
+                "text": "refunds are processed within 30 days of the request"
+              },
+              {
+                "id": "kb-205",
+                "text": "Shipping takes 5 business days."
+              }
+            ],
+            "k": 3,
+            "threshold": 0.8
+          },
+          "expected": [
+            "kb-101",
+            "kb-205"
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A copy with a 'Last updated' footer",
+          "input": {
+            "docs": [
+              {
+                "id": "help-2fa",
+                "text": "To reset two factor authentication open Settings then Security then choose Reset 2FA and confirm with the code sent to your email address."
+              },
+              {
+                "id": "confluence-2fa",
+                "text": "To reset two factor authentication open Settings then Security then choose Reset 2FA and confirm with the code sent to your email address. Last updated March 2026."
+              },
+              {
+                "id": "kb-billing",
+                "text": "Invoices are emailed on the first day of every month."
+              }
+            ],
+            "k": 3,
+            "threshold": 0.8
+          },
+          "expected": [
+            "help-2fa",
+            "kb-billing"
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A short FAQ that quotes part of an article is not a duplicate",
+          "input": {
+            "docs": [
+              {
+                "id": "help-2fa",
+                "text": "To reset two factor authentication open Settings then Security then choose Reset 2FA and confirm with the code sent to your email address."
+              },
+              {
+                "id": "faq-2fa",
+                "text": "Reset 2FA and confirm with the code sent to your email address."
+              }
+            ],
+            "k": 3,
+            "threshold": 0.8
+          },
+          "expected": [
+            "help-2fa",
+            "faq-2fa"
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Texts that differ only in their last word",
+          "input": {
+            "docs": [
+              {
+                "id": "web",
+                "text": "Reset your password from the login page"
+              },
+              {
+                "id": "mobile",
+                "text": "Reset your password from the login screen"
+              }
+            ],
+            "k": 3,
+            "threshold": 0.8
+          },
+          "expected": [
+            "web",
+            "mobile"
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Texts shorter than k",
+          "input": {
+            "docs": [
+              {
+                "id": "faq-en",
+                "text": "FAQ"
+              },
+              {
+                "id": "faq-copy",
+                "text": "faq!"
+              },
+              {
+                "id": "contact",
+                "text": "Contact us"
+              }
+            ],
+            "k": 3,
+            "threshold": 0.8
+          },
+          "expected": [
+            "faq-en",
+            "contact"
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Empty documents do not crash the import",
+          "input": {
+            "docs": [
+              {
+                "id": "empty-1",
+                "text": ""
+              },
+              {
+                "id": "empty-2",
+                "text": "   "
+              },
+              {
+                "id": "billing",
+                "text": "Billing"
+              }
+            ],
+            "k": 3,
+            "threshold": 0.8
+          },
+          "expected": [
+            "empty-1",
+            "billing"
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Similarity exactly at the threshold is a duplicate",
+          "input": {
+            "docs": [
+              {
+                "id": "v1",
+                "text": "alpha beta gamma delta epsilon zeta"
+              },
+              {
+                "id": "v2",
+                "text": "alpha beta gamma delta epsilon"
+              }
+            ],
+            "k": 2,
+            "threshold": 0.8
+          },
+          "expected": [
+            "v1"
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Only kept documents count: duplicates do not chain",
+          "input": {
+            "docs": [
+              {
+                "id": "a",
+                "text": "w1 w2 w3 w4 w5 w6 w7 w8 w9 w10 w11 w12 w13 w14 w15 w16 w17 w18 w19 w20"
+              },
+              {
+                "id": "b",
+                "text": "w1 w2 w3 w4 w5 w6 w7 w8 w9 w10 w11 w12 w13 w14 w15 w16 w17 w18 w19 w20 x1 x2 x3"
+              },
+              {
+                "id": "c",
+                "text": "w4 w5 w6 w7 w8 w9 w10 w11 w12 w13 w14 w15 w16 w17 w18 w19 w20 x1 x2 x3"
+              }
+            ],
+            "k": 1,
+            "threshold": 0.8
+          },
+          "expected": [
+            "a",
+            "c"
+          ],
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

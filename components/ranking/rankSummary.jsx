@@ -69,16 +69,33 @@ export function MyRankSummary() {
     }
     if (isError) return <ErrorReload data={error} refetch={refetch} compact title="Could not load your ranks" />;
 
+    const leaderboardLink = (
+        <Button asChild variant="link" size="sm" className="h-auto px-0">
+            <Link href="/ranking">Leaderboard<LuArrowRight /></Link>
+        </Button>
+    );
+
+    // No score on any board yet: one line instead of three "Not ranked yet" rows.
+    if (BOARDS.every((board) => !data?.[board]?.allTimeScore)) {
+        return (
+            <section aria-labelledby="profile-ranks-heading" className="flex min-w-0 flex-col gap-3">
+                <div className="flex min-h-8 items-center justify-between gap-3">
+                    <h2 id="profile-ranks-heading" className="text-base font-semibold text-foreground">Ranks</h2>
+                    {leaderboardLink}
+                </div>
+                <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
+                    Complete a lesson or pass a challenge to get your first rank.
+                </p>
+            </section>
+        );
+    }
+
     return (
         <RankSummary
             ranks={data}
             headingId="profile-ranks-heading"
             own
-            action={(
-                <Button asChild variant="link" size="sm" className="h-auto px-0">
-                    <Link href="/ranking">Leaderboard<LuArrowRight /></Link>
-                </Button>
-            )}
+            action={leaderboardLink}
         />
     );
 }

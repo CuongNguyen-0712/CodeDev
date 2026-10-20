@@ -5,7 +5,7 @@
 #   docker compose --env-file .env.local --profile db up -d postgres     # optional local PostgreSQL
 #   docker compose --env-file .env.production --profile app up -d --build  # production app container
 #
-# Images built here: codedev_app (./Dockerfile), codedev_sandbox (./sandbox/Dockerfile).
+# Images built here: codedev_app (./Dockerfile), codedev_sandbox (./sandbox/vercel/Dockerfile, target docker).
 # Values are interpolated from the --env-file (or .env); no secret is baked into an image.
 # Services reach each other by service name; only loopback ports are published, except the app.
 name: codedev
@@ -78,24 +78,36 @@ services:
       retries: 5
 
   # ------------------------------------------------------------------ code runner
-  # Runs untrusted challenge code (docs/sandbox.md). Internal network only: no route out of
-  # Docker, no published port, no app secrets (only its own token).
+  # Runs untrusted challenge code (docs/sandbox.md): javascript, python, c, cpp, java, go, rust.
+  # Internal network only: no route out of Docker, no published port, no app secrets (only its
+  # own token).
   sandbox:
     <<: *hardened
     profiles: [dev, app]
     image: codedev_sandbox
     build:
       context: ./sandbox
+      dockerfile: vercel/Dockerfile
+      target: docker
     environment:
       CODE_RUNNER_TOKEN: ${CODE_RUNNER_TOKEN:-}
       MAX_CONCURRENCY: ${CODE_RUNNER_CONCURRENCY:-2}
       MAX_QUEUE: ${CODE_RUNNER_QUEUE:-16}
+    # run-job (root) runs learner code as the slot users run01..run08. These are all it needs:
+    # spawn as another uid, chown and clean the slot's files, kill the slot's processes.
+    cap_add: [SETUID, SETGID, CHOWN, DAC_OVERRIDE, FOWNER, KILL]
     tmpfs:
-      - /tmp:rw,noexec,nosuid,nodev,size=16m
-    pids_limit: 64
-    mem_limit: 768m
-    memswap_limit: 768m
-    cpus: 1.0
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+      - /var/tmp:rw,noexec,nosuid,nodev,size=16m
+      - /run:rw,noexec,nosuid,nodev,size=1m,mode=0755
+      - /vercel/jobs:rw,noexec,nosuid,nodev,size=8m,mode=0700
+      # Compiled programs run from the slot's work dir (plus a 39 MB Go cache copy per Go job).
+      - /work:rw,exec,nosuid,nodev,size=768m,mode=0711
+    # Compilers and the JVM start many threads; run-job also caps each slot user at 64.
+    pids_limit: 256
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 2.0
     ulimits:
       nofile: { soft: 256, hard: 256 }
     networks: [sandbox]
@@ -106,7 +118,8 @@ services:
     <<: *hardened
     profiles: [dev]
     image: codedev_sandbox
-    command: ["node", "gateway.mjs"]
+    command: ["node", "/opt/codedev/gateway.mjs"]
+    user: ubuntu
     depends_on:
       sandbox:
         condition: service_healthy

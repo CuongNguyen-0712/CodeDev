@@ -8,7 +8,7 @@ import { cacheKeys, TTL, invalidateUserCache } from "@/lib/cacheKeys";
 import { publishToUser } from "@/lib/pusher";
 import { events } from "@/lib/realtime";
 import { ApiError } from "@/lib/error/apiError";
-import { outputsMatch, parseJsonSafe, toJsonValue } from "@/lib/challenges/compare";
+import { outputsMatch, parseJsonSafe, stdoutMatches, stdoutValue, toJsonValue } from "@/lib/challenges/compare";
 import { executeTests, serverExecutionEnabled } from "@/lib/challenges/codeRunner";
 import { detectEntryName } from "@/lib/challenges/entry";
 
@@ -27,7 +27,16 @@ const LANGUAGE_FILES = {
     javascript: { ext: "js", mime: "application/javascript" },
     typescript: { ext: "ts", mime: "application/typescript" },
     python: { ext: "py", mime: "text/x-python" },
+    c: { ext: "c", mime: "text/x-c" },
+    cpp: { ext: "cpp", mime: "text/x-c++src" },
+    java: { ext: "java", mime: "text/x-java" },
+    go: { ext: "go", mime: "text/x-go" },
+    rust: { ext: "rs", mime: "text/x-rust" },
 };
+
+function codeRunnerRequired() {
+    return new ApiError("Running this language needs the code runner, which is not available right now. Try again later; no attempt was used.", 503);
+}
 
 function languageFile(language) {
     return LANGUAGE_FILES[language] || { ext: "txt", mime: "text/plain" };
@@ -300,8 +309,12 @@ function normaliseTestCases(testCases = []) {
     }));
 }
 
-/** Grades browser-reported outputs ({ [testId]: { output, error, timeMs, timedOut } }) per test. */
-function gradeTests(testCases, results) {
+/**
+ * Grades reported outputs ({ [testId]: { output, error, timeMs, timedOut } }) per test. javascript
+ * outputs are function return values; every other language is graded on its stdout.
+ */
+function gradeTests(testCases, results, language = "javascript") {
+    const stdio = language !== "javascript";
     return testCases.map((tc) => {
         const reported = results?.[tc.id] || null;
         const timeMs = Math.max(0, Math.min(Math.round(Number(reported?.timeMs) || 0), 600000));
@@ -313,7 +326,7 @@ function gradeTests(testCases, results) {
             status = "timeout";
         } else if (reported.error) {
             status = "error";
-        } else if (outputsMatch(reported.output, tc.expected)) {
+        } else if (stdio ? stdoutMatches(reported.output, tc.expected) : outputsMatch(reported.output, tc.expected)) {
             status = "passed";
         }
 
@@ -324,7 +337,7 @@ function gradeTests(testCases, results) {
             status,
             timeMs,
             weight: tc.score,
-            actual: tc.isHidden ? undefined : toJsonValue(reported?.output),
+            actual: tc.isHidden ? undefined : stdio ? stdoutValue(reported?.output) : toJsonValue(reported?.output),
             expected: tc.isHidden ? undefined : parseJsonSafe(tc.expected),
             error: tc.isHidden ? undefined : (reported?.error ? String(reported.error).slice(0, 500) : null),
         };
@@ -383,6 +396,17 @@ function submissionView(row) {
  * Returns outputs in the browser's report shape, so gradeTests grades both the same way.
  */
 async function runOnServer({ definition, code, testCases }) {
+    const language = codingLanguage(definition);
+    if (language !== "javascript") {
+        return executeTests({
+            language,
+            code,
+            tests: testCases.map((tc) => ({ id: tc.id, input: tc.input })),
+            timeLimitMs: Number(definition.time_limit_ms) || 2000,
+            memoryLimitMb: Number(definition.memory_limit_mb) || 128,
+        });
+    }
+
     const files = definition.files || [];
     const starterFile = files.find((f) => f.role === "starter" || !f.role) || null;
     const harnessFile = files.find((f) => f.role === "harness") || null;
@@ -392,6 +416,7 @@ async function runOnServer({ definition, code, testCases }) {
     ]);
 
     return executeTests({
+        language,
         code,
         harness: harnessCode,
         entry: detectEntryName(starterCode || code),
@@ -399,6 +424,21 @@ async function runOnServer({ definition, code, testCases }) {
         timeLimitMs: Number(definition.time_limit_ms) || 2000,
         memoryLimitMb: Number(definition.memory_limit_mb) || 128,
     });
+}
+
+/** Language of a coding challenge (its starter file). Only javascript runs in the browser. */
+function codingLanguage(definition) {
+    const starterFile = (definition.files || []).find((f) => f.role === "starter" || !f.role);
+    return starterFile?.language || "javascript";
+}
+
+function assertSourceSize(code) {
+    if (typeof code !== "string" || code.trim().length === 0) {
+        throw new ApiError("Source code is required", 400);
+    }
+    if (Buffer.byteLength(code, "utf8") > MAX_SOURCE_BYTES) {
+        throw new ApiError(`Source code exceeds ${MAX_SOURCE_BYTES / 1024}KB`, 413);
+    }
 }
 
 async function loadCodingDefinition(ctx) {
@@ -582,23 +622,41 @@ export const challengeService = {
     },
 
     /**
+     * "Run" for languages the browser cannot execute: runs the sample tests in the code runner and
+     * grades them. Nothing is recorded and no attempt is used; hidden tests never run here.
+     */
+    runCodingSamples: async ({ userId, challengeId, code }) => {
+        const ctx = await resolveContext({ userId, challengeId });
+        assertSourceSize(code);
+        const definition = await loadCodingDefinition(ctx);
+        if (!serverExecutionEnabled()) throw codeRunnerRequired();
+
+        const language = codingLanguage(definition);
+        const samples = normaliseTestCases(definition.test_cases).filter((tc) => !tc.isHidden);
+        if (samples.length === 0) return { tests: [] };
+
+        const executed = await runOnServer({ definition, code, testCases: samples });
+        return {
+            tests: gradeTests(samples, executed, language).map((t) => ({
+                ...testView(t),
+                // Raw stdout keeps the learner's formatting in the output panel.
+                output: executed[t.testCaseId]?.output ?? null,
+            })),
+        };
+    },
+
+    /**
      * Submission step 1. Requires every sample test to pass, then snapshots the code to S3 and
      * records a `pending` submission (this is what uses up an attempt) before revealing the
      * hidden test inputs for step 2.
      */
     startCodingSubmission: async ({ userId, challengeId, code, results }) => {
         const ctx = await resolveContext({ userId, challengeId });
-
-        if (typeof code !== "string" || code.trim().length === 0) {
-            throw new ApiError("Source code is required", 400);
-        }
-
+        assertSourceSize(code);
         const size = Buffer.byteLength(code, "utf8");
-        if (size > MAX_SOURCE_BYTES) {
-            throw new ApiError(`Source code exceeds ${MAX_SOURCE_BYTES / 1024}KB`, 413);
-        }
 
         const definition = await loadCodingDefinition(ctx);
+        const language = codingLanguage(definition);
         const testCases = normaliseTestCases(definition.test_cases);
         const publicCases = testCases.filter((tc) => !tc.isHidden);
         const hiddenCases = testCases.filter((tc) => tc.isHidden);
@@ -610,16 +668,17 @@ export const challengeService = {
         // With a code runner configured, the server runs every test itself before an attempt is
         // used (a runner outage costs no attempt) and ignores the outputs the browser reported.
         const serverRun = serverExecutionEnabled();
+        // Only javascript runs in the browser; other languages cannot be graded without the runner.
+        if (!serverRun && language !== "javascript") throw codeRunnerRequired();
         const executed = serverRun ? await runOnServer({ definition, code, testCases }) : results;
 
-        const publicGraded = gradeTests(publicCases, executed);
+        const publicGraded = gradeTests(publicCases, executed, language);
         const failingSample = publicGraded.find((t) => t.status !== "passed");
         if (failingSample) {
             throw new ApiError(`Pass every sample test before submitting ("${failingSample.name}" did not pass).`, 409);
         }
 
         const starterFile = (definition.files || []).find((f) => f.role === "starter" || !f.role) || null;
-        const language = starterFile?.language || "javascript";
         const { ext, mime } = languageFile(language);
         const codeSha256 = crypto.createHash("sha256").update(code).digest("hex");
 
@@ -683,7 +742,7 @@ export const challengeService = {
             codeSha256,
             publicGraded,
             serverRun,
-            hiddenGraded: serverRun ? gradeTests(hiddenCases, executed) : null,
+            hiddenGraded: serverRun ? gradeTests(hiddenCases, executed, language) : null,
         }, { ex: PENDING_SUBMISSION_TTL_SEC });
 
         return {
@@ -715,7 +774,7 @@ export const challengeService = {
         const points = Number(ctx.points) || 0;
         const hiddenCases = normaliseTestCases(definition.test_cases).filter((tc) => tc.isHidden);
         // Server-graded at start: the browser's report for this step is ignored.
-        const hiddenGraded = pending.serverRun ? (pending.hiddenGraded || []) : gradeTests(hiddenCases, results);
+        const hiddenGraded = pending.serverRun ? (pending.hiddenGraded || []) : gradeTests(hiddenCases, results, codingLanguage(definition));
         const graded = [...(pending.publicGraded || []), ...hiddenGraded];
         const grading = summariseGrading(graded, { scoringMode: definition.scoring_mode, points });
 
