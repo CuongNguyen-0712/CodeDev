@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">A stream is a conveyor: the terminal operation starts it</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Each sale travels through every step before the next sale starts. toMap needs a merge function when a key comes twice.</text>
+
+  <!-- Stage boxes -->
+  <rect x="40" y="102" width="250" height="68" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="60" y="128" font-size="13" fill="#64748b">source</text>
+  <text x="60" y="154" font-size="14" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">sales.stream()</text>
+
+  <rect x="330" y="102" width="250" height="68" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="350" y="128" font-size="13" fill="#2563eb">intermediate (lazy)</text>
+  <text x="350" y="154" font-size="13" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">.filter(s -&gt; s.qty() &gt; 0)</text>
+
+  <rect x="620" y="102" width="250" height="68" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="640" y="128" font-size="13" fill="#2563eb">intermediate (lazy)</text>
+  <text x="640" y="154" font-size="14" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">.map(Sale::title)</text>
+
+  <rect x="910" y="102" width="250" height="68" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="930" y="128" font-size="13" fill="#15803d">terminal: pulls the elements</text>
+  <text x="930" y="154" font-size="14" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">.toList()</text>
+
+  <line x1="292" y1="136" x2="318" y2="136" stroke="#64748b" stroke-width="2"/>
+  <polygon points="318,130 328,136 318,142" fill="#64748b"/>
+  <line x1="582" y1="136" x2="608" y2="136" stroke="#64748b" stroke-width="2"/>
+  <polygon points="608,130 618,136 608,142" fill="#64748b"/>
+  <line x1="872" y1="136" x2="898" y2="136" stroke="#64748b" stroke-width="2"/>
+  <polygon points="898,130 908,136 898,142" fill="#64748b"/>
+
+  <!-- Element rows -->
+  <rect x="40" y="186" width="250" height="28" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="56" y="205" font-size="13" fill="#334155">1. Clean Code, qty 2</text>
+  <rect x="330" y="186" width="250" height="28" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="346" y="205" font-size="13" fill="#15803d">passes</text>
+  <rect x="620" y="186" width="250" height="28" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="636" y="205" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">"Clean Code"</text>
+  <rect x="910" y="186" width="250" height="28" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="926" y="205" font-size="13" fill="#15803d">added to the list</text>
+
+  <rect x="40" y="222" width="250" height="28" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="56" y="241" font-size="13" fill="#334155">2. Atomic Habits, qty 0</text>
+  <rect x="330" y="222" width="250" height="28" rx="6" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="346" y="241" font-size="13" fill="#b91c1c">dropped: map never sees it</text>
+  <rect x="620" y="222" width="250" height="28" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="2"/>
+  <text x="636" y="241" font-size="13" fill="#94a3b8">-</text>
+  <rect x="910" y="222" width="250" height="28" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="2"/>
+  <text x="926" y="241" font-size="13" fill="#94a3b8">-</text>
+
+  <rect x="40" y="258" width="250" height="28" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="56" y="277" font-size="13" fill="#334155">3. Dune, qty 1</text>
+  <rect x="330" y="258" width="250" height="28" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="346" y="277" font-size="13" fill="#15803d">passes</text>
+  <rect x="620" y="258" width="250" height="28" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="636" y="277" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">"Dune"</text>
+  <rect x="910" y="258" width="250" height="28" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="926" y="277" font-size="13" fill="#15803d">added to the list</text>
+
+  <text x="40" y="314" font-size="14" fill="#475569">Without .toList() (or another terminal operation) none of these rows happens. After it, the stream is used up.</text>
+
+  <!-- toMap panels -->
+  <rect x="40" y="332" width="545" height="244" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="62" y="362" font-size="15" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">toMap(Sale::title, Sale::amount)</text>
+  <text x="62" y="392" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">Clean Code</text>
+  <text x="212" y="392" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">-&gt; 480000</text>
+  <text x="382" y="392" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">new key</text>
+  <text x="62" y="416" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">Atomic Habits</text>
+  <text x="212" y="416" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">-&gt; 189000</text>
+  <text x="382" y="416" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">new key</text>
+  <text x="62" y="440" font-size="13" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">Clean Code</text>
+  <text x="212" y="440" font-size="13" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">-&gt; 240000</text>
+  <text x="382" y="440" font-size="13" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">key exists!</text>
+  <rect x="62" y="460" width="501" height="96" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="78" y="486" font-size="13" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">IllegalStateException:</text>
+  <text x="78" y="508" font-size="13" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">Duplicate key Clean Code</text>
+  <text x="78" y="530" font-size="13" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">(attempted merging values 480000 and 240000)</text>
+
+  <rect x="615" y="332" width="545" height="244" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="637" y="362" font-size="15" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">toMap(Sale::title, Sale::amount, Long::sum)</text>
+  <text x="637" y="392" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">Clean Code</text>
+  <text x="787" y="392" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">-&gt; 480000</text>
+  <text x="957" y="392" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">new key</text>
+  <text x="637" y="416" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">Atomic Habits</text>
+  <text x="787" y="416" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">-&gt; 189000</text>
+  <text x="957" y="416" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">new key</text>
+  <text x="637" y="440" font-size="13" fill="#15803d" font-family="Consolas, 'Courier New', monospace">Clean Code</text>
+  <text x="787" y="440" font-size="13" fill="#15803d" font-family="Consolas, 'Courier New', monospace">-&gt; Long.sum(480000, 240000)</text>
+  <rect x="637" y="460" width="501" height="96" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="653" y="486" font-size="13" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">Clean Code=720000, Atomic Habits=189000</text>
+  <text x="653" y="512" font-size="13" fill="#334155">4th argument picks the map: LinkedHashMap::new keeps</text>
+  <text x="653" y="532" font-size="13" fill="#334155">first-seen order, TreeMap::new sorts the keys.</text>
+</svg>

@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">== compares references, equals compares the text</text>
+  <text x="40" y="82" font-size="16" fill="#475569">A primitive variable holds its value. A String variable holds a reference (an arrow) to an object on the heap.</text>
+
+  <!-- Variables -->
+  <rect x="40" y="108" width="430" height="300" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="64" y="140" font-size="18" font-weight="700" fill="#334155">Variables (inside main)</text>
+
+  <rect x="64" y="160" width="382" height="60" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="80" y="186" font-size="15" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">int quantity</text>
+  <rect x="300" y="172" width="130" height="36" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="365" y="196" font-size="16" font-weight="700" fill="#2563eb" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">2</text>
+  <text x="80" y="208" font-size="12" fill="#64748b">the value itself</text>
+
+  <rect x="64" y="236" width="382" height="60" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="80" y="262" font-size="15" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">String literal</text>
+  <text x="80" y="284" font-size="12" fill="#64748b">= "BOOK10"</text>
+  <circle cx="414" cy="266" r="7" fill="#334155"/>
+
+  <rect x="64" y="312" width="382" height="76" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="80" y="338" font-size="15" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">String code</text>
+  <text x="80" y="358" font-size="12" fill="#64748b">= " book10 ".strip()</text>
+  <text x="94" y="376" font-size="12" fill="#64748b">.toUpperCase()</text>
+  <circle cx="414" cy="350" r="7" fill="#334155"/>
+
+  <!-- Heap -->
+  <rect x="640" y="108" width="520" height="300" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="664" y="140" font-size="18" font-weight="700" fill="#334155">Objects (heap)</text>
+
+  <rect x="664" y="160" width="472" height="96" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="2"/>
+  <text x="684" y="186" font-size="13" fill="#64748b">String object #1  (string pool, made from the literal)</text>
+  <text x="684" y="224" font-size="22" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">"BOOK10"</text>
+  <text x="684" y="246" font-size="12" fill="#64748b">every "BOOK10" literal in the program points here</text>
+
+  <rect x="664" y="292" width="472" height="96" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="2"/>
+  <text x="684" y="318" font-size="13" fill="#64748b">String object #2  (built at runtime by toUpperCase)</text>
+  <text x="684" y="356" font-size="22" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">"BOOK10"</text>
+  <text x="684" y="378" font-size="12" fill="#64748b">same characters, different object</text>
+
+  <!-- arrows -->
+  <line x1="414" y1="266" x2="652" y2="210" stroke="#334155" stroke-width="2"/>
+  <polygon points="662,208 650,203 652,216" fill="#334155"/>
+  <line x1="414" y1="350" x2="652" y2="340" stroke="#334155" stroke-width="2"/>
+  <polygon points="662,340 650,334 650,346" fill="#334155"/>
+
+  <!-- results -->
+  <rect x="40" y="436" width="550" height="132" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="472" font-size="18" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">code == literal   -&gt; false</text>
+  <text x="64" y="502" font-size="14" fill="#7f1d1d">Compares the two arrows: object #2 is not object #1.</text>
+  <text x="64" y="526" font-size="14" fill="#7f1d1d">Text read from a request, a file or stdin is never</text>
+  <text x="64" y="548" font-size="14" fill="#7f1d1d">the pooled literal, so the coupon check always fails.</text>
+
+  <rect x="610" y="436" width="550" height="132" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="634" y="472" font-size="18" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">code.equals(literal) -&gt; true</text>
+  <text x="634" y="502" font-size="14" fill="#14532d">Compares the characters: B O O K 1 0 in both.</text>
+  <text x="634" y="526" font-size="14" fill="#14532d">equalsIgnoreCase also ignores upper/lower case.</text>
+  <text x="634" y="548" font-size="14" fill="#14532d">For int, long, char and boolean, == is right.</text>
+</svg>

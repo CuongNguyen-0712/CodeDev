@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_javaf_421",
+      "name": "inventory-report",
+      "type": "mini_coding",
+      "title": "Rebuild the Monday inventory report",
+      "description": "The Mekong Books warehouse export has one stock line per row: \"warehouse;isbn;title;qty;reorderLevel\", with ISBNs written with or without hyphens and spaces, blank lines and the odd broken row. Rewrite parse(lineNo, line), classify(qty, reorderLevel) and report(lines): parse each line into a sealed ParseResult (Ok(item) or Bad(lineNo, reason)) without ever stopping on a bad row, merge the same normalised ISBN per warehouse, classify each book as OUT_OF_STOCK, LOW or OK with a switch, list warehouses alphabetically with books sorted by status then title, then a Reorder list with total stock over all warehouses and the rejected lines with their line numbers. report must return an unmodifiable list. The exact rules and output format are in the header comment of Main.java.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "java",
+        "filePath": "Main.java",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Two warehouses: alphabetical order, books sorted by status then title",
+          "input": "Hanoi;9786041111111;Clean Code;12;5\nHanoi;9786043333333;Sapiens;1;4\nHanoi;9786042222222;Dune;0;2\nCan Tho;9786044444444;Effective Java;7;3\nHanoi;9786045555555;Atomic Habits;2;6\nCan Tho;9786041111111;Clean Code;3;5\n",
+          "expected": "Warehouse: Can Tho\n  LOW 9786041111111 Clean Code (qty 3, reorder at 5)\n  OK 9786044444444 Effective Java (qty 7, reorder at 3)\nWarehouse: Hanoi\n  OUT_OF_STOCK 9786042222222 Dune (qty 0, reorder at 2)\n  LOW 9786045555555 Atomic Habits (qty 2, reorder at 6)\n  LOW 9786043333333 Sapiens (qty 1, reorder at 4)\n  OK 9786041111111 Clean Code (qty 12, reorder at 5)\nReorder: 4\n  9786041111111 Clean Code (total qty 15)\n  9786042222222 Dune (total qty 0)\n  9786043333333 Sapiens (total qty 1)\n  9786045555555 Atomic Habits (total qty 2)\nRejected lines: 0",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Same ISBN written with hyphens or spaces is one book; lines are merged",
+          "input": "Hanoi;978-604-1-11111-1;Clean Code;2;5\nHanoi;9786041111111;Clean Code;4;5\nDa Nang;978 604 1 11111 1;Clean Code;1;2\nDa Nang;978-6046666666;Tuoi tho du doi;8;3\nHanoi;9786046666666;Tuoi Tho Du Doi;0;3\nDa Nang; 9786046666666 ;Tuoi tho du doi;0;9\n",
+          "expected": "Warehouse: Da Nang\n  LOW 9786041111111 Clean Code (qty 1, reorder at 2)\n  LOW 9786046666666 Tuoi tho du doi (qty 8, reorder at 9)\nWarehouse: Hanoi\n  OUT_OF_STOCK 9786046666666 Tuoi tho du doi (qty 0, reorder at 3)\n  OK 9786041111111 Clean Code (qty 6, reorder at 5)\nReorder: 2\n  9786041111111 Clean Code (total qty 7)\n  9786046666666 Tuoi tho du doi (total qty 8)\nRejected lines: 0",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Status boundaries: qty 0, qty equal to and just above the reorder level",
+          "input": "Hue;9786041111111;Clean Code;5;5\nHue;9786042222222;Dune;6;5\nHue;9786043333333;Sapiens;0;0\nHue;9786044444444;Effective Java;1;0\nHue;9786045555555;Atomic Habits;0;3\n",
+          "expected": "Warehouse: Hue\n  OUT_OF_STOCK 9786045555555 Atomic Habits (qty 0, reorder at 3)\n  OUT_OF_STOCK 9786043333333 Sapiens (qty 0, reorder at 0)\n  LOW 9786041111111 Clean Code (qty 5, reorder at 5)\n  OK 9786042222222 Dune (qty 6, reorder at 5)\n  OK 9786044444444 Effective Java (qty 1, reorder at 0)\nReorder: 3\n  9786041111111 Clean Code (total qty 5)\n  9786043333333 Sapiens (total qty 0)\n  9786045555555 Atomic Habits (total qty 0)\nRejected lines: 0",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Bad rows are rejected with line numbers and reasons; the report still runs",
+          "input": "Hanoi;9786041111111;Clean Code;3;5\n\nHanoi;9786041111111;Clean Code;abc;5\nHanoi;97860411;Short Isbn;3;5\nHanoi;9786042222222;Dune;4\n;9786042222222;Dune;4;1\nHanoi;9786042222222;   ;4;1\nHanoi;9786042222222;Dune;-1;1\nHanoi;9786042222222;Dune;4;x\nCan Tho;9786042222222;Dune;9;2\n",
+          "expected": "Warehouse: Can Tho\n  OK 9786042222222 Dune (qty 9, reorder at 2)\nWarehouse: Hanoi\n  LOW 9786041111111 Clean Code (qty 3, reorder at 5)\nReorder: 1\n  9786041111111 Clean Code (total qty 3)\nRejected lines: 7\n  line 3: bad qty: abc\n  line 4: bad isbn: 97860411\n  line 5: expected 5 fields, got 4\n  line 6: empty warehouse\n  line 7: empty title\n  line 8: bad qty: -1\n  line 9: bad reorder level: x",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Seven warehouses are listed in alphabetical order",
+          "input": "Hanoi;9786041111111;Clean Code;9;3\nVinh;9786041111111;Clean Code;0;3\nNha Trang;9786042222222;Dune;4;4\nHai Phong;9786043333333;Sapiens;10;2\nHue;978-604-1-11111-1;Clean Code;2;3\nDa Nang;9786042222222;Dune;5;1\nCan Tho;9786043333333;Sapiens;0;0\nHanoi;9786042222222;Dune;1;0\n",
+          "expected": "Warehouse: Can Tho\n  OUT_OF_STOCK 9786043333333 Sapiens (qty 0, reorder at 0)\nWarehouse: Da Nang\n  OK 9786042222222 Dune (qty 5, reorder at 1)\nWarehouse: Hai Phong\n  OK 9786043333333 Sapiens (qty 10, reorder at 2)\nWarehouse: Hanoi\n  OK 9786041111111 Clean Code (qty 9, reorder at 3)\n  OK 9786042222222 Dune (qty 1, reorder at 0)\nWarehouse: Hue\n  LOW 9786041111111 Clean Code (qty 2, reorder at 3)\nWarehouse: Nha Trang\n  LOW 9786042222222 Dune (qty 4, reorder at 4)\nWarehouse: Vinh\n  OUT_OF_STOCK 9786041111111 Clean Code (qty 0, reorder at 3)\nReorder: 3\n  9786041111111 Clean Code (total qty 11)\n  9786042222222 Dune (total qty 10)\n  9786043333333 Sapiens (total qty 10)\nRejected lines: 0",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Only blank and bad lines: empty report, every bad line listed",
+          "input": "\n   \nHanoi;9786041111111;Clean Code\nhello\nHanoi;ISBN-UNKNOWN;Clean Code;3;5\nHanoi;9786041111111;Clean Code;2147483648;5\nHanoi;9786041111111;Clean Code;3;5;extra\n",
+          "expected": "Reorder: 0\nRejected lines: 5\n  line 3: expected 5 fields, got 3\n  line 4: expected 5 fields, got 1\n  line 5: bad isbn: ISBN-UNKNOWN\n  line 6: bad qty: 2147483648\n  line 7: expected 5 fields, got 6",
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

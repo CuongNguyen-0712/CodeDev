@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">How a HashSet finds an element: hashCode first, then equals</text>
+  <text x="40" y="82" font-size="16" fill="#475569">set.add(b) when the set already holds a, and a.equals(b) is true (both ISBN 9786041234567, 16 buckets).</text>
+
+  <!-- Left: record -->
+  <rect x="40" y="108" width="540" height="320" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="64" y="140" font-size="17" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">record BookKey(String isbn)</text>
+  <text x="64" y="164" font-size="13" fill="#14532d">equals and hashCode are both built from isbn</text>
+
+  <rect x="64" y="180" width="492" height="60" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="204" font-size="15" font-weight="700" fill="#334155">1. hashCode: a = 985179284, b = 985179284</text>
+  <text x="80" y="226" font-size="13" fill="#475569">computed from the ISBN, so equal keys give the same number</text>
+
+  <rect x="64" y="252" width="492" height="60" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="276" font-size="15" font-weight="700" fill="#334155">2. Both numbers point to bucket 12</text>
+  <text x="80" y="298" font-size="13" fill="#475569">the set only looks inside that one bucket</text>
+
+  <rect x="64" y="324" width="492" height="40" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="350" font-size="15" font-weight="700" fill="#334155">3. Bucket 12 holds a, and b.equals(a) is true</text>
+
+  <rect x="64" y="374" width="492" height="40" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="80" y="400" font-size="15" font-weight="700" fill="#15803d">Found: add returns false, the set keeps 1 key</text>
+
+  <!-- Right: equals only -->
+  <rect x="620" y="108" width="540" height="320" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="644" y="140" font-size="17" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">class BookKeyV2: equals only</text>
+  <text x="644" y="164" font-size="13" fill="#7f1d1d">hashCode is still the one inherited from Object</text>
+
+  <rect x="644" y="180" width="492" height="60" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="204" font-size="15" font-weight="700" fill="#334155">1. hashCode: a = 1550089733, b = 865113938</text>
+  <text x="660" y="226" font-size="13" fill="#475569">identity hash codes: one per object, not per ISBN</text>
+
+  <rect x="644" y="252" width="492" height="60" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="276" font-size="15" font-weight="700" fill="#334155">2. a sits in bucket 1, b points to bucket 2</text>
+  <text x="660" y="298" font-size="13" fill="#475569">the set looks in bucket 2 only</text>
+
+  <rect x="644" y="324" width="492" height="40" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="350" font-size="15" font-weight="700" fill="#334155">3. Bucket 2 is empty: equals is never called</text>
+
+  <rect x="644" y="374" width="492" height="40" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="660" y="400" font-size="15" font-weight="700" fill="#b91c1c">Not found: add returns true, the set has 2 keys</text>
+
+  <!-- Bottom: the contract -->
+  <rect x="40" y="452" width="1120" height="116" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="484" font-size="16" font-weight="700" fill="#334155">The contract HashSet and HashMap rely on</text>
+  <text x="64" y="514" font-size="14" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">a.equals(b)  =&gt;  a.hashCode() == b.hashCode()</text>
+  <text x="520" y="514" font-size="14" fill="#334155">equal objects must land in the same bucket</text>
+  <text x="64" y="544" font-size="14" font-weight="700" fill="#b45309" font-family="Consolas, 'Courier New', monospace">same hashCode, not equal</text>
+  <text x="520" y="544" font-size="14" fill="#334155">allowed (a collision): equals decides inside the bucket</text>
+</svg>

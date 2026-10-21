@@ -1,0 +1,59 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_fix_javaf_321",
+      "name": "fix-order-page-optional-lookups",
+      "type": "fix_bug",
+      "title": "Stop the order page from crashing on missing data",
+      "description": "The Mekong Books order page prints one line per (ISBN, customer) query: the title, the price and the shipping city. Real data has holes: delisted ISBNs, unknown customer ids, customers without an address, addresses without a city, and books whose price is missing or 0. A teammate made the lookups return Optional but unwrapped every one with get(), so the page now fails with NoSuchElementException instead of NullPointerException. Fix findBook, findCustomer, shippingCity, priceOf and describe so that every query prints the right line (\"Clean Code: 250,000 VND, ship to DA NANG\", \"9786040000000: not in catalog\", \"C-99: unknown customer\", \"C-17: no shipping city\") and nothing crashes. A book without its own price uses supplierPrice(isbn), a slow call that the runner counts and prints as the last line: it must count only real fallbacks. The full rules and the input format are in the comment at the top of Main.java.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "java",
+        "filePath": "Main.java",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Priced books, customers with a city: no supplier lookups",
+          "input": "BOOKS\n9786041234567;Clean Code;250000\n9786043456789;Refactoring;320000\n9786045678901;Nha Gia Kim;\n9786047890123;Dac Nhan Tam;0\nSUPPLIER\n9786041234567;240000\n9786043456789;310000\n9786045678901;79000\n9786047890123;86000\nCUSTOMERS\nC-01;Nguyen Van An;12 Tran Phu;Da Nang\nC-05;Pham Thi Dung;8 Hung Vuong;Hue\nC-17;Tran Thi Binh\nC-20;Le Van Cuong;5 Le Loi;\nQUERIES\n9786041234567 C-01\n9786043456789 C-05\n9786041234567 C-05\n",
+          "expected": "Clean Code: 250,000 VND, ship to DA NANG\nRefactoring: 320,000 VND, ship to HUE\nClean Code: 250,000 VND, ship to HUE\nfallback price lookups: 0",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Delisted ISBN and unknown customer give a message, not a crash",
+          "input": "BOOKS\n9786041234567;Clean Code;250000\n9786043456789;Refactoring;320000\n9786045678901;Nha Gia Kim;\n9786047890123;Dac Nhan Tam;0\nSUPPLIER\n9786041234567;240000\n9786043456789;310000\n9786045678901;79000\n9786047890123;86000\nCUSTOMERS\nC-01;Nguyen Van An;12 Tran Phu;Da Nang\nC-05;Pham Thi Dung;8 Hung Vuong;Hue\nC-17;Tran Thi Binh\nC-20;Le Van Cuong;5 Le Loi;\nQUERIES\n9786040000000 C-01\n9786041234567 C-99\n9786040000000 C-99\n9786041234567 C-01\n",
+          "expected": "9786040000000: not in catalog\nC-99: unknown customer\n9786040000000: not in catalog\nClean Code: 250,000 VND, ship to DA NANG\nfallback price lookups: 0",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Customer without an address, address without a city",
+          "input": "BOOKS\n9786041234567;Clean Code;250000\n9786043456789;Refactoring;320000\n9786045678901;Nha Gia Kim;\n9786047890123;Dac Nhan Tam;0\nSUPPLIER\n9786041234567;240000\n9786043456789;310000\n9786045678901;79000\n9786047890123;86000\nCUSTOMERS\nC-01;Nguyen Van An;12 Tran Phu;Da Nang\nC-05;Pham Thi Dung;8 Hung Vuong;Hue\nC-17;Tran Thi Binh\nC-20;Le Van Cuong;5 Le Loi;\nQUERIES\n9786041234567 C-17\n9786041234567 C-20\n9786043456789 C-01\n",
+          "expected": "C-17: no shipping city\nC-20: no shipping city\nRefactoring: 320,000 VND, ship to DA NANG\nfallback price lookups: 0",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Missing or zero price uses the supplier price, counted once each",
+          "input": "BOOKS\n9786041234567;Clean Code;250000\n9786043456789;Refactoring;320000\n9786045678901;Nha Gia Kim;\n9786047890123;Dac Nhan Tam;0\nSUPPLIER\n9786041234567;240000\n9786043456789;310000\n9786045678901;79000\n9786047890123;86000\nCUSTOMERS\nC-01;Nguyen Van An;12 Tran Phu;Da Nang\nC-05;Pham Thi Dung;8 Hung Vuong;Hue\nC-17;Tran Thi Binh\nC-20;Le Van Cuong;5 Le Loi;\nQUERIES\n9786045678901 C-01\n9786047890123 C-05\n9786041234567 C-05\n",
+          "expected": "Nha Gia Kim: 79,000 VND, ship to DA NANG\nDac Nhan Tam: 86,000 VND, ship to HUE\nClean Code: 250,000 VND, ship to HUE\nfallback price lookups: 2",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Supplier lookups only for lines that print a price",
+          "input": "BOOKS\n9786041234567;Clean Code;250000\n9786043456789;Refactoring;320000\n9786045678901;Nha Gia Kim;\n9786047890123;Dac Nhan Tam;0\nSUPPLIER\n9786041234567;240000\n9786043456789;310000\n9786045678901;79000\n9786047890123;86000\nCUSTOMERS\nC-01;Nguyen Van An;12 Tran Phu;Da Nang\nC-05;Pham Thi Dung;8 Hung Vuong;Hue\nC-17;Tran Thi Binh\nC-20;Le Van Cuong;5 Le Loi;\nQUERIES\n9786045678901 C-17\n9786045678901 C-99\n9786047890123 C-20\n9786045678901 C-05\n9786040000000 C-05\n",
+          "expected": "C-17: no shipping city\nC-99: unknown customer\nC-20: no shipping city\nNha Gia Kim: 79,000 VND, ship to HUE\n9786040000000: not in catalog\nfallback price lookups: 1",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

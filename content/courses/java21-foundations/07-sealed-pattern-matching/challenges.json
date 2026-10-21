@@ -1,0 +1,129 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_javaf_311",
+      "name": "sealed-switch-guards-dominance-quiz",
+      "type": "quiz",
+      "title": "Exhaustive switches, guards and case order",
+      "description": "Predict what a switch with record patterns and guards returns, and which switch bodies over a sealed interface the compiler accepts.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Mekong Books flags card payments for review. What does this print?\n\nsealed interface Payment permits Card, GiftCard {}\nrecord Card(String last4, long amount) implements Payment {}\nrecord GiftCard(String code, long amount) implements Payment {}\n\nstatic String check(Payment p) {\n    return switch (p) {\n        case Card(String last4, long amount) when amount > 1_000_000 -> \"review\";\n        case Card c when c.last4().startsWith(\"4\") -> \"visa\";\n        case Card c -> \"card\";\n        case GiftCard g -> \"gift\";\n    };\n}\n\nSystem.out.println(check(new Card(\"4242\", 2_000_000)) + \" \"\n        + check(new Card(\"4242\", 50_000)) + \" \"\n        + check(new Card(\"5555\", 50_000)) + \" \"\n        + check(new GiftCard(\"GC-9\", 2_000_000)));",
+          "explanation": "Cases are tried from top to bottom and the first one whose pattern matches and whose guard is true wins. Card(\"4242\", 2_000_000): the first pattern matches and 2,000,000 > 1,000,000, so \"review\" (the \"visa\" case is never reached for it). Card(\"4242\", 50_000): the first guard is false, so matching goes on; \"4242\" starts with \"4\", so \"visa\". Card(\"5555\", 50_000): both guards are false, and the unguarded case Card c catches it: \"card\". The GiftCard is not a Card, so only case GiftCard g matches, whatever the amount: \"gift\". The switch compiles: it covers both permitted types, so no default is needed, and both guarded Card cases come before the unguarded one, so nothing is dominated. \"visa visa card gift\" would need the \"4\" guard to be checked first; \"review review card review\" would need the amount guard to apply to every type.",
+          "options": [
+            {
+              "text": "review visa card gift",
+              "correct": true
+            },
+            {
+              "text": "visa visa card gift",
+              "correct": false
+            },
+            {
+              "text": "review review card review",
+              "correct": false
+            },
+            {
+              "text": "It does not compile: a switch over an interface needs a default case",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Payment is declared as:\n\nsealed interface Payment permits Card, BankTransfer, EWallet {}\n\nEach option is the body of  return switch (p) { ... };  in a method that returns int. Which of them compile with Java 21? (Select all that apply.)",
+          "explanation": "A compiles: it has one case for each permitted type, so the switch is exhaustive without default. B does not compile: EWallet is not covered, and javac reports \"the switch expression does not cover all possible input values\". C does not compile: case Card c already matches every Card, so the guarded Card case below it could never run; javac reports \"this case label is dominated by a preceding case label\". D compiles: the guarded case comes first and the unguarded case Card c catches the cards the guard rejects. E compiles: default covers BankTransfer and EWallet - but it also means the compiler will not warn you when a new type is added, which is exactly what a sealed type is for.",
+          "options": [
+            {
+              "text": "A:  case Card c -> 1;  case BankTransfer b -> 2;  case EWallet e -> 3;",
+              "correct": true
+            },
+            {
+              "text": "B:  case Card c -> 1;  case BankTransfer b -> 2;",
+              "correct": false
+            },
+            {
+              "text": "C:  case Card c -> 1;  case Card c when c.amount() > 1_000_000 -> 2;  case BankTransfer b -> 3;  case EWallet e -> 4;",
+              "correct": false
+            },
+            {
+              "text": "D:  case Card c when c.amount() > 1_000_000 -> 2;  case Card c -> 1;  case BankTransfer b -> 3;  case EWallet e -> 4;",
+              "correct": true
+            },
+            {
+              "text": "E:  case Card c -> 1;  default -> 0;",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_javaf_312",
+      "name": "settlement-fee-calculator",
+      "type": "mini_coding",
+      "title": "Write fee(Payment p) with a sealed switch",
+      "description": "The Mekong Books settlement report reads the day's payments, one per line (\"CARD 4242 250000\", \"BANK VCB 1200000\", \"EWALLET MOMO 99000\", \"GIFT GC-001 50000\"), and the runner turns each line into a record of the sealed interface Payment. Replace last year's instanceof chain with fee(Payment p): a switch with record patterns and when guards, no default. Cards pay 2% (at least 3,000), bank transfers 2,200 below 500,000, 5,500 up to 999,999 and nothing from 1,000,000, e-wallets 1.5% (ZaloPay 1%), gift cards nothing; everything rounded down with long arithmetic. The runner prints one line per payment and a TOTAL line; the exact rules are in the starter.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "java",
+        "filePath": "Main.java",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Card fee: 2% rounded down, at least 3,000",
+          "input": "CARD 4242 250000\nCARD 1111 99000\nCARD 5555 250050\n",
+          "expected": "CARD 4242 250,000 fee 5,000\nCARD 1111 99,000 fee 3,000\nCARD 5555 250,050 fee 5,001\nTOTAL 599,050 fee 13,001",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Bank transfer tiers: 2,200, 5,500, free from 1,000,000",
+          "input": "BANK VCB 300000\nBANK TCB 700000\nBANK MB 1200000\n",
+          "expected": "BANK VCB 300,000 fee 2,200\nBANK TCB 700,000 fee 5,500\nBANK MB 1,200,000 fee 0\nTOTAL 2,200,000 fee 7,700",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "E-wallet fee: ZaloPay 1%, other wallets 1.5%, rounded down",
+          "input": "EWALLET MOMO 99900\nEWALLET ZALOPAY 99900\nEWALLET SHOPEEPAY 1000\n",
+          "expected": "EWALLET MOMO 99,900 fee 1,498\nEWALLET ZALOPAY 99,900 fee 999\nEWALLET SHOPEEPAY 1,000 fee 15\nTOTAL 200,800 fee 2,512",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Boundary amounts: 150,000 card, 500,000 and 1,000,000 transfers",
+          "input": "CARD 9999 150000\nCARD 9999 150050\nBANK VCB 499999\nBANK VCB 500000\nBANK VCB 999999\nBANK VCB 1000000\n",
+          "expected": "CARD 9999 150,000 fee 3,000\nCARD 9999 150,050 fee 3,001\nBANK VCB 499,999 fee 2,200\nBANK VCB 500,000 fee 5,500\nBANK VCB 999,999 fee 5,500\nBANK VCB 1,000,000 fee 0\nTOTAL 3,300,048 fee 19,201",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Gift cards pay no fee, whatever the amount",
+          "input": "GIFT GC-001 50000\nGIFT GC-777 3000000\nCARD 4242 3000000\n",
+          "expected": "GIFT GC-001 50,000 fee 0\nGIFT GC-777 3,000,000 fee 0\nCARD 4242 3,000,000 fee 60,000\nTOTAL 6,050,000 fee 60,000",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Mixed batch of every payment type with the total",
+          "input": "CARD 4242 250050\nBANK VCB 499999\nEWALLET MOMO 123456\nGIFT GC-002 150000\nBANK ACB 1000000\nEWALLET ZALOPAY 500000\n",
+          "expected": "CARD 4242 250,050 fee 5,001\nBANK VCB 499,999 fee 2,200\nEWALLET MOMO 123,456 fee 1,851\nGIFT GC-002 150,000 fee 0\nBANK ACB 1,000,000 fee 0\nEWALLET ZALOPAY 500,000 fee 5,000\nTOTAL 2,523,505 fee 14,052",
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

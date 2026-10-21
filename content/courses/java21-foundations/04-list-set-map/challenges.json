@@ -1,0 +1,129 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_javaf_211",
+      "name": "list-set-map-quiz",
+      "type": "quiz",
+      "title": "Pick the collection, predict the output",
+      "description": "Choose the right collection for a warehouse scanner and predict what a few common collection calls really do, before you write the restock planner.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The warehouse scanner sends one ISBN per scanned book, so the same ISBN arrives many times. The restock job must (1) answer \"did we scan this ISBN tonight?\" quickly, tens of thousands of times, and (2) at the end print every scanned ISBN once, in the order it was first scanned. Which declaration fits best?",
+          "explanation": "LinkedHashSet is a Set, so add ignores an ISBN that is already there and contains is a hash lookup that does not get slower as the set grows; on top of that it remembers insertion order, so iterating gives the ISBNs in first-scanned order. ArrayList keeps the order but stores every repeat, and contains walks the whole list, so tens of thousands of checks against tens of thousands of ISBNs is hundreds of millions of comparisons. HashSet is unique and fast but makes no promise about iteration order: you would print the ISBNs in hash order. TreeSet is unique too, but it iterates in sorted order (and each lookup is O(log n) instead of a hash lookup), not in the order the books were scanned.",
+          "options": [
+            {
+              "text": "List<String> scanned = new ArrayList<>();",
+              "correct": false
+            },
+            {
+              "text": "Set<String> scanned = new HashSet<>();",
+              "correct": false
+            },
+            {
+              "text": "Set<String> scanned = new LinkedHashSet<>();",
+              "correct": true
+            },
+            {
+              "text": "Set<String> scanned = new TreeSet<>();",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which of these statements about Java 21 collections are true? (Select all that apply.)",
+          "explanation": "Set.of rejects duplicates at creation: Set.of(\"fiction\", \"comics\", \"fiction\") throws IllegalArgumentException: duplicate element: fiction. HashSet.add does not throw on a duplicate; it returns false and leaves the set unchanged (true the first time). Integer a = 1000, b = 1000 boxes each value into an Integer object; == compares the two references, and only values from -128 to 127 are cached and shared, so a == b is false (a.equals(b) is true). A TreeMap keeps its keys sorted, so its keySet() prints [comics, fiction, travel], not the insertion order. Map.get returns null for a missing key; getOrDefault(\"comics\", 0) is the call that gives 0.",
+          "options": [
+            {
+              "text": "Set.of(\"fiction\", \"comics\", \"fiction\") throws IllegalArgumentException.",
+              "correct": true
+            },
+            {
+              "text": "Calling add(\"9786041000011\") on a HashSet that already contains that ISBN returns false instead of throwing.",
+              "correct": true
+            },
+            {
+              "text": "After Integer a = 1000, b = 1000; the expression a == b is true, because both hold 1000.",
+              "correct": false
+            },
+            {
+              "text": "A TreeMap filled with put(\"travel\", 2), put(\"comics\", 5), put(\"fiction\", 1) prints its keySet() as [travel, comics, fiction].",
+              "correct": false
+            },
+            {
+              "text": "For a new HashMap<String, Integer>, get(\"comics\") returns 0 because the key is missing.",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_javaf_212",
+      "name": "restock-planner",
+      "type": "mini_coding",
+      "title": "Write the nightly restock planner with the right collections",
+      "description": "Mekong Books' nightly job reads today's sales (ISBN, category, copies) and the stock left per ISBN. Write soldByCategory (copies per category, categories in first-sold order), uniqueIsbns (each sold ISBN once, in first-sold order) and removeSoldOut (removes ISBNs with 0 copies left from the shelf list in place and returns them; an ISBN missing from the stock section has 0 left). The runner prints the category totals, the reorder list and what stays on the shelf. The full input and output format is in the comment at the top of Main.java.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "java",
+        "filePath": "Main.java",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Example from the task: one ISBN sold twice, one sold out",
+          "input": "SALES\n9786041000011 fiction 3\n9786041000028 children 2\n9786041000011 fiction 1\nSTOCK\n9786041000011 0\n9786041000028 5\n",
+          "expected": "fiction 4\nchildren 2\nreorder: 9786041000011\non shelf: 9786041000028",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Categories print in the order they were first sold, not in hash order",
+          "input": "SALES\n9786041000110 fiction 2\n9786041000127 children 1\n9786041000134 business 3\n9786041000141 comics 5\n9786041000158 children 4\nSTOCK\n9786041000110 7\n9786041000127 0\n9786041000134 2\n9786041000141 1\n9786041000158 3\n",
+          "expected": "fiction 2\nchildren 5\nbusiness 3\ncomics 5\nreorder: 9786041000127\non shelf: 9786041000110 9786041000134 9786041000141 9786041000158",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Totals add up when a category sells on several lines; last book sold out",
+          "input": "SALES\n9786041000202 history 1\n9786041000219 fiction 2\n9786041000202 history 2\n9786041000226 fiction 3\n9786041000219 fiction 1\nSTOCK\n9786041000202 4\n9786041000219 6\n9786041000226 0\n",
+          "expected": "history 3\nfiction 6\nreorder: 9786041000226\non shelf: 9786041000202 9786041000219",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Two sold-out books next to each other are both removed",
+          "input": "SALES\n9786041000301 comics 2\n9786041000318 travel 1\n9786041000325 comics 1\n9786041000332 science 4\nSTOCK\n9786041000301 3\n9786041000318 0\n9786041000325 0\n9786041000332 2\n",
+          "expected": "comics 3\ntravel 1\nscience 4\nreorder: 9786041000318 9786041000325\non shelf: 9786041000301 9786041000332",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "An ISBN missing from the STOCK section counts as sold out",
+          "input": "SALES\n9786041000400 self-help 2\n9786041000417 fiction 1\n9786041000424 self-help 1\n9786041000431 travel 2\nSTOCK\n9786041000400 5\n9786041000424 1\n9786041000431 0\n",
+          "expected": "self-help 3\nfiction 1\ntravel 2\nreorder: 9786041000417 9786041000431\non shelf: 9786041000400 9786041000424",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Nothing sold out: the reorder list is (none)",
+          "input": "SALES\n9786041000509 children 1\n9786041000516 business 2\nSTOCK\n9786041000509 1\n9786041000516 9\n",
+          "expected": "children 1\nbusiness 2\nreorder: (none)\non shelf: 9786041000509 9786041000516",
+          "hidden": false,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

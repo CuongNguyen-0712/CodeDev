@@ -1,0 +1,129 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_javaf_111",
+      "name": "strings-and-int-arithmetic-quiz",
+      "type": "quiz",
+      "title": "Predict the output: == on strings and int overflow",
+      "description": "Read each snippet the way Java runs it: which strings are the same object, and when does int arithmetic overflow?",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this print?\n\nString typed = \" book10 \";\nString code = typed.strip().toUpperCase();\nSystem.out.println(code == \"BOOK10\");\nSystem.out.println(code.equals(\"BOOK10\"));\nSystem.out.println(\"[\" + typed + \"]\");",
+          "explanation": "strip() and toUpperCase() each return a NEW String built at runtime, so code is a different object from the \"BOOK10\" literal: == compares references and prints false, while equals compares the characters and prints true. Strings are immutable: strip() and toUpperCase() never change typed, so it still prints [ book10 ] with its spaces. \"true true [BOOK10]\" assumes == compares text and that the methods change typed in place; \"true true [ book10 ]\" gets immutability right but still treats == as a text comparison; \"false true [BOOK10]\" gets == right but assumes typed was changed.",
+          "options": [
+            {
+              "text": "true / true / [BOOK10]",
+              "correct": false
+            },
+            {
+              "text": "true / true / [ book10 ]",
+              "correct": false
+            },
+            {
+              "text": "false / true / [BOOK10]",
+              "correct": false
+            },
+            {
+              "text": "false / true / [ book10 ]",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "A school orders 25,000 copies of a 120,000 VND textbook:\n\nint copies = 25_000;\nint price = 120_000;\n\nWhich of these lines store 3000000000 in total? (Select all that apply.)",
+          "explanation": "int * int is computed in int, and 3,000,000,000 is above Integer.MAX_VALUE (2,147,483,647), so it wraps around to -1294967296 BEFORE any conversion to long happens. That is why long total = copies * price and long total = (long) (copies * price) both store -1294967296: the cast or the assignment widens a result that is already wrong. Casting ONE operand first, (long) copies * price or copies * (long) price, makes the multiplication itself a long multiplication, which gives 3000000000. Math.multiplyExact(copies, price) uses the int version (both arguments are int), so it does not wrap: it throws ArithmeticException: integer overflow. That is safer than a wrong number, but it stores nothing.",
+          "options": [
+            {
+              "text": "long total = copies * price;",
+              "correct": false
+            },
+            {
+              "text": "long total = (long) copies * price;",
+              "correct": true
+            },
+            {
+              "text": "long total = copies * (long) price;",
+              "correct": true
+            },
+            {
+              "text": "long total = (long) (copies * price);",
+              "correct": false
+            },
+            {
+              "text": "long total = Math.multiplyExact(copies, price);",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_javaf_112",
+      "name": "checkout-receipt-coupons",
+      "type": "mini_coding",
+      "title": "Write the Mekong Books checkout receipt",
+      "description": "The checkout reads the coupon code the customer typed (spaces, any case, or nothing) and the order lines \"QTY x UNIT_PRICE TITLE\". Write four small methods: lineTotal (quantity x price as a long, safe for a 25,000-copy school order), discountPercent (BOOK10 is 10%, SCHOOL5 is 5%, compared as text, ignoring spaces around it and case), discountAmount (percent of the subtotal, rounded down to whole dong with integer arithmetic) and money (\"3,000,000,000 VND\" in any locale). The test runner reads the order from stdin and prints the receipt with your methods.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "java",
+        "filePath": "Main.java",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "BOOK10 on two titles",
+          "input": "BOOK10\n2 x 120000 Clean Code\n1 x 89000 De Men Phieu Luu Ky\n",
+          "expected": "Mekong Books receipt\n2 x Clean Code: 240,000 VND\n1 x De Men Phieu Luu Ky: 89,000 VND\nSubtotal: 329,000 VND\nDiscount 10%: -32,900 VND\nTotal: 296,100 VND",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Empty coupon line: no discount",
+          "input": "\n1 x 450000 Effective Java\n3 x 35000 Bookmark set\n",
+          "expected": "Mekong Books receipt\n1 x Effective Java: 450,000 VND\n3 x Bookmark set: 105,000 VND\nSubtotal: 555,000 VND\nCoupon: none\nTotal: 555,000 VND",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Coupon typed with spaces and in lower case",
+          "input": "  book10  \n1 x 199000 Refactoring\n",
+          "expected": "Mekong Books receipt\n1 x Refactoring: 199,000 VND\nSubtotal: 199,000 VND\nDiscount 10%: -19,900 VND\nTotal: 179,100 VND",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Unknown coupon BOOK20 is not applied",
+          "input": "BOOK20\n2 x 120000 Clean Code\n",
+          "expected": "Mekong Books receipt\n2 x Clean Code: 240,000 VND\nSubtotal: 240,000 VND\nCoupon not applied: BOOK20\nTotal: 240,000 VND",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "SCHOOL5 discount is rounded down to whole dong",
+          "input": " school5\n3 x 99999 Notebook pack\n",
+          "expected": "Mekong Books receipt\n3 x Notebook pack: 299,997 VND\nSubtotal: 299,997 VND\nDiscount 5%: -14,999 VND\nTotal: 284,998 VND",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "School order of 25,000 copies does not overflow",
+          "input": "SCHOOL5\n25000 x 120000 Tieng Viet 6\n",
+          "expected": "Mekong Books receipt\n25000 x Tieng Viet 6: 3,000,000,000 VND\nSubtotal: 3,000,000,000 VND\nDiscount 5%: -150,000,000 VND\nTotal: 2,850,000,000 VND",
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

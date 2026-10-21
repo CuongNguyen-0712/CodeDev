@@ -1,0 +1,125 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_javaf_411",
+      "name": "exceptions-flow-quiz",
+      "type": "quiz",
+      "title": "Predict the output: catch, finally and try-with-resources",
+      "description": "Follow an exception the way the JVM does: which catch block runs, when finally runs, in which order resources are closed and what happens to an exception thrown by close().",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this program print?\n\npublic class Main {\n    static String check(String price) {\n        try {\n            long p = Long.parseLong(price);\n            return \"ok \" + p;\n        } catch (NumberFormatException e) {\n            return \"bad\";\n        } catch (IllegalArgumentException e) {\n            return \"illegal\";\n        } finally {\n            System.out.print(\"[done] \");\n        }\n    }\n\n    public static void main(String[] args) {\n        System.out.println(check(\"12O000\"));\n        System.out.println(check(\"120000\"));\n    }\n}",
+          "explanation": "\"12O000\" contains the letter O, so Long.parseLong throws NumberFormatException. Java tries the catch blocks from top to bottom and runs the FIRST one whose type matches; NumberFormatException is listed first, so the result is \"bad\" (the IllegalArgumentException block would also match, because NumberFormatException is a subclass, but it is never reached). The finally block runs every time the method leaves the try statement, after the return value has been computed but before the caller receives it. So check() prints \"[done] \" first, and only then does println in main print the returned text: \"[done] bad\", then \"[done] ok 120000\". The option with \"[done]\" at the end of each line has the order backwards: main can only print the result after check() has returned. \"illegal\" would need the IllegalArgumentException block to come first, which javac would not even compile (exception NumberFormatException has already been caught). And finally is not skipped by return: a return in try or catch still runs finally.",
+          "options": [
+            {
+              "text": "[done] bad   then   [done] ok 120000",
+              "correct": true
+            },
+            {
+              "text": "bad [done]   then   ok 120000 [done]",
+              "correct": false
+            },
+            {
+              "text": "[done] illegal   then   [done] ok 120000",
+              "correct": false
+            },
+            {
+              "text": "bad   then   ok 120000   (finally is skipped because both blocks return)",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Res prints \"open\" when it is created and \"close\" when it is closed, and its close() always throws. What does this print?\n\npublic class Main {\n    static class Res implements AutoCloseable {\n        private final String name;\n\n        Res(String name) {\n            this.name = name;\n            System.out.println(\"open \" + name);\n        }\n\n        @Override\n        public void close() {\n            System.out.println(\"close \" + name);\n            throw new IllegalStateException(name);\n        }\n    }\n\n    public static void main(String[] args) {\n        try (Res a = new Res(\"A\"); Res b = new Res(\"B\")) {\n            System.out.println(\"body \" + a.name + b.name);\n            throw new RuntimeException(\"body failed\");\n        } catch (RuntimeException e) {\n            System.out.println(\"caught \" + e.getMessage() + \", suppressed \" + e.getSuppressed().length);\n        }\n    }\n}",
+          "explanation": "Resources are opened from left to right (A, then B) and closed in the reverse order (B, then A), so a resource is always closed before the ones it may depend on. When the body throws, try-with-resources still closes every resource, even when a close() itself throws: B's close throws, and A is closed anyway. The exception from the body is the one that propagates to the catch block; each exception thrown by close() is attached to it as a suppressed exception instead of replacing it. So the catch sees \"body failed\" with 2 suppressed exceptions. Closing in opening order (A before B) is wrong, \"caught B\" would mean the close exception replaced the real error (that is what a hand-written finally { b.close(); } does), and stopping after B's failed close would leak A.",
+          "options": [
+            {
+              "text": "open A | open B | body AB | close B | close A | caught body failed, suppressed 2",
+              "correct": true
+            },
+            {
+              "text": "open A | open B | body AB | close A | close B | caught body failed, suppressed 2",
+              "correct": false
+            },
+            {
+              "text": "open A | open B | body AB | close B | close A | caught B, suppressed 0",
+              "correct": false
+            },
+            {
+              "text": "open A | open B | body AB | close B | caught body failed, suppressed 1",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_javaf_412",
+      "name": "fix-price-list-import",
+      "type": "fix_bug",
+      "title": "Make the price-list import survive a bad line",
+      "description": "The Mekong Books supplier price list arrives as \"isbn;price\" lines. importPrices wraps the whole loop in catch (Exception e) {}, so the first bad line (a price typed as \"12O000\", a missing field, a blank line) silently ends the import: every later book keeps its old price and the summary still says \"errors: 0\". Fix parseLine and importPrices so that every good line is imported, every bad line is skipped with exactly one \"line N: reason\" error (exact texts in the starter header), line numbers count every line of the file from 1, and only the expected exceptions are caught. The runner reads the file from stdin and prints the updated prices and the error list.",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "java",
+        "filePath": "Main.java",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Clean file: every price is imported, no errors",
+          "input": "9786041234567;120000\n9786049876543;85000\n9786045555555;99000\n",
+          "expected": "updated: 3\n9786041234567 = 120000\n9786049876543 = 85000\n9786045555555 = 99000\nerrors: 0",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A malformed price on line 3 does not stop the import",
+          "input": "9786041234567;120000\n9786049876543;85000\n9786043333333;12O000\n9786045555555;99000\n9786047777777;150000\n",
+          "expected": "updated: 4\n9786041234567 = 120000\n9786049876543 = 85000\n9786045555555 = 99000\n9786047777777 = 150000\nerrors: 1\nline 3: bad price \"12O000\"",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Missing, empty and extra fields are reported with their line numbers",
+          "input": "9786041234567;120000\n9786049876543\n;85000\n9786045555555;99000;VAT\n9786047777777; \n9786048888888 ; 64000 \n",
+          "expected": "updated: 2\n9786041234567 = 120000\n9786048888888 = 64000\nerrors: 4\nline 2: expected isbn;price\nline 3: expected isbn;price\nline 4: expected isbn;price\nline 5: expected isbn;price",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Zero and negative prices are rejected",
+          "input": "9786041234567;-5000\n9786049876543;0\n9786045555555;99000\n",
+          "expected": "updated: 1\n9786045555555 = 99000\nerrors: 2\nline 1: price must be positive, got -5000\nline 2: price must be positive, got 0",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Blank lines are skipped but still counted in line numbers",
+          "input": "\n9786041234567;120000\n\n   \n9786043333333;120,000\n9786045555555;99000\n",
+          "expected": "updated: 2\n9786041234567 = 120000\n9786045555555 = 99000\nerrors: 1\nline 5: bad price \"120,000\"",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Mixed supplier file: every kind of bad line, the import reaches the end",
+          "input": "9786041234567;120000\n9786043333333;12O000\n\n9786049876543;85.000\n9786045555555\n9786047777777;-150000\n9786048888888;64000\n9786041111111;1.5e5\n9786042222222; 210000\n",
+          "expected": "updated: 3\n9786041234567 = 120000\n9786048888888 = 64000\n9786042222222 = 210000\nerrors: 5\nline 2: bad price \"12O000\"\nline 4: bad price \"85.000\"\nline 5: expected isbn;price\nline 6: price must be positive, got -150000\nline 8: bad price \"1.5e5\"",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

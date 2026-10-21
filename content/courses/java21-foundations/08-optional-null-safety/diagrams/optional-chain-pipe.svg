@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">An Optional chain is a pipe: an empty value skips to the end</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Same question twice, "which city do we ship to?": plain calls crash on the first null, the Optional chain carries "nothing" to orElse.</text>
+
+  <!-- Top: null chain -->
+  <rect x="40" y="102" width="1120" height="150" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="132" font-size="17" font-weight="700" fill="#b91c1c">Null chain:</text>
+  <text x="170" y="132" font-size="16" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">customer.address().city().toUpperCase()</text>
+  <text x="790" y="132" font-size="14" fill="#7f1d1d">customer C-17 has no address</text>
+
+  <rect x="64" y="148" width="200" height="44" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="164" y="176" font-size="14" text-anchor="middle" fill="#334155" font-family="Consolas, 'Courier New', monospace">customer C-17</text>
+  <line x1="264" y1="170" x2="296" y2="170" stroke="#64748b" stroke-width="2"/>
+  <polygon points="294,164 304,170 294,176" fill="#64748b"/>
+
+  <rect x="304" y="148" width="240" height="44" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="424" y="176" font-size="14" text-anchor="middle" fill="#334155" font-family="Consolas, 'Courier New', monospace">.address() -&gt; null</text>
+  <line x1="544" y1="170" x2="576" y2="170" stroke="#64748b" stroke-width="2"/>
+  <polygon points="574,164 584,170 574,176" fill="#64748b"/>
+
+  <rect x="584" y="148" width="240" height="44" rx="8" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="704" y="176" font-size="14" font-weight="700" text-anchor="middle" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">.city() on null</text>
+  <line x1="824" y1="170" x2="856" y2="170" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="5 4"/>
+
+  <rect x="864" y="148" width="272" height="44" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="1000" y="176" font-size="14" text-anchor="middle" fill="#94a3b8" font-family="Consolas, 'Courier New', monospace">.toUpperCase() never runs</text>
+
+  <text x="64" y="226" font-size="13" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">NullPointerException: Cannot invoke "Address.city()" because the return value of "Customer.address()" is null</text>
+
+  <!-- Bottom: Optional chain -->
+  <rect x="40" y="270" width="1120" height="310" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="64" y="300" font-size="17" font-weight="700" fill="#15803d">Optional chain: each step runs only on a present value</text>
+  <text x="560" y="300" font-size="14" fill="#14532d">C-01 has a city, C-17 has no address, C-99 is not a customer</text>
+
+  <!-- stage boxes -->
+  <rect x="56" y="316" width="169" height="44" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="140.5" y="343" font-size="13" font-weight="700" text-anchor="middle" fill="#334155" font-family="Consolas, 'Courier New', monospace">customerById(id)</text>
+  <polygon points="229,332 241,338 229,344" fill="#16a34a"/>
+  <rect x="245" y="316" width="233" height="44" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="361.5" y="343" font-size="13" font-weight="700" text-anchor="middle" fill="#334155" font-family="Consolas, 'Courier New', monospace">flatMap(shippingAddress)</text>
+  <polygon points="482,332 494,338 482,344" fill="#16a34a"/>
+  <rect x="498" y="316" width="185" height="44" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="590.5" y="343" font-size="13" font-weight="700" text-anchor="middle" fill="#334155" font-family="Consolas, 'Courier New', monospace">map(Address::city)</text>
+  <polygon points="687,332 699,338 687,344" fill="#16a34a"/>
+  <rect x="703" y="316" width="225" height="44" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="815.5" y="343" font-size="13" font-weight="700" text-anchor="middle" fill="#334155" font-family="Consolas, 'Courier New', monospace">map(String::toUpperCase)</text>
+  <polygon points="932,332 944,338 932,344" fill="#16a34a"/>
+  <rect x="948" y="316" width="193" height="44" rx="8" fill="#dcfce7" stroke="#15803d" stroke-width="2"/>
+  <text x="1044.5" y="343" font-size="13" font-weight="700" text-anchor="middle" fill="#15803d" font-family="Consolas, 'Courier New', monospace">orElse(&quot;(no city)&quot;)</text>
+  <!-- Row C-01 -->
+  <line x1="216.0" y1="397" x2="286.0" y2="397" stroke="#16a34a" stroke-width="2"/>
+  <line x1="437.0" y1="397" x2="520.5" y2="397" stroke="#16a34a" stroke-width="2"/>
+  <line x1="660.5" y1="397" x2="745.5" y2="397" stroke="#16a34a" stroke-width="2"/>
+  <line x1="885.5" y1="397" x2="974.5" y2="397" stroke="#16a34a" stroke-width="2"/>
+  <rect x="65.0" y="380" width="151" height="34" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="140.5" y="402" font-size="13" text-anchor="middle" fill="#14532d" font-family="Consolas, 'Courier New', monospace">C-01 Customer</text>
+  <rect x="286.0" y="380" width="151" height="34" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="361.5" y="402" font-size="13" text-anchor="middle" fill="#14532d" font-family="Consolas, 'Courier New', monospace">Address</text>
+  <rect x="520.5" y="380" width="140" height="34" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="590.5" y="402" font-size="13" text-anchor="middle" fill="#14532d" font-family="Consolas, 'Courier New', monospace">&quot;Da Nang&quot;</text>
+  <rect x="745.5" y="380" width="140" height="34" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="815.5" y="402" font-size="13" text-anchor="middle" fill="#14532d" font-family="Consolas, 'Courier New', monospace">&quot;DA NANG&quot;</text>
+  <rect x="974.5" y="380" width="140" height="34" rx="6" fill="#dcfce7" stroke="#15803d" stroke-width="2"/>
+  <text x="1044.5" y="402" font-size="13" font-weight="700" text-anchor="middle" fill="#15803d" font-family="Consolas, 'Courier New', monospace">&quot;DA NANG&quot;</text>
+  <!-- Row C-17 -->
+  <line x1="216.0" y1="449" x2="286.0" y2="449" stroke="#16a34a" stroke-width="2"/>
+  <line x1="437.0" y1="449" x2="974.5" y2="449" stroke="#b45309" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="705.75" y="441" font-size="13" text-anchor="middle" fill="#92400e">skips map and map: nothing to call them on</text>
+  <rect x="65.0" y="432" width="151" height="34" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="140.5" y="454" font-size="13" text-anchor="middle" fill="#14532d" font-family="Consolas, 'Courier New', monospace">C-17 Customer</text>
+  <rect x="286.0" y="432" width="151" height="34" rx="6" fill="#fffbeb" stroke="#b45309" stroke-width="2"/>
+  <text x="361.5" y="454" font-size="13" font-weight="700" text-anchor="middle" fill="#92400e" font-family="Consolas, 'Courier New', monospace">empty</text>
+  <rect x="974.5" y="432" width="140" height="34" rx="6" fill="#dcfce7" stroke="#15803d" stroke-width="2"/>
+  <text x="1044.5" y="454" font-size="13" font-weight="700" text-anchor="middle" fill="#15803d" font-family="Consolas, 'Courier New', monospace">&quot;(no city)&quot;</text>
+  <!-- Row C-99 -->
+  <line x1="216.0" y1="501" x2="974.5" y2="501" stroke="#b45309" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="595.25" y="493" font-size="13" text-anchor="middle" fill="#92400e">skips flatMap, map and map</text>
+  <rect x="65.0" y="484" width="151" height="34" rx="6" fill="#fffbeb" stroke="#b45309" stroke-width="2"/>
+  <text x="140.5" y="506" font-size="13" font-weight="700" text-anchor="middle" fill="#92400e" font-family="Consolas, 'Courier New', monospace">C-99 empty</text>
+  <rect x="974.5" y="484" width="140" height="34" rx="6" fill="#dcfce7" stroke="#15803d" stroke-width="2"/>
+  <text x="1044.5" y="506" font-size="13" font-weight="700" text-anchor="middle" fill="#15803d" font-family="Consolas, 'Courier New', monospace">&quot;(no city)&quot;</text>
+
+  <text x="64" y="556" font-size="14" fill="#14532d">map, flatMap and filter only touch a present value. An empty Optional passes through untouched, and orElse gives the answer.</text>
+</svg>

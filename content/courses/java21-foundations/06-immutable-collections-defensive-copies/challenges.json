@@ -1,0 +1,59 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_fix_javaf_231",
+      "name": "fix-saved-orders-that-change",
+      "type": "fix_bug",
+      "title": "Stop saved orders from changing after checkout",
+      "description": "Mekong Books' CheckoutService reuses one ArrayList as the cart buffer for every customer, and the Order record keeps whatever list it is given. Saved orders lose their books when the cart is cleared, show the books of the next customer, and a free gift added to one order lands in the next customer's cart. The old promotions module also adds lines with order.lines().add(...). Fix the code so that an Order never changes after it is created and order.lines() cannot be modified, and rewrite gift(id, isbn) so that it replaces the saved order with a new Order that has one extra line. The test runner reads a list of commands (add, checkout, gift, promo) from stdin, runs them on one service and prints every saved order at the end. The full rules and the output format are in the comment at the top of the starter.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "java",
+        "filePath": "Main.java",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "One order keeps its lines after the cart is cleared",
+          "input": "add 9786041000011 2\nadd 9786041000028 1\ncheckout\n",
+          "expected": "checkout MB-1001: 2 line(s)\norders:\nMB-1001: 9786041000011 x2, 9786041000028 x1",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "The next customer's cart does not change a saved order",
+          "input": "add 9786041000011 2\ncheckout\nadd 9786041000028 1\nadd 9786041000035 3\ncheckout\nadd 9786041000042 1\n",
+          "expected": "checkout MB-1001: 1 line(s)\ncheckout MB-1002: 2 line(s)\norders:\nMB-1001: 9786041000011 x2\nMB-1002: 9786041000028 x1, 9786041000035 x3",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "The promotions module cannot add lines through order.lines()",
+          "input": "add 9786041000011 1\ncheckout\npromo MB-1001 PROMO-TOTE\nadd 9786041000028 1\ncheckout\n",
+          "expected": "checkout MB-1001: 1 line(s)\nerror: order MB-1001 is read-only\ncheckout MB-1002: 1 line(s)\norders:\nMB-1001: 9786041000011 x1\nMB-1002: 9786041000028 x1",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A gift replaces one order with a new one; other orders and later carts stay unchanged",
+          "input": "add 9786041000011 1\ncheckout\nadd 9786041000028 2\ncheckout\ngift MB-1001 GIFT-BOOKMARK\nadd 9786041000035 1\ncheckout\npromo MB-1002 PROMO-TOTE\n",
+          "expected": "checkout MB-1001: 1 line(s)\ncheckout MB-1002: 1 line(s)\ngift added to MB-1001\ncheckout MB-1003: 1 line(s)\nerror: order MB-1002 is read-only\norders:\nMB-1001: 9786041000011 x1, GIFT-BOOKMARK x1\nMB-1002: 9786041000028 x2\nMB-1003: 9786041000035 x1",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Empty cart, unknown order ids and two gifts on the same order",
+          "input": "checkout\ngift MB-1009 GIFT-BOOKMARK\npromo MB-1009 PROMO-TOTE\nadd 9786041000011 3\ncheckout\ngift MB-1001 GIFT-BOOKMARK\ngift MB-1001 GIFT-CARD\npromo MB-1001 PROMO-TOTE\n",
+          "expected": "error: cart is empty\nerror: no order MB-1009\nerror: no order MB-1009\ncheckout MB-1001: 1 line(s)\ngift added to MB-1001\ngift added to MB-1001\nerror: order MB-1001 is read-only\norders:\nMB-1001: 9786041000011 x3, GIFT-BOOKMARK x1, GIFT-CARD x1",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

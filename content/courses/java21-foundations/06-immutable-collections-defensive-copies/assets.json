@@ -1,0 +1,10 @@
+{
+  "images": {
+    "copy-vs-view-vs-shared": {
+      "publicId": "codedev/courses/java21-foundations/06-immutable-collections-defensive-copies/copy-vs-view-vs-shared",
+      "url": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/q_auto/v1792590391/codedev/courses/java21-foundations/06-immutable-collections-defensive-copies/copy-vs-view-vs-shared.png?_a=BAMAROWQ0",
+      "width": 1200,
+      "height": 600
+    }
+  }
+}

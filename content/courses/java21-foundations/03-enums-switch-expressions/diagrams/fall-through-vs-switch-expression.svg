@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Fall-through in a switch statement vs one arm in a switch expression</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Both compute the fee for method = STANDARD, subtotal = 200,000 VND. Standard delivery should cost 30,000.</text>
+
+  <!-- Left: switch statement -->
+  <rect x="40" y="108" width="540" height="320" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="140" font-size="18" font-weight="700" fill="#b91c1c">Old switch statement (case X:)</text>
+  <text x="64" y="164" font-size="13" fill="#7f1d1d">long fee = 30_000; then every line below the matching label runs until break</text>
+  <rect x="56" y="198" width="508" height="110" rx="4" fill="#fee2e2"/>
+  <g font-family="Consolas, 'Courier New', monospace" font-size="14" fill="#334155">
+    <text x="64" y="192">switch (method) {</text>
+    <text x="98" y="214" font-weight="700" fill="#b91c1c">case STANDARD:</text>
+    <text x="131" y="236">if (subtotal &gt;= 500_000) fee = 0;</text>
+    <text x="98" y="258" font-weight="700" fill="#b91c1c">case EXPRESS:</text>
+    <text x="131" y="280">fee += 25_000;</text>
+    <text x="131" y="302">break;</text>
+    <text x="98" y="324" fill="#94a3b8">default:</text>
+    <text x="131" y="346" fill="#94a3b8">break;</text>
+    <text x="64" y="368">}</text>
+  </g>
+  <text x="300" y="258" font-size="13" font-weight="700" fill="#b91c1c">no break above: runs on into EXPRESS</text>
+  <text x="300" y="214" font-size="13" fill="#7f1d1d">matches, starts here</text>
+  <rect x="64" y="378" width="492" height="38" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="80" y="403" font-size="15" font-weight="700" fill="#b91c1c">fee = 55,000 (the express surcharge was added)</text>
+
+  <!-- Right: switch expression -->
+  <rect x="620" y="108" width="540" height="320" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="140" font-size="18" font-weight="700" fill="#15803d">Switch expression (case X -&gt;)</text>
+  <text x="644" y="164" font-size="13" fill="#14532d">exactly one arm runs and its value becomes the result</text>
+  <rect x="636" y="198" width="508" height="22" rx="4" fill="#dcfce7"/>
+  <g font-family="Consolas, 'Courier New', monospace" font-size="14" fill="#334155">
+    <text x="644" y="192">return switch (method) {</text>
+    <text x="678" y="214" font-weight="700" fill="#15803d">case STANDARD -&gt; subtotal &gt;= FREE ? 0 : BASE;</text>
+    <text x="678" y="236" fill="#94a3b8">case EXPRESS -&gt; BASE + SURCHARGE;</text>
+    <text x="678" y="258" fill="#94a3b8">case PICKUP -&gt; 0;</text>
+    <text x="644" y="280">};</text>
+  </g>
+  <text x="644" y="318" font-size="14" fill="#14532d">No break to forget: an arm never runs into the next one.</text>
+  <text x="644" y="342" font-size="14" fill="#14532d">case STANDARD, EXPRESS -&gt; ... shares one arm on purpose.</text>
+  <rect x="644" y="378" width="492" height="38" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="660" y="403" font-size="15" font-weight="700" fill="#15803d">fee = 30,000</text>
+
+  <!-- Bottom: adding a constant -->
+  <rect x="40" y="448" width="1120" height="124" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="478" font-size="16" font-weight="700" fill="#334155">Later, a teammate adds SAME_DAY to enum ShippingMethod</text>
+  <text x="64" y="506" font-size="14" font-weight="700" fill="#b91c1c">switch statement:</text>
+  <text x="260" y="506" font-size="14" fill="#334155">compiles. SAME_DAY matches no case (or lands in default) and is charged a wrong fee.</text>
+  <text x="64" y="532" font-size="14" font-weight="700" fill="#15803d">switch expression:</text>
+  <text x="260" y="532" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">error: the switch expression does not cover all possible input values</text>
+  <text x="64" y="558" font-size="13" fill="#64748b">Without a default arm, the compiler lists every switch you still have to update. A default arm turns this check off.</text>
+</svg>

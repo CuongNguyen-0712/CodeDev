@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_javaf_221",
+      "name": "monthly-sales-report-streams",
+      "type": "mini_coding",
+      "title": "Write the monthly sales report with streams and collectors",
+      "description": "Mekong Books' monthly sales report reads one sale per line (date;isbn;title;category;qty;unitPrice) and must print revenue per category (highest first, ties A-Z), the top N titles by copies sold (the sum of qty, ties A-Z) and the totals. The same title sells on many days, so a toMap without a merge function crashes, counting() counts lines instead of copies, and a HashMap prints categories in hash order. Write report(sales, topN) with groupingBy, toMap with a merge function, sorted comparators and mapToLong. The exact output format is in the starter's header comment.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "java",
+        "filePath": "Main.java",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Example from the header: Clean Code sold on two days",
+          "input": "TOP 2\n2026-09-01;9780132350884;Clean Code;Programming;2;240000\n2026-09-01;9780441172719;Dune;Novels;1;210000\n2026-09-02;9780132350884;Clean Code;Programming;1;240000\n2026-09-03;9780201616224;The Pragmatic Programmer;Programming;1;350000\n2026-09-03;9780441172719;Dune;Novels;1;210000\n",
+          "expected": "Revenue by category\nProgramming: 1,070,000\nNovels: 420,000\nTop 2 titles by copies\n1. Clean Code: 3\n2. Dune: 2\nTotal: 6 copies, 1,490,000 VND",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Five categories, top 3, equal copies sorted A-Z",
+          "input": "TOP 3\n2026-10-01;9780735211292;Atomic Habits;Self-help;3;189000\n2026-10-01;9780062316097;Sapiens;History;1;260000\n2026-10-02;9780132350884;Clean Code;Programming;1;240000\n2026-10-02;9780735211292;Atomic Habits;Self-help;2;189000\n2026-10-03;9780441172719;Dune;Novels;2;210000\n2026-10-04;9780062316097;Sapiens;History;2;260000\n2026-10-05;9780132350884;Clean Code;Programming;1;240000\n2026-10-05;9780441172719;Dune;Novels;1;210000\n2026-10-06;9781847941831;Thinking, Fast and Slow;Business;1;295000\n",
+          "expected": "Revenue by category\nSelf-help: 945,000\nHistory: 780,000\nNovels: 630,000\nProgramming: 480,000\nBusiness: 295,000\nTop 3 titles by copies\n1. Atomic Habits: 5\n2. Dune: 3\n3. Sapiens: 3\nTotal: 14 copies, 3,130,000 VND",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Ties: equal category revenue and equal copies go A-Z",
+          "input": "TOP 3\n2026-11-01;9780441172719;Dune;Novels;2;150000\n2026-11-01;9780544003415;The Hobbit;Novels;1;150000\n2026-11-02;9780062316097;Sapiens;History;3;150000\n2026-11-02;9780735211292;Atomic Habits;Self-help;2;225000\n2026-11-03;9780201616224;The Pragmatic Programmer;Programming;1;350000\n2026-11-03;9780132350884;Clean Code;Programming;1;100000\n2026-11-04;9780544003415;The Hobbit;Novels;1;150000\n",
+          "expected": "Revenue by category\nNovels: 600,000\nHistory: 450,000\nProgramming: 450,000\nSelf-help: 450,000\nTop 3 titles by copies\n1. Sapiens: 3\n2. Atomic Habits: 2\n3. Dune: 2\nTotal: 11 copies, 1,950,000 VND",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "TOP 5 with only 3 titles lists all three",
+          "input": "TOP 5\n2026-12-01;9780441172719;Dune;Novels;1;210000\n2026-12-01;9780132350884;Clean Code;Programming;4;240000\n2026-12-02;9780441172719;Dune;Novels;2;210000\n2026-12-03;9780735211292;Atomic Habits;Self-help;3;189000\n",
+          "expected": "Revenue by category\nProgramming: 960,000\nNovels: 630,000\nSelf-help: 567,000\nTop 5 titles by copies\n1. Clean Code: 4\n2. Atomic Habits: 3\n3. Dune: 3\nTotal: 10 copies, 2,157,000 VND",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Big month: revenue over 3 billion VND stays exact",
+          "input": "TOP 1\n2026-12-20;9786040000011;Tu dien Anh-Viet;Dictionaries;300;4500000\n2026-12-20;9786040000028;Atlas Viet Nam;Maps;200;3200000\n2026-12-21;9786040000011;Tu dien Anh-Viet;Dictionaries;250;4500000\n2026-12-22;9780441172719;Dune;Novels;1;210000\n",
+          "expected": "Revenue by category\nDictionaries: 2,475,000,000\nMaps: 640,000,000\nNovels: 210,000\nTop 1 titles by copies\n1. Tu dien Anh-Viet: 550\nTotal: 751 copies, 3,115,210,000 VND",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "No sales: headers and zero totals",
+          "input": "TOP 3\n",
+          "expected": "Revenue by category\nTop 3 titles by copies\nTotal: 0 copies, 0 VND",
+          "hidden": false,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

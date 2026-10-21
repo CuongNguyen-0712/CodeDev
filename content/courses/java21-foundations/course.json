@@ -1,0 +1,116 @@
+{
+  "publicId": "java21-foundations",
+  "title": "Java 21 Foundations: Records, Collections & Streams",
+  "concept": "Start with modern Java 21: types and text blocks, classes and records, choosing collections, streams and collectors, sealed interfaces with pattern matching, Optional and exceptions.",
+  "description": "A beginner course for people who can write a little code and want modern, professional Java 21. Every lesson starts from a small incident at an online bookstore - a BOOK10 coupon that only works in tests, a school order invoiced at -1,294,967,296 VND, a cart that shows one book twice, free store pickup that costs 30,000 VND, a restock job that crashes with ConcurrentModificationException, a sales report that dies on a duplicate key, saved orders that change after checkout, e-wallet fees silently recorded as 0, an order page that crashes on a missing address, a price import that stops at line 37 - and fixes it with Java 21: types and text blocks, classes and records with equals/hashCode, enums and switch expressions, List, Set and Map, streams and collectors, immutable collections, sealed interfaces with pattern matching, Optional, exceptions and try-with-resources, ending with a mini project that puts it all together. 10 lessons with quizzes and Java coding challenges.",
+  "image": null,
+  "level": "beginner",
+  "durationMinutes": 228,
+  "instructor": "CodeDev Engineering Team",
+  "language": "Java",
+  "category": "Java Development",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 50,
+  "accessModel": "free",
+  "publishStatus": "draft",
+  "careerRoles": [
+    "student",
+    "backend_developer",
+    "mobile_developer"
+  ],
+  "skills": {
+    "data_structures": 3,
+    "api_design": 1
+  },
+  "goals": [
+    "fundamentals",
+    "first_job"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Java Basics",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-types-strings-text-blocks",
+          "title": "Types, strings & text blocks",
+          "sanityId": "lesson-javaf-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-classes-records-equals-hashcode",
+          "title": "Classes, records & equals/hashCode",
+          "sanityId": "lesson-javaf-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-enums-switch-expressions",
+          "title": "Enums & switch expressions",
+          "sanityId": "lesson-javaf-1-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Collections & Streams",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "04-list-set-map",
+          "title": "Choosing List, Set or Map",
+          "sanityId": "lesson-javaf-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "05-streams-collectors",
+          "title": "Streams & collectors",
+          "sanityId": "lesson-javaf-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-immutable-collections-defensive-copies",
+          "title": "Immutable collections & defensive copies",
+          "sanityId": "lesson-javaf-2-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Modern Java",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "07-sealed-pattern-matching",
+          "title": "Sealed interfaces & pattern matching for switch",
+          "sanityId": "lesson-javaf-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-optional-null-safety",
+          "title": "Optional & null safety",
+          "sanityId": "lesson-javaf-3-2"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Putting It Together",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "09-exceptions-try-with-resources",
+          "title": "Exceptions & try-with-resources",
+          "sanityId": "lesson-javaf-4-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "10-mini-project-inventory-report",
+          "title": "Mini project: an inventory report",
+          "sanityId": "lesson-javaf-4-2"
+        }
+      ]
+    }
+  ]
+}

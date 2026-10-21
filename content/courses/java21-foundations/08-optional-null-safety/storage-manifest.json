@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_javaf_321",
+      "key": "challenges/java/chal_fix_javaf_321/starter.java",
+      "contentType": "text/x-java; charset=utf-8",
+      "originalName": "Main.java",
+      "size": 6415
+    }
+  ]
+}

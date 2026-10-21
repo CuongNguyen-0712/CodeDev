@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">List, Set or Map: start from what the code must do</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Pick the interface from the question you need to answer, then the class from the iteration order you need.</text>
+
+  <!-- Column 1: List -->
+  <rect x="40" y="108" width="352" height="96" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="60" y="136" font-size="15" font-weight="700" fill="#334155">Keep every item in order,</text>
+  <text x="60" y="158" font-size="15" font-weight="700" fill="#334155">duplicates allowed, read by position?</text>
+  <text x="60" y="184" font-size="13" fill="#64748b">cart lines, scan log, a queue of jobs</text>
+  <line x1="216" y1="206" x2="216" y2="222" stroke="#2563eb" stroke-width="2"/>
+  <polygon points="210,220 222,220 216,231" fill="#2563eb"/>
+  <rect x="40" y="234" width="352" height="64" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="60" y="264" font-size="20" font-weight="700" fill="#2563eb" font-family="Consolas, 'Courier New', monospace">List&lt;E&gt;</text>
+  <text x="60" y="287" font-size="13" fill="#334155">get(i), add, contains walks the list: O(n)</text>
+  <rect x="40" y="314" width="352" height="64" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="60" y="340" font-size="15" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">ArrayList</text>
+  <text x="60" y="363" font-size="13" fill="#475569">order you added them, fast get(i)</text>
+
+  <!-- Column 2: Set -->
+  <rect x="424" y="108" width="352" height="96" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="444" y="136" font-size="15" font-weight="700" fill="#334155">Each item once, and a fast</text>
+  <text x="444" y="158" font-size="15" font-weight="700" fill="#334155">"is it already in there?"</text>
+  <text x="444" y="184" font-size="13" fill="#64748b">ISBNs already ordered, used coupon codes</text>
+  <line x1="600" y1="206" x2="600" y2="222" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="594,220 606,220 600,231" fill="#16a34a"/>
+  <rect x="424" y="234" width="352" height="64" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="444" y="264" font-size="20" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">Set&lt;E&gt;</text>
+  <text x="444" y="287" font-size="13" fill="#334155">add returns false for a duplicate</text>
+  <rect x="424" y="314" width="352" height="64" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="444" y="340" font-size="15" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">HashSet</text>
+  <text x="444" y="363" font-size="13" fill="#b91c1c">no order promised (hash order)</text>
+  <rect x="424" y="390" width="352" height="64" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="444" y="416" font-size="15" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">LinkedHashSet</text>
+  <text x="444" y="439" font-size="13" fill="#15803d">insertion order (first add wins)</text>
+  <rect x="424" y="466" width="352" height="64" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="444" y="492" font-size="15" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">TreeSet</text>
+  <text x="444" y="515" font-size="13" fill="#15803d">sorted order, O(log n) lookups</text>
+
+  <!-- Column 3: Map -->
+  <rect x="808" y="108" width="352" height="96" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="828" y="136" font-size="15" font-weight="700" fill="#334155">Look up a value by a key,</text>
+  <text x="828" y="158" font-size="15" font-weight="700" fill="#334155">or add up per key?</text>
+  <text x="828" y="184" font-size="13" fill="#64748b">ISBN to price, copies sold per category</text>
+  <line x1="984" y1="206" x2="984" y2="222" stroke="#b45309" stroke-width="2"/>
+  <polygon points="978,220 990,220 984,231" fill="#b45309"/>
+  <rect x="808" y="234" width="352" height="64" rx="10" fill="#fffbeb" stroke="#b45309" stroke-width="2"/>
+  <text x="828" y="264" font-size="20" font-weight="700" fill="#92400e" font-family="Consolas, 'Courier New', monospace">Map&lt;K, V&gt;</text>
+  <text x="828" y="287" font-size="13" fill="#334155">keys unique, put on a key replaces</text>
+  <rect x="808" y="314" width="352" height="64" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="828" y="340" font-size="15" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">HashMap</text>
+  <text x="828" y="363" font-size="13" fill="#b91c1c">no order promised (hash order)</text>
+  <rect x="808" y="390" width="352" height="64" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="828" y="416" font-size="15" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">LinkedHashMap</text>
+  <text x="828" y="439" font-size="13" fill="#15803d">order keys were first put</text>
+  <rect x="808" y="466" width="352" height="64" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="828" y="492" font-size="15" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">TreeMap</text>
+  <text x="828" y="515" font-size="13" fill="#15803d">keys sorted, O(log n) lookups</text>
+
+  <!-- Bottom-left note -->
+  <rect x="40" y="398" width="352" height="132" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="60" y="426" font-size="14" font-weight="700" fill="#334155">Declare with the interface</text>
+  <text x="60" y="452" font-size="13" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">List&lt;String&gt; x =</text>
+  <text x="91" y="472" font-size="13" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">new ArrayList&lt;&gt;();</text>
+  <text x="60" y="498" font-size="13" fill="#475569">swap the class later, callers</text>
+  <text x="60" y="516" font-size="13" fill="#475569">keep working</text>
+
+  <text x="40" y="568" font-size="14" fill="#475569">Hash and Linked classes: contains, add and get by key take about the same time however big the collection grows.</text>
+</svg>

@@ -1,0 +1,59 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_fix_javaf_121",
+      "name": "fix-cart-book-key",
+      "type": "fix_bug",
+      "title": "Merge cart lines: fix the BookKey",
+      "description": "The Mekong Books cart keeps one line per book in a LinkedHashMap keyed by BookKey. Customers see the same book twice in their cart, the count shows 0 for a book that is clearly there, and the remove button does nothing. ISBNs also arrive with and without hyphens (978-604-1-23456-7 and 9786041234567 are the same book). Fix BookKey so that every spelling of one ISBN is one key, and the cart merges, counts and removes lines correctly. The test runner reads add, remove and count commands and prints the cart at the end.",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "java",
+        "filePath": "Main.java",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The same ISBN added twice is one cart line",
+          "input": "add 9786041234567 2\nadd 9786047654321 1\nadd 9786041234567 1\n",
+          "expected": "cart:\n9786041234567 x 3\n9786047654321 x 1\nlines: 2, books: 4",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Hyphenated and plain spellings of one ISBN merge into one line",
+          "input": "add 978-604-1-23456-7 2\nadd 9786041234567 1\ncount 978-604-1-23456-7\n",
+          "expected": "count 978-604-1-23456-7: 3\ncart:\n9786041234567 x 3\nlines: 1, books: 3",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "count and remove find a line that was added earlier",
+          "input": "add 9786041112223 5\nadd 9786049000010 1\nremove 9786041112223 2\ncount 9786041112223\ncount 9786049000010\ncount 9786047654321\nremove 9786049000010 1\n",
+          "expected": "count 9786041112223: 3\ncount 9786049000010: 1\ncount 9786047654321: 0\ncart:\n9786041112223 x 3\nlines: 1, books: 3",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Mixed spellings, removes and counts keep first-added order",
+          "input": "add 978-604-76543-2-1 1\nadd 9786041234567 2\nadd 9786047654321 2\nadd 978-604-1-11222-3 4\nremove 978-604-1-23456-7 1\ncount 9786041112223\nremove 9786041234567 5\nadd 978-604-1-23456-7 1\ncount 978-604-76543-2-1\n",
+          "expected": "count 9786041112223: 4\ncount 978-604-76543-2-1: 3\ncart:\n9786047654321 x 3\n9786041112223 x 4\n9786041234567 x 1\nlines: 3, books: 8",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Removing every copy with the other spelling deletes the line",
+          "input": "add 9786049000010 3\nadd 978-604-1-11222-3 1\nremove 978-604-900-001-0 3\nremove 9786047654321 1\ncount 9786049000010\n",
+          "expected": "count 9786049000010: 0\ncart:\n9786041112223 x 1\nlines: 1, books: 1",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

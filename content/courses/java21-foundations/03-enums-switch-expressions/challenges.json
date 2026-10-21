@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_javaf_131",
+      "name": "shipping-fee-calculator",
+      "type": "mini_coding",
+      "title": "Shipping fees with an enum and a switch expression",
+      "description": "Mekong Books receives orders as text lines such as \"EXPRESS 3 DN\", \"standard 1 HCM\" or \"DRONE 1 HN\" (method, weight in kg, region). Write parseMethod(text), which turns the method name into a ShippingMethod constant in any letter case and returns null for an unknown name instead of throwing, and fee(method, kg, region), which computes the fee in VND with a switch expression: STANDARD 20,000 + 5,000 per kg, EXPRESS 35,000 + 10,000 per kg, PICKUP free, and 15,000 extra for STANDARD and EXPRESS outside HN and HCM. The runner prints one line per order, an error line for each unknown method and a summary line with the total.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "java",
+        "filePath": "Main.java",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Inner-city orders: STANDARD, EXPRESS and a free PICKUP",
+          "input": "STANDARD 2 HN\nEXPRESS 1 HCM\nPICKUP 4 HN\n",
+          "expected": "STANDARD 2kg HN: 30000\nEXPRESS 1kg HCM: 45000\nPICKUP 4kg HN: 0\norders: 3, errors: 0, total: 75000",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Outside HN and HCM adds 15,000; pickup stays free",
+          "input": "STANDARD 1 DN\nEXPRESS 3 CT\nPICKUP 2 DN\n",
+          "expected": "STANDARD 1kg DN: 40000\nEXPRESS 3kg CT: 80000\nPICKUP 2kg DN: 0\norders: 3, errors: 0, total: 120000",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Method names in any letter case",
+          "input": "express 2 HN\nStandard 1 HCM\npickup 1 DN\n",
+          "expected": "EXPRESS 2kg HN: 55000\nSTANDARD 1kg HCM: 25000\nPICKUP 1kg DN: 0\norders: 3, errors: 0, total: 80000",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Unknown methods give an error line, not a crash",
+          "input": "DRONE 1 HN\nEXPRES 2 HN\nSTANDARD 1 HN\n",
+          "expected": "error: unknown method DRONE\nerror: unknown method EXPRES\nSTANDARD 1kg HN: 25000\norders: 1, errors: 2, total: 25000",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Mixed batch with blank lines, extra spaces and an unknown method",
+          "input": "  express   1   DN \n\nPICKUP 3 HCM\nstandard 5 HUE\nBike 1 HN\n\n",
+          "expected": "EXPRESS 1kg DN: 60000\nPICKUP 3kg HCM: 0\nSTANDARD 5kg HUE: 60000\nerror: unknown method Bike\norders: 3, errors: 1, total: 120000",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Heavier parcels across regions",
+          "input": "EXPRESS 20 HUE\nSTANDARD 12 CT\npickup 7 HUE\nexpress 1 HN\nStandard 4 HN\n",
+          "expected": "EXPRESS 20kg HUE: 250000\nSTANDARD 12kg CT: 95000\nPICKUP 7kg HUE: 0\nEXPRESS 1kg HN: 45000\nSTANDARD 4kg HN: 40000\norders: 5, errors: 0, total: 430000",
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_javaf_112",
+      "key": "challenges/java/chal_coding_javaf_112/starter.java",
+      "contentType": "text/x-java; charset=utf-8",
+      "originalName": "Main.java",
+      "size": 4591
+    }
+  ]
+}
