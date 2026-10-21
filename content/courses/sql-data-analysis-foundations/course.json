@@ -1,0 +1,61 @@
+{
+  "publicId": "sql-data-analysis-foundations",
+  "title": "Data Analysis Foundations: SQL Thinking & Python Analytics",
+  "concept": "Answer business questions with data: filtering and aggregating with SQL, joins without double counting, window functions for trends and cohorts, then summarizing and checking results in Python. Queries run on SQLite.",
+  "description": "A beginner course for anyone who has to answer business questions with data and wants the numbers to be right. Every lesson starts from a wrong number in a real report at Beanbox, a small online coffee shop - a coupon count inflated by AND/OR precedence, \"customers\" that are really orders, a filter that drops every NULL, a March missing its last day, revenue double counted by a join, a retention rate divided by the wrong denominator - and fixes it in SQL on SQLite: filtering and aggregating, NULL logic, dates and CASE, joins without double counting, CTEs, window functions and cohort tables, then checking every result from Python before it is sent. 9 lessons with hands-on SQL challenges.",
+  "image": null,
+  "level": "beginner",
+  "durationMinutes": 209,
+  "instructor": "CodeDev Engineering Team",
+  "language": "SQL",
+  "category": "Data Science",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 50,
+  "accessModel": "free",
+  "publishStatus": "draft",
+  "careerRoles": [
+    "data_analyst",
+    "data_engineer",
+    "student"
+  ],
+  "skills": {
+    "sql": 5,
+    "data_analysis": 5,
+    "python": 3
+  },
+  "goals": [
+    "fundamentals",
+    "first_job",
+    "change_career"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Querying",
+      "lessons": [
+        { "orderIndex": 1, "folder": "01-select-where-clause-order", "title": "SELECT, WHERE & the order clauses run in", "sanityId": "lesson-sqlf-1-1" },
+        { "orderIndex": 2, "folder": "02-aggregates-group-by", "title": "Aggregates & GROUP BY: counting the right thing", "sanityId": "lesson-sqlf-1-2" },
+        { "orderIndex": 3, "folder": "03-nulls-three-valued-logic", "title": "NULLs: the three-valued logic trap", "sanityId": "lesson-sqlf-1-3" },
+        { "orderIndex": 4, "folder": "04-dates-case-buckets", "title": "Dates & CASE: monthly reports that add up", "sanityId": "lesson-sqlf-1-4" }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Combining Data",
+      "lessons": [
+        { "orderIndex": 1, "folder": "05-joins-double-counting", "title": "Joins without double counting", "sanityId": "lesson-sqlf-2-1" },
+        { "orderIndex": 2, "folder": "06-subqueries-ctes", "title": "Subqueries & CTEs for readable analysis", "sanityId": "lesson-sqlf-2-2" }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Trends & Checks",
+      "lessons": [
+        { "orderIndex": 1, "folder": "07-window-functions", "title": "Window functions: running totals & rankings", "sanityId": "lesson-sqlf-3-1" },
+        { "orderIndex": 2, "folder": "08-cohorts-retention", "title": "Cohorts & retention tables", "sanityId": "lesson-sqlf-3-2" },
+        { "orderIndex": 3, "folder": "09-sanity-checks-python", "title": "From query to answer: sanity checks in Python", "sanityId": "lesson-sqlf-3-3" }
+      ]
+    }
+  ]
+}

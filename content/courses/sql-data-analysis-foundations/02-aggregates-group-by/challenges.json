@@ -1,0 +1,483 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_sqlf_121",
+      "name": "repeat-buyers-summary",
+      "type": "mini_coding",
+      "title": "Summarise Beanbox's repeat buyers",
+      "description": "Write one SQLite query over orders that returns one row per customer with at least 2 paid orders: customer_id, the number of paid orders, the number of different coupon codes used, the amount spent in cents and the average order in whole cents (rounded, not truncated). Only paid orders count. Sort by amount spent, highest first, then by customer_id. The test runner at the bottom of the file builds the table from each test case and prints your rows as JSON.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "repeat_buyers.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Paid orders per customer, only customers with 2 or more",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 1,
+                  "ordered_at": "2026-10-13 11:00:00",
+                  "status": "paid",
+                  "total_cents": 1200,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 2,
+                  "ordered_at": "2026-10-14 12:00:00",
+                  "status": "paid",
+                  "total_cents": 2500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 3,
+                  "ordered_at": "2026-10-15 13:00:00",
+                  "status": "paid",
+                  "total_cents": 900,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 1,
+                  "ordered_at": "2026-10-16 14:00:00",
+                  "status": "paid",
+                  "total_cents": 1800,
+                  "coupon_code": "FALL15"
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 3,
+                  "ordered_at": "2026-10-17 15:00:00",
+                  "status": "paid",
+                  "total_cents": 1200,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 3,
+                  "ordered_at": "2026-10-18 16:00:00",
+                  "status": "paid",
+                  "total_cents": 1000,
+                  "coupon_code": "WELCOME10"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              3,
+              3,
+              1,
+              3100,
+              1033
+            ],
+            [
+              1,
+              2,
+              1,
+              3000,
+              1500
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Cancelled orders are not paid orders",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 7,
+                  "customer_id": 1,
+                  "ordered_at": "2026-10-12 17:00:00",
+                  "status": "paid",
+                  "total_cents": 2000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 8,
+                  "customer_id": 2,
+                  "ordered_at": "2026-10-13 18:00:00",
+                  "status": "paid",
+                  "total_cents": 1500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 9,
+                  "customer_id": 1,
+                  "ordered_at": "2026-10-14 19:00:00",
+                  "status": "cancelled",
+                  "total_cents": 9000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 10,
+                  "customer_id": 2,
+                  "ordered_at": "2026-10-15 10:00:00",
+                  "status": "cancelled",
+                  "total_cents": 12000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 11,
+                  "customer_id": 2,
+                  "ordered_at": "2026-10-16 11:00:00",
+                  "status": "paid",
+                  "total_cents": 1500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 12,
+                  "customer_id": 3,
+                  "ordered_at": "2026-10-17 12:00:00",
+                  "status": "cancelled",
+                  "total_cents": 3000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 13,
+                  "customer_id": 3,
+                  "ordered_at": "2026-10-18 13:00:00",
+                  "status": "cancelled",
+                  "total_cents": 3000,
+                  "coupon_code": null
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              2,
+              2,
+              0,
+              3000,
+              1500
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The average is rounded to the nearest whole cent",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 14,
+                  "customer_id": 5,
+                  "ordered_at": "2026-10-12 14:00:00",
+                  "status": "paid",
+                  "total_cents": 1000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 15,
+                  "customer_id": 6,
+                  "ordered_at": "2026-10-13 15:00:00",
+                  "status": "paid",
+                  "total_cents": 1999,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 16,
+                  "customer_id": 5,
+                  "ordered_at": "2026-10-14 16:00:00",
+                  "status": "paid",
+                  "total_cents": 1001,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 17,
+                  "customer_id": 6,
+                  "ordered_at": "2026-10-15 17:00:00",
+                  "status": "paid",
+                  "total_cents": 2000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 18,
+                  "customer_id": 5,
+                  "ordered_at": "2026-10-16 18:00:00",
+                  "status": "paid",
+                  "total_cents": 1001,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 19,
+                  "customer_id": 6,
+                  "ordered_at": "2026-10-17 19:00:00",
+                  "status": "paid",
+                  "total_cents": 2000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 20,
+                  "customer_id": 6,
+                  "ordered_at": "2026-10-18 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2000,
+                  "coupon_code": null
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              6,
+              4,
+              0,
+              7999,
+              2000
+            ],
+            [
+              5,
+              3,
+              0,
+              3002,
+              1001
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Refunded and pending orders do not count either",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 21,
+                  "customer_id": 1,
+                  "ordered_at": "2026-10-12 11:00:00",
+                  "status": "paid",
+                  "total_cents": 2000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 22,
+                  "customer_id": 1,
+                  "ordered_at": "2026-10-13 12:00:00",
+                  "status": "refunded",
+                  "total_cents": 2000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 23,
+                  "customer_id": 2,
+                  "ordered_at": "2026-10-14 13:00:00",
+                  "status": "paid",
+                  "total_cents": 1000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 24,
+                  "customer_id": 2,
+                  "ordered_at": "2026-10-15 14:00:00",
+                  "status": "pending",
+                  "total_cents": 4000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 25,
+                  "customer_id": 2,
+                  "ordered_at": "2026-10-16 15:00:00",
+                  "status": "paid",
+                  "total_cents": 1500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 26,
+                  "customer_id": 3,
+                  "ordered_at": "2026-10-17 16:00:00",
+                  "status": "paid",
+                  "total_cents": 800,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 27,
+                  "customer_id": 3,
+                  "ordered_at": "2026-10-18 17:00:00",
+                  "status": "paid",
+                  "total_cents": 700,
+                  "coupon_code": null
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              2,
+              2,
+              0,
+              2500,
+              1250
+            ],
+            [
+              3,
+              2,
+              0,
+              1500,
+              750
+            ]
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A coupon code used twice counts once, and no coupon is not a code",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 28,
+                  "customer_id": 1,
+                  "ordered_at": "2026-10-12 18:00:00",
+                  "status": "paid",
+                  "total_cents": 1500,
+                  "coupon_code": "WELCOME10"
+                },
+                {
+                  "order_id": 29,
+                  "customer_id": 2,
+                  "ordered_at": "2026-10-13 19:00:00",
+                  "status": "paid",
+                  "total_cents": 2000,
+                  "coupon_code": "FALL15"
+                },
+                {
+                  "order_id": 30,
+                  "customer_id": 1,
+                  "ordered_at": "2026-10-14 10:00:00",
+                  "status": "paid",
+                  "total_cents": 1500,
+                  "coupon_code": "WELCOME10"
+                },
+                {
+                  "order_id": 31,
+                  "customer_id": 2,
+                  "ordered_at": "2026-10-15 11:00:00",
+                  "status": "paid",
+                  "total_cents": 2200,
+                  "coupon_code": "WINTER5"
+                },
+                {
+                  "order_id": 32,
+                  "customer_id": 1,
+                  "ordered_at": "2026-10-16 12:00:00",
+                  "status": "paid",
+                  "total_cents": 1500,
+                  "coupon_code": null
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              1,
+              3,
+              1,
+              4500,
+              1500
+            ],
+            [
+              2,
+              2,
+              2,
+              4200,
+              2100
+            ]
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Equal spend is sorted by customer_id",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 33,
+                  "customer_id": 9,
+                  "ordered_at": "2026-10-17 13:00:00",
+                  "status": "paid",
+                  "total_cents": 2500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 34,
+                  "customer_id": 7,
+                  "ordered_at": "2026-10-18 14:00:00",
+                  "status": "paid",
+                  "total_cents": 6000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 35,
+                  "customer_id": 4,
+                  "ordered_at": "2026-10-12 15:00:00",
+                  "status": "paid",
+                  "total_cents": 1000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 36,
+                  "customer_id": 9,
+                  "ordered_at": "2026-10-13 16:00:00",
+                  "status": "paid",
+                  "total_cents": 2500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 37,
+                  "customer_id": 4,
+                  "ordered_at": "2026-10-14 17:00:00",
+                  "status": "paid",
+                  "total_cents": 4000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 38,
+                  "customer_id": 7,
+                  "ordered_at": "2026-10-15 18:00:00",
+                  "status": "cancelled",
+                  "total_cents": 6000,
+                  "coupon_code": null
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              4,
+              2,
+              0,
+              5000,
+              2500
+            ],
+            [
+              9,
+              2,
+              0,
+              5000,
+              2500
+            ]
+          ],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

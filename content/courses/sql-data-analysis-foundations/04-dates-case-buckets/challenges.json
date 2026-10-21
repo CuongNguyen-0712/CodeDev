@@ -1,0 +1,534 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sqlf_141",
+      "name": "dates-between-and-case-quiz",
+      "type": "quiz",
+      "title": "Which rows does BETWEEN keep, and what does a CASE without ELSE sum to?",
+      "description": "Two small computations from the March report incident: a BETWEEN on text timestamps, and conditional aggregates over a month with no refunds.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The orders table has six rows with these ordered_at values (TEXT, UTC):\n\n'2026-02-28 23:59:59'\n'2026-03-01 00:00:00'\n'2026-03-14 12:30:00'\n'2026-03-31 00:00:00'\n'2026-03-31 18:45:10'\n'2026-04-01 00:00:00'\n\nHow many rows does this query count in SQLite?\n\nSELECT COUNT(*) FROM orders\nWHERE ordered_at BETWEEN '2026-03-01' AND '2026-03-31';",
+          "explanation": "BETWEEN a AND b means ordered_at >= a AND ordered_at <= b, and both sides are TEXT, so SQLite compares them character by character. '2026-03-01 00:00:00' starts with '2026-03-01' and is longer, so it is greater than '2026-03-01': kept. '2026-03-14 12:30:00' is between the bounds: kept. Both 31 March rows start with '2026-03-31' and are longer, so they are greater than '2026-03-31' and fail the <= test - even the one at exactly midnight. February 28 and April 1 are outside. Result: 2 rows, and every 31 March order is lost. The half-open range ordered_at >= '2026-03-01' AND ordered_at < '2026-04-01' keeps all four March rows.",
+          "options": [
+            {
+              "text": "2",
+              "correct": true
+            },
+            {
+              "text": "3",
+              "correct": false
+            },
+            {
+              "text": "4",
+              "correct": false
+            },
+            {
+              "text": "5",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "In May, the orders table has exactly three orders: (status 'paid', total_cents 2500), ('paid', 4000) and ('cancelled', 1800). What does this query return?\n\nSELECT SUM(CASE WHEN status = 'refunded' THEN total_cents END)        AS refunded_cents,\n       COUNT(CASE WHEN status = 'refunded' THEN 1 END)                AS refunds,\n       SUM(CASE WHEN status = 'paid' THEN total_cents ELSE 0 END)     AS paid_cents\nFROM orders;",
+          "explanation": "A CASE without ELSE returns NULL when no WHEN matches. No order is refunded, so the first CASE is NULL on all three rows, and SUM over only NULLs is NULL, not 0. COUNT(expression) counts the non-NULL values, and there are none, so COUNT returns 0 - COUNT never returns NULL. The third CASE has ELSE 0, so it adds 2500 + 4000 + 0 = 6500. This is why conditional sums in a report always get ELSE 0: a NULL cell breaks totals and comparisons further down (NULL + 6500 is NULL).",
+          "options": [
+            {
+              "text": "refunded_cents NULL, refunds 0, paid_cents 6500",
+              "correct": true
+            },
+            {
+              "text": "refunded_cents 0, refunds 0, paid_cents 6500",
+              "correct": false
+            },
+            {
+              "text": "refunded_cents NULL, refunds NULL, paid_cents 6500",
+              "correct": false
+            },
+            {
+              "text": "refunded_cents 0, refunds 0, paid_cents 8300",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_sqlf_142",
+      "name": "monthly-paid-refunded-report",
+      "type": "mini_coding",
+      "title": "Build the monthly report finance can reconcile",
+      "description": "Write the SQL for finance's monthly report: for the half-open period [:start, :end), one row per month 'YYYY-MM' that had any order, with all_orders, paid_orders, paid_cents and refunded_cents. Use conditional aggregation so paid and refunded money land in separate columns, never NULL, and make sure the last day of the period is fully included. The test runner at the bottom of the file builds the orders table and prints your rows as JSON.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "monthly_report.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Two months: paid and refunded money in separate columns",
+          "input": {
+            "params": {
+              "start": "2026-01-01",
+              "end": "2026-03-01"
+            },
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 2,
+                  "ordered_at": "2026-01-05 10:12:00",
+                  "status": "paid",
+                  "total_cents": 4200,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 3,
+                  "ordered_at": "2026-01-19 21:40:00",
+                  "status": "refunded",
+                  "total_cents": 3600,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 4,
+                  "ordered_at": "2026-01-27 08:00:00",
+                  "status": "paid",
+                  "total_cents": 1500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 5,
+                  "ordered_at": "2026-02-02 08:05:00",
+                  "status": "paid",
+                  "total_cents": 2900,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 1,
+                  "ordered_at": "2026-02-14 19:30:00",
+                  "status": "paid",
+                  "total_cents": 12500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 2,
+                  "ordered_at": "2026-02-20 11:00:00",
+                  "status": "refunded",
+                  "total_cents": 2000,
+                  "coupon_code": null
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "2026-01",
+              3,
+              2,
+              5700,
+              3600
+            ],
+            [
+              "2026-02",
+              3,
+              2,
+              15400,
+              2000
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Cancelled and pending orders count only in all_orders; no refunds means 0, not NULL",
+          "input": {
+            "params": {
+              "start": "2026-03-01",
+              "end": "2026-04-01"
+            },
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 2,
+                  "ordered_at": "2026-03-02 09:00:00",
+                  "status": "paid",
+                  "total_cents": 2500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 3,
+                  "ordered_at": "2026-03-05 18:30:00",
+                  "status": "cancelled",
+                  "total_cents": 4000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 4,
+                  "ordered_at": "2026-03-09 07:15:00",
+                  "status": "pending",
+                  "total_cents": 1800,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 5,
+                  "ordered_at": "2026-03-21 16:45:00",
+                  "status": "paid",
+                  "total_cents": 6100,
+                  "coupon_code": null
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "2026-03",
+              4,
+              2,
+              8600,
+              0
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Orders outside the period are ignored",
+          "input": {
+            "params": {
+              "start": "2026-01-01",
+              "end": "2026-02-01"
+            },
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 2,
+                  "ordered_at": "2025-12-31 23:59:59",
+                  "status": "paid",
+                  "total_cents": 9900,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 3,
+                  "ordered_at": "2026-01-01 00:00:00",
+                  "status": "paid",
+                  "total_cents": 3000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 4,
+                  "ordered_at": "2026-01-15 12:00:00",
+                  "status": "refunded",
+                  "total_cents": 4500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 5,
+                  "ordered_at": "2026-02-01 00:00:00",
+                  "status": "paid",
+                  "total_cents": 7700,
+                  "coupon_code": null
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "2026-01",
+              2,
+              1,
+              3000,
+              4500
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "An order at 23:59:59 on the last day counts; the first second of the next month does not",
+          "input": {
+            "params": {
+              "start": "2026-03-01",
+              "end": "2026-04-01"
+            },
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 2,
+                  "ordered_at": "2026-03-10 10:00:00",
+                  "status": "paid",
+                  "total_cents": 5400,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 3,
+                  "ordered_at": "2026-03-31 14:05:00",
+                  "status": "paid",
+                  "total_cents": 18900,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 4,
+                  "ordered_at": "2026-03-31 23:59:59",
+                  "status": "refunded",
+                  "total_cents": 3100,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 5,
+                  "ordered_at": "2026-04-01 00:00:00",
+                  "status": "paid",
+                  "total_cents": 4400,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 1,
+                  "ordered_at": "2026-02-28 23:59:59",
+                  "status": "paid",
+                  "total_cents": 1200,
+                  "coupon_code": null
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "2026-03",
+              3,
+              2,
+              24300,
+              3100
+            ]
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A month with only cancelled orders still appears, with zeros",
+          "input": {
+            "params": {
+              "start": "2026-01-01",
+              "end": "2026-04-01"
+            },
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 2,
+                  "ordered_at": "2026-01-08 09:30:00",
+                  "status": "paid",
+                  "total_cents": 4200,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 3,
+                  "ordered_at": "2026-01-30 20:00:00",
+                  "status": "refunded",
+                  "total_cents": 4200,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 4,
+                  "ordered_at": "2026-02-03 10:00:00",
+                  "status": "cancelled",
+                  "total_cents": 2600,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 5,
+                  "ordered_at": "2026-02-17 15:20:00",
+                  "status": "cancelled",
+                  "total_cents": 8800,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 1,
+                  "ordered_at": "2026-03-04 12:00:00",
+                  "status": "paid",
+                  "total_cents": 3500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 2,
+                  "ordered_at": "2026-03-11 08:45:00",
+                  "status": "pending",
+                  "total_cents": 1900,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 7,
+                  "customer_id": 3,
+                  "ordered_at": "2026-03-28 22:10:00",
+                  "status": "paid",
+                  "total_cents": 6400,
+                  "coupon_code": null
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "2026-01",
+              2,
+              1,
+              4200,
+              4200
+            ],
+            [
+              "2026-02",
+              2,
+              0,
+              0,
+              0
+            ],
+            [
+              "2026-03",
+              3,
+              2,
+              9900,
+              0
+            ]
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A period that starts and ends mid-month, unsorted input, a month with refunds only",
+          "input": {
+            "params": {
+              "start": "2026-01-15",
+              "end": "2026-03-15"
+            },
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 2,
+                  "ordered_at": "2026-03-14 23:59:59",
+                  "status": "paid",
+                  "total_cents": 2700,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 3,
+                  "ordered_at": "2026-02-11 13:00:00",
+                  "status": "refunded",
+                  "total_cents": 5600,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 4,
+                  "ordered_at": "2026-01-14 23:59:59",
+                  "status": "paid",
+                  "total_cents": 9100,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 5,
+                  "ordered_at": "2026-03-15 00:00:00",
+                  "status": "paid",
+                  "total_cents": 4300,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 1,
+                  "ordered_at": "2026-01-15 00:00:00",
+                  "status": "paid",
+                  "total_cents": 1900,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 2,
+                  "ordered_at": "2026-02-25 06:30:00",
+                  "status": "refunded",
+                  "total_cents": 1500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 7,
+                  "customer_id": 3,
+                  "ordered_at": "2026-03-02 17:40:00",
+                  "status": "refunded",
+                  "total_cents": 2200,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 8,
+                  "customer_id": 4,
+                  "ordered_at": "2026-01-31 23:30:00",
+                  "status": "pending",
+                  "total_cents": 3300,
+                  "coupon_code": null
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "2026-01",
+              2,
+              1,
+              1900,
+              0
+            ],
+            [
+              "2026-02",
+              2,
+              0,
+              0,
+              7100
+            ],
+            [
+              "2026-03",
+              2,
+              1,
+              2700,
+              2200
+            ]
+          ],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

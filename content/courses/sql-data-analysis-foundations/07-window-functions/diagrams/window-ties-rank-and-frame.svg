@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Ties decide the answer: rankings and running totals</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Rows with the same ORDER BY value are peers. Each ranking function, and each window frame, treats peers differently.</text>
+  <!-- Left: ranking functions on ties -->
+  <rect x="40" y="108" width="545" height="340" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="60" y="140" font-size="18" font-weight="700" fill="#0e7490">Ranking 7 products by units sold</text>
+  <text x="60" y="162" font-size="13" fill="#64748b" font-family="Consolas, 'Courier New', monospace">... OVER (ORDER BY units_sold DESC)</text>
+  <text x="60" y="192" font-size="13" font-weight="700" fill="#334155" text-anchor="start" font-family="Consolas, 'Courier New', monospace">name</text>
+  <text x="305" y="192" font-size="13" font-weight="700" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">units</text>
+  <text x="375" y="192" font-size="13" font-weight="700" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">ROW_NUMBER</text>
+  <text x="455" y="192" font-size="13" font-weight="700" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">RANK</text>
+  <text x="530" y="192" font-size="13" font-weight="700" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">DENSE_RANK</text>
+  <line x1="56" y1="200" x2="569" y2="200" stroke="#94a3b8" stroke-width="1.5"/>
+  <rect x="56" y="230" width="513" height="78" rx="6" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
+  <rect x="56" y="308" width="513" height="78" rx="6" fill="#ffffff" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="66" y="222" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">Ethiopia Yirgacheffe 250g</text>
+  <text x="305" y="222" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">5</text>
+  <text x="375" y="222" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">1</text>
+  <text x="455" y="222" font-size="14" font-weight="700" fill="#0e7490" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">1</text>
+  <text x="530" y="222" font-size="14" font-weight="700" fill="#0e7490" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">1</text>
+  <text x="66" y="248" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">Colombia Huila 250g</text>
+  <text x="305" y="248" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">3</text>
+  <text x="375" y="248" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">2</text>
+  <text x="455" y="248" font-size="14" font-weight="700" fill="#0e7490" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">2</text>
+  <text x="530" y="248" font-size="14" font-weight="700" fill="#0e7490" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">2</text>
+  <text x="66" y="274" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">Gooseneck kettle</text>
+  <text x="305" y="274" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">3</text>
+  <text x="375" y="274" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">3</text>
+  <text x="455" y="274" font-size="14" font-weight="700" fill="#0e7490" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">2</text>
+  <text x="530" y="274" font-size="14" font-weight="700" fill="#0e7490" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">2</text>
+  <text x="66" y="300" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">Hand grinder</text>
+  <text x="305" y="300" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">3</text>
+  <text x="375" y="300" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">4</text>
+  <text x="455" y="300" font-size="14" font-weight="700" fill="#0e7490" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">2</text>
+  <text x="530" y="300" font-size="14" font-weight="700" fill="#0e7490" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">2</text>
+  <text x="66" y="326" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">Beanbox mug</text>
+  <text x="305" y="326" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">2</text>
+  <text x="375" y="326" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">5</text>
+  <text x="455" y="326" font-size="14" font-weight="700" fill="#0e7490" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">5</text>
+  <text x="530" y="326" font-size="14" font-weight="700" fill="#0e7490" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">3</text>
+  <text x="66" y="352" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">Brazil Cerrado 1kg</text>
+  <text x="305" y="352" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">2</text>
+  <text x="375" y="352" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">6</text>
+  <text x="455" y="352" font-size="14" font-weight="700" fill="#0e7490" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">5</text>
+  <text x="530" y="352" font-size="14" font-weight="700" fill="#0e7490" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">3</text>
+  <text x="66" y="378" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">Paper filters (100)</text>
+  <text x="305" y="378" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">2</text>
+  <text x="375" y="378" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">7</text>
+  <text x="455" y="378" font-size="14" font-weight="700" fill="#0e7490" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">5</text>
+  <text x="530" y="378" font-size="14" font-weight="700" fill="#0e7490" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">3</text>
+  <text x="60" y="412" font-size="13" fill="#334155"><tspan font-weight="700">rank &lt;= 2 keeps:</tspan> ROW_NUMBER 2 rows (drops 2 tied), RANK 4, DENSE_RANK 4</text>
+  <text x="60" y="434" font-size="13" fill="#334155"><tspan font-weight="700">rank &lt;= 3 keeps:</tspan> ROW_NUMBER 3 rows, RANK 4, DENSE_RANK 7</text>
+  <!-- Right: running total, RANGE vs ROWS -->
+  <rect x="615" y="108" width="545" height="340" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="635" y="140" font-size="18" font-weight="700" fill="#334155">Running total of 6 paid March orders</text>
+  <text x="635" y="162" font-size="13" fill="#64748b" font-family="Consolas, 'Courier New', monospace">SUM(total_cents) OVER (ORDER BY day ...)</text>
+  <text x="655" y="192" font-size="13" font-weight="700" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">order</text>
+  <text x="700" y="192" font-size="13" font-weight="700" fill="#334155" text-anchor="start" font-family="Consolas, 'Courier New', monospace">day</text>
+  <text x="855" y="192" font-size="13" font-weight="700" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">total</text>
+  <text x="960" y="192" font-size="13" font-weight="700" fill="#b91c1c" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">default RANGE</text>
+  <text x="1085" y="192" font-size="13" font-weight="700" fill="#15803d" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">ROWS</text>
+  <line x1="631" y1="200" x2="1144" y2="200" stroke="#94a3b8" stroke-width="1.5"/>
+  <rect x="631" y="204" width="513" height="78" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <rect x="631" y="308" width="513" height="52" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="655" y="222" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">7</text>
+  <text x="700" y="222" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">2026-03-01</text>
+  <text x="855" y="222" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">4200</text>
+  <rect x="915" y="205" width="90" height="23" rx="4" fill="#fef2f2"/>
+  <text x="960" y="222" font-size="14" font-weight="700" fill="#b91c1c" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">9600</text>
+  <rect x="1040" y="205" width="90" height="23" rx="4" fill="#f0fdf4"/>
+  <text x="1085" y="222" font-size="14" font-weight="700" fill="#15803d" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">4200</text>
+  <text x="655" y="248" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">8</text>
+  <text x="700" y="248" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">2026-03-01</text>
+  <text x="855" y="248" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">3800</text>
+  <rect x="915" y="231" width="90" height="23" rx="4" fill="#fef2f2"/>
+  <text x="960" y="248" font-size="14" font-weight="700" fill="#b91c1c" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">9600</text>
+  <rect x="1040" y="231" width="90" height="23" rx="4" fill="#f0fdf4"/>
+  <text x="1085" y="248" font-size="14" font-weight="700" fill="#15803d" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">8000</text>
+  <text x="655" y="274" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">9</text>
+  <text x="700" y="274" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">2026-03-01</text>
+  <text x="855" y="274" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">1600</text>
+  <rect x="915" y="257" width="90" height="23" rx="4" fill="#fef2f2"/>
+  <text x="960" y="274" font-size="14" font-weight="700" fill="#b91c1c" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">9600</text>
+  <rect x="1040" y="257" width="90" height="23" rx="4" fill="#f0fdf4"/>
+  <text x="1085" y="274" font-size="14" font-weight="700" fill="#15803d" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">9600</text>
+  <text x="655" y="300" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">10</text>
+  <text x="700" y="300" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">2026-03-02</text>
+  <text x="855" y="300" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">6600</text>
+  <rect x="915" y="283" width="90" height="23" rx="4" fill="#fef2f2"/>
+  <text x="960" y="300" font-size="14" font-weight="700" fill="#b91c1c" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">16200</text>
+  <rect x="1040" y="283" width="90" height="23" rx="4" fill="#f0fdf4"/>
+  <text x="1085" y="300" font-size="14" font-weight="700" fill="#15803d" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">16200</text>
+  <text x="655" y="326" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">12</text>
+  <text x="700" y="326" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">2026-03-03</text>
+  <text x="855" y="326" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">2600</text>
+  <rect x="915" y="309" width="90" height="23" rx="4" fill="#fef2f2"/>
+  <text x="960" y="326" font-size="14" font-weight="700" fill="#b91c1c" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">28400</text>
+  <rect x="1040" y="309" width="90" height="23" rx="4" fill="#f0fdf4"/>
+  <text x="1085" y="326" font-size="14" font-weight="700" fill="#15803d" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">18800</text>
+  <text x="655" y="352" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">13</text>
+  <text x="700" y="352" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">2026-03-03</text>
+  <text x="855" y="352" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">9600</text>
+  <rect x="915" y="335" width="90" height="23" rx="4" fill="#fef2f2"/>
+  <text x="960" y="352" font-size="14" font-weight="700" fill="#b91c1c" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">28400</text>
+  <rect x="1040" y="335" width="90" height="23" rx="4" fill="#f0fdf4"/>
+  <text x="1085" y="352" font-size="14" font-weight="700" fill="#15803d" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">28400</text>
+  <text x="635" y="412" font-size="13" fill="#b91c1c"><tspan font-weight="700">RANGE:</tspan> all rows of the same day enter the frame together (9600 three times)</text>
+  <text x="635" y="434" font-size="13" fill="#15803d"><tspan font-weight="700">ROWS:</tspan> one row at a time, or aggregate per day first and plot one point a day</text>
+  <text x="40" y="478" font-size="18" font-weight="700" fill="#334155">The pattern</text>
+  <rect x="40" y="494" width="340" height="84" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="60" y="524" font-size="15" font-weight="700" fill="#b45309">1  Aggregate to the grain you show</text>
+  <text x="60" y="548" font-size="13" fill="#92400e">one row per day or per product,</text>
+  <text x="60" y="566" font-size="13" fill="#92400e">with GROUP BY, before the window</text>
+  <line x1="380" y1="536" x2="420" y2="536" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="416,530 416,542 428,536" fill="#94a3b8"/>
+  <rect x="430" y="494" width="340" height="84" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="450" y="524" font-size="15" font-weight="700" fill="#0e7490">2  Window with a clear ORDER BY</text>
+  <text x="450" y="548" font-size="13" fill="#155e75">decide what a tie means; write ROWS</text>
+  <text x="450" y="566" font-size="13" fill="#155e75">when you mean one row at a time</text>
+  <line x1="770" y1="536" x2="810" y2="536" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="806,530 806,542 818,536" fill="#94a3b8"/>
+  <rect x="820" y="494" width="340" height="84" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="840" y="524" font-size="15" font-weight="700" fill="#15803d">3  Filter the rank outside</text>
+  <text x="840" y="548" font-size="13" fill="#166534">rank in a CTE, then WHERE place &lt;= N</text>
+  <text x="840" y="566" font-size="13" fill="#166534">(WHERE runs before window functions)</text>
+</svg>

@@ -1,0 +1,641 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_sqlf_321",
+      "name": "monthly-cohort-retention-table",
+      "type": "mini_coding",
+      "title": "Build a monthly cohort retention table",
+      "description": "Group customers by the month of their first paid order and report, for every month offset that has activity, how many of them paid again and what share of the whole cohort that is. One row per (cohort_month 'YYYY-MM', months_since_first, active_customers, cohort_size, retention_pct rounded to 1 decimal), counting distinct customers, only paid orders, calendar-month offsets that work across a new year, and the cohort size as the fixed denominator. Order by cohort_month, then months_since_first.",
+      "difficulty": "hard",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "cohort_retention.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Example: one January cohort, one customer comes back two months later",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 1,
+                  "ordered_at": "2026-01-05 09:12:00",
+                  "status": "paid",
+                  "total_cents": 2400,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 2,
+                  "ordered_at": "2026-01-20 18:40:00",
+                  "status": "paid",
+                  "total_cents": 3100,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 1,
+                  "ordered_at": "2026-03-10 08:05:00",
+                  "status": "paid",
+                  "total_cents": 2400,
+                  "coupon_code": null
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "2026-01",
+              0,
+              2,
+              2,
+              100.0
+            ],
+            [
+              "2026-01",
+              2,
+              1,
+              2,
+              50.0
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Two cohorts: month 2 is measured against the whole cohort, not last month's actives",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 1,
+                  "ordered_at": "2026-01-03 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 2,
+                  "ordered_at": "2026-01-08 11:30:00",
+                  "status": "paid",
+                  "total_cents": 1800,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 3,
+                  "ordered_at": "2026-01-15 09:45:00",
+                  "status": "paid",
+                  "total_cents": 4200,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 4,
+                  "ordered_at": "2026-01-27 16:20:00",
+                  "status": "paid",
+                  "total_cents": 2500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 1,
+                  "ordered_at": "2026-02-04 10:10:00",
+                  "status": "paid",
+                  "total_cents": 2500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 2,
+                  "ordered_at": "2026-02-19 12:00:00",
+                  "status": "paid",
+                  "total_cents": 1800,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 7,
+                  "customer_id": 5,
+                  "ordered_at": "2026-02-06 08:00:00",
+                  "status": "paid",
+                  "total_cents": 3900,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 8,
+                  "customer_id": 6,
+                  "ordered_at": "2026-02-22 20:15:00",
+                  "status": "paid",
+                  "total_cents": 2500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 9,
+                  "customer_id": 1,
+                  "ordered_at": "2026-03-05 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 10,
+                  "customer_id": 4,
+                  "ordered_at": "2026-03-12 14:00:00",
+                  "status": "paid",
+                  "total_cents": 2500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 11,
+                  "customer_id": 5,
+                  "ordered_at": "2026-03-09 08:30:00",
+                  "status": "paid",
+                  "total_cents": 3900,
+                  "coupon_code": null
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "2026-01",
+              0,
+              4,
+              4,
+              100.0
+            ],
+            [
+              "2026-01",
+              1,
+              2,
+              4,
+              50.0
+            ],
+            [
+              "2026-01",
+              2,
+              2,
+              4,
+              50.0
+            ],
+            [
+              "2026-02",
+              0,
+              2,
+              2,
+              100.0
+            ],
+            [
+              "2026-02",
+              1,
+              1,
+              2,
+              50.0
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Cancelled, refunded and pending orders are ignored",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 7,
+                  "ordered_at": "2026-03-02 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 7,
+                  "ordered_at": "2026-04-11 10:00:00",
+                  "status": "refunded",
+                  "total_cents": 2500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 7,
+                  "ordered_at": "2026-05-03 10:00:00",
+                  "status": "pending",
+                  "total_cents": 2500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 8,
+                  "ordered_at": "2026-03-14 13:00:00",
+                  "status": "pending",
+                  "total_cents": 4800,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 8,
+                  "ordered_at": "2026-04-02 09:00:00",
+                  "status": "paid",
+                  "total_cents": 4800,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 9,
+                  "ordered_at": "2026-03-21 17:00:00",
+                  "status": "paid",
+                  "total_cents": 1900,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 7,
+                  "customer_id": 9,
+                  "ordered_at": "2026-04-30 19:00:00",
+                  "status": "cancelled",
+                  "total_cents": 1900,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 8,
+                  "customer_id": 9,
+                  "ordered_at": "2026-05-18 08:00:00",
+                  "status": "paid",
+                  "total_cents": 1900,
+                  "coupon_code": null
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "2026-03",
+              0,
+              2,
+              2,
+              100.0
+            ],
+            [
+              "2026-03",
+              2,
+              1,
+              2,
+              50.0
+            ],
+            [
+              "2026-04",
+              0,
+              1,
+              1,
+              100.0
+            ]
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A customer who pays twice in the same month is one active customer",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 1,
+                  "ordered_at": "2026-04-01 09:00:00",
+                  "status": "paid",
+                  "total_cents": 2500
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 1,
+                  "ordered_at": "2026-04-20 09:00:00",
+                  "status": "paid",
+                  "total_cents": 2500
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 2,
+                  "ordered_at": "2026-04-05 09:00:00",
+                  "status": "paid",
+                  "total_cents": 3000
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 3,
+                  "ordered_at": "2026-04-09 09:00:00",
+                  "status": "paid",
+                  "total_cents": 1500
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 1,
+                  "ordered_at": "2026-05-02 09:00:00",
+                  "status": "paid",
+                  "total_cents": 2500
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 1,
+                  "ordered_at": "2026-05-28 09:00:00",
+                  "status": "paid",
+                  "total_cents": 2500
+                },
+                {
+                  "order_id": 7,
+                  "customer_id": 3,
+                  "ordered_at": "2026-05-15 09:00:00",
+                  "status": "paid",
+                  "total_cents": 1500
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "2026-04",
+              0,
+              3,
+              3,
+              100.0
+            ],
+            [
+              "2026-04",
+              1,
+              2,
+              3,
+              66.7
+            ]
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Month offsets across a new year: December -> January is 1 month",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 1,
+                  "ordered_at": "2025-12-28 21:00:00",
+                  "status": "paid",
+                  "total_cents": 2500
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 1,
+                  "ordered_at": "2026-01-03 08:00:00",
+                  "status": "paid",
+                  "total_cents": 2500
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 1,
+                  "ordered_at": "2026-02-10 08:00:00",
+                  "status": "paid",
+                  "total_cents": 2500
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 2,
+                  "ordered_at": "2025-12-15 10:00:00",
+                  "status": "paid",
+                  "total_cents": 3200
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 2,
+                  "ordered_at": "2026-02-10 10:00:00",
+                  "status": "paid",
+                  "total_cents": 3200
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 3,
+                  "ordered_at": "2025-11-30 23:59:59",
+                  "status": "paid",
+                  "total_cents": 1200
+                },
+                {
+                  "order_id": 7,
+                  "customer_id": 3,
+                  "ordered_at": "2026-01-01 00:00:00",
+                  "status": "paid",
+                  "total_cents": 1200
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "2025-11",
+              0,
+              1,
+              1,
+              100.0
+            ],
+            [
+              "2025-11",
+              2,
+              1,
+              1,
+              100.0
+            ],
+            [
+              "2025-12",
+              0,
+              2,
+              2,
+              100.0
+            ],
+            [
+              "2025-12",
+              1,
+              1,
+              2,
+              50.0
+            ],
+            [
+              "2025-12",
+              2,
+              2,
+              2,
+              100.0
+            ]
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "The cohort comes from the first PAID order, not the first order",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 1,
+                  "ordered_at": "2026-02-27 10:00:00",
+                  "status": "cancelled",
+                  "total_cents": 2500
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 1,
+                  "ordered_at": "2026-03-02 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2500
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 1,
+                  "ordered_at": "2026-04-05 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2500
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 2,
+                  "ordered_at": "2026-03-10 10:00:00",
+                  "status": "refunded",
+                  "total_cents": 4000
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 2,
+                  "ordered_at": "2026-03-20 10:00:00",
+                  "status": "paid",
+                  "total_cents": 4000
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 3,
+                  "ordered_at": "2026-02-15 10:00:00",
+                  "status": "paid",
+                  "total_cents": 1800
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "2026-02",
+              0,
+              1,
+              1,
+              100.0
+            ],
+            [
+              "2026-03",
+              0,
+              2,
+              2,
+              100.0
+            ],
+            [
+              "2026-03",
+              1,
+              1,
+              2,
+              50.0
+            ]
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A gap month has no row, and the month after it still uses the cohort size",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 1,
+                  "ordered_at": "2026-01-04 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2500
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 2,
+                  "ordered_at": "2026-01-11 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2500
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 3,
+                  "ordered_at": "2026-01-25 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2500
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 1,
+                  "ordered_at": "2026-03-08 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2500
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 3,
+                  "ordered_at": "2026-03-19 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2500
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 2,
+                  "ordered_at": "2026-04-02 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2500
+                },
+                {
+                  "order_id": 7,
+                  "customer_id": 3,
+                  "ordered_at": "2026-04-26 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2500
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "2026-01",
+              0,
+              3,
+              3,
+              100.0
+            ],
+            [
+              "2026-01",
+              2,
+              2,
+              3,
+              66.7
+            ],
+            [
+              "2026-01",
+              3,
+              2,
+              3,
+              66.7
+            ]
+          ],
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

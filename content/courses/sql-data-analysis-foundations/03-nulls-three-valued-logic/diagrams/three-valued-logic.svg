@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+<rect width="1200" height="600" fill="#ffffff"/>
+<text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">NULL makes a comparison UNKNOWN, and WHERE keeps only TRUE</text>
+<text x="40" y="82" font-size="16" fill="#475569">SQL logic has three values. Any =, &lt;&gt;, &lt; or &gt; with a NULL side is UNKNOWN (SQLite shows it as NULL), even NULL = NULL.</text>
+<text x="40" y="124" font-size="18" font-weight="700" fill="#334155">a AND b</text>
+<rect x="40" y="136" width="92" height="34" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+<text x="86.0" y="158.0" font-size="14" text-anchor="middle" fill="#334155" font-weight="700" font-family="Consolas, 'Courier New', monospace">a \ b</text>
+<rect x="138" y="136" width="92" height="34" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+<text x="184.0" y="158.0" font-size="14" text-anchor="middle" fill="#334155" font-weight="700" font-family="Consolas, 'Courier New', monospace">TRUE</text>
+<rect x="236" y="136" width="92" height="34" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+<text x="282.0" y="158.0" font-size="14" text-anchor="middle" fill="#334155" font-weight="700" font-family="Consolas, 'Courier New', monospace">FALSE</text>
+<rect x="334" y="136" width="92" height="34" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+<text x="380.0" y="158.0" font-size="14" text-anchor="middle" fill="#334155" font-weight="700" font-family="Consolas, 'Courier New', monospace">UNKNOWN</text>
+<rect x="40" y="176" width="92" height="34" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+<text x="86.0" y="198.0" font-size="14" text-anchor="middle" fill="#334155" font-weight="700" font-family="Consolas, 'Courier New', monospace">TRUE</text>
+<rect x="138" y="176" width="92" height="34" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+<text x="184.0" y="198.0" font-size="14" text-anchor="middle" fill="#15803d" font-family="Consolas, 'Courier New', monospace">TRUE</text>
+<rect x="236" y="176" width="92" height="34" rx="6" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+<text x="282.0" y="198.0" font-size="14" text-anchor="middle" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">FALSE</text>
+<rect x="334" y="176" width="92" height="34" rx="6" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+<text x="380.0" y="198.0" font-size="14" text-anchor="middle" fill="#b45309" font-family="Consolas, 'Courier New', monospace">UNKNOWN</text>
+<rect x="40" y="216" width="92" height="34" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+<text x="86.0" y="238.0" font-size="14" text-anchor="middle" fill="#334155" font-weight="700" font-family="Consolas, 'Courier New', monospace">FALSE</text>
+<rect x="138" y="216" width="92" height="34" rx="6" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+<text x="184.0" y="238.0" font-size="14" text-anchor="middle" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">FALSE</text>
+<rect x="236" y="216" width="92" height="34" rx="6" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+<text x="282.0" y="238.0" font-size="14" text-anchor="middle" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">FALSE</text>
+<rect x="334" y="216" width="92" height="34" rx="6" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+<text x="380.0" y="238.0" font-size="14" text-anchor="middle" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">FALSE</text>
+<rect x="40" y="256" width="92" height="34" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+<text x="86.0" y="278.0" font-size="14" text-anchor="middle" fill="#334155" font-weight="700" font-family="Consolas, 'Courier New', monospace">UNKNOWN</text>
+<rect x="138" y="256" width="92" height="34" rx="6" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+<text x="184.0" y="278.0" font-size="14" text-anchor="middle" fill="#b45309" font-family="Consolas, 'Courier New', monospace">UNKNOWN</text>
+<rect x="236" y="256" width="92" height="34" rx="6" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+<text x="282.0" y="278.0" font-size="14" text-anchor="middle" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">FALSE</text>
+<rect x="334" y="256" width="92" height="34" rx="6" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+<text x="380.0" y="278.0" font-size="14" text-anchor="middle" fill="#b45309" font-family="Consolas, 'Courier New', monospace">UNKNOWN</text>
+<text x="450" y="124" font-size="18" font-weight="700" fill="#334155">a OR b</text>
+<rect x="450" y="136" width="92" height="34" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+<text x="496.0" y="158.0" font-size="14" text-anchor="middle" fill="#334155" font-weight="700" font-family="Consolas, 'Courier New', monospace">a \ b</text>
+<rect x="548" y="136" width="92" height="34" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+<text x="594.0" y="158.0" font-size="14" text-anchor="middle" fill="#334155" font-weight="700" font-family="Consolas, 'Courier New', monospace">TRUE</text>
+<rect x="646" y="136" width="92" height="34" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+<text x="692.0" y="158.0" font-size="14" text-anchor="middle" fill="#334155" font-weight="700" font-family="Consolas, 'Courier New', monospace">FALSE</text>
+<rect x="744" y="136" width="92" height="34" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+<text x="790.0" y="158.0" font-size="14" text-anchor="middle" fill="#334155" font-weight="700" font-family="Consolas, 'Courier New', monospace">UNKNOWN</text>
+<rect x="450" y="176" width="92" height="34" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+<text x="496.0" y="198.0" font-size="14" text-anchor="middle" fill="#334155" font-weight="700" font-family="Consolas, 'Courier New', monospace">TRUE</text>
+<rect x="548" y="176" width="92" height="34" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+<text x="594.0" y="198.0" font-size="14" text-anchor="middle" fill="#15803d" font-family="Consolas, 'Courier New', monospace">TRUE</text>
+<rect x="646" y="176" width="92" height="34" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+<text x="692.0" y="198.0" font-size="14" text-anchor="middle" fill="#15803d" font-family="Consolas, 'Courier New', monospace">TRUE</text>
+<rect x="744" y="176" width="92" height="34" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+<text x="790.0" y="198.0" font-size="14" text-anchor="middle" fill="#15803d" font-family="Consolas, 'Courier New', monospace">TRUE</text>
+<rect x="450" y="216" width="92" height="34" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+<text x="496.0" y="238.0" font-size="14" text-anchor="middle" fill="#334155" font-weight="700" font-family="Consolas, 'Courier New', monospace">FALSE</text>
+<rect x="548" y="216" width="92" height="34" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+<text x="594.0" y="238.0" font-size="14" text-anchor="middle" fill="#15803d" font-family="Consolas, 'Courier New', monospace">TRUE</text>
+<rect x="646" y="216" width="92" height="34" rx="6" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+<text x="692.0" y="238.0" font-size="14" text-anchor="middle" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">FALSE</text>
+<rect x="744" y="216" width="92" height="34" rx="6" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+<text x="790.0" y="238.0" font-size="14" text-anchor="middle" fill="#b45309" font-family="Consolas, 'Courier New', monospace">UNKNOWN</text>
+<rect x="450" y="256" width="92" height="34" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+<text x="496.0" y="278.0" font-size="14" text-anchor="middle" fill="#334155" font-weight="700" font-family="Consolas, 'Courier New', monospace">UNKNOWN</text>
+<rect x="548" y="256" width="92" height="34" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+<text x="594.0" y="278.0" font-size="14" text-anchor="middle" fill="#15803d" font-family="Consolas, 'Courier New', monospace">TRUE</text>
+<rect x="646" y="256" width="92" height="34" rx="6" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+<text x="692.0" y="278.0" font-size="14" text-anchor="middle" fill="#b45309" font-family="Consolas, 'Courier New', monospace">UNKNOWN</text>
+<rect x="744" y="256" width="92" height="34" rx="6" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+<text x="790.0" y="278.0" font-size="14" text-anchor="middle" fill="#b45309" font-family="Consolas, 'Courier New', monospace">UNKNOWN</text>
+<text x="860" y="124" font-size="18" font-weight="700" fill="#334155">NOT a</text>
+<rect x="860" y="136" width="92" height="34" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+<text x="906.0" y="158.0" font-size="14" text-anchor="middle" fill="#334155" font-weight="700" font-family="Consolas, 'Courier New', monospace">a</text>
+<rect x="958" y="136" width="92" height="34" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+<text x="1004.0" y="158.0" font-size="14" text-anchor="middle" fill="#334155" font-weight="700" font-family="Consolas, 'Courier New', monospace">NOT a</text>
+<rect x="860" y="176" width="92" height="34" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+<text x="906.0" y="198.0" font-size="14" text-anchor="middle" fill="#334155" font-weight="700" font-family="Consolas, 'Courier New', monospace">TRUE</text>
+<rect x="958" y="176" width="92" height="34" rx="6" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+<text x="1004.0" y="198.0" font-size="14" text-anchor="middle" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">FALSE</text>
+<rect x="860" y="216" width="92" height="34" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+<text x="906.0" y="238.0" font-size="14" text-anchor="middle" fill="#334155" font-weight="700" font-family="Consolas, 'Courier New', monospace">FALSE</text>
+<rect x="958" y="216" width="92" height="34" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+<text x="1004.0" y="238.0" font-size="14" text-anchor="middle" fill="#15803d" font-family="Consolas, 'Courier New', monospace">TRUE</text>
+<rect x="860" y="256" width="92" height="34" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+<text x="906.0" y="278.0" font-size="14" text-anchor="middle" fill="#334155" font-weight="700" font-family="Consolas, 'Courier New', monospace">UNKNOWN</text>
+<rect x="958" y="256" width="92" height="34" rx="6" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+<text x="1004.0" y="278.0" font-size="14" text-anchor="middle" fill="#b45309" font-family="Consolas, 'Courier New', monospace">UNKNOWN</text>
+<text x="860" y="314" font-size="13" fill="#64748b">NOT UNKNOWN is still UNKNOWN</text>
+<rect x="40" y="332" width="640" height="238" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+<text x="64" y="364" font-size="18" font-weight="700" fill="#b91c1c">WHERE referral_source &lt;&gt; 'ads'</text>
+<text x="64" y="386" font-size="13" fill="#64748b">each row gets TRUE, FALSE or UNKNOWN; only TRUE rows reach the result</text>
+<rect x="64" y="402" width="110" height="36" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+<text x="119" y="425" font-size="14" text-anchor="middle" fill="#334155" font-family="Consolas, 'Courier New', monospace">'friend'</text>
+<text x="190" y="425" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">'friend' &lt;&gt; 'ads'</text>
+<rect x="370" y="402" width="100" height="36" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+<text x="420.0" y="425.0" font-size="14" text-anchor="middle" fill="#15803d" font-weight="700" font-family="Consolas, 'Courier New', monospace">TRUE</text>
+<text x="486" y="425" font-size="15" font-weight="700" fill="#15803d">kept</text>
+<rect x="64" y="448" width="110" height="36" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+<text x="119" y="471" font-size="14" text-anchor="middle" fill="#334155" font-family="Consolas, 'Courier New', monospace">'ads'</text>
+<text x="190" y="471" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">'ads' &lt;&gt; 'ads'</text>
+<rect x="370" y="448" width="100" height="36" rx="6" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+<text x="420.0" y="471.0" font-size="14" text-anchor="middle" fill="#b91c1c" font-weight="700" font-family="Consolas, 'Courier New', monospace">FALSE</text>
+<text x="486" y="471" font-size="15" font-weight="700" fill="#b91c1c">dropped</text>
+<rect x="64" y="494" width="110" height="36" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+<text x="119" y="517" font-size="14" text-anchor="middle" fill="#334155" font-family="Consolas, 'Courier New', monospace">NULL</text>
+<text x="190" y="517" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">NULL &lt;&gt; 'ads'</text>
+<rect x="370" y="494" width="100" height="36" rx="6" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+<text x="420.0" y="517.0" font-size="14" text-anchor="middle" fill="#b45309" font-weight="700" font-family="Consolas, 'Courier New', monospace">UNKNOWN</text>
+<text x="486" y="517" font-size="15" font-weight="700" fill="#b91c1c">dropped (silently)</text>
+<text x="64" y="558" font-size="14" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">x NOT IN ('ads', NULL) = x &lt;&gt; 'ads' AND x &lt;&gt; NULL: never TRUE</text>
+<rect x="710" y="332" width="450" height="238" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+<text x="734" y="364" font-size="18" font-weight="700" fill="#15803d">Say what you mean about NULL</text>
+<text x="734" y="386" font-size="13" fill="#64748b">these tests are only ever TRUE or FALSE</text>
+<rect x="734" y="402" width="402" height="34" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+<text x="748" y="424" font-size="14" fill="#15803d" font-family="Consolas, 'Courier New', monospace">referral_source IS NULL</text>
+<text x="1122" y="424" font-size="12" text-anchor="end" fill="#64748b">missing value?</text>
+<rect x="734" y="444" width="402" height="34" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+<text x="748" y="466" font-size="14" fill="#15803d" font-family="Consolas, 'Courier New', monospace">referral_source IS NOT 'ads'</text>
+<text x="1122" y="466" font-size="12" text-anchor="end" fill="#64748b">SQLite null-safe &lt;&gt;</text>
+<rect x="734" y="486" width="402" height="34" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+<text x="748" y="508" font-size="14" fill="#15803d" font-family="Consolas, 'Courier New', monospace">... IS DISTINCT FROM 'ads'</text>
+<text x="1122" y="508" font-size="12" text-anchor="end" fill="#64748b">PostgreSQL, SQLite 3.39+</text>
+<rect x="734" y="528" width="402" height="34" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+<text x="748" y="550" font-size="14" fill="#15803d" font-family="Consolas, 'Courier New', monospace">NOT EXISTS (subquery)</text>
+<text x="1122" y="550" font-size="12" text-anchor="end" fill="#64748b">instead of NOT IN</text>
+</svg>

@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">A retention table divides by the whole cohort, in every column</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Rows are cohorts (month of the first paid order), columns are calendar months since that order. Data: the 14-customer extract, until May 2026.</text>
+  <rect x="40" y="112" width="640" height="320" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="60" y="142" font-size="18" font-weight="700" fill="#334155">Retention % by cohort and month offset</text>
+  <text x="60" y="174" font-size="14" font-weight="700" fill="#475569">cohort</text>
+  <text x="182" y="174" font-size="14" font-weight="700" fill="#475569" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">size</text>
+  <text x="260" y="174" font-size="14" font-weight="700" fill="#475569" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">m0</text>
+  <text x="340" y="174" font-size="14" font-weight="700" fill="#475569" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">m1</text>
+  <text x="420" y="174" font-size="14" font-weight="700" fill="#475569" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">m2</text>
+  <text x="500" y="174" font-size="14" font-weight="700" fill="#475569" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">m3</text>
+  <text x="580" y="174" font-size="14" font-weight="700" fill="#475569" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">m4</text>
+  <text x="60" y="211" font-size="15" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">2026-01</text>
+  <text x="182" y="211" font-size="15" fill="#0f172a" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">1</text>
+  <rect x="222" y="186" width="76" height="36" rx="6" fill="#15803d"/>
+  <text x="260" y="210" font-size="15" fill="#ffffff" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">100.0</text>
+  <rect x="302" y="186" width="76" height="36" rx="6" fill="#15803d"/>
+  <text x="340" y="210" font-size="15" fill="#ffffff" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">100.0</text>
+  <rect x="382" y="186" width="76" height="36" rx="6" fill="#e2e8f0"/>
+  <text x="420" y="210" font-size="15" fill="#475569" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0.0</text>
+  <rect x="462" y="186" width="76" height="36" rx="6" fill="#15803d"/>
+  <text x="500" y="210" font-size="15" fill="#ffffff" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">100.0</text>
+  <rect x="542" y="186" width="76" height="36" rx="6" fill="#15803d"/>
+  <text x="580" y="210" font-size="15" fill="#ffffff" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">100.0</text>
+  <text x="60" y="253" font-size="15" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">2026-02</text>
+  <text x="182" y="253" font-size="15" fill="#0f172a" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">2</text>
+  <rect x="222" y="228" width="76" height="36" rx="6" fill="#15803d"/>
+  <text x="260" y="252" font-size="15" fill="#ffffff" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">100.0</text>
+  <rect x="302" y="228" width="76" height="36" rx="6" fill="#4ade80"/>
+  <text x="340" y="252" font-size="15" fill="#14532d" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">50.0</text>
+  <rect x="382" y="228" width="76" height="36" rx="6" fill="#e2e8f0"/>
+  <text x="420" y="252" font-size="15" fill="#475569" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0.0</text>
+  <rect x="462" y="228" width="76" height="36" rx="6" fill="#4ade80"/>
+  <text x="500" y="252" font-size="15" fill="#14532d" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">50.0</text>
+  <rect x="542" y="228" width="76" height="36" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="580" y="251" font-size="12" fill="#94a3b8" text-anchor="middle">not yet</text>
+  <text x="60" y="295" font-size="15" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">2026-03</text>
+  <text x="182" y="295" font-size="15" fill="#0f172a" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">9</text>
+  <rect x="222" y="270" width="76" height="36" rx="6" fill="#15803d"/>
+  <text x="260" y="294" font-size="15" fill="#ffffff" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">100.0</text>
+  <rect x="302" y="270" width="76" height="36" rx="6" fill="#86efac"/>
+  <text x="340" y="294" font-size="15" fill="#14532d" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">44.4</text>
+  <rect x="382" y="270" width="76" height="36" rx="6" fill="#bbf7d0"/>
+  <text x="420" y="294" font-size="15" fill="#14532d" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">22.2</text>
+  <rect x="462" y="270" width="76" height="36" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="500" y="293" font-size="12" fill="#94a3b8" text-anchor="middle">not yet</text>
+  <rect x="542" y="270" width="76" height="36" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="580" y="293" font-size="12" fill="#94a3b8" text-anchor="middle">not yet</text>
+  <text x="60" y="337" font-size="15" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">2026-04</text>
+  <text x="182" y="337" font-size="15" fill="#0f172a" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">1</text>
+  <rect x="222" y="312" width="76" height="36" rx="6" fill="#15803d"/>
+  <text x="260" y="336" font-size="15" fill="#ffffff" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">100.0</text>
+  <rect x="302" y="312" width="76" height="36" rx="6" fill="#15803d"/>
+  <text x="340" y="336" font-size="15" fill="#ffffff" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">100.0</text>
+  <rect x="382" y="312" width="76" height="36" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="420" y="335" font-size="12" fill="#94a3b8" text-anchor="middle">not yet</text>
+  <rect x="462" y="312" width="76" height="36" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="500" y="335" font-size="12" fill="#94a3b8" text-anchor="middle">not yet</text>
+  <rect x="542" y="312" width="76" height="36" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="580" y="335" font-size="12" fill="#94a3b8" text-anchor="middle">not yet</text>
+  <text x="60" y="379" font-size="15" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">2026-05</text>
+  <text x="182" y="379" font-size="15" fill="#0f172a" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">1</text>
+  <rect x="222" y="354" width="76" height="36" rx="6" fill="#15803d"/>
+  <text x="260" y="378" font-size="15" fill="#ffffff" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">100.0</text>
+  <rect x="302" y="354" width="76" height="36" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="340" y="377" font-size="12" fill="#94a3b8" text-anchor="middle">not yet</text>
+  <rect x="382" y="354" width="76" height="36" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="420" y="377" font-size="12" fill="#94a3b8" text-anchor="middle">not yet</text>
+  <rect x="462" y="354" width="76" height="36" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="500" y="377" font-size="12" fill="#94a3b8" text-anchor="middle">not yet</text>
+  <rect x="542" y="354" width="76" height="36" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="580" y="377" font-size="12" fill="#94a3b8" text-anchor="middle">not yet</text>
+  <rect x="379" y="267" width="82" height="42" rx="8" fill="none" stroke="#0891b2" stroke-width="3"/>
+  <text x="60" y="404" font-size="13" fill="#64748b">0.0 = observed, nobody came back (no row in the long result).</text>
+  <text x="60" y="422" font-size="13" fill="#64748b">not yet = the month is after May 2026, so it cannot be measured. m0 is always 100.0.</text>
+  <rect x="710" y="112" width="450" height="150" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="730" y="142" font-size="18" font-weight="700" fill="#b91c1c">Before: the dashboard says 60.0%</text>
+  <text x="760" y="174" font-size="22" font-weight="700" fill="#b91c1c" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">3</text>
+  <text x="790" y="172" font-size="14" fill="#334155">paid ORDERS in May (Ana paid twice)</text>
+  <line x1="740" y1="184" x2="1136" y2="184" stroke="#ef4444" stroke-width="2"/>
+  <text x="760" y="210" font-size="22" font-weight="700" fill="#b91c1c" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">5</text>
+  <text x="790" y="208" font-size="14" fill="#334155">active in APRIL, grouped by signup month</text>
+  <text x="730" y="246" font-size="13" fill="#64748b">a shrinking denominator: last month's survivors, not the cohort</text>
+  <rect x="710" y="282" width="450" height="150" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="730" y="312" font-size="18" font-weight="700" fill="#15803d">After: 22.2%, the outlined cell</text>
+  <text x="760" y="344" font-size="22" font-weight="700" fill="#15803d" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">2</text>
+  <text x="790" y="342" font-size="14" fill="#334155">DISTINCT customers active in month 2</text>
+  <line x1="740" y1="354" x2="1136" y2="354" stroke="#16a34a" stroke-width="2"/>
+  <text x="760" y="380" font-size="22" font-weight="700" fill="#15803d" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">9</text>
+  <text x="790" y="378" font-size="14" fill="#334155">customers whose first PAID order was in March</text>
+  <text x="730" y="416" font-size="13" fill="#64748b">the cohort size: the same denominator in every column of a row</text>
+  <text x="40" y="468" font-size="18" font-weight="700" fill="#334155">Three CTE steps</text>
+  <rect x="40" y="484" width="340" height="84" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="60" y="514" font-size="15" font-weight="700" fill="#b45309">1  Cohort per customer</text>
+  <text x="60" y="538" font-size="13" fill="#92400e">first PAID order month (MIN),</text>
+  <text x="60" y="556" font-size="13" fill="#92400e">plus a month index: year * 12 + month</text>
+  <line x1="380" y1="526" x2="420" y2="526" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="416,520 416,532 428,526" fill="#94a3b8"/>
+  <rect x="430" y="484" width="340" height="84" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="450" y="514" font-size="15" font-weight="700" fill="#0e7490">2  Activity per month offset</text>
+  <text x="450" y="538" font-size="13" fill="#155e75">order month index - first month index,</text>
+  <text x="450" y="556" font-size="13" fill="#155e75">COUNT(DISTINCT customer_id)</text>
+  <line x1="770" y1="526" x2="810" y2="526" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="806,520 806,532 818,526" fill="#94a3b8"/>
+  <rect x="820" y="484" width="340" height="84" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="840" y="514" font-size="15" font-weight="700" fill="#15803d">3  Divide by the cohort size</text>
+  <text x="840" y="538" font-size="13" fill="#166534">ROUND(100.0 * active / cohort_size, 1)</text>
+  <text x="840" y="556" font-size="13" fill="#166534">never by last month's actives</text>
+</svg>

@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">You write SELECT first. SQL runs it fifth.</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The logical order of a query: each clause only sees what the clauses before it have produced.</text>
+
+  <!-- Written order -->
+  <text x="40" y="122" font-size="14" font-weight="700" fill="#334155">How you write it</text>
+  <g font-size="15" font-weight="700" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">
+    <rect x="40" y="132" width="140" height="40" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+    <text x="110" y="157" fill="#15803d">SELECT</text>
+    <rect x="203" y="132" width="140" height="40" rx="6" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+    <text x="273" y="157" fill="#334155">FROM</text>
+    <rect x="366" y="132" width="140" height="40" rx="6" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+    <text x="436" y="157" fill="#334155">WHERE</text>
+    <rect x="529" y="132" width="140" height="40" rx="6" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+    <text x="599" y="157" fill="#334155">GROUP BY</text>
+    <rect x="692" y="132" width="140" height="40" rx="6" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+    <text x="762" y="157" fill="#334155">HAVING</text>
+    <rect x="855" y="132" width="140" height="40" rx="6" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+    <text x="925" y="157" fill="#334155">ORDER BY</text>
+    <rect x="1018" y="132" width="140" height="40" rx="6" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+    <text x="1088" y="157" fill="#334155">LIMIT</text>
+  </g>
+
+  <!-- Logical order -->
+  <text x="40" y="212" font-size="14" font-weight="700" fill="#334155">How it runs (logical order)</text>
+
+  <!-- 1 FROM -->
+  <rect x="40" y="222" width="140" height="96" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="56" y="250" font-size="15" font-weight="700" fill="#b45309">1  FROM</text>
+  <text x="56" y="276" font-size="13" fill="#92400e">pick the table:</text>
+  <text x="56" y="296" font-size="13" fill="#92400e" font-family="Consolas, 'Courier New', monospace">orders</text>
+  <!-- 2 WHERE -->
+  <rect x="203" y="222" width="140" height="96" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="219" y="250" font-size="15" font-weight="700" fill="#b45309">2  WHERE</text>
+  <text x="219" y="276" font-size="13" fill="#92400e">keep rows:</text>
+  <text x="219" y="296" font-size="13" fill="#92400e" font-family="Consolas, 'Courier New', monospace">status='paid'</text>
+  <!-- 3 GROUP BY -->
+  <rect x="366" y="222" width="140" height="96" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="382" y="250" font-size="15" font-weight="700" fill="#0e7490">3  GROUP BY</text>
+  <text x="382" y="276" font-size="13" fill="#155e75">make groups</text>
+  <text x="382" y="296" font-size="13" fill="#155e75">(lesson 1.2)</text>
+  <!-- 4 HAVING -->
+  <rect x="529" y="222" width="140" height="96" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="545" y="250" font-size="15" font-weight="700" fill="#0e7490">4  HAVING</text>
+  <text x="545" y="276" font-size="13" fill="#155e75">keep groups</text>
+  <text x="545" y="296" font-size="13" fill="#155e75">(lesson 1.2)</text>
+  <!-- 5 SELECT -->
+  <rect x="692" y="222" width="140" height="96" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="3"/>
+  <text x="708" y="250" font-size="15" font-weight="700" fill="#15803d">5  SELECT</text>
+  <text x="708" y="276" font-size="13" fill="#166534">columns, aliases,</text>
+  <text x="708" y="296" font-size="13" fill="#166534">DISTINCT</text>
+  <!-- 6 ORDER BY -->
+  <rect x="855" y="222" width="140" height="96" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="871" y="250" font-size="15" font-weight="700" fill="#15803d">6  ORDER BY</text>
+  <text x="871" y="276" font-size="13" fill="#166534">sort the rows,</text>
+  <text x="871" y="296" font-size="13" fill="#166534">aliases visible</text>
+  <!-- 7 LIMIT -->
+  <rect x="1018" y="222" width="140" height="96" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="1034" y="250" font-size="15" font-weight="700" fill="#15803d">7  LIMIT</text>
+  <text x="1034" y="276" font-size="13" fill="#166534">keep the first N</text>
+  <text x="1034" y="296" font-size="13" fill="#166534">sorted rows</text>
+
+  <!-- arrows between steps -->
+  <g stroke="#94a3b8" stroke-width="2" fill="#94a3b8">
+    <line x1="182" y1="270" x2="194" y2="270"/><polygon points="193,265 193,275 201,270" stroke="none"/>
+    <line x1="345" y1="270" x2="357" y2="270"/><polygon points="356,265 356,275 364,270" stroke="none"/>
+    <line x1="508" y1="270" x2="520" y2="270"/><polygon points="519,265 519,275 527,270" stroke="none"/>
+    <line x1="671" y1="270" x2="683" y2="270"/><polygon points="682,265 682,275 690,270" stroke="none"/>
+    <line x1="834" y1="270" x2="846" y2="270"/><polygon points="845,265 845,275 853,270" stroke="none"/>
+    <line x1="997" y1="270" x2="1009" y2="270"/><polygon points="1008,265 1008,275 1016,270" stroke="none"/>
+  </g>
+
+  <!-- Bottom left: alias in WHERE -->
+  <rect x="40" y="350" width="545" height="220" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="384" font-size="18" font-weight="700" fill="#b91c1c">Alias in WHERE: too early (step 2)</text>
+  <rect x="64" y="400" width="497" height="82" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+  <g font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">
+    <text x="80" y="424">SELECT total_cents / 100.0 AS total_usd</text>
+    <text x="80" y="446">FROM orders</text>
+    <text x="80" y="468">WHERE <tspan fill="#b91c1c" font-weight="700">total_usd</tspan> &gt;= 30;</text>
+  </g>
+  <text x="64" y="510" font-size="14" fill="#b91c1c">PostgreSQL: ERROR: column "total_usd" does not exist</text>
+  <text x="64" y="532" font-size="13" fill="#64748b">SQLite accepts it as an extension, so the query is not portable.</text>
+  <text x="64" y="554" font-size="13" fill="#64748b">Portable: filter on the real column, WHERE total_cents &gt;= 3000.</text>
+
+  <!-- Bottom right: alias in ORDER BY -->
+  <rect x="615" y="350" width="545" height="220" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="639" y="384" font-size="18" font-weight="700" fill="#15803d">Alias in ORDER BY: fine (step 6)</text>
+  <rect x="639" y="400" width="497" height="82" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <g font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">
+    <text x="655" y="424">SELECT order_id, total_cents / 100.0 AS total_usd</text>
+    <text x="655" y="446">FROM orders</text>
+    <text x="655" y="468">ORDER BY <tspan fill="#15803d" font-weight="700">total_usd</tspan> DESC, order_id;</text>
+  </g>
+  <text x="639" y="510" font-size="14" fill="#15803d">ORDER BY runs after SELECT, so total_usd already exists.</text>
+  <text x="639" y="532" font-size="13" fill="#64748b">order_id is the tie-breaker: equal totals always come out</text>
+  <text x="639" y="554" font-size="13" fill="#64748b">in the same order, so LIMIT always keeps the same rows.</text>
+</svg>

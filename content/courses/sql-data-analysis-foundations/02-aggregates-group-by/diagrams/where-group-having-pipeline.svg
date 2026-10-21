@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">WHERE filters rows. HAVING filters groups.</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The "markets with 3+ new customers" tile, step by step: rows are filtered, then grouped, then counted, then the groups are filtered.</text>
+  <rect x="40" y="108" width="270" height="364" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="58" y="138" font-size="16" font-weight="700" fill="#b45309">1  FROM customers + WHERE</text>
+  <text x="58" y="160" font-size="13" fill="#64748b">signup_date &gt;= '2026-10-01', row by row</text>
+  <text x="62" y="194" font-size="14" fill="#94a3b8" font-family="Consolas, 'Courier New', monospace">VN  2026-09-14</text>
+  <line x1="58" y1="189" x2="186" y2="189" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="200" y="194" font-size="12" fill="#b91c1c">dropped</text>
+  <text x="62" y="215" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">US  2026-10-02</text>
+  <text x="62" y="236" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">VN  2026-10-03</text>
+  <text x="62" y="257" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">DE  2026-10-05</text>
+  <text x="62" y="278" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">DE  2026-10-06</text>
+  <text x="62" y="299" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">VN  2026-10-08</text>
+  <text x="62" y="320" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">VN  2026-10-11</text>
+  <text x="62" y="341" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">US  2026-10-12</text>
+  <text x="62" y="362" font-size="14" fill="#94a3b8" font-family="Consolas, 'Courier New', monospace">US  2026-08-30</text>
+  <line x1="58" y1="357" x2="186" y2="357" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="200" y="362" font-size="12" fill="#b91c1c">dropped</text>
+  <text x="62" y="383" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">DE  2026-10-15</text>
+  <text x="62" y="404" font-size="14" fill="#94a3b8" font-family="Consolas, 'Courier New', monospace">US  2026-09-21</text>
+  <line x1="58" y1="399" x2="186" y2="399" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="200" y="404" font-size="12" fill="#b91c1c">dropped</text>
+  <text x="62" y="425" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">JP  2026-10-17</text>
+  <text x="58" y="462" font-size="13" fill="#92400e">12 rows in, 9 rows out</text>
+  <line x1="310" y1="284" x2="332" y2="284" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="328,278 328,290 340,284" fill="#94a3b8"/>
+  <rect x="340" y="108" width="250" height="364" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="358" y="138" font-size="16" font-weight="700" fill="#0e7490">2  GROUP BY country</text>
+  <text x="358" y="160" font-size="13" fill="#64748b">one group per country</text>
+  <rect x="360" y="178" width="210" height="72" rx="6" fill="#ffffff" stroke="#67e8f9" stroke-width="2"/>
+  <text x="376" y="199" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">VN  2026-10-03</text>
+  <text x="376" y="219" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">VN  2026-10-08</text>
+  <text x="376" y="239" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">VN  2026-10-11</text>
+  <rect x="360" y="262" width="210" height="72" rx="6" fill="#ffffff" stroke="#67e8f9" stroke-width="2"/>
+  <text x="376" y="283" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">DE  2026-10-05</text>
+  <text x="376" y="303" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">DE  2026-10-06</text>
+  <text x="376" y="323" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">DE  2026-10-15</text>
+  <rect x="360" y="346" width="210" height="52" rx="6" fill="#ffffff" stroke="#67e8f9" stroke-width="2"/>
+  <text x="376" y="367" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">US  2026-10-02</text>
+  <text x="376" y="387" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">US  2026-10-12</text>
+  <rect x="360" y="410" width="210" height="32" rx="6" fill="#ffffff" stroke="#67e8f9" stroke-width="2"/>
+  <text x="376" y="431" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">JP  2026-10-17</text>
+  <line x1="590" y1="284" x2="612" y2="284" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="608,278 608,290 620,284" fill="#94a3b8"/>
+  <rect x="620" y="108" width="250" height="364" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="638" y="138" font-size="16" font-weight="700" fill="#0e7490">3  Aggregate each group</text>
+  <text x="638" y="160" font-size="13" fill="#64748b">many rows become one row</text>
+  <rect x="640" y="198" width="210" height="32" rx="6" fill="#ffffff" stroke="#0891b2" stroke-width="2"/>
+  <text x="656" y="219" font-size="14" fill="#0e7490" font-family="Consolas, 'Courier New', monospace">VN  COUNT(*) = 3</text>
+  <rect x="640" y="282" width="210" height="32" rx="6" fill="#ffffff" stroke="#0891b2" stroke-width="2"/>
+  <text x="656" y="303" font-size="14" fill="#0e7490" font-family="Consolas, 'Courier New', monospace">DE  COUNT(*) = 3</text>
+  <rect x="640" y="356" width="210" height="32" rx="6" fill="#ffffff" stroke="#0891b2" stroke-width="2"/>
+  <text x="656" y="377" font-size="14" fill="#0e7490" font-family="Consolas, 'Courier New', monospace">US  COUNT(*) = 2</text>
+  <rect x="640" y="410" width="210" height="32" rx="6" fill="#ffffff" stroke="#0891b2" stroke-width="2"/>
+  <text x="656" y="431" font-size="14" fill="#0e7490" font-family="Consolas, 'Courier New', monospace">JP  COUNT(*) = 1</text>
+  <line x1="870" y1="284" x2="892" y2="284" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="888,278 888,290 900,284" fill="#94a3b8"/>
+  <rect x="900" y="108" width="260" height="364" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="918" y="138" font-size="16" font-weight="700" fill="#15803d">4  HAVING COUNT(*) &gt;= 3</text>
+  <text x="918" y="160" font-size="13" fill="#64748b">keeps or drops whole groups</text>
+  <rect x="920" y="198" width="120" height="32" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="936" y="219" font-size="14" fill="#15803d" font-family="Consolas, 'Courier New', monospace">VN  3</text>
+  <text x="1054" y="219" font-size="13" font-weight="700" fill="#15803d">kept</text>
+  <rect x="920" y="282" width="120" height="32" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="936" y="303" font-size="14" fill="#15803d" font-family="Consolas, 'Courier New', monospace">DE  3</text>
+  <text x="1054" y="303" font-size="13" font-weight="700" fill="#15803d">kept</text>
+  <rect x="920" y="356" width="120" height="32" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="936" y="377" font-size="14" fill="#94a3b8" font-family="Consolas, 'Courier New', monospace">US  2</text>
+  <line x1="932" y1="372" x2="1000" y2="372" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="1054" y="377" font-size="13" fill="#b91c1c">dropped</text>
+  <rect x="920" y="410" width="120" height="32" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="936" y="431" font-size="14" fill="#94a3b8" font-family="Consolas, 'Courier New', monospace">JP  1</text>
+  <line x1="932" y1="426" x2="1000" y2="426" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="1054" y="431" font-size="13" fill="#b91c1c">dropped</text>
+  <text x="918" y="462" font-size="13" fill="#166534">result: DE 3, VN 3</text>
+  <rect x="40" y="488" width="545" height="92" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="60" y="514" font-size="16" font-weight="700" fill="#b91c1c">Before: the filter on COUNT(*) put in WHERE</text>
+  <text x="60" y="540" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">WHERE ... AND COUNT(*) &gt;= 3</text>
+  <text x="60" y="566" font-size="14" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">Error: misuse of aggregate: COUNT()</text>
+  <text x="345" y="540" font-size="13" fill="#64748b">step 1 sees one row at a time:</text>
+  <text x="345" y="558" font-size="13" fill="#64748b">no group exists yet to count</text>
+  <rect x="615" y="488" width="545" height="92" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="635" y="514" font-size="16" font-weight="700" fill="#15803d">After: row filter in WHERE, group filter in HAVING</text>
+  <text x="635" y="540" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">WHERE signup_date &gt;= '2026-10-01'</text>
+  <text x="635" y="564" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">GROUP BY country HAVING COUNT(*) &gt;= 3</text>
+</svg>

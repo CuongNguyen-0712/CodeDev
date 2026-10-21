@@ -1,0 +1,1217 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sqlf_331",
+      "name": "sanity-checks-quiz",
+      "type": "quiz",
+      "title": "Which check catches it?",
+      "description": "Run the lesson's sanity checks in your head on a broken report, then decide what really happens when a value is pasted into SQL with an f-string.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "A second analyst \"fixes\" the incident report by dividing each country by the report's own total instead of finance's total. The new report for Q1 2026 is:\n\nVN    67000 cents   47.9 %\nDE    30000 cents   21.4 %\nUS    25000 cents   17.9 %\nvn    18000 cents   12.9 %   (the country is 'vn ')\n\nThe independent total of paid Q1 orders is 125000 cents, and the countries with paid Q1 orders are VN, DE and US (after trimming and upper-casing). Which checks from this lesson FAIL? (Select all that apply.)",
+          "explanation": "The parts add up to 67000 + 30000 + 25000 + 18000 = 140000 cents, not 125000, so the reconcile check fails: the join still fans out. 'VN' and 'vn ' have the same key once spaces are trimmed and the text is upper-cased, so the grain check fails too. The percentages now add up to 100.1, which is within 0.5 of 100, and every one of them is between 0 and 100, so both range checks pass, and every expected country has a row. That is the lesson of this question: percentages computed from the report's own total always add up to about 100, even when every number is wrong. Only a total computed by a second, independent query catches the fan-out.",
+          "options": [
+            {
+              "text": "Reconcile: the parts do not add up to the independent total.",
+              "correct": true
+            },
+            {
+              "text": "Grain: two rows have the same key.",
+              "correct": true
+            },
+            {
+              "text": "Percent sum: the percentages are more than 0.5 away from 100.",
+              "correct": false
+            },
+            {
+              "text": "Percent range: a percentage is below 0 or above 100.",
+              "correct": false
+            },
+            {
+              "text": "Completeness: a country with paid orders has no row.",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The customers table has 5 rows, and no customer's country is 'x'. A report script reads a country from a web form, and a visitor types:\n\nx' OR 1=1 --\n\nWhat do these two lines return?\n\n(A) db.execute(f\"SELECT COUNT(*) FROM customers WHERE country = '{country}'\").fetchone()\n(B) db.execute(\"SELECT COUNT(*) FROM customers WHERE country = ?\", (country,)).fetchone()",
+          "explanation": "In (A) the text is pasted into the SQL before SQLite reads it, so the database receives WHERE country = 'x' OR 1=1 --'. The quote closes the string, OR 1=1 is true for every row, and -- turns the leftover quote into a comment: the query counts all 5 customers. That is SQL injection: input that changes the meaning of the query. In (B) the SQL text never changes; the driver sends the value separately and SQLite compares it as one string, so it looks for a customer whose country is literally \"x' OR 1=1 --\" and finds none: (0,). Placeholders work for values only; table and column names cannot be parameters.",
+          "options": [
+            {
+              "text": "(A) returns (5,), (B) returns (0,).",
+              "correct": true
+            },
+            {
+              "text": "Both return (0,): no country is equal to that text.",
+              "correct": false
+            },
+            {
+              "text": "(A) raises a syntax error, (B) returns (0,).",
+              "correct": false
+            },
+            {
+              "text": "Both return (5,): the ? placeholder pastes the text in the same way.",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_sqlf_332",
+      "name": "report-sanity-checks",
+      "type": "mini_coding",
+      "title": "Write check_report(db, report, start, end)",
+      "description": "Before a \"revenue by country\" report is sent, check it against the database. Return the sorted names of the checks that fail: null_key (a row without a country), duplicate_key (two rows with the same trimmed, upper-cased country), missing_country (a country with paid orders in the period has no row), total_mismatch (the revenue does not add up to the SUM of paid orders in the half-open period, 0 when there are none), pct_out_of_range (a percentage below 0 or above 100) and pct_sum (a non-empty report whose percentages are more than 0.5 away from 100). Use SQL parameters for the period. The test runner builds the database from the test case and prints your list as JSON.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "check_report.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A correct Q1 report passes every check",
+          "input": {
+            "tables": {
+              "customers": [
+                {
+                  "customer_id": 1,
+                  "name": "An",
+                  "country": "VN",
+                  "signup_date": "2025-11-02",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 2,
+                  "name": "Bao",
+                  "country": "vn ",
+                  "signup_date": "2026-01-10",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 3,
+                  "name": "Lena",
+                  "country": "DE",
+                  "signup_date": "2025-09-14",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 4,
+                  "name": "Sam",
+                  "country": "US",
+                  "signup_date": "2025-10-01",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 5,
+                  "name": "Mia",
+                  "country": "US",
+                  "signup_date": "2026-02-02",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 6,
+                  "name": "Kenji",
+                  "country": "JP",
+                  "signup_date": "2026-03-01",
+                  "referral_source": null
+                }
+              ],
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 1,
+                  "ordered_at": "2026-01-03 10:00:00",
+                  "status": "paid",
+                  "total_cents": 20000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 2,
+                  "ordered_at": "2026-01-17 12:30:00",
+                  "status": "paid",
+                  "total_cents": 10000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 3,
+                  "ordered_at": "2026-02-01 09:15:00",
+                  "status": "paid",
+                  "total_cents": 30000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 4,
+                  "ordered_at": "2026-02-20 18:00:00",
+                  "status": "paid",
+                  "total_cents": 25000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 5,
+                  "ordered_at": "2026-03-05 08:00:00",
+                  "status": "cancelled",
+                  "total_cents": 40000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 5,
+                  "ordered_at": "2026-03-31 23:59:00",
+                  "status": "paid",
+                  "total_cents": 15000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 7,
+                  "customer_id": 6,
+                  "ordered_at": "2026-03-10 10:00:00",
+                  "status": "pending",
+                  "total_cents": 5000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 8,
+                  "customer_id": 4,
+                  "ordered_at": "2026-04-01 00:00:00",
+                  "status": "paid",
+                  "total_cents": 9000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 9,
+                  "customer_id": 3,
+                  "ordered_at": "2025-12-31 23:00:00",
+                  "status": "paid",
+                  "total_cents": 7000,
+                  "coupon_code": null
+                }
+              ]
+            },
+            "start": "2026-01-01",
+            "end": "2026-04-01",
+            "report": [
+              [
+                "US",
+                40000,
+                40.0
+              ],
+              [
+                "VN",
+                30000,
+                30.0
+              ],
+              [
+                "DE",
+                30000,
+                30.0
+              ]
+            ]
+          },
+          "expected": [],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "The incident: a fanned-out join, 'VN' and 'vn ' as two rows, percentages adding up to 112",
+          "input": {
+            "tables": {
+              "customers": [
+                {
+                  "customer_id": 1,
+                  "name": "An",
+                  "country": "VN",
+                  "signup_date": "2025-11-02",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 2,
+                  "name": "Bao",
+                  "country": "vn ",
+                  "signup_date": "2026-01-10",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 3,
+                  "name": "Lena",
+                  "country": "DE",
+                  "signup_date": "2025-09-14",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 4,
+                  "name": "Sam",
+                  "country": "US",
+                  "signup_date": "2025-10-01",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 5,
+                  "name": "Mia",
+                  "country": "US",
+                  "signup_date": "2026-02-02",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 6,
+                  "name": "Kenji",
+                  "country": "JP",
+                  "signup_date": "2026-03-01",
+                  "referral_source": null
+                }
+              ],
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 1,
+                  "ordered_at": "2026-01-03 10:00:00",
+                  "status": "paid",
+                  "total_cents": 20000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 2,
+                  "ordered_at": "2026-01-17 12:30:00",
+                  "status": "paid",
+                  "total_cents": 10000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 3,
+                  "ordered_at": "2026-02-01 09:15:00",
+                  "status": "paid",
+                  "total_cents": 30000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 4,
+                  "ordered_at": "2026-02-20 18:00:00",
+                  "status": "paid",
+                  "total_cents": 25000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 5,
+                  "ordered_at": "2026-03-05 08:00:00",
+                  "status": "cancelled",
+                  "total_cents": 40000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 5,
+                  "ordered_at": "2026-03-31 23:59:00",
+                  "status": "paid",
+                  "total_cents": 15000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 7,
+                  "customer_id": 6,
+                  "ordered_at": "2026-03-10 10:00:00",
+                  "status": "pending",
+                  "total_cents": 5000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 8,
+                  "customer_id": 4,
+                  "ordered_at": "2026-04-01 00:00:00",
+                  "status": "paid",
+                  "total_cents": 9000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 9,
+                  "customer_id": 3,
+                  "ordered_at": "2025-12-31 23:00:00",
+                  "status": "paid",
+                  "total_cents": 7000,
+                  "coupon_code": null
+                }
+              ]
+            },
+            "start": "2026-01-01",
+            "end": "2026-04-01",
+            "report": [
+              [
+                "US",
+                52000,
+                52.0
+              ],
+              [
+                "DE",
+                30000,
+                30.0
+              ],
+              [
+                "VN",
+                20000,
+                20.0
+              ],
+              [
+                "vn ",
+                10000,
+                10.0
+              ]
+            ]
+          },
+          "expected": [
+            "duplicate_key",
+            "pct_sum",
+            "total_mismatch"
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A row without a country and a negative percentage",
+          "input": {
+            "tables": {
+              "customers": [
+                {
+                  "customer_id": 1,
+                  "name": "An",
+                  "country": "VN",
+                  "signup_date": "2025-11-02",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 2,
+                  "name": "Bao",
+                  "country": "vn ",
+                  "signup_date": "2026-01-10",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 3,
+                  "name": "Lena",
+                  "country": "DE",
+                  "signup_date": "2025-09-14",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 4,
+                  "name": "Sam",
+                  "country": "US",
+                  "signup_date": "2025-10-01",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 5,
+                  "name": "Mia",
+                  "country": "US",
+                  "signup_date": "2026-02-02",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 6,
+                  "name": "Kenji",
+                  "country": "JP",
+                  "signup_date": "2026-03-01",
+                  "referral_source": null
+                }
+              ],
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 1,
+                  "ordered_at": "2026-01-03 10:00:00",
+                  "status": "paid",
+                  "total_cents": 20000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 2,
+                  "ordered_at": "2026-01-17 12:30:00",
+                  "status": "paid",
+                  "total_cents": 10000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 3,
+                  "ordered_at": "2026-02-01 09:15:00",
+                  "status": "paid",
+                  "total_cents": 30000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 4,
+                  "ordered_at": "2026-02-20 18:00:00",
+                  "status": "paid",
+                  "total_cents": 25000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 5,
+                  "ordered_at": "2026-03-05 08:00:00",
+                  "status": "cancelled",
+                  "total_cents": 40000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 5,
+                  "ordered_at": "2026-03-31 23:59:00",
+                  "status": "paid",
+                  "total_cents": 15000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 7,
+                  "customer_id": 6,
+                  "ordered_at": "2026-03-10 10:00:00",
+                  "status": "pending",
+                  "total_cents": 5000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 8,
+                  "customer_id": 4,
+                  "ordered_at": "2026-04-01 00:00:00",
+                  "status": "paid",
+                  "total_cents": 9000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 9,
+                  "customer_id": 3,
+                  "ordered_at": "2025-12-31 23:00:00",
+                  "status": "paid",
+                  "total_cents": 7000,
+                  "coupon_code": null
+                }
+              ]
+            },
+            "start": "2026-01-01",
+            "end": "2026-04-01",
+            "report": [
+              [
+                "US",
+                40000,
+                40.0
+              ],
+              [
+                "DE",
+                35000,
+                35.0
+              ],
+              [
+                "VN",
+                30000,
+                30.0
+              ],
+              [
+                null,
+                -5000,
+                -5.0
+              ]
+            ]
+          },
+          "expected": [
+            "null_key",
+            "pct_out_of_range"
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "DE was folded into US: the total matches, but a country is missing",
+          "input": {
+            "tables": {
+              "customers": [
+                {
+                  "customer_id": 1,
+                  "name": "An",
+                  "country": "VN",
+                  "signup_date": "2025-11-02",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 2,
+                  "name": "Bao",
+                  "country": "vn ",
+                  "signup_date": "2026-01-10",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 3,
+                  "name": "Lena",
+                  "country": "DE",
+                  "signup_date": "2025-09-14",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 4,
+                  "name": "Sam",
+                  "country": "US",
+                  "signup_date": "2025-10-01",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 5,
+                  "name": "Mia",
+                  "country": "US",
+                  "signup_date": "2026-02-02",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 6,
+                  "name": "Kenji",
+                  "country": "JP",
+                  "signup_date": "2026-03-01",
+                  "referral_source": null
+                }
+              ],
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 1,
+                  "ordered_at": "2026-01-03 10:00:00",
+                  "status": "paid",
+                  "total_cents": 20000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 2,
+                  "ordered_at": "2026-01-17 12:30:00",
+                  "status": "paid",
+                  "total_cents": 10000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 3,
+                  "ordered_at": "2026-02-01 09:15:00",
+                  "status": "paid",
+                  "total_cents": 30000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 4,
+                  "ordered_at": "2026-02-20 18:00:00",
+                  "status": "paid",
+                  "total_cents": 25000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 5,
+                  "ordered_at": "2026-03-05 08:00:00",
+                  "status": "cancelled",
+                  "total_cents": 40000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 5,
+                  "ordered_at": "2026-03-31 23:59:00",
+                  "status": "paid",
+                  "total_cents": 15000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 7,
+                  "customer_id": 6,
+                  "ordered_at": "2026-03-10 10:00:00",
+                  "status": "pending",
+                  "total_cents": 5000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 8,
+                  "customer_id": 4,
+                  "ordered_at": "2026-04-01 00:00:00",
+                  "status": "paid",
+                  "total_cents": 9000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 9,
+                  "customer_id": 3,
+                  "ordered_at": "2025-12-31 23:00:00",
+                  "status": "paid",
+                  "total_cents": 7000,
+                  "coupon_code": null
+                }
+              ]
+            },
+            "start": "2026-01-01",
+            "end": "2026-04-01",
+            "report": [
+              [
+                "US",
+                70000,
+                70.0
+              ],
+              [
+                "VN",
+                30000,
+                30.0
+              ]
+            ]
+          },
+          "expected": [
+            "missing_country"
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Rounded percentages that add up to 99.9 are fine",
+          "input": {
+            "tables": {
+              "customers": [
+                {
+                  "customer_id": 1,
+                  "name": "An",
+                  "country": "VN",
+                  "signup_date": "2025-11-02",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 2,
+                  "name": "Bao",
+                  "country": "vn ",
+                  "signup_date": "2026-01-10",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 3,
+                  "name": "Lena",
+                  "country": "DE",
+                  "signup_date": "2025-09-14",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 4,
+                  "name": "Sam",
+                  "country": "US",
+                  "signup_date": "2025-10-01",
+                  "referral_source": null
+                }
+              ],
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 1,
+                  "ordered_at": "2026-01-08 10:00:00",
+                  "status": "paid",
+                  "total_cents": 10000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 3,
+                  "ordered_at": "2026-02-12 11:00:00",
+                  "status": "paid",
+                  "total_cents": 10000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 4,
+                  "ordered_at": "2026-03-19 12:00:00",
+                  "status": "paid",
+                  "total_cents": 10000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 4,
+                  "ordered_at": "2026-03-20 12:00:00",
+                  "status": "refunded",
+                  "total_cents": 10000,
+                  "coupon_code": null
+                }
+              ]
+            },
+            "start": "2026-01-01",
+            "end": "2026-04-01",
+            "report": [
+              [
+                "VN",
+                10000,
+                33.3
+              ],
+              [
+                "DE",
+                10000,
+                33.3
+              ],
+              [
+                "US",
+                10000,
+                33.3
+              ]
+            ]
+          },
+          "expected": [],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Percentages that add up to 100.6 are too far from 100",
+          "input": {
+            "tables": {
+              "customers": [
+                {
+                  "customer_id": 1,
+                  "name": "An",
+                  "country": "VN",
+                  "signup_date": "2025-11-02",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 2,
+                  "name": "Bao",
+                  "country": "vn ",
+                  "signup_date": "2026-01-10",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 3,
+                  "name": "Lena",
+                  "country": "DE",
+                  "signup_date": "2025-09-14",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 4,
+                  "name": "Sam",
+                  "country": "US",
+                  "signup_date": "2025-10-01",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 5,
+                  "name": "Mia",
+                  "country": "US",
+                  "signup_date": "2026-02-02",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 6,
+                  "name": "Kenji",
+                  "country": "JP",
+                  "signup_date": "2026-03-01",
+                  "referral_source": null
+                }
+              ],
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 1,
+                  "ordered_at": "2026-01-03 10:00:00",
+                  "status": "paid",
+                  "total_cents": 20000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 2,
+                  "ordered_at": "2026-01-17 12:30:00",
+                  "status": "paid",
+                  "total_cents": 10000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 3,
+                  "ordered_at": "2026-02-01 09:15:00",
+                  "status": "paid",
+                  "total_cents": 30000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 4,
+                  "ordered_at": "2026-02-20 18:00:00",
+                  "status": "paid",
+                  "total_cents": 25000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 5,
+                  "ordered_at": "2026-03-05 08:00:00",
+                  "status": "cancelled",
+                  "total_cents": 40000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 5,
+                  "ordered_at": "2026-03-31 23:59:00",
+                  "status": "paid",
+                  "total_cents": 15000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 7,
+                  "customer_id": 6,
+                  "ordered_at": "2026-03-10 10:00:00",
+                  "status": "pending",
+                  "total_cents": 5000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 8,
+                  "customer_id": 4,
+                  "ordered_at": "2026-04-01 00:00:00",
+                  "status": "paid",
+                  "total_cents": 9000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 9,
+                  "customer_id": 3,
+                  "ordered_at": "2025-12-31 23:00:00",
+                  "status": "paid",
+                  "total_cents": 7000,
+                  "coupon_code": null
+                }
+              ]
+            },
+            "start": "2026-01-01",
+            "end": "2026-04-01",
+            "report": [
+              [
+                "US",
+                40000,
+                40.2
+              ],
+              [
+                "VN",
+                30000,
+                30.2
+              ],
+              [
+                "DE",
+                30000,
+                30.2
+              ]
+            ]
+          },
+          "expected": [
+            "pct_sum"
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Two problems at once: ' de' next to 'DE', and a cancelled order counted as revenue",
+          "input": {
+            "tables": {
+              "customers": [
+                {
+                  "customer_id": 1,
+                  "name": "An",
+                  "country": "VN",
+                  "signup_date": "2025-11-02",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 2,
+                  "name": "Bao",
+                  "country": "vn ",
+                  "signup_date": "2026-01-10",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 3,
+                  "name": "Lena",
+                  "country": "DE",
+                  "signup_date": "2025-09-14",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 4,
+                  "name": "Sam",
+                  "country": "US",
+                  "signup_date": "2025-10-01",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 5,
+                  "name": "Mia",
+                  "country": "US",
+                  "signup_date": "2026-02-02",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 6,
+                  "name": "Kenji",
+                  "country": "JP",
+                  "signup_date": "2026-03-01",
+                  "referral_source": null
+                }
+              ],
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 1,
+                  "ordered_at": "2026-01-03 10:00:00",
+                  "status": "paid",
+                  "total_cents": 20000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 2,
+                  "ordered_at": "2026-01-17 12:30:00",
+                  "status": "paid",
+                  "total_cents": 10000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 3,
+                  "ordered_at": "2026-02-01 09:15:00",
+                  "status": "paid",
+                  "total_cents": 30000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 4,
+                  "ordered_at": "2026-02-20 18:00:00",
+                  "status": "paid",
+                  "total_cents": 25000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 5,
+                  "ordered_at": "2026-03-05 08:00:00",
+                  "status": "cancelled",
+                  "total_cents": 40000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 5,
+                  "ordered_at": "2026-03-31 23:59:00",
+                  "status": "paid",
+                  "total_cents": 15000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 7,
+                  "customer_id": 6,
+                  "ordered_at": "2026-03-10 10:00:00",
+                  "status": "pending",
+                  "total_cents": 5000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 8,
+                  "customer_id": 4,
+                  "ordered_at": "2026-04-01 00:00:00",
+                  "status": "paid",
+                  "total_cents": 9000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 9,
+                  "customer_id": 3,
+                  "ordered_at": "2025-12-31 23:00:00",
+                  "status": "paid",
+                  "total_cents": 7000,
+                  "coupon_code": null
+                }
+              ]
+            },
+            "start": "2026-01-01",
+            "end": "2026-04-01",
+            "report": [
+              [
+                "US",
+                80000,
+                57.1
+              ],
+              [
+                "DE",
+                30000,
+                21.4
+              ],
+              [
+                "VN",
+                30000,
+                21.4
+              ],
+              [
+                " de",
+                0,
+                0.0
+              ]
+            ]
+          },
+          "expected": [
+            "duplicate_key",
+            "total_mismatch"
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "An empty report for a quarter without orders passes",
+          "input": {
+            "tables": {
+              "customers": [
+                {
+                  "customer_id": 1,
+                  "name": "An",
+                  "country": "VN",
+                  "signup_date": "2025-11-02",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 2,
+                  "name": "Bao",
+                  "country": "vn ",
+                  "signup_date": "2026-01-10",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 3,
+                  "name": "Lena",
+                  "country": "DE",
+                  "signup_date": "2025-09-14",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 4,
+                  "name": "Sam",
+                  "country": "US",
+                  "signup_date": "2025-10-01",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 5,
+                  "name": "Mia",
+                  "country": "US",
+                  "signup_date": "2026-02-02",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 6,
+                  "name": "Kenji",
+                  "country": "JP",
+                  "signup_date": "2026-03-01",
+                  "referral_source": null
+                }
+              ],
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 1,
+                  "ordered_at": "2026-01-03 10:00:00",
+                  "status": "paid",
+                  "total_cents": 20000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 2,
+                  "ordered_at": "2026-01-17 12:30:00",
+                  "status": "paid",
+                  "total_cents": 10000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 3,
+                  "ordered_at": "2026-02-01 09:15:00",
+                  "status": "paid",
+                  "total_cents": 30000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 4,
+                  "ordered_at": "2026-02-20 18:00:00",
+                  "status": "paid",
+                  "total_cents": 25000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 5,
+                  "ordered_at": "2026-03-05 08:00:00",
+                  "status": "cancelled",
+                  "total_cents": 40000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 5,
+                  "ordered_at": "2026-03-31 23:59:00",
+                  "status": "paid",
+                  "total_cents": 15000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 7,
+                  "customer_id": 6,
+                  "ordered_at": "2026-03-10 10:00:00",
+                  "status": "pending",
+                  "total_cents": 5000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 8,
+                  "customer_id": 4,
+                  "ordered_at": "2026-04-01 00:00:00",
+                  "status": "paid",
+                  "total_cents": 9000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 9,
+                  "customer_id": 3,
+                  "ordered_at": "2025-12-31 23:00:00",
+                  "status": "paid",
+                  "total_cents": 7000,
+                  "coupon_code": null
+                }
+              ]
+            },
+            "start": "2026-07-01",
+            "end": "2026-10-01",
+            "report": []
+          },
+          "expected": [],
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

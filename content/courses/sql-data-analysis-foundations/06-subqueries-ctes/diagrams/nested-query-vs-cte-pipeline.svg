@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">A nested query hides its steps. Named CTEs put them in order.</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Same logic, two layouts: one is read from the inside out, the other top to bottom - one step and one row grain at a time.</text>
+
+  <!-- Left: nested query -->
+  <rect x="40" y="112" width="530" height="380" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="146" font-size="18" font-weight="700" fill="#b91c1c">Before: three subqueries inside each other</text>
+  <text x="64" y="170" font-size="13" fill="#64748b">the first step to run is the one written deepest inside</text>
+
+  <rect x="72" y="200" width="470" height="244" rx="6" fill="#fee2e2" stroke="#fca5a5" stroke-width="2"/>
+  <rect x="92" y="262" width="440" height="160" rx="6" fill="#fecaca" stroke="#f87171" stroke-width="2"/>
+  <rect x="112" y="322" width="410" height="78" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+
+  <g font-family="Consolas, 'Courier New', monospace" font-size="14" fill="#334155">
+    <text x="64" y="194">SELECT country, AVG(first_total) ...</text>
+    <text x="80" y="218">FROM ( SELECT c.country, f.first_total</text>
+    <text x="80" y="238">       FROM customers AS c</text>
+    <text x="80" y="258">       JOIN (</text>
+    <text x="100" y="280">SELECT o.customer_id, o.total_cents ...</text>
+    <text x="100" y="300">FROM orders AS o</text>
+    <text x="100" y="320">JOIN (</text>
+    <text x="120" y="342">SELECT customer_id, MIN(ordered_at)</text>
+    <text x="120" y="362">FROM orders WHERE status = 'paid'</text>
+    <text x="120" y="382">GROUP BY customer_id</text>
+    <text x="100" y="416">) AS m ON ... ) AS f ON ...</text>
+    <text x="80" y="438">) AS t</text>
+    <text x="64" y="466">GROUP BY country;</text>
+  </g>
+  <text x="300" y="438" font-size="13" fill="#b91c1c">which level picks "the first order"?</text>
+  <text x="64" y="484" font-size="13" fill="#64748b">no level can be run or counted on its own; copies drift apart</text>
+
+  <!-- Right: CTE pipeline -->
+  <rect x="600" y="112" width="560" height="380" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="624" y="146" font-size="18" font-weight="700" fill="#15803d">After: WITH, one named step per box</text>
+  <text x="624" y="170" font-size="13" fill="#64748b">each step reads only the steps above it; check the row grain of each</text>
+
+  <!-- step 1 -->
+  <rect x="624" y="184" width="512" height="56" rx="6" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="640" y="208" font-size="16" font-weight="700" fill="#b45309" font-family="Consolas, 'Courier New', monospace">paid</text>
+  <text x="640" y="229" font-size="13" fill="#92400e">orders WHERE status = 'paid'</text>
+  <text x="1120" y="208" font-size="13" font-weight="700" text-anchor="end" fill="#92400e">1 row per paid order</text>
+  <text x="1120" y="229" font-size="13" text-anchor="end" fill="#92400e">11 rows</text>
+  <line x1="880" y1="240" x2="880" y2="256" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="874,252 886,252 880,262" fill="#94a3b8"/>
+
+  <!-- step 2 -->
+  <rect x="624" y="264" width="512" height="56" rx="6" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="640" y="288" font-size="16" font-weight="700" fill="#0e7490" font-family="Consolas, 'Courier New', monospace">first_orders</text>
+  <text x="640" y="309" font-size="13" fill="#155e75">each customer's earliest paid order</text>
+  <text x="1120" y="288" font-size="13" font-weight="700" text-anchor="end" fill="#155e75">1 row per customer</text>
+  <text x="1120" y="309" font-size="13" font-weight="700" text-anchor="end" fill="#b91c1c">check: 7 rows, 6 customers</text>
+  <line x1="880" y1="320" x2="880" y2="336" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="874,332 886,332 880,342" fill="#94a3b8"/>
+
+  <!-- step 3 -->
+  <rect x="624" y="344" width="512" height="56" rx="6" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="640" y="368" font-size="16" font-weight="700" fill="#0e7490" font-family="Consolas, 'Courier New', monospace">with_country</text>
+  <text x="640" y="389" font-size="13" fill="#155e75">JOIN customers for the country</text>
+  <text x="1120" y="368" font-size="13" font-weight="700" text-anchor="end" fill="#155e75">1 row per customer</text>
+  <text x="1120" y="389" font-size="13" text-anchor="end" fill="#155e75">same count as first_orders</text>
+  <line x1="880" y1="400" x2="880" y2="416" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="874,412 886,412 880,422" fill="#94a3b8"/>
+
+  <!-- step 4 -->
+  <rect x="624" y="424" width="512" height="56" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="640" y="448" font-size="16" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">summary</text>
+  <text x="640" y="469" font-size="13" fill="#166534">GROUP BY country, AVG(total_cents)</text>
+  <text x="1120" y="448" font-size="13" font-weight="700" text-anchor="end" fill="#166534">1 row per country</text>
+  <text x="1120" y="469" font-size="13" text-anchor="end" fill="#166534">3 rows</text>
+
+  <!-- Bottom: how to check a step -->
+  <text x="40" y="530" font-size="18" font-weight="700" fill="#334155">Check any step on its own: keep the WITH, swap the last SELECT</text>
+  <rect x="40" y="544" width="1120" height="40" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="60" y="570" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">WITH paid AS (...), first_orders AS (...)  SELECT COUNT(*), COUNT(DISTINCT customer_id) FROM first_orders;</text>
+</svg>

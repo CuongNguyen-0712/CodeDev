@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_sqlf_112",
+      "key": "challenges/python/chal_coding_sqlf_112/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "spring_orders.py",
+      "size": 2386
+    }
+  ]
+}

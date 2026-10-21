@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_sqlf_321",
+      "key": "challenges/python/chal_coding_sqlf_321/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "cohort_retention.py",
+      "size": 3416
+    }
+  ]
+}

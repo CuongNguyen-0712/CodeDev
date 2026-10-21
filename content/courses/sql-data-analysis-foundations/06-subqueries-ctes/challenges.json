@@ -1,0 +1,560 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_sqlf_221",
+      "name": "first-paid-order-by-referral-source",
+      "type": "mini_coding",
+      "title": "Average first paid order by referral source, in CTE steps",
+      "description": "Marketing wants the average value of each customer's FIRST paid order, per referral source. Write one query with named steps (WITH ... AS): keep paid orders, pick each customer's first paid order (earliest ordered_at, smallest order_id on a tie), attach the referral source (NULL becomes 'unknown'), then summarize. Return [source, paying_customers, avg_first_order_cents] rows, rounded to whole cents, ordered by paying_customers DESC, then source.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "first_orders.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "One paid order per customer; the average is rounded to a whole cent",
+          "input": {
+            "tables": {
+              "customers": [
+                {
+                  "customer_id": 1,
+                  "name": "An",
+                  "country": "VN",
+                  "signup_date": "2026-01-01",
+                  "referral_source": "ads"
+                },
+                {
+                  "customer_id": 2,
+                  "name": "Ben",
+                  "country": "VN",
+                  "signup_date": "2026-01-01",
+                  "referral_source": "ads"
+                },
+                {
+                  "customer_id": 3,
+                  "name": "Chloe",
+                  "country": "VN",
+                  "signup_date": "2026-01-01",
+                  "referral_source": "friend"
+                }
+              ],
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 1,
+                  "ordered_at": "2026-01-05 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 2,
+                  "ordered_at": "2026-01-06 11:30:00",
+                  "status": "paid",
+                  "total_cents": 3001,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 3,
+                  "ordered_at": "2026-01-07 09:15:00",
+                  "status": "paid",
+                  "total_cents": 4000,
+                  "coupon_code": null
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "ads",
+              2,
+              2501
+            ],
+            [
+              "friend",
+              1,
+              4000
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Repeat orders do not change the first order; customers without a paid order are not counted",
+          "input": {
+            "tables": {
+              "customers": [
+                {
+                  "customer_id": 1,
+                  "name": "An",
+                  "country": "VN",
+                  "signup_date": "2026-01-01",
+                  "referral_source": "search"
+                },
+                {
+                  "customer_id": 2,
+                  "name": "Ben",
+                  "country": "VN",
+                  "signup_date": "2026-01-01",
+                  "referral_source": "search"
+                },
+                {
+                  "customer_id": 3,
+                  "name": "Chloe",
+                  "country": "VN",
+                  "signup_date": "2026-01-01",
+                  "referral_source": "friend"
+                },
+                {
+                  "customer_id": 4,
+                  "name": "Duc",
+                  "country": "VN",
+                  "signup_date": "2026-01-01",
+                  "referral_source": "ads"
+                },
+                {
+                  "customer_id": 5,
+                  "name": "Emma",
+                  "country": "VN",
+                  "signup_date": "2026-01-01",
+                  "referral_source": "friend"
+                }
+              ],
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 1,
+                  "ordered_at": "2026-01-05 10:00:00",
+                  "status": "paid",
+                  "total_cents": 3000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 1,
+                  "ordered_at": "2026-02-01 18:20:00",
+                  "status": "paid",
+                  "total_cents": 9000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 2,
+                  "ordered_at": "2026-01-10 08:45:00",
+                  "status": "paid",
+                  "total_cents": 5000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 3,
+                  "ordered_at": "2026-01-12 12:00:00",
+                  "status": "pending",
+                  "total_cents": 7000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 5,
+                  "ordered_at": "2026-03-01 19:30:00",
+                  "status": "paid",
+                  "total_cents": 2500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 5,
+                  "ordered_at": "2026-03-10 07:05:00",
+                  "status": "paid",
+                  "total_cents": 6000,
+                  "coupon_code": null
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "search",
+              2,
+              4000
+            ],
+            [
+              "friend",
+              1,
+              2500
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The first order is the earliest one, not the cheapest one",
+          "input": {
+            "tables": {
+              "customers": [
+                {
+                  "customer_id": 1,
+                  "name": "Customer 1",
+                  "country": "VN",
+                  "signup_date": "2026-01-01",
+                  "referral_source": "ads"
+                },
+                {
+                  "customer_id": 2,
+                  "name": "Customer 2",
+                  "country": "VN",
+                  "signup_date": "2026-01-01",
+                  "referral_source": "ads"
+                },
+                {
+                  "customer_id": 3,
+                  "name": "Customer 3",
+                  "country": "VN",
+                  "signup_date": "2026-01-01",
+                  "referral_source": "friend"
+                }
+              ],
+              "orders": [
+                {
+                  "order_id": 11,
+                  "customer_id": 1,
+                  "ordered_at": "2026-04-02 09:00:00",
+                  "status": "paid",
+                  "total_cents": 8000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 12,
+                  "customer_id": 1,
+                  "ordered_at": "2026-04-20 14:10:00",
+                  "status": "paid",
+                  "total_cents": 1500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 13,
+                  "customer_id": 2,
+                  "ordered_at": "2026-04-05 16:45:00",
+                  "status": "paid",
+                  "total_cents": 3000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 14,
+                  "customer_id": 3,
+                  "ordered_at": "2026-04-07 10:30:00",
+                  "status": "paid",
+                  "total_cents": 4200,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 15,
+                  "customer_id": 3,
+                  "ordered_at": "2026-05-01 08:00:00",
+                  "status": "paid",
+                  "total_cents": 4100,
+                  "coupon_code": null
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "ads",
+              2,
+              5500
+            ],
+            [
+              "friend",
+              1,
+              4200
+            ]
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A cancelled or refunded earliest order is skipped: the first PAID order counts",
+          "input": {
+            "tables": {
+              "customers": [
+                {
+                  "customer_id": 1,
+                  "name": "Customer 1",
+                  "country": "VN",
+                  "signup_date": "2026-01-01",
+                  "referral_source": "search"
+                },
+                {
+                  "customer_id": 2,
+                  "name": "Customer 2",
+                  "country": "VN",
+                  "signup_date": "2026-01-01",
+                  "referral_source": "search"
+                },
+                {
+                  "customer_id": 3,
+                  "name": "Customer 3",
+                  "country": "VN",
+                  "signup_date": "2026-01-01",
+                  "referral_source": "friend"
+                }
+              ],
+              "orders": [
+                {
+                  "order_id": 21,
+                  "customer_id": 1,
+                  "ordered_at": "2026-05-01 10:00:00",
+                  "status": "cancelled",
+                  "total_cents": 9900,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 22,
+                  "customer_id": 1,
+                  "ordered_at": "2026-05-03 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 23,
+                  "customer_id": 2,
+                  "ordered_at": "2026-05-02 09:00:00",
+                  "status": "refunded",
+                  "total_cents": 500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 24,
+                  "customer_id": 2,
+                  "ordered_at": "2026-05-04 09:00:00",
+                  "status": "pending",
+                  "total_cents": 700,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 25,
+                  "customer_id": 2,
+                  "ordered_at": "2026-05-06 09:00:00",
+                  "status": "paid",
+                  "total_cents": 3000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 26,
+                  "customer_id": 3,
+                  "ordered_at": "2026-05-08 12:00:00",
+                  "status": "cancelled",
+                  "total_cents": 1000,
+                  "coupon_code": null
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "search",
+              2,
+              2500
+            ]
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Two paid orders at the same timestamp: the smaller order_id is first, and the customer counts once",
+          "input": {
+            "tables": {
+              "customers": [
+                {
+                  "customer_id": 1,
+                  "name": "Customer 1",
+                  "country": "VN",
+                  "signup_date": "2026-01-01",
+                  "referral_source": "friend"
+                },
+                {
+                  "customer_id": 2,
+                  "name": "Customer 2",
+                  "country": "VN",
+                  "signup_date": "2026-01-01",
+                  "referral_source": "friend"
+                },
+                {
+                  "customer_id": 3,
+                  "name": "Customer 3",
+                  "country": "VN",
+                  "signup_date": "2026-01-01",
+                  "referral_source": "ads"
+                }
+              ],
+              "orders": [
+                {
+                  "order_id": 31,
+                  "customer_id": 1,
+                  "ordered_at": "2026-06-01 09:00:00",
+                  "status": "paid",
+                  "total_cents": 6000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 32,
+                  "customer_id": 1,
+                  "ordered_at": "2026-06-01 09:00:00",
+                  "status": "paid",
+                  "total_cents": 2000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 33,
+                  "customer_id": 2,
+                  "ordered_at": "2026-06-02 15:20:00",
+                  "status": "paid",
+                  "total_cents": 4000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 34,
+                  "customer_id": 3,
+                  "ordered_at": "2026-06-03 11:00:00",
+                  "status": "paid",
+                  "total_cents": 1000,
+                  "coupon_code": null
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "friend",
+              2,
+              5000
+            ],
+            [
+              "ads",
+              1,
+              1000
+            ]
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A NULL referral_source is reported as 'unknown' and sorted by name on a tie",
+          "input": {
+            "tables": {
+              "customers": [
+                {
+                  "customer_id": 1,
+                  "name": "Customer 1",
+                  "country": "VN",
+                  "signup_date": "2026-01-01",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 2,
+                  "name": "Customer 2",
+                  "country": "VN",
+                  "signup_date": "2026-01-01",
+                  "referral_source": null
+                },
+                {
+                  "customer_id": 3,
+                  "name": "Customer 3",
+                  "country": "VN",
+                  "signup_date": "2026-01-01",
+                  "referral_source": "search"
+                },
+                {
+                  "customer_id": 4,
+                  "name": "Customer 4",
+                  "country": "VN",
+                  "signup_date": "2026-01-01",
+                  "referral_source": "ads"
+                },
+                {
+                  "customer_id": 5,
+                  "name": "Customer 5",
+                  "country": "VN",
+                  "signup_date": "2026-01-01",
+                  "referral_source": "ads"
+                }
+              ],
+              "orders": [
+                {
+                  "order_id": 41,
+                  "customer_id": 1,
+                  "ordered_at": "2026-07-01 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 42,
+                  "customer_id": 2,
+                  "ordered_at": "2026-07-02 10:00:00",
+                  "status": "paid",
+                  "total_cents": 3500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 43,
+                  "customer_id": 3,
+                  "ordered_at": "2026-07-03 10:00:00",
+                  "status": "paid",
+                  "total_cents": 1000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 44,
+                  "customer_id": 4,
+                  "ordered_at": "2026-07-04 10:00:00",
+                  "status": "paid",
+                  "total_cents": 4000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 45,
+                  "customer_id": 5,
+                  "ordered_at": "2026-07-05 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2000,
+                  "coupon_code": null
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "ads",
+              2,
+              3000
+            ],
+            [
+              "unknown",
+              2,
+              3000
+            ],
+            [
+              "search",
+              1,
+              1000
+            ]
+          ],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,468 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sqlf_111",
+      "name": "where-precedence-clause-order-quiz",
+      "type": "quiz",
+      "title": "Read the query the way SQLite reads it",
+      "description": "Two questions from the spring coupon incident: how AND and OR group without parentheses, and what the logical order of the clauses lets each clause see.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The orders table has seven rows (order_id, status, coupon_code):\n\n101  paid       SPRING10\n102  refunded   SPRING10\n103  paid       SPRING20\n104  cancelled  SPRING20\n105  pending    SPRING10\n106  paid       NULL\n107  paid       WELCOME5\n\nA colleague moved the status check to the end:\n\nSELECT order_id FROM orders\nWHERE coupon_code = 'SPRING10' OR coupon_code = 'SPRING20' AND status = 'paid';\n\nWhich rows does it return?",
+          "explanation": "AND binds tighter than OR, wherever it appears. SQLite reads the condition as coupon_code = 'SPRING10' OR (coupon_code = 'SPRING20' AND status = 'paid'). The first branch keeps every SPRING10 order, whatever its status (101, 102, 105); the second keeps only the paid SPRING20 order (103). Moving the status check to the end did not fix the bug, it only moved it to the other coupon. Mixing AND and OR without parentheses is allowed, which is exactly why it is dangerous. The query that was meant: status = 'paid' AND coupon_code IN ('SPRING10', 'SPRING20'), which returns 101 and 103.",
+          "options": [
+            {
+              "text": "101 and 103 (the paid orders with a spring coupon)",
+              "correct": false
+            },
+            {
+              "text": "101, 102, 103 and 105",
+              "correct": true
+            },
+            {
+              "text": "101, 102, 103, 104 and 105 (every spring coupon order)",
+              "correct": false
+            },
+            {
+              "text": "None: mixing AND and OR without parentheses is an error",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Look at this query on Beanbox's orders table:\n\nSELECT DISTINCT customer_id AS buyer\nFROM orders\nWHERE status = 'paid'\nORDER BY buyer\nLIMIT 3;\n\nWhich statements are true? (Select all that apply.)",
+          "explanation": "The logical order is FROM, WHERE, GROUP BY, HAVING, SELECT (with DISTINCT), ORDER BY, LIMIT. ORDER BY runs after SELECT, so it can use the alias buyer. DISTINCT is part of the SELECT step, so duplicates are removed before LIMIT counts rows: the result is the three smallest distinct customer ids with a paid order. LIMIT is the very last step, so it never picks rows before the sort. WHERE runs before SELECT, so the alias does not exist there yet: standard SQL and PostgreSQL reject WHERE buyer > 10 (SQLite accepts it as an extension, which is why it is not portable). BETWEEN is inclusive at both ends, so BETWEEN 2000 AND 3000 keeps an order of exactly 3000 cents.",
+          "options": [
+            {
+              "text": "ORDER BY buyer works because ORDER BY runs after SELECT, where the alias is created.",
+              "correct": true
+            },
+            {
+              "text": "LIMIT 3 runs before ORDER BY, so you get three arbitrary customers and then they are sorted.",
+              "correct": false
+            },
+            {
+              "text": "DISTINCT removes duplicate customers before LIMIT counts rows, so the three rows are three different customers.",
+              "correct": true
+            },
+            {
+              "text": "Replacing the WHERE line with WHERE buyer > 10 is portable: PostgreSQL accepts it too.",
+              "correct": false
+            },
+            {
+              "text": "In the same table, WHERE total_cents BETWEEN 2000 AND 3000 keeps an order of exactly 3000 cents.",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_sqlf_112",
+      "name": "spring-coupon-paid-orders",
+      "type": "mini_coding",
+      "title": "List the paid spring coupon orders",
+      "description": "Fix and finish the query behind the spring campaign slide: return order_id, customer_id, coupon_code and total_cents for every paid order that used SPRING10 or SPRING20 and is worth at least 2500 cents, biggest total first and, for equal totals, the newer order (larger order_id) first. The starter has the incident's AND/OR bug. The test runner at the bottom of the file loads each test's rows into SQLite, runs QUERY and prints the rows as JSON.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "spring_orders.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident month: refunded, cancelled and pending coupon orders do not count",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 11,
+                  "ordered_at": "2026-03-02 09:14:00",
+                  "status": "paid",
+                  "total_cents": 4200,
+                  "coupon_code": "SPRING10"
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 12,
+                  "ordered_at": "2026-03-03 11:02:00",
+                  "status": "paid",
+                  "total_cents": 2650,
+                  "coupon_code": "SPRING20"
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 13,
+                  "ordered_at": "2026-03-05 16:40:00",
+                  "status": "refunded",
+                  "total_cents": 3900,
+                  "coupon_code": "SPRING20"
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 11,
+                  "ordered_at": "2026-03-08 08:05:00",
+                  "status": "paid",
+                  "total_cents": 1800,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 14,
+                  "ordered_at": "2026-03-09 19:21:00",
+                  "status": "cancelled",
+                  "total_cents": 5200,
+                  "coupon_code": "SPRING20"
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 15,
+                  "ordered_at": "2026-03-12 13:30:00",
+                  "status": "paid",
+                  "total_cents": 3150,
+                  "coupon_code": "SPRING20"
+                },
+                {
+                  "order_id": 7,
+                  "customer_id": 12,
+                  "ordered_at": "2026-03-15 10:10:00",
+                  "status": "pending",
+                  "total_cents": 2400,
+                  "coupon_code": "SPRING10"
+                },
+                {
+                  "order_id": 8,
+                  "customer_id": 16,
+                  "ordered_at": "2026-03-18 21:45:00",
+                  "status": "paid",
+                  "total_cents": 2700,
+                  "coupon_code": "WELCOME5"
+                },
+                {
+                  "order_id": 9,
+                  "customer_id": 13,
+                  "ordered_at": "2026-03-22 07:55:00",
+                  "status": "refunded",
+                  "total_cents": 4500,
+                  "coupon_code": "SPRING10"
+                },
+                {
+                  "order_id": 10,
+                  "customer_id": 17,
+                  "ordered_at": "2026-03-27 15:12:00",
+                  "status": "paid",
+                  "total_cents": 1900,
+                  "coupon_code": "SPRING10"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              1,
+              11,
+              "SPRING10",
+              4200
+            ],
+            [
+              6,
+              15,
+              "SPRING20",
+              3150
+            ],
+            [
+              2,
+              12,
+              "SPRING20",
+              2650
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Other coupons (even SPRING30) and orders without a coupon are not in the list",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 21,
+                  "ordered_at": "2026-03-01 10:00:00",
+                  "status": "paid",
+                  "total_cents": 6000,
+                  "coupon_code": "SPRING30"
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 22,
+                  "ordered_at": "2026-03-02 10:00:00",
+                  "status": "paid",
+                  "total_cents": 3000,
+                  "coupon_code": "WELCOME5"
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 23,
+                  "ordered_at": "2026-03-03 10:00:00",
+                  "status": "paid",
+                  "total_cents": 5000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 24,
+                  "ordered_at": "2026-03-04 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2800,
+                  "coupon_code": "SPRING10"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              4,
+              24,
+              "SPRING10",
+              2800
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "No qualifying order gives an empty list",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 31,
+                  "ordered_at": "2026-03-05 12:00:00",
+                  "status": "refunded",
+                  "total_cents": 4000,
+                  "coupon_code": "SPRING10"
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 32,
+                  "ordered_at": "2026-03-06 12:00:00",
+                  "status": "pending",
+                  "total_cents": 3500,
+                  "coupon_code": "SPRING20"
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 33,
+                  "ordered_at": "2026-03-07 12:00:00",
+                  "status": "paid",
+                  "total_cents": 1200,
+                  "coupon_code": "SPRING20"
+                }
+              ]
+            }
+          },
+          "expected": [],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "An order of exactly $25.00 (2500 cents) counts; 2499 cents does not",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 41,
+                  "ordered_at": "2026-03-10 09:00:00",
+                  "status": "paid",
+                  "total_cents": 2500,
+                  "coupon_code": "SPRING10"
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 42,
+                  "ordered_at": "2026-03-11 09:00:00",
+                  "status": "paid",
+                  "total_cents": 2499,
+                  "coupon_code": "SPRING20"
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 43,
+                  "ordered_at": "2026-03-12 09:00:00",
+                  "status": "paid",
+                  "total_cents": 2600,
+                  "coupon_code": "SPRING20"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              3,
+              43,
+              "SPRING20",
+              2600
+            ],
+            [
+              1,
+              41,
+              "SPRING10",
+              2500
+            ]
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Equal totals: the newer order (larger order_id) comes first",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 21,
+                  "customer_id": 51,
+                  "ordered_at": "2026-03-03 08:00:00",
+                  "status": "paid",
+                  "total_cents": 3000,
+                  "coupon_code": "SPRING10"
+                },
+                {
+                  "order_id": 22,
+                  "customer_id": 52,
+                  "ordered_at": "2026-03-04 08:00:00",
+                  "status": "paid",
+                  "total_cents": 3000,
+                  "coupon_code": "SPRING20"
+                },
+                {
+                  "order_id": 23,
+                  "customer_id": 53,
+                  "ordered_at": "2026-03-05 08:00:00",
+                  "status": "paid",
+                  "total_cents": 3000,
+                  "coupon_code": "SPRING10"
+                },
+                {
+                  "order_id": 24,
+                  "customer_id": 54,
+                  "ordered_at": "2026-03-06 08:00:00",
+                  "status": "paid",
+                  "total_cents": 4100,
+                  "coupon_code": "SPRING20"
+                },
+                {
+                  "order_id": 25,
+                  "customer_id": 55,
+                  "ordered_at": "2026-03-07 08:00:00",
+                  "status": "paid",
+                  "total_cents": 2550,
+                  "coupon_code": "SPRING20"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              24,
+              54,
+              "SPRING20",
+              4100
+            ],
+            [
+              23,
+              53,
+              "SPRING10",
+              3000
+            ],
+            [
+              22,
+              52,
+              "SPRING20",
+              3000
+            ],
+            [
+              21,
+              51,
+              "SPRING10",
+              3000
+            ],
+            [
+              25,
+              55,
+              "SPRING20",
+              2550
+            ]
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A SPRING20 order that is not paid never counts, whatever its total",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 31,
+                  "customer_id": 61,
+                  "ordered_at": "2026-03-14 18:00:00",
+                  "status": "refunded",
+                  "total_cents": 9900,
+                  "coupon_code": "SPRING20"
+                },
+                {
+                  "order_id": 32,
+                  "customer_id": 62,
+                  "ordered_at": "2026-03-15 18:00:00",
+                  "status": "cancelled",
+                  "total_cents": 2500,
+                  "coupon_code": "SPRING20"
+                },
+                {
+                  "order_id": 33,
+                  "customer_id": 63,
+                  "ordered_at": "2026-03-16 18:00:00",
+                  "status": "pending",
+                  "total_cents": 3000,
+                  "coupon_code": "SPRING20"
+                },
+                {
+                  "order_id": 34,
+                  "customer_id": 64,
+                  "ordered_at": "2026-03-17 18:00:00",
+                  "status": "paid",
+                  "total_cents": 2600,
+                  "coupon_code": "SPRING10"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              34,
+              64,
+              "SPRING10",
+              2600
+            ]
+          ],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

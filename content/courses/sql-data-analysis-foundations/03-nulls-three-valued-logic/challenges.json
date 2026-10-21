@@ -1,0 +1,492 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sqlf_131",
+      "name": "nulls-three-valued-logic-quiz",
+      "type": "quiz",
+      "title": "Predict what NULL does to a filter",
+      "description": "Count the rows four NULL-sensitive filters keep on a small customers table, then pick the expressions that evaluate to UNKNOWN.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The customers table has 11 rows. Their referral_source values are:\n\n'ads', 'friend', NULL, 'search', 'ads', 'friend', NULL, 'friend', 'ads', NULL, 'search'\n\nHow many rows does SELECT COUNT(*) FROM customers WHERE ... return for each of these filters, in this order?\n\n(a) referral_source <> 'ads'\n(b) NOT (referral_source = 'ads')\n(c) referral_source NOT IN ('ads', NULL)\n(d) referral_source IS NOT 'ads'",
+          "explanation": "There are 3 'ads' rows, 5 rows with another source and 3 NULL rows. (a) For a NULL row, NULL <> 'ads' is UNKNOWN, and WHERE keeps only TRUE, so only the 5 known non-ads rows remain. (b) NOT of UNKNOWN is still UNKNOWN, so rewriting the test with NOT changes nothing: 5. (c) x NOT IN ('ads', NULL) means x <> 'ads' AND x <> NULL. The second part is UNKNOWN for every row, so the whole condition is FALSE (for 'ads') or UNKNOWN (for everything else) and never TRUE: 0 rows. (d) IS NOT is SQLite's null-safe comparison (IS DISTINCT FROM in standard SQL and PostgreSQL): NULL IS NOT 'ads' is TRUE, so the 5 known rows and the 3 NULL rows are kept: 8.",
+          "options": [
+            {
+              "text": "(a) 5, (b) 5, (c) 0, (d) 8",
+              "correct": true
+            },
+            {
+              "text": "(a) 8, (b) 8, (c) 8, (d) 8",
+              "correct": false
+            },
+            {
+              "text": "(a) 5, (b) 8, (c) 0, (d) 8",
+              "correct": false
+            },
+            {
+              "text": "(a) 5, (b) 5, (c) 5, (d) 8",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which of these expressions evaluate to UNKNOWN (SQLite returns NULL for UNKNOWN)? (Select all that apply.)",
+          "explanation": "A comparison with =, <>, <, > is UNKNOWN as soon as one side is NULL, even NULL <> NULL: two unknown values are not known to be different. NOT UNKNOWN stays UNKNOWN, so NOT (NULL = 'ads') is UNKNOWN too. 'search' NOT IN ('ads', 'friend', NULL) expands to 'search' <> 'ads' AND 'search' <> 'friend' AND 'search' <> NULL, which is TRUE AND TRUE AND UNKNOWN = UNKNOWN. The others have a definite answer: IS NOT is SQLite's null-safe comparison, so NULL IS NOT 'friend' is TRUE; FALSE AND anything is FALSE; TRUE OR anything is TRUE (1 = 1 is TRUE); and 'friend' IN ('ads', 'friend', NULL) is TRUE because one comparison already matched, and TRUE OR UNKNOWN is TRUE.",
+          "options": [
+            {
+              "text": "NULL <> NULL",
+              "correct": true
+            },
+            {
+              "text": "NULL IS NOT 'friend'",
+              "correct": false
+            },
+            {
+              "text": "FALSE AND NULL",
+              "correct": false
+            },
+            {
+              "text": "1 = 1 OR NULL",
+              "correct": false
+            },
+            {
+              "text": "NOT (NULL = 'ads')",
+              "correct": true
+            },
+            {
+              "text": "'friend' IN ('ads', 'friend', NULL)",
+              "correct": false
+            },
+            {
+              "text": "'search' NOT IN ('ads', 'friend', NULL)",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_sqlf_132",
+      "name": "fix-safe-coupons-report",
+      "type": "fix_bug",
+      "title": "Fix the empty \"safe coupons\" report",
+      "description": "Marketing renews only coupons that were never used on a refunded order. This month the \"safe coupons\" report is empty, although several coupons were used on paid orders and never refunded: one refunded order had no coupon, and that single NULL wiped out every row. Fix the query so it lists each coupon used on at least one paid order and on no refunded order, with its number of paid orders. Orders without a coupon are not a coupon and must never appear as a NULL row, whatever the refunded orders look like (including a month with no refunds at all). Sort by paid orders, most first, then by coupon code. The test runner at the bottom of the file builds the orders table from each test case and prints your rows as JSON.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "python",
+        "filePath": "safe_coupons.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: one refunded order had no coupon",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 101,
+                  "ordered_at": "2026-03-02 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2400,
+                  "coupon_code": "WELCOME10"
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 102,
+                  "ordered_at": "2026-03-03 10:00:00",
+                  "status": "paid",
+                  "total_cents": 1850,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 103,
+                  "ordered_at": "2026-03-04 10:00:00",
+                  "status": "paid",
+                  "total_cents": 5600,
+                  "coupon_code": "SPRING15"
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 104,
+                  "ordered_at": "2026-03-05 10:00:00",
+                  "status": "refunded",
+                  "total_cents": 3100,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 105,
+                  "ordered_at": "2026-03-06 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2750,
+                  "coupon_code": "WELCOME10"
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 106,
+                  "ordered_at": "2026-03-07 10:00:00",
+                  "status": "refunded",
+                  "total_cents": 4200,
+                  "coupon_code": "SPRING15"
+                },
+                {
+                  "order_id": 7,
+                  "customer_id": 107,
+                  "ordered_at": "2026-03-08 10:00:00",
+                  "status": "paid",
+                  "total_cents": 1200,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 8,
+                  "customer_id": 108,
+                  "ordered_at": "2026-03-09 10:00:00",
+                  "status": "paid",
+                  "total_cents": 3300,
+                  "coupon_code": "SUMMER5"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "WELCOME10",
+              2
+            ],
+            [
+              "SUMMER5",
+              1
+            ]
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Ties are sorted by coupon code; pending and cancelled orders are not paid orders",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 101,
+                  "ordered_at": "2026-03-02 10:00:00",
+                  "status": "paid",
+                  "total_cents": 4000,
+                  "coupon_code": "BEANS20"
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 102,
+                  "ordered_at": "2026-03-03 10:00:00",
+                  "status": "paid",
+                  "total_cents": 9900,
+                  "coupon_code": "AEROPRESS"
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 103,
+                  "ordered_at": "2026-03-04 10:00:00",
+                  "status": "pending",
+                  "total_cents": 9900,
+                  "coupon_code": "AEROPRESS"
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 104,
+                  "ordered_at": "2026-03-05 10:00:00",
+                  "status": "paid",
+                  "total_cents": 3800,
+                  "coupon_code": "BEANS20"
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 105,
+                  "ordered_at": "2026-03-06 10:00:00",
+                  "status": "cancelled",
+                  "total_cents": 15000,
+                  "coupon_code": "GRINDER"
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 106,
+                  "ordered_at": "2026-03-07 10:00:00",
+                  "status": "paid",
+                  "total_cents": 9900,
+                  "coupon_code": "AEROPRESS"
+                },
+                {
+                  "order_id": 7,
+                  "customer_id": 107,
+                  "ordered_at": "2026-03-08 10:00:00",
+                  "status": "paid",
+                  "total_cents": 1500,
+                  "coupon_code": "CUP5"
+                },
+                {
+                  "order_id": 8,
+                  "customer_id": 108,
+                  "ordered_at": "2026-03-09 10:00:00",
+                  "status": "refunded",
+                  "total_cents": 1500,
+                  "coupon_code": "CUP5"
+                },
+                {
+                  "order_id": 9,
+                  "customer_id": 109,
+                  "ordered_at": "2026-03-10 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2200,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 10,
+                  "customer_id": 110,
+                  "ordered_at": "2026-03-11 10:00:00",
+                  "status": "refunded",
+                  "total_cents": 900,
+                  "coupon_code": null
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "AEROPRESS",
+              2
+            ],
+            [
+              "BEANS20",
+              2
+            ]
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A coupon refunded once is out, however many paid orders it has",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 101,
+                  "ordered_at": "2026-03-02 10:00:00",
+                  "status": "paid",
+                  "total_cents": 6000,
+                  "coupon_code": "VIP30"
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 102,
+                  "ordered_at": "2026-03-03 10:00:00",
+                  "status": "paid",
+                  "total_cents": 6100,
+                  "coupon_code": "VIP30"
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 103,
+                  "ordered_at": "2026-03-04 10:00:00",
+                  "status": "paid",
+                  "total_cents": 5900,
+                  "coupon_code": "VIP30"
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 104,
+                  "ordered_at": "2026-03-05 10:00:00",
+                  "status": "refunded",
+                  "total_cents": 6000,
+                  "coupon_code": "VIP30"
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 105,
+                  "ordered_at": "2026-03-06 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2400,
+                  "coupon_code": "WELCOME10"
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 106,
+                  "ordered_at": "2026-03-07 10:00:00",
+                  "status": "refunded",
+                  "total_cents": 1300,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 7,
+                  "customer_id": 107,
+                  "ordered_at": "2026-03-08 10:00:00",
+                  "status": "refunded",
+                  "total_cents": 800,
+                  "coupon_code": "ONLYREFUNDED"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "WELCOME10",
+              1
+            ]
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "No refunded orders this month",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 101,
+                  "ordered_at": "2026-03-02 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2400,
+                  "coupon_code": "WELCOME10"
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 102,
+                  "ordered_at": "2026-03-03 10:00:00",
+                  "status": "paid",
+                  "total_cents": 1850,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 103,
+                  "ordered_at": "2026-03-04 10:00:00",
+                  "status": "paid",
+                  "total_cents": 5600,
+                  "coupon_code": "SPRING15"
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 104,
+                  "ordered_at": "2026-03-05 10:00:00",
+                  "status": "paid",
+                  "total_cents": 3200,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 105,
+                  "ordered_at": "2026-03-06 10:00:00",
+                  "status": "pending",
+                  "total_cents": 1500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 106,
+                  "ordered_at": "2026-03-07 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2750,
+                  "coupon_code": "WELCOME10"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "WELCOME10",
+              2
+            ],
+            [
+              "SPRING15",
+              1
+            ]
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Every refunded order was an order without a coupon",
+          "input": {
+            "tables": {
+              "orders": [
+                {
+                  "order_id": 1,
+                  "customer_id": 101,
+                  "ordered_at": "2026-03-02 10:00:00",
+                  "status": "paid",
+                  "total_cents": 5600,
+                  "coupon_code": "SPRING15"
+                },
+                {
+                  "order_id": 2,
+                  "customer_id": 102,
+                  "ordered_at": "2026-03-03 10:00:00",
+                  "status": "refunded",
+                  "total_cents": 2400,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 3,
+                  "customer_id": 103,
+                  "ordered_at": "2026-03-04 10:00:00",
+                  "status": "paid",
+                  "total_cents": 1850,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 4,
+                  "customer_id": 104,
+                  "ordered_at": "2026-03-05 10:00:00",
+                  "status": "refunded",
+                  "total_cents": 3100,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 5,
+                  "customer_id": 105,
+                  "ordered_at": "2026-03-06 10:00:00",
+                  "status": "paid",
+                  "total_cents": 4100,
+                  "coupon_code": "SPRING15"
+                },
+                {
+                  "order_id": 6,
+                  "customer_id": 106,
+                  "ordered_at": "2026-03-07 10:00:00",
+                  "status": "paid",
+                  "total_cents": 2100,
+                  "coupon_code": "AUTUMN10"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              "SPRING15",
+              2
+            ],
+            [
+              "AUTUMN10",
+              1
+            ]
+          ],
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

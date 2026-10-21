@@ -1,0 +1,571 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sqlf_211",
+      "name": "join-fan-out-quiz",
+      "type": "quiz",
+      "title": "Count the rows before you trust the sum",
+      "description": "Two small joins from the revenue incident: predict how many rows a join of orders, payments and order items produces and what SUM(total_cents) returns, then pick the queries that give finance's revenue number.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Three orders: order 1 (total_cents 3000), order 2 (2000) and order 3 (1500).\npayments: order 1 has 2 rows, order 2 has 1 row, order 3 has none yet.\norder_items: order 1 has 3 rows, order 2 has 2 rows, order 3 has 1 row.\n\nSELECT COUNT(*), SUM(o.total_cents)\nFROM orders o\nJOIN payments    p ON p.order_id = o.order_id\nJOIN order_items i ON i.order_id = o.order_id;\n\nWhat does it return?",
+          "explanation": "A join produces one row for every combination of rows that match. For order 1 that is 2 payments x 3 items = 6 rows, for order 2 it is 1 x 2 = 2 rows, and order 3 has no payment, so the inner join drops it: 8 rows. SUM(o.total_cents) then adds each order total once per row: 6 x 3000 + 2 x 2000 = 22000, while the two orders that have a payment are only worth 5000. Two one-to-many joins from the same table multiply, they do not add.",
+          "options": [
+            {
+              "text": "8 rows, 22000",
+              "correct": true
+            },
+            {
+              "text": "3 rows, 6500",
+              "correct": false
+            },
+            {
+              "text": "8 rows, 5000",
+              "correct": false
+            },
+            {
+              "text": "9 rows, 6500",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "orders (all status 'paid'): order 201 total 4500, order 202 total 4500, order 203 total 7000.\npayments: order 201 one payment of 4500, order 202 two payments (2000 + 2500), order 203 one payment of 7000.\n\nFinance wants the total of all orders that have at least one payment: 16000 cents. Which queries return 16000? (Select all that apply.)",
+          "explanation": "A plain JOIN to payments repeats order 202 for each of its two payments, so SUM(o.total_cents) gives 20500; a LEFT JOIN keeps unmatched orders but fans out exactly the same way, so it also gives 20500. SUM(DISTINCT o.total_cents) removes repeated values, not repeated orders: orders 201 and 202 both total 4500, so it returns 4500 + 7000 = 11500. Pre-aggregating payments to one row per order before the join keeps one row per order (16000), and IN only tests whether an order has a payment, so it never repeats an order (16000).",
+          "options": [
+            {
+              "text": "SELECT SUM(o.total_cents) FROM orders o JOIN payments p ON p.order_id = o.order_id",
+              "correct": false
+            },
+            {
+              "text": "SELECT SUM(DISTINCT o.total_cents) FROM orders o JOIN payments p ON p.order_id = o.order_id",
+              "correct": false
+            },
+            {
+              "text": "SELECT SUM(o.total_cents) FROM orders o JOIN (SELECT order_id, SUM(amount_cents) AS paid_cents FROM payments GROUP BY order_id) AS p ON p.order_id = o.order_id",
+              "correct": true
+            },
+            {
+              "text": "SELECT SUM(total_cents) FROM orders WHERE order_id IN (SELECT order_id FROM payments)",
+              "correct": true
+            },
+            {
+              "text": "SELECT SUM(o.total_cents) FROM orders o LEFT JOIN payments p ON p.order_id = o.order_id",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_sqlf_212",
+      "name": "fix-customer-revenue-report",
+      "type": "fix_bug",
+      "title": "Fix the customer revenue report",
+      "description": "The account managers' report shows each customer's paid orders, revenue and collected payments. Customers who paid an order in two parts appear with twice the orders and twice the revenue, and every customer without a paid order is missing, although the team needs them listed with zeros to call them. Fix QUERY so that each paid order counts once, collected_cents adds every payment of those orders, refunded, cancelled and pending orders are ignored, and every customer is listed (0, never NULL). Hint: what is the grain of each table in the join, and where does a filter on the right table of a LEFT JOIN belong?",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "python",
+        "filePath": "customer_revenue.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: an order paid in two parts is still one order of 9000 cents",
+          "input": {
+            "tables": {
+              "customers": [
+                {
+                  "customer_id": 1,
+                  "name": "Anh",
+                  "country": "VN",
+                  "signup_date": "2026-01-10",
+                  "referral_source": "friend"
+                },
+                {
+                  "customer_id": 2,
+                  "name": "Ben",
+                  "country": "US",
+                  "signup_date": "2026-02-02",
+                  "referral_source": "ads"
+                }
+              ],
+              "orders": [
+                {
+                  "order_id": 101,
+                  "customer_id": 1,
+                  "ordered_at": "2026-04-07 10:41:00",
+                  "status": "paid",
+                  "total_cents": 9000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 102,
+                  "customer_id": 2,
+                  "ordered_at": "2026-04-09 10:42:00",
+                  "status": "paid",
+                  "total_cents": 12000,
+                  "coupon_code": null
+                }
+              ],
+              "payments": [
+                {
+                  "payment_id": 1,
+                  "order_id": 101,
+                  "amount_cents": 5000,
+                  "paid_at": "2026-04-07 10:41:30",
+                  "method": "wallet"
+                },
+                {
+                  "payment_id": 2,
+                  "order_id": 101,
+                  "amount_cents": 4000,
+                  "paid_at": "2026-04-07 10:41:30",
+                  "method": "card"
+                },
+                {
+                  "payment_id": 3,
+                  "order_id": 102,
+                  "amount_cents": 12000,
+                  "paid_at": "2026-04-09 10:42:30",
+                  "method": "card"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              2,
+              "Ben",
+              1,
+              12000,
+              12000
+            ],
+            [
+              1,
+              "Anh",
+              1,
+              9000,
+              9000
+            ]
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A customer with no orders is listed with zeros; equal revenue is sorted by customer_id",
+          "input": {
+            "tables": {
+              "customers": [
+                {
+                  "customer_id": 1,
+                  "name": "Anh",
+                  "country": "VN",
+                  "signup_date": "2026-01-10",
+                  "referral_source": "friend"
+                },
+                {
+                  "customer_id": 2,
+                  "name": "Ben",
+                  "country": "US",
+                  "signup_date": "2026-02-02",
+                  "referral_source": "ads"
+                },
+                {
+                  "customer_id": 3,
+                  "name": "Chloe",
+                  "country": "DE",
+                  "signup_date": "2026-03-15",
+                  "referral_source": "search"
+                }
+              ],
+              "orders": [
+                {
+                  "order_id": 101,
+                  "customer_id": 3,
+                  "ordered_at": "2026-04-03 10:41:00",
+                  "status": "paid",
+                  "total_cents": 7000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 102,
+                  "customer_id": 1,
+                  "ordered_at": "2026-04-05 10:42:00",
+                  "status": "paid",
+                  "total_cents": 7000,
+                  "coupon_code": null
+                }
+              ],
+              "payments": [
+                {
+                  "payment_id": 1,
+                  "order_id": 101,
+                  "amount_cents": 7000,
+                  "paid_at": "2026-04-03 10:41:30",
+                  "method": "card"
+                },
+                {
+                  "payment_id": 2,
+                  "order_id": 102,
+                  "amount_cents": 7000,
+                  "paid_at": "2026-04-05 10:42:30",
+                  "method": "bank"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              1,
+              "Anh",
+              1,
+              7000,
+              7000
+            ],
+            [
+              3,
+              "Chloe",
+              1,
+              7000,
+              7000
+            ],
+            [
+              2,
+              "Ben",
+              0,
+              0,
+              0
+            ]
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Two different orders with the same total (one paid in two parts)",
+          "input": {
+            "tables": {
+              "customers": [
+                {
+                  "customer_id": 1,
+                  "name": "Anh",
+                  "country": "VN",
+                  "signup_date": "2026-01-10",
+                  "referral_source": "friend"
+                },
+                {
+                  "customer_id": 2,
+                  "name": "Ben",
+                  "country": "US",
+                  "signup_date": "2026-02-02",
+                  "referral_source": "ads"
+                }
+              ],
+              "orders": [
+                {
+                  "order_id": 101,
+                  "customer_id": 1,
+                  "ordered_at": "2026-04-02 10:41:00",
+                  "status": "paid",
+                  "total_cents": 4500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 102,
+                  "customer_id": 1,
+                  "ordered_at": "2026-04-12 10:42:00",
+                  "status": "paid",
+                  "total_cents": 4500,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 103,
+                  "customer_id": 2,
+                  "ordered_at": "2026-04-20 10:43:00",
+                  "status": "paid",
+                  "total_cents": 9000,
+                  "coupon_code": null
+                }
+              ],
+              "payments": [
+                {
+                  "payment_id": 1,
+                  "order_id": 101,
+                  "amount_cents": 4500,
+                  "paid_at": "2026-04-02 10:41:30",
+                  "method": "card"
+                },
+                {
+                  "payment_id": 2,
+                  "order_id": 102,
+                  "amount_cents": 2000,
+                  "paid_at": "2026-04-12 10:42:30",
+                  "method": "wallet"
+                },
+                {
+                  "payment_id": 3,
+                  "order_id": 102,
+                  "amount_cents": 2500,
+                  "paid_at": "2026-04-12 10:42:30",
+                  "method": "card"
+                },
+                {
+                  "payment_id": 4,
+                  "order_id": 103,
+                  "amount_cents": 9000,
+                  "paid_at": "2026-04-20 10:43:30",
+                  "method": "card"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              1,
+              "Anh",
+              2,
+              9000,
+              9000
+            ],
+            [
+              2,
+              "Ben",
+              1,
+              9000,
+              9000
+            ]
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Refunded and pending orders do not count, and their customers are still listed",
+          "input": {
+            "tables": {
+              "customers": [
+                {
+                  "customer_id": 1,
+                  "name": "Anh",
+                  "country": "VN",
+                  "signup_date": "2026-01-10",
+                  "referral_source": "friend"
+                },
+                {
+                  "customer_id": 2,
+                  "name": "Ben",
+                  "country": "US",
+                  "signup_date": "2026-02-02",
+                  "referral_source": "ads"
+                },
+                {
+                  "customer_id": 3,
+                  "name": "Chloe",
+                  "country": "DE",
+                  "signup_date": "2026-03-15",
+                  "referral_source": "search"
+                },
+                {
+                  "customer_id": 4,
+                  "name": "Duc",
+                  "country": "VN",
+                  "signup_date": "2026-03-20",
+                  "referral_source": null
+                }
+              ],
+              "orders": [
+                {
+                  "order_id": 101,
+                  "customer_id": 1,
+                  "ordered_at": "2026-04-04 10:41:00",
+                  "status": "paid",
+                  "total_cents": 6000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 102,
+                  "customer_id": 1,
+                  "ordered_at": "2026-04-08 10:42:00",
+                  "status": "refunded",
+                  "total_cents": 3000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 103,
+                  "customer_id": 2,
+                  "ordered_at": "2026-04-09 10:43:00",
+                  "status": "refunded",
+                  "total_cents": 5000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 104,
+                  "customer_id": 3,
+                  "ordered_at": "2026-04-28 10:44:00",
+                  "status": "pending",
+                  "total_cents": 2500,
+                  "coupon_code": null
+                }
+              ],
+              "payments": [
+                {
+                  "payment_id": 1,
+                  "order_id": 101,
+                  "amount_cents": 6000,
+                  "paid_at": "2026-04-04 10:41:30",
+                  "method": "card"
+                },
+                {
+                  "payment_id": 2,
+                  "order_id": 102,
+                  "amount_cents": 3000,
+                  "paid_at": "2026-04-08 10:42:30",
+                  "method": "card"
+                },
+                {
+                  "payment_id": 3,
+                  "order_id": 103,
+                  "amount_cents": 5000,
+                  "paid_at": "2026-04-09 10:43:30",
+                  "method": "wallet"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              1,
+              "Anh",
+              1,
+              6000,
+              6000
+            ],
+            [
+              2,
+              "Ben",
+              0,
+              0,
+              0
+            ],
+            [
+              3,
+              "Chloe",
+              0,
+              0,
+              0
+            ],
+            [
+              4,
+              "Duc",
+              0,
+              0,
+              0
+            ]
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A paid order whose payment is not recorded yet counts as revenue but not as collected",
+          "input": {
+            "tables": {
+              "customers": [
+                {
+                  "customer_id": 1,
+                  "name": "Anh",
+                  "country": "VN",
+                  "signup_date": "2026-01-10",
+                  "referral_source": "friend"
+                },
+                {
+                  "customer_id": 2,
+                  "name": "Ben",
+                  "country": "US",
+                  "signup_date": "2026-02-02",
+                  "referral_source": "ads"
+                }
+              ],
+              "orders": [
+                {
+                  "order_id": 101,
+                  "customer_id": 1,
+                  "ordered_at": "2026-04-10 10:41:00",
+                  "status": "paid",
+                  "total_cents": 10000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 102,
+                  "customer_id": 1,
+                  "ordered_at": "2026-04-30 10:42:00",
+                  "status": "paid",
+                  "total_cents": 3000,
+                  "coupon_code": null
+                },
+                {
+                  "order_id": 103,
+                  "customer_id": 2,
+                  "ordered_at": "2026-04-15 10:43:00",
+                  "status": "paid",
+                  "total_cents": 2000,
+                  "coupon_code": null
+                }
+              ],
+              "payments": [
+                {
+                  "payment_id": 1,
+                  "order_id": 101,
+                  "amount_cents": 6000,
+                  "paid_at": "2026-04-10 10:41:30",
+                  "method": "wallet"
+                },
+                {
+                  "payment_id": 2,
+                  "order_id": 101,
+                  "amount_cents": 4000,
+                  "paid_at": "2026-04-10 10:41:30",
+                  "method": "card"
+                },
+                {
+                  "payment_id": 3,
+                  "order_id": 103,
+                  "amount_cents": 2000,
+                  "paid_at": "2026-04-15 10:43:30",
+                  "method": "card"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              1,
+              "Anh",
+              2,
+              13000,
+              10000
+            ],
+            [
+              2,
+              "Ben",
+              1,
+              2000,
+              2000
+            ]
+          ],
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

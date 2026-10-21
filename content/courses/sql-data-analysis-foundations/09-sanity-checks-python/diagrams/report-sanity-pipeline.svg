@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">No number leaves your laptop until the checks pass</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Run the query from Python, then test the result against the database. Any failed check stops the report.</text>
+
+  <!-- Query -->
+  <rect x="40" y="120" width="190" height="140" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="58" y="150" font-size="16" font-weight="700" fill="#0e7490">Query</text>
+  <text x="58" y="176" font-size="13" fill="#155e75" font-family="Consolas, 'Courier New', monospace">db.execute(sql,</text>
+  <text x="58" y="194" font-size="13" fill="#155e75" font-family="Consolas, 'Courier New', monospace">  period)</text>
+  <text x="58" y="222" font-size="13" fill="#155e75">rows as dicts:</text>
+  <text x="58" y="242" font-size="13" fill="#155e75" font-family="Consolas, 'Courier New', monospace">row_factory = Row</text>
+  <line x1="230" y1="190" x2="254" y2="190" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="250,184 250,196 262,190" fill="#94a3b8"/>
+
+  <!-- Checks -->
+  <rect x="262" y="120" width="166" height="140" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="278" y="150" font-size="16" font-weight="700" fill="#b45309">1  Reconcile</text>
+  <text x="278" y="176" font-size="13" fill="#92400e">the parts add up to a</text>
+  <text x="278" y="194" font-size="13" fill="#92400e">total from a second,</text>
+  <text x="278" y="212" font-size="13" fill="#92400e">independent query</text>
+  <text x="278" y="242" font-size="12" fill="#92400e" font-family="Consolas, 'Courier New', monospace">sum(parts) == total</text>
+  <line x1="428" y1="190" x2="442" y2="190" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="440,184 440,196 450,190" fill="#94a3b8"/>
+
+  <rect x="450" y="120" width="166" height="140" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="466" y="150" font-size="16" font-weight="700" fill="#b45309">2  Grain</text>
+  <text x="466" y="176" font-size="13" fill="#92400e">one row per key:</text>
+  <text x="466" y="194" font-size="13" fill="#92400e">no duplicates after</text>
+  <text x="466" y="212" font-size="13" fill="#92400e">trim + upper case</text>
+  <text x="466" y="242" font-size="12" fill="#92400e" font-family="Consolas, 'Courier New', monospace">'VN' == 'vn '?</text>
+  <line x1="616" y1="190" x2="630" y2="190" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="628,184 628,196 638,190" fill="#94a3b8"/>
+
+  <rect x="638" y="120" width="166" height="140" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="654" y="150" font-size="16" font-weight="700" fill="#b45309">3  Completeness</text>
+  <text x="654" y="176" font-size="13" fill="#92400e">no NULL keys, every</text>
+  <text x="654" y="194" font-size="13" fill="#92400e">expected country and</text>
+  <text x="654" y="212" font-size="13" fill="#92400e">month is present</text>
+  <text x="654" y="242" font-size="12" fill="#92400e" font-family="Consolas, 'Courier New', monospace">expected - found</text>
+  <line x1="804" y1="190" x2="818" y2="190" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="816,184 816,196 826,190" fill="#94a3b8"/>
+
+  <rect x="826" y="120" width="166" height="140" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="842" y="150" font-size="16" font-weight="700" fill="#b45309">4  Ranges</text>
+  <text x="842" y="176" font-size="13" fill="#92400e">0 &lt;= pct &lt;= 100, and</text>
+  <text x="842" y="194" font-size="13" fill="#92400e">they sum to 100 within</text>
+  <text x="842" y="212" font-size="13" fill="#92400e">rounding; counts &gt;= 0</text>
+  <text x="842" y="242" font-size="12" fill="#92400e" font-family="Consolas, 'Courier New', monospace">abs(s - 100) &lt;= 0.5</text>
+  <line x1="992" y1="190" x2="1016" y2="190" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="1012,184 1012,196 1024,190" fill="#16a34a"/>
+
+  <!-- Send -->
+  <rect x="1024" y="120" width="136" height="140" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="1092" y="166" font-size="16" font-weight="700" text-anchor="middle" fill="#15803d">Send</text>
+  <text x="1092" y="194" font-size="13" text-anchor="middle" fill="#166534">all checks</text>
+  <text x="1092" y="212" font-size="13" text-anchor="middle" fill="#166534">passed</text>
+
+  <!-- Fail arrows -->
+  <g stroke="#ef4444" stroke-width="2">
+    <line x1="345" y1="260" x2="345" y2="292"/>
+    <line x1="533" y1="260" x2="533" y2="292"/>
+    <line x1="721" y1="260" x2="721" y2="292"/>
+    <line x1="909" y1="260" x2="909" y2="292"/>
+  </g>
+  <g fill="#ef4444">
+    <polygon points="339,288 351,288 345,300"/>
+    <polygon points="527,288 539,288 533,300"/>
+    <polygon points="715,288 727,288 721,300"/>
+    <polygon points="903,288 915,288 909,300"/>
+  </g>
+  <g font-size="12" font-weight="700" fill="#b91c1c">
+    <text x="352" y="282">fail</text>
+    <text x="540" y="282">fail</text>
+    <text x="728" y="282">fail</text>
+    <text x="916" y="282">fail</text>
+  </g>
+  <rect x="262" y="300" width="730" height="48" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="627" y="330" font-size="15" font-weight="700" text-anchor="middle" fill="#b91c1c">Stop: list every failed check, fix the query, send nothing</text>
+
+  <!-- Bottom: the incident vs the fix -->
+  <rect x="40" y="380" width="545" height="190" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="412" font-size="18" font-weight="700" fill="#b91c1c">Before: the Q1 email to the CEO</text>
+  <text x="64" y="436" font-size="13" fill="#64748b">JOIN payments fans out, GROUP BY the raw country text</text>
+  <text x="64" y="466" font-size="14" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">reconcile: countries add up to 140000</text>
+  <text x="64" y="486" font-size="14" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">           cents, paid orders total 125000</text>
+  <text x="64" y="512" font-size="14" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">grain: more than one row for ['VN']</text>
+  <text x="64" y="538" font-size="14" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">ranges: percentages add up to 112.0</text>
+
+  <rect x="615" y="380" width="545" height="190" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="639" y="412" font-size="18" font-weight="700" fill="#15803d">After: the fixed query</text>
+  <text x="639" y="436" font-size="13" fill="#64748b">no payments join, UPPER(TRIM(country)), one shared total</text>
+  <text x="639" y="464" font-size="14" fill="#15803d" font-family="Consolas, 'Courier New', monospace">VN   70000   56.0</text>
+  <text x="639" y="486" font-size="14" fill="#15803d" font-family="Consolas, 'Courier New', monospace">DE   30000   24.0</text>
+  <text x="639" y="508" font-size="14" fill="#15803d" font-family="Consolas, 'Courier New', monospace">US   25000   20.0</text>
+  <text x="639" y="530" font-size="13" fill="#64748b">sum: 125000 cents (the independent total), 100.0 %</text>
+  <text x="639" y="556" font-size="15" font-weight="700" fill="#15803d">All checks passed: sending 3 rows</text>
+</svg>

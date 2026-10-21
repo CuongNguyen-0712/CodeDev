@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">BETWEEN on text timestamps loses the last day. A half-open range does not.</text>
+  <text x="40" y="82" font-size="16" fill="#475569">ordered_at is TEXT, compared character by character: '2026-03-31 14:05:00' is greater than '2026-03-31', because it is longer.</text>
+
+  <!-- Before: BETWEEN -->
+  <rect x="40" y="105" width="1120" height="185" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="137" font-size="18" font-weight="700" fill="#b91c1c">Before: ordered_at BETWEEN '2026-03-01' AND '2026-03-31'</text>
+  <text x="1136" y="137" font-size="15" font-weight="700" fill="#b91c1c" text-anchor="end">kept 2 of 4 paid March orders: 8,000 cents</text>
+
+  <line x1="90" y1="215" x2="1120" y2="215" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="100" y="207" width="596" height="16" rx="3" fill="#fecaca" stroke="#ef4444" stroke-width="2"/>
+  <circle cx="100" cy="215" r="6" fill="#ef4444"/>
+  <circle cx="696" cy="215" r="6" fill="#ef4444"/>
+  <line x1="700" y1="200" x2="700" y2="232" stroke="#64748b" stroke-width="2" stroke-dasharray="4 3"/>
+  <line x1="1040" y1="200" x2="1040" y2="232" stroke="#64748b" stroke-width="2" stroke-dasharray="4 3"/>
+
+  <circle cx="128" cy="215" r="7" fill="#16a34a" stroke="#ffffff" stroke-width="2"/>
+  <circle cx="380" cy="215" r="7" fill="#16a34a" stroke="#ffffff" stroke-width="2"/>
+  <circle cx="860" cy="215" r="8" fill="#ef4444" stroke="#ffffff" stroke-width="2"/>
+  <circle cx="960" cy="215" r="8" fill="#ef4444" stroke="#ffffff" stroke-width="2"/>
+  <circle cx="1040" cy="215" r="6" fill="#94a3b8"/>
+
+  <g font-family="Consolas, 'Courier New', monospace" font-size="13">
+    <text x="128" y="190" fill="#334155" text-anchor="middle">00:20</text>
+    <text x="380" y="190" fill="#334155" text-anchor="middle">13:00</text>
+    <text x="860" y="190" fill="#b91c1c" text-anchor="middle" font-weight="700">14:05 dropped</text>
+    <text x="960" y="172" fill="#b91c1c" text-anchor="middle" font-weight="700">22:30 dropped</text>
+    <text x="1040" y="190" fill="#64748b" text-anchor="middle">April</text>
+  </g>
+  <g font-size="13" fill="#64748b">
+    <text x="100" y="250" text-anchor="middle">Mar 1</text>
+    <text x="380" y="250" text-anchor="middle">Mar 12</text>
+    <text x="700" y="250" text-anchor="middle">Mar 31 00:00</text>
+    <text x="1040" y="250" text-anchor="middle">Apr 1 00:00</text>
+  </g>
+  <text x="430" y="274" font-size="13" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace" text-anchor="middle">'2026-03-31' &lt; '2026-03-31 00:00:00' &lt; '2026-03-31 14:05:00'</text>
+
+  <!-- After: half-open -->
+  <rect x="40" y="305" width="1120" height="185" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="64" y="337" font-size="18" font-weight="700" fill="#15803d">After: ordered_at &gt;= '2026-03-01' AND ordered_at &lt; '2026-04-01'</text>
+  <text x="1136" y="337" font-size="15" font-weight="700" fill="#15803d" text-anchor="end">kept 4 of 4: 30,000 cents</text>
+
+  <line x1="90" y1="415" x2="1120" y2="415" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="100" y="407" width="940" height="16" rx="3" fill="#bbf7d0" stroke="#16a34a" stroke-width="2"/>
+  <circle cx="100" cy="415" r="6" fill="#16a34a"/>
+  <line x1="700" y1="400" x2="700" y2="432" stroke="#64748b" stroke-width="2" stroke-dasharray="4 3"/>
+
+  <circle cx="128" cy="415" r="7" fill="#16a34a" stroke="#ffffff" stroke-width="2"/>
+  <circle cx="380" cy="415" r="7" fill="#16a34a" stroke="#ffffff" stroke-width="2"/>
+  <circle cx="860" cy="415" r="8" fill="#16a34a" stroke="#ffffff" stroke-width="2"/>
+  <circle cx="960" cy="415" r="8" fill="#16a34a" stroke="#ffffff" stroke-width="2"/>
+  <circle cx="1040" cy="415" r="10" fill="#ffffff" stroke="#16a34a" stroke-width="3"/>
+  <circle cx="1040" cy="415" r="5" fill="#94a3b8"/>
+
+  <g font-family="Consolas, 'Courier New', monospace" font-size="13">
+    <text x="128" y="390" fill="#334155" text-anchor="middle">00:20</text>
+    <text x="380" y="390" fill="#334155" text-anchor="middle">13:00</text>
+    <text x="860" y="390" fill="#15803d" text-anchor="middle" font-weight="700">14:05 kept</text>
+    <text x="960" y="372" fill="#15803d" text-anchor="middle" font-weight="700">22:30 kept</text>
+    <text x="1040" y="390" fill="#64748b" text-anchor="middle">April</text>
+  </g>
+  <g font-size="13" fill="#64748b">
+    <text x="100" y="450" text-anchor="middle">Mar 1</text>
+    <text x="380" y="450" text-anchor="middle">Mar 12</text>
+    <text x="700" y="450" text-anchor="middle">Mar 31 00:00</text>
+    <text x="1040" y="450" text-anchor="middle">Apr 1 00:00</text>
+  </g>
+  <text x="570" y="474" font-size="13" fill="#15803d" text-anchor="middle">open end: the bound is the first second of April, so every 31 March timestamp is below it and April's first order is not</text>
+
+  <!-- Rule -->
+  <rect x="40" y="510" width="360" height="70" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="60" y="538" font-size="15" font-weight="700" fill="#b45309">1  Start: first day, included</text>
+  <text x="60" y="562" font-size="13" fill="#92400e" font-family="Consolas, 'Courier New', monospace">ordered_at &gt;= '2026-03-01'</text>
+  <line x1="400" y1="545" x2="420" y2="545" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="416,539 416,551 428,545" fill="#94a3b8"/>
+  <rect x="430" y="510" width="360" height="70" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="450" y="538" font-size="15" font-weight="700" fill="#0e7490">2  End: next month's first day, excluded</text>
+  <text x="450" y="562" font-size="13" fill="#155e75" font-family="Consolas, 'Courier New', monospace">ordered_at &lt; '2026-04-01'</text>
+  <line x1="790" y1="545" x2="810" y2="545" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="806,539 806,551 818,545" fill="#94a3b8"/>
+  <rect x="820" y="510" width="340" height="70" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="840" y="538" font-size="15" font-weight="700" fill="#15803d">3  Months tile: no gap, no overlap</text>
+  <text x="840" y="562" font-size="13" fill="#166534" font-family="Consolas, 'Courier New', monospace">[Mar 1, Apr 1) [Apr 1, May 1) ...</text>
+</svg>

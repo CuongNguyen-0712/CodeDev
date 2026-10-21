@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">One order, two payment rows: the join counts its total twice</text>
+  <text x="40" y="82" font-size="16" fill="#475569">A join returns one row per matching pair. Sum each column at the grain where every value appears exactly once.</text>
+
+  <!-- Left: join first -->
+  <rect x="40" y="112" width="545" height="300" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="146" font-size="18" font-weight="700" fill="#b91c1c">Before: join first, then SUM(o.total_cents)</text>
+  <text x="64" y="170" font-size="13" fill="#64748b">orders JOIN payments: one row per payment, the order total is copied</text>
+
+  <text x="64" y="198" font-size="13" font-weight="700" fill="#475569">orders (1 row)</text>
+  <text x="300" y="198" font-size="13" font-weight="700" fill="#475569">joined: order_id | total | paid</text>
+  <rect x="64" y="208" width="170" height="40" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+  <text x="149" y="234" font-size="15" text-anchor="middle" fill="#334155" font-family="Consolas, 'Courier New', monospace">102 | 9000</text>
+  <polyline points="234,228 264,228 264,276 290,276" fill="none" stroke="#ef4444" stroke-width="2"/>
+  <line x1="234" y1="228" x2="290" y2="228" stroke="#ef4444" stroke-width="2"/>
+  <polygon points="288,222 288,234 300,228" fill="#ef4444"/>
+  <polygon points="288,270 288,282 300,276" fill="#ef4444"/>
+  <rect x="300" y="208" width="261" height="40" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+  <text x="430" y="234" font-size="15" text-anchor="middle" fill="#334155" font-family="Consolas, 'Courier New', monospace">102 | <tspan fill="#b91c1c" font-weight="700">9000</tspan> | 5000</text>
+  <rect x="300" y="256" width="261" height="40" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+  <text x="430" y="282" font-size="15" text-anchor="middle" fill="#334155" font-family="Consolas, 'Courier New', monospace">102 | <tspan fill="#b91c1c" font-weight="700">9000</tspan> | 4000</text>
+
+  <line x1="80" y1="314" x2="545" y2="314" stroke="#ef4444" stroke-width="2"/>
+  <text xml:space="preserve" x="64" y="342" font-size="15" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">SUM(o.total_cents)  = 18000   counted twice</text>
+  <text xml:space="preserve" x="64" y="366" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">SUM(p.amount_cents) =  9000   correct</text>
+  <text x="64" y="396" font-size="13" fill="#64748b">COUNT(*) also says 2 orders. Every row looks right; only the sums are wrong.</text>
+
+  <!-- Right: pre-aggregate -->
+  <rect x="615" y="112" width="545" height="300" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="639" y="146" font-size="18" font-weight="700" fill="#15803d">After: one row per order, then join</text>
+  <text x="639" y="170" font-size="13" fill="#64748b">GROUP BY order_id in a derived table, before the join</text>
+
+  <text x="639" y="198" font-size="13" font-weight="700" fill="#475569">payments (2 rows)</text>
+  <text x="900" y="198" font-size="13" font-weight="700" fill="#475569">derived table (1 row)</text>
+  <rect x="639" y="208" width="170" height="40" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="724" y="234" font-size="15" text-anchor="middle" fill="#334155" font-family="Consolas, 'Courier New', monospace">102 | 5000</text>
+  <rect x="639" y="256" width="170" height="40" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="724" y="282" font-size="15" text-anchor="middle" fill="#334155" font-family="Consolas, 'Courier New', monospace">102 | 4000</text>
+  <polyline points="809,228 850,228 850,276 809,276" fill="none" stroke="#16a34a" stroke-width="2"/>
+  <line x1="850" y1="252" x2="890" y2="252" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="888,246 888,258 900,252" fill="#16a34a"/>
+  <rect x="900" y="232" width="236" height="40" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="1018" y="258" font-size="15" text-anchor="middle" fill="#15803d" font-family="Consolas, 'Courier New', monospace">102 | paid 9000</text>
+
+  <line x1="655" y1="314" x2="1120" y2="314" stroke="#16a34a" stroke-width="2"/>
+  <text xml:space="preserve" x="639" y="342" font-size="15" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">SUM(o.total_cents) = 9000   once</text>
+  <text xml:space="preserve" x="639" y="366" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">SUM(p.paid_cents)  = 9000   correct</text>
+  <text x="639" y="396" font-size="13" fill="#64748b">orders JOIN derived table: still one row per order, so every sum is exact.</text>
+
+  <!-- Rule -->
+  <text x="40" y="460" font-size="18" font-weight="700" fill="#334155">The rule for joins</text>
+  <rect x="40" y="478" width="340" height="84" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="60" y="508" font-size="15" font-weight="700" fill="#b45309">1  Name the grain</text>
+  <text x="60" y="532" font-size="13" fill="#92400e">orders: one row per order; payments: one</text>
+  <text x="60" y="550" font-size="13" fill="#92400e">row per payment; order_items: one per item</text>
+  <line x1="380" y1="520" x2="420" y2="520" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="416,514 416,526 428,520" fill="#94a3b8"/>
+  <rect x="430" y="478" width="340" height="84" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="450" y="508" font-size="15" font-weight="700" fill="#0e7490">2  Count rows around every join</text>
+  <text x="450" y="532" font-size="13" fill="#155e75">COUNT(*) and COUNT(DISTINCT order_id)</text>
+  <text x="450" y="550" font-size="13" fill="#155e75">before and after: they must still match</text>
+  <line x1="770" y1="520" x2="810" y2="520" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="806,514 806,526 818,520" fill="#94a3b8"/>
+  <rect x="820" y="478" width="340" height="84" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="840" y="508" font-size="15" font-weight="700" fill="#15803d">3  Aggregate the many side first</text>
+  <text x="840" y="532" font-size="13" fill="#166534">GROUP BY order_id, then join one row per</text>
+  <text x="840" y="550" font-size="13" fill="#166534">order; LEFT JOIN + COALESCE keeps the zeros</text>
+</svg>
