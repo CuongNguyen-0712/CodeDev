@@ -58,7 +58,7 @@ export function ErrorReload({
                 <p className="text-sm font-semibold text-foreground">{heading}</p>
                 <p className="text-sm text-muted-foreground">{message}</p>
                 {status && (
-                    <p className="font-mono text-xs text-muted-foreground tabular">HTTP {status}</p>
+                    <p className="text-xs text-muted-foreground tabular">HTTP {status}</p>
                 )}
             </div>
 

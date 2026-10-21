@@ -61,10 +61,10 @@ function ChallengeHeader({ challenge, isDone, isExhausted }) {
                 <span className="ml-auto flex flex-wrap items-center gap-1.5">
                     <Badge variant={difficulty.variant}>{difficulty.label}</Badge>
                     {points > 0 && (
-                        <Badge variant="outline" className="font-mono tabular">{points} pts</Badge>
+                        <Badge variant="outline" className="tabular">{points} pts</Badge>
                     )}
                     {Number(challenge.exp) > 0 && (
-                        <Badge variant="outline" className="font-mono tabular text-xp" title="EXP for your first pass">
+                        <Badge variant="outline" className="tabular text-xp" title="EXP for your first pass">
                             +{challenge.exp} EXP
                         </Badge>
                     )}
@@ -215,7 +215,7 @@ export default function ChallengeSection({ embeddedIds = NO_EMBEDS }) {
                 <h2 id="lesson-challenges-heading" className="text-sm font-semibold">
                     Practice
                 </h2>
-                <span className="font-mono text-xs text-muted-foreground tabular">
+                <span className="text-xs text-muted-foreground tabular">
                     {passedHere}/{items.length} passed
                 </span>
             </div>

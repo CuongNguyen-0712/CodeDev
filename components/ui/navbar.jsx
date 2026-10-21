@@ -206,7 +206,7 @@ function AccountMenu() {
         ) : (
           <>
             <span className="max-w-full truncate text-[13px] font-medium">{name}</span>
-            <span className="flex items-center gap-1 font-mono text-xs text-muted-foreground tabular">
+            <span className="flex items-center gap-1 text-xs text-muted-foreground tabular">
               <span className="font-semibold text-xp">Lv {Number(data?.level) || 1}</span>
               <span aria-hidden="true">·</span>
               <LuCoins className="size-3 text-warning" aria-hidden="true" />
@@ -238,7 +238,7 @@ function AccountMenu() {
 
       <div className="rounded-xl border border-border/50 bg-muted/40 p-2.5 transition-colors">
         <div className="flex items-center justify-between gap-2">
-          <span className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold text-xp">
+          <span className="inline-flex items-center gap-1.5 tabular text-xs font-semibold text-xp">
             <LuTrophy className="size-3.5 shrink-0" aria-hidden="true" />
             Lv {progress.level}
             {progress.title && (
@@ -249,7 +249,7 @@ function AccountMenu() {
           </span>
           <Link
             href="/orders"
-            className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-warning hover:underline"
+            className="inline-flex items-center gap-1 tabular text-xs font-semibold text-warning hover:underline"
           >
             <LuCoins className="size-3.5 shrink-0" aria-hidden="true" />
             {points} pts
@@ -270,7 +270,7 @@ function AccountMenu() {
           />
         </div>
 
-        <div className="flex items-center justify-between font-mono text-xs text-muted-foreground">
+        <div className="flex items-center justify-between tabular text-xs text-muted-foreground">
           <span>{progress.exp.toLocaleString()} EXP</span>
           <span>
             {progress.isMax ? "Max level" : `${progress.toNext.toLocaleString()} to Lv ${progress.nextLevel}`}

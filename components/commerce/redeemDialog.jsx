@@ -30,7 +30,7 @@ function Row({ label, value, emphasis = false, tone }) {
         <div className="flex items-center justify-between gap-4 px-3 py-2">
             <dt className="text-sm text-muted-foreground">{label}</dt>
             <dd className={[
-                "font-mono text-sm tabular",
+                "text-sm tabular",
                 emphasis ? "font-semibold text-foreground" : "font-medium text-foreground",
                 tone === "danger" ? "text-destructive" : "",
             ].join(" ")}>

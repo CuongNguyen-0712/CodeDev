@@ -84,7 +84,7 @@ export default function MockCheckoutPage({ orderId }) {
                         </div>
                         <div className="flex items-center justify-between gap-4 px-4 py-2.5">
                             <dt className="text-sm text-muted-foreground">Amount</dt>
-                            <dd className="font-mono text-sm font-medium tabular">{formatMoney(order.amountMinor, order.currency)}</dd>
+                            <dd className="text-sm font-medium tabular">{formatMoney(order.amountMinor, order.currency)}</dd>
                         </div>
                         <div className="flex items-center justify-between gap-4 px-4 py-2.5">
                             <dt className="text-sm text-muted-foreground">Order status</dt>

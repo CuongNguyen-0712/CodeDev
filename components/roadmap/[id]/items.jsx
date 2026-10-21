@@ -10,8 +10,6 @@ import { LuBookOpen, LuCheck, LuChevronRight } from 'react-icons/lu';
 
 const FALLBACK_LOGO = '/image/static/no_image.png';
 
-export const pad = (value) => String(value).padStart(2, '0');
-
 // Status is always shown as a tinted badge with a text label, never colour alone.
 export const NODE_STATUS = {
     not_started: { label: 'Not started', variant: 'muted' },
@@ -71,7 +69,7 @@ export function StageMarker({ status, number }) {
         <span
             aria-hidden="true"
             className={cn(
-                'flex size-7 shrink-0 items-center justify-center rounded-full border bg-background font-mono text-xs font-medium text-muted-foreground tabular',
+                'flex size-7 shrink-0 items-center justify-center rounded-full border bg-background text-xs font-medium text-muted-foreground tabular',
                 status === 'completed' && 'border-success/30 bg-success-soft text-success',
                 status === 'in_progress' && 'border-primary/40 bg-primary-soft text-primary-soft-foreground'
             )}
@@ -112,7 +110,7 @@ export default function Node({ data, handleNodeClick, isSelected = false, ...pro
                 </span>
             )}
 
-            <span className="flex w-full items-center gap-3 font-mono text-xs text-muted-foreground tabular">
+            <span className="flex w-full items-center gap-3 text-xs text-muted-foreground tabular">
                 <span className="flex shrink-0 items-center gap-1.5">
                     <LuBookOpen className="size-3.5" aria-hidden="true" />
                     {courseCount} {courseCount === 1 ? 'course' : 'courses'}
@@ -170,12 +168,12 @@ function CourseRow({ course }) {
                         />
                     </span>
                     {meta && (
-                        <span className="block truncate font-mono text-xs text-muted-foreground">{meta}</span>
+                        <span className="block truncate tabular text-xs text-muted-foreground">{meta}</span>
                     )}
                     {lessons > 0 ? (
                         <span className="flex items-center gap-2">
                             <Progress value={percent} className="h-1 flex-1 bg-muted" aria-hidden="true" />
-                            <span className="shrink-0 font-mono text-xs text-muted-foreground tabular">
+                            <span className="shrink-0 text-xs text-muted-foreground tabular">
                                 {isComplete ? 'Completed' : `${completed}/${lessons}`}
                             </span>
                         </span>
@@ -213,7 +211,7 @@ export function NodeCourseList({ courses = [] }) {
                         <h4 id={`node-courses-${group.key}`} className="text-xs font-semibold text-foreground">
                             {group.title}
                         </h4>
-                        <span className="font-mono text-xs text-muted-foreground tabular">{group.items.length}</span>
+                        <span className="text-xs text-muted-foreground tabular">{group.items.length}</span>
                     </div>
                     {groups.length > 1 && (
                         <p className="px-2 text-xs text-muted-foreground">{group.hint}</p>

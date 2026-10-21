@@ -145,7 +145,7 @@ export function CourseList({ status, courses, total }) {
                                     <span className="block truncate text-sm font-medium text-foreground group-hover/course:text-primary-ink">
                                         {course.title}
                                     </span>
-                                    <span className="block truncate font-mono text-xs text-muted-foreground">
+                                    <span className="block truncate tabular text-xs text-muted-foreground">
                                         {[course.language_name, course.category_name].filter(Boolean).join(' / ') || 'General'}
                                     </span>
                                 </span>
@@ -155,11 +155,11 @@ export function CourseList({ status, courses, total }) {
                                         className="h-1.5 flex-1 bg-muted"
                                         aria-label={`${course.title} progress`}
                                     />
-                                    <span className="w-14 text-right font-mono text-xs text-muted-foreground tabular">
+                                    <span className="w-14 text-right text-xs text-muted-foreground tabular">
                                         {Number(course.progress) || 0}/{Number(course.total) || 0}
                                     </span>
                                 </span>
-                                <span className="font-mono text-xs text-muted-foreground tabular sm:hidden">
+                                <span className="text-xs text-muted-foreground tabular sm:hidden">
                                     {percent}%
                                 </span>
                             </Link>
@@ -208,7 +208,7 @@ export function LanguageList({ languages }) {
                             <span className="min-w-0 flex-1 truncate text-sm font-medium">
                                 {lang.name || 'Other'}
                             </span>
-                            <span className="font-mono text-xs text-muted-foreground tabular">
+                            <span className="text-xs text-muted-foreground tabular">
                                 {count} {count === 1 ? 'course' : 'courses'}
                             </span>
                         </div>
@@ -219,7 +219,7 @@ export function LanguageList({ languages }) {
                                     className="h-1.5 flex-1 bg-muted"
                                     aria-label={`${lang.name || 'Other'} share of courses`}
                                 />
-                                <span className="w-10 text-right font-mono text-xs text-muted-foreground tabular">
+                                <span className="w-10 text-right text-xs text-muted-foreground tabular">
                                     {percent}%
                                 </span>
                             </div>
@@ -245,7 +245,7 @@ function ActivitySection({ status }) {
                         Course activity
                     </h2>
                     {!isLoading && !isError && (
-                        <span className="font-mono text-xs text-muted-foreground tabular">
+                        <span className="text-xs text-muted-foreground tabular">
                             {Number(data?.summary?.total) || 0} enrolled in total
                         </span>
                     )}
@@ -274,7 +274,7 @@ function ActivitySection({ status }) {
                                 {ACTIVITY_TABS.map((key) => (
                                     <TabsTrigger key={key} value={key} className="flex-none px-2.5">
                                         {COURSE_STATUS[key]?.label}
-                                        <span className="font-mono text-xs text-muted-foreground tabular">
+                                        <span className="text-xs text-muted-foreground tabular">
                                             {Number(byStatus[key]) || 0}
                                         </span>
                                     </TabsTrigger>
@@ -382,7 +382,7 @@ export default function ProfilePage() {
                                 </h1>
                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground">
                                     {data?.username && (
-                                        <span className="font-mono">@{data.username}</span>
+                                        <span className="tabular">@{data.username}</span>
                                     )}
                                     {data?.nickname && <span>{data.nickname}</span>}
                                     {data?.email && <span className="break-all">{data.email}</span>}
@@ -427,15 +427,15 @@ export default function ProfilePage() {
                     <div className="overflow-hidden rounded-lg border">
                         <dl className="m-0 grid grid-cols-3 gap-px bg-border">
                             <Stat icon={LuTrophy} iconClassName="text-xp" label="Level">
-                                <span className="font-mono tabular font-semibold text-xp">{progress.level}</span>
+                                <span className="tabular font-semibold text-xp">{progress.level}</span>
                                 {progress.title ? <span className="ml-1.5 hidden text-xs font-medium text-muted-foreground sm:inline sm:truncate">{progress.title}</span> : null}
                             </Stat>
                             <Stat icon={LuSparkles} iconClassName="text-primary-ink" label="Experience">
-                                <span className="font-mono tabular font-semibold">{progress.exp.toLocaleString()}</span>
+                                <span className="tabular font-semibold">{progress.exp.toLocaleString()}</span>
                                 <span className="ml-1 text-xs font-medium text-muted-foreground">EXP</span>
                             </Stat>
                             <Stat icon={LuCoins} iconClassName="text-warning" label="Points">
-                                <span className="font-mono tabular font-semibold" title={`${points} points`}>{formatPoints(points)}</span>
+                                <span className="tabular font-semibold" title={`${points} points`}>{formatPoints(points)}</span>
                             </Stat>
                         </dl>
                         <div className="border-t bg-card px-4 py-3">

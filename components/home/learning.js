@@ -58,7 +58,7 @@ function PanelHeader({ id, title, meta, leading = null, action = null }) {
                 <div className="min-w-0">
                     <h2 id={id} className="truncate text-sm font-semibold text-foreground">{title}</h2>
                     {meta !== null && (
-                        <p className="truncate font-mono text-xs text-muted-foreground tabular">{meta}</p>
+                        <p className="truncate text-xs text-muted-foreground tabular">{meta}</p>
                     )}
                 </div>
             </div>
@@ -210,7 +210,7 @@ export default function HomeLearning() {
                                         >
                                             {/* Read as "Not started 0 courses. Show courses": starts with the visible text (WCAG 2.5.3). */}
                                             <Badge variant={meta.variant}>{meta.label}</Badge>
-                                            <span className={cn("ml-auto font-mono text-sm tabular", count ? "text-foreground" : "text-muted-foreground")}>{count}</span>
+                                            <span className={cn("ml-auto text-sm tabular", count ? "text-foreground" : "text-muted-foreground")}>{count}</span>
                                             <span className="sr-only">{count === 1 ? 'course' : 'courses'}. Show courses</span>
                                             <LuChevronRight className="size-4 text-muted-foreground" aria-hidden="true" />
                                         </button>
@@ -254,7 +254,7 @@ export default function HomeLearning() {
                                                     >
                                                         {course.title}
                                                     </p>
-                                                    <p className="truncate font-mono text-xs text-muted-foreground">
+                                                    <p className="truncate tabular text-xs text-muted-foreground">
                                                         {subtitle || 'General'}
                                                     </p>
                                                 </div>
@@ -265,7 +265,7 @@ export default function HomeLearning() {
                                                     className="h-1.5 flex-1 bg-muted"
                                                     aria-label={`${course.title} progress`}
                                                 />
-                                                <span className="w-10 shrink-0 text-right font-mono text-xs text-muted-foreground tabular">
+                                                <span className="w-10 shrink-0 text-right text-xs text-muted-foreground tabular">
                                                     {progressVal}%
                                                 </span>
                                             </div>
@@ -336,14 +336,14 @@ export default function HomeLearning() {
                                             <div className="min-w-0 flex-1">
                                                 <p className="truncate text-sm font-medium text-foreground">{item.name}</p>
                                                 {item.total !== undefined && (
-                                                    <p className="font-mono text-xs text-muted-foreground tabular">
+                                                    <p className="text-xs text-muted-foreground tabular">
                                                         {pluralCourses(item.total)}
                                                     </p>
                                                 )}
                                             </div>
                                             {/* A share only means something next to other languages. */}
                                             {languages.length > 1 && (
-                                                <span className="shrink-0 font-mono text-sm text-foreground tabular">{percent}%</span>
+                                                <span className="shrink-0 text-sm text-foreground tabular">{percent}%</span>
                                             )}
                                         </div>
                                         {languages.length > 1 && (

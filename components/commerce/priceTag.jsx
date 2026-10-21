@@ -34,12 +34,12 @@ export function PriceTag({ course, className }) {
                 Premium
             </Badge>
             {moneyLabel && (
-                <span className="font-mono text-xs font-medium text-foreground tabular" aria-hidden="true">
+                <span className="text-xs font-medium text-foreground tabular" aria-hidden="true">
                     {moneyLabel}
                 </span>
             )}
             {pointsLabel && (
-                <span className="font-mono text-xs text-muted-foreground tabular" aria-hidden="true">
+                <span className="text-xs text-muted-foreground tabular" aria-hidden="true">
                     {moneyLabel ? `or ${pointsLabel}` : pointsLabel}
                 </span>
             )}

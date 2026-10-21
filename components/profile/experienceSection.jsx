@@ -23,12 +23,12 @@ export default function ExperienceSection({ status, currentLevel = 1 }) {
     const transactions = pages.flatMap((page) => page?.transactions || []);
 
     return (
-        <section aria-labelledby="experience-heading" className="grid gap-6 lg:grid-cols-3">
+        <section aria-labelledby="experience-heading" className="grid items-start gap-6 lg:grid-cols-3">
             <div className="flex min-w-0 flex-col rounded-xl border bg-card lg:col-span-2">
                 <div className="flex items-center justify-between border-b px-4 py-3">
                     <h2 id="experience-heading" className="text-sm font-semibold text-foreground">EXP history</h2>
                     {!query.isLoading && transactions.length > 0 && (
-                        <span className="font-mono text-xs text-muted-foreground tabular">
+                        <span className="text-xs text-muted-foreground tabular">
                             {transactions.length} event{transactions.length === 1 ? '' : 's'}
                         </span>
                     )}
@@ -77,7 +77,7 @@ export default function ExperienceSection({ status, currentLevel = 1 }) {
                                     </div>
                                     <span
                                         className={cn(
-                                            "shrink-0 font-mono text-sm font-semibold tabular ml-2",
+                                            "shrink-0 text-sm font-semibold tabular ml-2",
                                             tx.amount > 0 ? "text-xp" : "text-destructive"
                                         )}
                                     >
@@ -102,12 +102,12 @@ export default function ExperienceSection({ status, currentLevel = 1 }) {
                 <div className="flex items-center justify-between border-b px-4 py-3">
                     <h2 id="levels-heading" className="text-sm font-semibold text-foreground">Levels</h2>
                     {levels.length > 0 && (
-                        <span className="font-mono text-xs text-muted-foreground tabular">
+                        <span className="text-xs text-muted-foreground tabular">
                             {levels.length} levels
                         </span>
                     )}
                 </div>
-                <div className="flex items-center justify-between border-b bg-muted/40 px-3.5 py-1.5 font-mono text-[11px] text-muted-foreground sm:px-4">
+                <div className="flex items-center justify-between border-b bg-muted/40 px-3.5 py-1.5 tabular text-[11px] text-muted-foreground sm:px-4">
                     <span>Level & Title</span>
                     <span>Min EXP</span>
                 </div>
@@ -137,14 +137,14 @@ export default function ExperienceSection({ status, currentLevel = 1 }) {
                                     )}
                                 >
                                     <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-                                        <span className="font-mono text-xs font-bold tabular shrink-0">
+                                        <span className="text-xs font-bold tabular shrink-0">
                                             Lv {lvl.level}
                                         </span>
                                         <span className="truncate text-xs sm:text-sm">
                                             {lvl.title}
                                         </span>
                                     </div>
-                                    <span className="font-mono text-xs tabular shrink-0 font-medium ml-2">
+                                    <span className="text-xs tabular shrink-0 font-medium ml-2">
                                         {lvl.minExp.toLocaleString()} <span className="text-[10px] opacity-70">EXP</span>
                                     </span>
                                 </li>

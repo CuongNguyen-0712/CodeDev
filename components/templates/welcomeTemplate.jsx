@@ -14,7 +14,7 @@ export default function WelcomeTemplate() {
     return (
         <Html>
             <Head />
-            <Preview>Welcome to CodeDev — We&apos;re happy to have you!</Preview>
+            <Preview>Welcome to CodeDev — We&apos;re happy to have you.</Preview>
 
             <Body style={bodyStyle}>
                 <Container style={containerStyle}>
@@ -31,7 +31,7 @@ export default function WelcomeTemplate() {
 
                     <Section style={sectionStyle}>
                         <Heading style={headingStyle}>
-                            Welcome to CodeDev 🚀
+                            Welcome to CodeDev
                         </Heading>
 
                         <Text style={textStyle}>

@@ -601,7 +601,7 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
                         <p className="font-medium text-foreground">
                             {submission.passed ? 'Challenge solved' : 'Not all tests passed yet'}
                         </p>
-                        <p className="font-mono text-xs text-muted-foreground tabular">
+                        <p className="text-xs text-muted-foreground tabular">
                             {submission.testsPassed}/{submission.testsTotal} tests &middot; score {submission.score}/{submission.points} pts
                             {submission.awardedPoints > 0 && ` · +${submission.awardedPoints} pts earned`}
                             {submission.awardedExp > 0 && ` · +${submission.awardedExp} EXP`}

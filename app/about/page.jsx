@@ -5,7 +5,7 @@ import AboutPage from "@/components/about/aboutPage";
 
 export async function generateMetadata() {
     return {
-        title: "About Us | CodeDev - Empowering Developers Worldwide",
+        title: "About | CodeDev",
         description: "Discover CodeDev's mission, values, and vision. We provide hands-on interactive coding courses, career roadmaps, and a thriving developer ecosystem.",
     };
 }

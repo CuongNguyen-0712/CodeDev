@@ -152,7 +152,7 @@ export default function LearningCourse({ item, index = 0 }) {
                                 <LuHeart className="size-3.5 shrink-0 fill-destructive text-destructive" aria-label="Favorite" />
                             )}
                         </div>
-                        <p className="truncate font-mono text-xs text-muted-foreground">
+                        <p className="truncate tabular text-xs text-muted-foreground">
                             {[item.language_name, item.category_name].filter(Boolean).join(' / ') || 'General'}
                         </p>
                     </div>
@@ -177,7 +177,7 @@ export default function LearningCourse({ item, index = 0 }) {
                         className="h-1.5 flex-1 bg-muted"
                         aria-label={`${item.title} progress`}
                     />
-                    <span className="w-12 shrink-0 text-right font-mono text-xs text-muted-foreground tabular">
+                    <span className="w-12 shrink-0 text-right text-xs text-muted-foreground tabular">
                         {completedLessons}/{totalLessons}
                     </span>
                 </div>

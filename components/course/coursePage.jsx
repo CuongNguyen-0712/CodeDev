@@ -49,7 +49,8 @@ function levelLabel(value) {
 
 function CourseItemSkeleton() {
     return (
-        <div className="flex flex-col gap-4 rounded-lg border bg-card p-4" aria-hidden="true">
+        <div className="flex flex-col gap-4 overflow-hidden rounded-lg border bg-card p-4" aria-hidden="true">
+            <Skeleton className="-mx-4 -mt-4 aspect-video rounded-none" />
             <div className="flex items-start gap-3">
                 <Skeleton className="size-9 rounded-md" />
                 <div className="flex-1 space-y-1.5">

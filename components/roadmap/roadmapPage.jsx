@@ -82,7 +82,7 @@ function LanguageStack({ languages }) {
                 </span>
             ))}
             {extra > 0 && (
-                <span className="flex size-9 items-center justify-center rounded-md border bg-muted font-mono text-xs text-muted-foreground tabular">
+                <span className="flex size-9 items-center justify-center rounded-md border bg-muted text-xs text-muted-foreground tabular">
                     +{extra}
                 </span>
             )}
@@ -273,7 +273,7 @@ export default function RoadmapPage() {
                                                         {roadmap.description}
                                                     </p>
                                                 )}
-                                                <p className="flex items-center gap-1.5 pt-0.5 font-mono text-xs text-muted-foreground tabular">
+                                                <p className="flex items-center gap-1.5 pt-0.5 text-xs text-muted-foreground tabular">
                                                     <LuRoute className="size-3.5" aria-hidden="true" />
                                                     {nodeCount} {nodeCount === 1 ? 'step' : 'steps'}
                                                 </p>

@@ -20,6 +20,12 @@ function LayoutContent({ children }) {
             onOpenChange={setDashboard}
             className="h-dvh min-h-0 overflow-hidden"
         >
+            <a
+                href="#container"
+                className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:shadow-md"
+            >
+                Skip to content
+            </a>
             <Dashboard />
 
             <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
@@ -28,7 +34,8 @@ function LayoutContent({ children }) {
                 {/* The page scroller: hooks/useInfiniteScroll observes it by id. */}
                 <section
                     id='container'
-                    className='page-enter flex min-h-0 w-full flex-1 flex-col items-center overflow-x-hidden overflow-y-auto overscroll-y-contain bg-background [overflow-anchor:none] **:[overflow-anchor:none]'
+                    tabIndex={-1}
+                    className='page-enter outline-none flex min-h-0 w-full flex-1 flex-col items-center overflow-x-hidden overflow-y-auto overscroll-y-contain bg-background [overflow-anchor:none] **:[overflow-anchor:none]'
                 >
                     {children}
                     <Footer />

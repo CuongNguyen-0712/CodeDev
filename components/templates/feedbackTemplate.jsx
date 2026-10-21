@@ -14,7 +14,7 @@ export default function FeedbackTemplate() {
     return (
         <Html>
             <Head />
-            <Preview>Thank you for your feedback!</Preview>
+            <Preview>Thank you for your feedback.</Preview>
 
             <Body style={bodyStyle}>
                 <Container style={containerStyle}>
@@ -29,7 +29,7 @@ export default function FeedbackTemplate() {
                     </Section>
 
                     <Section style={sectionStyle}>
-                        <Heading style={headingStyle}>Thanks for your feedback!</Heading>
+                        <Heading style={headingStyle}>Thanks for your feedback.</Heading>
 
                         <Text style={textStyle}>
                             We really appreciate you taking the time to let us know your thoughts.
@@ -37,7 +37,7 @@ export default function FeedbackTemplate() {
                         </Text>
 
                         <Text style={textStyle}>
-                            Keep exploring and learning with CodeDev 🚀
+                            Keep exploring and learning with CodeDev
                         </Text>
 
                         <Text style={footerStyle}>

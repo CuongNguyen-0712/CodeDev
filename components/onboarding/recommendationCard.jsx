@@ -113,11 +113,11 @@ export function RecommendationCard({ item, compact = false, onClickGuard, maxRea
                             onError={handleImageError}
                         />
                     </span>
-                    <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
+                    <span className="min-w-0 flex-1 truncate tabular text-xs text-muted-foreground">
                         {subtitle || "General"}
                     </span>
                     {course.rating ? (
-                        <span className="flex shrink-0 items-center gap-1 font-mono text-xs text-foreground tabular">
+                        <span className="flex shrink-0 items-center gap-1 text-xs text-foreground tabular">
                             <LuStar className="size-3.5 fill-current text-muted-foreground" aria-hidden="true" />
                             <span className="sr-only">Rating</span>
                             {course.rating}
@@ -137,7 +137,7 @@ export function RecommendationCard({ item, compact = false, onClickGuard, maxRea
                         {stats.map(({ Icon, value, label }) => (
                             <li key={label} className="flex items-center gap-1">
                                 <Icon className="size-3.5" aria-hidden="true" />
-                                <span className="font-mono text-foreground tabular">{value}</span>
+                                <span className="text-foreground tabular">{value}</span>
                                 {label}
                             </li>
                         ))}

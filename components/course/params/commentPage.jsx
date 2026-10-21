@@ -175,7 +175,7 @@ export default function CommentPage({ courseId }) {
             <div className="flex items-baseline justify-between gap-2">
                 <h2 id="course-comments-heading" className="text-base font-semibold">Discussion</h2>
                 {!isLoading && !isError && (
-                    <span className="font-mono text-xs text-muted-foreground tabular">
+                    <span className="text-xs text-muted-foreground tabular">
                         {comments.length}{hasNextPage ? '+' : ''} {comments.length === 1 ? 'comment' : 'comments'}
                     </span>
                 )}

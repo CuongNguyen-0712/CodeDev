@@ -58,8 +58,6 @@ const ENROLLMENT_STATUS = {
     dropped: { label: 'Dropped', variant: 'destructive' },
 };
 
-const pad = (value) => String(value).padStart(2, '0');
-
 // `content_type` also carries storage values such as "sanity" (rich text in the CMS),
 // so only real lesson formats get a label; everything else reads as a written lesson.
 const getLessonFormat = (type) => {
@@ -119,7 +117,7 @@ function Syllabus({ modules }) {
         <section aria-labelledby="course-syllabus-heading" className="space-y-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h2 id="course-syllabus-heading" className="text-base font-semibold">Syllabus</h2>
-                <span className="font-mono text-xs text-muted-foreground tabular">
+                <span className="text-xs text-muted-foreground tabular">
                     {modules.length} {modules.length === 1 ? 'chapter' : 'chapters'} &middot; {totalLessons} {totalLessons === 1 ? 'lesson' : 'lessons'}
                 </span>
             </div>
@@ -138,14 +136,14 @@ function Syllabus({ modules }) {
                                             aria-hidden="true"
                                         />
                                         <span className="min-w-0 flex-1">
-                                            <span className="block font-mono text-xs text-muted-foreground">
-                                                Chapter {pad(index + 1)}
+                                            <span className="block tabular text-xs text-muted-foreground">
+                                                Chapter {index + 1}
                                             </span>
                                             <span className="block text-sm leading-snug font-medium text-foreground">
                                                 {item.title}
                                             </span>
                                         </span>
-                                        <span className="shrink-0 font-mono text-xs text-muted-foreground tabular">
+                                        <span className="shrink-0 text-xs text-muted-foreground tabular">
                                             {lessons.length} {lessons.length === 1 ? 'lesson' : 'lessons'}
                                         </span>
                                     </CollapsibleTrigger>
@@ -159,14 +157,14 @@ function Syllabus({ modules }) {
                                                     return (
                                                         <li key={idx} className="flex min-h-9 items-center gap-3 py-1.5 pr-4 pl-11">
                                                             <LessonIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                                                            <span className="w-8 shrink-0 font-mono text-xs text-muted-foreground tabular">
+                                                            <span className="w-8 shrink-0 text-xs text-muted-foreground tabular">
                                                                 {index + 1}.{idx + 1}
                                                             </span>
                                                             <span className="min-w-0 flex-1 truncate text-[13px] text-foreground" title={child.title}>
                                                                 {child.title}
                                                             </span>
                                                             {formatLabel && (
-                                                                <Badge variant="outline" className="font-mono text-[10px] text-muted-foreground max-sm:hidden">
+                                                                <Badge variant="outline" className="tabular text-[10px] text-muted-foreground max-sm:hidden">
                                                                     {formatLabel}
                                                                 </Badge>
                                                             )}
@@ -316,7 +314,7 @@ export default function PreviewPage({ params } = {}) {
                                         }}
                                     />
                                 </span>
-                                <p className="truncate font-mono text-xs text-muted-foreground">
+                                <p className="truncate tabular text-xs text-muted-foreground">
                                     {[data.language_name, data.category_name].filter(Boolean).join(' / ') || 'General'}
                                 </p>
                             </div>
@@ -341,7 +339,7 @@ export default function PreviewPage({ params } = {}) {
                                 )}
                                 {premium ? (
                                     <Badge variant="outline">
-                                        {priceLabel === 'Premium' ? 'Premium' : <>Premium · <span className="font-mono tabular">{priceLabel}</span></>}
+                                        {priceLabel === 'Premium' ? 'Premium' : <>Premium · <span className="tabular">{priceLabel}</span></>}
                                     </Badge>
                                 ) : (
                                     <Badge variant="success">Free</Badge>
@@ -350,7 +348,7 @@ export default function PreviewPage({ params } = {}) {
                                 {/* Ratings run 1-5, so 0 means nobody has rated the course yet. */}
                                 {rating > 0 ? (
                                     <span
-                                        className="ml-1 flex items-center gap-1 font-mono text-xs font-medium text-foreground tabular"
+                                        className="ml-1 flex items-center gap-1 text-xs font-medium text-foreground tabular"
                                         title={`Rated ${rating.toFixed(1)} out of 5`}
                                     >
                                         <LuStar className="size-3.5 text-xp fill-xp/20" aria-hidden="true" />
@@ -394,7 +392,7 @@ export default function PreviewPage({ params } = {}) {
                                 {stats.map((stat) => (
                                     <div key={stat.label} className="bg-card px-4 py-3">
                                         <dt className="text-xs text-muted-foreground">{stat.label}</dt>
-                                        <dd className="font-mono text-lg font-medium tabular">{stat.value}</dd>
+                                        <dd className="text-lg font-medium tabular">{stat.value}</dd>
                                     </div>
                                 ))}
                             </dl>
@@ -427,7 +425,7 @@ export default function PreviewPage({ params } = {}) {
                                 <div className="rounded-lg border bg-card">
                                     <div className="flex items-center gap-3 px-4 py-3">
                                         <Avatar className="size-9">
-                                            <AvatarFallback className="bg-primary-soft font-mono text-xs font-semibold text-primary-soft-foreground">
+                                            <AvatarFallback className="bg-primary-soft tabular text-xs font-semibold text-primary-soft-foreground">
                                                 {getInitials(data.instructor)}
                                             </AvatarFallback>
                                         </Avatar>

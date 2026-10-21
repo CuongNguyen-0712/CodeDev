@@ -255,7 +255,7 @@ export default function Signup({ active, changeForm }) {
                                     {isDone ? (
                                         <LuCheck className="size-3.5 text-primary-ink" aria-hidden="true" />
                                     ) : (
-                                        <span className={cn("tabular font-mono", isCurrent ? "text-foreground" : "text-muted-foreground")}>
+                                        <span className={cn("tabular", isCurrent ? "text-foreground" : "text-muted-foreground")}>
                                             {index + 1}.
                                         </span>
                                     )}

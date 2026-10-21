@@ -164,7 +164,7 @@ function ReviewRow({ label, value, onEdit, disabled }) {
     return (
         <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0 space-y-0.5">
-                <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</dt>
+                <dt className="text-sm text-muted-foreground">{label}</dt>
                 <dd className="m-0 text-sm text-foreground">{value}</dd>
             </div>
             <Button

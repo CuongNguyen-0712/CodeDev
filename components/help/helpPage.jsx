@@ -124,7 +124,7 @@ export default function HelpPage() {
                     <h2 id="help-faq-heading" className="text-base font-semibold text-foreground">
                         Frequently asked questions
                     </h2>
-                    <span className="font-mono text-xs text-muted-foreground tabular" aria-live="polite">
+                    <span className="text-xs text-muted-foreground tabular" aria-live="polite">
                         {filteredFaqs.length} of {FAQS.length}
                     </span>
                 </div>

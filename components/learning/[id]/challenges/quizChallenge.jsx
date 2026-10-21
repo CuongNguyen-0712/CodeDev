@@ -215,7 +215,7 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
     return (
         <div className="overflow-hidden rounded-lg border bg-card">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b bg-muted/50 px-4 py-2.5">
-                <span className="font-mono text-xs text-muted-foreground tabular">
+                <span className="text-xs text-muted-foreground tabular">
                     Question {currentStep + 1} of {questions.length}
                 </span>
                 {questions.length > 1 && <nav aria-label="Questions" className="flex flex-wrap gap-1">
@@ -230,7 +230,7 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                                 aria-label={`Question ${idx + 1}${graded ? (graded.isCorrect ? ', correct' : ', incorrect') : isAnswered(q) ? ', answered' : ''}`}
                                 aria-current={isCurrent ? 'step' : undefined}
                                 className={cn(
-                                    'flex size-6 items-center justify-center rounded-sm border font-mono text-[11px] tabular transition-colors',
+                                    'flex size-6 items-center justify-center rounded-sm border text-[11px] tabular transition-colors',
                                     isCurrent
                                         ? 'border-primary bg-primary text-primary-foreground dark:text-white'
                                         : graded
@@ -247,7 +247,7 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                         );
                     })}
                 </nav>}
-                <span className="ml-auto font-mono text-xs text-muted-foreground tabular">
+                <span className="ml-auto text-xs text-muted-foreground tabular">
                     {currentQuestion.points ?? 10} pts
                 </span>
             </div>
@@ -339,7 +339,7 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
 
                 <div className="flex items-center gap-3">
                     {!isSubmitted && (
-                        <span className="font-mono text-xs text-muted-foreground tabular max-sm:hidden">
+                        <span className="text-xs text-muted-foreground tabular max-sm:hidden">
                             {answeredCount}/{questions.length} answered · attempt {(state?.attemptsUsed ?? 0) + 1} of {state?.maxAttempts ?? 3}
                         </span>
                     )}
@@ -349,7 +349,7 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                                 role="status"
                                 aria-live="polite"
                                 className={cn(
-                                    'flex items-center gap-1.5 font-mono text-xs font-medium tabular',
+                                    'flex items-center gap-1.5 text-xs font-medium tabular',
                                     isPassed ? 'text-success' : 'text-muted-foreground'
                                 )}
                             >

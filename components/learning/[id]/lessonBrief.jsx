@@ -21,7 +21,7 @@ export default function LessonBrief({ lessonId, scenario, environmentSetup }) {
                         Scenario
                     </h2>
                     {scenario.role && (
-                        <p className="mt-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        <p className="mt-3 text-sm font-medium text-muted-foreground">
                             You are: {scenario.role}
                         </p>
                     )}
@@ -57,7 +57,7 @@ export default function LessonBrief({ lessonId, scenario, environmentSetup }) {
                         <ol className="mt-4 space-y-3">
                             {steps.map((step, index) => (
                                 <li key={step._key || index} className="grid grid-cols-[1.5rem_1fr] gap-x-2 text-sm">
-                                    <span className="font-mono text-xs leading-6 text-muted-foreground tabular">{index + 1}.</span>
+                                    <span className="text-xs leading-6 text-muted-foreground tabular">{index + 1}.</span>
                                     <span className="min-w-0 space-y-1.5">
                                         {step.label && <span className="block leading-6">{step.label}</span>}
                                         {step.command && (

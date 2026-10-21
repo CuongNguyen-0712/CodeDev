@@ -81,7 +81,7 @@ function Detail({ label, value, mono = false }) {
     return (
         <div className="flex items-center justify-between gap-4 px-4 py-2.5">
             <dt className="text-sm text-muted-foreground">{label}</dt>
-            <dd className={cn("text-right text-sm font-medium text-foreground", mono && "font-mono tabular")}>{value}</dd>
+            <dd className={cn("text-right text-sm font-medium text-foreground", mono && "tabular")}>{value}</dd>
         </div>
     );
 }

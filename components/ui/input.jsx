@@ -147,7 +147,7 @@ export function TextAreaGroup({
                     aria-describedby={error ? errorId : undefined}
                 />
                 {maxLength && (
-                    <InputGroupAddon align="block-end" className="justify-end font-mono text-xs tabular">
+                    <InputGroupAddon align="block-end" className="justify-end text-xs tabular">
                         {String(value || "").length}/{maxLength}
                     </InputGroupAddon>
                 )}

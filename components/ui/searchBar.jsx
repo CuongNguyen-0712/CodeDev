@@ -75,7 +75,7 @@ function FilterFormBody({
                 <p className="flex items-center gap-2 text-sm font-semibold">
                     Filters
                     {totalDraftFilters > 0 && (
-                        <span className="font-mono text-xs font-normal text-muted-foreground tabular">
+                        <span className="text-xs font-normal text-muted-foreground tabular">
                             {totalDraftFilters} selected
                         </span>
                     )}
@@ -367,7 +367,7 @@ export default function SearchBar({
                                             <LuSlidersHorizontal />
                                             <span className="max-sm:sr-only">Filters</span>
                                             {totalAppliedFilters > 0 && (
-                                                <Badge variant="primary" className="h-4 min-w-4 px-1 font-mono tabular">
+                                                <Badge variant="primary" className="h-4 min-w-4 px-1 tabular">
                                                     {totalAppliedFilters}
                                                 </Badge>
                                             )}
@@ -407,7 +407,7 @@ export default function SearchBar({
                                             <LuSlidersHorizontal />
                                             <span className="max-sm:sr-only">Filters</span>
                                             {totalAppliedFilters > 0 && (
-                                                <Badge variant="primary" className="h-4 min-w-4 px-1 font-mono tabular">
+                                                <Badge variant="primary" className="h-4 min-w-4 px-1 tabular">
                                                     {totalAppliedFilters}
                                                 </Badge>
                                             )}

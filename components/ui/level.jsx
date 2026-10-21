@@ -87,7 +87,7 @@ export function ExpProgress({ user, compact = false, className }) {
         <div className={cn("grid gap-1.5", className)}>
             <div className="flex items-center justify-between gap-2 text-xs">
                 <LevelBadge level={p.level} title={p.title} />
-                <span className="font-mono tabular text-muted-foreground">
+                <span className="tabular text-muted-foreground">
                     {p.isMax ? `${p.exp.toLocaleString()} EXP` : `${p.toNext.toLocaleString()} EXP to Lv ${p.nextLevel}`}
                 </span>
             </div>
@@ -141,7 +141,7 @@ export function RankProgress({ standing, unit = "pts", className }) {
                 aria-label={`Progress to the next tier: ${label}`}
                 className="h-1.5 bg-muted"
             />
-            <span className="font-mono text-xs text-muted-foreground tabular">{label}</span>
+            <span className="text-xs text-muted-foreground tabular">{label}</span>
         </div>
     );
 }
@@ -165,9 +165,9 @@ export function LevelPointsChip({ className }) {
             )}
             aria-label={`Level ${p.level}, ${p.exp.toLocaleString()} EXP, ${(Number(data.points) || 0).toLocaleString()} points. Open profile`}
         >
-            <span className="font-mono font-semibold text-xp tabular">Lv {p.level}</span>
+            <span className="font-semibold text-xp tabular">Lv {p.level}</span>
             <ExpProgress user={data} compact className="w-16 max-sm:hidden" />
-            <span className="flex items-center gap-1 font-mono text-muted-foreground tabular">
+            <span className="flex items-center gap-1 text-muted-foreground tabular">
                 <LuCoins className="size-3.5 text-warning" aria-hidden="true" />
                 {(Number(data.points) || 0).toLocaleString()}
             </span>
@@ -256,10 +256,10 @@ export function LevelUpDialog() {
         <Dialog open={Boolean(levelUp)} onOpenChange={(open) => !open && setLevelUp(null)}>
             <DialogContent className="sm:max-w-sm text-center">
                 <DialogHeader className="items-center">
-                    <span className="mb-2 flex size-14 items-center justify-center rounded-full bg-xp-soft text-xp motion-safe:animate-bounce">
+                    <span className="mb-2 flex size-14 items-center justify-center rounded-full bg-xp-soft text-xp">
                         <LuSparkles className="size-7" aria-hidden="true" />
                     </span>
-                    <DialogTitle className="text-xl">Level {levelUp?.level}!</DialogTitle>
+                    <DialogTitle className="text-xl">Level {levelUp?.level}</DialogTitle>
                     <DialogDescription>
                         {gained > 1
                             ? `You climbed ${gained} levels at once. Keep learning to reach level ${(levelUp?.level || 0) + 1}.`

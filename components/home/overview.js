@@ -54,7 +54,7 @@ function OverallRank({ status }) {
             <span className="flex min-w-0 items-center gap-2">
                 <span className="shrink-0">Overall rank</span>
                 {overall ? <RankBadge tier={overall.tier} title={overall.title} /> : null}
-                {overall?.position ? <span className="font-mono font-semibold text-foreground tabular">#{overall.position.toLocaleString()}</span> : null}
+                {overall?.position ? <span className="font-semibold text-foreground tabular">#{overall.position.toLocaleString()}</span> : null}
             </span>
             <Link href="/ranking" className="ml-2 shrink-0 font-medium text-primary-ink hover:underline">
                 Leaderboard
@@ -156,16 +156,16 @@ export default function HomeOverview() {
                         </div>
                         <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                                <span className="font-mono text-base font-bold text-foreground">
+                                <span className="tabular text-base font-bold text-foreground">
                                     Level {progress.level}
                                 </span>
                                 {progress.title && (
-                                    <span className="truncate rounded-full bg-xp-soft px-2.5 py-0.5 font-mono text-xs font-semibold text-xp">
+                                    <span className="truncate rounded-full bg-xp-soft px-2.5 py-0.5 tabular text-xs font-semibold text-xp">
                                         {progress.title}
                                     </span>
                                 )}
                             </div>
-                            <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                            <p className="mt-0.5 tabular text-xs text-muted-foreground">
                                 {progress.isMax
                                     ? "Maximum level reached"
                                     : `${progress.toNext.toLocaleString()} EXP to Level ${progress.nextLevel}`}
@@ -175,7 +175,7 @@ export default function HomeOverview() {
 
                     <Link
                         href="/profile"
-                        className="flex shrink-0 items-center gap-1 font-mono text-xs font-medium text-muted-foreground hover:text-foreground"
+                        className="flex shrink-0 items-center gap-1 tabular text-xs font-medium text-muted-foreground hover:text-foreground"
                         title="View EXP history and levels"
                     >
                         <span>History</span>
@@ -208,10 +208,10 @@ export default function HomeOverview() {
                             <span>Experience</span>
                         </div>
                         <div className="mt-1 flex items-baseline gap-1">
-                            <span className="font-mono text-lg font-bold tabular tracking-tight text-foreground">
+                            <span className="text-lg font-bold tabular tracking-tight text-foreground">
                                 {progress.exp.toLocaleString()}
                             </span>
-                            <span className="font-mono text-xs font-medium text-muted-foreground">EXP</span>
+                            <span className="tabular text-xs font-medium text-muted-foreground">EXP</span>
                         </div>
                     </div>
 
@@ -221,10 +221,10 @@ export default function HomeOverview() {
                             <span>Points</span>
                         </div>
                         <div className="mt-1 flex items-baseline gap-1">
-                            <span className="font-mono text-lg font-bold tabular tracking-tight text-foreground">
+                            <span className="text-lg font-bold tabular tracking-tight text-foreground">
                                 {(Number(data?.points) || 0).toLocaleString()}
                             </span>
-                            <span className="font-mono text-xs font-medium text-muted-foreground">pts</span>
+                            <span className="tabular text-xs font-medium text-muted-foreground">pts</span>
                         </div>
                     </div>
                 </div>

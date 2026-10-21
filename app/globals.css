@@ -339,10 +339,11 @@
     --radius-xl: calc(var(--radius) + 4px);
     --radius-2xl: calc(var(--radius) + 8px);
 
-    --shadow-xs: 0 1px 2px 0 rgb(15 31 36 / 0.05);
-    --shadow-sm: 0 1px 3px 0 rgb(15 31 36 / 0.08), 0 1px 2px -1px rgb(15 31 36 / 0.06);
-    --shadow-md: 0 4px 12px -2px rgb(15 31 36 / 0.10), 0 2px 4px -2px rgb(15 31 36 / 0.06);
-    --shadow-lg: 0 12px 32px -8px rgb(15 31 36 / 0.18), 0 4px 8px -4px rgb(15 31 36 / 0.08);
+    /* Tinted with the foreground ink so shadows sit with the violet neutrals. */
+    --shadow-xs: 0 1px 2px 0 rgb(23 20 31 / 0.05);
+    --shadow-sm: 0 1px 3px 0 rgb(23 20 31 / 0.08), 0 1px 2px -1px rgb(23 20 31 / 0.06);
+    --shadow-md: 0 4px 12px -2px rgb(23 20 31 / 0.10), 0 2px 4px -2px rgb(23 20 31 / 0.06);
+    --shadow-lg: 0 12px 32px -8px rgb(23 20 31 / 0.18), 0 4px 8px -4px rgb(23 20 31 / 0.08);
 }
 
 @layer base {
@@ -367,6 +368,15 @@
 
     html {
         -webkit-text-size-adjust: 100%;
+    }
+
+    /* No lone last word in headings; paragraphs avoid short last lines. */
+    :where(h1, h2, h3, h4) {
+        text-wrap: balance;
+    }
+
+    :where(p, dd, li) {
+        text-wrap: pretty;
     }
 
     body {

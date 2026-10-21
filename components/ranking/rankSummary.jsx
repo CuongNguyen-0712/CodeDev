@@ -32,7 +32,7 @@ export function RankSummary({ ranks, headingId = "ranks-heading", title = "Ranks
                         <li key={board} className="flex min-w-0 flex-col gap-2 bg-card px-4 py-3">
                             <div className="flex items-center justify-between gap-2">
                                 <span className="text-xs font-medium text-muted-foreground">{BOARD_LABELS[board]}</span>
-                                <span className="font-mono text-sm font-semibold tabular">
+                                <span className="text-sm font-semibold tabular">
                                     {standing?.position ? `#${standing.position.toLocaleString()}` : (
                                         <span className="text-xs font-medium text-muted-foreground">Not ranked yet</span>
                                     )}
@@ -40,7 +40,7 @@ export function RankSummary({ ranks, headingId = "ranks-heading", title = "Ranks
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
                                 <RankBadge tier={standing?.tier} title={standing?.title} />
-                                <span className="font-mono text-xs text-muted-foreground tabular">
+                                <span className="text-xs text-muted-foreground tabular">
                                     {(standing?.allTimeScore || 0).toLocaleString()} {SCORE_UNITS[board]}
                                 </span>
                             </div>

@@ -87,7 +87,7 @@ function Podium({ entries, board, viewerId }) {
                             entry.user.id === viewerId && "border-primary/40 bg-primary-soft/40"
                         )}
                     >
-                        <span className={cn("flex size-9 shrink-0 items-center justify-center gap-0.5 rounded-full font-mono text-sm font-semibold", PODIUM_TONE[entry.position])}>
+                        <span className={cn("flex size-9 shrink-0 items-center justify-center gap-0.5 rounded-full tabular text-sm font-semibold", PODIUM_TONE[entry.position])}>
                             <Icon className="size-3.5" aria-hidden="true" />
                             {entry.position}
                         </span>
@@ -96,7 +96,7 @@ function Podium({ entries, board, viewerId }) {
                             <LearnerLink user={entry.user} isViewer={entry.user.id === viewerId} stretch />
                             <RankBadge tier={entry.tier} title={entry.tierTitle} />
                         </div>
-                        <span className="font-mono text-sm font-semibold tabular">
+                        <span className="text-sm font-semibold tabular">
                             {fmt(entry.score)} <span className="text-xs font-medium text-muted-foreground">{SCORE_UNITS[board]}</span>
                         </span>
                     </li>
@@ -139,7 +139,7 @@ function BoardTable({ entries, board, period, viewerId, pinned }) {
                                         isPinned && "sticky bottom-0 border-t-2 border-t-primary/30 bg-primary-soft"
                                     )}
                                 >
-                                    <TableHead scope="row" className="pl-4 font-mono font-semibold tabular">{entry.position}</TableHead>
+                                    <TableHead scope="row" className="pl-4 font-semibold tabular">{entry.position}</TableHead>
                                     <TableCell className="max-w-0 w-full">
                                         <span className="flex min-w-0 items-center gap-3">
                                             <LearnerAvatar user={entry.user} />
@@ -147,7 +147,7 @@ function BoardTable({ entries, board, period, viewerId, pinned }) {
                                         </span>
                                     </TableCell>
                                     <TableCell><RankBadge tier={entry.tier} title={entry.tierTitle} /></TableCell>
-                                    <TableCell className="pr-4 text-right font-mono font-semibold tabular">{fmt(entry.score)}</TableCell>
+                                    <TableCell className="pr-4 text-right font-semibold tabular">{fmt(entry.score)}</TableCell>
                                 </TableRow>
                             );
                         })}
@@ -170,13 +170,13 @@ function BoardTable({ entries, board, period, viewerId, pinned }) {
                                 entry === pinned && "border-t-2 border-t-primary/30 bg-primary-soft"
                             )}
                         >
-                            <span className="w-8 shrink-0 text-center font-mono text-sm font-semibold tabular">{entry.position}</span>
+                            <span className="w-8 shrink-0 text-center text-sm font-semibold tabular">{entry.position}</span>
                             <LearnerAvatar user={entry.user} />
                             <div className="flex min-w-0 flex-1 flex-col gap-1">
                                 <LearnerLink user={entry.user} isViewer={isViewer} stretch />
                                 <RankBadge tier={entry.tier} title={entry.tierTitle} />
                             </div>
-                            <span className="shrink-0 font-mono text-sm font-semibold tabular">{fmt(entry.score)}</span>
+                            <span className="shrink-0 text-sm font-semibold tabular">{fmt(entry.score)}</span>
                         </li>
                     );
                 })}
@@ -198,8 +198,8 @@ function StandingCard({ me, board, period }) {
 
             {ranked ? (
                 <div className="flex items-baseline gap-3">
-                    <span className="font-mono text-3xl font-semibold tabular">#{fmt(me.position)}</span>
-                    <span className="font-mono text-sm text-muted-foreground tabular">
+                    <span className="text-3xl font-semibold tabular">#{fmt(me.position)}</span>
+                    <span className="text-sm text-muted-foreground tabular">
                         {fmt(me.score)} {unit} · {PERIOD_LABELS[period].toLowerCase()}
                     </span>
                 </div>
@@ -256,7 +256,7 @@ function TierLadder({ tiers, current, board }) {
                             <span className={tier.tier === current ? "font-semibold" : undefined}>{tier.title}</span>
                             {tier.tier === current ? <span className="text-xs text-muted-foreground">(you)</span> : null}
                         </span>
-                        <span className="font-mono text-xs text-muted-foreground tabular">{fmt(tier.minScore)}+</span>
+                        <span className="text-xs text-muted-foreground tabular">{fmt(tier.minScore)}+</span>
                     </li>
                 ))}
             </ol>

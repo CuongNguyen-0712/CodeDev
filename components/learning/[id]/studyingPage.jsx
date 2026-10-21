@@ -42,8 +42,6 @@ import {
     LuX,
 } from "react-icons/lu";
 
-const pad = (value) => String(value).padStart(2, '0');
-
 function LessonStatusIcon({ status, locked }) {
     if (locked) return <LuLock className="size-3.5 text-muted-foreground" aria-hidden="true" />;
     if (status === 'completed') return <LuCircleCheck className="size-3.5 text-success" aria-hidden="true" />;
@@ -72,7 +70,7 @@ function SyllabusPanel({
             <div className="flex h-11 shrink-0 items-center justify-between gap-2 border-b pr-2 pl-4">
                 <h2 className="text-sm font-semibold">Syllabus</h2>
                 <div className="flex items-center gap-1">
-                    <span className="mr-1 font-mono text-xs text-muted-foreground tabular">
+                    <span className="mr-1 text-xs text-muted-foreground tabular">
                         {completedLessonsCount}/{totalLessonsCount}
                     </span>
                     <Tooltip>
@@ -140,14 +138,14 @@ function SyllabusPanel({
                                                     aria-hidden="true"
                                                 />
                                                 <span className="min-w-0 flex-1">
-                                                    <span className="block font-mono text-[11px] text-muted-foreground">
-                                                        Chapter {pad(index + 1)}
+                                                    <span className="block tabular text-[11px] text-muted-foreground">
+                                                        Chapter {index + 1}
                                                     </span>
                                                     <span className="block text-[13px] leading-snug font-medium text-foreground">
                                                         {module.title}
                                                     </span>
                                                 </span>
-                                                <span className="mt-0.5 shrink-0 font-mono text-[11px] text-muted-foreground tabular">
+                                                <span className="mt-0.5 shrink-0 text-[11px] text-muted-foreground tabular">
                                                     {completedInModule}/{lessons.length}
                                                 </span>
                                             </CollapsibleTrigger>
@@ -175,12 +173,12 @@ function SyllabusPanel({
                                                                     )}
                                                                 >
                                                                     <LessonStatusIcon status={lesson.status} locked={isLocked} />
-                                                                    <span className="w-5 shrink-0 font-mono text-[11px] text-muted-foreground tabular">
-                                                                        {pad(lIndex + 1)}
+                                                                    <span className="w-5 shrink-0 text-[11px] text-muted-foreground tabular">
+                                                                        {lIndex + 1}
                                                                     </span>
                                                                     <span className="min-w-0 flex-1 truncate">{lesson.title}</span>
                                                                     {hasChallenges && (
-                                                                        <Badge variant="outline" className="h-4 px-1 font-mono text-[10px] text-muted-foreground">
+                                                                        <Badge variant="outline" className="h-4 px-1 tabular text-[10px] text-muted-foreground">
                                                                             {challengeKind}
                                                                         </Badge>
                                                                     )}
@@ -457,7 +455,7 @@ export default function StudyingPage({ params }) {
                     {totalLessonsCount > 0 && (
                         <div className="ml-2 hidden shrink-0 items-center gap-2 md:flex">
                             <Progress value={progressPercent} className="h-1.5 w-28 bg-muted" aria-label="Course progress" />
-                            <span className="font-mono text-xs text-muted-foreground tabular">
+                            <span className="text-xs text-muted-foreground tabular">
                                 {completedLessonsCount}/{totalLessonsCount} &middot; {progressPercent}%
                             </span>
                         </div>
@@ -505,7 +503,7 @@ export default function StudyingPage({ params }) {
                             isNextUnlocked={isNextUnlocked}
                             onSelectLesson={(lesson) => handleSelectLesson(lesson, lesson.module_id)}
                             challenges={currentLesson?.challenges || []}
-                            moduleLabel={currentModuleIndex >= 0 ? `Chapter ${pad(currentModuleIndex + 1)}` : null}
+                            moduleLabel={currentModuleIndex >= 0 ? `Chapter ${currentModuleIndex + 1}` : null}
                             moduleTitle={currentLesson?.module_title}
                             lessonPosition={currentLessonIndex >= 0 ? `${currentLessonIndex + 1} of ${totalLessonsCount}` : null}
                         />
@@ -586,7 +584,7 @@ export default function StudyingPage({ params }) {
                                     ].map((stat) => (
                                         <div key={stat.label} className="bg-background px-3 py-2.5">
                                             <dt className="text-xs text-muted-foreground">{stat.label}</dt>
-                                            <dd className="font-mono text-lg font-medium tabular">{stat.value}</dd>
+                                            <dd className="text-lg font-medium tabular">{stat.value}</dd>
                                         </div>
                                     ))}
                                 </dl>

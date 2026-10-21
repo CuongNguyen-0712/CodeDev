@@ -11,6 +11,7 @@ import { useCourseRegister } from "@/mutations/course.mutation";
 import { commerceQueries } from "@/queries/premium.query";
 import { userQueries } from "@/queries/user.query";
 import { FIT_LABELS, courseFit, recommendedLevel } from "@/lib/levels";
+import { fitCover } from "@/lib/coverFit";
 
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
@@ -118,130 +119,141 @@ export const CourseItem = ({ item }) => {
     ];
 
     return (
-        <article className="group/course flex h-full flex-col gap-3.5 rounded-lg border border-border bg-card p-4 text-card-foreground transition-all duration-150 hover:border-primary/50 hover:shadow-sm">
-            <div className="flex min-w-0 items-start gap-3">
-                <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background">
+        <article className="group/course flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card text-card-foreground transition-[border-color,box-shadow] duration-200 hover:border-primary/50 hover:shadow-md">
+            {item.image && (
+                // Decorative duplicate of the title link below, so it stays out of the tab order and screen readers.
+                <Link href={`/course/${item.id}`} tabIndex={-1} aria-hidden="true" className="block aspect-video overflow-hidden border-b bg-muted">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                        src={item.language_logo || '/image/static/default.svg'}
+                        ref={fitCover}
+                        src={item.image}
                         alt=""
-                        width={22}
-                        height={22}
                         loading="lazy"
-                        className="size-[22px] object-contain"
-                        onError={(e) => {
-                            e.currentTarget.onerror = null;
-                            e.currentTarget.src = '/image/static/default.svg';
-                        }}
+                        draggable={false}
+                        className="block size-full object-cover transition-transform duration-300 ease-out group-hover/course:scale-[1.03] data-[fit=contain]:object-contain data-[fit=contain]:p-[12%]"
+                        onLoad={(e) => fitCover(e.currentTarget)}
+                        onError={(e) => { e.currentTarget.parentElement.hidden = true; }}
                     />
-                </span>
-                <div className="min-w-0 flex-1">
-                    <h3 className="text-sm leading-snug font-semibold">
-                        <Link
-                            href={`/course/${item.id}`}
-                            className="line-clamp-2 rounded-sm text-foreground hover:text-primary-ink hover:underline hover:underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-                            title={item.title}
-                        >
-                            {item.title}
-                        </Link>
-                    </h3>
-                    <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
-                        {[item.language_name, item.category_name].filter(Boolean).join(' / ') || 'General'}
-                    </p>
-                </div>
-            </div>
+                </Link>
+            )}
 
-            <div className="flex flex-wrap items-center gap-1.5">
-                <Badge variant="outline" className="text-muted-foreground">
-                    <LevelIcon aria-hidden="true" />
-                    {level.label}
-                </Badge>
-                <PriceTag course={item} />
-                {isOwned && <OwnershipBadge />}
-                {isEnrolled && <Badge variant="primary">Enrolled</Badge>}
-                {/* Ratings run 1-5, so 0 means nobody has rated the course yet. */}
-                {rating > 0 ? (
-                    <span
-                        className="ml-auto flex items-center gap-1 font-mono text-xs font-medium text-foreground tabular"
-                        title={`Rated ${rating.toFixed(1)} out of 5`}
-                    >
-                        <LuStar className="size-3.5 text-xp fill-xp/20" aria-hidden="true" />
-                        <span className="sr-only">Rating</span>
-                        {rating.toFixed(1)}
+            <div className="flex flex-1 flex-col gap-3.5 p-4">
+                <div className="flex min-w-0 items-start gap-3">
+                    <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                            src={item.language_logo || '/image/static/default.svg'}
+                            alt=""
+                            width={22}
+                            height={22}
+                            loading="lazy"
+                            className="size-[22px] object-contain"
+                            onError={(e) => {
+                                e.currentTarget.onerror = null;
+                                e.currentTarget.src = '/image/static/default.svg';
+                            }}
+                        />
                     </span>
-                ) : (
-                    <span className="ml-auto text-xs text-muted-foreground">No ratings yet</span>
-                )}
-            </div>
-
-            {(recommended || estimatedExp > 0) && (
-                <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                    {recommended && <span>Recommended <span className="font-mono tabular text-foreground">Lv {recommended.min}–{recommended.max}</span></span>}
-                    {estimatedExp > 0 && <span className="font-mono tabular text-xp">≈ {estimatedExp.toLocaleString()} EXP</span>}
-                    {fit && (
-                        <Badge variant={fit === 'suitable' ? 'success' : fit === 'too_early' ? 'warning' : 'muted'} className="ml-auto">
-                            {FIT_LABELS[fit]}
-                        </Badge>
-                    )}
-                </p>
-            )}
-
-            <dl className="grid grid-cols-3 gap-px overflow-hidden rounded-md border bg-border">
-                {stats.map((stat) => (
-                    <div key={stat.label} className="bg-card px-2.5 py-1.5">
-                        <dt className="text-xs text-muted-foreground">{stat.label}</dt>
-                        <dd className="font-mono text-sm font-medium tabular">{stat.value}</dd>
+                    <div className="min-w-0 flex-1">
+                        <h3 className="text-sm leading-snug font-semibold">
+                            <Link
+                                href={`/course/${item.id}`}
+                                className="line-clamp-2 rounded-sm text-foreground hover:text-primary-ink hover:underline hover:underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                                title={item.title}
+                            >
+                                {item.title}
+                            </Link>
+                        </h3>
+                        <p className="mt-0.5 truncate tabular text-xs text-muted-foreground">
+                            {[item.language_name, item.category_name].filter(Boolean).join(' / ') || 'General'}
+                        </p>
                     </div>
-                ))}
-            </dl>
+                </div>
 
-            {item.instructor && (
-                <p className="truncate text-xs text-muted-foreground" title={item.instructor}>
-                    Instructor <span className="font-medium text-foreground">{item.instructor}</span>
-                </p>
-            )}
+                <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge variant="outline" className="text-muted-foreground">
+                        <LevelIcon aria-hidden="true" />
+                        {level.label}
+                    </Badge>
+                    <PriceTag course={item} />
+                    {isOwned && <OwnershipBadge />}
+                    {isEnrolled && <Badge variant="primary">Enrolled</Badge>}
+                    {/* Ratings run 1-5, so 0 means nobody has rated the course yet. */}
+                    {rating > 0 ? (
+                        <span
+                            className="ml-auto flex items-center gap-1 text-xs font-medium text-foreground tabular"
+                            title={`Rated ${rating.toFixed(1)} out of 5`}
+                        >
+                            <LuStar className="size-3.5 text-xp fill-xp/20" aria-hidden="true" />
+                            <span className="sr-only">Rating</span>
+                            {rating.toFixed(1)}
+                        </span>
+                    ) : null}
+                </div>
 
-            <div className="mt-auto flex items-center gap-2 pt-0.5">
-                {status === 'authenticated' && (
-                    <Button
-                        type="button"
-                        size="sm"
-                        variant={isEnrolled ? 'soft' : 'default'}
-                        className="flex-1"
-                        onClick={() => handleSubmit(item.id)}
-                        disabled={isBusy}
-                    >
-                        {isBusy ? (
-                            <LuLoaderCircle className="animate-spin" aria-hidden="true" />
-                        ) : isEnrolled ? (
-                            <LuArrowRight aria-hidden="true" />
-                        ) : canEnrollHere ? (
-                            <LuPlus aria-hidden="true" />
-                        ) : (
-                            <LuCrown aria-hidden="true" />
+                {(recommended || estimatedExp > 0) && (
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                        {recommended && <span>Recommended <span className="tabular text-foreground">Lv {recommended.min}–{recommended.max}</span></span>}
+                        {estimatedExp > 0 && <span className="tabular text-xp">≈ {estimatedExp.toLocaleString()} EXP</span>}
+                        {fit && (
+                            <Badge variant={fit === 'suitable' ? 'success' : fit === 'too_early' ? 'warning' : 'muted'} className="ml-auto">
+                                {FIT_LABELS[fit]}
+                            </Badge>
                         )}
-                        {registerMutation.isPending
-                            ? 'Enrolling...'
-                            : isEnrolled && canEnrollHere
-                                ? 'Continue learning'
-                                : !canEnrollHere
-                                    ? 'View pricing'
-                                    : premium
-                                        ? 'Start learning'
-                                        : 'Enroll for free'}
-                    </Button>
+                    </p>
                 )}
 
-                <Button
-                    asChild
-                    size="sm"
-                    variant="outline"
-                    className={status === 'authenticated' ? undefined : 'flex-1'}
-                >
-                    <Link href={`/course/${item.id}`} aria-label={`View details for ${item.title}`}>
-                        Details
-                    </Link>
-                </Button>
+                <dl className="grid grid-cols-3 gap-px overflow-hidden rounded-md border bg-border">
+                    {stats.map((stat) => (
+                        <div key={stat.label} className="bg-card px-2.5 py-1.5">
+                            <dt className="text-xs text-muted-foreground">{stat.label}</dt>
+                            <dd className="text-sm font-medium tabular">{stat.value}</dd>
+                        </div>
+                    ))}
+                </dl>
+
+                <div className="mt-auto flex items-center gap-2 pt-0.5">
+                    {status === 'authenticated' && (
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant={isEnrolled ? 'soft' : 'default'}
+                            className="flex-1"
+                            onClick={() => handleSubmit(item.id)}
+                            disabled={isBusy}
+                        >
+                            {isBusy ? (
+                                <LuLoaderCircle className="animate-spin" aria-hidden="true" />
+                            ) : isEnrolled ? (
+                                <LuArrowRight aria-hidden="true" />
+                            ) : canEnrollHere ? (
+                                <LuPlus aria-hidden="true" />
+                            ) : (
+                                <LuCrown aria-hidden="true" />
+                            )}
+                            {registerMutation.isPending
+                                ? 'Enrolling...'
+                                : isEnrolled && canEnrollHere
+                                    ? 'Continue learning'
+                                    : !canEnrollHere
+                                        ? 'View pricing'
+                                        : premium
+                                            ? 'Start learning'
+                                            : 'Enroll for free'}
+                        </Button>
+                    )}
+
+                    <Button
+                        asChild
+                        size="sm"
+                        variant="outline"
+                        className={status === 'authenticated' ? undefined : 'flex-1'}
+                    >
+                        <Link href={`/course/${item.id}`} aria-label={`View details for ${item.title}`}>
+                            Details
+                        </Link>
+                    </Button>
+                </div>
             </div>
         </article>
     );

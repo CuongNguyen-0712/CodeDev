@@ -63,7 +63,7 @@ export default function PublicProfilePage({ profile }) {
                         {displayName}
                     </h1>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground">
-                        <span className="font-mono">@{profile.username}</span>
+                        <span className="tabular">@{profile.username}</span>
                         {since ? <span>Member since {since}</span> : null}
                         <LevelBadge level={progress.level} title={progress.title} />
                     </div>
@@ -73,17 +73,17 @@ export default function PublicProfilePage({ profile }) {
             <div className="overflow-hidden rounded-lg border">
                 <dl className="m-0 grid grid-cols-2 gap-px bg-border sm:grid-cols-4">
                     <Stat icon={LuTrophy} iconClassName="text-xp" label="Level">
-                        <span className="font-mono tabular font-semibold text-xp">{progress.level}</span>
+                        <span className="tabular font-semibold text-xp">{progress.level}</span>
                     </Stat>
                     <Stat icon={LuSparkles} iconClassName="text-primary-ink" label="Experience">
-                        <span className="font-mono tabular font-semibold">{progress.exp.toLocaleString()}</span>
+                        <span className="tabular font-semibold">{progress.exp.toLocaleString()}</span>
                         <span className="ml-1 text-xs font-medium text-muted-foreground">EXP</span>
                     </Stat>
                     <Stat icon={LuCircleCheck} iconClassName="text-success" label="Courses completed">
-                        <span className="font-mono tabular font-semibold">{completed}</span>
+                        <span className="tabular font-semibold">{completed}</span>
                     </Stat>
                     <Stat icon={LuCode} iconClassName="text-info" label="Challenges solved">
-                        <span className="font-mono tabular font-semibold">{Number(profile.challengesPassed) || 0}</span>
+                        <span className="tabular font-semibold">{Number(profile.challengesPassed) || 0}</span>
                     </Stat>
                 </dl>
                 <div className="border-t bg-card px-4 py-3">
@@ -100,7 +100,7 @@ export default function PublicProfilePage({ profile }) {
                     <section aria-labelledby="public-courses-heading" className="flex min-w-0 flex-col gap-3 lg:col-span-2">
                         <div className="flex min-h-8 items-center justify-between gap-3">
                             <h2 id="public-courses-heading" className="text-base font-semibold text-foreground">Courses</h2>
-                            <span className="font-mono text-xs text-muted-foreground tabular">
+                            <span className="text-xs text-muted-foreground tabular">
                                 {inProgress} in progress · {completed} completed
                             </span>
                         </div>

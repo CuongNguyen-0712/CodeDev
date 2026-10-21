@@ -120,14 +120,11 @@ export default function AboutPage() {
                 <h2 id="principles-title" className="text-2xl font-semibold tracking-tight">
                     What guides the product
                 </h2>
-                <ol className="flex list-none flex-col divide-y border-y">
-                    {PRINCIPLES.map((principle, index) => (
-                        <li key={principle.title} className="grid gap-2 py-5 sm:grid-cols-[3rem_minmax(0,16rem)_minmax(0,1fr)] sm:gap-6">
-                            <span aria-hidden="true" className="tabular font-mono text-sm text-muted-foreground">
-                                {String(index + 1).padStart(2, "0")}
-                            </span>
-                            <h3 className="text-base font-semibold text-foreground">{principle.title}</h3>
-                            <p className="max-w-[62ch] text-sm leading-relaxed text-muted-foreground">
+                <ol className="flex list-none flex-col gap-8">
+                    {PRINCIPLES.map((principle) => (
+                        <li key={principle.title} className="grid gap-2 sm:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] sm:gap-8">
+                            <h3 className="text-lg font-semibold text-foreground">{principle.title}</h3>
+                            <p className="max-w-[62ch] text-base leading-relaxed text-muted-foreground">
                                 {principle.description}
                             </p>
                         </li>
@@ -137,7 +134,7 @@ export default function AboutPage() {
 
             <section
                 aria-labelledby="about-cta-title"
-                className="flex flex-col gap-5 rounded-lg border bg-muted/40 p-6 sm:p-8 md:flex-row md:items-center md:justify-between"
+                className="flex flex-col gap-5 rounded-lg bg-canvas p-6 sm:p-8 md:flex-row md:items-center md:justify-between"
             >
                 <div className="flex flex-col gap-2">
                     <h2 id="about-cta-title" className="text-xl font-semibold tracking-tight">

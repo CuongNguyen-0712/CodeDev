@@ -4,22 +4,22 @@ import { cn } from "@/lib/utils"
 import { Slot } from "radix-ui"
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all outline-none active:translate-y-px focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         // Dark: a 1px violet rim + soft glow keeps the main action the focal point on dark surfaces.
-        default: "bg-primary text-primary-foreground hover:bg-primary-hover shadow-xs dark:text-white dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.14),0_0_0_1px_rgb(167_139_250/0.35),0_8px_24px_-12px_rgb(124_58_237/0.9)]",
+        default: "bg-primary text-primary-foreground hover:bg-primary-hover dark:text-white dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.14),0_0_0_1px_rgb(167_139_250/0.35),0_8px_24px_-12px_rgb(124_58_237/0.9)]",
         destructive:
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-xs focus-visible:ring-destructive/20",
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive/20",
         soft: "bg-primary-soft text-primary-soft-foreground hover:bg-primary-soft/80",
         outline:
-          "border border-border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-transparent dark:hover:bg-accent",
+          "border border-border bg-background hover:bg-accent hover:text-accent-foreground dark:bg-transparent dark:hover:bg-accent",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost:
           "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary-ink underline-offset-4 hover:underline dark:text-primary-soft-foreground",
+        link: "text-primary-ink underline-offset-4 hover:underline active:translate-y-0 dark:text-primary-soft-foreground",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",

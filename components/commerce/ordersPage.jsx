@@ -116,16 +116,16 @@ function OrdersTab({ status }) {
                                     <span className="block truncate font-medium" title={order.course?.title}>
                                         {order.course?.title || 'Course'}
                                     </span>
-                                    <span className="block font-mono text-xs text-muted-foreground md:hidden">
+                                    <span className="block tabular text-xs text-muted-foreground md:hidden">
                                         {formatDate(order.createdAt)}
                                     </span>
                                 </TableCell>
                                 <TableCell className="text-muted-foreground max-sm:hidden">
                                     {ORDER_METHOD[order.method] || humanize(order.method)}
                                 </TableCell>
-                                <TableCell className="font-mono tabular">{orderAmount(order)}</TableCell>
+                                <TableCell className="tabular">{orderAmount(order)}</TableCell>
                                 <TableCell><OrderStatusBadge status={order.status} /></TableCell>
-                                <TableCell className="font-mono text-xs text-muted-foreground tabular max-md:hidden">
+                                <TableCell className="text-xs text-muted-foreground tabular max-md:hidden">
                                     {formatDate(order.createdAt, { time: true })}
                                 </TableCell>
                                 <TableCell className="pr-4 text-right">
@@ -197,7 +197,7 @@ function PointsTab({ status }) {
                     {isLoading ? (
                         <Skeleton className="mt-1 h-6 w-28" />
                     ) : (
-                        <p className="font-mono text-xl font-semibold tabular">{formatPoints(balance)}</p>
+                        <p className="text-xl font-semibold tabular">{formatPoints(balance)}</p>
                     )}
                     <p className="mt-1 text-xs text-muted-foreground">
                         Earned by completing lessons and passing challenges; spend them on courses. Your EXP and level are separate and never go down when you spend points.
@@ -234,7 +234,7 @@ function PointsTab({ status }) {
                                     const { text, reason } = describeTransaction(tx);
                                     return (
                                         <TableRow key={tx.id}>
-                                            <TableCell className="pl-4 font-mono text-xs text-muted-foreground tabular max-sm:hidden">
+                                            <TableCell className="pl-4 text-xs text-muted-foreground tabular max-sm:hidden">
                                                 {formatDate(tx.createdAt, { time: true })}
                                             </TableCell>
                                             <TableCell className="max-w-0 w-full max-sm:pl-4">
@@ -242,15 +242,15 @@ function PointsTab({ status }) {
                                                 {reason && (
                                                     <span className="block truncate text-xs text-muted-foreground" title={reason}>{reason}</span>
                                                 )}
-                                                <span className="block font-mono text-xs text-muted-foreground sm:hidden">
+                                                <span className="block tabular text-xs text-muted-foreground sm:hidden">
                                                     {formatDate(tx.createdAt)}
                                                 </span>
                                             </TableCell>
-                                            <TableCell className={cn("text-right font-mono tabular", credit ? 'text-success' : 'text-foreground')}>
+                                            <TableCell className={cn("text-right tabular", credit ? 'text-success' : 'text-foreground')}>
                                                 <span className="sr-only">{credit ? 'Credit' : 'Debit'} </span>
                                                 {credit ? '+' : '-'}{formatPoints(tx.amount)}
                                             </TableCell>
-                                            <TableCell className="pr-4 text-right font-mono text-muted-foreground tabular max-sm:hidden">
+                                            <TableCell className="pr-4 text-right text-muted-foreground tabular max-sm:hidden">
                                                 {tx.balanceAfter === null || tx.balanceAfter === undefined ? '-' : formatPoints(tx.balanceAfter)}
                                             </TableCell>
                                         </TableRow>

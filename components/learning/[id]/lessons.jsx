@@ -190,11 +190,11 @@ export default function LearningLesson({
                             {(moduleLabel || lessonPosition) && (
                                 <p className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                                     <span className="flex min-w-0 items-center gap-2">
-                                        {moduleLabel && <span className="shrink-0 font-mono">{moduleLabel}</span>}
+                                        {moduleLabel && <span className="shrink-0 tabular">{moduleLabel}</span>}
                                         {moduleTitle && <span className="truncate">{moduleTitle}</span>}
                                     </span>
                                     {lessonPosition && (
-                                        <span className="shrink-0 font-mono tabular">Lesson {lessonPosition}</span>
+                                        <span className="shrink-0 tabular">Lesson {lessonPosition}</span>
                                     )}
                                 </p>
                             )}

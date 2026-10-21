@@ -29,7 +29,7 @@ import { Skeleton } from '@/components/shadcn/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/shadcn/tooltip';
 import { cn } from '@/lib/utils';
 
-import Node, { NODE_STATUS, NodeCourseList, StageMarker, getCourseProgress, getNodeProgress, pad } from './items';
+import Node, { NODE_STATUS, NodeCourseList, StageMarker, getCourseProgress, getNodeProgress } from './items';
 
 import {
     LuArrowLeft,
@@ -121,7 +121,7 @@ function NodeDetailsPanel({ node, stepNumber, onClose = null }) {
             <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4">
                 <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs text-muted-foreground tabular">Step {pad(stepNumber)}</span>
+                        <span className="text-xs text-muted-foreground tabular">Step {stepNumber}</span>
                         <Badge variant={status.variant}>{status.label}</Badge>
                     </div>
                     <h3 className="text-lg leading-snug font-semibold tracking-tight text-foreground">{node.title}</h3>
@@ -134,7 +134,7 @@ function NodeDetailsPanel({ node, stepNumber, onClose = null }) {
                     <div className="space-y-2 rounded-lg border bg-background px-3 py-2.5">
                         <div className="flex items-baseline justify-between gap-2">
                             <span className="text-xs text-muted-foreground">Core lessons completed</span>
-                            <span className="font-mono text-xs text-foreground tabular">
+                            <span className="text-xs text-foreground tabular">
                                 {progress.completedLessons}/{progress.totalLessons} &middot; {progress.percent}%
                             </span>
                         </div>
@@ -295,7 +295,7 @@ export default function RoadmapDetailsPage({ params, initialData = null }) {
                                             >
                                                 <LuCheck className={isCurrent ? 'text-primary-ink' : 'invisible'} aria-hidden="true" />
                                                 <span className="min-w-0 flex-1 truncate">{roadmap.title}</span>
-                                                <span className="shrink-0 font-mono text-xs text-muted-foreground tabular">
+                                                <span className="shrink-0 text-xs text-muted-foreground tabular">
                                                     {steps} {steps === 1 ? 'step' : 'steps'}
                                                 </span>
                                             </Link>
@@ -311,7 +311,7 @@ export default function RoadmapDetailsPage({ params, initialData = null }) {
                     {hasNodes && (
                         <div className="ml-2 hidden shrink-0 items-center gap-2 md:flex">
                             <Progress value={pathPercent} className="h-1.5 w-28 bg-muted" aria-label="Roadmap progress" />
-                            <span className="font-mono text-xs text-muted-foreground tabular">
+                            <span className="text-xs text-muted-foreground tabular">
                                 {completedSteps}/{totalSteps} steps
                             </span>
                         </div>
@@ -361,7 +361,7 @@ export default function RoadmapDetailsPage({ params, initialData = null }) {
                                     ].map((stat) => (
                                         <div key={stat.label} className="bg-card px-3 py-2.5">
                                             <dt className="text-xs text-muted-foreground">{stat.label}</dt>
-                                            <dd className={stat.mono ? 'font-mono text-lg font-medium tabular' : 'text-base leading-7 font-medium'}>
+                                            <dd className={stat.mono ? 'text-lg font-medium tabular' : 'text-base leading-7 font-medium'}>
                                                 {stat.value}
                                             </dd>
                                         </div>
@@ -396,8 +396,8 @@ export default function RoadmapDetailsPage({ params, initialData = null }) {
                                                     </div>
 
                                                     <div className={isLast ? 'min-w-0 flex-1' : 'min-w-0 flex-1 pb-6'}>
-                                                        <p className="flex h-7 items-center gap-2 font-mono text-xs text-muted-foreground tabular">
-                                                            Step {pad(stepNumber)}
+                                                        <p className="flex h-7 items-center gap-2 text-xs text-muted-foreground tabular">
+                                                            Step {stepNumber}
                                                             {stage.nodes.length > 1 && (
                                                                 <span className="font-sans">&middot; {stage.nodes.length} topics</span>
                                                             )}

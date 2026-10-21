@@ -113,7 +113,7 @@ const CommentItem = ({ data, courseId }) => {
                     aria-pressed={isUpvoted}
                 >
                     <LuThumbsUp className={cn(isUpvoted && "fill-current")} aria-hidden="true" />
-                    <span className="font-mono tabular">{Number(data.upvotes) || 0}</span>
+                    <span className="tabular">{Number(data.upvotes) || 0}</span>
                 </Button>
 
                 <Button
@@ -129,7 +129,7 @@ const CommentItem = ({ data, courseId }) => {
                     aria-pressed={isDownvoted}
                 >
                     <LuThumbsDown className={cn(isDownvoted && "fill-current")} aria-hidden="true" />
-                    <span className="font-mono tabular">{Number(data.downvotes) || 0}</span>
+                    <span className="tabular">{Number(data.downvotes) || 0}</span>
                 </Button>
             </div>
         </article>
