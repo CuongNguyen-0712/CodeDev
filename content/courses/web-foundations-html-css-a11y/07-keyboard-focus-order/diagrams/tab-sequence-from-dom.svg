@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Tab follows positive tabindex first, then the DOM order</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The browser walks the document, drops what cannot take focus, then sorts. Where a box sits on screen does not matter.</text>
+
+  <!-- Left: document order -->
+  <rect x="40" y="112" width="360" height="428" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="64" y="146" font-size="18" font-weight="700" fill="#334155">1  Document order</text>
+  <text x="64" y="170" font-size="13" fill="#64748b">checkout page, top to bottom in the HTML</text>
+
+  <g font-family="Consolas, 'Courier New', monospace" font-size="13">
+    <rect x="60" y="186" width="320" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+    <text x="72" y="206" fill="#334155">&lt;a href&gt; Logo</text>
+
+    <rect x="60" y="224" width="320" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+    <text x="72" y="244" fill="#334155">&lt;input&gt; Search</text>
+
+    <rect x="60" y="262" width="320" height="30" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="2"/>
+    <text x="72" y="282" fill="#94a3b8">&lt;a href&gt; Mini-cart</text>
+    <rect x="262" y="267" width="110" height="20" rx="10" fill="#e2e8f0"/>
+    <text x="317" y="281" font-size="11" text-anchor="middle" fill="#475569" font-family="Inter, 'Segoe UI', Arial, sans-serif">in inert aside</text>
+
+    <rect x="60" y="300" width="320" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+    <text x="72" y="320" fill="#334155">&lt;input&gt; Email</text>
+    <rect x="262" y="305" width="110" height="20" rx="10" fill="#fef3c7" stroke="#d97706" stroke-width="1"/>
+    <text x="317" y="319" font-size="12" text-anchor="middle" fill="#b45309">tabindex=1</text>
+
+    <rect x="60" y="338" width="320" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+    <text x="72" y="358" fill="#334155">&lt;input&gt; Full name</text>
+
+    <rect x="60" y="376" width="320" height="30" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="2"/>
+    <text x="72" y="396" fill="#94a3b8">&lt;div&gt; Apply coupon</text>
+    <rect x="262" y="381" width="110" height="20" rx="10" fill="#e2e8f0"/>
+    <text x="317" y="395" font-size="11" text-anchor="middle" fill="#475569" font-family="Inter, 'Segoe UI', Arial, sans-serif">not focusable</text>
+
+    <rect x="60" y="414" width="320" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+    <text x="72" y="434" fill="#334155">&lt;button&gt; Pay</text>
+
+    <rect x="60" y="452" width="320" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+    <text x="72" y="472" fill="#334155">&lt;input&gt; Newsletter</text>
+    <rect x="262" y="457" width="110" height="20" rx="10" fill="#fef3c7" stroke="#d97706" stroke-width="1"/>
+    <text x="317" y="471" font-size="12" text-anchor="middle" fill="#b45309">tabindex=2</text>
+
+    <rect x="60" y="490" width="320" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+    <text x="72" y="510" fill="#334155">&lt;a href&gt; Privacy</text>
+  </g>
+
+  <!-- Middle: rules -->
+  <line x1="400" y1="326" x2="414" y2="326" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="410,320 410,332 420,326" fill="#94a3b8"/>
+  <rect x="420" y="112" width="340" height="428" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="444" y="146" font-size="18" font-weight="700" fill="#b45309">2  Filter, then sort</text>
+  <text x="444" y="170" font-size="13" fill="#92400e">how the browser builds the sequence</text>
+
+  <text x="444" y="208" font-size="15" font-weight="700" fill="#b45309">Skip</text>
+  <text x="444" y="234" font-size="14" fill="#92400e">- hidden or inert: the whole subtree</text>
+  <text x="444" y="258" font-size="14" fill="#92400e">- disabled form controls</text>
+  <text x="444" y="282" font-size="14" fill="#92400e">- tabindex=-1 (children still count)</text>
+  <text x="444" y="306" font-size="14" fill="#92400e">- div, span, a without href</text>
+
+  <text x="444" y="350" font-size="15" font-weight="700" fill="#b45309">Then order</text>
+  <text x="444" y="376" font-size="14" fill="#92400e">1. tabindex &gt; 0, ascending as numbers</text>
+  <text x="462" y="398" font-size="14" fill="#92400e">(2 before 10, ties in DOM order)</text>
+  <text x="444" y="426" font-size="14" fill="#92400e">2. then tabindex=0 and native</text>
+  <text x="462" y="448" font-size="14" fill="#92400e">controls, in DOM order</text>
+
+  <rect x="440" y="472" width="300" height="50" rx="6" fill="#ffffff" stroke="#fcd34d" stroke-width="2"/>
+  <text x="456" y="493" font-size="13" fill="#92400e">One positive tabindex on the page</text>
+  <text x="456" y="511" font-size="13" fill="#92400e">puts that element ahead of all others.</text>
+
+  <line x1="760" y1="214" x2="774" y2="214" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="770,208 770,220 780,214" fill="#94a3b8"/>
+  <line x1="760" y1="437" x2="774" y2="437" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="770,431 770,443 780,437" fill="#94a3b8"/>
+
+  <!-- Right top: before -->
+  <rect x="780" y="112" width="380" height="205" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="800" y="144" font-size="18" font-weight="700" fill="#b91c1c">Before: tabindex 1 and 2</text>
+  <g font-size="13" fill="#334155">
+    <rect x="800" y="162" width="104" height="30" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+    <text x="852" y="182" text-anchor="middle">1  Email</text>
+    <rect x="918" y="162" width="104" height="30" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+    <text x="970" y="182" text-anchor="middle">2  Newsletter</text>
+    <rect x="1036" y="162" width="104" height="30" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+    <text x="1088" y="182" text-anchor="middle">3  Logo</text>
+    <rect x="800" y="200" width="104" height="30" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+    <text x="852" y="220" text-anchor="middle">4  Search</text>
+    <rect x="918" y="200" width="104" height="30" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+    <text x="970" y="220" text-anchor="middle">5  Full name</text>
+    <rect x="1036" y="200" width="104" height="30" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+    <text x="1088" y="220" text-anchor="middle">6  Pay</text>
+    <rect x="800" y="238" width="104" height="30" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+    <text x="852" y="258" text-anchor="middle">7  Privacy</text>
+  </g>
+  <text x="800" y="296" font-size="13" fill="#b91c1c">Tab 2 jumps to the footer, Tab 3 to the top</text>
+
+  <!-- Right bottom: after -->
+  <rect x="780" y="335" width="380" height="205" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="800" y="367" font-size="18" font-weight="700" fill="#15803d">After: no positive tabindex</text>
+  <g font-size="13" fill="#334155">
+    <rect x="800" y="385" width="104" height="30" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+    <text x="852" y="405" text-anchor="middle">1  Logo</text>
+    <rect x="918" y="385" width="104" height="30" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+    <text x="970" y="405" text-anchor="middle">2  Search</text>
+    <rect x="1036" y="385" width="104" height="30" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+    <text x="1088" y="405" text-anchor="middle">3  Email</text>
+    <rect x="800" y="423" width="104" height="30" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+    <text x="852" y="443" text-anchor="middle">4  Full name</text>
+    <rect x="918" y="423" width="104" height="30" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+    <text x="970" y="443" text-anchor="middle">5  Pay</text>
+    <rect x="1036" y="423" width="104" height="30" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+    <text x="1088" y="443" text-anchor="middle">6  Newsletter</text>
+    <rect x="800" y="461" width="104" height="30" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+    <text x="852" y="481" text-anchor="middle">7  Privacy</text>
+  </g>
+  <text x="800" y="519" font-size="13" fill="#15803d">Focus moves in reading order, top to bottom</text>
+
+  <text x="40" y="578" font-size="15" fill="#475569">CSS order, grid placement, row-reverse and position: absolute move pixels only. The Tab sequence stays the same.</text>
+</svg>

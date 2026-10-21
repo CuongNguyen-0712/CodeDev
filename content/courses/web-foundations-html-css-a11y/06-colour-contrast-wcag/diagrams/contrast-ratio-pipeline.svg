@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">From a hex colour to pass or fail: #9ca3af on white</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Relative luminance weights the linearised channels; the contrast ratio compares the lighter and the darker colour.</text>
+
+  <rect x="40" y="108" width="200" height="184" rx="8" fill="#f8fafc" stroke="#475569" stroke-width="2"/>
+  <text x="56" y="138" font-size="15" font-weight="700" fill="#0f172a">1  Read the hex</text>
+  <text x="56" y="166" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">#9ca3af</text>
+  <text x="56" y="188" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">9c  a3  af</text>
+  <text x="56" y="210" font-size="13" fill="#64748b" xml:space="preserve">#rgb: double each digit</text>
+  <line x1="56" y1="256" x2="224" y2="256" stroke="#475569" stroke-width="1"/>
+  <text x="56" y="278" font-size="13" font-weight="700" font-family="Consolas, 'Courier New', monospace" fill="#334155">156 163 175</text>
+  <line x1="244" y1="200" x2="258" y2="200" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="256,194 256,206 266,200" fill="#94a3b8"/>
+  <rect x="270" y="108" width="200" height="184" rx="8" fill="#f8fafc" stroke="#475569" stroke-width="2"/>
+  <text x="286" y="138" font-size="15" font-weight="700" fill="#0f172a">2  Scale to 0-1</text>
+  <text x="286" y="166" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">c = value / 255</text>
+  <text x="286" y="188" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">156 / 255 = 0.612</text>
+  <text x="286" y="210" font-size="13" fill="#64748b" xml:space="preserve">one value per channel</text>
+  <line x1="286" y1="256" x2="454" y2="256" stroke="#475569" stroke-width="1"/>
+  <text x="286" y="278" font-size="13" font-weight="700" font-family="Consolas, 'Courier New', monospace" fill="#334155">0.612 0.639 0.686</text>
+  <line x1="474" y1="200" x2="488" y2="200" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="486,194 486,206 496,200" fill="#94a3b8"/>
+  <rect x="500" y="108" width="200" height="184" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="516" y="138" font-size="15" font-weight="700" fill="#0f172a">3  Linearise (sRGB)</text>
+  <text x="516" y="166" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">c &lt;= 0.04045</text>
+  <text x="516" y="188" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">? c / 12.92</text>
+  <text x="516" y="210" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">: ((c + 0.055)</text>
+  <text x="516" y="232" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">   / 1.055) ** 2.4</text>
+  <line x1="516" y1="256" x2="684" y2="256" stroke="#0891b2" stroke-width="1"/>
+  <text x="516" y="278" font-size="13" font-weight="700" font-family="Consolas, 'Courier New', monospace" fill="#0e7490">0.333 0.366 0.429</text>
+  <line x1="704" y1="200" x2="718" y2="200" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="716,194 716,206 726,200" fill="#94a3b8"/>
+  <rect x="730" y="108" width="200" height="184" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="746" y="138" font-size="15" font-weight="700" fill="#0f172a">4  Weight and add</text>
+  <text x="746" y="166" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">0.2126 * R</text>
+  <text x="746" y="188" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">+ 0.7152 * G</text>
+  <text x="746" y="210" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">+ 0.0722 * B</text>
+  <text x="746" y="232" font-size="13" fill="#64748b" xml:space="preserve">green counts most</text>
+  <line x1="746" y1="256" x2="914" y2="256" stroke="#d97706" stroke-width="1"/>
+  <text x="746" y="278" font-size="13" font-weight="700" font-family="Consolas, 'Courier New', monospace" fill="#b45309">L = 0.364</text>
+  <line x1="934" y1="200" x2="948" y2="200" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="946,194 946,206 956,200" fill="#94a3b8"/>
+  <rect x="960" y="108" width="200" height="184" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="976" y="138" font-size="15" font-weight="700" fill="#0f172a">5  Compare</text>
+  <text x="976" y="166" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">(L1 + 0.05)</text>
+  <text x="976" y="188" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">/ (L2 + 0.05)</text>
+  <text x="976" y="210" font-size="13" fill="#64748b" xml:space="preserve">L1 = the lighter colour</text>
+  <text x="976" y="232" font-size="13" fill="#64748b" xml:space="preserve">white: L = 1</text>
+  <line x1="976" y1="256" x2="1144" y2="256" stroke="#ef4444" stroke-width="1"/>
+  <text x="976" y="278" font-size="13" font-weight="700" font-family="Consolas, 'Courier New', monospace" fill="#b91c1c">1.05 / 0.414 = 2.54</text>
+
+  <text x="40" y="330" font-size="18" font-weight="700" fill="#334155">Where the ratio lands (AA: 4.5:1 normal text, 3:1 large text and UI parts; AAA: 7:1)</text>
+  <rect x="40" y="346" width="265" height="214" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="58" y="378" font-size="17" font-weight="700" fill="#b91c1c">Below 3:1</text>
+  <text x="58" y="400" font-size="13" fill="#64748b">fails every contrast rule</text>
+  <rect x="58" y="414" width="229" height="32" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="1"/>
+  <text x="70" y="435" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">#9ca3af / #fff   2.54</text>
+  <rect x="58" y="454" width="229" height="32" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="1"/>
+  <text x="70" y="475" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">#fff / #f97316   2.80</text>
+  <rect x="58" y="494" width="229" height="32" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="1"/>
+  <text x="70" y="515" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">#d1d5db / #fff   1.47</text>
+  <text x="58" y="546" font-size="13" font-weight="700" fill="#b91c1c">release 4.0: body, button, border</text>
+  <rect x="325" y="346" width="265" height="214" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="343" y="378" font-size="17" font-weight="700" fill="#b45309">3:1 to under 4.5:1</text>
+  <text x="343" y="400" font-size="13" fill="#64748b">large text and UI parts only</text>
+  <rect x="343" y="414" width="229" height="32" rx="6" fill="#ffffff" stroke="#d97706" stroke-width="1"/>
+  <text x="355" y="435" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">#8a8a8a / #fff   3.45</text>
+  <rect x="343" y="454" width="229" height="32" rx="6" fill="#ffffff" stroke="#d97706" stroke-width="1"/>
+  <text x="355" y="475" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">#777777 / #fff   4.48</text>
+  <text x="343" y="546" font-size="13" font-weight="700" fill="#b45309">4.48 is not 4.5: no rounding up</text>
+  <rect x="610" y="346" width="265" height="214" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="628" y="378" font-size="17" font-weight="700" fill="#15803d">4.5:1 to under 7:1</text>
+  <text x="628" y="400" font-size="13" fill="#64748b">AA for all text</text>
+  <rect x="628" y="414" width="229" height="32" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="1"/>
+  <text x="640" y="435" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">#767676 / #fff   4.54</text>
+  <rect x="628" y="454" width="229" height="32" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="1"/>
+  <text x="640" y="475" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">#6b7280 / #fff   4.83</text>
+  <rect x="628" y="494" width="229" height="32" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="1"/>
+  <text x="640" y="515" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">#fff / #c2410c   5.18</text>
+  <text x="628" y="546" font-size="13" font-weight="700" fill="#15803d">also AAA for large text</text>
+  <rect x="895" y="346" width="265" height="214" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="913" y="378" font-size="17" font-weight="700" fill="#0e7490">7:1 and above</text>
+  <text x="913" y="400" font-size="13" fill="#64748b">AAA for all text</text>
+  <rect x="913" y="414" width="229" height="32" rx="6" fill="#ffffff" stroke="#0891b2" stroke-width="1"/>
+  <text x="925" y="435" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">#374151 / #fff  10.31</text>
+  <rect x="913" y="454" width="229" height="32" rx="6" fill="#ffffff" stroke="#0891b2" stroke-width="1"/>
+  <text x="925" y="475" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155" xml:space="preserve">#000 / #fff      21.00</text>
+  <text x="913" y="546" font-size="13" font-weight="700" fill="#0e7490">21:1 is the maximum</text>
+</svg>

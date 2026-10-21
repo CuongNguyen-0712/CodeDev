@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Why one long product name widens a 1fr column</text>
+  <text x="40" y="82" font-size="16" fill="#475569">1fr means minmax(auto, 1fr): the track may not become narrower than the min-content width of its item.</text>
+
+  <!-- Left: before -->
+  <rect x="40" y="112" width="545" height="300" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="146" font-size="18" font-weight="700" fill="#b91c1c">Before: grid-template-columns: 1fr</text>
+  <text x="64" y="170" font-size="13" fill="#64748b">phone: 320px viewport, 288px container</text>
+
+  <rect x="64" y="186" width="317" height="88" rx="4" fill="#ffffff" stroke="#64748b" stroke-width="2" stroke-dasharray="6 4"/>
+  <rect x="72" y="200" width="453" height="60" rx="6" fill="#fee2e2" stroke="#ef4444" stroke-width="2"/>
+  <text x="88" y="236" font-size="18" font-weight="700" fill="#7f1d1d" font-family="Consolas, 'Courier New', monospace">PWRBANK20000MAHUSBCPD65WBLACKEDITION</text>
+
+  <line x1="64" y1="292" x2="381" y2="292" stroke="#64748b" stroke-width="2"/>
+  <line x1="64" y1="284" x2="64" y2="300" stroke="#64748b" stroke-width="2"/>
+  <line x1="381" y1="284" x2="381" y2="300" stroke="#64748b" stroke-width="2"/>
+  <text x="72" y="314" font-size="13" fill="#475569">container: 288px</text>
+  <line x1="72" y1="330" x2="525" y2="330" stroke="#ef4444" stroke-width="2"/>
+  <line x1="72" y1="322" x2="72" y2="338" stroke="#ef4444" stroke-width="2"/>
+  <line x1="525" y1="322" x2="525" y2="338" stroke="#ef4444" stroke-width="2"/>
+  <text x="80" y="352" font-size="13" fill="#b91c1c">1fr column: 412px = the card's min-content width</text>
+
+  <text x="64" y="382" font-size="15" font-weight="700" fill="#b91c1c">412px is wider than the screen: the page scrolls sideways</text>
+  <text x="64" y="402" font-size="13" fill="#64748b">fails 1.4.10 Reflow at 320 CSS px</text>
+
+  <!-- Right: after -->
+  <rect x="615" y="112" width="545" height="300" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="639" y="146" font-size="18" font-weight="700" fill="#15803d">After: minmax(0, 1fr) + overflow-wrap</text>
+  <text x="639" y="170" font-size="13" fill="#64748b">the track may shrink, and the long name may wrap</text>
+
+  <rect x="639" y="186" width="317" height="88" rx="4" fill="#ffffff" stroke="#64748b" stroke-width="2" stroke-dasharray="6 4"/>
+  <rect x="647" y="196" width="301" height="70" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="661" y="226" font-size="18" font-weight="700" fill="#14532d" font-family="Consolas, 'Courier New', monospace">PWRBANK20000MAHUSBCPD6</text>
+  <text x="661" y="252" font-size="18" font-weight="700" fill="#14532d" font-family="Consolas, 'Courier New', monospace">5WBLACKEDITION</text>
+
+  <line x1="639" y1="292" x2="956" y2="292" stroke="#16a34a" stroke-width="2"/>
+  <line x1="639" y1="284" x2="639" y2="300" stroke="#16a34a" stroke-width="2"/>
+  <line x1="956" y1="284" x2="956" y2="300" stroke="#16a34a" stroke-width="2"/>
+  <text x="647" y="314" font-size="13" fill="#15803d">column: 288px, the same as the container</text>
+  <text x="647" y="352" font-size="13" fill="#64748b">Flexbox: min-width: 0 on the item does the same job</text>
+
+  <text x="639" y="382" font-size="15" font-weight="700" fill="#15803d">No sideways scroll at 320px</text>
+  <text x="639" y="402" font-size="13" fill="#64748b">code blocks: min-width: 0 plus overflow-x: auto</text>
+
+  <!-- Bottom: fr arithmetic -->
+  <text x="40" y="460" font-size="18" font-weight="700" fill="#334155">How fr tracks share space: 200px 1fr 2fr, gap 16px, container 1000px</text>
+  <rect x="40" y="476" width="224" height="48" rx="6" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="152" y="506" font-size="15" text-anchor="middle" fill="#b45309" font-family="Consolas, 'Courier New', monospace">200px</text>
+  <rect x="266" y="476" width="14" height="48" fill="#e2e8f0"/>
+  <rect x="282" y="476" width="286" height="48" rx="6" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="425" y="506" font-size="15" text-anchor="middle" fill="#0e7490" font-family="Consolas, 'Courier New', monospace">1fr = 256px</text>
+  <rect x="570" y="476" width="14" height="48" fill="#e2e8f0"/>
+  <rect x="586" y="476" width="574" height="48" rx="6" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="873" y="506" font-size="15" text-anchor="middle" fill="#0e7490" font-family="Consolas, 'Courier New', monospace">2fr = 512px</text>
+  <text x="40" y="552" font-size="15" fill="#334155">free space = 1000 - 200 - 2 gaps x 16 = 768px, shared 1 : 2 = 256px and 512px</text>
+  <text x="40" y="576" font-size="13" fill="#64748b">Fixed tracks and gaps come first; fr tracks share what is left (never less than 0). Grey bars are the gaps.</text>
+</svg>

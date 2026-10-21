@@ -1,0 +1,492 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_webf_311",
+      "name": "contrast-rules-quiz",
+      "type": "quiz",
+      "title": "Pass or fail? Reading WCAG contrast results",
+      "description": "Two decisions from the brand-refresh audit: whether a ratio that displays as almost 4.5:1 passes, and which parts of a form must meet a contrast requirement at all.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The new helper text under the email field is 14px, regular weight, colour #777777 on a #ffffff background. The DevTools colour picker shows a contrast ratio of 4.48. The designer argues: \"That rounds to 4.5, so it meets AA.\" What is the correct verdict for 1.4.3 Contrast (Minimum)?",
+          "explanation": "WCAG thresholds are minimums and the ratio is not rounded before comparing: 4.48:1 is below 4.5:1, so the text fails. 14px regular is normal-size text (large text starts at 24px regular or about 18.67px bold), so the 3:1 large-text threshold does not apply, and helper text is not exempt: it is real content that people need to read. The smallest change is a slightly darker grey: #767676 on white is about 4.54:1 and passes.",
+          "options": [
+            {
+              "text": "It fails: 4.48:1 is below the 4.5:1 minimum, and ratios are not rounded up before the comparison.",
+              "correct": true
+            },
+            {
+              "text": "It passes: WCAG ratios are compared after rounding to one decimal place.",
+              "correct": false
+            },
+            {
+              "text": "It passes: helper text only needs 3:1 because it is secondary information.",
+              "correct": false
+            },
+            {
+              "text": "It fails only AAA (7:1); AA needs 4.5:1 for large text and 3:1 for normal text.",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "The checkout form has these parts. Under WCAG 2.2 level AA, which of them MUST meet a contrast requirement (1.4.3 for text, 1.4.11 for non-text)? (Select all that apply.)",
+          "explanation": "Placeholder text is text, and 1.4.3 has no exception for it, so it needs 4.5:1 (better still, do not use it for anything a user must read). When a 1px border is the only thing that shows where a text input is, it is visual information needed to identify the component, so 1.4.11 asks for 3:1 against the adjacent colour. A focus indicator is visual information needed to identify a state, so it is covered by 1.4.11 too. Text in an inactive (disabled) control is explicitly exempt from 1.4.3, and so are logotypes - the text inside the shop's logo has no contrast requirement.",
+          "options": [
+            {
+              "text": "The grey placeholder text \"name@example.com\" inside the email field",
+              "correct": true
+            },
+            {
+              "text": "The 1px border that is the only visual sign of where the email field is",
+              "correct": true
+            },
+            {
+              "text": "The outline drawn around the Checkout button when it has keyboard focus",
+              "correct": true
+            },
+            {
+              "text": "The label of the \"Place order\" button while it is disabled",
+              "correct": false
+            },
+            {
+              "text": "The shop's name inside its logo in the header",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_webf_312",
+      "name": "wcag-contrast-report",
+      "type": "mini_coding",
+      "title": "Compute WCAG contrast and decide AA / AAA",
+      "description": "Write contrastReport(foreground, background, { sizePx, bold, kind }): parse #rgb and #rrggbb colours, compute relative luminance and the contrast ratio, decide whether the text is large, and return { ratio, large, aa, aaa } with the ratio rounded to 2 decimals for display and the pass flags decided on the unrounded value. Kind \"ui\" applies the 3:1 non-text rule.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "contrast.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: #9ca3af body text on white and white on the #f97316 Checkout button both fail AA",
+          "input": {
+            "checks": [
+              {
+                "fg": "#9ca3af",
+                "bg": "#ffffff",
+                "sizePx": 16,
+                "bold": false,
+                "kind": "text"
+              },
+              {
+                "fg": "#ffffff",
+                "bg": "#f97316",
+                "sizePx": 18,
+                "bold": true,
+                "kind": "text"
+              }
+            ]
+          },
+          "expected": [
+            {
+              "ratio": 2.54,
+              "large": false,
+              "aa": false,
+              "aaa": false
+            },
+            {
+              "ratio": 2.8,
+              "large": false,
+              "aa": false,
+              "aaa": false
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The order of the colours does not matter, and the fixed tokens pass",
+          "input": {
+            "checks": [
+              {
+                "fg": "#374151",
+                "bg": "#ffffff",
+                "sizePx": 16,
+                "bold": false,
+                "kind": "text"
+              },
+              {
+                "fg": "#ffffff",
+                "bg": "#374151",
+                "sizePx": 16,
+                "bold": false,
+                "kind": "text"
+              },
+              {
+                "fg": "#ffffff",
+                "bg": "#c2410c",
+                "sizePx": 18,
+                "bold": true,
+                "kind": "text"
+              }
+            ]
+          },
+          "expected": [
+            {
+              "ratio": 10.31,
+              "large": false,
+              "aa": true,
+              "aaa": true
+            },
+            {
+              "ratio": 10.31,
+              "large": false,
+              "aa": true,
+              "aaa": true
+            },
+            {
+              "ratio": 5.18,
+              "large": false,
+              "aa": true,
+              "aaa": false
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "No rounding up: #777777 (4.48) fails, #767676 (4.54) passes, and 4.497 shows as 4.5 but still fails",
+          "input": {
+            "checks": [
+              {
+                "fg": "#777777",
+                "bg": "#ffffff",
+                "sizePx": 16,
+                "bold": false,
+                "kind": "text"
+              },
+              {
+                "fg": "#767676",
+                "bg": "#ffffff",
+                "sizePx": 16,
+                "bold": false,
+                "kind": "text"
+              },
+              {
+                "fg": "#4769fa",
+                "bg": "#ffffff",
+                "sizePx": 16,
+                "bold": false,
+                "kind": "text"
+              }
+            ]
+          },
+          "expected": [
+            {
+              "ratio": 4.48,
+              "large": false,
+              "aa": false,
+              "aaa": false
+            },
+            {
+              "ratio": 4.54,
+              "large": false,
+              "aa": true,
+              "aaa": false
+            },
+            {
+              "ratio": 4.5,
+              "large": false,
+              "aa": false,
+              "aaa": false
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Large text is 24px regular or about 18.67px bold, not 18px",
+          "input": {
+            "checks": [
+              {
+                "fg": "#949494",
+                "bg": "#ffffff",
+                "sizePx": 24,
+                "bold": false,
+                "kind": "text"
+              },
+              {
+                "fg": "#949494",
+                "bg": "#ffffff",
+                "sizePx": 23.5,
+                "bold": false,
+                "kind": "text"
+              },
+              {
+                "fg": "#949494",
+                "bg": "#ffffff",
+                "sizePx": 20,
+                "bold": false,
+                "kind": "text"
+              },
+              {
+                "fg": "#949494",
+                "bg": "#ffffff",
+                "sizePx": 19,
+                "bold": true,
+                "kind": "text"
+              },
+              {
+                "fg": "#949494",
+                "bg": "#ffffff",
+                "sizePx": 18.5,
+                "bold": true,
+                "kind": "text"
+              },
+              {
+                "fg": "#6b7280",
+                "bg": "#ffffff",
+                "sizePx": 24,
+                "bold": false,
+                "kind": "text"
+              }
+            ]
+          },
+          "expected": [
+            {
+              "ratio": 3.03,
+              "large": true,
+              "aa": true,
+              "aaa": false
+            },
+            {
+              "ratio": 3.03,
+              "large": false,
+              "aa": false,
+              "aaa": false
+            },
+            {
+              "ratio": 3.03,
+              "large": false,
+              "aa": false,
+              "aaa": false
+            },
+            {
+              "ratio": 3.03,
+              "large": true,
+              "aa": true,
+              "aaa": false
+            },
+            {
+              "ratio": 3.03,
+              "large": false,
+              "aa": false,
+              "aaa": false
+            },
+            {
+              "ratio": 4.83,
+              "large": true,
+              "aa": true,
+              "aaa": true
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Non-text contrast (kind \"ui\"): 3:1 for borders and focus indicators, no AAA level, size ignored",
+          "input": {
+            "checks": [
+              {
+                "fg": "#d1d5db",
+                "bg": "#ffffff",
+                "kind": "ui"
+              },
+              {
+                "fg": "#8a8a8a",
+                "bg": "#ffffff",
+                "kind": "ui"
+              },
+              {
+                "fg": "#ffffff",
+                "bg": "#949494",
+                "sizePx": 16,
+                "bold": true,
+                "kind": "ui"
+              },
+              {
+                "fg": "#1d4ed8",
+                "bg": "#ffffff",
+                "kind": "ui"
+              }
+            ]
+          },
+          "expected": [
+            {
+              "ratio": 1.47,
+              "large": false,
+              "aa": false,
+              "aaa": null
+            },
+            {
+              "ratio": 3.45,
+              "large": false,
+              "aa": true,
+              "aaa": null
+            },
+            {
+              "ratio": 3.03,
+              "large": false,
+              "aa": true,
+              "aaa": null
+            },
+            {
+              "ratio": 6.7,
+              "large": false,
+              "aa": true,
+              "aaa": null
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Shorthand and mixed-case hex work; anything else, an unknown kind or a bad size is rejected",
+          "input": {
+            "checks": [
+              {
+                "fg": "#000",
+                "bg": "#FFF",
+                "sizePx": 12,
+                "bold": false,
+                "kind": "text"
+              },
+              {
+                "fg": "#FfF",
+                "bg": "#ffffff",
+                "sizePx": 40,
+                "bold": true,
+                "kind": "text"
+              },
+              {
+                "fg": "#595959",
+                "bg": "#FFFFFF",
+                "sizePx": 16,
+                "bold": false,
+                "kind": "text"
+              },
+              {
+                "fg": "777777",
+                "bg": "#ffffff",
+                "sizePx": 16,
+                "bold": false,
+                "kind": "text"
+              },
+              {
+                "fg": "#7777",
+                "bg": "#ffffff",
+                "sizePx": 16,
+                "bold": false,
+                "kind": "text"
+              },
+              {
+                "fg": "#77777",
+                "bg": "#ffffff",
+                "sizePx": 16,
+                "bold": false,
+                "kind": "text"
+              },
+              {
+                "fg": "#gggggg",
+                "bg": "#ffffff",
+                "sizePx": 16,
+                "bold": false,
+                "kind": "text"
+              },
+              {
+                "fg": "red",
+                "bg": "#ffffff",
+                "sizePx": 16,
+                "bold": false,
+                "kind": "text"
+              },
+              {
+                "fg": "#777777",
+                "bg": null,
+                "sizePx": 16,
+                "bold": false,
+                "kind": "text"
+              },
+              {
+                "fg": "#777777",
+                "bg": "#ffffff",
+                "sizePx": 16,
+                "bold": false,
+                "kind": "icon"
+              },
+              {
+                "fg": "#777777",
+                "bg": "#ffffff",
+                "sizePx": 0,
+                "bold": false,
+                "kind": "text"
+              },
+              {
+                "fg": "#777777",
+                "bg": "#ffffff",
+                "sizePx": "16px",
+                "bold": false,
+                "kind": "text"
+              }
+            ]
+          },
+          "expected": [
+            {
+              "ratio": 21,
+              "large": false,
+              "aa": true,
+              "aaa": true
+            },
+            {
+              "ratio": 1,
+              "large": true,
+              "aa": false,
+              "aaa": false
+            },
+            {
+              "ratio": 7,
+              "large": false,
+              "aa": true,
+              "aaa": true
+            },
+            "rejected",
+            "rejected",
+            "rejected",
+            "rejected",
+            "rejected",
+            "rejected",
+            "rejected",
+            "rejected",
+            "rejected"
+          ],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

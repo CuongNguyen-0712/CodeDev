@@ -1,0 +1,341 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_webf_221",
+      "name": "flexbox-grid-layout-quiz",
+      "type": "quiz",
+      "title": "Why does the product page scroll sideways?",
+      "description": "Two questions from the product listing incident: the automatic minimum size that lets one long product name widen a 1fr column, and what the flex shorthand, auto-fit, logical properties and visual reordering really do.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "On phones the results area is a grid with grid-template-columns: 1fr inside a 288px-wide container. One product is named PWRBANK20000MAHUSBCPD65WBLACKEDITION (no spaces, no hyphens), and DevTools shows that the product card containing it has a min-content width of 412px. The grid overlay labels the single column 412px, and the page scrolls sideways. Why is the column wider than the container?",
+          "explanation": "1fr is short for minmax(auto, 1fr). The auto minimum means the track may not become narrower than the minimum contribution of its items, and grid and flex items have min-width: auto, which resolves to their min-content width: the widest piece of content that cannot wrap. A string without spaces or hyphens has no soft wrap opportunity, so its full 412px width is that minimum, and the track grows to 412px even though the container is only 288px. Writing minmax(0, 1fr) (and min-width: 0 on flex items) removes that minimum; overflow-wrap: anywhere then lets the long name wrap. The fr unit does not ignore content, gap is not added to a single column, and percentages are not involved here.",
+          "options": [
+            {
+              "text": "1fr means minmax(auto, 1fr): the track cannot shrink below its item's min-content width, and the unbreakable name makes that 412px.",
+              "correct": true
+            },
+            {
+              "text": "fr units are calculated from the viewport, not from the container, so 1fr can be wider than the container.",
+              "correct": false
+            },
+            {
+              "text": "The 24px gap is added on both sides of the only column, which pushes it past the container width.",
+              "correct": false
+            },
+            {
+              "text": "Grid always sizes columns by their max-content width; only Flexbox lets items shrink.",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which of these statements are true? (Select all that apply.)",
+          "explanation": "flex: 1 expands to flex-grow 1, flex-shrink 1 and a flex basis of 0%, so free space is shared equally whatever the content. With repeat(auto-fit, minmax(220px, 1fr)) the empty repeated tracks collapse to 0, so two items in a row with room for five share the whole row; auto-fill would keep the five tracks and leave the empty ones as space. order, grid placement and row-reverse only change where boxes are painted: the Tab sequence and the reading order of a screen reader still follow the DOM, which is why moving things visually can fail 1.3.2 Meaningful Sequence and 2.4.3 Focus Order. margin-inline-start follows the writing direction: it is the left margin in a left-to-right line, but the right margin when dir=\"rtl\".",
+          "options": [
+            {
+              "text": "flex: 1 is short for flex-grow: 1, flex-shrink: 1 and flex-basis: 0%.",
+              "correct": true
+            },
+            {
+              "text": "With repeat(auto-fit, minmax(220px, 1fr)), two items in a row with room for five columns stretch to share the whole row.",
+              "correct": true
+            },
+            {
+              "text": "order: -1 on a button also moves it earlier in the keyboard Tab order.",
+              "correct": false
+            },
+            {
+              "text": "flex-direction: row-reverse makes a screen reader read the items from the last one to the first one.",
+              "correct": false
+            },
+            {
+              "text": "margin-inline-start is always the left margin, whatever the page language.",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_webf_222",
+      "name": "grid-track-sizes",
+      "type": "mini_coding",
+      "title": "Compute grid column widths",
+      "description": "Write gridColumns({ template, width, gap, items }): resolve px, % and fr tracks against the container width after subtracting the gaps, count the columns of repeat(auto-fill / auto-fit, minmax(Npx, 1fr)), and collapse empty auto-fit tracks. Return each column width in px, rounded to 2 decimals.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "grid-columns.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident grid: auto-fill, minmax(220px, 1fr), 24px gap at 1200px, 700px and 288px",
+          "input": {
+            "grids": [
+              {
+                "template": "repeat(auto-fill, minmax(220px, 1fr))",
+                "width": 1200,
+                "gap": 24,
+                "items": 12
+              },
+              {
+                "template": "repeat(auto-fill, minmax(220px, 1fr))",
+                "width": 700,
+                "gap": 24,
+                "items": 12
+              },
+              {
+                "template": "repeat(auto-fill, minmax(220px, 1fr))",
+                "width": 288,
+                "gap": 24,
+                "items": 12
+              }
+            ]
+          },
+          "expected": [
+            [
+              220.8,
+              220.8,
+              220.8,
+              220.8,
+              220.8
+            ],
+            [
+              338,
+              338
+            ],
+            [
+              288
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Fixed and percentage tracks are taken first, then fr tracks share what is left after the gaps",
+          "input": {
+            "grids": [
+              {
+                "template": "200px 1fr",
+                "width": 1000,
+                "gap": 16,
+                "items": 2
+              },
+              {
+                "template": "1fr 2fr 1fr",
+                "width": 1000,
+                "gap": 20,
+                "items": 3
+              },
+              {
+                "template": "25% 1fr 100px",
+                "width": 800,
+                "gap": 10,
+                "items": 3
+              }
+            ]
+          },
+          "expected": [
+            [
+              200,
+              784
+            ],
+            [
+              240,
+              480,
+              240
+            ],
+            [
+              200,
+              480,
+              100
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Uneven shares are rounded to 2 decimals; decimal percentages work",
+          "input": {
+            "grids": [
+              {
+                "template": "1fr 1fr 1fr",
+                "width": 1000,
+                "gap": 16,
+                "items": 3
+              },
+              {
+                "template": "1fr 2fr",
+                "width": 1000,
+                "gap": 0,
+                "items": 2
+              },
+              {
+                "template": "12.5% 1fr 12.5%",
+                "width": 960,
+                "gap": 0,
+                "items": 3
+              }
+            ]
+          },
+          "expected": [
+            [
+              322.67,
+              322.67,
+              322.67
+            ],
+            [
+              333.33,
+              666.67
+            ],
+            [
+              120,
+              720,
+              120
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "auto-fit collapses empty tracks so the items share the row; auto-fill keeps them",
+          "input": {
+            "grids": [
+              {
+                "template": "repeat(auto-fill, minmax(220px, 1fr))",
+                "width": 1200,
+                "gap": 24,
+                "items": 2
+              },
+              {
+                "template": "repeat(auto-fit, minmax(220px, 1fr))",
+                "width": 1200,
+                "gap": 24,
+                "items": 2
+              },
+              {
+                "template": "repeat(auto-fit, minmax(220px, 1fr))",
+                "width": 1200,
+                "gap": 24,
+                "items": 7
+              }
+            ]
+          },
+          "expected": [
+            [
+              220.8,
+              220.8,
+              220.8,
+              220.8,
+              220.8
+            ],
+            [
+              588,
+              588,
+              0,
+              0,
+              0
+            ],
+            [
+              220.8,
+              220.8,
+              220.8,
+              220.8,
+              220.8
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Free space never goes negative: when fixed tracks and gaps fill the container, fr tracks are 0",
+          "input": {
+            "grids": [
+              {
+                "template": "300px 1fr 300px",
+                "width": 500,
+                "gap": 20,
+                "items": 3
+              },
+              {
+                "template": "50% 50% 1fr",
+                "width": 400,
+                "gap": 10,
+                "items": 3
+              }
+            ]
+          },
+          "expected": [
+            [
+              300,
+              0,
+              300
+            ],
+            [
+              200,
+              200,
+              0
+            ]
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Edge cases: a minimum wider than the container, one item with auto-fit, mixed fr weights",
+          "input": {
+            "grids": [
+              {
+                "template": "repeat(auto-fill, minmax(220px, 1fr))",
+                "width": 200,
+                "gap": 16,
+                "items": 3
+              },
+              {
+                "template": "repeat(auto-fit, minmax(300px, 1fr))",
+                "width": 1000,
+                "gap": 16,
+                "items": 1
+              },
+              {
+                "template": "2fr 100px 1fr",
+                "width": 500,
+                "gap": 8,
+                "items": 3
+              }
+            ]
+          },
+          "expected": [
+            [
+              220
+            ],
+            [
+              1000,
+              0,
+              0
+            ],
+            [
+              256,
+              100,
+              128
+            ]
+          ],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

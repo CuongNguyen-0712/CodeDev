@@ -1,0 +1,983 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_webf_331",
+      "name": "images-loading-alt-quiz",
+      "type": "quiz",
+      "title": "Fix the hero, label the link",
+      "description": "Two decisions from the landing page incident: which changes to the hero <img> improve LCP or CLS, and what the alt text of an image-only link should say.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "On mobile, this hero image is the LCP element:\n\n<img src=\"/img/hero-spring.jpg\" loading=\"lazy\" alt=\"Hiker on a ridge at sunrise\">\n\nThe file is a 2400 px wide JPEG (4:3) shown 390 CSS px wide, and the CSS only sets width: 100%. Which changes improve LCP or CLS for this image? (Select all that apply.)",
+          "explanation": "loading=\"lazy\" makes the browser wait until layout tells it the image is near the viewport, so the most important image of the page starts downloading late; remove it from anything visible on the first screen. width and height attributes give the browser the aspect ratio before a single byte arrives, so with height: auto the box is reserved and nothing below it moves (CLS). fetchpriority=\"high\" is a hint that moves the hero ahead of other images in the queue. srcset with w descriptors plus sizes lets the browser pick a much smaller candidate for a 390 px slot instead of a 2400 px file. decoding=\"async\" only affects how the downloaded image is decoded; it does not start or speed up the download. And fetchpriority does not cancel loading=\"lazy\": a lazy image is still deferred until layout, whatever its priority.",
+          "options": [
+            {
+              "text": "Remove loading=\"lazy\", so the request can start as soon as the browser finds the <img> in the HTML.",
+              "correct": true
+            },
+            {
+              "text": "Add width=\"1600\" height=\"1200\" and set height: auto in CSS, so the browser reserves a 4:3 box before the file arrives.",
+              "correct": true
+            },
+            {
+              "text": "Add fetchpriority=\"high\".",
+              "correct": true
+            },
+            {
+              "text": "Offer several widths with srcset (w descriptors) and a sizes attribute, so the phone can pick a much smaller file.",
+              "correct": true
+            },
+            {
+              "text": "Add decoding=\"async\", so the file downloads in parallel with the CSS.",
+              "correct": false
+            },
+            {
+              "text": "Keep loading=\"lazy\" and add fetchpriority=\"high\": a high priority cancels the lazy delay.",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The header has an icon-only link to the shopping cart. There is no other text inside the link:\n\n<a href=\"/cart\"><img src=\"/img/icons/cart.svg\" alt=\"?\" width=\"24\" height=\"24\"></a>\n\nWhich alt text is best?",
+          "explanation": "This is a functional image: it is the only content of a link, so its alt text becomes the link's accessible name and must say what the link does or where it goes - \"Cart\" (WCAG 2.2, 1.1.1 Non-text Content and 2.4.4 Link Purpose). alt=\"\" would be right for a purely decorative image, but here it leaves the link with no name at all, so a screen reader announces only \"link\" or reads the URL. A description of the drawing (\"black outline of a trolley\") describes the picture, not the purpose, and \"icon\" is noise. \"image\" says nothing. \"Click here to go to the cart page\" names the destination but adds words that do not help: screen readers already say \"link\", and not everyone clicks.",
+          "options": [
+            {
+              "text": "alt=\"Cart\"",
+              "correct": true
+            },
+            {
+              "text": "alt=\"\" - it is just an icon, so it is decorative",
+              "correct": false
+            },
+            {
+              "text": "alt=\"Shopping cart icon: a black outline of a trolley\"",
+              "correct": false
+            },
+            {
+              "text": "alt=\"image\"",
+              "correct": false
+            },
+            {
+              "text": "alt=\"Click here to go to the cart page\"",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_webf_332",
+      "name": "audit-page-images",
+      "type": "mini_coding",
+      "title": "Audit the images of a page",
+      "description": "Write auditImages(images, viewport): given the <img> elements of a page as data (attributes plus the rendered box) and the viewport, find the LCP candidate and report, per image and in a fixed order, missing or generic alt text, missing width/height, lazy loading above the fold, an LCP image without fetchpriority=\"high\", srcset without sizes, and files far larger than their slot.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "audit-images.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident page: a lazy, unsized, oversized hero and product images with alt=\"image\" or no alt",
+          "input": {
+            "pages": [
+              {
+                "viewport": {
+                  "width": 390,
+                  "height": 844,
+                  "dpr": 3
+                },
+                "images": [
+                  {
+                    "src": "/img/logo.svg",
+                    "alt": "Northwind Outdoor",
+                    "width": 120,
+                    "height": 32,
+                    "loading": null,
+                    "fetchpriority": null,
+                    "srcset": null,
+                    "sizes": null,
+                    "box": {
+                      "top": 16,
+                      "width": 120,
+                      "height": 32
+                    },
+                    "naturalWidth": 120
+                  },
+                  {
+                    "src": "/img/hero-spring.jpg",
+                    "alt": "Hiker on a ridge at sunrise wearing the Ridgeline 40 pack",
+                    "width": null,
+                    "height": null,
+                    "loading": "lazy",
+                    "fetchpriority": null,
+                    "srcset": null,
+                    "sizes": null,
+                    "box": {
+                      "top": 64,
+                      "width": 390,
+                      "height": 293
+                    },
+                    "naturalWidth": 2400
+                  },
+                  {
+                    "src": "/img/ridgeline-40.jpg",
+                    "alt": "image",
+                    "width": 600,
+                    "height": 600,
+                    "loading": "lazy",
+                    "fetchpriority": null,
+                    "srcset": [
+                      {
+                        "url": "/img/ridgeline-40-400.jpg",
+                        "w": 400
+                      },
+                      {
+                        "url": "/img/ridgeline-40-800.jpg",
+                        "w": 800
+                      }
+                    ],
+                    "sizes": null,
+                    "box": {
+                      "top": 980,
+                      "width": 175,
+                      "height": 175
+                    },
+                    "naturalWidth": 800
+                  },
+                  {
+                    "src": "/img/summit-jacket.jpg",
+                    "alt": null,
+                    "width": 600,
+                    "height": 600,
+                    "loading": "lazy",
+                    "fetchpriority": null,
+                    "srcset": [
+                      {
+                        "url": "/img/summit-jacket-400.jpg",
+                        "w": 400
+                      },
+                      {
+                        "url": "/img/summit-jacket-800.jpg",
+                        "w": 800
+                      }
+                    ],
+                    "sizes": "(min-width: 768px) 25vw, 45vw",
+                    "box": {
+                      "top": 980,
+                      "width": 175,
+                      "height": 175
+                    },
+                    "naturalWidth": 400
+                  },
+                  {
+                    "src": "/img/wave-divider.svg",
+                    "alt": "",
+                    "width": 390,
+                    "height": 24,
+                    "loading": "lazy",
+                    "fetchpriority": null,
+                    "srcset": null,
+                    "sizes": null,
+                    "box": {
+                      "top": 1210,
+                      "width": 390,
+                      "height": 24
+                    },
+                    "naturalWidth": 780
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": [
+            [
+              {
+                "src": "/img/logo.svg",
+                "issues": []
+              },
+              {
+                "src": "/img/hero-spring.jpg",
+                "issues": [
+                  "no-dimensions",
+                  "lazy-above-fold",
+                  "lcp-not-prioritized",
+                  "oversized"
+                ]
+              },
+              {
+                "src": "/img/ridgeline-40.jpg",
+                "issues": [
+                  "generic-alt",
+                  "srcset-without-sizes"
+                ]
+              },
+              {
+                "src": "/img/summit-jacket.jpg",
+                "issues": [
+                  "missing-alt"
+                ]
+              },
+              {
+                "src": "/img/wave-divider.svg",
+                "issues": []
+              }
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The fixed page reports no issues (decorative alt=\"\" included)",
+          "input": {
+            "pages": [
+              {
+                "viewport": {
+                  "width": 390,
+                  "height": 844,
+                  "dpr": 3
+                },
+                "images": [
+                  {
+                    "src": "/img/logo.svg",
+                    "alt": "Northwind Outdoor",
+                    "width": 120,
+                    "height": 32,
+                    "loading": null,
+                    "fetchpriority": null,
+                    "srcset": null,
+                    "sizes": null,
+                    "box": {
+                      "top": 16,
+                      "width": 120,
+                      "height": 32
+                    },
+                    "naturalWidth": 120
+                  },
+                  {
+                    "src": "/img/hero-spring.jpg",
+                    "alt": "Hiker on a ridge at sunrise wearing the Ridgeline 40 pack",
+                    "width": 1600,
+                    "height": 1200,
+                    "loading": null,
+                    "fetchpriority": "high",
+                    "srcset": [
+                      {
+                        "url": "/img/hero-480.jpg",
+                        "w": 480
+                      },
+                      {
+                        "url": "/img/hero-800.jpg",
+                        "w": 800
+                      },
+                      {
+                        "url": "/img/hero-1200.jpg",
+                        "w": 1200
+                      },
+                      {
+                        "url": "/img/hero-1600.jpg",
+                        "w": 1600
+                      }
+                    ],
+                    "sizes": "(min-width: 1280px) 1280px, 100vw",
+                    "box": {
+                      "top": 64,
+                      "width": 390,
+                      "height": 293
+                    },
+                    "naturalWidth": 1200
+                  },
+                  {
+                    "src": "/img/ridgeline-40.jpg",
+                    "alt": "Ridgeline 40 backpack in moss green, side view",
+                    "width": 600,
+                    "height": 600,
+                    "loading": "lazy",
+                    "fetchpriority": null,
+                    "srcset": [
+                      {
+                        "url": "/img/ridgeline-40-400.jpg",
+                        "w": 400
+                      },
+                      {
+                        "url": "/img/ridgeline-40-800.jpg",
+                        "w": 800
+                      }
+                    ],
+                    "sizes": "(min-width: 768px) 25vw, 45vw",
+                    "box": {
+                      "top": 980,
+                      "width": 175,
+                      "height": 175
+                    },
+                    "naturalWidth": 800
+                  },
+                  {
+                    "src": "/img/summit-jacket.jpg",
+                    "alt": "Summit Jacket in red with the hood up",
+                    "width": 600,
+                    "height": 600,
+                    "loading": "lazy",
+                    "fetchpriority": null,
+                    "srcset": [
+                      {
+                        "url": "/img/summit-jacket-400.jpg",
+                        "w": 400
+                      },
+                      {
+                        "url": "/img/summit-jacket-800.jpg",
+                        "w": 800
+                      }
+                    ],
+                    "sizes": "(min-width: 768px) 25vw, 45vw",
+                    "box": {
+                      "top": 980,
+                      "width": 175,
+                      "height": 175
+                    },
+                    "naturalWidth": 400
+                  },
+                  {
+                    "src": "/img/wave-divider.svg",
+                    "alt": "",
+                    "width": 390,
+                    "height": 24,
+                    "loading": "lazy",
+                    "fetchpriority": null,
+                    "srcset": null,
+                    "sizes": null,
+                    "box": {
+                      "top": 1210,
+                      "width": 390,
+                      "height": 24
+                    },
+                    "naturalWidth": 780
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": [
+            [
+              {
+                "src": "/img/logo.svg",
+                "issues": []
+              },
+              {
+                "src": "/img/hero-spring.jpg",
+                "issues": []
+              },
+              {
+                "src": "/img/ridgeline-40.jpg",
+                "issues": []
+              },
+              {
+                "src": "/img/summit-jacket.jpg",
+                "issues": []
+              },
+              {
+                "src": "/img/wave-divider.svg",
+                "issues": []
+              }
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "alt=\"\" is valid, missing alt is reported, generic alt is matched after trim and lower-case",
+          "input": {
+            "pages": [
+              {
+                "viewport": {
+                  "width": 390,
+                  "height": 844,
+                  "dpr": 2
+                },
+                "images": [
+                  {
+                    "src": "/img/divider.svg",
+                    "alt": "",
+                    "width": 300,
+                    "height": 300,
+                    "loading": "lazy",
+                    "fetchpriority": null,
+                    "srcset": null,
+                    "sizes": null,
+                    "box": {
+                      "top": 900,
+                      "width": 300,
+                      "height": 300
+                    },
+                    "naturalWidth": 300
+                  },
+                  {
+                    "src": "/img/tent-a.jpg",
+                    "alt": " Photo ",
+                    "width": 300,
+                    "height": 300,
+                    "loading": "lazy",
+                    "fetchpriority": null,
+                    "srcset": null,
+                    "sizes": null,
+                    "box": {
+                      "top": 1220,
+                      "width": 300,
+                      "height": 300
+                    },
+                    "naturalWidth": 300
+                  },
+                  {
+                    "src": "/img/tent-b.jpg",
+                    "alt": "IMG",
+                    "width": 300,
+                    "height": 300,
+                    "loading": "lazy",
+                    "fetchpriority": null,
+                    "srcset": null,
+                    "sizes": null,
+                    "box": {
+                      "top": 1540,
+                      "width": 300,
+                      "height": 300
+                    },
+                    "naturalWidth": 300
+                  },
+                  {
+                    "src": "/img/tent-c.jpg",
+                    "alt": "Image of the Basecamp 2 tent pitched by a lake",
+                    "width": 300,
+                    "height": 300,
+                    "loading": "lazy",
+                    "fetchpriority": null,
+                    "srcset": null,
+                    "sizes": null,
+                    "box": {
+                      "top": 1860,
+                      "width": 300,
+                      "height": 300
+                    },
+                    "naturalWidth": 300
+                  },
+                  {
+                    "src": "/img/tent-d.jpg",
+                    "alt": null,
+                    "width": 300,
+                    "height": 300,
+                    "loading": "lazy",
+                    "fetchpriority": null,
+                    "srcset": null,
+                    "sizes": null,
+                    "box": {
+                      "top": 2180,
+                      "width": 300,
+                      "height": 300
+                    },
+                    "naturalWidth": 300
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": [
+            [
+              {
+                "src": "/img/divider.svg",
+                "issues": []
+              },
+              {
+                "src": "/img/tent-a.jpg",
+                "issues": [
+                  "generic-alt"
+                ]
+              },
+              {
+                "src": "/img/tent-b.jpg",
+                "issues": [
+                  "generic-alt"
+                ]
+              },
+              {
+                "src": "/img/tent-c.jpg",
+                "issues": []
+              },
+              {
+                "src": "/img/tent-d.jpg",
+                "issues": [
+                  "missing-alt"
+                ]
+              }
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The fold: top < viewport.height is above it; an image starting exactly at the fold is below it",
+          "input": {
+            "pages": [
+              {
+                "viewport": {
+                  "width": 1280,
+                  "height": 720,
+                  "dpr": 1
+                },
+                "images": [
+                  {
+                    "src": "/img/hero-wide.avif",
+                    "alt": "Two climbers on a granite wall",
+                    "width": 1600,
+                    "height": 700,
+                    "loading": null,
+                    "fetchpriority": "high",
+                    "srcset": [
+                      {
+                        "url": "/img/hero-wide-800.avif",
+                        "w": 800
+                      },
+                      {
+                        "url": "/img/hero-wide-1600.avif",
+                        "w": 1600
+                      }
+                    ],
+                    "sizes": "100vw",
+                    "box": {
+                      "top": 80,
+                      "width": 1280,
+                      "height": 560
+                    },
+                    "naturalWidth": 1600
+                  },
+                  {
+                    "src": "/img/card-1.jpg",
+                    "alt": "Trail shoes on wet rock",
+                    "width": 400,
+                    "height": 300,
+                    "loading": "lazy",
+                    "fetchpriority": null,
+                    "srcset": null,
+                    "sizes": null,
+                    "box": {
+                      "top": 700,
+                      "width": 400,
+                      "height": 300
+                    },
+                    "naturalWidth": 800
+                  },
+                  {
+                    "src": "/img/card-2.jpg",
+                    "alt": "Trail shoes, sole detail",
+                    "width": 400,
+                    "height": 300,
+                    "loading": "lazy",
+                    "fetchpriority": null,
+                    "srcset": null,
+                    "sizes": null,
+                    "box": {
+                      "top": 720,
+                      "width": 400,
+                      "height": 300
+                    },
+                    "naturalWidth": 800
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": [
+            [
+              {
+                "src": "/img/hero-wide.avif",
+                "issues": []
+              },
+              {
+                "src": "/img/card-1.jpg",
+                "issues": [
+                  "lazy-above-fold"
+                ]
+              },
+              {
+                "src": "/img/card-2.jpg",
+                "issues": []
+              }
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "LCP candidate: largest area in the first viewport, ties to the earlier image, zero size never counts",
+          "input": {
+            "pages": [
+              {
+                "viewport": {
+                  "width": 390,
+                  "height": 844,
+                  "dpr": 2
+                },
+                "images": [
+                  {
+                    "src": "/img/promo-square.jpg",
+                    "alt": "Spring sale: 20% off packs",
+                    "width": 800,
+                    "height": 800,
+                    "loading": null,
+                    "fetchpriority": null,
+                    "srcset": null,
+                    "sizes": null,
+                    "box": {
+                      "top": 100,
+                      "width": 390,
+                      "height": 390
+                    },
+                    "naturalWidth": 780
+                  },
+                  {
+                    "src": "/img/poster-tall.jpg",
+                    "alt": "Trail map of the Ridgeline loop",
+                    "width": 800,
+                    "height": 2460,
+                    "loading": null,
+                    "fetchpriority": null,
+                    "srcset": null,
+                    "sizes": null,
+                    "box": {
+                      "top": 500,
+                      "width": 390,
+                      "height": 1200
+                    },
+                    "naturalWidth": 780
+                  }
+                ]
+              },
+              {
+                "viewport": {
+                  "width": 390,
+                  "height": 844,
+                  "dpr": 2
+                },
+                "images": [
+                  {
+                    "src": "/img/tracking-pixel.gif",
+                    "alt": "",
+                    "width": 1,
+                    "height": 1,
+                    "loading": null,
+                    "fetchpriority": null,
+                    "srcset": null,
+                    "sizes": null,
+                    "box": {
+                      "top": 0,
+                      "width": 0,
+                      "height": 0
+                    },
+                    "naturalWidth": 1
+                  },
+                  {
+                    "src": "/img/left.jpg",
+                    "alt": "Women's Summit Jacket",
+                    "width": 400,
+                    "height": 600,
+                    "loading": null,
+                    "fetchpriority": "auto",
+                    "srcset": null,
+                    "sizes": null,
+                    "box": {
+                      "top": 0,
+                      "width": 195,
+                      "height": 300
+                    },
+                    "naturalWidth": 390
+                  },
+                  {
+                    "src": "/img/right.jpg",
+                    "alt": "Men's Summit Jacket",
+                    "width": 400,
+                    "height": 600,
+                    "loading": null,
+                    "fetchpriority": null,
+                    "srcset": null,
+                    "sizes": null,
+                    "box": {
+                      "top": 0,
+                      "width": 195,
+                      "height": 300
+                    },
+                    "naturalWidth": 390
+                  }
+                ]
+              },
+              {
+                "viewport": {
+                  "width": 390,
+                  "height": 844,
+                  "dpr": 2
+                },
+                "images": [
+                  {
+                    "src": "/img/carousel-strip.jpg",
+                    "alt": "Three tents side by side",
+                    "width": 3510,
+                    "height": 900,
+                    "loading": null,
+                    "fetchpriority": null,
+                    "srcset": [
+                      {
+                        "url": "/img/carousel-strip-1170.jpg",
+                        "w": 1170
+                      },
+                      {
+                        "url": "/img/carousel-strip-2340.jpg",
+                        "w": 2340
+                      },
+                      {
+                        "url": "/img/carousel-strip-3510.jpg",
+                        "w": 3510
+                      }
+                    ],
+                    "sizes": "300vw",
+                    "box": {
+                      "top": 0,
+                      "width": 1170,
+                      "height": 300
+                    },
+                    "naturalWidth": 2340
+                  },
+                  {
+                    "src": "/img/feature.jpg",
+                    "alt": "Close-up of the waterproof zip",
+                    "width": 780,
+                    "height": 640,
+                    "loading": null,
+                    "fetchpriority": null,
+                    "srcset": null,
+                    "sizes": null,
+                    "box": {
+                      "top": 320,
+                      "width": 390,
+                      "height": 320
+                    },
+                    "naturalWidth": 780
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": [
+            [
+              {
+                "src": "/img/promo-square.jpg",
+                "issues": [
+                  "lcp-not-prioritized"
+                ]
+              },
+              {
+                "src": "/img/poster-tall.jpg",
+                "issues": []
+              }
+            ],
+            [
+              {
+                "src": "/img/tracking-pixel.gif",
+                "issues": []
+              },
+              {
+                "src": "/img/left.jpg",
+                "issues": [
+                  "lcp-not-prioritized"
+                ]
+              },
+              {
+                "src": "/img/right.jpg",
+                "issues": []
+              }
+            ],
+            [
+              {
+                "src": "/img/carousel-strip.jpg",
+                "issues": []
+              },
+              {
+                "src": "/img/feature.jpg",
+                "issues": [
+                  "lcp-not-prioritized"
+                ]
+              }
+            ]
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "srcset needs sizes; oversized only without srcset, using the DPR; an empty page has no issues",
+          "input": {
+            "pages": [
+              {
+                "viewport": {
+                  "width": 390,
+                  "height": 844,
+                  "dpr": 2
+                },
+                "images": [
+                  {
+                    "src": "/img/a.jpg",
+                    "alt": "Camp stove",
+                    "width": 600,
+                    "height": 600,
+                    "loading": "lazy",
+                    "fetchpriority": null,
+                    "srcset": [
+                      {
+                        "url": "/img/a-400.jpg",
+                        "w": 400
+                      },
+                      {
+                        "url": "/img/a-800.jpg",
+                        "w": 800
+                      }
+                    ],
+                    "sizes": null,
+                    "box": {
+                      "top": 1000,
+                      "width": 175,
+                      "height": 175
+                    },
+                    "naturalWidth": 800
+                  },
+                  {
+                    "src": "/img/b.jpg",
+                    "alt": "Camp stove, lid open",
+                    "width": 600,
+                    "height": 600,
+                    "loading": "lazy",
+                    "fetchpriority": null,
+                    "srcset": [
+                      {
+                        "url": "/img/b-400.jpg",
+                        "w": 400
+                      },
+                      {
+                        "url": "/img/b-800.jpg",
+                        "w": 800
+                      }
+                    ],
+                    "sizes": "",
+                    "box": {
+                      "top": 1000,
+                      "width": 175,
+                      "height": 175
+                    },
+                    "naturalWidth": 800
+                  },
+                  {
+                    "src": "/img/c.jpg",
+                    "alt": "Folding chair",
+                    "width": 1600,
+                    "height": 1200,
+                    "loading": "lazy",
+                    "fetchpriority": null,
+                    "srcset": [],
+                    "sizes": null,
+                    "box": {
+                      "top": 1400,
+                      "width": 390,
+                      "height": 293
+                    },
+                    "naturalWidth": 1600
+                  },
+                  {
+                    "src": "/img/d.jpg",
+                    "alt": "Folding table",
+                    "width": 1560,
+                    "height": 1170,
+                    "loading": "lazy",
+                    "fetchpriority": null,
+                    "srcset": null,
+                    "sizes": null,
+                    "box": {
+                      "top": 1800,
+                      "width": 390,
+                      "height": 293
+                    },
+                    "naturalWidth": 1560
+                  },
+                  {
+                    "src": "/img/e.jpg",
+                    "alt": "Headlamp",
+                    "width": 600,
+                    "height": null,
+                    "loading": "lazy",
+                    "fetchpriority": null,
+                    "srcset": null,
+                    "sizes": null,
+                    "box": {
+                      "top": 2200,
+                      "width": 175,
+                      "height": 175
+                    },
+                    "naturalWidth": 350
+                  }
+                ]
+              },
+              {
+                "viewport": {
+                  "width": 390,
+                  "height": 844,
+                  "dpr": 2
+                },
+                "images": []
+              }
+            ]
+          },
+          "expected": [
+            [
+              {
+                "src": "/img/a.jpg",
+                "issues": [
+                  "srcset-without-sizes"
+                ]
+              },
+              {
+                "src": "/img/b.jpg",
+                "issues": [
+                  "srcset-without-sizes"
+                ]
+              },
+              {
+                "src": "/img/c.jpg",
+                "issues": [
+                  "oversized"
+                ]
+              },
+              {
+                "src": "/img/d.jpg",
+                "issues": []
+              },
+              {
+                "src": "/img/e.jpg",
+                "issues": [
+                  "no-dimensions"
+                ]
+              }
+            ],
+            []
+          ],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

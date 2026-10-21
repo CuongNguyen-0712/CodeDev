@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Same page, two accessibility trees</text>
+  <text x="40" y="82" font-size="16" fill="#475569">A screen reader does not see your CSS. It lists the landmarks and headings that the HTML elements create.</text>
+
+  <!-- Left: div soup -->
+  <rect x="40" y="108" width="545" height="340" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="142" font-size="18" font-weight="700" fill="#b91c1c">Before: &lt;div class="..."&gt; components</text>
+  <text x="64" y="166" font-size="13" fill="#64748b">what NVDA's Elements List shows</text>
+
+  <text x="64" y="198" font-size="14" font-weight="700" fill="#334155">Landmarks</text>
+  <rect x="64" y="208" width="497" height="40" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+  <text x="80" y="233" font-size="14" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">(empty - nothing to jump to)</text>
+
+  <text x="64" y="276" font-size="14" font-weight="700" fill="#334155">Headings</text>
+  <rect x="64" y="286" width="497" height="110" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+  <text x="80" y="310" font-size="14" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">h1 Deals</text>
+  <text x="230" y="310" font-size="14" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">h1 Deals</text>
+  <text x="380" y="310" font-size="14" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">h1 Deals</text>
+  <text x="80" y="334" font-size="14" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">h1 Deals</text>
+  <text x="230" y="334" font-size="14" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">h1 Deals</text>
+  <text x="80" y="362" font-size="13" fill="#64748b">five card labels, all h1; the article title is a</text>
+  <text x="80" y="380" font-size="13" fill="#64748b">styled div, so it is not in the list at all</text>
+
+  <text x="64" y="428" font-size="15" font-weight="700" fill="#b91c1c">Result: Tab through ~60 links to reach the article</text>
+
+  <!-- Right: semantic -->
+  <rect x="615" y="108" width="545" height="340" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="639" y="142" font-size="18" font-weight="700" fill="#15803d">After: native elements</text>
+  <text x="639" y="166" font-size="13" fill="#64748b">same CSS, same look, a real structure</text>
+
+  <text x="639" y="198" font-size="14" font-weight="700" fill="#334155">Landmarks</text>
+  <rect x="639" y="208" width="497" height="64" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="655" y="233" font-size="14" fill="#15803d" font-family="Consolas, 'Courier New', monospace">banner, navigation "Primary", main,</text>
+  <text x="655" y="257" font-size="14" fill="#15803d" font-family="Consolas, 'Courier New', monospace">region, complementary, contentinfo</text>
+
+  <text x="639" y="298" font-size="14" font-weight="700" fill="#334155">Headings</text>
+  <rect x="639" y="308" width="497" height="88" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="655" y="332" font-size="14" fill="#15803d" font-family="Consolas, 'Courier New', monospace">h1 How we test trail running shoes</text>
+  <text x="679" y="356" font-size="14" fill="#15803d" font-family="Consolas, 'Courier New', monospace">h2 Our test method (h3 Lab, h3 Trail)</text>
+  <text x="679" y="380" font-size="14" fill="#15803d" font-family="Consolas, 'Courier New', monospace">h2 Today's deals (h3 per product)</text>
+
+  <text x="639" y="428" font-size="15" font-weight="700" fill="#15803d">Result: skip link, D for landmarks, H for headings</text>
+
+  <!-- Rules -->
+  <text x="40" y="484" font-size="18" font-weight="700" fill="#334155">Three rules the browser applies</text>
+  <rect x="40" y="498" width="340" height="88" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="60" y="526" font-size="15" font-weight="700" fill="#b45309">1  header / footer</text>
+  <text x="60" y="550" font-size="13" fill="#92400e">banner / contentinfo only when not inside</text>
+  <text x="60" y="568" font-size="13" fill="#92400e">article, aside, main, nav or section</text>
+
+  <rect x="430" y="498" width="340" height="88" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="450" y="526" font-size="15" font-weight="700" fill="#0e7490">2  section / form</text>
+  <text x="450" y="550" font-size="13" fill="#155e75">a region / form landmark only when it has</text>
+  <text x="450" y="568" font-size="13" fill="#155e75">a name (aria-labelledby or aria-label)</text>
+
+  <rect x="820" y="498" width="340" height="88" rx="8" fill="#f8fafc" stroke="#475569" stroke-width="2"/>
+  <text x="840" y="526" font-size="15" font-weight="700" fill="#334155">3  heading level</text>
+  <text x="840" y="550" font-size="13" fill="#475569">comes from the tag, h1 to h6 - wrapping it</text>
+  <text x="840" y="568" font-size="13" fill="#475569">in more sections never changes the level</text>
+</svg>

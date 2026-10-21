@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_webf_322",
+      "key": "challenges/javascript/chal_fix_webf_322/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "tabOrder.js",
+      "size": 3210
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_fix_webf_322",
+      "key": "challenges/javascript/chal_fix_webf_322/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 440
+    }
+  ]
+}

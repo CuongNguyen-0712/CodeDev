@@ -1,0 +1,932 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_webf_211",
+      "name": "cascade-specificity-layers-quiz",
+      "type": "quiz",
+      "title": "Who sets the Pay now background?",
+      "description": "Two questions from the checkout incident: which of three competing rules wins once the design system moves into a cascade layer, and how specificity is really compared.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The checkout page loads these style sheets, in this order:\n\n/* app.css */\n@layer reset, base, components, utilities;\n@import url(\"ds-v4.css\") layer(components);\n\n/* inside ds-v4.css */\n.btn-primary { background: #1d4ed8; }\n\n/* datepicker.min.css, linked after app.css, not in any layer */\nform button { background: #e5e7eb; }\n\nThe Pay now button is <button class=\"btn btn-primary\"> inside the checkout <form>, and it is enabled. Which background does it get, and why?",
+          "explanation": "Before specificity is ever compared, the cascade sorts by cascade layer. For normal (not !important) declarations, styles that are in no layer beat styles in every layer, whatever their selectors. datepicker.min.css is unlayered and ds-v4.css was imported into the components layer, so form button wins with a specificity of only (0,0,2) against (0,1,0). Specificity only decides between declarations of the same importance in the same layer, and order of appearance only decides when specificity ties too. Before the upgrade, the v3 design system was linked as an unlayered file, both rules were compared by specificity, and .btn-primary won. That is why the button turned grey only after both changes, and only on the page that loads the date picker.",
+          "options": [
+            {
+              "text": "#1d4ed8 (blue): .btn-primary has specificity (0,1,0), which beats (0,0,2).",
+              "correct": false
+            },
+            {
+              "text": "#e5e7eb (grey): form button is unlayered, and for normal declarations unlayered styles beat every layer before specificity is compared.",
+              "correct": true
+            },
+            {
+              "text": "#e5e7eb (grey): form button appears later in the page, and the later declaration always wins.",
+              "correct": false
+            },
+            {
+              "text": "#1d4ed8 (blue): components is declared after reset and base, and later layers beat everything else.",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which of these statements are true? (Select all that apply.)",
+          "explanation": "Specificity is a triple (A ids, B classes/attributes/pseudo-classes, C types/pseudo-elements) compared column by column, so one id beats any number of classes: (1,0,0) > (0,11,0). :where() always contributes zero, so :where(#checkout) .btn is just (0,1,0). :is(), :not() and :has() take the specificity of their MOST specific argument, whichever argument actually matched: :is(#pay, .btn) is (1,0,0) even on an element that only has the class. !important does not change specificity at all; it moves the declaration into a different step of the cascade (importance), where it beats every normal declaration. Inside that step the layer order is reversed: an !important declaration in an earlier layer (base) beats an !important declaration in a later layer (components).",
+          "options": [
+            {
+              "text": "#pay beats a selector made of 11 classes, such as .a.b.c.d.e.f.g.h.i.j.k.",
+              "correct": true
+            },
+            {
+              "text": ":where(#checkout) .btn has specificity (0,1,0).",
+              "correct": true
+            },
+            {
+              "text": ":is(#pay, .btn) counts as (0,1,0) on an element that matched only through .btn.",
+              "correct": false
+            },
+            {
+              "text": "!important raises a declaration's specificity above any id.",
+              "correct": false
+            },
+            {
+              "text": "With @layer base, components; an !important declaration in base beats an !important declaration in components.",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_webf_212",
+      "name": "resolve-the-cascade",
+      "type": "mini_coding",
+      "title": "Resolve the cascade: which declaration wins?",
+      "description": "Write cascadeWinner(layerOrder, declarations): given the declared layer order and every declaration that sets one property on one element, compute each selector's specificity [A, B, C] (with :is, :not, :has and :where), then apply importance, the style attribute, cascade layers (reversed for !important), specificity and order of appearance to find the winner.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "cascade.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: unlayered vendor CSS wins, !important beats :disabled, a vendor layer fixes both",
+          "input": {
+            "cases": [
+              {
+                "layers": [
+                  "reset",
+                  "base",
+                  "components",
+                  "utilities"
+                ],
+                "declarations": [
+                  {
+                    "selector": ".btn-primary",
+                    "value": "#1d4ed8",
+                    "layer": "components",
+                    "important": false
+                  },
+                  {
+                    "selector": "form button",
+                    "value": "#e5e7eb",
+                    "layer": null,
+                    "important": false
+                  }
+                ]
+              },
+              {
+                "layers": [
+                  "reset",
+                  "base",
+                  "components",
+                  "utilities"
+                ],
+                "declarations": [
+                  {
+                    "selector": ".btn-primary",
+                    "value": "#1d4ed8",
+                    "layer": "components",
+                    "important": false
+                  },
+                  {
+                    "selector": ".btn:disabled",
+                    "value": "#cbd5e1",
+                    "layer": "components",
+                    "important": false
+                  },
+                  {
+                    "selector": "form button",
+                    "value": "#e5e7eb",
+                    "layer": null,
+                    "important": false
+                  },
+                  {
+                    "selector": ".btn-primary",
+                    "value": "#1d4ed8",
+                    "layer": null,
+                    "important": true
+                  }
+                ]
+              },
+              {
+                "layers": [
+                  "reset",
+                  "vendor",
+                  "base",
+                  "components",
+                  "utilities"
+                ],
+                "declarations": [
+                  {
+                    "selector": "form button",
+                    "value": "#e5e7eb",
+                    "layer": "vendor",
+                    "important": false
+                  },
+                  {
+                    "selector": ".btn-primary",
+                    "value": "#1d4ed8",
+                    "layer": "components",
+                    "important": false
+                  },
+                  {
+                    "selector": ".btn:disabled",
+                    "value": "#cbd5e1",
+                    "layer": "components",
+                    "important": false
+                  }
+                ]
+              },
+              {
+                "layers": [
+                  "reset",
+                  "vendor",
+                  "base",
+                  "components",
+                  "utilities"
+                ],
+                "declarations": [
+                  {
+                    "selector": "form button",
+                    "value": "#e5e7eb",
+                    "layer": "vendor",
+                    "important": false
+                  },
+                  {
+                    "selector": ".btn-primary",
+                    "value": "#1d4ed8",
+                    "layer": "components",
+                    "important": false
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": [
+            {
+              "index": 1,
+              "value": "#e5e7eb",
+              "specificity": [
+                0,
+                0,
+                2
+              ]
+            },
+            {
+              "index": 3,
+              "value": "#1d4ed8",
+              "specificity": [
+                0,
+                1,
+                0
+              ]
+            },
+            {
+              "index": 2,
+              "value": "#cbd5e1",
+              "specificity": [
+                0,
+                2,
+                0
+              ]
+            },
+            {
+              "index": 1,
+              "value": "#1d4ed8",
+              "specificity": [
+                0,
+                1,
+                0
+              ]
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Specificity is compared column by column, never added up as one number",
+          "input": {
+            "cases": [
+              {
+                "layers": [],
+                "declarations": [
+                  {
+                    "selector": "#pay",
+                    "value": "red",
+                    "layer": null,
+                    "important": false
+                  },
+                  {
+                    "selector": ".a.b.c.d.e.f.g.h.i.j.k",
+                    "value": "blue",
+                    "layer": null,
+                    "important": false
+                  }
+                ]
+              },
+              {
+                "layers": [],
+                "declarations": [
+                  {
+                    "selector": ".btn",
+                    "value": "red",
+                    "layer": null,
+                    "important": false
+                  },
+                  {
+                    "selector": "html body main form div div div div div div button",
+                    "value": "blue",
+                    "layer": null,
+                    "important": false
+                  }
+                ]
+              },
+              {
+                "layers": [],
+                "declarations": [
+                  {
+                    "selector": "nav > ul li + li ~ a:focus-visible::after",
+                    "value": "red",
+                    "layer": null,
+                    "important": false
+                  }
+                ]
+              },
+              {
+                "layers": [],
+                "declarations": [
+                  {
+                    "selector": "input[type=\"checkbox\"]:checked+label",
+                    "value": "red",
+                    "layer": null,
+                    "important": false
+                  }
+                ]
+              },
+              {
+                "layers": [],
+                "declarations": [
+                  {
+                    "selector": "body > * + *",
+                    "value": "red",
+                    "layer": null,
+                    "important": false
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": [
+            {
+              "index": 0,
+              "value": "red",
+              "specificity": [
+                1,
+                0,
+                0
+              ]
+            },
+            {
+              "index": 0,
+              "value": "red",
+              "specificity": [
+                0,
+                1,
+                0
+              ]
+            },
+            {
+              "index": 0,
+              "value": "red",
+              "specificity": [
+                0,
+                1,
+                6
+              ]
+            },
+            {
+              "index": 0,
+              "value": "red",
+              "specificity": [
+                0,
+                2,
+                2
+              ]
+            },
+            {
+              "index": 0,
+              "value": "red",
+              "specificity": [
+                0,
+                0,
+                1
+              ]
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": ":is(), :not() and :has() count their most specific argument; :where() counts zero",
+          "input": {
+            "cases": [
+              {
+                "layers": [],
+                "declarations": [
+                  {
+                    "selector": ":where(#checkout) .btn",
+                    "value": "red",
+                    "layer": null,
+                    "important": false
+                  },
+                  {
+                    "selector": ".btn",
+                    "value": "blue",
+                    "layer": null,
+                    "important": false
+                  }
+                ]
+              },
+              {
+                "layers": [],
+                "declarations": [
+                  {
+                    "selector": ":is(.btn, #pay)",
+                    "value": "red",
+                    "layer": null,
+                    "important": false
+                  },
+                  {
+                    "selector": ".btn.btn-primary",
+                    "value": "blue",
+                    "layer": null,
+                    "important": false
+                  }
+                ]
+              },
+              {
+                "layers": [],
+                "declarations": [
+                  {
+                    "selector": "button:not(.ghost,.link)",
+                    "value": "red",
+                    "layer": null,
+                    "important": false
+                  }
+                ]
+              },
+              {
+                "layers": [],
+                "declarations": [
+                  {
+                    "selector": "form:has(> button, input[type=\"date\"]) label",
+                    "value": "red",
+                    "layer": null,
+                    "important": false
+                  }
+                ]
+              },
+              {
+                "layers": [],
+                "declarations": [
+                  {
+                    "selector": ":where(nav, #menu) a:not(:hover)",
+                    "value": "red",
+                    "layer": null,
+                    "important": false
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": [
+            {
+              "index": 1,
+              "value": "blue",
+              "specificity": [
+                0,
+                1,
+                0
+              ]
+            },
+            {
+              "index": 0,
+              "value": "red",
+              "specificity": [
+                1,
+                0,
+                0
+              ]
+            },
+            {
+              "index": 0,
+              "value": "red",
+              "specificity": [
+                0,
+                1,
+                1
+              ]
+            },
+            {
+              "index": 0,
+              "value": "red",
+              "specificity": [
+                0,
+                1,
+                3
+              ]
+            },
+            {
+              "index": 0,
+              "value": "red",
+              "specificity": [
+                0,
+                1,
+                1
+              ]
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The style attribute beats every selector of the same importance, but not an !important rule",
+          "input": {
+            "cases": [
+              {
+                "layers": [
+                  "base"
+                ],
+                "declarations": [
+                  {
+                    "selector": "#checkout #pay",
+                    "value": "red",
+                    "layer": null,
+                    "important": false
+                  },
+                  {
+                    "selector": null,
+                    "value": "blue",
+                    "layer": null,
+                    "important": false,
+                    "inline": true
+                  }
+                ]
+              },
+              {
+                "layers": [
+                  "base",
+                  "components"
+                ],
+                "declarations": [
+                  {
+                    "selector": null,
+                    "value": "blue",
+                    "layer": null,
+                    "important": false,
+                    "inline": true
+                  },
+                  {
+                    "selector": ".btn",
+                    "value": "red",
+                    "layer": "components",
+                    "important": true
+                  }
+                ]
+              },
+              {
+                "layers": [
+                  "reset",
+                  "base"
+                ],
+                "declarations": [
+                  {
+                    "selector": null,
+                    "value": "blue",
+                    "layer": null,
+                    "important": true,
+                    "inline": true
+                  },
+                  {
+                    "selector": "#pay",
+                    "value": "red",
+                    "layer": "reset",
+                    "important": true
+                  }
+                ]
+              },
+              {
+                "layers": [],
+                "declarations": [
+                  {
+                    "selector": null,
+                    "value": "green",
+                    "layer": null,
+                    "important": false,
+                    "inline": true
+                  },
+                  {
+                    "selector": null,
+                    "value": "blue",
+                    "layer": null,
+                    "important": false,
+                    "inline": true
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": [
+            {
+              "index": 1,
+              "value": "blue",
+              "specificity": null
+            },
+            {
+              "index": 1,
+              "value": "red",
+              "specificity": [
+                0,
+                1,
+                0
+              ]
+            },
+            {
+              "index": 0,
+              "value": "blue",
+              "specificity": null
+            },
+            {
+              "index": 1,
+              "value": "blue",
+              "specificity": null
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Normal: unlayered beats every layer, later layers beat earlier ones, whatever the specificity",
+          "input": {
+            "cases": [
+              {
+                "layers": [
+                  "reset",
+                  "base",
+                  "components",
+                  "utilities"
+                ],
+                "declarations": [
+                  {
+                    "selector": "#pay #pay",
+                    "value": "red",
+                    "layer": "base",
+                    "important": false
+                  },
+                  {
+                    "selector": ".btn",
+                    "value": "blue",
+                    "layer": "components",
+                    "important": false
+                  }
+                ]
+              },
+              {
+                "layers": [
+                  "reset",
+                  "base",
+                  "components",
+                  "utilities"
+                ],
+                "declarations": [
+                  {
+                    "selector": "button",
+                    "value": "red",
+                    "layer": null,
+                    "important": false
+                  },
+                  {
+                    "selector": "#pay",
+                    "value": "blue",
+                    "layer": "utilities",
+                    "important": false
+                  }
+                ]
+              },
+              {
+                "layers": [
+                  "reset",
+                  "base",
+                  "components",
+                  "utilities"
+                ],
+                "declarations": [
+                  {
+                    "selector": ".btn",
+                    "value": "red",
+                    "layer": "components",
+                    "important": false
+                  },
+                  {
+                    "selector": ".btn",
+                    "value": "blue",
+                    "layer": "components",
+                    "important": false
+                  },
+                  {
+                    "selector": ".btn",
+                    "value": "green",
+                    "layer": "base",
+                    "important": false
+                  }
+                ]
+              },
+              {
+                "layers": [
+                  "reset",
+                  "vendor",
+                  "base",
+                  "components",
+                  "utilities"
+                ],
+                "declarations": [
+                  {
+                    "selector": "form button",
+                    "value": "#e5e7eb",
+                    "layer": "vendor",
+                    "important": false
+                  },
+                  {
+                    "selector": ".btn-primary",
+                    "value": "#1d4ed8",
+                    "layer": "components",
+                    "important": false
+                  },
+                  {
+                    "selector": ":where(.checkout) .btn-primary:hover",
+                    "value": "#1e40af",
+                    "layer": "utilities",
+                    "important": false
+                  },
+                  {
+                    "selector": ".btn:disabled",
+                    "value": "#cbd5e1",
+                    "layer": "components",
+                    "important": false
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": [
+            {
+              "index": 1,
+              "value": "blue",
+              "specificity": [
+                0,
+                1,
+                0
+              ]
+            },
+            {
+              "index": 0,
+              "value": "red",
+              "specificity": [
+                0,
+                0,
+                1
+              ]
+            },
+            {
+              "index": 1,
+              "value": "blue",
+              "specificity": [
+                0,
+                1,
+                0
+              ]
+            },
+            {
+              "index": 2,
+              "value": "#1e40af",
+              "specificity": [
+                0,
+                2,
+                0
+              ]
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "!important beats normal, reverses the layer order, and lets any layer beat unlayered",
+          "input": {
+            "cases": [
+              {
+                "layers": [
+                  "reset",
+                  "base",
+                  "components",
+                  "utilities"
+                ],
+                "declarations": [
+                  {
+                    "selector": ".btn",
+                    "value": "red",
+                    "layer": "base",
+                    "important": true
+                  },
+                  {
+                    "selector": "#pay",
+                    "value": "blue",
+                    "layer": "utilities",
+                    "important": true
+                  }
+                ]
+              },
+              {
+                "layers": [
+                  "reset",
+                  "base",
+                  "components",
+                  "utilities"
+                ],
+                "declarations": [
+                  {
+                    "selector": "button",
+                    "value": "red",
+                    "layer": "reset",
+                    "important": true
+                  },
+                  {
+                    "selector": "#pay.btn",
+                    "value": "blue",
+                    "layer": null,
+                    "important": true
+                  }
+                ]
+              },
+              {
+                "layers": [
+                  "reset",
+                  "base",
+                  "components",
+                  "utilities"
+                ],
+                "declarations": [
+                  {
+                    "selector": "#pay #pay",
+                    "value": "red",
+                    "layer": null,
+                    "important": false
+                  },
+                  {
+                    "selector": "*",
+                    "value": "blue",
+                    "layer": "reset",
+                    "important": true
+                  }
+                ]
+              },
+              {
+                "layers": [],
+                "declarations": [
+                  {
+                    "selector": "#pay",
+                    "value": "red",
+                    "layer": null,
+                    "important": true
+                  },
+                  {
+                    "selector": ".btn",
+                    "value": "blue",
+                    "layer": null,
+                    "important": true
+                  }
+                ]
+              },
+              {
+                "layers": [
+                  "reset",
+                  "vendor",
+                  "base",
+                  "components",
+                  "utilities"
+                ],
+                "declarations": [
+                  {
+                    "selector": "form button",
+                    "value": "#e5e7eb",
+                    "layer": "vendor",
+                    "important": false
+                  },
+                  {
+                    "selector": ".btn-primary",
+                    "value": "#1d4ed8",
+                    "layer": "components",
+                    "important": true
+                  },
+                  {
+                    "selector": "button",
+                    "value": "#000000",
+                    "layer": "vendor",
+                    "important": true
+                  },
+                  {
+                    "selector": ".btn:disabled",
+                    "value": "#cbd5e1",
+                    "layer": "components",
+                    "important": false
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": [
+            {
+              "index": 0,
+              "value": "red",
+              "specificity": [
+                0,
+                1,
+                0
+              ]
+            },
+            {
+              "index": 0,
+              "value": "red",
+              "specificity": [
+                0,
+                0,
+                1
+              ]
+            },
+            {
+              "index": 1,
+              "value": "blue",
+              "specificity": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "index": 0,
+              "value": "red",
+              "specificity": [
+                1,
+                0,
+                0
+              ]
+            },
+            {
+              "index": 2,
+              "value": "#000000",
+              "specificity": [
+                0,
+                0,
+                1
+              ]
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

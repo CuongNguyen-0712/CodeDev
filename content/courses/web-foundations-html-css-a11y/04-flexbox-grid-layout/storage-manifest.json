@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_webf_222",
+      "key": "challenges/javascript/chal_coding_webf_222/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "grid-columns.js",
+      "size": 3405
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_coding_webf_222",
+      "key": "challenges/javascript/chal_coding_webf_222/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 463
+    }
+  ]
+}

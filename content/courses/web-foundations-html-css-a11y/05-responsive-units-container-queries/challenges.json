@@ -1,0 +1,403 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_webf_231",
+      "name": "responsive-units-quiz",
+      "type": "quiz",
+      "title": "Which size does the browser use?",
+      "description": "Two questions from the product card incident: what a viewport media query sees when the same card sits in a narrow sidebar, and what rem, em, vh and @container are really measured against.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The product card ships with this CSS:\n\n.card { display: grid; gap: 16px; padding: 16px; }\n@media (min-width: 768px) {\n  .card { grid-template-columns: 220px 1fr; }\n}\n\nThe same card is placed in the main column (600px wide) and in a 300px-wide sidebar. A customer views the page in a browser window that is 1440px wide. What does the sidebar card do?",
+          "explanation": "A media query tests the viewport (here the 1440px window), never the element the rule styles. min-width: 768px is true for the whole page, so every card on it, wherever it sits, gets the 220px + 1fr columns. Inside the 300px sidebar that leaves 300 - 32 (padding) - 220 - 16 (gap) = 32px for the text column. A 1fr track will not shrink below its content's minimum width, so the column becomes as wide as the longest word, every word wraps onto its own line, and the card sticks out past the sidebar. Media queries apply to nested components exactly as to the page layout; a component that should react to its own space needs a container query.",
+          "options": [
+            {
+              "text": "It uses the two-column layout too: the media query sees the 1440px window, so the text column is left with 32px and is squeezed to its longest word.",
+              "correct": true
+            },
+            {
+              "text": "It stays a single column: min-width: 768px is measured against the card's parent, and the sidebar is only 300px wide.",
+              "correct": false
+            },
+            {
+              "text": "It stays a single column: media queries only affect the top-level page layout, not components nested inside a sidebar.",
+              "correct": false
+            },
+            {
+              "text": "It uses two columns, but the browser shrinks the 220px image column to make room, because grid tracks always fit their container.",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which of these statements are true in current browsers? (Select all that apply.)",
+          "explanation": "rem is relative to the html element's font size. If your CSS never sets that to a px value, it starts from the user's default font size (16px unless they change it), so rem text follows the user's setting; px text does not. In a media query, em and rem are relative to the initial font size - the user's default - not to what your stylesheet sets on html, so (min-width: 48em) is 768px with default settings even if html { font-size: 62.5% }. Mobile browsers resolve vh like lvh, the large viewport with the toolbars retracted, so a 100vh box is taller than the visible area while a toolbar is shown; svh and dvh exist for that. Elements are not size containers by default: @container (min-width: 30rem) only matches when an ancestor declares container-type: inline-size (or size).",
+          "options": [
+            {
+              "text": "If the stylesheet never sets a px font size on html, text sized in rem grows when the user picks a larger default font size in the browser settings.",
+              "correct": true
+            },
+            {
+              "text": "Inside @media (min-width: 48em), 1em is the font size your stylesheet sets on html, so with html { font-size: 62.5% } the query means 480px.",
+              "correct": false
+            },
+            {
+              "text": "On a phone, height: 100vh is the height with the browser toolbars retracted, so a 100vh panel is taller than the visible area while a toolbar is shown.",
+              "correct": true
+            },
+            {
+              "text": "@container (min-width: 30rem) needs no extra CSS: every element's parent is a size container by default.",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_webf_232",
+      "name": "resolve-css-lengths",
+      "type": "mini_coding",
+      "title": "Resolve CSS lengths like the browser",
+      "description": "Write resolveLength(value, ctx): turn px, rem, em, %, vw, vh and cqi lengths, and clamp(), min() and max() with \"a + b\" arguments, into CSS pixels for a given root font size, font size, viewport and container. Reject anything outside the small grammar in the starter.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "resolve-length.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Sidebar card: rem follows a 20px default, vw/vh see the 1440px window, cqi the 300px container",
+          "input": {
+            "cases": [
+              {
+                "ctx": {
+                  "rootFontSize": 20,
+                  "fontSize": 20,
+                  "percentBasis": 268,
+                  "viewport": {
+                    "width": 1440,
+                    "height": 900
+                  },
+                  "container": {
+                    "inlineSize": 300
+                  }
+                },
+                "values": [
+                  "22px",
+                  "1.375rem",
+                  "100vh",
+                  "50vw",
+                  "50cqi",
+                  "100%"
+                ]
+              }
+            ]
+          },
+          "expected": [
+            [
+              22,
+              27.5,
+              900,
+              720,
+              150,
+              268
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "em follows the font size of its context, rem always follows the root",
+          "input": {
+            "cases": [
+              {
+                "ctx": {
+                  "rootFontSize": 16,
+                  "fontSize": 24,
+                  "percentBasis": 600,
+                  "viewport": {
+                    "width": 1280,
+                    "height": 800
+                  },
+                  "container": null
+                },
+                "values": [
+                  "1em",
+                  "1rem",
+                  "0.5em",
+                  "2.5rem",
+                  "1.5em"
+                ]
+              },
+              {
+                "ctx": {
+                  "rootFontSize": 20,
+                  "fontSize": 12.5,
+                  "percentBasis": 800,
+                  "viewport": {
+                    "width": 1280,
+                    "height": 800
+                  },
+                  "container": null
+                },
+                "values": [
+                  "2em",
+                  "2rem",
+                  ".5rem"
+                ]
+              }
+            ]
+          },
+          "expected": [
+            [
+              24,
+              16,
+              12,
+              40,
+              36
+            ],
+            [
+              25,
+              40,
+              10
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "clamp() keeps the value between its bounds; the rem part grows with the user's font size",
+          "input": {
+            "cases": [
+              {
+                "ctx": {
+                  "rootFontSize": 16,
+                  "fontSize": 16,
+                  "percentBasis": 800,
+                  "viewport": {
+                    "width": 320,
+                    "height": 568
+                  },
+                  "container": null
+                },
+                "values": [
+                  "clamp(1rem, 0.5rem + 2vw, 2rem)"
+                ]
+              },
+              {
+                "ctx": {
+                  "rootFontSize": 16,
+                  "fontSize": 16,
+                  "percentBasis": 800,
+                  "viewport": {
+                    "width": 800,
+                    "height": 600
+                  },
+                  "container": null
+                },
+                "values": [
+                  "clamp(1rem, 0.5rem + 2vw, 2rem)"
+                ]
+              },
+              {
+                "ctx": {
+                  "rootFontSize": 16,
+                  "fontSize": 16,
+                  "percentBasis": 800,
+                  "viewport": {
+                    "width": 1440,
+                    "height": 900
+                  },
+                  "container": null
+                },
+                "values": [
+                  "clamp(1rem, 0.5rem + 2vw, 2rem)"
+                ]
+              },
+              {
+                "ctx": {
+                  "rootFontSize": 24,
+                  "fontSize": 24,
+                  "percentBasis": 800,
+                  "viewport": {
+                    "width": 800,
+                    "height": 600
+                  },
+                  "container": null
+                },
+                "values": [
+                  "clamp(1rem, 0.5rem + 2vw, 2rem)"
+                ]
+              }
+            ]
+          },
+          "expected": [
+            [
+              16
+            ],
+            [
+              24
+            ],
+            [
+              32
+            ],
+            [
+              28
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "min() and max() take any number of arguments; when clamp's MIN is larger than its MAX, MIN wins",
+          "input": {
+            "cases": [
+              {
+                "ctx": {
+                  "rootFontSize": 16,
+                  "fontSize": 16,
+                  "percentBasis": 1200,
+                  "viewport": {
+                    "width": 1000,
+                    "height": 700
+                  },
+                  "container": {
+                    "inlineSize": 600
+                  }
+                },
+                "values": [
+                  "min(100%, 40rem)",
+                  "max(44px, 2.5rem)",
+                  "min(50vw - 2rem, 600px, 90%)",
+                  "max(1rem)",
+                  "clamp(2rem, 2vw, 1.5rem)",
+                  "clamp(1rem,50cqi - 1rem ,20rem)"
+                ]
+              }
+            ]
+          },
+          "expected": [
+            [
+              640,
+              44,
+              468,
+              16,
+              32,
+              284
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Outside the grammar is rejected: unitless, other units, bad spacing, nested or other functions",
+          "input": {
+            "cases": [
+              {
+                "ctx": {
+                  "rootFontSize": 16,
+                  "fontSize": 16,
+                  "percentBasis": 800,
+                  "viewport": {
+                    "width": 1280,
+                    "height": 800
+                  },
+                  "container": {
+                    "inlineSize": 300
+                  }
+                },
+                "values": [
+                  "16",
+                  "12pt",
+                  "1.5dvh",
+                  "12 px",
+                  "1rem + 2vw",
+                  "clamp(1rem, 1rem+2vw, 3rem)",
+                  "clamp(1rem, 2rem)",
+                  "min(1rem, max(2rem, 3vw))",
+                  "calc(1rem + 2px)",
+                  "clamp(1rem, 1rem + 2vw - 1px, 3rem)",
+                  ""
+                ]
+              }
+            ]
+          },
+          "expected": [
+            [
+              "rejected",
+              "rejected",
+              "rejected",
+              "rejected",
+              "rejected",
+              "rejected",
+              "rejected",
+              "rejected",
+              "rejected",
+              "rejected",
+              "rejected"
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "No container: cqi uses the viewport width; negatives, decimals and 2-decimal rounding",
+          "input": {
+            "cases": [
+              {
+                "ctx": {
+                  "rootFontSize": 18,
+                  "fontSize": 13,
+                  "percentBasis": 970,
+                  "viewport": {
+                    "width": 390,
+                    "height": 844
+                  },
+                  "container": null
+                },
+                "values": [
+                  "10cqi",
+                  "0.875rem",
+                  "33.333%",
+                  "1.5em",
+                  "7vw",
+                  "-0.5rem",
+                  "max(-1rem, 0px)",
+                  "clamp(1.25rem, 1rem + 1.5cqi, 1.75rem)",
+                  "  2.5vh  "
+                ]
+              }
+            ]
+          },
+          "expected": [
+            [
+              39,
+              15.75,
+              323.33,
+              19.5,
+              27.3,
+              -9,
+              0,
+              23.85,
+              21.1
+            ]
+          ],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

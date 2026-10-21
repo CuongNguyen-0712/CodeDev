@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Same page, two waterfalls: when does the hero start loading?</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Mobile, throttled network. Simplified for illustration: a real waterfall has more requests.</text>
+
+  <!-- Panel A: before -->
+  <rect x="40" y="104" width="1120" height="232" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="134" font-size="18" font-weight="700" fill="#b91c1c">Before: lazy, unsized 2400 px JPEG hero and a 412 KB TTF headline font</text>
+  <g font-size="12" fill="#64748b" text-anchor="middle">
+    <text x="340" y="156">0 s</text><text x="500" y="156">1 s</text><text x="660" y="156">2 s</text>
+    <text x="820" y="156">3 s</text><text x="980" y="156">4 s</text><text x="1140" y="156">5 s</text>
+  </g>
+  <g stroke="#fecaca" stroke-width="1">
+    <line x1="340" y1="162" x2="340" y2="284"/><line x1="500" y1="162" x2="500" y2="284"/><line x1="660" y1="162" x2="660" y2="284"/>
+    <line x1="820" y1="162" x2="820" y2="284"/><line x1="980" y1="162" x2="980" y2="284"/><line x1="1140" y1="162" x2="1140" y2="284"/>
+  </g>
+  <g font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">
+    <text x="64" y="183">spring.html</text>
+    <text x="64" y="213">spring.css</text>
+    <text x="64" y="243">TrailSans-Bold.ttf</text>
+    <text x="64" y="273">hero-spring.jpg</text>
+  </g>
+  <rect x="340" y="166" width="80" height="24" rx="4" fill="#e2e8f0" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="420" y="196" width="96" height="24" rx="4" fill="#cffafe" stroke="#0891b2" stroke-width="2"/>
+  <rect x="516" y="226" width="352" height="24" rx="4" fill="#fde68a" stroke="#d97706" stroke-width="2"/>
+  <text x="530" y="243" font-size="13" font-weight="700" fill="#92400e">font-display: auto - headline invisible</text>
+  <rect x="628" y="256" width="480" height="24" rx="4" fill="#fecaca" stroke="#ef4444" stroke-width="2"/>
+  <text x="642" y="273" font-size="13" font-weight="700" fill="#991b1b">loading="lazy": requested only after layout, 1.1 MB</text>
+  <line x1="1108" y1="162" x2="1108" y2="306" stroke="#b91c1c" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="1100" y="302" font-size="14" font-weight="700" fill="#b91c1c" text-anchor="end">LCP 4.8 s</text>
+  <text x="64" y="324" font-size="13" fill="#7f1d1d">No width/height: the hero box is 0 px tall until the file arrives, then everything below drops ~290 px (CLS 0.31).</text>
+
+  <!-- Panel B: after -->
+  <rect x="40" y="352" width="1120" height="232" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="64" y="382" font-size="18" font-weight="700" fill="#15803d">After: hero found in the HTML, right-sized and prioritised; WOFF2 font preloaded</text>
+  <g font-size="12" fill="#64748b" text-anchor="middle">
+    <text x="340" y="404">0 s</text><text x="500" y="404">1 s</text><text x="660" y="404">2 s</text>
+    <text x="820" y="404">3 s</text><text x="980" y="404">4 s</text><text x="1140" y="404">5 s</text>
+  </g>
+  <g stroke="#bbf7d0" stroke-width="1">
+    <line x1="340" y1="410" x2="340" y2="532"/><line x1="500" y1="410" x2="500" y2="532"/><line x1="660" y1="410" x2="660" y2="532"/>
+    <line x1="820" y1="410" x2="820" y2="532"/><line x1="980" y1="410" x2="980" y2="532"/><line x1="1140" y1="410" x2="1140" y2="532"/>
+  </g>
+  <g font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">
+    <text x="64" y="431">spring.html</text>
+    <text x="64" y="461">spring.css</text>
+    <text x="64" y="491">hero-800.avif</text>
+    <text x="64" y="521">trail-sans-700.woff2</text>
+  </g>
+  <rect x="340" y="414" width="80" height="24" rx="4" fill="#e2e8f0" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="420" y="444" width="96" height="24" rx="4" fill="#cffafe" stroke="#0891b2" stroke-width="2"/>
+  <rect x="420" y="474" width="208" height="24" rx="4" fill="#bbf7d0" stroke="#16a34a" stroke-width="2"/>
+  <text x="432" y="491" font-size="12" font-weight="700" fill="#166534">fetchpriority=high, 74 KB</text>
+  <rect x="420" y="504" width="144" height="24" rx="4" fill="#fde68a" stroke="#d97706" stroke-width="2"/>
+  <text x="432" y="521" font-size="12" font-weight="700" fill="#92400e">preload, 28 KB</text>
+  <line x1="644" y1="410" x2="644" y2="554" stroke="#15803d" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="652" y="550" font-size="14" font-weight="700" fill="#15803d">LCP 1.9 s</text>
+  <text x="664" y="521" font-size="13" fill="#166534">font-display: swap - fallback text is visible from the first paint</text>
+  <text x="64" y="572" font-size="13" fill="#14532d">width/height reserve the 4:3 box up front, and a size-adjusted fallback font keeps the lines in place: nothing jumps.</text>
+</svg>

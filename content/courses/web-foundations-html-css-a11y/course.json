@@ -1,0 +1,101 @@
+{
+  "publicId": "web-foundations-html-css-a11y",
+  "title": "Web Foundations: Semantic HTML, Modern CSS & Accessibility",
+  "concept": "Build pages that work for everyone: semantic HTML, the cascade and specificity, Flexbox and Grid, responsive units, colour contrast and keyboard access, with small JavaScript checkers you write yourself.",
+  "description": "Build pages that work for everyone: semantic HTML and accessible forms, the cascade, specificity and cascade layers, Flexbox and Grid, responsive units and container queries, WCAG colour contrast, keyboard access and focus order, and images and fonts that load fast, with small JavaScript checkers you write yourself. 8 lessons, each starting from a real bug or incident, with beginner-friendly challenges.",
+  "image": null,
+  "level": "beginner",
+  "durationMinutes": 189,
+  "instructor": "CodeDev Engineering Team",
+  "language": "HTML5",
+  "category": "Frontend Development",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 50,
+  "accessModel": "free",
+  "publishStatus": "draft",
+  "careerRoles": [
+    "frontend_developer",
+    "fullstack_developer",
+    "mobile_developer",
+    "student"
+  ],
+  "skills": {
+    "html_css": 5,
+    "javascript": 2,
+    "performance": 1
+  },
+  "goals": [
+    "fundamentals",
+    "first_job",
+    "change_career"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Structure",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-semantic-html-landmarks",
+          "title": "Semantic HTML: landmarks, headings & the document outline",
+          "sanityId": "lesson-webf-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-forms-labels-errors",
+          "title": "Forms that work: labels, validation & error messages",
+          "sanityId": "lesson-webf-1-2"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Styling",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "03-cascade-specificity-layers",
+          "title": "The cascade, specificity & layers",
+          "sanityId": "lesson-webf-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "04-flexbox-grid-layout",
+          "title": "Flexbox & Grid: picking the right layout",
+          "sanityId": "lesson-webf-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "05-responsive-units-container-queries",
+          "title": "Responsive design: units, media & container queries",
+          "sanityId": "lesson-webf-2-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Accessibility & Performance",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "06-colour-contrast-wcag",
+          "title": "Colour contrast: computing WCAG ratios",
+          "sanityId": "lesson-webf-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "07-keyboard-focus-order",
+          "title": "Keyboard access & focus order",
+          "sanityId": "lesson-webf-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "08-images-fonts-loading",
+          "title": "Images & fonts: loading what the page needs",
+          "sanityId": "lesson-webf-3-3"
+        }
+      ]
+    }
+  ]
+}

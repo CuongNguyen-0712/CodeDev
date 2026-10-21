@@ -1,0 +1,848 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_webf_321",
+      "name": "keyboard-access-focus-quiz",
+      "type": "quiz",
+      "title": "Keyboard access: buttons, focus rings and dialogs",
+      "description": "The checkout's \"Apply coupon\" control got a quick fix, and the team is arguing about focus styles and the coupon dialog. Decide what still fails for keyboard users and which statements about focus are true.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A developer \"fixes\" the coupon control like this:\n\n<div class=\"btn\" role=\"button\" tabindex=\"0\" onclick=\"applyCoupon()\">Apply coupon</div>\n\nA keyboard-only customer tabs to it. What happens, and why?",
+          "explanation": "tabindex=\"0\" puts the div in the Tab sequence and role=\"button\" makes screen readers announce it as a button, so focus and the announced role are fixed. But a click event fires from the keyboard only on elements whose activation behaviour does it: a native <button> turns Enter and Space into a click, a <div> does not, whatever its role. The customer reaches the control and a screen reader would announce \"Apply coupon, button\", but pressing Enter or Space does nothing (Space even scrolls the page). You would have to add a keydown handler for both keys, prevent the scroll, and handle a disabled state yourself. <button type=\"button\"> gives you all of that for free.",
+          "options": [
+            {
+              "text": "It works like a button now: tabindex=\"0\" makes it focusable and role=\"button\" makes Enter and Space trigger onclick.",
+              "correct": false
+            },
+            {
+              "text": "It still cannot receive focus, because only native controls can be focused, whatever their tabindex.",
+              "correct": false
+            },
+            {
+              "text": "It receives focus and is announced as a button, but Enter and Space do nothing (Space scrolls the page), because only native buttons turn those keys into a click.",
+              "correct": true
+            },
+            {
+              "text": "It receives focus, but screen readers announce it as \"group\", because role=\"button\" is ignored on a div.",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which statements are true? (Select all that apply.)",
+          "explanation": "A global outline: none with no replacement removes the only visible focus indicator, which fails 2.4.7 Focus Visible (AA); style :focus-visible instead of hiding focus. A modal opened with dialog.showModal() makes everything outside the dialog inert, and pressing Escape closes it. Positive tabindex is an anti-pattern: it pulls elements ahead of everything else on the page, so focus no longer follows the reading order (2.4.3 Focus Order) and every element added later without a tabindex ends up behind all of them. 2.4.11 Focus Not Obscured (Minimum, AA) only requires that the focused element is not ENTIRELY hidden by author content such as a sticky header; \"no part hidden\" is the AAA criterion 2.4.12 Focus Not Obscured (Enhanced).",
+          "options": [
+            {
+              "text": "*:focus { outline: none } with no other focus style fails 2.4.7 Focus Visible.",
+              "correct": true
+            },
+            {
+              "text": "A dialog opened with showModal() makes the rest of the page inert, and pressing Escape closes it.",
+              "correct": true
+            },
+            {
+              "text": "tabindex=\"1\" on the most important field is the recommended way to let keyboard users reach it first.",
+              "correct": false
+            },
+            {
+              "text": "2.4.11 Focus Not Obscured (Minimum) fails as soon as any part of the focused element is covered by a sticky header.",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_webf_322",
+      "name": "fix-tab-order-audit",
+      "type": "fix_bug",
+      "title": "Fix the tab order audit",
+      "description": "tabOrder() is the team's audit script: given an element tree, it lists the elements in the order the Tab key visits them. It disagrees with the browser on the checkout page and on the account page. Fix it so that inert and hidden subtrees are skipped, a link counts only with an href, and positive tabindex values are ordered as numbers.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "javascript",
+        "filePath": "tabOrder.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: checkout with tabindex 1 and 2, an inert mini-cart and a breadcrumb <a> without href",
+          "input": {
+            "tree": {
+              "id": "body",
+              "tag": "body",
+              "attrs": {},
+              "children": [
+                {
+                  "id": "site-header",
+                  "tag": "header",
+                  "attrs": {},
+                  "children": [
+                    {
+                      "id": "logo",
+                      "tag": "a",
+                      "attrs": {
+                        "href": "/"
+                      },
+                      "children": []
+                    },
+                    {
+                      "id": "main-nav",
+                      "tag": "nav",
+                      "attrs": {},
+                      "children": [
+                        {
+                          "id": "nav-shop",
+                          "tag": "a",
+                          "attrs": {
+                            "href": "/shop"
+                          },
+                          "children": []
+                        },
+                        {
+                          "id": "nav-deals",
+                          "tag": "a",
+                          "attrs": {
+                            "href": "/deals"
+                          },
+                          "children": []
+                        },
+                        {
+                          "id": "nav-new",
+                          "tag": "a",
+                          "attrs": {
+                            "href": "/new"
+                          },
+                          "children": []
+                        },
+                        {
+                          "id": "nav-brands",
+                          "tag": "a",
+                          "attrs": {
+                            "href": "/brands"
+                          },
+                          "children": []
+                        },
+                        {
+                          "id": "nav-help",
+                          "tag": "a",
+                          "attrs": {
+                            "href": "/help"
+                          },
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "id": "search",
+                      "tag": "input",
+                      "attrs": {
+                        "type": "search"
+                      },
+                      "children": []
+                    },
+                    {
+                      "id": "search-go",
+                      "tag": "button",
+                      "attrs": {},
+                      "children": []
+                    },
+                    {
+                      "id": "cart-link",
+                      "tag": "a",
+                      "attrs": {
+                        "href": "/cart"
+                      },
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "id": "mini-cart",
+                  "tag": "aside",
+                  "attrs": {
+                    "inert": true
+                  },
+                  "children": [
+                    {
+                      "id": "mc-item",
+                      "tag": "a",
+                      "attrs": {
+                        "href": "/p/lamp-42"
+                      },
+                      "children": []
+                    },
+                    {
+                      "id": "mc-checkout",
+                      "tag": "button",
+                      "attrs": {},
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "id": "checkout",
+                  "tag": "main",
+                  "attrs": {},
+                  "children": [
+                    {
+                      "id": "breadcrumb",
+                      "tag": "nav",
+                      "attrs": {},
+                      "children": [
+                        {
+                          "id": "bc-cart",
+                          "tag": "a",
+                          "attrs": {
+                            "href": "/cart"
+                          },
+                          "children": []
+                        },
+                        {
+                          "id": "bc-checkout",
+                          "tag": "a",
+                          "attrs": {},
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "id": "checkout-form",
+                      "tag": "form",
+                      "attrs": {},
+                      "children": [
+                        {
+                          "id": "email",
+                          "tag": "input",
+                          "attrs": {
+                            "type": "email",
+                            "tabindex": "1"
+                          },
+                          "children": []
+                        },
+                        {
+                          "id": "full-name",
+                          "tag": "input",
+                          "attrs": {},
+                          "children": []
+                        },
+                        {
+                          "id": "address",
+                          "tag": "input",
+                          "attrs": {},
+                          "children": []
+                        },
+                        {
+                          "id": "city",
+                          "tag": "input",
+                          "attrs": {},
+                          "children": []
+                        },
+                        {
+                          "id": "postcode",
+                          "tag": "input",
+                          "attrs": {},
+                          "children": []
+                        },
+                        {
+                          "id": "country",
+                          "tag": "select",
+                          "attrs": {},
+                          "children": []
+                        },
+                        {
+                          "id": "phone",
+                          "tag": "input",
+                          "attrs": {
+                            "type": "tel"
+                          },
+                          "children": []
+                        },
+                        {
+                          "id": "shipping",
+                          "tag": "select",
+                          "attrs": {},
+                          "children": []
+                        },
+                        {
+                          "id": "csrf",
+                          "tag": "input",
+                          "attrs": {
+                            "type": "hidden"
+                          },
+                          "children": []
+                        },
+                        {
+                          "id": "coupon",
+                          "tag": "input",
+                          "attrs": {},
+                          "children": []
+                        },
+                        {
+                          "id": "apply-coupon",
+                          "tag": "div",
+                          "attrs": {},
+                          "children": []
+                        },
+                        {
+                          "id": "edit-cart",
+                          "tag": "a",
+                          "attrs": {
+                            "href": "/cart"
+                          },
+                          "children": []
+                        },
+                        {
+                          "id": "terms",
+                          "tag": "input",
+                          "attrs": {
+                            "type": "checkbox"
+                          },
+                          "children": []
+                        },
+                        {
+                          "id": "pay",
+                          "tag": "button",
+                          "attrs": {
+                            "type": "submit"
+                          },
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "site-footer",
+                  "tag": "footer",
+                  "attrs": {},
+                  "children": [
+                    {
+                      "id": "newsletter",
+                      "tag": "input",
+                      "attrs": {
+                        "type": "checkbox",
+                        "tabindex": "2"
+                      },
+                      "children": []
+                    },
+                    {
+                      "id": "privacy",
+                      "tag": "a",
+                      "attrs": {
+                        "href": "/privacy"
+                      },
+                      "children": []
+                    },
+                    {
+                      "id": "terms-link",
+                      "tag": "a",
+                      "attrs": {
+                        "href": "/terms"
+                      },
+                      "children": []
+                    },
+                    {
+                      "id": "contact",
+                      "tag": "a",
+                      "attrs": {
+                        "href": "/contact"
+                      },
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "expected": [
+            "email",
+            "newsletter",
+            "logo",
+            "nav-shop",
+            "nav-deals",
+            "nav-new",
+            "nav-brands",
+            "nav-help",
+            "search",
+            "search-go",
+            "cart-link",
+            "bc-cart",
+            "full-name",
+            "address",
+            "city",
+            "postcode",
+            "country",
+            "phone",
+            "shipping",
+            "coupon",
+            "edit-cart",
+            "terms",
+            "pay",
+            "privacy",
+            "terms-link",
+            "contact"
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "tabindex is a number: \"10\" and \"11\" come after \"2\" and \"3\"",
+          "input": {
+            "tree": {
+              "id": "account-form",
+              "tag": "form",
+              "attrs": {},
+              "children": [
+                {
+                  "id": "first-name",
+                  "tag": "input",
+                  "attrs": {
+                    "tabindex": "10"
+                  },
+                  "children": []
+                },
+                {
+                  "id": "last-name",
+                  "tag": "input",
+                  "attrs": {
+                    "tabindex": "11"
+                  },
+                  "children": []
+                },
+                {
+                  "id": "username",
+                  "tag": "input",
+                  "attrs": {
+                    "tabindex": "2"
+                  },
+                  "children": []
+                },
+                {
+                  "id": "password",
+                  "tag": "input",
+                  "attrs": {
+                    "type": "password",
+                    "tabindex": "3"
+                  },
+                  "children": []
+                },
+                {
+                  "id": "forgot",
+                  "tag": "a",
+                  "attrs": {
+                    "href": "/reset"
+                  },
+                  "children": []
+                },
+                {
+                  "id": "save",
+                  "tag": "button",
+                  "attrs": {
+                    "tabindex": "0"
+                  },
+                  "children": []
+                }
+              ]
+            }
+          },
+          "expected": [
+            "username",
+            "password",
+            "first-name",
+            "last-name",
+            "forgot",
+            "save"
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "tabindex=\"-1\" leaves only that element out: the links and buttons inside it stay",
+          "input": {
+            "tree": {
+              "id": "body",
+              "tag": "body",
+              "attrs": {},
+              "children": [
+                {
+                  "id": "skip",
+                  "tag": "a",
+                  "attrs": {
+                    "href": "#content"
+                  },
+                  "children": []
+                },
+                {
+                  "id": "top",
+                  "tag": "header",
+                  "attrs": {},
+                  "children": [
+                    {
+                      "id": "home",
+                      "tag": "a",
+                      "attrs": {
+                        "href": "/"
+                      },
+                      "children": []
+                    },
+                    {
+                      "id": "menu-toggle",
+                      "tag": "button",
+                      "attrs": {
+                        "tabindex": "-1"
+                      },
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "id": "content",
+                  "tag": "main",
+                  "attrs": {
+                    "tabindex": "-1"
+                  },
+                  "children": [
+                    {
+                      "id": "title",
+                      "tag": "h1",
+                      "attrs": {},
+                      "children": []
+                    },
+                    {
+                      "id": "article-link",
+                      "tag": "a",
+                      "attrs": {
+                        "href": "/guide"
+                      },
+                      "children": []
+                    },
+                    {
+                      "id": "carousel",
+                      "tag": "div",
+                      "attrs": {
+                        "tabindex": "-1"
+                      },
+                      "children": [
+                        {
+                          "id": "prev",
+                          "tag": "button",
+                          "attrs": {},
+                          "children": []
+                        },
+                        {
+                          "id": "next",
+                          "tag": "button",
+                          "attrs": {},
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "back-to-top",
+                  "tag": "a",
+                  "attrs": {
+                    "href": "#top"
+                  },
+                  "children": []
+                }
+              ]
+            }
+          },
+          "expected": [
+            "skip",
+            "home",
+            "article-link",
+            "prev",
+            "next",
+            "back-to-top"
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Not focusable: <a> without href, hidden inputs, disabled controls; disabled does nothing on a div",
+          "input": {
+            "tree": {
+              "id": "settings",
+              "tag": "form",
+              "attrs": {},
+              "children": [
+                {
+                  "id": "draft",
+                  "tag": "a",
+                  "attrs": {},
+                  "children": []
+                },
+                {
+                  "id": "empty-href",
+                  "tag": "a",
+                  "attrs": {
+                    "href": ""
+                  },
+                  "children": []
+                },
+                {
+                  "id": "token",
+                  "tag": "input",
+                  "attrs": {
+                    "type": "hidden"
+                  },
+                  "children": []
+                },
+                {
+                  "id": "nickname",
+                  "tag": "input",
+                  "attrs": {
+                    "disabled": true
+                  },
+                  "children": []
+                },
+                {
+                  "id": "delete",
+                  "tag": "button",
+                  "attrs": {
+                    "disabled": true,
+                    "tabindex": "0"
+                  },
+                  "children": []
+                },
+                {
+                  "id": "card",
+                  "tag": "div",
+                  "attrs": {
+                    "tabindex": "0",
+                    "disabled": true
+                  },
+                  "children": [
+                    {
+                      "id": "card-label",
+                      "tag": "span",
+                      "attrs": {},
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "id": "theme",
+                  "tag": "select",
+                  "attrs": {},
+                  "children": []
+                },
+                {
+                  "id": "bio",
+                  "tag": "textarea",
+                  "attrs": {},
+                  "children": []
+                },
+                {
+                  "id": "submit",
+                  "tag": "button",
+                  "attrs": {},
+                  "children": []
+                }
+              ]
+            }
+          },
+          "expected": [
+            "empty-href",
+            "card",
+            "theme",
+            "bio",
+            "submit"
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "hidden and inert remove the whole subtree, positive tabindex inside included",
+          "input": {
+            "tree": {
+              "id": "body",
+              "tag": "body",
+              "attrs": {},
+              "children": [
+                {
+                  "id": "open-dialog",
+                  "tag": "button",
+                  "attrs": {},
+                  "children": []
+                },
+                {
+                  "id": "page",
+                  "tag": "div",
+                  "attrs": {
+                    "inert": true
+                  },
+                  "children": [
+                    {
+                      "id": "page-link",
+                      "tag": "a",
+                      "attrs": {
+                        "href": "/x"
+                      },
+                      "children": []
+                    },
+                    {
+                      "id": "page-search",
+                      "tag": "input",
+                      "attrs": {
+                        "tabindex": "1"
+                      },
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "id": "confirm",
+                  "tag": "dialog",
+                  "attrs": {},
+                  "children": [
+                    {
+                      "id": "confirm-text",
+                      "tag": "p",
+                      "attrs": {},
+                      "children": []
+                    },
+                    {
+                      "id": "advanced",
+                      "tag": "div",
+                      "attrs": {
+                        "hidden": true
+                      },
+                      "children": [
+                        {
+                          "id": "advanced-note",
+                          "tag": "input",
+                          "attrs": {
+                            "tabindex": "2"
+                          },
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "id": "cancel",
+                      "tag": "button",
+                      "attrs": {},
+                      "children": []
+                    },
+                    {
+                      "id": "confirm-ok",
+                      "tag": "button",
+                      "attrs": {
+                        "tabindex": "3"
+                      },
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "expected": [
+            "confirm-ok",
+            "open-dialog",
+            "cancel"
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Equal positive values keep document order, then the rest in document order (parent before children)",
+          "input": {
+            "tree": {
+              "id": "toolbar",
+              "tag": "div",
+              "attrs": {
+                "tabindex": "0"
+              },
+              "children": [
+                {
+                  "id": "bold",
+                  "tag": "button",
+                  "attrs": {
+                    "tabindex": "3"
+                  },
+                  "children": []
+                },
+                {
+                  "id": "group",
+                  "tag": "span",
+                  "attrs": {
+                    "tabindex": "0"
+                  },
+                  "children": [
+                    {
+                      "id": "italic",
+                      "tag": "button",
+                      "attrs": {},
+                      "children": []
+                    },
+                    {
+                      "id": "underline",
+                      "tag": "button",
+                      "attrs": {
+                        "tabindex": "1"
+                      },
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "id": "link",
+                  "tag": "button",
+                  "attrs": {
+                    "tabindex": "3"
+                  },
+                  "children": []
+                },
+                {
+                  "id": "docs",
+                  "tag": "a",
+                  "attrs": {
+                    "href": "/docs",
+                    "tabindex": "1"
+                  },
+                  "children": []
+                },
+                {
+                  "id": "more",
+                  "tag": "button",
+                  "attrs": {},
+                  "children": []
+                }
+              ]
+            }
+          },
+          "expected": [
+            "underline",
+            "docs",
+            "bold",
+            "link",
+            "toolbar",
+            "group",
+            "italic",
+            "more"
+          ],
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

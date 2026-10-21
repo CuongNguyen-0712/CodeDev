@@ -1,0 +1,207 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_webf_121",
+      "name": "form-names-and-errors-quiz",
+      "type": "quiz",
+      "title": "Names and errors in the sign-up form",
+      "description": "Work out what the redesigned sign-up form got wrong about its errors, then predict which of several competing sources gives a field its accessible name.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "After a failed submit, the redesigned sign-up form turns the border of each wrong field red. There is no error text anywhere on the page, and the fields have placeholders but no labels. Which statements are true? (Select all that apply.)",
+          "explanation": "The red border is the only way the form tells anyone which field is wrong, so information is conveyed by colour alone: that fails 1.4.1 Use of Color, and a user who cannot tell red from grey cannot find the field. 3.3.1 Error Identification requires that the field in error is identified and the error is described to the user in text - a border is neither. aria-invalid=\"true\" only exposes an invalid state to assistive technology: sighted users see nothing and nobody learns what is wrong or how to fix it, so on its own it does not meet 3.3.1 (and 3.3.3 Error Suggestion wants the fix described too). Red does not satisfy contrast requirements automatically: a red border is a UI component boundary that needs 3:1 against its neighbours under 1.4.11 Non-text Contrast, and many reds on white pass while others do not - and contrast was never the problem here.",
+          "options": [
+            { "text": "It fails 1.4.1 Use of Color: colour is the only thing that marks a field as wrong.", "correct": true },
+            { "text": "It fails 3.3.1 Error Identification: the error is not described to the user in text.", "correct": true },
+            { "text": "Adding aria-invalid=\"true\" to the red fields is enough to meet 3.3.1, because screen readers then announce the error.", "correct": false },
+            { "text": "Red borders always meet the contrast requirements, because red is a strong colour.", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What is the accessible name of this input?\n\n<h2 id=\"receipt-title\">Where should we send your receipt?</h2>\n<label for=\"receipt-email\">Email</label>\n<input id=\"receipt-email\" name=\"email\" type=\"email\"\n       placeholder=\"name@example.com\"\n       aria-label=\"Your email\"\n       aria-labelledby=\"receipt-title\">",
+          "explanation": "The accessible name comes from the first source that gives text, in this order: aria-labelledby, then aria-label, then the native label (label for=\"id\" or a wrapping label), and only as a last resort title or placeholder. aria-labelledby points at the heading and gives text, so it wins and both the visible label \"Email\" and the aria-label are ignored. That is why mixing sources is risky: the visible label says \"Email\" but a screen reader user hears the heading text, and a voice control user who says \"click Email\" may not reach the field. Use one source, and prefer a visible label.",
+          "options": [
+            { "text": "Email", "correct": false },
+            { "text": "Your email", "correct": false },
+            { "text": "Where should we send your receipt?", "correct": true },
+            { "text": "name@example.com", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_webf_122",
+      "name": "fix-form-accessible-name-auditor",
+      "type": "fix_bug",
+      "title": "Fix the form auditor",
+      "description": "auditForm() computes the accessible name and the description (hint and error text) of every control in a form, so the release check can flag fields a screen reader cannot identify. It passed the placeholder-only sign-up form that caused the incident, and on the fixed form it gives fields the wrong label, cuts multi-id names short and drops the error message. Fix it so it follows its contract. Hint: which attribute does label[for] point at, what is a placeholder, and how many ids does an ID list hold?",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "javascript",
+        "filePath": "auditForm.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: placeholder-only sign-up fields have no name",
+          "input": {
+            "controls": [
+              { "id": "f1", "type": "email", "name": "f1", "attrs": { "placeholder": "Email" } },
+              { "id": "f2", "type": "password", "name": "f2", "attrs": { "placeholder": "Password" } },
+              { "id": "f3", "type": "text", "name": "f3", "attrs": { "placeholder": "Full name", "title": "Your full name" } }
+            ],
+            "labels": [],
+            "text": {}
+          },
+          "expected": [
+            { "id": "f1", "name": "", "from": "none", "description": "" },
+            { "id": "f2", "name": "", "from": "none", "description": "" },
+            { "id": "f3", "name": "", "from": "none", "description": "" }
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "label[for] matches the control's id, not its name attribute",
+          "input": {
+            "controls": [
+              { "id": "signup-email", "type": "email", "name": "email", "attrs": { "autocomplete": "email" } },
+              { "id": "email", "type": "email", "name": "backup_email", "attrs": {} },
+              { "id": "signup-name", "type": "text", "name": "full_name", "attrs": { "autocomplete": "name" } }
+            ],
+            "labels": [
+              { "for": "signup-email", "text": "Email address" },
+              { "for": "email", "text": " Backup email (optional) " },
+              { "for": "signup-name", "text": "Full name" }
+            ],
+            "text": {}
+          },
+          "expected": [
+            { "id": "signup-email", "name": "Email address", "from": "label", "description": "" },
+            { "id": "email", "name": "Backup email (optional)", "from": "label", "description": "" },
+            { "id": "signup-name", "name": "Full name", "from": "label", "description": "" }
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "aria-labelledby with several ids joins their texts in list order",
+          "input": {
+            "controls": [
+              { "id": "phone", "type": "tel", "name": "phone", "attrs": { "aria-labelledby": "phone-label phone-country", "autocomplete": "tel" } },
+              { "id": "otp", "type": "text", "name": "code", "attrs": { "aria-labelledby": "otp-title  otp-sent-to", "autocomplete": "one-time-code" } }
+            ],
+            "labels": [{ "for": "phone", "text": "Phone" }],
+            "text": {
+              "phone-label": "Phone number",
+              "phone-country": "Vietnam (+84)",
+              "otp-title": "Verification code",
+              "otp-sent-to": "sent to +84 90 123 4567"
+            }
+          },
+          "expected": [
+            { "id": "phone", "name": "Phone number Vietnam (+84)", "from": "aria-labelledby", "description": "" },
+            { "id": "otp", "name": "Verification code sent to +84 90 123 4567", "from": "aria-labelledby", "description": "" }
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "aria-describedby links both the hint and the error message",
+          "input": {
+            "controls": [
+              { "id": "pw", "type": "password", "name": "password", "attrs": { "aria-describedby": "pw-hint pw-error", "aria-invalid": "true", "autocomplete": "new-password" } },
+              { "id": "signup-email", "type": "email", "name": "email", "attrs": { "aria-describedby": "email-error", "aria-invalid": "true", "autocomplete": "email" } }
+            ],
+            "labels": [
+              { "for": "pw", "text": "Create a password" },
+              { "wraps": "signup-email", "text": "Email address" }
+            ],
+            "text": {
+              "pw-hint": "At least 12 characters.",
+              "pw-error": "Error: the password is too short (8 of 12 characters).",
+              "email-error": "Error: enter an email address like name@example.com."
+            }
+          },
+          "expected": [
+            { "id": "pw", "name": "Create a password", "from": "label", "description": "At least 12 characters. Error: the password is too short (8 of 12 characters)." },
+            { "id": "signup-email", "name": "Email address", "from": "label", "description": "Error: enter an email address like name@example.com." }
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Precedence: aria-labelledby, then aria-label, then the label; wrapping labels count",
+          "input": {
+            "controls": [
+              { "id": "billing-street", "type": "text", "name": "street", "attrs": { "aria-labelledby": "billing-heading street-label", "aria-label": "Address", "autocomplete": "billing street-address" } },
+              { "id": "help-search", "type": "search", "name": "q", "attrs": { "aria-label": "Search the help center", "placeholder": "Search" } },
+              { "id": "terms", "type": "checkbox", "name": "terms", "attrs": {} },
+              { "id": "plan-free", "type": "radio", "name": "plan", "attrs": {} },
+              { "id": "plan-pro", "type": "radio", "name": "plan", "attrs": {} }
+            ],
+            "labels": [
+              { "for": "billing-street", "text": "Street" },
+              { "for": "help-search", "text": "Search" },
+              { "wraps": "terms", "text": "I accept the terms of service" },
+              { "wraps": "plan-free", "text": "Free" },
+              { "for": "plan-pro", "text": "Pro - 5 USD a month" }
+            ],
+            "text": {
+              "billing-heading": "Billing address",
+              "street-label": "Street and number"
+            }
+          },
+          "expected": [
+            { "id": "billing-street", "name": "Billing address Street and number", "from": "aria-labelledby", "description": "" },
+            { "id": "help-search", "name": "Search the help center", "from": "aria-label", "description": "" },
+            { "id": "terms", "name": "I accept the terms of service", "from": "label", "description": "" },
+            { "id": "plan-free", "name": "Free", "from": "label", "description": "" },
+            { "id": "plan-pro", "name": "Pro - 5 USD a month", "from": "label", "description": "" }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Missing ids are skipped, blank values fall through, a placeholder never counts",
+          "input": {
+            "controls": [
+              { "id": "postal", "type": "text", "name": "zip", "attrs": { "aria-labelledby": "does-not-exist", "aria-label": "   ", "placeholder": "70000", "autocomplete": "postal-code" } },
+              { "id": "dob", "type": "date", "name": "birthday", "attrs": { "aria-describedby": "missing-hint dob-error", "aria-invalid": "true", "autocomplete": "bday" } },
+              { "id": "full-name", "type": "text", "name": "name", "attrs": { "aria-labelledby": "empty-span name-label" } },
+              { "id": "nickname", "type": "text", "name": "nickname", "attrs": { "placeholder": "What should we call you?", "title": "Nickname" } }
+            ],
+            "labels": [
+              { "for": "postal", "text": "Postal code" },
+              { "wraps": "dob", "text": "Date of birth" }
+            ],
+            "text": {
+              "dob-error": "Error: enter a date in the past.",
+              "empty-span": "  ",
+              "name-label": "Full name"
+            }
+          },
+          "expected": [
+            { "id": "postal", "name": "Postal code", "from": "label", "description": "" },
+            { "id": "dob", "name": "Date of birth", "from": "label", "description": "Error: enter a date in the past." },
+            { "id": "full-name", "name": "Full name", "from": "aria-labelledby", "description": "" },
+            { "id": "nickname", "name": "", "from": "none", "description": "" }
+          ],
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}
