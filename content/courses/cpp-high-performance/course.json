@@ -1,0 +1,113 @@
+{
+  "publicId": "cpp-high-performance",
+  "title": "High-Performance C++: Data-Oriented Design & Concurrency",
+  "concept": "Make C++ fast on real hardware: cache-friendly layouts, flat containers, allocation-free hot paths, heaps and an order-book matching engine, jthread, atomics and a lock-free queue.",
+  "description": "Make C++ fast on real hardware: cache-friendly layouts, flat containers, allocation-free hot paths, heaps and an order-book matching engine, jthread, atomics and a lock-free queue. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": null,
+  "level": "expert",
+  "durationMinutes": 180,
+  "instructor": "CodeDev Engineering Team",
+  "language": "C++",
+  "category": "Performance Optimization",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 200,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 1000
+    },
+    {
+      "priceType": "money",
+      "amount": 349000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "backend_developer"
+  ],
+  "skills": {
+    "performance": 5,
+    "concurrency": 4,
+    "data_structures": 4
+  },
+  "goals": [
+    "performance",
+    "interview_prep"
+  ],
+  "industries": [
+    "fintech",
+    "gaming"
+  ],
+  "prerequisites": [
+    "cpp23-modern"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Memory Layout",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Cache lines: AoS vs SoA",
+          "challenges": "Q(h) + C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Small-buffer & flat containers",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Allocation on hot paths & std::pmr",
+          "challenges": "Q(h) + C(h)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Algorithms",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Top-K over a stream with heaps",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "The core of an order-book matching engine",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Branch prediction & benchmarking pitfalls",
+          "challenges": "Q(h)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Concurrency",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "std::jthread & stop_token",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Atomics & memory order",
+          "challenges": "Q(h) + F(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "A lock-free SPSC queue",
+          "challenges": "C(h)"
+        }
+      ]
+    }
+  ]
+}

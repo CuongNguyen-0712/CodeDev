@@ -1,0 +1,112 @@
+{
+  "publicId": "go-cloud-native",
+  "title": "Cloud-Native Go: Building an API Gateway",
+  "concept": "Build the core of an API gateway in Go: middleware chains, per-client rate limiting, validation, consistent-hash load balancing, health checks, caching, graceful shutdown, structured logs and metrics.",
+  "description": "Build the core of an API gateway in Go: middleware chains, per-client rate limiting, validation, consistent-hash load balancing, health checks, caching, graceful shutdown, structured logs and metrics. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": null,
+  "level": "advanced",
+  "durationMinutes": 180,
+  "instructor": "CodeDev Engineering Team",
+  "language": "Go",
+  "category": "Microservices",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "devops_engineer",
+    "backend_developer"
+  ],
+  "skills": {
+    "system_design": 5,
+    "api_design": 4,
+    "performance": 3,
+    "docker": 2,
+    "concurrency": 3
+  },
+  "goals": [
+    "grow_in_role",
+    "build_projects"
+  ],
+  "prerequisites": [
+    "go-concurrency"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "The Gateway",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Routing & middleware chains with net/http",
+          "challenges": "Q(m) + C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Per-client rate limiting (token bucket)",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Request validation & JSON error responses",
+          "challenges": "F(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Upstreams",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Consistent hashing for load balancing",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Health checks & circuit breaking",
+          "challenges": "Q(m) + C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "TTL cache & single-flight",
+          "challenges": "C(h)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Running It",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Graceful shutdown & Kubernetes probes",
+          "challenges": "Q(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Structured logging with log/slog",
+          "challenges": "Q(e) + C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Metrics: histograms & percentiles",
+          "challenges": "C(m)"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,109 @@
+{
+  "publicId": "java21-virtual-threads",
+  "title": "Java 21 Concurrency: Virtual Threads & Structured Patterns",
+  "concept": "Handle thousands of concurrent requests in Java 21: virtual threads and pinning, atomic counters, concurrent maps, locks, CompletableFuture with timeouts and bounded queues.",
+  "description": "Handle thousands of concurrent requests in Java 21: virtual threads and pinning, atomic counters, concurrent maps, locks, CompletableFuture with timeouts and bounded queues. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": null,
+  "level": "intermediate",
+  "durationMinutes": 180,
+  "instructor": "CodeDev Engineering Team",
+  "language": "Java",
+  "category": "Backend Development",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 100,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 300
+    },
+    {
+      "priceType": "money",
+      "amount": 149000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "backend_developer"
+  ],
+  "skills": {
+    "concurrency": 5,
+    "performance": 3,
+    "async_programming": 3
+  },
+  "goals": [
+    "grow_in_role",
+    "performance"
+  ],
+  "prerequisites": [
+    "java21-foundations"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Threads",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Platform vs virtual threads: when each wins",
+          "challenges": "Q(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Fan-out with newVirtualThreadPerTaskExecutor",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Pinning & synchronized pitfalls",
+          "challenges": "Q(h) + F(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Shared State",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Race conditions: AtomicLong & LongAdder",
+          "challenges": "F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "ConcurrentHashMap compute patterns",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "ReentrantLock & ReadWriteLock",
+          "challenges": "Q(m) + C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Composition",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "CompletableFuture: composition & timeouts",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Bounded queues & backpressure",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Context propagation: ThreadLocal vs ScopedValue",
+          "challenges": "Q(m)"
+        }
+      ]
+    }
+  ]
+}

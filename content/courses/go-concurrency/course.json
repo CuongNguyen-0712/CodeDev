@@ -1,0 +1,110 @@
+{
+  "publicId": "go-concurrency",
+  "title": "Concurrency in Go: Goroutines, Channels & Context",
+  "concept": "Use goroutines and channels without leaks or deadlocks: WaitGroups, select and timeouts, worker pools, pipelines, data races, context cancellation and error propagation.",
+  "description": "Use goroutines and channels without leaks or deadlocks: WaitGroups, select and timeouts, worker pools, pipelines, data races, context cancellation and error propagation. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": null,
+  "level": "intermediate",
+  "durationMinutes": 180,
+  "instructor": "CodeDev Engineering Team",
+  "language": "Go",
+  "category": "Backend Development",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 100,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 300
+    },
+    {
+      "priceType": "money",
+      "amount": 149000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "backend_developer",
+    "devops_engineer"
+  ],
+  "skills": {
+    "concurrency": 5,
+    "async_programming": 3,
+    "performance": 3
+  },
+  "goals": [
+    "grow_in_role",
+    "performance"
+  ],
+  "prerequisites": [
+    "go-foundations"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Goroutines & Channels",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Goroutines & WaitGroup",
+          "challenges": "Q(e) + C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Channels: buffered, unbuffered & deadlocks",
+          "challenges": "Q(m) + F(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "select & timeouts",
+          "challenges": "C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Patterns",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Worker pools",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Pipelines, fan-out & fan-in",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Data races & sync.Mutex",
+          "challenges": "Q(m) + F(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Lifecycle",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Cancellation with context",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Error propagation across goroutines",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Goroutine leaks",
+          "challenges": "Q(m) + F(m)"
+        }
+      ]
+    }
+  ]
+}

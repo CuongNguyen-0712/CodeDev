@@ -1,0 +1,110 @@
+{
+  "publicId": "rust-practical",
+  "title": "Practical Rust: Traits, Iterators & Robust CLIs",
+  "concept": "Write idiomatic Rust for real tools: iterator adapters, closures and Fn traits, trait objects vs generics, error enums, parsing with FromStr, lifetimes in structs and shared ownership.",
+  "description": "Write idiomatic Rust for real tools: iterator adapters, closures and Fn traits, trait objects vs generics, error enums, parsing with FromStr, lifetimes in structs and shared ownership. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": null,
+  "level": "intermediate",
+  "durationMinutes": 180,
+  "instructor": "CodeDev Engineering Team",
+  "language": "Rust",
+  "category": "Rust Development",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 100,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 300
+    },
+    {
+      "priceType": "money",
+      "amount": 149000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "backend_developer",
+    "devops_engineer"
+  ],
+  "skills": {
+    "data_structures": 3,
+    "performance": 3,
+    "testing": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "build_projects"
+  ],
+  "prerequisites": [
+    "rust-foundations"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Iterators & Closures",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Iterator adapters & laziness",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Closures & the Fn traits",
+          "challenges": "Q(m) + C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Trait objects vs generics",
+          "challenges": "Q(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Errors & Parsing",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Error enums & From conversions",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Parsing with FromStr & newtypes",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Lifetimes in structs",
+          "challenges": "Q(h) + F(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Ownership in Practice",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Box, Rc & RefCell",
+          "challenges": "Q(m) + F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Testing & thinking in invariants",
+          "challenges": "Q(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Mini project: a log analyzer",
+          "challenges": "C(h)"
+        }
+      ]
+    }
+  ]
+}

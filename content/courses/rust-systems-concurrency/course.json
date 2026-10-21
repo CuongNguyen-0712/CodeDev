@@ -1,0 +1,109 @@
+{
+  "publicId": "rust-systems-concurrency",
+  "title": "Rust for Systems: Zero-Copy Parsing, Concurrency & Performance",
+  "concept": "Push Rust to systems-level performance: zero-copy parsing, arenas, Cow, threads and channels, Send and Sync, scoped threads, unsafe invariants, how futures are polled and a bounded MPMC queue.",
+  "description": "Push Rust to systems-level performance: zero-copy parsing, arenas, Cow, threads and channels, Send and Sync, scoped threads, unsafe invariants, how futures are polled and a bounded MPMC queue. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": null,
+  "level": "expert",
+  "durationMinutes": 180,
+  "instructor": "CodeDev Engineering Team",
+  "language": "Rust",
+  "category": "Performance Optimization",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 200,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 1000
+    },
+    {
+      "priceType": "money",
+      "amount": 349000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "backend_developer"
+  ],
+  "skills": {
+    "performance": 5,
+    "concurrency": 5,
+    "data_structures": 4
+  },
+  "goals": [
+    "performance",
+    "grow_in_role"
+  ],
+  "prerequisites": [
+    "rust-practical"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Zero-Copy",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Zero-copy parsing with slices",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Arenas & index-based graphs",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Cow & avoiding allocations",
+          "challenges": "Q(m) + C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Concurrency",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Threads, Arc<Mutex<_>> & channels",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Send, Sync & the races the compiler prevents",
+          "challenges": "Q(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Scoped threads & a parallel map by hand",
+          "challenges": "C(h)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Under the Hood",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Unsafe Rust: invariants & soundness",
+          "challenges": "Q(h) + F(h)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "How async works: Future & poll without a runtime",
+          "challenges": "Q(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "A bounded MPMC queue",
+          "challenges": "C(h)"
+        }
+      ]
+    }
+  ]
+}

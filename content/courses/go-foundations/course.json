@@ -1,0 +1,98 @@
+{
+  "publicId": "go-foundations",
+  "title": "Go Fundamentals: Types, Errors, Slices & Maps",
+  "concept": "Learn Go the way it is used for services and tooling: zero values, slices and the append aliasing bug, maps and structs, interfaces, errors as values, generics and go test.",
+  "description": "Learn Go the way it is used for services and tooling: zero values, slices and the append aliasing bug, maps and structs, interfaces, errors as values, generics and go test. 8 lessons, each starting from a real bug or incident, with beginner-friendly challenges.",
+  "image": null,
+  "level": "beginner",
+  "durationMinutes": 160,
+  "instructor": "CodeDev Engineering Team",
+  "language": "Go",
+  "category": "Go Development",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 50,
+  "accessModel": "free",
+  "publishStatus": "draft",
+  "careerRoles": [
+    "student",
+    "backend_developer",
+    "devops_engineer"
+  ],
+  "skills": {
+    "data_structures": 2,
+    "testing": 2,
+    "api_design": 1
+  },
+  "goals": [
+    "fundamentals",
+    "first_job"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Basics",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Variables, types & zero values",
+          "challenges": "Q(e) + C(e)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Slices: the append aliasing bug",
+          "challenges": "Q(m) + F(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Types",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Maps & structs",
+          "challenges": "C(e)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Methods & interfaces",
+          "challenges": "Q(e) + C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Robust Code",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Errors as values: wrapping & errors.Is",
+          "challenges": "F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Generics basics",
+          "challenges": "C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Putting It Together",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Packages & go test",
+          "challenges": "Q(e)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Mini project: a word-frequency CLI",
+          "challenges": "C(m)"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+{
+  "publicId": "python-ml-from-scratch",
+  "title": "Machine Learning Foundations in Python: Features, Training & Honest Evaluation",
+  "concept": "Understand what a model does by building it: features and scaling, k-nearest neighbours, linear and logistic regression with gradient descent, train/validation splits without leakage, and metrics that tell the truth.",
+  "description": "Understand what a model does by building it: features and scaling, k-nearest neighbours, linear and logistic regression with gradient descent, train/validation splits without leakage, and metrics that tell the truth. 8 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": null,
+  "level": "intermediate",
+  "durationMinutes": 160,
+  "instructor": "CodeDev Engineering Team",
+  "language": "Python",
+  "category": "Machine Learning",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 100,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 300
+    },
+    {
+      "priceType": "money",
+      "amount": 149000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "ml_engineer",
+    "data_analyst",
+    "data_engineer"
+  ],
+  "skills": {
+    "machine_learning": 5,
+    "python": 5,
+    "data_analysis": 4,
+    "data_structures": 2
+  },
+  "goals": [
+    "fundamentals",
+    "change_career",
+    "build_projects"
+  ],
+  "prerequisites": [
+    "python-foundations-automation"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Data & Features",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Features, scaling & one-hot encoding",
+          "challenges": "Q(e) + C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Train / validation / test splits & leakage",
+          "challenges": "Q(m) + F(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Models",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "k-nearest neighbours",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Linear regression with gradient descent",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Logistic regression & decision thresholds",
+          "challenges": "Q(m) + C(h)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Evaluation",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Precision, recall & the confusion matrix",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Cross-validation & overfitting",
+          "challenges": "Q(m) + C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Shipping a model: baselines, drift & monitoring",
+          "challenges": "Q(m)"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+{
+  "publicId": "cpp23-modern",
+  "title": "Modern C++23: RAII, Move Semantics, Ranges & std::expected",
+  "concept": "Write C++ that is safe by construction: RAII and smart pointers, move semantics, ranges pipelines, concepts, std::expected for error handling and std::format / std::print.",
+  "description": "Write C++ that is safe by construction: RAII and smart pointers, move semantics, ranges pipelines, concepts, std::expected for error handling and std::format / std::print. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": null,
+  "level": "intermediate",
+  "durationMinutes": 180,
+  "instructor": "CodeDev Engineering Team",
+  "language": "C++",
+  "category": "Object-Oriented Programming",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 100,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 300
+    },
+    {
+      "priceType": "money",
+      "amount": 149000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "backend_developer"
+  ],
+  "skills": {
+    "performance": 3,
+    "data_structures": 3
+  },
+  "goals": [
+    "grow_in_role"
+  ],
+  "prerequisites": [
+    "cpp-foundations"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Ownership",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "RAII & the rule of zero",
+          "challenges": "Q(m) + C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "unique_ptr, shared_ptr & reference cycles",
+          "challenges": "Q(m) + F(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Move semantics & copy elision",
+          "challenges": "Q(h) + C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Generic Code",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Ranges & views pipelines",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Concepts for readable templates",
+          "challenges": "Q(m) + C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Lambdas & dangling captures",
+          "challenges": "F(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Vocabulary Types",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "std::expected instead of exceptions on hot paths",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "std::format & std::print",
+          "challenges": "Q(e) + C(e)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "std::optional, std::variant & std::visit",
+          "challenges": "C(h)"
+        }
+      ]
+    }
+  ]
+}

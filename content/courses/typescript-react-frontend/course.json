@@ -1,0 +1,113 @@
+{
+  "publicId": "typescript-react-frontend",
+  "title": "Frontend Engineering with TypeScript & React: State, Rendering & Performance",
+  "concept": "Write React apps that stay fast and correct as they grow: typed props and state, reducers, effects without races, memoization that pays off, list virtualization and testing the logic behind the UI.",
+  "description": "Write React apps that stay fast and correct as they grow: typed props and state, reducers, effects without races, memoization that pays off, list virtualization and testing the logic behind the UI. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": null,
+  "level": "intermediate",
+  "durationMinutes": 180,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "React",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 100,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 300
+    },
+    {
+      "priceType": "money",
+      "amount": 149000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "frontend_developer",
+    "fullstack_developer",
+    "mobile_developer"
+  ],
+  "skills": {
+    "react": 5,
+    "typescript": 5,
+    "html_css": 3,
+    "performance": 3,
+    "testing": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "build_projects"
+  ],
+  "prerequisites": [
+    "js-modern-foundations"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Typed Components",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "TypeScript for React: props, unions & discriminated state",
+          "challenges": "Q(m) + C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Reducers & state machines for UI state",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Derived state bugs & single source of truth",
+          "challenges": "F(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Effects & Data",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Effects without races: stale responses & cleanup",
+          "challenges": "Q(m) + F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Data fetching: caching, deduping & invalidation",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Forms: controlled inputs & validation schemas",
+          "challenges": "C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Performance",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Rendering cost: memo, useMemo & when they help",
+          "challenges": "Q(h)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Virtualizing long lists: computing the visible window",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Measuring: React Profiler & Web Vitals",
+          "challenges": "Q(m) + C(m)"
+        }
+      ]
+    }
+  ]
+}

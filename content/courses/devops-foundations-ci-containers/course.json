@@ -1,0 +1,105 @@
+{
+  "publicId": "devops-foundations-ci-containers",
+  "title": "DevOps Foundations: Linux, Containers, CI/CD & Observability",
+  "concept": "Learn how code gets from a laptop to production: processes and logs on Linux, images and containers, a CI pipeline with caching, versioning and rollbacks, and the metrics that tell you something broke. Challenges are small Python tools a DevOps engineer writes.",
+  "description": "Learn how code gets from a laptop to production: processes and logs on Linux, images and containers, a CI pipeline with caching, versioning and rollbacks, and the metrics that tell you something broke. Challenges are small Python tools a DevOps engineer writes. 9 lessons, each starting from a real bug or incident, with beginner-friendly challenges.",
+  "image": null,
+  "level": "beginner",
+  "durationMinutes": 180,
+  "instructor": "CodeDev Engineering Team",
+  "language": "Python",
+  "category": "DevOps",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 50,
+  "accessModel": "free",
+  "publishStatus": "draft",
+  "careerRoles": [
+    "devops_engineer",
+    "backend_developer",
+    "student"
+  ],
+  "skills": {
+    "docker": 5,
+    "system_design": 2,
+    "python": 3,
+    "performance": 2
+  },
+  "goals": [
+    "fundamentals",
+    "change_career",
+    "first_job"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Linux & Processes",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Processes, signals & exit codes",
+          "challenges": "Q(e) + C(e)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Reading logs: parsing & filtering",
+          "challenges": "C(e)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Containers",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Images, layers & caching",
+          "challenges": "Q(m) + F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Configuration through environment variables",
+          "challenges": "C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Delivery",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "CI pipelines: stages, caches & artifacts",
+          "challenges": "Q(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Semantic versioning & changelogs",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Deploys & rollbacks: blue-green and canary",
+          "challenges": "Q(m) + C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Observability",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Metrics, logs & traces: percentiles from raw samples",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Alerts that wake you for the right reasons",
+          "challenges": "Q(m)"
+        }
+      ]
+    }
+  ]
+}

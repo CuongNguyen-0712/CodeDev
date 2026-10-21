@@ -1,0 +1,110 @@
+{
+  "publicId": "c-systems-programming",
+  "title": "Systems Programming in C: Allocators, Ring Buffers & Parsers",
+  "concept": "Build the pieces systems software is made of: arena allocators, alignment, ring buffers, open-addressing hash tables, bit flags and binary protocol parsers, while hunting undefined behaviour.",
+  "description": "Build the pieces systems software is made of: arena allocators, alignment, ring buffers, open-addressing hash tables, bit flags and binary protocol parsers, while hunting undefined behaviour. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": null,
+  "level": "advanced",
+  "durationMinutes": 180,
+  "instructor": "CodeDev Engineering Team",
+  "language": "C",
+  "category": "Operating Systems",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "backend_developer",
+    "devops_engineer"
+  ],
+  "skills": {
+    "data_structures": 5,
+    "performance": 5,
+    "concurrency": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "performance"
+  ],
+  "prerequisites": [
+    "c-foundations-memory"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Memory",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "An arena allocator",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Alignment & struct padding",
+          "challenges": "Q(m) + C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Hunting undefined behaviour",
+          "challenges": "Q(h) + F(h)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Data Structures",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Ring buffer for one producer and one consumer",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Hash table with open addressing",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Bit manipulation & flag sets",
+          "challenges": "Q(m) + C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Parsing",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Parsing a binary protocol: endianness",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "A line parser that survives partial reads",
+          "challenges": "F(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Defensive C: bounds, integer checks, sanitizers",
+          "challenges": "Q(m)"
+        }
+      ]
+    }
+  ]
+}

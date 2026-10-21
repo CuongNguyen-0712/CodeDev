@@ -1,0 +1,113 @@
+{
+  "publicId": "nodejs-ai-engineering",
+  "title": "AI Engineering with Node.js: LLM Apps, Tool Calling & Streaming",
+  "concept": "Ship LLM features on Node.js that survive production: streaming, token budgets, tool calling, structured output, embeddings and evals, with a simulated model so every challenge is deterministic.",
+  "description": "Ship LLM features on Node.js that survive production: streaming, token budgets, tool calling, structured output, embeddings and evals, with a simulated model so every challenge is deterministic. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": null,
+  "level": "advanced",
+  "durationMinutes": 180,
+  "instructor": "CodeDev Engineering Team",
+  "language": "JavaScript",
+  "category": "LLM Engineering",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "backend_developer",
+    "fullstack_developer",
+    "ml_engineer"
+  ],
+  "skills": {
+    "nodejs": 4,
+    "javascript": 4,
+    "api_design": 3,
+    "machine_learning": 3,
+    "async_programming": 3
+  },
+  "goals": [
+    "build_projects",
+    "grow_in_role"
+  ],
+  "prerequisites": [
+    "javascript-async-architecture_2026100901"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Talking to the Model",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Streaming responses: parsing SSE chunks split at any byte",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Token budgets & trimming the context window",
+          "challenges": "Q(m) + C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "429s, retry-after & idempotent requests",
+          "challenges": "F(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Tools & Structured Output",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "The tool-calling loop: dispatch, validate args, feed results back",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Validating structured output against a JSON Schema subset",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Prompt injection & tool permission boundaries",
+          "challenges": "Q(h) + F(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Retrieval & Quality",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Embeddings & cosine top-k with metadata filters",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Semantic cache with a similarity threshold",
+          "challenges": "Q(m) + C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Evals: golden sets, LLM-as-judge pitfalls, regression gates",
+          "challenges": "Q(m) + C(m)"
+        }
+      ]
+    }
+  ]
+}

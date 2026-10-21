@@ -1,0 +1,106 @@
+{
+  "publicId": "python-api-testing",
+  "title": "API & Contract Testing in Python: From Requests to Pipelines",
+  "concept": "Test HTTP APIs the way production breaks them: request and response contracts, schema validation, idempotency and error cases, test data management and running the suite in CI without flaky failures.",
+  "description": "Test HTTP APIs the way production breaks them: request and response contracts, schema validation, idempotency and error cases, test data management and running the suite in CI without flaky failures. 8 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": null,
+  "level": "intermediate",
+  "durationMinutes": 160,
+  "instructor": "CodeDev Engineering Team",
+  "language": "Python",
+  "category": "Automation Testing",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 100,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 300
+    },
+    {
+      "priceType": "money",
+      "amount": 149000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "qa_engineer",
+    "backend_developer",
+    "devops_engineer"
+  ],
+  "skills": {
+    "testing": 5,
+    "api_design": 4,
+    "python": 3
+  },
+  "goals": [
+    "grow_in_role",
+    "first_job"
+  ],
+  "prerequisites": [
+    "python-foundations-automation"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "API Tests",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Designing API test cases from the contract",
+          "challenges": "Q(e) + C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Validating responses against a schema",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Status codes, errors & edge cases",
+          "challenges": "Q(m) + F(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Contracts & Data",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Consumer-driven contract tests",
+          "challenges": "Q(m) + C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Test data: factories, fixtures & cleanup",
+          "challenges": "F(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Testing idempotency & retries",
+          "challenges": "C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "In CI",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Parallel runs & shared state",
+          "challenges": "Q(m) + F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Reports that point to the cause",
+          "challenges": "C(m)"
+        }
+      ]
+    }
+  ]
+}

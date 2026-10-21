@@ -1,0 +1,95 @@
+{
+  "publicId": "rust-foundations",
+  "title": "Rust Foundations: Ownership, Borrowing & Error Handling",
+  "concept": "Learn Rust's core ideas through small programs: mutability, ownership and moves, borrowing, structs and enums with match, Option and Result, collections and traits.",
+  "description": "Learn Rust's core ideas through small programs: mutability, ownership and moves, borrowing, structs and enums with match, Option and Result, collections and traits. 8 lessons, each starting from a real bug or incident, with beginner-friendly challenges.",
+  "image": null,
+  "level": "beginner",
+  "durationMinutes": 160,
+  "instructor": "CodeDev Engineering Team",
+  "language": "Rust",
+  "category": "Rust Development",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 50,
+  "accessModel": "free",
+  "publishStatus": "draft",
+  "careerRoles": [
+    "student",
+    "backend_developer"
+  ],
+  "skills": {
+    "data_structures": 3,
+    "performance": 2
+  },
+  "goals": [
+    "fundamentals"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Basics",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Variables, mutability & types",
+          "challenges": "Q(e) + C(e)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Ownership & moves",
+          "challenges": "Q(e) + F(e)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Borrowing & Types",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Borrowing & the first lifetime errors",
+          "challenges": "Q(m) + F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Structs, enums & match",
+          "challenges": "C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Errors & Collections",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Option, Result & the ? operator",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Vec, HashMap & String",
+          "challenges": "C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Putting It Together",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Traits basics",
+          "challenges": "Q(e)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Mini project: a CSV summary CLI",
+          "challenges": "C(m)"
+        }
+      ]
+    }
+  ]
+}

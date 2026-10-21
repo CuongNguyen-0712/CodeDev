@@ -1,0 +1,117 @@
+{
+  "publicId": "nodejs-api-security",
+  "title": "Node.js API Security: OWASP API Top 10 in Practice",
+  "concept": "Find and fix the API vulnerabilities attackers actually use: broken object-level authorization, JWT and refresh-token mistakes, mass assignment, SSRF, resource exhaustion and leaked secrets.",
+  "description": "Find and fix the API vulnerabilities attackers actually use: broken object-level authorization, JWT and refresh-token mistakes, mass assignment, SSRF, resource exhaustion and leaked secrets. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": null,
+  "level": "expert",
+  "durationMinutes": 180,
+  "instructor": "CodeDev Engineering Team",
+  "language": "JavaScript",
+  "category": "Cyber Security",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 200,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 1000
+    },
+    {
+      "priceType": "money",
+      "amount": 349000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "backend_developer",
+    "fullstack_developer",
+    "devops_engineer"
+  ],
+  "skills": {
+    "api_design": 5,
+    "nodejs": 4,
+    "system_design": 3,
+    "testing": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "interview_prep"
+  ],
+  "industries": [
+    "fintech",
+    "ecommerce",
+    "software_product"
+  ],
+  "prerequisites": [
+    "nodejs-high-performance"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Authentication & Authorization",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "BOLA: object-level authorization checks",
+          "challenges": "F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "JWT verification pitfalls: alg, exp, aud, clock skew",
+          "challenges": "Q(h) + C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Refresh token rotation & reuse detection",
+          "challenges": "C(h)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Input & Resources",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Mass assignment & allow-lists",
+          "challenges": "F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "SSRF: URL parsing & allow-listing",
+          "challenges": "Q(h) + C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Unrestricted resource consumption: sliding-window limits",
+          "challenges": "C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Operations",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Secrets & log redaction",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Supply chain: lockfiles, provenance, npm audit triage",
+          "challenges": "Q(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Security headers & CORS done right",
+          "challenges": "Q(m) + F(m)"
+        }
+      ]
+    }
+  ]
+}

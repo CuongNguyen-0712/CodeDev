@@ -1,0 +1,111 @@
+{
+  "publicId": "python-asyncio-services",
+  "title": "Async Python: asyncio, TaskGroup & High-Throughput Services",
+  "concept": "Write asyncio services that stay fast and shut down cleanly: structured concurrency with TaskGroup, timeouts and cancellation, bounded fan-out, queues with backpressure, rate limits and retries.",
+  "description": "Write asyncio services that stay fast and shut down cleanly: structured concurrency with TaskGroup, timeouts and cancellation, bounded fan-out, queues with backpressure, rate limits and retries. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": null,
+  "level": "advanced",
+  "durationMinutes": 180,
+  "instructor": "CodeDev Engineering Team",
+  "language": "Python",
+  "category": "Backend Development",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "backend_developer",
+    "data_engineer"
+  ],
+  "skills": {
+    "python": 5,
+    "async_programming": 5,
+    "concurrency": 4,
+    "performance": 3
+  },
+  "goals": [
+    "grow_in_role",
+    "performance"
+  ],
+  "prerequisites": [
+    "python-foundations-automation"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "The Event Loop",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Coroutines vs blocking calls in the event loop",
+          "challenges": "Q(m) + F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "TaskGroup & structured concurrency",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Timeouts & cancellation (asyncio.timeout)",
+          "challenges": "Q(h) + C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Throughput",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Semaphore-limited fan-out",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Queues & backpressure: producer/consumer",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Rate limiting with a token bucket",
+          "challenges": "Q(m) + C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Production",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Retries with backoff & jitter",
+          "challenges": "F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Sync code in async apps: to_thread, executors, free-threaded 3.14",
+          "challenges": "Q(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Graceful shutdown & signal handling",
+          "challenges": "Q(m) + C(h)"
+        }
+      ]
+    }
+  ]
+}
