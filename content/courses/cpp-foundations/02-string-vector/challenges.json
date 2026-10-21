@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_cppf_121",
+      "name": "parse-class-roster",
+      "type": "mini_coding",
+      "title": "Parse a hand-edited class roster with std::string and std::vector",
+      "description": "The exam office exports each class roster as lines of the form id;name;score, for example RP-2024-0137;Nguyễn Văn An;8.5, and edits the file by hand. Write trim, parse_roster and too_long_for_c: skip empty lines, lines with only spaces and '#' comment lines, split each other line at its two ';', remove the spaces around every field (spaces inside a name stay), and keep the students in file order as a std::vector. Then list the ids of the students whose name does not fit the old C field char name[24] - at most 23 bytes of text plus the terminating '\\0' - counting bytes with std::string::size(), not letters. The test runner reads the whole file from stdin and prints each student with the byte size of the name, then the ids that are too long.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "cpp",
+        "filePath": "roster.cpp",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Clean roster of three students, one name too long for char[24]",
+          "input": "RP-2024-0137;Nguyễn Văn An;8.5\nRP-2024-0138;Trần Thị Bích Ngọc;7.0\nRP-2024-0139;Lê Minh;9.25\n",
+          "expected": "3 students\nRP-2024-0137 | Nguyễn Văn An | 8.5 | 16 bytes\nRP-2024-0138 | Trần Thị Bích Ngọc | 7.0 | 25 bytes\nRP-2024-0139 | Lê Minh | 9.25 | 8 bytes\ntoo long for char[24]: RP-2024-0138",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Spaces around fields are trimmed, spaces inside names are kept",
+          "input": "  RP-2024-0140 ;  Hoàng Văn Thắng ; 6.5  \nRP-2024-0141;   Nguyễn Thị Phương Thảo;10\n RP-2024-0142;Đỗ Quang Huy   ;  8\n",
+          "expected": "3 students\nRP-2024-0140 | Hoàng Văn Thắng | 6.5 | 19 bytes\nRP-2024-0141 | Nguyễn Thị Phương Thảo | 10 | 30 bytes\nRP-2024-0142 | Đỗ Quang Huy | 8 | 15 bytes\ntoo long for char[24]: RP-2024-0141",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Blank lines, space-only lines and comment lines are skipped",
+          "input": "# CS101 group 2 - exported 2024-09-05\n\nRP-2024-0137;Nguyễn Văn An;8.5\n     \n   # moved to group 3: RP-2024-0150\nRP-2024-0143;Bùi Thị Thu Hương;7.75\n\n",
+          "expected": "2 students\nRP-2024-0137 | Nguyễn Văn An | 8.5 | 16 bytes\nRP-2024-0143 | Bùi Thị Thu Hương | 7.75 | 22 bytes\ntoo long for char[24]: none",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A 24-byte name does not fit char[24], a 23-byte name does",
+          "input": "RP-2024-0151;Phạm Thị Ngọc Hân;8.0\nRP-2024-0152;Phạm Thị Ngọc Hà;9.0\nRP-2024-0153;Tran Thi Bich Ngoc Anh;5.5\n",
+          "expected": "3 students\nRP-2024-0151 | Phạm Thị Ngọc Hân | 8.0 | 24 bytes\nRP-2024-0152 | Phạm Thị Ngọc Hà | 9.0 | 23 bytes\nRP-2024-0153 | Tran Thi Bich Ngoc Anh | 5.5 | 22 bytes\ntoo long for char[24]: RP-2024-0151",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Messy CS102 roster: comments, spaces and long names together",
+          "input": "#CS102 - Riverside Polytechnic\n RP-2023-0042 ; Huỳnh Ngọc Tường Vy ; 9.5\n\nRP-2023-0043;Trương Mỹ Lan;6\n  RP-2023-0044;  Nguyễn Hoàng Bảo Châu  ;7.25\n    \nRP-2023-0045 ;Lê Văn Đức; 4.0\n  # end of CS102\n",
+          "expected": "4 students\nRP-2023-0042 | Huỳnh Ngọc Tường Vy | 9.5 | 26 bytes\nRP-2023-0043 | Trương Mỹ Lan | 6 | 17 bytes\nRP-2023-0044 | Nguyễn Hoàng Bảo Châu | 7.25 | 27 bytes\nRP-2023-0045 | Lê Văn Đức | 4.0 | 15 bytes\ntoo long for char[24]: RP-2023-0042 RP-2023-0044",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A roster with only comments and blank lines has no students",
+          "input": "# CS103 group 1\n   \n# no students enrolled yet\n\n",
+          "expected": "0 students\ntoo long for char[24]: none",
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

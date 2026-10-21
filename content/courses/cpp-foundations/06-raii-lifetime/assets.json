@@ -1,0 +1,10 @@
+{
+  "images": {
+    "three-exit-paths": {
+      "publicId": "codedev/courses/cpp-foundations/06-raii-lifetime/three-exit-paths",
+      "url": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/q_auto/v1792591733/codedev/courses/cpp-foundations/06-raii-lifetime/three-exit-paths.png?_a=BAMAROWQ0",
+      "width": 1200,
+      "height": 600
+    }
+  }
+}

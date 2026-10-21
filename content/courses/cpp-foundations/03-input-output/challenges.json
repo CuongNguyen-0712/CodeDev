@@ -1,0 +1,126 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_cppf_131",
+      "name": "reading-input-quiz",
+      "type": "quiz",
+      "title": "Predict what std::cin reads",
+      "description": "Follow the read position through the input buffer: what does each read consume, what does it leave behind, and when does the loop really stop?",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The program gets exactly this input (two lines, each ending with a newline):\n\nRP-01 An\nRP-02 Bình\n\nWhat does it print?\n\nstd::string id, name;\nint records = 0;\nwhile (!std::cin.eof()) {\n    std::cin >> id;\n    std::getline(std::cin, name);\n    ++records;\n}\nstd::println(\"{} [{}] [{}]\", records, id, name);",
+          "explanation": "Round 1: >> reads RP-01 and stops at the space, getline reads the rest of the line, \" An\" WITH its leading space, and eats the newline. Round 2 does the same for RP-02 and \" Bình\". Now every character has been read, but eof() is still false: getline stopped at the newline and never tried to read past it. So the loop runs a third time. This time >> finds the end of input, sets eofbit and failbit, and leaves id unchanged; getline on a failed stream does nothing, so name is unchanged too. records is 3, id is RP-02, name is \" Bình\". \"2 ...\" would be right only for while (std::cin >> id && std::getline(std::cin, name)). \"[Bình]\" without the space forgets that getline keeps the space after the id (only >> std::ws would remove it). \"3 [] []\" assumes a failed read clears the strings - it does not, the variables keep their last values.",
+          "options": [
+            {
+              "text": "2 [RP-02] [Bình]",
+              "correct": false
+            },
+            {
+              "text": "2 [RP-02] [ Bình]",
+              "correct": false
+            },
+            {
+              "text": "3 [RP-02] [ Bình]",
+              "correct": true
+            },
+            {
+              "text": "3 [] []",
+              "correct": false
+            },
+            {
+              "text": "3 [RP-02] []",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Each line of a score file looks like \"RP-01 8.5 Trần Văn An\" and the file ends with a newline. Which loops call handle(line) exactly once per line, with the whole line, and stop after the last one? (Select all that apply.) Assume std::string line; is declared before each loop where needed.",
+          "explanation": "A loop is correct when the read itself is the loop condition: the body runs only after a read that succeeded. while (std::getline(std::cin, line)) and the for form (which also keeps line local to the loop) do that - in a real run on two lines they called handle twice. while (!std::cin.eof()) and while (std::cin) test the stream BEFORE the read: after the last line both are still true, getline then fails at the end of input and leaves line empty, and handle is called a third time with \"\". while (std::cin >> line) checks its read, but >> reads one word, not one line: on the two-line file it called handle 9 times, with RP-01, 8.5, Trần, Văn, An and so on.",
+          "options": [
+            {
+              "text": "while (!std::cin.eof()) { std::getline(std::cin, line); handle(line); }",
+              "correct": false
+            },
+            {
+              "text": "while (std::getline(std::cin, line)) { handle(line); }",
+              "correct": true
+            },
+            {
+              "text": "while (std::cin) { std::getline(std::cin, line); handle(line); }",
+              "correct": false
+            },
+            {
+              "text": "for (std::string line; std::getline(std::cin, line); ) { handle(line); }",
+              "correct": true
+            },
+            {
+              "text": "while (std::cin >> line) { handle(line); }",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_cppf_132",
+      "name": "fix-score-file-reader",
+      "type": "fix_bug",
+      "title": "Make the score-file reader check every line",
+      "description": "The ported score-file reader prints a course report for the exam office: one line per student and the average. On every file it prints an empty record with score 0.0 right after the course code and another one at the end, which drags the average down. A score typed as \"8,5\" is printed as 8.0 with \",5\" glued to the name, and a score field like \"abc\" becomes 0. Fix process_score_file so that it reads the file line by line, prints every good record, reports every bad line with its line number without stopping, and computes the average from the good records only. The header comment in the starter gives the exact rules and output format.",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "cpp",
+        "filePath": "score_report.cpp",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Two good records with spaces in the names",
+          "input": "CS101\nRP-2024-0137 8.5 Nguyễn Thị Phương Thảo\nRP-2024-0138 7 Trần Văn An\n",
+          "expected": "CS101\nRP-2024-0137 | Nguyễn Thị Phương Thảo | 8.5\nRP-2024-0138 | Trần Văn An | 7.0\nrecords: 2, bad: 0, average: 7.75",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A decimal comma and a word as score are bad lines, the file goes on",
+          "input": "CS102\nRP-2024-0201 8,5 Phạm Thu Hà\nRP-2024-0202 9.0 Đỗ Quang Huy\nRP-2024-0203 abc Võ Thị Lan\nRP-2024-0204 6.5 Bùi Minh Châu\n",
+          "expected": "CS102\nbad line 2: RP-2024-0201 8,5 Phạm Thu Hà\nRP-2024-0202 | Đỗ Quang Huy | 9.0\nbad line 4: RP-2024-0203 abc Võ Thị Lan\nRP-2024-0204 | Bùi Minh Châu | 6.5\nrecords: 2, bad: 2, average: 7.75",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Out of range score, missing name and an empty line are bad lines",
+          "input": "CS201\nRP-2023-0011 10 Hoàng Gia Bảo\nRP-2023-0012 11 Ngô Thanh Tâm\nRP-2023-0013 7.5\n\nRP-2023-0014   4.5   Lý Mỹ Duyên\n",
+          "expected": "CS201\nRP-2023-0011 | Hoàng Gia Bảo | 10.0\nbad line 3: RP-2023-0012 11 Ngô Thanh Tâm\nbad line 4: RP-2023-0013 7.5\nbad line 5: \nRP-2023-0014 | Lý Mỹ Duyên | 4.5\nrecords: 2, bad: 3, average: 7.25",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Only bad lines: the average is n/a",
+          "input": "CS301\nRP-2022-0101 8.5x Trịnh Công Sơn\nRP-2022-0102 -1 Mai Anh\n",
+          "expected": "CS301\nbad line 2: RP-2022-0101 8.5x Trịnh Công Sơn\nbad line 3: RP-2022-0102 -1 Mai Anh\nrecords: 0, bad: 2, average: n/a",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Last line without a final newline",
+          "input": "CS101\nRP-2024-0301 9 Đặng Thùy Linh\nRP-2024-0302 5.5 Lâm Chí Thiện",
+          "expected": "CS101\nRP-2024-0301 | Đặng Thùy Linh | 9.0\nRP-2024-0302 | Lâm Chí Thiện | 5.5\nrecords: 2, bad: 0, average: 7.25",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

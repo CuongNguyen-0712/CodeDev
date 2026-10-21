@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Three ways to pass the same vector</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The same call f(quiz) with three signatures: a copy, an alias that can change quiz, or a read-only alias.</text>
+
+  <!-- Caller -->
+  <rect x="40" y="112" width="260" height="440" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="60" y="144" font-size="17" font-weight="700" fill="#0f172a">caller: main()</text>
+  <text x="60" y="170" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">std::vector&lt;double&gt; quiz</text>
+  <text x="60" y="262" font-size="14" font-weight="700" fill="#334155">quiz</text>
+  <rect x="60" y="276" width="50" height="40" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="2"/>
+  <rect x="110" y="276" width="50" height="40" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="2"/>
+  <rect x="160" y="276" width="50" height="40" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="2"/>
+  <rect x="210" y="276" width="50" height="40" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="2"/>
+  <text x="85" y="301" font-size="14" fill="#0f172a" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">8.5</text>
+  <text x="135" y="301" font-size="14" fill="#0f172a" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">7.0</text>
+  <text x="185" y="301" font-size="14" fill="#0f172a" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">9.0</text>
+  <text x="235" y="301" font-size="14" fill="#0f172a" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">4.5</text>
+  <text x="60" y="346" font-size="13" fill="#475569">one object, owned by main()</text>
+  <text x="60" y="368" font-size="13" fill="#475569">f wants to drop the lowest, 4.5</text>
+
+  <!-- Arrows from the rows to the caller -->
+  <line x1="264" y1="286" x2="334" y2="196" stroke="#dc2626" stroke-width="2" stroke-dasharray="6 5"/>
+  <polygon points="331,188 338,200 342,186" fill="#dc2626"/>
+  <line x1="338" y1="332" x2="272" y2="305" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="276,298 264,302 272,312" fill="#16a34a"/>
+  <line x1="338" y1="484" x2="270" y2="318" stroke="#2563eb" stroke-width="2"/>
+  <polygon points="264,314 266,326 276,320" fill="#2563eb"/>
+
+  <!-- Row 1: by value -->
+  <rect x="340" y="112" width="820" height="136" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="364" y="142" font-size="16" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">void f(std::vector&lt;double&gt; v)</text>
+  <text x="364" y="170" font-size="14" fill="#334155">by value: v is a new vector, a copy of quiz</text>
+  <rect x="364" y="188" width="44" height="34" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+  <rect x="412" y="188" width="44" height="34" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+  <rect x="460" y="188" width="44" height="34" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+  <rect x="508" y="188" width="44" height="34" rx="6" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 4"/>
+  <text x="386" y="210" font-size="13" fill="#0f172a" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">8.5</text>
+  <text x="434" y="210" font-size="13" fill="#0f172a" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">7.0</text>
+  <text x="482" y="210" font-size="13" fill="#0f172a" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">9.0</text>
+  <text x="572" y="210" font-size="13" fill="#7f1d1d">v after the erase: 3 scores</text>
+  <text x="800" y="142" font-size="14" font-weight="700" fill="#b91c1c">Caller sees: quiz still has 4 scores</text>
+  <text x="800" y="170" font-size="14" fill="#334155">Cost: copies every element, every call</text>
+  <text x="800" y="198" font-size="14" fill="#334155">Use: f wants its own copy to change</text>
+
+  <!-- Row 2: by reference -->
+  <rect x="340" y="264" width="820" height="136" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="364" y="294" font-size="16" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">void f(std::vector&lt;double&gt;&amp; v)</text>
+  <text x="364" y="322" font-size="14" fill="#334155">by reference: v is another name for quiz</text>
+  <text x="364" y="350" font-size="14" fill="#334155">v.erase(...) removes 4.5 from quiz itself</text>
+  <text x="800" y="294" font-size="14" font-weight="700" fill="#15803d">Caller sees: quiz now has 3 scores</text>
+  <text x="800" y="322" font-size="14" fill="#334155">Cost: no copy, only an address</text>
+  <text x="800" y="350" font-size="14" fill="#334155">Use: f must change the caller's object</text>
+
+  <!-- Row 3: by const reference -->
+  <rect x="340" y="416" width="820" height="136" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="364" y="446" font-size="16" font-weight="700" fill="#2563eb" font-family="Consolas, 'Courier New', monospace">void f(const std::vector&lt;double&gt;&amp; v)</text>
+  <text x="364" y="474" font-size="14" fill="#334155">by const reference: a read-only alias</text>
+  <text x="364" y="502" font-size="14" fill="#334155">v.erase(...) is a compile error</text>
+  <text x="800" y="446" font-size="14" font-weight="700" fill="#2563eb">Caller sees: f cannot change quiz</text>
+  <text x="800" y="474" font-size="14" fill="#334155">Cost: no copy, only an address</text>
+  <text x="800" y="502" font-size="14" fill="#334155">Use: big inputs that f only reads</text>
+</svg>

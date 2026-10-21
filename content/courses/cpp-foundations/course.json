@@ -1,0 +1,115 @@
+{
+  "publicId": "cpp-foundations",
+  "title": "C++ Foundations: From C to Modern C++",
+  "concept": "Learn C++23 the modern way: references and const, std::string and std::vector, functions and classes, STL algorithms and containers, and the iterator bugs everyone hits once.",
+  "description": "Learn C++23 the modern way while porting a college exam office's old C tools: references and const, std::string and std::vector instead of raw arrays, reading input safely, functions and classes, object lifetime and RAII, STL algorithms, std::map vs std::unordered_map, and the iterator bugs everyone hits once - ending with a grade book project. 10 lessons, each starting from a real bug or incident, with quizzes and C++ coding challenges.",
+  "image": null,
+  "level": "beginner",
+  "durationMinutes": 227,
+  "instructor": "CodeDev Engineering Team",
+  "language": "C++",
+  "category": "Programming Fundamentals",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 50,
+  "accessModel": "free",
+  "publishStatus": "draft",
+  "careerRoles": [
+    "student",
+    "backend_developer"
+  ],
+  "skills": {
+    "data_structures": 4,
+    "performance": 2
+  },
+  "goals": [
+    "fundamentals",
+    "interview_prep"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Basics",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-types-references-const",
+          "title": "Types, references & const",
+          "sanityId": "lesson-cppf-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-string-vector",
+          "title": "std::string & std::vector instead of raw arrays",
+          "sanityId": "lesson-cppf-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-input-output",
+          "title": "Reading input: std::cin, getline & std::print",
+          "sanityId": "lesson-cppf-1-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Functions & Classes",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "04-functions-pass-by-reference",
+          "title": "Functions, overloading & pass-by-reference bugs",
+          "sanityId": "lesson-cppf-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "05-classes-constructors",
+          "title": "Classes & constructors",
+          "sanityId": "lesson-cppf-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-raii-lifetime",
+          "title": "Object lifetime & RAII",
+          "sanityId": "lesson-cppf-2-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "The Standard Library",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "07-stl-algorithms",
+          "title": "STL algorithms: sort, find, accumulate",
+          "sanityId": "lesson-cppf-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-map-vs-unordered-map",
+          "title": "std::map vs std::unordered_map",
+          "sanityId": "lesson-cppf-3-2"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Putting It Together",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "09-iterator-invalidation",
+          "title": "Iterators & invalidation bugs",
+          "sanityId": "lesson-cppf-4-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "10-gradebook-project",
+          "title": "Mini project: a grade book",
+          "sanityId": "lesson-cppf-4-2"
+        }
+      ]
+    }
+  ]
+}

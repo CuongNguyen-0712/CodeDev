@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_cppf_412",
+      "key": "challenges/cpp/chal_fix_cppf_412/starter.cpp",
+      "contentType": "text/x-c++src; charset=utf-8",
+      "originalName": "roster_cleanup.cpp",
+      "size": 2929
+    }
+  ]
+}

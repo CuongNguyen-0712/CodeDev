@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_cppf_311",
+      "name": "scholarship-ranking",
+      "type": "mini_coding",
+      "title": "Rank the cohort for the merit scholarship",
+      "description": "Write the three functions behind the Riverside Polytechnic scholarship ranking. average_of returns the exact mean of a student's scores (no truncation: 9.5 9.5 9.5 8.5 is 9.25). rank_students sorts the cohort in place: higher average first, and equal averages by smaller student id, whatever order the input file has. count_at_least returns how many students have an average greater than or equal to a threshold. The test runner reads K and one line per student (id|full name|scores separated by spaces), fills in each average with your average_of, ranks the cohort, prints the first K places as \"<rank>. <id> <name> <average with 2 decimals>\" and then \"at least 8.00: <count> of <cohort size>\".",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "cpp",
+        "filePath": "scholarship_ranking.cpp",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Averages with half points are not truncated (9.25, not 8.00)",
+          "input": "3\nRP-2024-0219|Phạm Minh Khoa|8.5 8.5 9 9\nRP-2024-0052|Lê Thị Hồng|9 9 9 9\nRP-2024-0137|Nguyễn Văn An|9.5 9.5 9.5 8.5\nRP-2024-0301|Đỗ Quang Huy|6.5 7 7.5 6\n",
+          "expected": "1. RP-2024-0137 Nguyễn Văn An 9.25\n2. RP-2024-0052 Lê Thị Hồng 9.00\n3. RP-2024-0219 Phạm Minh Khoa 8.75\nat least 8.00: 3 of 4",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Equal averages are ranked by smaller id, not by input order",
+          "input": "3\nRP-2024-0412|Trần Thị Mai|8 9 10\nRP-2024-0137|Nguyễn Văn An|9 9 9\nRP-2024-0088|Hoàng Gia Bảo|10 8 9\nRP-2024-0250|Vũ Ngọc Ánh|7 8 9\n",
+          "expected": "1. RP-2024-0088 Hoàng Gia Bảo 9.00\n2. RP-2024-0137 Nguyễn Văn An 9.00\n3. RP-2024-0412 Trần Thị Mai 9.00\nat least 8.00: 4 of 4",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "An average of exactly 8.00 counts as at least 8.00",
+          "input": "2\nRP-2024-0005|Bùi Thị Thu|8 8 8 8\nRP-2024-0044|Ngô Đức Minh|7.5 8.5 8 8\nRP-2024-0071|Lý Thanh Tâm|9.5 7 8.5\nRP-2024-0093|Đặng Hải Yến|7.9 7.9 8.1\n",
+          "expected": "1. RP-2024-0071 Lý Thanh Tâm 8.33\n2. RP-2024-0005 Bùi Thị Thu 8.00\nat least 8.00: 3 of 4",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "K larger than the cohort prints every student",
+          "input": "10\nRP-2025-0002|Phan Thị Kim Ngân|7.5\nRP-2025-0001|Trịnh Văn Sơn|6\n",
+          "expected": "1. RP-2025-0002 Phan Thị Kim Ngân 7.50\n2. RP-2025-0001 Trịnh Văn Sơn 6.00\nat least 8.00: 0 of 2",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Cohort of 20 with many equal averages",
+          "input": "20\nRP-2024-0841|Võ Gia An|7 8 8 7\nRP-2024-0271|Đỗ Gia Bình|8.5 8.5 8.5 8.5\nRP-2024-0264|Phạm Văn Châu|7 8 6 9\nRP-2024-0743|Hoàng Văn Dũng|7 6 6 5\nRP-2024-0073|Phan Thị Giang|8 6 9 7\nRP-2024-0995|Trần Gia Hà|9 8 8 9\nRP-2024-0447|Đỗ Hữu Hải|8.5 8.5 8.5 8.5\nRP-2024-0486|Phạm Thị Khánh|8 7 8 7\nRP-2024-0994|Lê Gia Linh|9.5 9 9 9\nRP-2024-0907|Vũ Thanh Long|9 9 9.5 9\nRP-2024-0159|Võ Đức Mai|8 7 8 7\nRP-2024-0288|Dương Ngọc Nam|7 6 5 6\nRP-2024-0566|Trần Thanh Nhung|9 9.5 9 9\nRP-2024-0045|Dương Ngọc Phúc|9.5 9 9.5 9\nRP-2024-0546|Đỗ Đức Quân|9 9 8 8\nRP-2024-0438|Ngô Thị Sang|8 8 7 7\nRP-2024-0233|Lê Thanh Tâm|8 9 9 8\nRP-2024-0732|Bùi Thị Thảo|8 9 9 8\nRP-2024-0330|Bùi Ngọc Trung|8.5 8.5 8.5 8.5\nRP-2024-0948|Vũ Hữu Uyên|6 5 6 7\n",
+          "expected": "1. RP-2024-0045 Dương Ngọc Phúc 9.25\n2. RP-2024-0566 Trần Thanh Nhung 9.12\n3. RP-2024-0907 Vũ Thanh Long 9.12\n4. RP-2024-0994 Lê Gia Linh 9.12\n5. RP-2024-0233 Lê Thanh Tâm 8.50\n6. RP-2024-0271 Đỗ Gia Bình 8.50\n7. RP-2024-0330 Bùi Ngọc Trung 8.50\n8. RP-2024-0447 Đỗ Hữu Hải 8.50\n9. RP-2024-0546 Đỗ Đức Quân 8.50\n10. RP-2024-0732 Bùi Thị Thảo 8.50\n11. RP-2024-0995 Trần Gia Hà 8.50\n12. RP-2024-0073 Phan Thị Giang 7.50\n13. RP-2024-0159 Võ Đức Mai 7.50\n14. RP-2024-0264 Phạm Văn Châu 7.50\n15. RP-2024-0438 Ngô Thị Sang 7.50\n16. RP-2024-0486 Phạm Thị Khánh 7.50\n17. RP-2024-0841 Võ Gia An 7.50\n18. RP-2024-0288 Dương Ngọc Nam 6.00\n19. RP-2024-0743 Hoàng Văn Dũng 6.00\n20. RP-2024-0948 Vũ Hữu Uyên 6.00\nat least 8.00: 11 of 20",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "One student with one-decimal scores, K = 1",
+          "input": "1\nRP-2023-0777|Huỳnh Thị Phương Thảo|8.3 7.7 9.1\n",
+          "expected": "1. RP-2023-0777 Huỳnh Thị Phương Thảo 8.37\nat least 8.00: 1 of 1",
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

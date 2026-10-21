@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">From a command line to a transcript line</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Each bug from this course has one place in the pipeline. The design puts a guard exactly there.</text>
+
+  <!-- Stage 1: stdin -->
+  <rect x="40" y="110" width="230" height="150" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="58" y="138" font-size="16" font-weight="700" fill="#0f172a">stdin</text>
+  <text x="58" y="164" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">add &lt;id&gt; &lt;name&gt;</text>
+  <text x="58" y="188" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">score &lt;id&gt; 8.5</text>
+  <text x="58" y="212" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">drop &lt;id&gt;</text>
+  <text x="58" y="236" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">report</text>
+
+  <!-- Stage 2: parser -->
+  <rect x="300" y="110" width="230" height="150" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="318" y="138" font-size="16" font-weight="700" fill="#0f172a">parser</text>
+  <text x="318" y="164" font-size="13" fill="#334155">std::getline, one line</text>
+  <text x="318" y="188" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">in &gt;&gt; cmd &gt;&gt; id</text>
+  <text x="318" y="212" font-size="13" fill="#334155">name = rest of the line</text>
+  <text x="318" y="236" font-size="13" fill="#334155">bad line: error, skip</text>
+
+  <!-- Stage 3: GradeBook -->
+  <rect x="560" y="110" width="320" height="150" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="578" y="138" font-size="16" font-weight="700" fill="#0f172a">GradeBook (data is private)</text>
+  <text x="578" y="164" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">std::map&lt;std::string, Student&gt;</text>
+  <text x="578" y="188" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">Student { name, scores }</text>
+  <text x="578" y="212" font-size="13" fill="#334155">lookups: find / contains</text>
+  <text x="578" y="236" font-size="13" fill="#334155">drop: erase(id), returns 1 or 0</text>
+
+  <!-- Stage 4: report -->
+  <rect x="910" y="110" width="250" height="150" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="928" y="138" font-size="16" font-weight="700" fill="#0f172a">report() const</text>
+  <text x="928" y="164" font-size="13" fill="#334155">sorted by id (map order)</text>
+  <text x="928" y="188" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">accumulate(..., 0.0)</text>
+  <text x="928" y="212" font-size="13" fill="#334155">no scores: "-"</text>
+  <text x="928" y="236" font-size="13" fill="#334155">round once, grade that</text>
+
+  <!-- Arrows -->
+  <line x1="270" y1="185" x2="288" y2="185" stroke="#475569" stroke-width="2"/>
+  <polygon points="288,179 288,191 299,185" fill="#475569"/>
+  <line x1="530" y1="185" x2="548" y2="185" stroke="#475569" stroke-width="2"/>
+  <polygon points="548,179 548,191 559,185" fill="#475569"/>
+  <line x1="880" y1="185" x2="898" y2="185" stroke="#475569" stroke-width="2"/>
+  <polygon points="898,179 898,191 909,185" fill="#475569"/>
+
+  <!-- Dashed connectors to the bug cards -->
+  <line x1="155" y1="260" x2="155" y2="290" stroke="#dc2626" stroke-width="2" stroke-dasharray="5 4"/>
+  <line x1="415" y1="260" x2="415" y2="290" stroke="#dc2626" stroke-width="2" stroke-dasharray="5 4"/>
+  <line x1="720" y1="260" x2="720" y2="290" stroke="#dc2626" stroke-width="2" stroke-dasharray="5 4"/>
+  <line x1="1035" y1="260" x2="1035" y2="290" stroke="#dc2626" stroke-width="2" stroke-dasharray="5 4"/>
+
+  <!-- Bugs under stdin: the old C tool -->
+  <rect x="40" y="290" width="230" height="156" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="58" y="314" font-size="13" font-weight="700" fill="#b91c1c">the old C tool</text>
+  <text x="58" y="336" font-size="12" fill="#334155">struct student book[200]</text>
+  <text x="58" y="356" font-size="12" fill="#334155">char name[64], fixed arrays</text>
+  <text x="58" y="376" font-size="12" fill="#334155">int dropped = 1 is a flag</text>
+  <text x="58" y="396" font-size="12" fill="#334155">the report loop forgot to</text>
+  <text x="58" y="416" font-size="12" fill="#334155">check: a dropped student</text>
+  <text x="58" y="436" font-size="12" fill="#334155">still got an F</text>
+
+  <!-- Bugs under parser -->
+  <rect x="300" y="290" width="230" height="74" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="318" y="314" font-size="13" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">std::cin &gt;&gt; name</text>
+  <text x="318" y="336" font-size="12" fill="#334155">stops at the first space:</text>
+  <text x="318" y="354" font-size="12" fill="#334155">"Nguyễn", not the full name</text>
+  <rect x="300" y="376" width="230" height="74" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="318" y="400" font-size="13" font-weight="700" fill="#b91c1c">score "8,5" or "11"</text>
+  <text x="318" y="422" font-size="12" fill="#334155">check the read and the range;</text>
+  <text x="318" y="440" font-size="12" fill="#334155">reject the line, keep going</text>
+
+  <!-- Bugs under GradeBook -->
+  <rect x="560" y="290" width="320" height="74" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="578" y="314" font-size="13" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">students_[id] on a lookup</text>
+  <text x="578" y="336" font-size="12" fill="#334155">inserts a phantom student with an empty</text>
+  <text x="578" y="354" font-size="12" fill="#334155">name; it appears in every later report</text>
+  <rect x="560" y="376" width="320" height="74" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="578" y="400" font-size="13" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">Student s = students_.at(id);</text>
+  <text x="578" y="422" font-size="12" fill="#334155">a copy: the score is added to the copy</text>
+  <text x="578" y="440" font-size="12" fill="#334155">and lost; take a reference or use find</text>
+  <rect x="560" y="462" width="320" height="74" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="578" y="486" font-size="13" font-weight="700" fill="#b91c1c">erase inside a range-for</text>
+  <text x="578" y="508" font-size="12" fill="#334155">invalidates the loop's iterator;</text>
+  <text x="578" y="526" font-size="12" fill="#334155">use erase(id) or std::erase_if</text>
+
+  <!-- Bugs under report -->
+  <rect x="910" y="290" width="250" height="74" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="928" y="314" font-size="13" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">accumulate(b, e, 0)</text>
+  <text x="928" y="336" font-size="12" fill="#334155">int init: each partial sum is</text>
+  <text x="928" y="354" font-size="12" fill="#334155">cut to an int, decimals lost</text>
+  <rect x="910" y="376" width="250" height="74" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="928" y="400" font-size="13" font-weight="700" fill="#b91c1c">0.0 / 0 scores</text>
+  <text x="928" y="422" font-size="12" fill="#334155">printed -nan and graded F;</text>
+  <text x="928" y="440" font-size="12" fill="#334155">no scores means "-", not a number</text>
+  <rect x="910" y="462" width="250" height="74" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="928" y="486" font-size="13" font-weight="700" fill="#b91c1c">avg &gt; 8.5, and 8.4999...</text>
+  <text x="928" y="508" font-size="12" fill="#334155">8.50 on paper got B+; use &gt;=</text>
+  <text x="928" y="526" font-size="12" fill="#334155">on the rounded, printed value</text>
+
+  <!-- Guard line -->
+  <rect x="40" y="552" width="1120" height="34" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="58" y="574" font-size="13" font-weight="700" fill="#15803d">Guards: private map, find / contains, erase, const report(), 0.0 init, "-" for no scores, one rounding rule</text>
+</svg>

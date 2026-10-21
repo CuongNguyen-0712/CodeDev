@@ -1,0 +1,133 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_cppf_411",
+      "name": "iterator-invalidation-quiz",
+      "type": "quiz",
+      "title": "Predict it: erase loops and stale iterators",
+      "description": "Run an erase loop in your head, then decide which operations leave a saved iterator pointing at nothing.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The exam office removes every result below 50 points with the loop ported from C. What does this program print?\n\nstd::vector<int> points = {45, 30, 75, 20, 15, 90};\nfor (std::size_t i = 0; i < points.size(); ++i)\n    if (points[i] < 50)\n        points.erase(points.begin() + i);\nfor (int p : points) std::print(\"{} \", p);",
+          "explanation": "Step through it. i = 0: 45 is below 50 and is erased, everything moves one slot left ({30, 75, 20, 15, 90}), then ++i makes i = 1 - so 30, which now sits in slot 0, is never checked. i = 1: 75 stays. i = 2: 20 is erased ({30, 75, 15, 90}) and 15 slides into slot 2, which is skipped by ++i. i = 3: 90 stays, and i = 4 ends the loop. The result is 30 75 15 90: two results below 50 survive, each one right after an erased element. \"75 90\" is what the loop was meant to do. \"30 75 90\" and \"75 15 90\" each skip only one of the two survivors. The behaviour is not undefined: i is compared with the current size() on every pass, so every access is in range - the program is wrong, but deterministically wrong, which is exactly why it passed review.",
+          "options": [
+            {
+              "text": "75 90",
+              "correct": false
+            },
+            {
+              "text": "30 75 15 90",
+              "correct": true
+            },
+            {
+              "text": "30 75 90",
+              "correct": false
+            },
+            {
+              "text": "75 15 90",
+              "correct": false
+            },
+            {
+              "text": "The behaviour is undefined: it may print anything or crash",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "roster is a std::vector<Student> with size() == 4 and capacity() == 4, and by_id is a std::map<std::string, Student> with one entry. The code saves two iterators:\n\nauto first = roster.begin();\nauto found = by_id.find(\"RP-2024-0101\");\n\nThen ONE of the operations below runs. After which of them is it undefined behaviour to use the saved iterator (first for the vector operations, found for the map)? (Select all that apply.)",
+          "explanation": "push_back on a full vector (size == capacity) must allocate a bigger buffer, move the elements there and free the old one, so every iterator, pointer and reference into the vector is invalidated - _GLIBCXX_DEBUG reports \"attempt to dereference a singular iterator\" when first is used. erase(roster.begin()) invalidates the erased position and everything after it, and first IS the erased position. reserve(100) asks for more capacity than the vector has, which also reallocates and invalidates everything. pop_back() only invalidates the last element and end(); first, at position 0, stays valid and still refers to the first student. A std::map never moves its elements: insert invalidates no iterator, so found still refers to RP-2024-0101 (erase would invalidate only the erased element).",
+          "options": [
+            {
+              "text": "roster.push_back(late_student);",
+              "correct": true
+            },
+            {
+              "text": "roster.erase(roster.begin());",
+              "correct": true
+            },
+            {
+              "text": "roster.pop_back();",
+              "correct": false
+            },
+            {
+              "text": "roster.reserve(100);",
+              "correct": true
+            },
+            {
+              "text": "by_id.insert({\"RP-2024-0137\", bich});  (using found afterwards)",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_cppf_412",
+      "name": "fix-roster-cleanup",
+      "type": "fix_bug",
+      "title": "Fix the roster clean-up that skips students",
+      "description": "Before every exam, clean_roster() removes withdrawn students and repeated rows from a class roster, and returns how many rows it removed. The code was ported from the 2010 C tool and uses index loops with erase. When two withdrawn students are next to each other, one of them stays on the exam list, and when a student appears three times in a row, one duplicate stays. Fix clean_roster() so that every withdrawn row is removed, then only the first row for each student id is kept, the order of the rest is unchanged, and the count is right. The test runner reads the roster, calls clean_roster() once and prints the count and the exam list.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "cpp",
+        "filePath": "roster_cleanup.cpp",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "No withdrawn students and no repeated ids: the list is unchanged",
+          "input": "4\nRP-2024-0101 A Nguyễn Văn An\nRP-2024-0137 A Trần Thị Bích\nRP-2024-0142 A Lê Minh Châu\nRP-2024-0158 A Phạm Quốc Dũng\n",
+          "expected": "removed 0\nexam list: 4\nRP-2024-0101 Nguyễn Văn An\nRP-2024-0137 Trần Thị Bích\nRP-2024-0142 Lê Minh Châu\nRP-2024-0158 Phạm Quốc Dũng\n",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Two withdrawn students in a row are both removed",
+          "input": "5\nRP-2024-0101 A Nguyễn Văn An\nRP-2024-0137 W Trần Thị Bích\nRP-2024-0142 W Lê Minh Châu\nRP-2024-0158 A Phạm Quốc Dũng\nRP-2024-0101 A Nguyễn Văn An\n",
+          "expected": "removed 3\nexam list: 2\nRP-2024-0101 Nguyễn Văn An\nRP-2024-0158 Phạm Quốc Dũng\n",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A repeated id keeps only its first row",
+          "input": "4\nRP-2024-0101 A Nguyễn Văn An\nRP-2024-0158 A Phạm Quốc Dũng\nRP-2024-0101 A Nguyen Van An\nRP-2024-0163 A Võ Thị Hà\n",
+          "expected": "removed 1\nexam list: 3\nRP-2024-0101 Nguyễn Văn An\nRP-2024-0158 Phạm Quốc Dũng\nRP-2024-0163 Võ Thị Hà\n",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Four rows with the same id in a row leave exactly one",
+          "input": "5\nRP-2024-0170 A Đặng Thu Trang\nRP-2024-0170 A Dang Thu Trang\nRP-2024-0170 A Đặng Thu Trang\nRP-2024-0170 A Đặng Thu Trang\nRP-2024-0188 A Hoàng Gia Bảo\n",
+          "expected": "removed 3\nexam list: 2\nRP-2024-0170 Đặng Thu Trang\nRP-2024-0188 Hoàng Gia Bảo\n",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Every student withdrawn gives an empty exam list",
+          "input": "3\nRP-2024-0137 W Trần Thị Bích\nRP-2024-0142 W Lê Minh Châu\nRP-2024-0163 W Võ Thị Hà\n",
+          "expected": "removed 3\nexam list: 0\n",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Withdrawn and re-enrolled rows, repeated rows and a withdrawn pair all in one roster",
+          "input": "7\nRP-2024-0137 W Trần Thị Bích\nRP-2024-0137 A Trần Thị Bích\nRP-2024-0142 A Lê Minh Châu\nRP-2024-0163 W Võ Thị Hà\nRP-2024-0163 W Võ Thị Hà\nRP-2024-0142 A Lê Minh Châu\nRP-2024-0170 A Đặng Thu Trang\n",
+          "expected": "removed 4\nexam list: 3\nRP-2024-0137 Trần Thị Bích\nRP-2024-0142 Lê Minh Châu\nRP-2024-0170 Đặng Thu Trang\n",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

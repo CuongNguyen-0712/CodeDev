@@ -1,0 +1,126 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_cppf_321",
+      "name": "map-lookup-and-container-choice-quiz",
+      "type": "quiz",
+      "title": "Predict the output: lookups that insert, and picking a container",
+      "description": "Read each snippet the way the standard library runs it: which calls add a key, which only look, and which container fits the job.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "With #include <map>, <print>, <stdexcept> and <string>, what does this print?\n\nstd::map<std::string, int> seats{{\"CS101\", 40}, {\"CS102\", 35}};\nif (seats[\"CS103\"] > 0) std::println(\"CS103 open\");\nif (seats.contains(\"CS104\")) std::println(\"CS104 open\");\nif (seats.find(\"CS105\") != seats.end()) std::println(\"CS105 open\");\nstd::println(\"size {}\", seats.size());\ntry {\n    std::println(\"{}\", seats.at(\"CS106\"));\n} catch (const std::out_of_range& e) {\n    std::println(\"error: {}\", e.what());\n}\nstd::println(\"size {}\", seats.size());",
+          "explanation": "seats[\"CS103\"] does not find CS103, so operator[] inserts it with int{} = 0 and returns a reference to that 0. 0 > 0 is false, so \"CS103 open\" is not printed - but the map now has 3 entries. contains() and find() only look: they never insert, so CS104 and CS105 are not added and nothing is printed for them. size is 3. at(\"CS106\") does not insert either: for a missing key it throws std::out_of_range, and with GCC's standard library what() is \"map::at\". After the catch the size is still 3. \"size 2 ... size 2\" assumes operator[] only reads, as in Python or JavaScript - not in C++. \"size 5 ... size 6\" treats every lookup, and at(), as an insert. \"CS103 open ... 0 ... size 4\" would need the inserted value to be above 0 and at() to return a default value and insert it; it does neither. Nothing here fails to compile: the map is not const, so operator[] is allowed, and it is allowed for missing keys - that is exactly when it inserts.",
+          "options": [
+            {
+              "text": "size 2, then error: map::at, then size 2",
+              "correct": false
+            },
+            {
+              "text": "size 3, then error: map::at, then size 3",
+              "correct": true
+            },
+            {
+              "text": "size 5, then error: map::at, then size 6",
+              "correct": false
+            },
+            {
+              "text": "CS103 open, then size 3, then 0, then size 4",
+              "correct": false
+            },
+            {
+              "text": "It does not compile: seats[\"CS103\"] is not allowed for a key that is missing",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "The exam office ports its attendance tools to C++23. Which of these choices are correct? (Select all that apply.)",
+          "explanation": "std::map keeps its keys sorted (a balanced tree, O(log n) per lookup), so iterating it prints the class list in id order with no sort step. std::unordered_set is a hash set with average O(1) insert and lookup, which fits a \"seen already?\" check where order does not matter. The iteration order of std::unordered_map is unspecified: it depends on the hash function and the number of buckets, so it can change after more inserts or a rehash, or with another library version - in a GCC 15 run, the same five ids came out in a different order after rehash(64). A stable export needs std::map, or a copy that you sort. operator[] is a non-const member function because it may insert: calling it on a const std::map& does not compile (GCC: \"passing ‘const std::map<...>’ as ‘this’ argument discards qualifiers\"); use find(), contains() or at() instead. For counting, inserting 0 for a new key is exactly what you want, so ++counts[id] is the idiomatic way to count in either kind of map.",
+          "options": [
+            {
+              "text": "To print the class list sorted by student id with no separate sort step, keep it in a std::map<std::string, int>.",
+              "correct": true
+            },
+            {
+              "text": "To check whether a card was already scanned in this session, with no order needed, use a std::unordered_set<std::string>.",
+              "correct": true
+            },
+            {
+              "text": "Iterating the same std::unordered_map always gives the same order in one program, so the nightly CSV export can rely on it.",
+              "correct": false
+            },
+            {
+              "text": "A report function that takes const std::map<std::string, int>& attendance can return attendance[id]: for an unknown id it returns 0 and leaves the map unchanged.",
+              "correct": false
+            },
+            {
+              "text": "Counting check-ins per student with ++counts[id] is a correct use of operator[]: inserting 0 for a new id is what counting needs.",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_cppf_322",
+      "name": "attendance-report",
+      "type": "mini_coding",
+      "title": "Write attendance_report(roster, checkins, queries)",
+      "description": "The CS101 attendance report of Riverside Polytechnic, ported to C++23. The input is the class list, the card scans of the term as \"<session> <student id>\" and the ids the faculty office asks about. Count, for every student on the class list, the number of different sessions they attended (two scans in one session count once; scans by ids that are not on the class list are ignored). Answer each query with \"<id>: <sessions>\" or \"<id>: unknown\" without adding anyone to the class, then print the class list sorted by id as \"<id>,<sessions>\" (students with 0 sessions included) and finally \"class size: <n>\". The starter file has the full specification and an example.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "cpp",
+        "filePath": "attendance.cpp",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Every student is listed sorted by id, also with 0 sessions",
+          "input": "4\nRP-2024-0163\nRP-2024-0137\nRP-2024-0171\nRP-2024-0142\n6\n1 RP-2024-0137\n1 RP-2024-0142\n1 RP-2024-0171\n2 RP-2024-0137\n2 RP-2024-0171\n3 RP-2024-0137\n2\nRP-2024-0137\nRP-2024-0163\n",
+          "expected": "RP-2024-0137: 3\nRP-2024-0163: 0\nRP-2024-0137,3\nRP-2024-0142,1\nRP-2024-0163,0\nRP-2024-0171,2\nclass size: 4\n",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Unknown ids are answered unknown and do not join the class",
+          "input": "3\nRP-2024-0142\nRP-2024-0137\nRP-2024-0150\n3\n1 RP-2024-0137\n1 RP-2024-0150\n2 RP-2024-0150\n4\nRP-2024-0317\nRP-2024-0150\nRP-2023-0088\nRP-2024-0142\n",
+          "expected": "RP-2024-0317: unknown\nRP-2024-0150: 2\nRP-2023-0088: unknown\nRP-2024-0142: 0\nRP-2024-0137,1\nRP-2024-0142,0\nRP-2024-0150,2\nclass size: 3\n",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A card scanned twice in one session counts once",
+          "input": "3\nRP-2024-0201\nRP-2024-0188\nRP-2024-0195\n7\n1 RP-2024-0188\n1 RP-2024-0188\n1 RP-2024-0201\n2 RP-2024-0188\n2 RP-2024-0201\n2 RP-2024-0201\n2 RP-2024-0201\n2\nRP-2024-0188\nRP-2024-0201\n",
+          "expected": "RP-2024-0188: 2\nRP-2024-0201: 2\nRP-2024-0188,2\nRP-2024-0195,0\nRP-2024-0201,2\nclass size: 3\n",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Scans by students of another class are ignored",
+          "input": "2\nRP-2025-0012\nRP-2025-0007\n5\n1 RP-2025-0007\n1 RP-2025-0444\n1 RP-2025-0012\n2 RP-2025-0444\n2 RP-2025-0007\n3\nRP-2025-0444\nRP-2025-0007\nRP-2025-0012\n",
+          "expected": "RP-2025-0444: unknown\nRP-2025-0007: 2\nRP-2025-0012: 1\nRP-2025-0007,2\nRP-2025-0012,1\nclass size: 2\n",
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Incident class: 8 students, double scans, foreign scans and repeated typo queries",
+          "input": "8\nRP-2024-0171\nRP-2024-0142\nRP-2024-0137\nRP-2024-0163\nRP-2024-0150\nRP-2024-0209\nRP-2024-0188\nRP-2024-0195\n14\n1 RP-2024-0137\n1 RP-2024-0142\n1 RP-2024-0150\n1 RP-2024-0150\n1 RP-2023-0088\n1 RP-2024-0171\n2 RP-2024-0137\n2 RP-2024-0150\n2 RP-2024-0209\n2 RP-2024-0209\n3 RP-2024-0137\n3 RP-2023-0088\n3 RP-2024-0150\n3 RP-2024-0195\n6\nRP-2024-0142\nRP-2024-0317\nRP-2024-0163\nRP-2023-0088\nRP-2024-0150\nRP-2024-0317\n",
+          "expected": "RP-2024-0142: 1\nRP-2024-0317: unknown\nRP-2024-0163: 0\nRP-2023-0088: unknown\nRP-2024-0150: 3\nRP-2024-0317: unknown\nRP-2024-0137,3\nRP-2024-0142,1\nRP-2024-0150,3\nRP-2024-0163,0\nRP-2024-0171,1\nRP-2024-0188,0\nRP-2024-0195,1\nRP-2024-0209,1\nclass size: 8\n",
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

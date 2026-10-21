@@ -1,0 +1,59 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_cppf_221",
+      "name": "section-with-waitlist",
+      "type": "mini_coding",
+      "title": "Write a Section class that never overfills",
+      "description": "The ported enrolment tool lets any code path change a section's numbers, and CS101-02 ended up with 47 students in a 40-seat lab. Write a Section class whose private data can only change through its member functions: the constructor rejects a capacity that is not positive with std::invalid_argument(\"capacity must be > 0\"); enroll(id) returns \"enrolled\" while there is a free seat, \"waitlisted\" when the section is full, and \"duplicate\" if the student is already enrolled or already waiting; drop(id) frees the seat and moves the first waitlisted student into it (\"dropped, promoted <id>\"), or returns \"dropped\", \"left waitlist\" or \"not found\". The test runner reads the section and a list of commands from stdin, prints the result of each command and then the final summary() through a const reference.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "cpp",
+        "filePath": "section.cpp",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Two seats fill up, the third student goes to the waitlist",
+          "input": "CS101-02 2\nenroll RP-2024-0137\nenroll RP-2024-0215\nenroll RP-2024-0388\n",
+          "expected": "enroll RP-2024-0137: enrolled\nenroll RP-2024-0215: enrolled\nenroll RP-2024-0388: waitlisted\nCS101-02 2/2 enrolled=[RP-2024-0137,RP-2024-0215] waitlist=[RP-2024-0388]",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Dropping an enrolled student promotes the first waitlisted student",
+          "input": "CS101-02 2\nenroll RP-2024-0137\nenroll RP-2024-0215\nenroll RP-2024-0388\nenroll RP-2024-0401\ndrop RP-2024-0137\n",
+          "expected": "enroll RP-2024-0137: enrolled\nenroll RP-2024-0215: enrolled\nenroll RP-2024-0388: waitlisted\nenroll RP-2024-0401: waitlisted\ndrop RP-2024-0137: dropped, promoted RP-2024-0388\nCS101-02 2/2 enrolled=[RP-2024-0215,RP-2024-0388] waitlist=[RP-2024-0401]",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A student already on the waitlist or enrolled is a duplicate",
+          "input": "MA201-01 1\nenroll RP-2023-0042\nenroll RP-2024-0519\nenroll RP-2024-0519\nenroll RP-2023-0042\ndrop RP-2024-0519\nenroll RP-2024-0519\n",
+          "expected": "enroll RP-2023-0042: enrolled\nenroll RP-2024-0519: waitlisted\nenroll RP-2024-0519: duplicate\nenroll RP-2023-0042: duplicate\ndrop RP-2024-0519: left waitlist\nenroll RP-2024-0519: waitlisted\nMA201-01 1/1 enrolled=[RP-2023-0042] waitlist=[RP-2024-0519]",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A negative capacity is rejected by the constructor",
+          "input": "CS101-09 -3\nenroll RP-2024-0137\n",
+          "expected": "error: capacity must be > 0",
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Long run: leave waitlist, unknown id, repeated promotions, waitlist empties",
+          "input": "PH110-03 3\nenroll RP-2024-0101\nenroll RP-2024-0102\nenroll RP-2024-0103\nenroll RP-2024-0104\nenroll RP-2024-0105\nenroll RP-2024-0106\ndrop RP-2024-0105\ndrop RP-2024-0102\ndrop RP-2024-0999\ndrop RP-2024-0101\nenroll RP-2024-0103\nenroll RP-2024-0107\ndrop RP-2024-0104\ndrop RP-2024-0106\n",
+          "expected": "enroll RP-2024-0101: enrolled\nenroll RP-2024-0102: enrolled\nenroll RP-2024-0103: enrolled\nenroll RP-2024-0104: waitlisted\nenroll RP-2024-0105: waitlisted\nenroll RP-2024-0106: waitlisted\ndrop RP-2024-0105: left waitlist\ndrop RP-2024-0102: dropped, promoted RP-2024-0104\ndrop RP-2024-0999: not found\ndrop RP-2024-0101: dropped, promoted RP-2024-0106\nenroll RP-2024-0103: duplicate\nenroll RP-2024-0107: waitlisted\ndrop RP-2024-0104: dropped, promoted RP-2024-0107\ndrop RP-2024-0106: dropped\nPH110-03 2/3 enrolled=[RP-2024-0103,RP-2024-0107] waitlist=[]",
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_cppf_121",
+      "key": "challenges/cpp/chal_coding_cppf_121/starter.cpp",
+      "contentType": "text/x-c++src; charset=utf-8",
+      "originalName": "roster.cpp",
+      "size": 3683
+    }
+  ]
+}

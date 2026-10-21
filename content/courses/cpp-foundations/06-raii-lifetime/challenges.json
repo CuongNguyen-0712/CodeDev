@@ -1,0 +1,122 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_cppf_231",
+      "name": "lifetime-and-dangling-quiz",
+      "type": "quiz",
+      "title": "Predict it: destructor order and dangling references",
+      "description": "Read each snippet the way C++ runs it: when does each object die, and does anything still point at it afterwards?",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this program print?\n\n#include <print>\n\nstruct T {\n    char c;\n    T(char x) : c(x) { std::print(\"+{} \", c); }\n    ~T() { std::print(\"-{} \", c); }\n};\n\nvoid f(bool early) {\n    T x('x');\n    if (early) return;\n    T y('y');\n}\n\nint main() {\n    T a('a');\n    {\n        T b('b');\n        f(true);\n    }\n    f(false);\n}",
+          "explanation": "An automatic object is destroyed when control leaves its scope, and objects in the same scope die in reverse order of construction. a is built first. Inside the block, b is built, then f(true) builds x and returns early: y was never constructed, so only x is destroyed (-x). The closing brace of the block destroys b (-b). f(false) builds x, then y, and at its closing brace destroys them in reverse order: -y, then -x. Finally main ends and a dies (-a). So the output is +a +b +x -x -b +x +y -y -x -a. The option with -x -y has the order of y and x the wrong way round (that would be construction order, not reverse). The option where b lives until the end of main ignores the block's closing brace. The option with -y after the early return destroys an object that was never constructed - an early return only destroys what was already built.",
+          "options": [
+            {
+              "text": "+a +b +x -x -b +x +y -y -x -a",
+              "correct": true
+            },
+            {
+              "text": "+a +b +x -x -b +x +y -x -y -a",
+              "correct": false
+            },
+            {
+              "text": "+a +b +x -x +x +y -y -x -b -a",
+              "correct": false
+            },
+            {
+              "text": "+a +b +x -y -x -b +x +y -y -x -a",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Each line in main uses the function above it. Which of them leave name referring to an object that is already dead? (Select all that apply.)\n\nA)  std::string make_id(int n) { return \"RP-2024-\" + std::to_string(n); }\n    std::string name = make_id(137);\n\nB)  const std::string& banner() { std::string b = \"Riverside Polytechnic\"; return b; }\n    const std::string& name = banner();\n\nC)  std::string make_id(int n) { return \"RP-2024-\" + std::to_string(n); }\n    std::string_view name = make_id(137);\n\nD)  std::string_view course_code() { return \"CS101\"; }\n    std::string_view name = course_code();\n\nE)  std::string make_id(int n) { return \"RP-2024-\" + std::to_string(n); }\n    const std::string& name = make_id(137);",
+          "explanation": "A returns a std::string by value: name is its own object and owns its characters, so nothing dangles. B returns a reference to the local b, which is destroyed when banner() returns - name refers to a dead string (g++ warns with -Wreturn-local-addr, and reading it is undefined behaviour). C stores a std::string_view, which only points at characters it does not own; the temporary std::string returned by make_id is destroyed at the end of the full expression (the semicolon), so the view points at characters of a dead object (AddressSanitizer reports stack-use-after-scope here, because a string this short keeps its characters inside the std::string object itself; a longer one gives heap-use-after-free). D is fine: a string literal like \"CS101\" lives for the whole program, so a view of it never dangles. E is fine too, which surprises many people: binding a temporary directly to a const reference extends the temporary's lifetime to the lifetime of the reference. That rule applies only to a temporary bound directly - it does not apply to B, where the function returns a reference to a local, nor to a std::string_view as in C.",
+          "options": [
+            {
+              "text": "A) std::string name = make_id(137);",
+              "correct": false
+            },
+            {
+              "text": "B) const std::string& name = banner();",
+              "correct": true
+            },
+            {
+              "text": "C) std::string_view name = make_id(137);",
+              "correct": true
+            },
+            {
+              "text": "D) std::string_view name = course_code();",
+              "correct": false
+            },
+            {
+              "text": "E) const std::string& name = make_id(137);",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_cppf_232",
+      "name": "fix-leaking-transcript-handles",
+      "type": "fix_bug",
+      "title": "Close the transcript handle on every way out",
+      "description": "The lab version of the transcript exporter opens one handle per student and closes it only on the normal path. A student with no scores returns early and a score outside 0-10 throws, and both skip close_handle(), so the run ends with handles still open - the same leak that stopped the real exporter with \"Too many open files\". Fix export_transcript() so that every path closes the handle exactly once, ideally with a small RAII guard class that opens in its constructor, closes in its destructor and cannot be copied. The test runner exports several students in one process and prints each result, then the number of open handles and of bad closes.",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "cpp",
+        "filePath": "transcript_export.cpp",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Two students with valid scores",
+          "input": "2\nRP-2024-0137 3 7.5 8.0 9.0\nRP-2024-0140 2 6.0 7.0\n",
+          "expected": "RP-2024-0137: 3 scores, average 8.2\nRP-2024-0140: 2 scores, average 6.5\nopen handles: 0\nbad closes: 0",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A student with no scores is skipped and its handle is closed",
+          "input": "3\nRP-2024-0141 2 8.0 9.0\nRP-2024-0142 0\nRP-2024-0143 2 10.0 9.0\n",
+          "expected": "RP-2024-0141: 2 scores, average 8.5\nRP-2024-0142: skipped (no scores)\nRP-2024-0143: 2 scores, average 9.5\nopen handles: 0\nbad closes: 0",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A score out of range stops that student and still closes the handle",
+          "input": "3\nRP-2024-0144 2 7.0 8.0\nRP-2024-0145 3 9.0 -1.0 8.0\nRP-2024-0146 2 5.5 6.5\n",
+          "expected": "RP-2024-0144: 2 scores, average 7.5\nRP-2024-0145: error: score -1.0 out of range\nRP-2024-0146: 2 scores, average 6.0\nopen handles: 0\nbad closes: 0",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Mixed run: empty, invalid and valid students in one process",
+          "input": "6\nRP-2024-0201 0\nRP-2024-0202 0\nRP-2024-0203 3 10.0 10.5 9.0\nRP-2024-0204 4 6.0 7.0 8.0 9.0\nRP-2024-0205 1 4.0\nRP-2024-0206 2 11.0 3.0\n",
+          "expected": "RP-2024-0201: skipped (no scores)\nRP-2024-0202: skipped (no scores)\nRP-2024-0203: error: score 10.5 out of range\nRP-2024-0204: 4 scores, average 7.5\nRP-2024-0205: 1 scores, average 4.0\nRP-2024-0206: error: score 11.0 out of range\nopen handles: 0\nbad closes: 0",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A new intake where no student has scores yet",
+          "input": "4\nRP-2025-0001 0\nRP-2025-0002 0\nRP-2025-0003 0\nRP-2025-0004 0\n",
+          "expected": "RP-2025-0001: skipped (no scores)\nRP-2025-0002: skipped (no scores)\nRP-2025-0003: skipped (no scores)\nRP-2025-0004: skipped (no scores)\nopen handles: 0\nbad closes: 0",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

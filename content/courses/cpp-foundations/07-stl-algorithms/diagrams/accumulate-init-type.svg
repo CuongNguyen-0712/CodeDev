@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">std::accumulate: the init value sets the type of every partial sum</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Nguyễn Văn An's scores {9.5, 9.5, 9.5, 8.5}. Same loop, same data, only the first value differs.</text>
+
+  <!-- Row 1: int init -->
+  <rect x="40" y="104" width="1120" height="142" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="134" font-size="16" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">std::accumulate(b, e, 0)</text>
+  <text x="330" y="134" font-size="14" fill="#7f1d1d">init 0 is an int, so the running sum is an int: each step drops the .5</text>
+
+  <rect x="64" y="154" width="80" height="72" rx="6" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
+  <text x="104" y="184" font-size="16" text-anchor="middle" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">0</text>
+  <text x="104" y="210" font-size="13" text-anchor="middle" fill="#b91c1c">int</text>
+
+  <rect x="172" y="154" width="155" height="72" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="188" y="182" font-size="15" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">0 + 9.5</text>
+  <text x="188" y="210" font-size="14" fill="#b91c1c">9.5 kept as 9</text>
+  <rect x="355" y="154" width="155" height="72" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="371" y="182" font-size="15" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">9 + 9.5</text>
+  <text x="371" y="210" font-size="14" fill="#b91c1c">18.5 kept as 18</text>
+  <rect x="538" y="154" width="155" height="72" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="554" y="182" font-size="15" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">18 + 9.5</text>
+  <text x="554" y="210" font-size="14" fill="#b91c1c">27.5 kept as 27</text>
+  <rect x="721" y="154" width="155" height="72" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="737" y="182" font-size="15" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">27 + 8.5</text>
+  <text x="737" y="210" font-size="14" fill="#b91c1c">35.5 kept as 35</text>
+
+  <rect x="904" y="154" width="232" height="72" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="920" y="182" font-size="15" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">35 / 4 = 8</text>
+  <text x="920" y="210" font-size="14" fill="#7f1d1d">int / size_t: 8.00</text>
+
+  <g stroke="#dc2626" stroke-width="2">
+    <line x1="144" y1="190" x2="160" y2="190"/>
+    <line x1="327" y1="190" x2="343" y2="190"/>
+    <line x1="510" y1="190" x2="526" y2="190"/>
+    <line x1="693" y1="190" x2="709" y2="190"/>
+    <line x1="876" y1="190" x2="892" y2="190"/>
+  </g>
+  <g fill="#dc2626">
+    <polygon points="160,184 160,196 171,190"/>
+    <polygon points="343,184 343,196 354,190"/>
+    <polygon points="526,184 526,196 537,190"/>
+    <polygon points="709,184 709,196 720,190"/>
+    <polygon points="892,184 892,196 903,190"/>
+  </g>
+
+  <!-- Row 2: double init -->
+  <rect x="40" y="262" width="1120" height="142" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="64" y="292" font-size="16" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">std::accumulate(b, e, 0.0)</text>
+  <text x="350" y="292" font-size="14" fill="#14532d">init 0.0 is a double, so every partial sum keeps its fraction</text>
+
+  <rect x="64" y="312" width="80" height="72" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="104" y="342" font-size="16" text-anchor="middle" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">0.0</text>
+  <text x="104" y="368" font-size="13" text-anchor="middle" fill="#15803d">double</text>
+
+  <rect x="172" y="312" width="155" height="72" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="188" y="340" font-size="15" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">0.0 + 9.5</text>
+  <text x="188" y="368" font-size="14" fill="#15803d">= 9.5</text>
+  <rect x="355" y="312" width="155" height="72" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="371" y="340" font-size="15" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">9.5 + 9.5</text>
+  <text x="371" y="368" font-size="14" fill="#15803d">= 19.0</text>
+  <rect x="538" y="312" width="155" height="72" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="554" y="340" font-size="15" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">19.0 + 9.5</text>
+  <text x="554" y="368" font-size="14" fill="#15803d">= 28.5</text>
+  <rect x="721" y="312" width="155" height="72" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="737" y="340" font-size="15" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">28.5 + 8.5</text>
+  <text x="737" y="368" font-size="14" fill="#15803d">= 37.0</text>
+
+  <rect x="904" y="312" width="232" height="72" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="920" y="340" font-size="15" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">37.0 / 4 = 9.25</text>
+  <text x="920" y="368" font-size="14" fill="#14532d">double / size_t: 9.25</text>
+
+  <g stroke="#16a34a" stroke-width="2">
+    <line x1="144" y1="348" x2="160" y2="348"/>
+    <line x1="327" y1="348" x2="343" y2="348"/>
+    <line x1="510" y1="348" x2="526" y2="348"/>
+    <line x1="693" y1="348" x2="709" y2="348"/>
+    <line x1="876" y1="348" x2="892" y2="348"/>
+  </g>
+  <g fill="#16a34a">
+    <polygon points="160,342 160,354 171,348"/>
+    <polygon points="343,342 343,354 354,348"/>
+    <polygon points="526,342 526,354 537,348"/>
+    <polygon points="709,342 709,354 720,348"/>
+    <polygon points="892,342 892,354 903,348"/>
+  </g>
+
+  <!-- Bottom: sort with tie-breaker -->
+  <rect x="40" y="416" width="1120" height="174" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="64" y="450" font-size="17" font-weight="700" fill="#0f172a">Then sort: a comparator answers "must a come BEFORE b?"</text>
+  <text x="64" y="480" font-size="14" fill="#334155">1st key: average, higher first (use &gt;, never &gt;=)</text>
+  <text x="64" y="506" font-size="14" fill="#334155">2nd key, only when averages are equal: id, smaller first</text>
+  <text x="64" y="532" font-size="14" fill="#334155">without a 2nd key, std::sort may put equal students</text>
+  <text x="64" y="552" font-size="14" fill="#334155">in any order - and the order changes with the input</text>
+
+  <text x="560" y="480" font-size="13" font-weight="700" fill="#475569">input order</text>
+  <rect x="560" y="490" width="230" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="572" y="508" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">RP-2024-0311  8.75</text>
+  <rect x="560" y="520" width="230" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="572" y="538" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">RP-2024-0137  9.25</text>
+  <rect x="560" y="550" width="230" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="572" y="568" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">RP-2024-0219  8.75</text>
+
+  <line x1="806" y1="533" x2="842" y2="533" stroke="#475569" stroke-width="2"/>
+  <polygon points="842,527 842,539 854,533" fill="#475569"/>
+
+  <text x="870" y="480" font-size="13" font-weight="700" fill="#15803d">sorted: average, then id</text>
+  <rect x="870" y="490" width="266" height="26" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="882" y="508" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">1. RP-2024-0137  9.25</text>
+  <rect x="870" y="520" width="266" height="26" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="882" y="538" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">2. RP-2024-0219  8.75</text>
+  <rect x="870" y="550" width="266" height="26" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="882" y="568" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">3. RP-2024-0311  8.75</text>
+</svg>

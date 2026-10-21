@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_cppf_421",
+      "name": "grade-book",
+      "type": "mini_coding",
+      "title": "Build the GradeBook: add, score, drop, report",
+      "description": "Implement the four member functions of the Riverside Polytechnic grade book. The class keeps a private std::map from student id to Student{name, scores}. add_student registers a student and refuses a duplicate id; add_score records a score and refuses an unknown id without ever creating a student; drop removes a student and all their scores and refuses an unknown id; report() const returns \"students: N\" followed by one line per student in id order with the number of scores, the average rounded once to 2 decimals and the letter grade for that rounded value on the 10-point scale (>= 8.5 A, >= 8.0 B+, >= 7.0 B, >= 6.5 C+, >= 5.5 C, >= 5.0 D+, >= 4.0 D, otherwise F). A student with no scores shows \"avg -\" and \"-\". The test runner reads command lines (add, score, drop, report), calls your functions and prints the error lines; the starter specifies every output line exactly.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "cpp",
+        "filePath": "gradebook.cpp",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Two students added out of order: sorted by id, averages with decimals",
+          "input": "add RP-2024-0152 Trần Thị Bích Ngọc\nadd RP-2024-0137 Nguyễn Văn An\nscore RP-2024-0137 8.5\nscore RP-2024-0137 9.0\nscore RP-2024-0137 7.5\nscore RP-2024-0152 6.0\nscore RP-2024-0152 7.5\nreport\n",
+          "expected": "students: 2\nRP-2024-0137 | Nguyễn Văn An | scores 3 | avg 8.33 | B+\nRP-2024-0152 | Trần Thị Bích Ngọc | scores 2 | avg 6.75 | C+\n",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Averages exactly on every boundary get the higher letter; 3.95 is an F",
+          "input": "add RP-2024-0108 Đỗ Minh Khang\nadd RP-2024-0101 Võ Thị Lan Anh\nadd RP-2024-0102 Huỳnh Gia Bảo\nadd RP-2024-0103 Bùi Thị Cẩm Tú\nadd RP-2024-0104 Đặng Quốc Huy\nadd RP-2024-0105 Ngô Thị Mai\nadd RP-2024-0106 Dương Văn Tài\nadd RP-2024-0107 Lý Thị Hồng Nhung\nscore RP-2024-0101 8.0\nscore RP-2024-0101 9.0\nscore RP-2024-0102 8.0\nscore RP-2024-0103 6.5\nscore RP-2024-0103 7.5\nscore RP-2024-0104 6.0\nscore RP-2024-0104 7.0\nscore RP-2024-0105 5.5\nscore RP-2024-0106 4.5\nscore RP-2024-0106 5.5\nscore RP-2024-0107 4.0\nscore RP-2024-0108 3.9\nscore RP-2024-0108 4.0\nreport\n",
+          "expected": "students: 8\nRP-2024-0101 | Võ Thị Lan Anh | scores 2 | avg 8.50 | A\nRP-2024-0102 | Huỳnh Gia Bảo | scores 1 | avg 8.00 | B+\nRP-2024-0103 | Bùi Thị Cẩm Tú | scores 2 | avg 7.00 | B\nRP-2024-0104 | Đặng Quốc Huy | scores 2 | avg 6.50 | C+\nRP-2024-0105 | Ngô Thị Mai | scores 1 | avg 5.50 | C\nRP-2024-0106 | Dương Văn Tài | scores 2 | avg 5.00 | D+\nRP-2024-0107 | Lý Thị Hồng Nhung | scores 1 | avg 4.00 | D\nRP-2024-0108 | Đỗ Minh Khang | scores 2 | avg 3.95 | F\n",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Unknown ids and a duplicate add print errors and create nobody",
+          "input": "add RP-2024-0137 Nguyễn Văn An\nscore RP-2024-0173 9.0\ndrop RP-2024-0999\nadd RP-2024-0137 Nguyễn Văn Bình\nscore RP-2024-0137 7.0\nscore RP-2024-0731 5.0\nreport\n",
+          "expected": "error: unknown id RP-2024-0173\nerror: unknown id RP-2024-0999\nerror: RP-2024-0137 already exists\nerror: unknown id RP-2024-0731\nstudents: 1\nRP-2024-0137 | Nguyễn Văn An | scores 1 | avg 7.00 | B\n",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A student with no scores shows -, a dropped student leaves the next report",
+          "input": "add RP-2024-0161 Lê Hoàng Phúc\nadd RP-2024-0152 Trần Thị Bích Ngọc\nadd RP-2024-0178 Phạm Thị Phương Thảo\nscore RP-2024-0152 2.5\nscore RP-2024-0178 9.5\nscore RP-2024-0178 8.0\nreport\ndrop RP-2024-0152\nreport\n",
+          "expected": "students: 3\nRP-2024-0152 | Trần Thị Bích Ngọc | scores 1 | avg 2.50 | F\nRP-2024-0161 | Lê Hoàng Phúc | scores 0 | avg - | -\nRP-2024-0178 | Phạm Thị Phương Thảo | scores 2 | avg 8.75 | A\nstudents: 2\nRP-2024-0161 | Lê Hoàng Phúc | scores 0 | avg - | -\nRP-2024-0178 | Phạm Thị Phương Thảo | scores 2 | avg 8.75 | A\n",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Float sums that are a boundary on paper (7.1 9.2 9.2) are graded on the printed average",
+          "input": "add RP-2024-0178 Phạm Thị Phương Thảo\nadd RP-2024-0190 Trịnh Công Sơn\nadd RP-2024-0185 Mai Thị Thu Hà\nadd RP-2024-0199 Hồ Ngọc Diệp\nscore RP-2024-0178 7.1\nscore RP-2024-0178 9.2\nscore RP-2024-0178 9.2\nscore RP-2024-0190 6.6\nscore RP-2024-0190 9.7\nscore RP-2024-0190 7.7\nscore RP-2024-0185 4.1\nscore RP-2024-0185 4.3\nscore RP-2024-0185 6.6\nscore RP-2024-0199 7.3\nscore RP-2024-0199 6.8\nscore RP-2024-0199 9.9\nscore RP-2024-0199 5.4\nreport\n",
+          "expected": "students: 4\nRP-2024-0178 | Phạm Thị Phương Thảo | scores 3 | avg 8.50 | A\nRP-2024-0185 | Mai Thị Thu Hà | scores 3 | avg 5.00 | D+\nRP-2024-0190 | Trịnh Công Sơn | scores 3 | avg 8.00 | B+\nRP-2024-0199 | Hồ Ngọc Diệp | scores 4 | avg 7.35 | B\n",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Long session: bad lines, drop and re-add the same id, two reports",
+          "input": "add RP-2023-0412 Châu Thị Kim Ngân\nadd RP-2024-0137 Nguyễn Văn An\nscore RP-2024-0137 9.5\n\nscore RP-2024-0137 11\nscore RP-2024-0137 abc\nenrol RP-2024-0200 Someone\nscore RP-2023-0412 4.5\nreport\ndrop RP-2024-0137\nscore RP-2024-0137 10\nadd RP-2024-0137 Nguyễn Văn An\nscore RP-2024-0137 6.0\ndrop RP-2025-0001\nreport\n",
+          "expected": "error: bad command: score RP-2024-0137 11\nerror: bad command: score RP-2024-0137 abc\nerror: bad command: enrol RP-2024-0200 Someone\nstudents: 2\nRP-2023-0412 | Châu Thị Kim Ngân | scores 1 | avg 4.50 | D\nRP-2024-0137 | Nguyễn Văn An | scores 1 | avg 9.50 | A\nerror: unknown id RP-2024-0137\nerror: unknown id RP-2025-0001\nstudents: 2\nRP-2023-0412 | Châu Thị Kim Ngân | scores 1 | avg 4.50 | D\nRP-2024-0137 | Nguyễn Văn An | scores 1 | avg 6.00 | C\n",
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

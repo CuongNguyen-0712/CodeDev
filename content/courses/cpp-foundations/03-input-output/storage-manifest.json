@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_cppf_132",
+      "key": "challenges/cpp/chal_fix_cppf_132/starter.cpp",
+      "contentType": "text/x-c++src; charset=utf-8",
+      "originalName": "score_report.cpp",
+      "size": 3045
+    }
+  ]
+}

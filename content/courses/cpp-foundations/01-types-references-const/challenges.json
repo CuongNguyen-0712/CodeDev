@@ -1,0 +1,126 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_cppf_111",
+      "name": "copies-references-const-quiz",
+      "type": "quiz",
+      "title": "Copies, references and what compiles",
+      "description": "Read each snippet the way the compiler does: which names are copies, which are aliases, and which initializations and assignments the language accepts.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this program print? (std::println prints a vector of double as [a, b, c], and 6.0 as 6.)\n\n#include <print>\n#include <vector>\n\nvoid bump(double s) { s += 1.0; }\nvoid bump_ref(double& s) { s += 1.0; }\n\nint main() {\n    std::vector<double> v{5.0, 6.0, 7.0};\n    for (auto s : v) s += 1.0;\n    bump(v[0]);\n    bump_ref(v[1]);\n    auto x = v[2];\n    x += 1.0;\n    auto& y = v[2];\n    y += 0.5;\n    std::println(\"{}\", v);\n}",
+          "explanation": "for (auto s : v) gives s a copy of each element, so the loop changes three copies and v stays [5, 6, 7]. bump takes its parameter by value: it changes a copy of v[0], so v[0] stays 5. bump_ref takes double&, so s is another name for v[1] and v[1] becomes 7. auto x = v[2] deduces double (auto drops the reference), so x is a copy and x += 1.0 does not touch v. auto& y = v[2] is an alias, so y += 0.5 makes v[2] 7.5. Result: [5, 7, 7.5]. [6, 7, 8] would need the range-for to change the elements; [5, 6, 7] ignores that bump_ref and y are references; [5, 7, 8.5] treats auto x as a reference; [6, 8, 8.5] treats every name as a reference.",
+          "options": [
+            {
+              "text": "[5, 6, 7]",
+              "correct": false
+            },
+            {
+              "text": "[5, 7, 7.5]",
+              "correct": true
+            },
+            {
+              "text": "[5, 7, 8.5]",
+              "correct": false
+            },
+            {
+              "text": "[6, 7, 8]",
+              "correct": false
+            },
+            {
+              "text": "[6, 8, 8.5]",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Each option is a complete small program compiled with g++ -std=c++23 -Wall -Wextra. Which of them compile? (Select all that apply.)",
+          "explanation": "int seats = 39.9; compiles: copy initialization with = silently converts the double and seats is 39 (no warning under -Wall -Wextra; -Wconversion would warn). long long total{count}; compiles: int to long long is a widening conversion, every int value fits, so braces accept it. int avg{7.75}; is rejected: braces refuse a narrowing conversion, and g++ reports error: narrowing conversion of '7.75e+0' from 'double' to 'int'. Assigning v[0] = 0.0 through a const std::vector<double>& is an error (assignment of read-only location): const& promises the function will not change the caller's data. add_bonus(9.0, 0.5) with a double& parameter is an error (cannot bind non-const lvalue reference of type 'double&' to an rvalue of type 'double'): a non-const reference must refer to an existing object it can change, and 9.0 is a temporary.",
+          "options": [
+            {
+              "text": "int main() { int seats = 39.9; return seats; }",
+              "correct": true
+            },
+            {
+              "text": "int main() { int count = 32; long long total{count}; return static_cast<int>(total); }",
+              "correct": true
+            },
+            {
+              "text": "int main() { int avg{7.75}; return avg; }",
+              "correct": false
+            },
+            {
+              "text": "#include <vector>\nvoid reset(const std::vector<double>& v) { v[0] = 0.0; }\nint main() { std::vector<double> s{1.0}; reset(s); }",
+              "correct": false
+            },
+            {
+              "text": "void add_bonus(double& s, double b) { s += b; }\nint main() { add_bonus(9.0, 0.5); }",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_cppf_112",
+      "name": "apply-bonus-curve-in-place",
+      "type": "mini_coding",
+      "title": "Apply the exam board's bonus in place",
+      "description": "The exam board grants every student in a class the same bonus. Write apply_curve(std::vector<double>& scores, double bonus), which adds the bonus to every score in the caller's vector, caps each result at 10.0 and returns how many scores actually changed, and average(const std::vector<double>& scores), which returns the class mean as a double. The test runner reads the bonus and the class list from stdin, calls both functions and prints every curved score with 1 decimal, the number of changed scores and the average with 2 decimals.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "cpp",
+        "filePath": "curve.cpp",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Example from the task: +0.5, one score capped, one already at 10.0",
+          "input": "0.5\n4\nRP-2024-0137 7.5\nRP-2024-0138 9.8\nRP-2024-0139 10.0\nRP-2024-0140 5.9\n",
+          "expected": "RP-2024-0137 8.0\nRP-2024-0138 10.0\nRP-2024-0139 10.0\nRP-2024-0140 6.4\nchanged: 3\naverage: 8.60",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Bonus 0.0 changes nothing and the average keeps its decimals",
+          "input": "0.0\n3\nRP-2024-0201 6.5\nRP-2024-0202 7.0\nRP-2024-0203 8.0\n",
+          "expected": "RP-2024-0201 6.5\nRP-2024-0202 7.0\nRP-2024-0203 8.0\nchanged: 0\naverage: 7.17",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "+1.0 bonus: scores above 9.0 are capped at 10.0, not past it",
+          "input": "1.0\n5\nRP-2025-0011 9.5\nRP-2025-0012 4.0\nRP-2025-0013 10.0\nRP-2025-0014 8.0\nRP-2025-0015 9.0\n",
+          "expected": "RP-2025-0011 10.0\nRP-2025-0012 5.0\nRP-2025-0013 10.0\nRP-2025-0014 9.0\nRP-2025-0015 10.0\nchanged: 4\naverage: 8.80",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "+0.3 bonus on six students, one capped and one already at 10.0",
+          "input": "0.3\n6\nRP-2024-0301 5.0\nRP-2024-0302 6.1\nRP-2024-0303 7.7\nRP-2024-0304 9.9\nRP-2024-0305 3.4\nRP-2024-0306 10.0\n",
+          "expected": "RP-2024-0301 5.3\nRP-2024-0302 6.4\nRP-2024-0303 8.0\nRP-2024-0304 10.0\nRP-2024-0305 3.7\nRP-2024-0306 10.0\nchanged: 5\naverage: 7.23",
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "+2.0 bonus on two students, including a score of 0.0",
+          "input": "2.0\n2\nRP-2023-0999 8.5\nRP-2023-1000 0.0\n",
+          "expected": "RP-2023-0999 10.0\nRP-2023-1000 2.0\nchanged: 2\naverage: 6.00",
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

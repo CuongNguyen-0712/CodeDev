@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Three ways out of export_transcript(), one file to close</text>
+  <text x="40" y="82" font-size="16" fill="#475569">A manual fclose() runs only on the path that reaches it. A destructor runs on every path that leaves the scope.</text>
+
+  <!-- Left panel: manual fclose -->
+  <rect x="40" y="108" width="540" height="404" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="140" font-size="17" font-weight="700" fill="#b91c1c">C style: close by hand</text>
+  <rect x="64" y="156" width="492" height="44" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="184" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">FILE* f = std::fopen(path, "w");</text>
+
+  <rect x="64" y="226" width="236" height="56" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="250" font-size="14" font-weight="700" fill="#334155">1. normal return</text>
+  <text x="80" y="270" font-size="13" fill="#475569">reaches the last line</text>
+  <rect x="64" y="300" width="236" height="56" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="324" font-size="14" font-weight="700" fill="#334155">2. early return</text>
+  <text x="80" y="344" font-size="13" fill="#475569">student has no scores</text>
+  <rect x="64" y="374" width="236" height="56" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="398" font-size="14" font-weight="700" fill="#334155">3. exception</text>
+  <text x="80" y="418" font-size="13" fill="#475569">score 12.0 is out of range</text>
+
+  <line x1="300" y1="254" x2="328" y2="254" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="328,248 328,260 340,254" fill="#16a34a"/>
+  <rect x="340" y="226" width="216" height="56" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="356" y="250" font-size="13" fill="#15803d" font-family="Consolas, 'Courier New', monospace">std::fclose(f);</text>
+  <text x="356" y="270" font-size="13" fill="#15803d">file closed</text>
+
+  <line x1="300" y1="328" x2="328" y2="328" stroke="#dc2626" stroke-width="2"/>
+  <polygon points="328,322 328,334 340,328" fill="#dc2626"/>
+  <rect x="340" y="300" width="216" height="56" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="356" y="324" font-size="14" font-weight="700" fill="#b91c1c">fclose skipped</text>
+  <text x="356" y="344" font-size="13" fill="#b91c1c">descriptor stays open</text>
+
+  <line x1="300" y1="402" x2="328" y2="402" stroke="#dc2626" stroke-width="2"/>
+  <polygon points="328,396 328,408 340,402" fill="#dc2626"/>
+  <rect x="340" y="374" width="216" height="56" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="356" y="398" font-size="14" font-weight="700" fill="#b91c1c">fclose skipped</text>
+  <text x="356" y="418" font-size="13" fill="#b91c1c">descriptor stays open</text>
+
+  <text x="64" y="466" font-size="14" font-weight="700" fill="#b91c1c">2 of 3 paths leak one file descriptor per student.</text>
+  <text x="64" y="490" font-size="14" fill="#7f1d1d">With a limit of 1024, fopen fails: Too many open files.</text>
+
+  <!-- Right panel: RAII -->
+  <rect x="620" y="108" width="540" height="404" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="140" font-size="17" font-weight="700" fill="#15803d">RAII: the object closes itself</text>
+  <rect x="644" y="156" width="492" height="44" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="184" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">std::ofstream out(path);</text>
+
+  <rect x="644" y="226" width="236" height="56" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="250" font-size="14" font-weight="700" fill="#334155">1. normal return</text>
+  <text x="660" y="270" font-size="13" fill="#475569">reaches the last line</text>
+  <rect x="644" y="300" width="236" height="56" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="324" font-size="14" font-weight="700" fill="#334155">2. early return</text>
+  <text x="660" y="344" font-size="13" fill="#475569">student has no scores</text>
+  <rect x="644" y="374" width="236" height="56" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="398" font-size="14" font-weight="700" fill="#334155">3. exception</text>
+  <text x="660" y="418" font-size="13" fill="#475569">score 12.0 is out of range</text>
+
+  <line x1="880" y1="254" x2="908" y2="254" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="908,248 908,260 920,254" fill="#16a34a"/>
+  <rect x="920" y="226" width="216" height="56" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="936" y="250" font-size="13" fill="#15803d" font-family="Consolas, 'Courier New', monospace">~ofstream()</text>
+  <text x="936" y="270" font-size="13" fill="#15803d">file closed</text>
+
+  <line x1="880" y1="328" x2="908" y2="328" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="908,322 908,334 920,328" fill="#16a34a"/>
+  <rect x="920" y="300" width="216" height="56" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="936" y="324" font-size="13" fill="#15803d" font-family="Consolas, 'Courier New', monospace">~ofstream()</text>
+  <text x="936" y="344" font-size="13" fill="#15803d">file closed</text>
+
+  <line x1="880" y1="402" x2="908" y2="402" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="908,396 908,408 920,402" fill="#16a34a"/>
+  <rect x="920" y="374" width="216" height="56" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="936" y="398" font-size="13" fill="#15803d" font-family="Consolas, 'Courier New', monospace">~ofstream()</text>
+  <text x="936" y="418" font-size="13" fill="#15803d">closed while unwinding</text>
+
+  <text x="644" y="466" font-size="14" font-weight="700" fill="#15803d">The compiler calls the destructor on every exit.</text>
+  <text x="644" y="490" font-size="14" fill="#14532d">No line to forget, and no path can be missed.</text>
+
+  <!-- Bottom rule -->
+  <rect x="40" y="532" width="1120" height="48" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="562" font-size="15" fill="#334155"><tspan font-weight="700">RAII:</tspan> acquire in the constructor, release in the destructor. The same rule drives std::unique_ptr and your own guard classes.</text>
+</svg>

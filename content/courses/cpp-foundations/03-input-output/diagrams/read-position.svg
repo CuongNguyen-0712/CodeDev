@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Where each read leaves the read position</text>
+  <text x="40" y="82" font-size="16" fill="#475569">&gt;&gt; stops before the newline, getline stops after it, and eof() only turns true after a read has failed.</text>
+
+  <!-- Top panel: the buffer -->
+  <rect x="40" y="104" width="1120" height="196" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="132" font-size="15" font-weight="700" fill="#334155">The staff typed RP-01 Enter, saw "Full name: Score:", typed 8.5 Enter</text>
+
+  <rect x="64" y="150" width="56" height="56" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="120" y="150" width="56" height="56" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="176" y="150" width="56" height="56" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="232" y="150" width="56" height="56" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="288" y="150" width="56" height="56" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="344" y="150" width="56" height="56" fill="#fffbeb" stroke="#b45309" stroke-width="2"/>
+  <rect x="400" y="150" width="56" height="56" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="456" y="150" width="56" height="56" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="512" y="150" width="56" height="56" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="568" y="150" width="56" height="56" fill="#fffbeb" stroke="#b45309" stroke-width="2"/>
+  <g font-family="Consolas, 'Courier New', monospace" font-size="22" fill="#0f172a" text-anchor="middle">
+    <text x="92" y="186">R</text><text x="148" y="186">P</text><text x="204" y="186">-</text>
+    <text x="260" y="186">0</text><text x="316" y="186">1</text>
+    <text x="372" y="186" fill="#92400e">\n</text>
+    <text x="428" y="186">8</text><text x="484" y="186">.</text><text x="540" y="186">5</text>
+    <text x="596" y="186" fill="#92400e">\n</text>
+  </g>
+
+  <line x1="344" y1="140" x2="344" y2="218" stroke="#dc2626" stroke-width="3"/>
+  <circle cx="344" cy="238" r="14" fill="#dc2626"/>
+  <text x="344" y="243" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">1</text>
+  <line x1="400" y1="140" x2="400" y2="218" stroke="#dc2626" stroke-width="3"/>
+  <circle cx="400" cy="238" r="14" fill="#dc2626"/>
+  <text x="400" y="243" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
+  <line x1="568" y1="140" x2="568" y2="218" stroke="#475569" stroke-width="3"/>
+  <circle cx="568" cy="238" r="14" fill="#475569"/>
+  <text x="568" y="243" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
+  <text x="64" y="282" font-size="13" fill="#92400e">amber cells: the newline that Enter puts into the buffer</text>
+
+  <circle cx="676" cy="150" r="12" fill="#dc2626"/>
+  <text x="676" y="155" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">1</text>
+  <text x="700" y="156" font-size="15" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">std::cin &gt;&gt; id</text>
+  <text x="700" y="178" font-size="14" fill="#334155">reads RP-01 and stops BEFORE the newline</text>
+
+  <circle cx="676" cy="204" r="12" fill="#dc2626"/>
+  <text x="676" y="209" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
+  <text x="700" y="210" font-size="15" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">std::getline(std::cin, name)</text>
+  <text x="700" y="232" font-size="14" fill="#b91c1c">reads up to that newline and eats it: name is ""</text>
+
+  <circle cx="676" cy="258" r="12" fill="#475569"/>
+  <text x="676" y="263" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
+  <text x="700" y="264" font-size="15" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">std::cin &gt;&gt; score</text>
+  <text x="700" y="286" font-size="14" fill="#334155">reads 8.5; the last newline stays in the buffer</text>
+
+  <!-- Bottom panel: the eof loop -->
+  <rect x="40" y="316" width="1120" height="260" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="348" font-size="17" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">while (!std::cin.eof())</text>
+  <text x="344" y="348" font-size="16" fill="#334155">asks before reading, so it runs one round too many</text>
+
+  <rect x="64" y="368" width="330" height="112" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="84" y="396" font-size="15" font-weight="700" fill="#334155">Round 1</text>
+  <text x="84" y="420" font-size="14" fill="#334155">reads RP-01 and 8.5</text>
+  <text x="84" y="442" font-size="14" fill="#334155">eof() is false</text>
+
+  <line x1="394" y1="424" x2="420" y2="424" stroke="#64748b" stroke-width="2"/>
+  <polygon points="420,418 420,430 432,424" fill="#64748b"/>
+
+  <rect x="434" y="368" width="330" height="112" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="454" y="396" font-size="15" font-weight="700" fill="#334155">Round 2</text>
+  <text x="454" y="420" font-size="14" fill="#334155">reads RP-02 and 7, stops after the 7</text>
+  <text x="454" y="442" font-size="14" fill="#334155">eof() is STILL false: no read has</text>
+  <text x="454" y="464" font-size="14" fill="#334155">tried to go past the end yet</text>
+
+  <line x1="764" y1="424" x2="790" y2="424" stroke="#dc2626" stroke-width="2"/>
+  <polygon points="790,418 790,430 802,424" fill="#dc2626"/>
+
+  <rect x="804" y="368" width="332" height="112" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="824" y="396" font-size="15" font-weight="700" fill="#b91c1c">Round 3: the extra one</text>
+  <text x="824" y="420" font-size="14" fill="#7f1d1d">&gt;&gt; hits the end: eofbit + failbit</text>
+  <text x="824" y="442" font-size="14" fill="#7f1d1d">id and score keep RP-02 and 7</text>
+  <text x="824" y="464" font-size="14" font-weight="700" fill="#b91c1c">RP-02 is saved a second time</text>
+
+  <rect x="64" y="498" width="1072" height="58" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="84" y="523" font-size="14" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">while (std::getline(std::cin, line))</text>
+  <text x="436" y="523" font-size="14" fill="#14532d">or</text>
+  <text x="466" y="523" font-size="14" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">while (std::cin &gt;&gt; id &gt;&gt; score)</text>
+  <text x="84" y="545" font-size="14" fill="#14532d">the read IS the loop condition: the body runs only after a read that worked, so round 3 never starts</text>
+</svg>

@@ -1,0 +1,10 @@
+{
+  "images": {
+    "held-positions-go-stale": {
+      "publicId": "codedev/courses/cpp-foundations/09-iterator-invalidation/held-positions-go-stale",
+      "url": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/q_auto/v1792591763/codedev/courses/cpp-foundations/09-iterator-invalidation/held-positions-go-stale.png?_a=BAMAROWQ0",
+      "width": 1200,
+      "height": 600
+    }
+  }
+}

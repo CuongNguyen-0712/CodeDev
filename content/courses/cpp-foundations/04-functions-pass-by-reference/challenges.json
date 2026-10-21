@@ -1,0 +1,126 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_cppf_211",
+      "name": "pass-by-value-reference-overloads-quiz",
+      "type": "quiz",
+      "title": "Predict it: copies, references and overloads",
+      "description": "Read each call the way the compiler does: which object does the function work on, and which overload does the argument match best?",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this program print?\n\n#include <print>\n#include <vector>\n\nvoid a(std::vector<int> v)             { v.push_back(1); }\nvoid b(std::vector<int>& v)            { v.push_back(2); }\nstd::vector<int> c(std::vector<int> v) { v.push_back(3); return v; }\nvoid d(const std::vector<int>& v)      { auto copy = v; copy.push_back(4); }\n\nint main() {\n    std::vector<int> s;\n    a(s);\n    b(s);\n    c(s);\n    d(s);\n    std::vector<int> t = c(s);\n    b(s);\n    std::println(\"{} {}\", s, t);\n}",
+          "explanation": "Only b takes a reference, so only b changes s. a works on its own copy, and the copy is destroyed when a returns. c also works on a copy and returns it, but the first call c(s) throws the result away, so nothing is kept. d can only read v; it pushes onto a local copy that disappears. So after b(s) s is [2]; t = c(s) is a copy of [2] with 3 added, [2, 3]; the last b(s) makes s [2, 2]. Output: [2, 2] [2, 3]. \"[1, 2, 3, 4, 3, 2] [1, 2, 3, 4, 3]\" would be the output if every function took a reference. \"[2, 3, 2] [2, 3, 3]\" assumes the ignored c(s) changed s - returning a value never changes the argument; the caller has to assign it. \"[2, 4, 2] [2, 4, 3]\" assumes d's local copy is the caller's vector. \"[2, 2] [2, 2, 3]\" computes t after the last b(s), but statements run in order: t was made when s was [2].",
+          "options": [
+            {
+              "text": "[2, 2] [2, 3]",
+              "correct": true
+            },
+            {
+              "text": "[1, 2, 3, 4, 3, 2] [1, 2, 3, 4, 3]",
+              "correct": false
+            },
+            {
+              "text": "[2, 3, 2] [2, 3, 3]",
+              "correct": false
+            },
+            {
+              "text": "[2, 4, 2] [2, 4, 3]",
+              "correct": false
+            },
+            {
+              "text": "[2, 2] [2, 2, 3]",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "The score tool has two overloads:\n\nvoid round_score(int points);     // 0-100 points\nvoid round_score(double score);   // 0-10 scale\n\nWhich of these calls compile AND call the double overload? (Select all that apply.)",
+          "explanation": "The compiler ranks each overload by how the argument converts: an exact match beats a promotion, and a promotion beats a conversion. round_score(7.5f): float to double is a floating-point promotion, float to int only a conversion, so the double overload wins. round_score(0.5 * 17): the expression is a double (8.5), an exact match for double. round_score('9'): char to int is an integral promotion, so the int overload is called with 57, the character code of '9' - it compiles and silently picks int. round_score(17 / 2): both operands are int, so this is integer division; the argument is the int 8 and the int overload is an exact match. round_score(8L): long to int and long to double are both conversions of the same rank, so neither is better and g++ stops with \"call of overloaded 'round_score(long int)' is ambiguous\" - it does not compile.",
+          "options": [
+            {
+              "text": "round_score(7.5f)",
+              "correct": true
+            },
+            {
+              "text": "round_score('9')",
+              "correct": false
+            },
+            {
+              "text": "round_score(0.5 * 17)",
+              "correct": true
+            },
+            {
+              "text": "round_score(17 / 2)",
+              "correct": false
+            },
+            {
+              "text": "round_score(8L)",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_cppf_212",
+      "name": "fix-transcript-parameter-bugs",
+      "type": "fix_bug",
+      "title": "Make the transcript job keep its changes",
+      "description": "The CS101 transcript job was ported from C, and its output is wrong in three ways: retake scores never reach the students' quiz lists, averages are printed unrounded, and the class summary says no student was counted at all. Every function compiles, and each one does the right thing - to the wrong object. Fix the parameter and return-value bugs so that the retake rule, the one-decimal rounding and the class summary all reach the caller. The test runner reads one class from stdin, builds every transcript line, records it in the summary and prints the lines and the summary.",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "cpp",
+        "filePath": "transcript.cpp",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Example: a retake replaces the lowest quiz score, a 7.625 average is rounded to 7.6",
+          "input": "2\nRP-2024-0137 6.0 4 8.5 7.0 9.0 4.5\nRP-2024-0138 0.0 3 4.0 5.5 4.9\n",
+          "expected": "RP-2024-0137 quiz=[8.5, 7.0, 9.0, 6.0] average=7.60\nRP-2024-0138 quiz=[4.0, 5.5, 4.9] average=4.80\nclass: students=2 passed=1 best=RP-2024-0137 (7.60)",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A retake that is equal to or lower than the lowest score changes nothing",
+          "input": "3\nRP-2024-0201 5.0 3 5.0 8.0 9.0\nRP-2024-0202 3.5 4 6.0 7.5 4.0 8.0\nRP-2024-0203 9.5 2 2.0 6.0\n",
+          "expected": "RP-2024-0201 quiz=[5.0, 8.0, 9.0] average=7.30\nRP-2024-0202 quiz=[6.0, 7.5, 4.0, 8.0] average=6.40\nRP-2024-0203 quiz=[9.5, 6.0] average=7.80\nclass: students=3 passed=3 best=RP-2024-0203 (7.80)",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "The lowest score appears twice: only the first one is replaced",
+          "input": "2\nRP-2024-0301 7.0 4 6.5 4.0 9.0 4.0\nRP-2024-0302 0.0 1 9.1\n",
+          "expected": "RP-2024-0301 quiz=[6.5, 7.0, 9.0, 4.0] average=6.60\nRP-2024-0302 quiz=[9.1] average=9.10\nclass: students=2 passed=2 best=RP-2024-0302 (9.10)",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "4.975 rounds to 5.0 and passes; a tie for best keeps the first student",
+          "input": "4\nRP-2024-0401 0.0 4 4.9 5.0 5.0 5.0\nRP-2024-0402 8.0 3 8.0 7.0 9.0\nRP-2024-0403 0.0 3 9.0 8.0 8.0\nRP-2024-0404 4.0 3 2.0 3.5 1.5\n",
+          "expected": "RP-2024-0401 quiz=[4.9, 5.0, 5.0, 5.0] average=5.00\nRP-2024-0402 quiz=[8.0, 8.0, 9.0] average=8.30\nRP-2024-0403 quiz=[9.0, 8.0, 8.0] average=8.30\nRP-2024-0404 quiz=[2.0, 3.5, 4.0] average=3.20\nclass: students=4 passed=3 best=RP-2024-0402 (8.30)",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "An exact 7.25 rounds up to 7.3, one-quiz students and an all-zero student",
+          "input": "4\nRP-2024-0501 0.0 2 7.0 7.5\nRP-2024-0502 6.5 1 3.0\nRP-2024-0503 10.0 5 9.5 9.0 10.0 9.5 8.5\nRP-2024-0504 0.0 3 0.0 0.0 0.0\n",
+          "expected": "RP-2024-0501 quiz=[7.0, 7.5] average=7.30\nRP-2024-0502 quiz=[6.5] average=6.50\nRP-2024-0503 quiz=[9.5, 9.0, 10.0, 9.5, 10.0] average=9.60\nRP-2024-0504 quiz=[0.0, 0.0, 0.0] average=0.00\nclass: students=4 passed=3 best=RP-2024-0503 (9.60)",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

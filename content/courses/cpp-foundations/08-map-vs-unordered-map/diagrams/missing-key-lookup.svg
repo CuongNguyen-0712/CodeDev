@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Looking up a key that is not there</text>
+  <text x="40" y="82" font-size="16" fill="#475569">operator[] adds the key; find() and contains() only look. Ids are shortened: 0142 means RP-2024-0142.</text>
+
+  <!-- Top left: operator[] inserts -->
+  <rect x="40" y="108" width="540" height="260" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="140" font-size="17" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">attendance["RP-2024-0317"]</text>
+  <text x="64" y="164" font-size="13" fill="#7f1d1d">operator[] on a missing key inserts it with int{} = 0</text>
+  <line x1="270" y1="214" x2="140" y2="240" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="270" y1="214" x2="400" y2="240" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="400" y1="272" x2="465" y2="298" stroke="#dc2626" stroke-width="2" stroke-dasharray="6 4"/>
+  <rect x="215" y="182" width="110" height="32" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="270" y="203" font-size="13" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0142 : 2</text>
+  <rect x="85" y="240" width="110" height="32" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="140" y="261" font-size="13" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0137 : 9</text>
+  <rect x="345" y="240" width="110" height="32" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="400" y="261" font-size="13" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0150 : 11</text>
+  <rect x="410" y="298" width="110" height="32" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="465" y="319" font-size="13" font-weight="700" fill="#b91c1c" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0317 : 0</text>
+  <text x="64" y="352" font-size="14" font-weight="700" fill="#b91c1c">size 3 becomes 4: a phantom student</text>
+
+  <!-- Top right: find / contains -->
+  <rect x="620" y="108" width="540" height="260" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="140" font-size="17" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">find(id) / contains(id)</text>
+  <text x="644" y="164" font-size="13" fill="#14532d">they only look: nothing is inserted, the map is unchanged</text>
+  <line x1="850" y1="214" x2="720" y2="240" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="850" y1="214" x2="980" y2="240" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="795" y="182" width="110" height="32" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="850" y="203" font-size="13" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0142 : 2</text>
+  <rect x="665" y="240" width="110" height="32" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="720" y="261" font-size="13" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0137 : 9</text>
+  <rect x="925" y="240" width="110" height="32" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="980" y="261" font-size="13" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0150 : 11</text>
+  <text x="644" y="319" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">find(id) == end()</text>
+  <text x="860" y="319" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">contains(id) == false</text>
+  <text x="644" y="352" font-size="14" font-weight="700" fill="#15803d">size stays 3: the report can say "unknown"</text>
+
+  <!-- Bottom left: std::map -->
+  <rect x="40" y="392" width="540" height="180" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="422" font-size="17" font-weight="700" fill="#334155">std::map: a sorted tree, O(log n) lookup</text>
+  <rect x="64" y="440" width="88" height="32" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="2"/>
+  <text x="108" y="461" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0137</text>
+  <rect x="164" y="440" width="88" height="32" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="2"/>
+  <text x="208" y="461" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0142</text>
+  <rect x="264" y="440" width="88" height="32" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="2"/>
+  <text x="308" y="461" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0150</text>
+  <rect x="364" y="440" width="88" height="32" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="2"/>
+  <text x="408" y="461" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0163</text>
+  <rect x="464" y="440" width="88" height="32" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="2"/>
+  <text x="508" y="461" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0171</text>
+  <text x="64" y="502" font-size="13" fill="#334155">a range-for visits the keys in sorted order, always</text>
+  <text x="64" y="526" font-size="13" fill="#334155">same order on every run: the nightly diff stays clean</text>
+  <text x="64" y="550" font-size="13" fill="#334155">the tree stays balanced: lookups grow with log n, not n</text>
+
+  <!-- Bottom right: std::unordered_map -->
+  <rect x="620" y="392" width="540" height="180" rx="10" fill="#fffbeb" stroke="#b45309" stroke-width="2"/>
+  <text x="644" y="422" font-size="17" font-weight="700" fill="#92400e">std::unordered_map: hash buckets, average O(1)</text>
+  <text x="644" y="459" font-size="13" fill="#92400e">13 buckets</text>
+  <text x="644" y="501" font-size="13" fill="#92400e">rehash(64)</text>
+  <rect x="740" y="440" width="70" height="28" rx="6" fill="#ffffff" stroke="#b45309" stroke-width="2"/>
+  <text x="775" y="459" font-size="13" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0171</text>
+  <rect x="820" y="440" width="70" height="28" rx="6" fill="#ffffff" stroke="#b45309" stroke-width="2"/>
+  <text x="855" y="459" font-size="13" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0150</text>
+  <rect x="900" y="440" width="70" height="28" rx="6" fill="#ffffff" stroke="#b45309" stroke-width="2"/>
+  <text x="935" y="459" font-size="13" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0163</text>
+  <rect x="980" y="440" width="70" height="28" rx="6" fill="#ffffff" stroke="#b45309" stroke-width="2"/>
+  <text x="1015" y="459" font-size="13" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0142</text>
+  <rect x="1060" y="440" width="70" height="28" rx="6" fill="#ffffff" stroke="#b45309" stroke-width="2"/>
+  <text x="1095" y="459" font-size="13" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0137</text>
+  <rect x="740" y="482" width="70" height="28" rx="6" fill="#ffffff" stroke="#b45309" stroke-width="2"/>
+  <text x="775" y="501" font-size="13" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0137</text>
+  <rect x="820" y="482" width="70" height="28" rx="6" fill="#ffffff" stroke="#b45309" stroke-width="2"/>
+  <text x="855" y="501" font-size="13" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0142</text>
+  <rect x="900" y="482" width="70" height="28" rx="6" fill="#ffffff" stroke="#b45309" stroke-width="2"/>
+  <text x="935" y="501" font-size="13" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0163</text>
+  <rect x="980" y="482" width="70" height="28" rx="6" fill="#ffffff" stroke="#b45309" stroke-width="2"/>
+  <text x="1015" y="501" font-size="13" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0150</text>
+  <rect x="1060" y="482" width="70" height="28" rx="6" fill="#ffffff" stroke="#b45309" stroke-width="2"/>
+  <text x="1095" y="501" font-size="13" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">0171</text>
+  <text x="644" y="534" font-size="13" fill="#334155">same five keys, two orders (a real GCC 15 run): order is unspecified</text>
+  <text x="644" y="556" font-size="13" fill="#334155">it can change with inserts, rehashing or another library version</text>
+</svg>
