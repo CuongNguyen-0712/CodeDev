@@ -54,7 +54,7 @@ const PRIMARY_ACTION = {
     completed: { label: 'Review', Icon: LuRotateCcw },
 }
 
-export default function LearningCourse({ item }) {
+export default function LearningCourse({ item, index = 0 }) {
     const [confirmOpen, setConfirmOpen] = useState(false)
     const menuButtonRef = useRef(null)
     const [isNavigating, startTransition] = useTransition()
@@ -120,7 +120,7 @@ export default function LearningCourse({ item }) {
     }
 
     return (
-        <TableRow className="group/row max-lg:grid max-lg:grid-cols-[minmax(0,1fr)_auto] max-lg:gap-x-3 max-lg:gap-y-2.5 max-lg:px-4 max-lg:py-3.5">
+        <TableRow style={{ '--enter-index': index % 20 }} className="animate-enter group/row max-lg:grid max-lg:grid-cols-[minmax(0,1fr)_auto] max-lg:gap-x-3 max-lg:gap-y-2.5 max-lg:px-4 max-lg:py-3.5">
             {/* Course */}
             <TableCell className="max-lg:col-span-2 max-lg:p-0 lg:w-full lg:max-w-0 lg:py-3 lg:pl-4">
                 <div className="flex min-w-0 items-center gap-3">

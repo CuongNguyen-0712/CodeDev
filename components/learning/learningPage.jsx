@@ -184,8 +184,8 @@ export default function LearningPage() {
                             <TableBody className="max-lg:block">
                                 {isLoading
                                     ? Array.from({ length: 5 }, (_, index) => <RowSkeleton key={index} />)
-                                    : courses.map(item => (
-                                        <LearningCourse key={item.id} item={item} />
+                                    : courses.map((item, index) => (
+                                        <LearningCourse key={item.id} item={item} index={index} />
                                     ))}
                             </TableBody>
                         </Table>

@@ -30,7 +30,7 @@ export default async function Page({ params }) {
 
     return (
         <Suspense fallback={<LoadingRedirect />}>
-            <DefaultLayout>
+            <DefaultLayout enter={false}>
                 <StydyingPage
                     params={{ id }}
                 />

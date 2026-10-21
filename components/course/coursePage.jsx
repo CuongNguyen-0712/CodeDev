@@ -182,8 +182,8 @@ export default function CoursePage() {
                             ? Array.from({ length: 6 }, (_, index) => (
                                 <li key={index}><CourseItemSkeleton /></li>
                             ))
-                            : courses.map((item) => (
-                                <li key={item.id} className="min-w-0">
+                            : courses.map((item, index) => (
+                                <li key={item.id} className="animate-enter min-w-0" style={{ '--enter-index': index % 20 }}>
                                     <CourseItem item={item} />
                                 </li>
                             ))}

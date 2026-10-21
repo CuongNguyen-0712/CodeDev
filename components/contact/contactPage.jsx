@@ -289,10 +289,10 @@ export default function Contact({ state, setState }) {
                         </div>
                     ) : (
                         <ul className="m-0 list-none divide-y overflow-hidden rounded-lg border bg-card p-0">
-                            {people.map((item) => {
+                            {people.map((item, index) => {
                                 const name = item.username || item.name || 'Unknown user';
                                 return (
-                                    <li key={item.id} className="flex items-center gap-3 px-4 py-3">
+                                    <li key={item.id} className="animate-enter flex items-center gap-3 px-4 py-3" style={{ '--enter-index': index % 20 }}>
                                         <Avatar className="size-9">
                                             <AvatarImage src={item.image || undefined} alt="" className="object-cover" />
                                             <AvatarFallback className="bg-primary-soft text-xs font-semibold text-primary-soft-foreground">

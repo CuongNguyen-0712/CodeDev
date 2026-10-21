@@ -244,7 +244,7 @@ export default function HomeRecommend() {
                         : (
                             <>
                                 {items.map((item, index) => (
-                                    <li key={item?.course?.id || index} className={`${CARD_WIDTH} shrink-0 snap-start`}>
+                                    <li key={item?.course?.id || index} className={`animate-enter ${CARD_WIDTH} shrink-0 snap-start`} style={{ '--enter-index': index % 20 }}>
                                         <RecommendationCard item={item} onClickGuard={handleClickGuard} />
                                     </li>
                                 ))}

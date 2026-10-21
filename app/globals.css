@@ -481,14 +481,53 @@
         font-variant-numeric: tabular-nums;
     }
 
+    /*
+     * Entrance motion: opacity + translate only (compositor, no layout). `backwards` fill shows the
+     * start state during the delay and leaves no transform behind, so sticky / fixed children
+     * keep working after the animation.
+     */
+    .animate-enter {
+        animation: cd-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+        animation-delay: calc(min(var(--enter-index, 0), 8) * 45ms);
+    }
+
+    /* Page sections (layouts set .page-enter): each top-level block of a page rises in turn. */
+    .page-enter > :not(footer) > * {
+        animation: cd-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    }
+    .page-enter > :not(footer) > :nth-child(2) { animation-delay: 50ms; }
+    .page-enter > :not(footer) > :nth-child(3) { animation-delay: 100ms; }
+    .page-enter > :not(footer) > :nth-child(4) { animation-delay: 150ms; }
+    .page-enter > :not(footer) > :nth-child(n + 5) { animation-delay: 200ms; }
+
+    /* Theme switch (contexts/themeContext.jsx): only the clip-path reveal of the new view animates. */
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+        animation: none;
+        mix-blend-mode: normal;
+    }
+
+    .theme-switching,
+    .theme-switching * {
+        transition: none !important;
+    }
+
     @media (prefers-reduced-motion: reduce) {
         *,
         ::before,
         ::after {
+            animation-delay: 0s !important;
             animation-duration: 0.01ms !important;
             animation-iteration-count: 1 !important;
             transition-duration: 0.01ms !important;
             scroll-behavior: auto !important;
         }
+    }
+}
+
+@keyframes cd-enter {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
     }
 }

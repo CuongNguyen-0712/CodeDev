@@ -138,7 +138,7 @@ function RecommendedStrip() {
                             <li key={index}><RecommendationCardSkeleton compact /></li>
                         ))
                         : items.map((item, index) => (
-                            <li key={item?.course?.id || index}>
+                            <li key={item?.course?.id || index} className="animate-enter" style={{ '--enter-index': index % 20 }}>
                                 <RecommendationCard item={item} compact maxReasons={2} />
                             </li>
                         ))}
@@ -247,14 +247,14 @@ export default function RoadmapPage() {
                     <ul className="list-none divide-y overflow-hidden rounded-lg border bg-card">
                         {isLoading
                             ? Array.from({ length: 4 }, (_, index) => <RoadmapRowSkeleton key={index} />)
-                            : filteredRoadmaps.map((roadmap) => {
+                            : filteredRoadmaps.map((roadmap, index) => {
                                 const levelKey = roadmap.level?.toLowerCase();
                                 const levelLabel = levelMapping[levelKey]?.label || roadmap.level || 'All levels';
                                 const nodeCount = parseInt(roadmap.nodes, 10) || 0;
                                 const languages = Array.isArray(roadmap.languages) ? roadmap.languages : [];
 
                                 return (
-                                    <li key={roadmap.id}>
+                                    <li key={roadmap.id} className="animate-enter" style={{ '--enter-index': index % 20 }}>
                                         <Link
                                             href={`/roadmap/${roadmap.id}`}
                                             className="group flex items-start gap-4 px-4 py-4 outline-none transition-colors hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset active:bg-accent"

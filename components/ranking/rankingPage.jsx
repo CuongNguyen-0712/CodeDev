@@ -75,13 +75,14 @@ function Podium({ entries, board, viewerId }) {
     if (entries.length === 0) return null;
     return (
         <ol className="m-0 grid list-none gap-3 p-0 sm:grid-cols-3 sm:items-end" aria-label="Top 3">
-            {entries.map((entry) => {
+            {entries.map((entry, index) => {
                 const Icon = PODIUM_ICON[entry.position];
                 return (
                     <li
                         key={entry.user.id}
+                        style={{ '--enter-index': index % 20 }}
                         className={cn(
-                            "relative flex items-center gap-3 rounded-lg border bg-card p-4 transition-colors hover:bg-accent/40 sm:flex-col sm:text-center",
+                            "animate-enter relative flex items-center gap-3 rounded-lg border bg-card p-4 transition-colors hover:bg-accent/40 sm:flex-col sm:text-center",
                             entry.position === 1 ? "sm:order-2 sm:pb-6" : entry.position === 2 ? "sm:order-1" : "sm:order-3",
                             entry.user.id === viewerId && "border-primary/40 bg-primary-soft/40"
                         )}
@@ -124,15 +125,16 @@ function BoardTable({ entries, board, period, viewerId, pinned }) {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {rows.map((entry) => {
+                        {rows.map((entry, index) => {
                             const isViewer = entry.user.id === viewerId;
                             const isPinned = entry === pinned;
                             return (
                                 <TableRow
                                     key={`${entry.user.id}-${entry.position}`}
                                     aria-current={isViewer ? "true" : undefined}
+                                    style={{ '--enter-index': index % 20 }}
                                     className={cn(
-                                        "relative",
+                                        "animate-enter relative",
                                         isViewer && "bg-primary-soft/60 hover:bg-primary-soft",
                                         isPinned && "sticky bottom-0 border-t-2 border-t-primary/30 bg-primary-soft"
                                     )}
@@ -155,14 +157,15 @@ function BoardTable({ entries, board, period, viewerId, pinned }) {
 
             {/* <768: ordered list, no horizontal scroll */}
             <ol className="m-0 list-none divide-y overflow-hidden rounded-lg border bg-card p-0 md:hidden" aria-label={caption}>
-                {rows.map((entry) => {
+                {rows.map((entry, index) => {
                     const isViewer = entry.user.id === viewerId;
                     return (
                         <li
                             key={`${entry.user.id}-${entry.position}`}
                             aria-current={isViewer ? "true" : undefined}
+                            style={{ '--enter-index': index % 20 }}
                             className={cn(
-                                "relative flex min-h-14 items-center gap-3 px-3 py-2.5",
+                                "animate-enter relative flex min-h-14 items-center gap-3 px-3 py-2.5",
                                 isViewer && "bg-primary-soft/60",
                                 entry === pinned && "border-t-2 border-t-primary/30 bg-primary-soft"
                             )}

@@ -28,7 +28,7 @@ function LayoutContent({ children }) {
                 {/* The page scroller: hooks/useInfiniteScroll observes it by id. */}
                 <section
                     id='container'
-                    className='flex min-h-0 w-full flex-1 flex-col items-center overflow-x-hidden overflow-y-auto overscroll-y-contain bg-background [overflow-anchor:none] **:[overflow-anchor:none]'
+                    className='page-enter flex min-h-0 w-full flex-1 flex-col items-center overflow-x-hidden overflow-y-auto overscroll-y-contain bg-background [overflow-anchor:none] **:[overflow-anchor:none]'
                 >
                     {children}
                     <Footer />
