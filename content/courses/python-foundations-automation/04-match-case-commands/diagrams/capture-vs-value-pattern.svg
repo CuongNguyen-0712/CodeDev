@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">A bare name in a pattern captures, a dotted name compares</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The bot receives "/stock MUG-01". match tries the cases from top to bottom and runs the first one that fits.</text>
+
+  <!-- Left: bare name -->
+  <rect x="40" y="108" width="540" height="300" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="140" font-size="18" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">case [CMD_REFUND, order_id]:</text>
+  <text x="64" y="164" font-size="13" fill="#7f1d1d">words = ["/stock", "MUG-01"]  (first case in the match)</text>
+
+  <rect x="64" y="180" width="492" height="60" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="204" font-size="15" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">CMD_REFUND = "/stock"</text>
+  <text x="80" y="226" font-size="13" fill="#475569">a bare name is a capture: it accepts ANY first word</text>
+
+  <rect x="64" y="270" width="492" height="60" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="294" font-size="15" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">order_id = "MUG-01"</text>
+  <text x="80" y="316" font-size="13" fill="#475569">the case matches, so /stock runs the refund branch</text>
+
+  <rect x="64" y="344" width="492" height="48" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="80" y="374" font-size="15" font-weight="700" fill="#b91c1c">Bot replies: Refund started for order MUG-01</text>
+
+  <!-- Right: dotted name -->
+  <rect x="620" y="108" width="540" height="300" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="140" font-size="18" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">case [Cmd.REFUND, order_id]:</text>
+  <text x="644" y="164" font-size="13" fill="#14532d">words = ["/stock", "MUG-01"]  (first case in the match)</text>
+
+  <rect x="644" y="180" width="492" height="60" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="204" font-size="15" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">Cmd.REFUND == "/stock"  -&gt;  False</text>
+  <text x="660" y="226" font-size="13" fill="#475569">a dotted name is a value pattern: compared with ==</text>
+
+  <line x1="890" y1="242" x2="890" y2="258" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="884,256 896,256 890,267" fill="#16a34a"/>
+  <text x="904" y="259" font-size="12" fill="#14532d">no match: try the next case</text>
+
+  <rect x="644" y="270" width="492" height="60" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="294" font-size="15" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">case [Cmd.STOCK, sku]:</text>
+  <text x="660" y="316" font-size="13" fill="#475569">Cmd.STOCK == "/stock" is True, so sku = "MUG-01"</text>
+
+  <rect x="644" y="344" width="492" height="48" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="660" y="374" font-size="15" font-weight="700" fill="#15803d">Bot replies: Checking stock for MUG-01</text>
+
+  <!-- Bottom: cheat sheet -->
+  <rect x="40" y="436" width="1120" height="128" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="468" font-size="16" font-weight="700" fill="#334155">What a name inside a pattern does</text>
+  <text x="64" y="500" font-size="14" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">"/stock"  42  None  Cmd.STOCK</text>
+  <text x="340" y="500" font-size="14" fill="#334155">literals and dotted names are compared with the value (==, or "is" for None)</text>
+  <text x="64" y="530" font-size="14" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">sku  CMD_REFUND  _</text>
+  <text x="340" y="530" font-size="14" fill="#334155">always match: a name keeps the value in a variable, _ throws it away</text>
+  <text x="64" y="552" font-size="12" fill="#64748b">A bare name as the whole pattern of a case that is not the last one is a SyntaxError: name capture 'X' makes remaining patterns unreachable.</text>
+</svg>

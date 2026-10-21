@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Four spellings, one city: clean the value, then build a key</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Group and dedupe by a canonical key, show a display value, and never change the raw rows.</text>
+
+  <!-- Left: raw values -->
+  <rect x="40" y="108" width="330" height="372" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="62" y="140" font-size="18" font-weight="700" fill="#b91c1c">Raw city values</text>
+  <text x="62" y="160" font-size="13" fill="#7f1d1d">4 rows, 4 different strings</text>
+
+  <rect x="62" y="172" width="286" height="54" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="76" y="194" font-size="15" font-family="Consolas, 'Courier New', monospace" fill="#334155">"Hà Nội"</text>
+  <text x="76" y="215" font-size="12" fill="#64748b">admin form: composed (NFC), len 6</text>
+
+  <rect x="62" y="236" width="286" height="54" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="76" y="258" font-size="15" font-family="Consolas, 'Courier New', monospace" fill="#334155">"ha noi "</text>
+  <text x="76" y="279" font-size="12" fill="#64748b">CSV import: no accents, trailing space</text>
+
+  <rect x="62" y="300" width="286" height="54" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="76" y="322" font-size="15" font-family="Consolas, 'Courier New', monospace" fill="#334155">"Hà Nội"</text>
+  <text x="76" y="343" font-size="12" fill="#64748b">mobile app: decomposed (NFD), len 9</text>
+
+  <rect x="62" y="364" width="286" height="54" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="76" y="386" font-size="15" font-family="Consolas, 'Courier New', monospace" fill="#334155">"Hà\u00a0Nội"</text>
+  <text x="76" y="407" font-size="12" fill="#64748b">pasted: non-breaking space</text>
+
+  <text x="62" y="446" font-size="14" font-weight="700" fill="#b91c1c">Counter(raw cities): 4 groups</text>
+  <text x="62" y="466" font-size="13" fill="#7f1d1d">the report lists Hà Nội four times</text>
+
+  <!-- arrow left -> middle -->
+  <line x1="374" y1="294" x2="398" y2="294" stroke="#475569" stroke-width="2"/>
+  <polygon points="396,288 396,300 407,294" fill="#475569"/>
+
+  <!-- Middle: pipeline -->
+  <rect x="410" y="108" width="400" height="372" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="432" y="140" font-size="18" font-weight="700" fill="#334155">Normalize, then build the key</text>
+  <text x="432" y="160" font-size="13" fill="#64748b">the same steps for every row, on a new value</text>
+
+  <rect x="432" y="172" width="356" height="52" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="446" y="194" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155">unicodedata.normalize("NFC", s)</text>
+  <text x="446" y="213" font-size="12" fill="#64748b">a + combining accent becomes à: len 9 becomes 6</text>
+  <line x1="610" y1="224" x2="610" y2="232" stroke="#475569" stroke-width="2"/>
+  <polygon points="604,231 616,231 610,240" fill="#475569"/>
+
+  <rect x="432" y="240" width="356" height="52" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="446" y="262" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155">" ".join(s.split())</text>
+  <text x="446" y="281" font-size="12" fill="#64748b">trims the ends, collapses spaces, tabs and \u00a0</text>
+  <line x1="610" y1="292" x2="610" y2="300" stroke="#475569" stroke-width="2"/>
+  <polygon points="604,299 616,299 610,308" fill="#475569"/>
+
+  <rect x="432" y="308" width="356" height="52" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="446" y="330" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155">key = s.casefold()</text>
+  <text x="446" y="349" font-size="12" fill="#64748b">"Hà Nội" and "hà nội" get the key "hà nội"</text>
+  <line x1="610" y1="360" x2="610" y2="368" stroke="#475569" stroke-width="2"/>
+  <polygon points="604,367 616,367 610,376" fill="#475569"/>
+
+  <rect x="432" y="376" width="356" height="52" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="446" y="398" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155">aliases.get(key, s.title())</text>
+  <text x="446" y="417" font-size="12" fill="#64748b">"ha noi" needs an alias: accents cannot be guessed</text>
+
+  <text x="432" y="458" font-size="13" fill="#475569">Group by the key; print the display value.</text>
+
+  <!-- arrow middle -> right -->
+  <line x1="814" y1="294" x2="838" y2="294" stroke="#475569" stroke-width="2"/>
+  <polygon points="836,288 836,300 847,294" fill="#475569"/>
+
+  <!-- Right: result -->
+  <rect x="850" y="108" width="310" height="372" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="872" y="140" font-size="18" font-weight="700" fill="#15803d">One city, one customer</text>
+  <text x="872" y="160" font-size="13" fill="#14532d">key for grouping, display for people</text>
+
+  <rect x="872" y="172" width="266" height="86" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="886" y="196" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155">key:     "hà nội"</text>
+  <text x="886" y="220" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155">display: "Hà Nội"</text>
+  <text x="886" y="244" font-size="12" fill="#64748b">all 4 rows land in this group</text>
+
+  <rect x="872" y="272" width="266" height="110" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="886" y="296" font-size="14" font-weight="700" fill="#15803d">Emails: strip + casefold</text>
+  <text x="886" y="320" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155">" Lan@Gmail.com "</text>
+  <text x="886" y="342" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155">-> "lan@gmail.com"</text>
+  <text x="886" y="366" font-size="12" fill="#64748b">already seen? skip: first row wins</text>
+
+  <text x="872" y="420" font-size="15" font-weight="700" fill="#15803d">Hà Nội: 3 customers</text>
+  <text x="872" y="442" font-size="13" fill="#14532d">4 rows, 1 duplicate email</text>
+  <text x="872" y="462" font-size="13" fill="#14532d">one voucher per customer</text>
+
+  <!-- Bottom -->
+  <rect x="40" y="500" width="1120" height="68" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="62" y="528" font-size="14" font-weight="700" fill="#334155">Rows you cannot clean are not dropped silently:</text>
+  <text x="62" y="552" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#475569">rejected.append({"row": 7, "reason": "missing email"})</text>
+  <text x="560" y="552" font-size="13" fill="#64748b">and the report says how many rows were rejected and why.</text>
+</svg>

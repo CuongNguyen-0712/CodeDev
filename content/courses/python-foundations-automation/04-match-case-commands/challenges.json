@@ -1,0 +1,228 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_pyf_221",
+      "name": "chat-bot-command-parser",
+      "type": "mini_coding",
+      "title": "Write parse_command(message) with match/case",
+      "description": "The Lotus Mart chat bot receives chat text (\"/stock MUG-01\", \"/restock MUG-01 24\", \"/refund LM-1043 wrong size sent\", \"/help\") and webhook events from the warehouse ({\"type\": \"restock\", \"sku\": \"TEE-02\", \"qty\": 12}). Write parse_command(message) that turns one message into an action dict, using match/case on the split words and on the event dict. It must never crash: missing or extra words give a usage error, a quantity must be a positive whole number, unknown commands are reported, empty messages are ignored, and a restock event needs a text sku and an int qty above 0. The full list of results is in the docstring. Each test sends a list of messages; the runner prints the list of your results as JSON.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "chat_bot.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Stock, restock and help commands",
+          "input": [
+            "/stock MUG-01",
+            "/restock MUG-01 24",
+            "/help",
+            "/? refund"
+          ],
+          "expected": [
+            {
+              "action": "stock",
+              "sku": "MUG-01"
+            },
+            {
+              "action": "restock",
+              "sku": "MUG-01",
+              "qty": 24
+            },
+            {
+              "action": "help"
+            },
+            {
+              "action": "help"
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Refund with and without a reason",
+          "input": [
+            "/refund LM-1042",
+            "/refund LM-1043 wrong size sent"
+          ],
+          "expected": [
+            {
+              "action": "refund",
+              "order_id": "LM-1042",
+              "reason": ""
+            },
+            {
+              "action": "refund",
+              "order_id": "LM-1043",
+              "reason": "wrong size sent"
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Missing or extra words give a usage error, not a crash",
+          "input": [
+            "/refund",
+            "/stock",
+            "/restock MUG-01",
+            "/stock MUG-01 TEE-02",
+            "/restock MUG-01 5 now"
+          ],
+          "expected": [
+            {
+              "action": "error",
+              "message": "usage: /refund ORDER_ID [REASON]"
+            },
+            {
+              "action": "error",
+              "message": "usage: /stock SKU"
+            },
+            {
+              "action": "error",
+              "message": "usage: /restock SKU QTY"
+            },
+            {
+              "action": "error",
+              "message": "usage: /stock SKU"
+            },
+            {
+              "action": "error",
+              "message": "usage: /restock SKU QTY"
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Quantity must be a positive whole number",
+          "input": [
+            "/restock MUG-01 0",
+            "/restock MUG-01 -2",
+            "/restock MUG-01 two",
+            "/restock MUG-01 2.5",
+            "/restock MUG-01 007"
+          ],
+          "expected": [
+            {
+              "action": "error",
+              "message": "qty must be a positive integer"
+            },
+            {
+              "action": "error",
+              "message": "qty must be a positive integer"
+            },
+            {
+              "action": "error",
+              "message": "qty must be a positive integer"
+            },
+            {
+              "action": "error",
+              "message": "qty must be a positive integer"
+            },
+            {
+              "action": "restock",
+              "sku": "MUG-01",
+              "qty": 7
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Unknown commands and empty messages",
+          "input": [
+            "/refundd LM-1042",
+            "hello bot",
+            "",
+            "   ",
+            "/STOCK MUG-01"
+          ],
+          "expected": [
+            {
+              "action": "unknown",
+              "command": "/refundd"
+            },
+            {
+              "action": "unknown",
+              "command": "hello"
+            },
+            {
+              "action": "ignore"
+            },
+            {
+              "action": "ignore"
+            },
+            {
+              "action": "unknown",
+              "command": "/STOCK"
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Webhook restock events: types, extra keys and bad values",
+          "input": [
+            {
+              "type": "restock",
+              "sku": "TEE-02",
+              "qty": 12,
+              "source": "warehouse-hn"
+            },
+            {
+              "type": "restock",
+              "sku": "TEE-02",
+              "qty": "12"
+            },
+            {
+              "type": "restock",
+              "sku": "TEE-02",
+              "qty": 0
+            },
+            {
+              "type": "restock",
+              "qty": 3
+            },
+            {
+              "type": "order",
+              "id": "LM-1044"
+            }
+          ],
+          "expected": [
+            {
+              "action": "restock",
+              "sku": "TEE-02",
+              "qty": 12
+            },
+            {
+              "action": "error",
+              "message": "bad restock event"
+            },
+            {
+              "action": "error",
+              "message": "bad restock event"
+            },
+            {
+              "action": "error",
+              "message": "bad restock event"
+            },
+            {
+              "action": "unknown",
+              "command": null
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

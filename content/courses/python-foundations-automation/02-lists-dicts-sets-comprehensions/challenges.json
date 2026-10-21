@@ -1,0 +1,106 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_pyf_121",
+      "name": "restock-summary",
+      "type": "mini_coding",
+      "title": "Write restock_summary(rows, threshold)",
+      "description": "Each stock row is [sku, warehouse, qty], and one SKU can appear in several warehouses. Return a dict with three keys: \"skus\" - every SKU once, in the order it first appears; \"totals\" - the total quantity per SKU across all warehouses; \"restock\" - the SKUs whose total is below the threshold (strictly less), lowest total first, equal totals ordered by SKU. Rows with qty 0 still count: an SKU that is empty everywhere has a total of 0. The function must not change its input: the test runner deep-copies the rows before the call and prints \"inputUnchanged\": false if the list or any row was changed, removed or reordered.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "restock.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "One SKU stocked in two warehouses is summed",
+          "input": {
+            "rows": [["TEA-01", "HN", 4], ["RICE-5KG", "HN", 20], ["TEA-01", "HCM", 3], ["SOY-500", "DN", 0]],
+            "threshold": 10
+          },
+          "expected": {
+            "skus": ["TEA-01", "RICE-5KG", "SOY-500"],
+            "totals": { "TEA-01": 7, "RICE-5KG": 20, "SOY-500": 0 },
+            "restock": ["SOY-500", "TEA-01"],
+            "inputUnchanged": true
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Equal totals in the restock list are ordered by SKU",
+          "input": {
+            "rows": [["NOODLE-30", "HCM", 2], ["COFFEE-02", "HN", 1], ["COFFEE-02", "DN", 1], ["MILK-1L", "HN", 15], ["FISH-SAUCE", "DN", 2]],
+            "threshold": 5
+          },
+          "expected": {
+            "skus": ["NOODLE-30", "COFFEE-02", "MILK-1L", "FISH-SAUCE"],
+            "totals": { "NOODLE-30": 2, "COFFEE-02": 2, "MILK-1L": 15, "FISH-SAUCE": 2 },
+            "restock": ["COFFEE-02", "FISH-SAUCE", "NOODLE-30"],
+            "inputUnchanged": true
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "An empty stock sheet gives empty results",
+          "input": { "rows": [], "threshold": 5 },
+          "expected": { "skus": [], "totals": {}, "restock": [], "inputUnchanged": true },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "SKUs keep their first-seen order, not alphabetical order",
+          "input": {
+            "rows": [["SOY-500", "DN", 9], ["BEER-24", "HCM", 30], ["APPLE-1KG", "HN", 1], ["SOY-500", "HN", 2], ["BEER-24", "DN", 0]],
+            "threshold": 12
+          },
+          "expected": {
+            "skus": ["SOY-500", "BEER-24", "APPLE-1KG"],
+            "totals": { "SOY-500": 11, "BEER-24": 30, "APPLE-1KG": 1 },
+            "restock": ["APPLE-1KG", "SOY-500"],
+            "inputUnchanged": true
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A total equal to the threshold is not restocked",
+          "input": {
+            "rows": [["RICE-5KG", "HN", 6], ["RICE-5KG", "DN", 4], ["TEA-01", "HN", 9]],
+            "threshold": 10
+          },
+          "expected": {
+            "skus": ["RICE-5KG", "TEA-01"],
+            "totals": { "RICE-5KG": 10, "TEA-01": 9 },
+            "restock": ["TEA-01"],
+            "inputUnchanged": true
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Consecutive empty rows all count, and the stock sheet is left untouched",
+          "input": {
+            "rows": [["COFFEE-02", "HN", 0], ["TEA-01", "HN", 0], ["NOODLE-30", "DN", 5], ["COFFEE-02", "DN", 0], ["TEA-01", "HCM", 0], ["NOODLE-30", "HN", 0]],
+            "threshold": 6
+          },
+          "expected": {
+            "skus": ["COFFEE-02", "TEA-01", "NOODLE-30"],
+            "totals": { "COFFEE-02": 0, "TEA-01": 0, "NOODLE-30": 5 },
+            "restock": ["COFFEE-02", "TEA-01", "NOODLE-30"],
+            "inputUnchanged": true
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

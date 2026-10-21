@@ -1,0 +1,136 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_pyf_311",
+      "name": "order-export-summary",
+      "type": "mini_coding",
+      "title": "Summarise the admin's CSV export",
+      "description": "Write summarize_export(csv_text): read the shop admin's order export (header order_id,customer,city,total_vnd) with the csv module and return {\"rows\", \"skipped\", \"total_vnd\", \"by_city\"}. The text may start with a BOM, customer names with commas are quoted, lines end with \n or \r\n and blank lines are not rows. Every value is a string: convert total_vnd with int(), and skip a row (keep its order_id in \"skipped\", in file order) when its total is missing or int() rejects it. The test runner prints your dict as JSON.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "export_summary.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Plain export: totals per city",
+          "input": {
+            "csv_text": "order_id,customer,city,total_vnd\nA-1001,Lan,Hà Nội,250000\nA-1002,Minh,Đà Nẵng,99000\nA-1003,Hoa,Hà Nội,120000\n"
+          },
+          "expected": {
+            "rows": 3,
+            "skipped": [],
+            "total_vnd": 469000,
+            "by_city": {
+              "Hà Nội": 370000,
+              "Đà Nẵng": 99000
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Excel export with a BOM before the header, one total left empty",
+          "input": {
+            "csv_text": "﻿order_id,customer,city,total_vnd\r\nA-2001,Tuấn,Huế,150000\r\nA-2002,Mai,TP.HCM,320000\r\nA-2003,Phúc,Huế,\r\n"
+          },
+          "expected": {
+            "rows": 3,
+            "skipped": [
+              "A-2003"
+            ],
+            "total_vnd": 470000,
+            "by_city": {
+              "Huế": 150000,
+              "TP.HCM": 320000
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A customer name with a comma is quoted",
+          "input": {
+            "csv_text": "order_id,customer,city,total_vnd\nA-3001,\"Công ty Sen Vàng, chi nhánh 2\",Đà Nẵng,1250000\nA-3002,Bảo,Đà Nẵng,80000\n"
+          },
+          "expected": {
+            "rows": 2,
+            "skipped": [],
+            "total_vnd": 1330000,
+            "by_city": {
+              "Đà Nẵng": 1330000
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Totals with decimals or text are skipped (VND has no decimals)",
+          "input": {
+            "csv_text": "order_id,customer,city,total_vnd\nA-4001,Lan,Huế,50000\nA-4002,Minh,Huế,99000.0\nA-4003,Hoa,Vinh,n/a\nA-4004,Quân,Vinh,30000\n"
+          },
+          "expected": {
+            "rows": 4,
+            "skipped": [
+              "A-4002",
+              "A-4003"
+            ],
+            "total_vnd": 80000,
+            "by_city": {
+              "Huế": 50000,
+              "Vinh": 30000
+            }
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A short row with no total is skipped and blank lines are not rows",
+          "input": {
+            "csv_text": "order_id,customer,city,total_vnd\r\nA-5001,Lan,Hà Nội,200000\r\n\r\nA-5002,Minh,Hà Nội\r\nA-5003,Hoa,Cần Thơ,75000\r\n\r\n"
+          },
+          "expected": {
+            "rows": 3,
+            "skipped": [
+              "A-5002"
+            ],
+            "total_vnd": 275000,
+            "by_city": {
+              "Hà Nội": 200000,
+              "Cần Thơ": 75000
+            }
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "BOM, quoted commas, Windows line endings and bad totals together",
+          "input": {
+            "csv_text": "﻿order_id,customer,city,total_vnd\r\nA-6001,\"Nguyễn Văn An, kho Bình Dương\",TP.HCM,450000\r\nA-6002,Linh,Hà Nội,\r\nA-6003,\"Trần, Lê & Co\",Hà Nội,310000\r\nA-6004,Quân,TP.HCM,15000.5\r\nA-6005,Hà,Huế,60000\r\n"
+          },
+          "expected": {
+            "rows": 5,
+            "skipped": [
+              "A-6002",
+              "A-6004"
+            ],
+            "total_vnd": 820000,
+            "by_city": {
+              "TP.HCM": 450000,
+              "Hà Nội": 310000,
+              "Huế": 60000
+            }
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

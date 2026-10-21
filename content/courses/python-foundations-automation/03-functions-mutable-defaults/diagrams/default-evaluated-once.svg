@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">A default value is created once, when def runs</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Every call that leaves out notes gets the SAME list object. It belongs to the function, not to the call.</text>
+
+  <!-- Left: mutable default -->
+  <rect x="40" y="108" width="540" height="300" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="140" font-size="17" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">def build_slip(..., notes=[])</text>
+  <text x="64" y="164" font-size="13" fill="#7f1d1d">one list, made at def time, shared by every call</text>
+
+  <rect x="64" y="186" width="200" height="50" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="216" font-size="14" fill="#334155">call 1: LM-1001, gift</text>
+  <rect x="64" y="252" width="200" height="50" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="282" font-size="14" fill="#334155">call 2: LM-1002</text>
+  <rect x="64" y="318" width="200" height="50" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="348" font-size="14" fill="#334155">call 3: LM-1003, gift</text>
+
+  <rect x="320" y="206" width="236" height="144" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="336" y="232" font-size="14" font-weight="700" fill="#b91c1c">notes (ONE list)</text>
+  <text x="336" y="254" font-size="12" fill="#7f1d1d">stored in build_slip.__defaults__</text>
+  <text x="336" y="290" font-size="13" fill="#334155">[0] "GIFT WRAP"  (call 1)</text>
+  <text x="336" y="316" font-size="13" fill="#334155">[1] "GIFT WRAP"  (call 3)</text>
+
+  <line x1="264" y1="211" x2="308" y2="236" stroke="#dc2626" stroke-width="2"/>
+  <polygon points="305,230 302,241 316,240" fill="#dc2626"/>
+  <line x1="264" y1="277" x2="306" y2="277" stroke="#dc2626" stroke-width="2"/>
+  <polygon points="306,271 306,283 318,277" fill="#dc2626"/>
+  <line x1="264" y1="343" x2="308" y2="318" stroke="#dc2626" stroke-width="2"/>
+  <polygon points="302,313 305,324 316,314" fill="#dc2626"/>
+
+  <text x="64" y="394" font-size="13" font-weight="700" fill="#b91c1c">LM-1002 asked for nothing, but its slip shows both notes</text>
+
+  <!-- Right: None sentinel -->
+  <rect x="620" y="108" width="540" height="300" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="140" font-size="17" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">def build_slip(..., notes=None)</text>
+  <text x="644" y="164" font-size="13" fill="#14532d">None is the default; a new list is made inside every call</text>
+
+  <rect x="644" y="186" width="200" height="50" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="216" font-size="14" fill="#334155">call 1: LM-1001, gift</text>
+  <rect x="644" y="252" width="200" height="50" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="282" font-size="14" fill="#334155">call 2: LM-1002</text>
+  <rect x="644" y="318" width="200" height="50" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="348" font-size="14" fill="#334155">call 3: LM-1003, gift</text>
+
+  <rect x="900" y="186" width="236" height="50" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="916" y="216" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">["GIFT WRAP"]</text>
+  <rect x="900" y="252" width="236" height="50" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="916" y="282" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">[]</text>
+  <rect x="900" y="318" width="236" height="50" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="916" y="348" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">["GIFT WRAP"]</text>
+
+  <line x1="844" y1="211" x2="886" y2="211" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="886,205 886,217 898,211" fill="#16a34a"/>
+  <line x1="844" y1="277" x2="886" y2="277" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="886,271 886,283 898,277" fill="#16a34a"/>
+  <line x1="844" y1="343" x2="886" y2="343" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="886,337 886,349 898,343" fill="#16a34a"/>
+
+  <text x="644" y="394" font-size="13" font-weight="700" fill="#15803d">three calls, three separate lists: nothing leaks between orders</text>
+
+  <!-- Bottom: same rule -->
+  <rect x="40" y="436" width="1120" height="128" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="468" font-size="16" font-weight="700" fill="#334155">The same rule for every default value</text>
+  <text x="64" y="498" font-size="14" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">counts={}</text>
+  <text x="340" y="498" font-size="14" fill="#334155">one dict for every call: the counts of the first file stay in the next report</text>
+  <text x="64" y="524" font-size="14" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">created_at=datetime.now()</text>
+  <text x="340" y="524" font-size="14" fill="#334155">evaluated once, when def runs: every call gets the same timestamp</text>
+  <text x="64" y="550" font-size="14" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">x=None</text>
+  <text x="340" y="550" font-size="14" fill="#334155">then inside the function: if x is None, create the list, dict or time for THIS call</text>
+</svg>

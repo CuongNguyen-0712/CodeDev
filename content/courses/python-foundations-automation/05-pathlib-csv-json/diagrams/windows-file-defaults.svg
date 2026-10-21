@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Four defaults that broke the nightly export on Windows</text>
+  <text x="40" y="82" font-size="16" fill="#475569">A text file is bytes + an encoding + line endings. Say every one of them out loud in the code.</text>
+
+  <!-- Left: what the script did -->
+  <rect x="40" y="104" width="540" height="424" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="136" font-size="18" font-weight="700" fill="#b91c1c">What the script did</text>
+
+  <rect x="64" y="152" width="492" height="80" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="180" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155">"C:\exports\new\orders.csv"</text>
+  <text x="80" y="210" font-size="13" fill="#7f1d1d">\n is a line break: OSError [Errno 22] Invalid argument</text>
+
+  <rect x="64" y="244" width="492" height="80" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="272" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155">open(src, encoding="utf-8")</text>
+  <text x="80" y="302" font-size="13" fill="#7f1d1d">the BOM stays: first header is '\ufefforder_id', KeyError</text>
+
+  <rect x="64" y="336" width="492" height="80" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="364" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155">open(out, "w", encoding="utf-8")</text>
+  <text x="80" y="394" font-size="13" fill="#7f1d1d">rows end \r\r\n, no BOM: blank rows, HÃ  Ná»™i in Excel</text>
+
+  <rect x="64" y="428" width="492" height="80" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="456" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155">json.dump(summary, f)</text>
+  <text x="80" y="486" font-size="13" fill="#7f1d1d">default ensure_ascii=True: bot posts "H\u00e0 N\u1ed9i"</text>
+
+  <!-- Arrows -->
+  <line x1="588" y1="192" x2="604" y2="192" stroke="#64748b" stroke-width="2"/>
+  <polygon points="602,186 602,198 614,192" fill="#64748b"/>
+  <line x1="588" y1="284" x2="604" y2="284" stroke="#64748b" stroke-width="2"/>
+  <polygon points="602,278 602,290 614,284" fill="#64748b"/>
+  <line x1="588" y1="376" x2="604" y2="376" stroke="#64748b" stroke-width="2"/>
+  <polygon points="602,370 602,382 614,376" fill="#64748b"/>
+  <line x1="588" y1="468" x2="604" y2="468" stroke="#64748b" stroke-width="2"/>
+  <polygon points="602,462 602,474 614,468" fill="#64748b"/>
+
+  <!-- Right: the fix -->
+  <rect x="620" y="104" width="540" height="424" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="136" font-size="18" font-weight="700" fill="#15803d">Say it explicitly</text>
+
+  <rect x="644" y="152" width="492" height="80" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="180" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155">Path(r"C:\exports\new") / "orders.csv"</text>
+  <text x="660" y="210" font-size="13" fill="#14532d">raw string or Path: backslashes stay backslashes</text>
+
+  <rect x="644" y="244" width="492" height="80" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="272" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155">open(src, encoding="utf-8-sig", newline="")</text>
+  <text x="660" y="302" font-size="13" fill="#14532d">BOM removed if present: header is 'order_id'</text>
+
+  <rect x="644" y="336" width="492" height="80" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="364" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155">open(out, "w", encoding="utf-8-sig", newline="")</text>
+  <text x="660" y="394" font-size="13" fill="#14532d">one \r\n per row, BOM first: Excel reads UTF-8</text>
+
+  <rect x="644" y="428" width="492" height="80" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="456" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155">json.dumps(summary, ensure_ascii=False)</text>
+  <text x="660" y="486" font-size="13" fill="#14532d">+ write_text(..., encoding="utf-8"): "Hà Nội"</text>
+
+  <!-- Bottom note -->
+  <rect x="40" y="544" width="1120" height="44" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="572" font-size="14" fill="#334155">open() without encoding= uses the locale encoding (cp1252 on this PC). Find those calls: python -X warn_default_encoding</text>
+</svg>

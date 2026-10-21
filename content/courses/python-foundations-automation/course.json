@@ -1,0 +1,109 @@
+{
+  "publicId": "python-foundations-automation",
+  "title": "Python 3.14 Foundations: Automation & Data Scripts",
+  "concept": "Start programming with Python 3.14 by automating real chores: strings and collections, functions, match/case, files, CSV and JSON, cleaning messy data, errors and a small reporting CLI.",
+  "description": "A beginner course for people who can write a little code and want Python scripts that do real work without surprises. Every lesson starts from a small incident at an online shop - a revenue of 175000175000 because a price was still text, a restock list that puts every SKU on every shelf, a gift-wrap note that leaks into every packing slip, a chat bot that treats every command as a refund, a CSV export that turns Hà Nội into mojibake on Windows, a report that lists one city three times, an import job that swallows its errors, a log report that crashes at 2am - and fixes it with Python 3.14: strings and f-strings, lists, dicts and sets, functions, match/case, pathlib, CSV and JSON, Unicode normalization, exceptions and except*, dataclasses, type hints and argparse. 8 lessons with quizzes and Python coding challenges.",
+  "image": null,
+  "level": "beginner",
+  "durationMinutes": 176,
+  "instructor": "CodeDev Engineering Team",
+  "language": "Python",
+  "category": "Python Development",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 50,
+  "accessModel": "free",
+  "publishStatus": "draft",
+  "careerRoles": [
+    "student",
+    "data_analyst",
+    "data_engineer",
+    "ml_engineer",
+    "devops_engineer",
+    "qa_engineer"
+  ],
+  "skills": {
+    "python": 5,
+    "data_analysis": 2,
+    "data_structures": 2
+  },
+  "goals": [
+    "fundamentals",
+    "first_job",
+    "change_career"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Basics",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-values-strings-fstrings",
+          "title": "Values, strings & f-strings",
+          "sanityId": "lesson-pyf-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-lists-dicts-sets-comprehensions",
+          "title": "Lists, dicts, sets & comprehensions",
+          "sanityId": "lesson-pyf-1-2"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Functions & Control Flow",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "03-functions-mutable-defaults",
+          "title": "Functions & the mutable default argument bug",
+          "sanityId": "lesson-pyf-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "04-match-case-commands",
+          "title": "match/case for parsing commands",
+          "sanityId": "lesson-pyf-2-2"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Files & Data",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "05-pathlib-csv-json",
+          "title": "pathlib, CSV & JSON",
+          "sanityId": "lesson-pyf-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "06-cleaning-messy-data",
+          "title": "Cleaning messy data: normalize, dedupe, group",
+          "sanityId": "lesson-pyf-3-2"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Robust Scripts",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "07-exceptions-exception-groups",
+          "title": "Exceptions & exception groups (except*)",
+          "sanityId": "lesson-pyf-4-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-dataclasses-log-report-cli",
+          "title": "dataclasses, type hints & a log-report CLI",
+          "sanityId": "lesson-pyf-4-2"
+        }
+      ]
+    }
+  ]
+}

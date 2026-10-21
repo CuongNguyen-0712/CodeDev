@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">[[]] * 3 repeats one reference: three shelves, one list</text>
+  <text x="40" y="82" font-size="16" fill="#475569">A list stores references to objects. Multiplying a list repeats the references; it never copies the objects.</text>
+
+  <!-- Left: [[]] * 3 -->
+  <rect x="40" y="108" width="540" height="300" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="140" font-size="18" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">shelves = [[]] * 3</text>
+  <text x="64" y="162" font-size="13" fill="#7f1d1d">one inner list, three references to it</text>
+
+  <rect x="64" y="186" width="170" height="194" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="212" font-size="15" font-weight="700" fill="#334155">shelves</text>
+  <rect x="80" y="232" width="138" height="36" rx="4" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="96" y="255" font-size="14" fill="#475569" font-family="Consolas, 'Courier New', monospace">[0]</text>
+  <text x="196" y="255" font-size="14" fill="#dc2626">●</text>
+  <rect x="80" y="282" width="138" height="36" rx="4" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="96" y="305" font-size="14" fill="#475569" font-family="Consolas, 'Courier New', monospace">[1]</text>
+  <text x="196" y="305" font-size="14" fill="#dc2626">●</text>
+  <rect x="80" y="332" width="138" height="36" rx="4" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="96" y="355" font-size="14" fill="#475569" font-family="Consolas, 'Courier New', monospace">[2]</text>
+  <text x="196" y="355" font-size="14" fill="#dc2626">●</text>
+
+  <rect x="330" y="226" width="226" height="112" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="344" y="252" font-size="15" font-weight="700" fill="#b91c1c">ONE list (shared)</text>
+  <text x="344" y="278" font-size="12" fill="#334155" font-family="Consolas, 'Courier New', monospace">'TEA-01', 'COFFEE-02',</text>
+  <text x="344" y="298" font-size="12" fill="#334155" font-family="Consolas, 'Courier New', monospace">'RICE-5KG', 'NOODLE-30',</text>
+  <text x="344" y="318" font-size="12" fill="#334155" font-family="Consolas, 'Courier New', monospace">'SOY-500'</text>
+
+  <path d="M218 250 H280 V262 H318" fill="none" stroke="#dc2626" stroke-width="2"/>
+  <polygon points="318,256 318,268 330,262" fill="#dc2626"/>
+  <path d="M218 300 H290 V285 H318" fill="none" stroke="#dc2626" stroke-width="2"/>
+  <polygon points="318,279 318,291 330,285" fill="#dc2626"/>
+  <path d="M218 350 H300 V310 H318" fill="none" stroke="#dc2626" stroke-width="2"/>
+  <polygon points="318,304 318,316 330,310" fill="#dc2626"/>
+
+  <text x="262" y="372" font-size="13" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">shelves[0].append(sku)</text>
+  <text x="262" y="392" font-size="13" fill="#7f1d1d">also shows up on shelf 1 and shelf 2</text>
+
+  <!-- Right: list comprehension -->
+  <rect x="620" y="108" width="540" height="300" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="140" font-size="18" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">shelves = [[] for _ in range(3)]</text>
+  <text x="644" y="162" font-size="13" fill="#14532d">the comprehension runs [] three times: three new lists</text>
+
+  <rect x="644" y="186" width="170" height="194" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="212" font-size="15" font-weight="700" fill="#334155">shelves</text>
+  <rect x="660" y="232" width="138" height="36" rx="4" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="676" y="255" font-size="14" fill="#475569" font-family="Consolas, 'Courier New', monospace">[0]</text>
+  <text x="776" y="255" font-size="14" fill="#16a34a">●</text>
+  <rect x="660" y="282" width="138" height="36" rx="4" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="676" y="305" font-size="14" fill="#475569" font-family="Consolas, 'Courier New', monospace">[1]</text>
+  <text x="776" y="305" font-size="14" fill="#16a34a">●</text>
+  <rect x="660" y="332" width="138" height="36" rx="4" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="676" y="355" font-size="14" fill="#475569" font-family="Consolas, 'Courier New', monospace">[2]</text>
+  <text x="776" y="355" font-size="14" fill="#16a34a">●</text>
+
+  <rect x="910" y="196" width="226" height="52" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="926" y="227" font-size="12" fill="#334155" font-family="Consolas, 'Courier New', monospace">['TEA-01', 'COFFEE-02']</text>
+  <rect x="910" y="262" width="226" height="52" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="926" y="293" font-size="12" fill="#334155" font-family="Consolas, 'Courier New', monospace">['RICE-5KG', 'NOODLE-30']</text>
+  <rect x="910" y="328" width="226" height="52" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="926" y="359" font-size="12" fill="#334155" font-family="Consolas, 'Courier New', monospace">['SOY-500']</text>
+
+  <path d="M798 250 H850 V222 H898" fill="none" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="898,216 898,228 910,222" fill="#16a34a"/>
+  <path d="M798 300 H860 V288 H898" fill="none" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="898,282 898,294 910,288" fill="#16a34a"/>
+  <path d="M798 350 H870 V354 H898" fill="none" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="898,348 898,360 910,354" fill="#16a34a"/>
+
+  <text x="644" y="396" font-size="13" fill="#14532d">each shelf owns its list: appending to one leaves the others alone</text>
+
+  <!-- Bottom: names and copies -->
+  <rect x="40" y="436" width="1120" height="140" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="466" font-size="16" font-weight="700" fill="#334155">The same rule for names and copies</text>
+  <text x="64" y="498" font-size="14" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">sellable = stock</text>
+  <text x="330" y="498" font-size="14" fill="#334155">a second name for the SAME list: sellable.remove(row) also removes it from stock</text>
+  <text x="64" y="526" font-size="14" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">stock.copy() or stock[:]</text>
+  <text x="330" y="526" font-size="14" fill="#334155">a NEW outer list, but the items inside are still the same objects (shallow copy)</text>
+  <text x="64" y="554" font-size="14" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">copy.deepcopy(layout)</text>
+  <text x="330" y="554" font-size="14" fill="#334155">copies every level: inner lists are new too, so editing the copy cannot reach layout</text>
+</svg>

@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_pyf_411",
+      "key": "challenges/python/chal_fix_pyf_411/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "import_prices.py",
+      "size": 3109
+    }
+  ]
+}

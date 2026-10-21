@@ -1,0 +1,131 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_fix_pyf_411",
+      "name": "fix-price-import-exception-group",
+      "type": "fix_bug",
+      "title": "Make the nightly price update report every bad row",
+      "description": "import_prices(rows, catalog) applies the supplier's price sheet to the catalog. Today a bare except: pass hides unreadable rows (and quietly re-applies the previous row's price instead), the first non-positive price stops the whole run, and the original KeyError or ValueError is never attached to the error. Fix it: check every row, apply only the good ones, turn each bad row into a PriceError with its row number and the original error as __cause__ (raise ... from err), and raise one ExceptionGroup(\"<bad> of <total> rows invalid\", errors) at the end. The runner at the bottom (do not change it) catches the group with except* PriceError and prints the report the job sends: updated count, the group message, every error with its row, message and cause type, and the catalog after the run.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "python",
+        "filePath": "import_prices.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A clean sheet: every row is applied and counted",
+          "input": {
+            "catalog": { "TEA-01": 42000, "COF-02": 50000 },
+            "rows": [
+              { "sku": "TEA-01", "price": "45000" },
+              { "sku": "COF-02", "price": "52000" },
+              { "sku": "MUG-07", "price": "89000" }
+            ]
+          },
+          "expected": {
+            "updated": 3,
+            "group": null,
+            "errors": [],
+            "catalog": { "TEA-01": 45000, "COF-02": 52000, "MUG-07": 89000 }
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "One unreadable price: an ExceptionGroup with a PriceError caused by ValueError",
+          "input": {
+            "catalog": { "TEA-01": 42000, "COF-02": 50000 },
+            "rows": [
+              { "sku": "TEA-01", "price": "45000" },
+              { "sku": "COF-02", "price": "45,000" },
+              { "sku": "MUG-07", "price": "89000" }
+            ]
+          },
+          "expected": {
+            "updated": null,
+            "group": "1 of 3 rows invalid",
+            "errors": [
+              { "row": 2, "message": "row 2: price is not a whole number: '45,000'", "cause": "ValueError" }
+            ],
+            "catalog": { "TEA-01": 45000, "COF-02": 50000, "MUG-07": 89000 }
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Three different bad rows are reported together, in row order",
+          "input": {
+            "catalog": {},
+            "rows": [
+              { "sku": "TEA-01", "price": "45000" },
+              { "sku": "COF-02", "price": "52.000đ" },
+              { "sku": "MUG-07" },
+              { "sku": "BAG-03", "price": "0" },
+              { "sku": "PEN-11", "price": "12000" }
+            ]
+          },
+          "expected": {
+            "updated": null,
+            "group": "3 of 5 rows invalid",
+            "errors": [
+              { "row": 2, "message": "row 2: price is not a whole number: '52.000đ'", "cause": "ValueError" },
+              { "row": 3, "message": "row 3: missing field 'price'", "cause": "KeyError" },
+              { "row": 4, "message": "row 4: price must be positive, got 0", "cause": null }
+            ],
+            "catalog": { "TEA-01": 45000, "PEN-11": 12000 }
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A bad first row, a missing sku and spaces around a good price",
+          "input": {
+            "catalog": { "COF-02": 50000 },
+            "rows": [
+              { "sku": "TEA-01", "price": "" },
+              { "sku": " COF-02 ", "price": " 52000 " },
+              { "price": "30000" }
+            ]
+          },
+          "expected": {
+            "updated": null,
+            "group": "2 of 3 rows invalid",
+            "errors": [
+              { "row": 1, "message": "row 1: price is not a whole number: ''", "cause": "ValueError" },
+              { "row": 3, "message": "row 3: missing field 'sku'", "cause": "KeyError" }
+            ],
+            "catalog": { "COF-02": 52000 }
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A negative price is rejected and never reaches the catalog",
+          "input": {
+            "catalog": { "TEA-01": 42000, "MUG-07": 85000 },
+            "rows": [
+              { "sku": "TEA-01", "price": "-100" },
+              { "sku": "MUG-07", "price": "89000" }
+            ]
+          },
+          "expected": {
+            "updated": null,
+            "group": "1 of 2 rows invalid",
+            "errors": [
+              { "row": 1, "message": "row 1: price must be positive, got -100", "cause": null }
+            ],
+            "catalog": { "TEA-01": 42000, "MUG-07": 89000 }
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,552 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pyf_321",
+      "name": "normalize-and-dedupe-quiz",
+      "type": "quiz",
+      "title": "Equal after cleaning? Which row survives?",
+      "description": "Predict what normalization and a dict-based dedupe really do before you write the cleaning function.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "import unicodedata\n\nnfc = \"Hà Nội\"                              # typed on a laptop (composed)\nnfd = unicodedata.normalize(\"NFD\", nfc)    # the same city from the mobile app\nnbsp = \"Hà\\u00a0Nội\"                       # pasted from a web page\n\nWhich expressions are True? (Select all that apply.)",
+          "explanation": "NFC recombines the base letters and combining marks of nfd, so the first comparison is True. casefold() changes case only: nfd keeps its separate combining marks, so the casefolded strings still differ. strip() removes whitespace at the ends only, and the non-breaking space is in the middle, so nbsp.strip() is unchanged. split() with no argument splits on any whitespace, including the non-breaking space, and \" \".join(...) puts one normal space back, which gives exactly nfc. Normalization never removes accents: the casefolded city is \"hà nội\", not \"ha noi\" - that spelling needs an alias table.",
+          "options": [
+            {
+              "text": "unicodedata.normalize(\"NFC\", nfd) == nfc",
+              "correct": true
+            },
+            {
+              "text": "nfd.casefold() == nfc.casefold()",
+              "correct": false
+            },
+            {
+              "text": "nbsp.strip() == nfc",
+              "correct": false
+            },
+            {
+              "text": "\" \".join(nbsp.split()) == nfc",
+              "correct": true
+            },
+            {
+              "text": "unicodedata.normalize(\"NFC\", nfc).casefold() == \"ha noi\"",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "rows = [\n    {\"email\": \"lan@lotus.vn\", \"city\": \"Huế\"},\n    {\"email\": \" Lan@Lotus.vn\", \"city\": \"Đà Nẵng\"},\n    {\"email\": \"minh@lotus.vn\", \"city\": \"Huế\"},\n]\ncustomers = {}\nfor row in rows:\n    customers[row[\"email\"].strip().casefold()] = row[\"city\"]\nprint(list(customers.items()))\n\nWhat does it print?",
+          "explanation": "Both Lan rows have the same key \"lan@lotus.vn\" after strip() and casefold(). Assigning to a key that already exists replaces its value, so the second row's city wins: this loop keeps the LAST row for each customer. The key itself keeps its original position - a dict is ordered by when each key was first inserted, and replacing a value does not move it. To keep the first row instead, skip the row when the key is already in the dict (if key in customers: continue).",
+          "options": [
+            {
+              "text": "[('lan@lotus.vn', 'Huế'), ('minh@lotus.vn', 'Huế')]",
+              "correct": false
+            },
+            {
+              "text": "[('lan@lotus.vn', 'Đà Nẵng'), ('minh@lotus.vn', 'Huế')]",
+              "correct": true
+            },
+            {
+              "text": "[('minh@lotus.vn', 'Huế'), ('lan@lotus.vn', 'Đà Nẵng')]",
+              "correct": false
+            },
+            {
+              "text": "[('lan@lotus.vn', 'Huế'), ('lan@lotus.vn', 'Đà Nẵng'), ('minh@lotus.vn', 'Huế')]",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pyf_322",
+      "name": "clean-customers-by-city",
+      "type": "mini_coding",
+      "title": "Write clean_customers(rows, aliases)",
+      "description": "Build the monthly \"customers by city\" report from the raw customer export. Normalize each email (strip, casefold) and each city (NFC, collapse whitespace, casefold for the key; display name from the alias map or the cleaned text in title case), reject rows without an email or city with their row number and a reason, keep only the first valid row for each email, and return the customer count per city sorted by count (highest first) and then by name. Do not modify the input rows. The test runner at the bottom of the file prints your result as JSON.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "clean_customers.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Same email with different case and spaces is one customer",
+          "input": {
+            "rows": [
+              {
+                "email": "lan.nguyen@gmail.com",
+                "name": "Nguyễn Thị Lan",
+                "city": "Hà Nội"
+              },
+              {
+                "email": " Lan.Nguyen@Gmail.com ",
+                "name": "Lan Nguyen",
+                "city": "Hà Nội"
+              },
+              {
+                "email": "minh.tran@lotus.vn",
+                "name": "Trần Minh",
+                "city": "Huế"
+              },
+              {
+                "email": "MINH.TRAN@lotus.vn",
+                "name": "Minh",
+                "city": "Huế"
+              },
+              {
+                "email": "an.pham@yahoo.com",
+                "name": "Phạm An",
+                "city": "Đà Nẵng"
+              }
+            ],
+            "aliases": {
+              "ha noi": "Hà Nội",
+              "hn": "Hà Nội",
+              "tp.hcm": "TP.HCM",
+              "tp hcm": "TP.HCM",
+              "hồ chí minh": "TP.HCM",
+              "sài gòn": "TP.HCM",
+              "da nang": "Đà Nẵng"
+            }
+          },
+          "expected": {
+            "by_city": [
+              [
+                "Huế",
+                1
+              ],
+              [
+                "Hà Nội",
+                1
+              ],
+              [
+                "Đà Nẵng",
+                1
+              ]
+            ],
+            "duplicates": 2,
+            "rejected": []
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Composed and decomposed Hà Nội are one city",
+          "input": {
+            "rows": [
+              {
+                "email": "lan@lotus.vn",
+                "name": "Lan",
+                "city": "Hà Nội"
+              },
+              {
+                "email": "binh@lotus.vn",
+                "name": "Bình",
+                "city": "Ha\u0300 No\u0323\u0302i"
+              },
+              {
+                "email": "chi@lotus.vn",
+                "name": "Chi",
+                "city": "hà nội "
+              },
+              {
+                "email": "dung@lotus.vn",
+                "name": "Dũng",
+                "city": "Đa\u0300 Na\u0306\u0303ng"
+              },
+              {
+                "email": "em@lotus.vn",
+                "name": "Em",
+                "city": "Huế"
+              }
+            ],
+            "aliases": {
+              "ha noi": "Hà Nội",
+              "hn": "Hà Nội",
+              "tp.hcm": "TP.HCM",
+              "tp hcm": "TP.HCM",
+              "hồ chí minh": "TP.HCM",
+              "sài gòn": "TP.HCM",
+              "da nang": "Đà Nẵng"
+            }
+          },
+          "expected": {
+            "by_city": [
+              [
+                "Hà Nội",
+                3
+              ],
+              [
+                "Huế",
+                1
+              ],
+              [
+                "Đà Nẵng",
+                1
+              ]
+            ],
+            "duplicates": 0,
+            "rejected": []
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Rows without an email or city are rejected with their row number",
+          "input": {
+            "rows": [
+              {
+                "email": "lan@lotus.vn",
+                "name": "Lan",
+                "city": "Hà Nội"
+              },
+              {
+                "email": "",
+                "name": "Khách lẻ",
+                "city": "Hà Nội"
+              },
+              {
+                "email": null,
+                "name": "Khách lẻ",
+                "city": "Huế"
+              },
+              {
+                "email": "   ",
+                "name": "Khách lẻ",
+                "city": ""
+              },
+              {
+                "name": "Không email",
+                "city": "Huế"
+              },
+              {
+                "email": "minh@lotus.vn",
+                "name": "Minh",
+                "city": "  "
+              },
+              {
+                "email": "an@lotus.vn",
+                "name": "An",
+                "city": null
+              },
+              {
+                "email": "hoa@lotus.vn",
+                "name": "Hoa",
+                "city": "Huế"
+              }
+            ],
+            "aliases": {
+              "ha noi": "Hà Nội",
+              "hn": "Hà Nội",
+              "tp.hcm": "TP.HCM",
+              "tp hcm": "TP.HCM",
+              "hồ chí minh": "TP.HCM",
+              "sài gòn": "TP.HCM",
+              "da nang": "Đà Nẵng"
+            }
+          },
+          "expected": {
+            "by_city": [
+              [
+                "Huế",
+                1
+              ],
+              [
+                "Hà Nội",
+                1
+              ]
+            ],
+            "duplicates": 0,
+            "rejected": [
+              {
+                "row": 2,
+                "reason": "missing email"
+              },
+              {
+                "row": 3,
+                "reason": "missing email"
+              },
+              {
+                "row": 4,
+                "reason": "missing email"
+              },
+              {
+                "row": 5,
+                "reason": "missing email"
+              },
+              {
+                "row": 6,
+                "reason": "missing city"
+              },
+              {
+                "row": 7,
+                "reason": "missing city"
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A repeated email keeps the city of its first row",
+          "input": {
+            "rows": [
+              {
+                "email": "lan@lotus.vn",
+                "name": "Lan",
+                "city": "Hà Nội"
+              },
+              {
+                "email": "minh@lotus.vn",
+                "name": "Minh",
+                "city": "Đà Nẵng"
+              },
+              {
+                "email": "Lan@Lotus.vn ",
+                "name": "Lan (moved)",
+                "city": "Đà Nẵng"
+              },
+              {
+                "email": "an@lotus.vn",
+                "name": "An",
+                "city": "Hà Nội"
+              },
+              {
+                "email": "minh@lotus.vn",
+                "name": "Minh",
+                "city": "Huế"
+              },
+              {
+                "email": " LAN@lotus.vn",
+                "name": "Lan",
+                "city": "Đà Nẵng"
+              }
+            ],
+            "aliases": {
+              "ha noi": "Hà Nội",
+              "hn": "Hà Nội",
+              "tp.hcm": "TP.HCM",
+              "tp hcm": "TP.HCM",
+              "hồ chí minh": "TP.HCM",
+              "sài gòn": "TP.HCM",
+              "da nang": "Đà Nẵng"
+            }
+          },
+          "expected": {
+            "by_city": [
+              [
+                "Hà Nội",
+                2
+              ],
+              [
+                "Đà Nẵng",
+                1
+              ]
+            ],
+            "duplicates": 3,
+            "rejected": []
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Aliases, non-breaking spaces and double spaces map to one display name",
+          "input": {
+            "rows": [
+              {
+                "email": "a1@lotus.vn",
+                "name": "A1",
+                "city": "TP.HCM"
+              },
+              {
+                "email": "a2@lotus.vn",
+                "name": "A2",
+                "city": " tp.hcm"
+              },
+              {
+                "email": "a3@lotus.vn",
+                "name": "A3",
+                "city": "Sa\u0300i Go\u0300n"
+              },
+              {
+                "email": "a4@lotus.vn",
+                "name": "A4",
+                "city": "Hồ\u00a0Chí  Minh"
+              },
+              {
+                "email": "a5@lotus.vn",
+                "name": "A5",
+                "city": "  ha   noi "
+              },
+              {
+                "email": "a6@lotus.vn",
+                "name": "A6",
+                "city": "HN"
+              },
+              {
+                "email": "a7@lotus.vn",
+                "name": "A7",
+                "city": "Ha Noi"
+              },
+              {
+                "email": "a8@lotus.vn",
+                "name": "A8",
+                "city": "cần thơ"
+              },
+              {
+                "email": "a9@lotus.vn",
+                "name": "A9",
+                "city": "Cần\u00a0Thơ"
+              }
+            ],
+            "aliases": {
+              "ha noi": "Hà Nội",
+              "hn": "Hà Nội",
+              "tp.hcm": "TP.HCM",
+              "tp hcm": "TP.HCM",
+              "hồ chí minh": "TP.HCM",
+              "sài gòn": "TP.HCM",
+              "da nang": "Đà Nẵng"
+            }
+          },
+          "expected": {
+            "by_city": [
+              [
+                "TP.HCM",
+                4
+              ],
+              [
+                "Hà Nội",
+                3
+              ],
+              [
+                "Cần Thơ",
+                2
+              ]
+            ],
+            "duplicates": 0,
+            "rejected": []
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A rejected row does not block a later row with the same email; ties sorted by name",
+          "input": {
+            "rows": [
+              {
+                "email": "an@lotus.vn",
+                "name": "An",
+                "city": ""
+              },
+              {
+                "email": "AN@lotus.vn",
+                "name": "An",
+                "city": "Huế"
+              },
+              {
+                "email": "b@lotus.vn",
+                "name": "B",
+                "city": "Đà Nẵng"
+              },
+              {
+                "email": "c@lotus.vn",
+                "name": "C",
+                "city": "Cần Thơ"
+              },
+              {
+                "email": "d@lotus.vn",
+                "name": "D",
+                "city": "da nang"
+              },
+              {
+                "email": "e@lotus.vn",
+                "name": "E",
+                "city": "Huế"
+              },
+              {
+                "email": "f@lotus.vn",
+                "name": "F",
+                "city": "Cần Thơ"
+              },
+              {
+                "email": "g@lotus.vn",
+                "name": "G",
+                "city": "Hà Nội"
+              },
+              {
+                "email": "h@lotus.vn",
+                "name": "H",
+                "city": "hn"
+              },
+              {
+                "email": "i@lotus.vn",
+                "name": "I",
+                "city": "Ha\u0300 No\u0323\u0302i"
+              },
+              {
+                "email": "j@lotus.vn",
+                "name": "J",
+                "city": "TP.HCM"
+              }
+            ],
+            "aliases": {
+              "ha noi": "Hà Nội",
+              "hn": "Hà Nội",
+              "tp.hcm": "TP.HCM",
+              "tp hcm": "TP.HCM",
+              "hồ chí minh": "TP.HCM",
+              "sài gòn": "TP.HCM",
+              "da nang": "Đà Nẵng"
+            }
+          },
+          "expected": {
+            "by_city": [
+              [
+                "Hà Nội",
+                3
+              ],
+              [
+                "Cần Thơ",
+                2
+              ],
+              [
+                "Huế",
+                2
+              ],
+              [
+                "Đà Nẵng",
+                2
+              ],
+              [
+                "TP.HCM",
+                1
+              ]
+            ],
+            "duplicates": 0,
+            "rejected": [
+              {
+                "row": 1,
+                "reason": "missing city"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

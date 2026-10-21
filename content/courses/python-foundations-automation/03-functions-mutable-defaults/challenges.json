@@ -1,0 +1,355 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pyf_211",
+      "name": "defaults-and-scope-quiz",
+      "type": "quiz",
+      "title": "Predict the output: defaults and scope",
+      "description": "Read each snippet the way Python runs it: when are default values created, and which names are local?",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this print?\n\ndef add_tag(tag, tags=[]):\n    tags.append(tag)\n    return tags\n\na = add_tag(\"gift\")\nb = add_tag(\"express\", [])\nc = add_tag(\"bulk\")\nprint(a, b, c)",
+          "explanation": "The default list is created once, when def runs, and every call that leaves out tags gets that same list. The first call appends \"gift\" to it and returns it, so a IS the default list. The second call passes its own new list, so b is ['express'] and the default is untouched. The third call uses the default again and appends \"bulk\" - and returns the same list object that a already points to. a and c are two names for one list, so both print ['gift', 'bulk'].",
+          "options": [
+            {
+              "text": "['gift'] ['express'] ['bulk']",
+              "correct": false
+            },
+            {
+              "text": "['gift'] ['express'] ['gift', 'bulk']",
+              "correct": false
+            },
+            {
+              "text": "['gift', 'bulk'] ['express'] ['gift', 'bulk']",
+              "correct": true
+            },
+            {
+              "text": "['gift', 'bulk'] ['gift', 'express'] ['gift', 'express', 'bulk']",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "The module starts with:\n\nsynced = 0\nfailed = []\n\ndef a():\n    print(synced)\n\ndef b():\n    synced += 1\n\ndef c():\n    print(synced)\n    synced = 5\n\ndef d():\n    failed.append(\"LM-1001\")\n\ndef e():\n    global synced\n    synced += 1\n\nWhich of these functions raise UnboundLocalError when called? (Select all that apply.)",
+          "explanation": "Python decides which names are local when it compiles the function: any name that is ASSIGNED anywhere in the body (=, +=, a for target...) is local in the whole body. `synced += 1` reads the local synced before it has a value, and in the print-then-assign version the later `synced = 5` makes synced local for the print too - both raise UnboundLocalError. A function that only reads synced sees the global. `failed.append(...)` does not assign to the name failed, it changes the list the name points to, so it works. With `global synced`, the assignment goes to the module variable - it works, but hidden module state like this is a smell.",
+          "options": [
+            {
+              "text": "a() - only reads synced",
+              "correct": false
+            },
+            {
+              "text": "b() - synced += 1",
+              "correct": true
+            },
+            {
+              "text": "c() - print(synced), then synced = 5",
+              "correct": true
+            },
+            {
+              "text": "d() - failed.append(\"LM-1001\")",
+              "correct": false
+            },
+            {
+              "text": "e() - global synced, then synced += 1",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_pyf_212",
+      "name": "fix-order-tags-builder",
+      "type": "fix_bug",
+      "title": "Stop orders from inheriting each other's tags",
+      "description": "build_order() turns one row of the Lotus Mart shop export into a warehouse order, and the import script calls it once per row in the same run. Tested with one order it looks perfect. In a real run, a plain order that comes after a gift order arrives at the warehouse tagged \"gift\", tags pile up from row to row, orders built earlier change after later rows are processed, and the campaign tag list that the import script passes for every campaign row keeps growing, so every \"tet-sale\" order ends up with the gift and bulk tags of the others. Fix build_order so that each order has exactly its own tags and the caller's list is left untouched. The test runner calls build_order for every row of one run and prints all orders and the campaign list at the end.",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "python",
+        "filePath": "order_builder.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "One gift order on its own",
+          "input": {
+            "campaign_tags": [],
+            "rows": [
+              {
+                "id": "LM-1001",
+                "sku": "TEA-500",
+                "qty": 2,
+                "gift": true
+              }
+            ]
+          },
+          "expected": {
+            "orders": [
+              {
+                "id": "LM-1001",
+                "sku": "TEA-500",
+                "qty": 2,
+                "tags": [
+                  "gift"
+                ]
+              }
+            ],
+            "campaign_tags": []
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A plain order after a gift order has no tags",
+          "input": {
+            "campaign_tags": [],
+            "rows": [
+              {
+                "id": "LM-1001",
+                "sku": "TEA-500",
+                "qty": 2,
+                "gift": true
+              },
+              {
+                "id": "LM-1002",
+                "sku": "MUG-01",
+                "qty": 1
+              }
+            ]
+          },
+          "expected": {
+            "orders": [
+              {
+                "id": "LM-1001",
+                "sku": "TEA-500",
+                "qty": 2,
+                "tags": [
+                  "gift"
+                ]
+              },
+              {
+                "id": "LM-1002",
+                "sku": "MUG-01",
+                "qty": 1,
+                "tags": []
+              }
+            ],
+            "campaign_tags": []
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Campaign tags are copied into each order, the campaign list is not changed",
+          "input": {
+            "campaign_tags": [
+              "tet-sale"
+            ],
+            "rows": [
+              {
+                "id": "LM-3001",
+                "sku": "BANH-CHUNG",
+                "qty": 2,
+                "campaign": true,
+                "gift": true
+              },
+              {
+                "id": "LM-3002",
+                "sku": "MUT-TET",
+                "qty": 10,
+                "campaign": true
+              },
+              {
+                "id": "LM-3003",
+                "sku": "TEA-500",
+                "qty": 1,
+                "campaign": true
+              }
+            ]
+          },
+          "expected": {
+            "orders": [
+              {
+                "id": "LM-3001",
+                "sku": "BANH-CHUNG",
+                "qty": 2,
+                "tags": [
+                  "tet-sale",
+                  "gift"
+                ]
+              },
+              {
+                "id": "LM-3002",
+                "sku": "MUT-TET",
+                "qty": 10,
+                "tags": [
+                  "tet-sale",
+                  "bulk"
+                ]
+              },
+              {
+                "id": "LM-3003",
+                "sku": "TEA-500",
+                "qty": 1,
+                "tags": [
+                  "tet-sale"
+                ]
+              }
+            ],
+            "campaign_tags": [
+              "tet-sale"
+            ]
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Gift, express and bulk orders in one run keep only their own tags",
+          "input": {
+            "campaign_tags": [],
+            "rows": [
+              {
+                "id": "LM-2001",
+                "sku": "TEA-500",
+                "qty": 1,
+                "gift": true
+              },
+              {
+                "id": "LM-2002",
+                "sku": "COFFEE-1KG",
+                "qty": 3,
+                "express": true
+              },
+              {
+                "id": "LM-2003",
+                "sku": "MUG-01",
+                "qty": 12
+              },
+              {
+                "id": "LM-2004",
+                "sku": "CARD-TET",
+                "qty": 1
+              }
+            ]
+          },
+          "expected": {
+            "orders": [
+              {
+                "id": "LM-2001",
+                "sku": "TEA-500",
+                "qty": 1,
+                "tags": [
+                  "gift"
+                ]
+              },
+              {
+                "id": "LM-2002",
+                "sku": "COFFEE-1KG",
+                "qty": 3,
+                "tags": [
+                  "express"
+                ]
+              },
+              {
+                "id": "LM-2003",
+                "sku": "MUG-01",
+                "qty": 12,
+                "tags": [
+                  "bulk"
+                ]
+              },
+              {
+                "id": "LM-2004",
+                "sku": "CARD-TET",
+                "qty": 1,
+                "tags": []
+              }
+            ],
+            "campaign_tags": []
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "An empty campaign list stays empty and mixed rows stay separate",
+          "input": {
+            "campaign_tags": [],
+            "rows": [
+              {
+                "id": "LM-4001",
+                "sku": "TEA-500",
+                "qty": 15,
+                "campaign": true,
+                "express": true
+              },
+              {
+                "id": "LM-4002",
+                "sku": "MUG-01",
+                "qty": 1,
+                "gift": true
+              },
+              {
+                "id": "LM-4003",
+                "sku": "CARD-TET",
+                "qty": 1,
+                "campaign": true
+              },
+              {
+                "id": "LM-4004",
+                "sku": "COFFEE-1KG",
+                "qty": 1
+              }
+            ]
+          },
+          "expected": {
+            "orders": [
+              {
+                "id": "LM-4001",
+                "sku": "TEA-500",
+                "qty": 15,
+                "tags": [
+                  "express",
+                  "bulk"
+                ]
+              },
+              {
+                "id": "LM-4002",
+                "sku": "MUG-01",
+                "qty": 1,
+                "tags": [
+                  "gift"
+                ]
+              },
+              {
+                "id": "LM-4003",
+                "sku": "CARD-TET",
+                "qty": 1,
+                "tags": []
+              },
+              {
+                "id": "LM-4004",
+                "sku": "COFFEE-1KG",
+                "qty": 1,
+                "tags": []
+              }
+            ],
+            "campaign_tags": []
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

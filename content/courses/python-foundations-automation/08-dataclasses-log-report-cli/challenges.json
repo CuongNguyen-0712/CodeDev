@@ -1,0 +1,325 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pyf_421",
+      "name": "dataclass-and-type-hint-behaviour-quiz",
+      "type": "quiz",
+      "title": "What does a dataclass really do?",
+      "description": "Predict what generated dataclass methods and type hints do at runtime before you rely on them in a script.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "from dataclasses import dataclass\n\n@dataclass(frozen=True)\nclass Sku:\n    code: str\n    qty: int = 0\n\na = Sku(\"MUG\", 2)\nb = Sku(\"MUG\", 2)\n\nWhich statements are true? (Select all that apply.)",
+          "explanation": "@dataclass generates __eq__, which compares the fields in order, so a == b is True even though a and b are two different objects (a is b is False). frozen=True makes the generated __setattr__ raise dataclasses.FrozenInstanceError: cannot assign to field 'qty'. A dataclass with eq=True (the default) and frozen=True also gets a __hash__ built from its fields, so a and b have the same hash and the set {a, b} holds one element. A mutable default such as tags: list[str] = [] is rejected when the class is defined: ValueError: mutable default <class 'list'> for field tags is not allowed: use default_factory. The instances never get the chance to share it.",
+          "options": [
+            {
+              "text": "a == b is True",
+              "correct": true
+            },
+            {
+              "text": "a is b is True",
+              "correct": false
+            },
+            {
+              "text": "a.qty = 3 raises dataclasses.FrozenInstanceError",
+              "correct": true
+            },
+            {
+              "text": "len({a, b}) == 1",
+              "correct": true
+            },
+            {
+              "text": "Adding the field tags: list[str] = [] to Sku works, but every Sku then shares one list",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Python 3.14, no type checker is run:\n\n@dataclass\nclass LogEntry:\n    status: int\n    duration_ms: int\n\nentry = LogEntry(status=\"504\", duration_ms=1830)\nprint(entry.status >= 500)\n\nWhat happens?",
+          "explanation": "Type hints are not checked or converted at runtime: the generated __init__ stores whatever it is given, so entry.status is the string \"504\". The bug only shows up later, where the value is used: comparing a str with an int raises TypeError: '>=' not supported between instances of 'str' and 'int'. A type checker such as mypy or pyright would flag the LogEntry(status=\"504\", ...) call before the script runs; at runtime, convert explicitly with int(...) where the text comes in.",
+          "options": [
+            {
+              "text": "LogEntry(...) raises TypeError because \"504\" is not an int",
+              "correct": false
+            },
+            {
+              "text": "The dataclass converts \"504\" to 504, so it prints True",
+              "correct": false
+            },
+            {
+              "text": "The object is created with status \"504\"; the comparison raises TypeError",
+              "correct": true
+            },
+            {
+              "text": "It prints False, because a str is never >= an int",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pyf_422",
+      "name": "endpoint-latency-report",
+      "type": "mini_coding",
+      "title": "Parse log lines into dataclasses and rank slow endpoints",
+      "description": "Write parse_line(line), which turns one app log line into a LogEntry dataclass or returns None for a malformed line (wrong field count, timestamp without a UTC offset, unknown level, non-numeric status or duration), and build_report(entries, top), which counts entries per level and returns the `top` endpoints with the highest average duration, with their request and 5xx error counts. Query strings belong to their endpoint, averages are rounded down, and equal averages are ordered by endpoint name. A malformed line must never crash the report. The runner at the bottom of the file adds the total and malformed line counts and prints the report as JSON.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "log_report.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Counts levels and ranks endpoints by average duration",
+          "input": {
+            "top": 3,
+            "lines": [
+              "2026-10-10T02:12:03+07:00 INFO POST /api/cart 200 140ms",
+              "2026-10-10T02:12:41+07:00 WARNING GET /api/products 200 900ms",
+              "2026-10-10T02:12:50+07:00 INFO GET /api/products 200 80ms",
+              "2026-10-10T02:13:07+07:00 ERROR POST /api/checkout 504 1830ms",
+              "2026-10-10T02:13:09+07:00 ERROR POST /api/checkout 502 1200ms",
+              "2026-10-10T02:13:11+07:00 INFO POST /api/checkout 200 610ms",
+              "2026-10-10T02:13:12+07:00 INFO GET /api/orders 200 64ms"
+            ]
+          },
+          "expected": {
+            "total": 7,
+            "malformed": 0,
+            "levels": {
+              "INFO": 4,
+              "WARNING": 1,
+              "ERROR": 2
+            },
+            "endpoints": [
+              {
+                "endpoint": "/api/checkout",
+                "requests": 3,
+                "errors": 2,
+                "avg_ms": 1213
+              },
+              {
+                "endpoint": "/api/products",
+                "requests": 2,
+                "errors": 0,
+                "avg_ms": 490
+              },
+              {
+                "endpoint": "/api/cart",
+                "requests": 1,
+                "errors": 0,
+                "avg_ms": 140
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Malformed lines are counted, not crashed on",
+          "input": {
+            "top": 5,
+            "lines": [
+              "2026-10-10T02:14:00+07:00 ERROR POST /api/checkout 504 1830ms",
+              "payment-gateway: connection reset by peer",
+              "",
+              "2026-10-10T02:14:01+07:00 ERROR POST /api/checkout 5xx 1830ms",
+              "2026-10-10T02:14:02+07:00 ERROR POST /api/checkout 504 slow",
+              "2026-10-10 02:14:03 INFO GET /api/orders 200 70ms",
+              "10/10/2026T02:14:04+07:00 INFO GET /api/orders 200 70ms",
+              "2026-10-10T02:14:05+07:00 info GET /api/orders 200 70ms",
+              "2026-10-10T02:14:06+07:00 INFO GET /api/orders 200 70",
+              "2026-10-10T02:14:07+07:00 INFO GET /api/orders 200 70ms"
+            ]
+          },
+          "expected": {
+            "total": 10,
+            "malformed": 8,
+            "levels": {
+              "ERROR": 1,
+              "INFO": 1
+            },
+            "endpoints": [
+              {
+                "endpoint": "/api/checkout",
+                "requests": 1,
+                "errors": 1,
+                "avg_ms": 1830
+              },
+              {
+                "endpoint": "/api/orders",
+                "requests": 1,
+                "errors": 0,
+                "avg_ms": 70
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Asking for more endpoints than exist returns all of them",
+          "input": {
+            "top": 10,
+            "lines": [
+              "2026-10-10T02:20:00+07:00 INFO GET /api/search 200 900ms",
+              "2026-10-10T02:20:01+07:00 ERROR POST /api/checkout 500 1200ms",
+              "2026-10-10T02:20:02+07:00 DEBUG GET /health 200 3ms"
+            ]
+          },
+          "expected": {
+            "total": 3,
+            "malformed": 0,
+            "levels": {
+              "INFO": 1,
+              "ERROR": 1,
+              "DEBUG": 1
+            },
+            "endpoints": [
+              {
+                "endpoint": "/api/checkout",
+                "requests": 1,
+                "errors": 1,
+                "avg_ms": 1200
+              },
+              {
+                "endpoint": "/api/search",
+                "requests": 1,
+                "errors": 0,
+                "avg_ms": 900
+              },
+              {
+                "endpoint": "/health",
+                "requests": 1,
+                "errors": 0,
+                "avg_ms": 3
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Query strings and UTC offsets: one endpoint, 500 is an error and 499 is not",
+          "input": {
+            "top": 2,
+            "lines": [
+              "2026-10-10T02:30:00+07:00 INFO GET /api/orders?page=2 200 120ms",
+              "2026-10-09T19:30:01Z INFO GET /api/orders?page=3&size=50 499 80ms",
+              "2026-10-10T02:30:02+07:00 ERROR GET /api/orders 500 400ms",
+              "2026-10-10T02:30:03+07:00 INFO GET /api/products?q=%C3%A1o 200 150ms",
+              "2026-10-10T02:30:04+07:00 INFO GET /api/cart 200 30ms"
+            ]
+          },
+          "expected": {
+            "total": 5,
+            "malformed": 0,
+            "levels": {
+              "INFO": 4,
+              "ERROR": 1
+            },
+            "endpoints": [
+              {
+                "endpoint": "/api/orders",
+                "requests": 3,
+                "errors": 1,
+                "avg_ms": 200
+              },
+              {
+                "endpoint": "/api/products",
+                "requests": 1,
+                "errors": 0,
+                "avg_ms": 150
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Equal averages are ordered by endpoint name, averages are rounded down",
+          "input": {
+            "top": 4,
+            "lines": [
+              "2026-10-10T03:00:00+07:00 INFO GET /api/search 200 300ms",
+              "2026-10-10T03:00:01+07:00 INFO GET /api/search 200 301ms",
+              "2026-10-10T03:00:02+07:00 INFO POST /api/cart 200 300ms",
+              "2026-10-10T03:00:03+07:00 WARNING GET /api/blog 200 300ms",
+              "2026-10-10T03:00:04+07:00 ERROR POST /api/checkout 503 2500ms",
+              "2026-10-10T03:00:05+07:00 INFO GET /api/orders 200 299ms"
+            ]
+          },
+          "expected": {
+            "total": 6,
+            "malformed": 0,
+            "levels": {
+              "INFO": 4,
+              "WARNING": 1,
+              "ERROR": 1
+            },
+            "endpoints": [
+              {
+                "endpoint": "/api/checkout",
+                "requests": 1,
+                "errors": 1,
+                "avg_ms": 2500
+              },
+              {
+                "endpoint": "/api/blog",
+                "requests": 1,
+                "errors": 0,
+                "avg_ms": 300
+              },
+              {
+                "endpoint": "/api/cart",
+                "requests": 1,
+                "errors": 0,
+                "avg_ms": 300
+              },
+              {
+                "endpoint": "/api/search",
+                "requests": 2,
+                "errors": 0,
+                "avg_ms": 300
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Only malformed lines: an empty report",
+          "input": {
+            "top": 5,
+            "lines": [
+              "2026-10-10T04:00:00 ERROR POST /api/checkout 504 1830ms",
+              "Traceback (most recent call last):",
+              "2026-10-10T04:00:01+07:00 FATAL POST /api/checkout 504 1830ms",
+              "   "
+            ]
+          },
+          "expected": {
+            "total": 4,
+            "malformed": 4,
+            "levels": {},
+            "endpoints": []
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

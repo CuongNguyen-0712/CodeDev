@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Text in, numbers inside, text out</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Everything a script reads from a chat, a CSV export, input() or the command line is a str. Convert once, compute, then format.</text>
+
+  <!-- Panel 1: text in -->
+  <rect x="40" y="108" width="340" height="262" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="60" y="140" font-size="18" font-weight="700" fill="#334155">1. Text in</text>
+  <text x="60" y="162" font-size="13" fill="#64748b">chat, CSV, input(), sys.argv: always str</text>
+  <rect x="60" y="180" width="300" height="40" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="74" y="205" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155">"Cà phê hạt 500g ; 3 ; 210.000"</text>
+  <text x="60" y="246" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#475569">row.split(";") gives three str:</text>
+  <text x="60" y="274" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155">name = 'Cà phê hạt 500g '</text>
+  <text x="60" y="298" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155">qty = ' 3 '</text>
+  <text x="60" y="322" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155">price = ' 210.000'</text>
+  <text x="60" y="352" font-size="13" fill="#64748b">type(qty) is str: '3' is a character, not 3</text>
+
+  <path d="M384 239 L418 239" fill="none" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="416,233 416,245 428,239" fill="#16a34a"/>
+
+  <!-- Panel 2: numbers inside -->
+  <rect x="430" y="108" width="340" height="262" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="450" y="140" font-size="18" font-weight="700" fill="#15803d">2. Numbers inside</text>
+  <text x="450" y="162" font-size="13" fill="#14532d">convert once, right after reading</text>
+  <text x="450" y="200" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155">int(' 3 ') -&gt; 3</text>
+  <text x="450" y="228" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155">' 210.000'.strip()</text>
+  <text x="450" y="248" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155">.replace('.', '') -&gt; '210000'</text>
+  <text x="450" y="276" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155">int('210000') -&gt; 210000</text>
+  <text x="450" y="304" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155">3 * 210000 -&gt; 630000</text>
+  <text x="450" y="340" font-size="13" fill="#14532d">VND as int: exact, no float rounding</text>
+
+  <path d="M774 239 L808 239" fill="none" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="806,233 806,245 818,239" fill="#16a34a"/>
+
+  <!-- Panel 3: text out -->
+  <rect x="820" y="108" width="340" height="262" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="840" y="140" font-size="18" font-weight="700" fill="#15803d">3. Text out</text>
+  <text x="840" y="162" font-size="13" fill="#14532d">an f-string with a format spec</text>
+  <text x="840" y="200" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155">f"{amount:,}"</text>
+  <text x="840" y="220" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#475569">-&gt; '630,000'</text>
+  <text x="840" y="248" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155">f"{amount:&gt;12,}"</text>
+  <text x="840" y="268" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#475569">-&gt; '630,000' right-aligned in 12</text>
+  <text x="840" y="296" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155">f"{name:&lt;18}"</text>
+  <text x="840" y="316" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#475569">-&gt; padded to 18 characters</text>
+  <text x="840" y="350" font-size="13" fill="#14532d">columns line up in the team chat</text>
+
+  <!-- Bottom: what goes wrong -->
+  <rect x="40" y="398" width="1120" height="166" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="430" font-size="18" font-weight="700" fill="#b91c1c">Skip step 2 and the text leaks into the maths</text>
+  <text x="64" y="466" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#7f1d1d">'175000' * 2</text>
+  <text x="380" y="466" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#7f1d1d">-&gt; '175000175000' (str * int repeats the text)</text>
+  <text x="64" y="500" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#7f1d1d">"Revenue: " + 350000</text>
+  <text x="380" y="500" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#7f1d1d">-&gt; TypeError: can only concatenate str (not "int") to str</text>
+  <text x="64" y="534" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#7f1d1d">int(' 210.000')</text>
+  <text x="380" y="534" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#7f1d1d">-&gt; ValueError: invalid literal for int() with base 10: ' 210.000'</text>
+</svg>

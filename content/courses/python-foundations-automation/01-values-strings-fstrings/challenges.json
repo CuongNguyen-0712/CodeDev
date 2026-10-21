@@ -1,0 +1,195 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pyf_111",
+      "name": "values-text-truthiness-quiz",
+      "type": "quiz",
+      "title": "Text, numbers and truthiness",
+      "description": "Predict what Python does with values that arrive as text, before you write the receipt script.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The restock bot reads the quantity from the chat command \"/restock mug 0\". What does this code print?\n\nqty = \"0\"\nif qty:\n    print(f\"{qty=}, doubled: {qty * 2}\")\nelse:\n    print(\"nothing to restock\")",
+          "explanation": "qty is the one-character string \"0\", not the number 0. Only the empty string \"\" is falsy; any non-empty string, including \"0\", \" \" and \"False\", is truthy, so the if branch runs. In that branch qty * 2 repeats the text (\"00\") instead of doubling a number, and {qty=} prints the expression and the repr of its value, quotes included: qty='0'. Convert first (int(qty)) and both the test and the arithmetic behave like numbers.",
+          "options": [
+            {
+              "text": "nothing to restock",
+              "correct": false
+            },
+            {
+              "text": "qty=0, doubled: 0",
+              "correct": false
+            },
+            {
+              "text": "qty='0', doubled: 00",
+              "correct": true
+            },
+            {
+              "text": "TypeError: can't multiply sequence by non-int of type 'str'",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which of these expressions raise an error? (Select all that apply.)",
+          "explanation": "int() accepts surrounding whitespace, so int(\" 42 \") is 42, but it does not accept a decimal point: int(\"12.5\") raises ValueError: invalid literal for int() with base 10: '12.5'. float() does not understand thousands separators, so float(\"1,050\") raises ValueError too. \"Total: \" + 3 raises TypeError: can only concatenate str (not \"int\") to str, because + never converts a number to text for you; str(3) or an f-string does. f\"{1050000:,}\" is fine and gives '1,050,000'.",
+          "options": [
+            {
+              "text": "int(\" 42 \")",
+              "correct": false
+            },
+            {
+              "text": "int(\"12.5\")",
+              "correct": true
+            },
+            {
+              "text": "\"Total: \" + 3",
+              "correct": true
+            },
+            {
+              "text": "float(\"1,050\")",
+              "correct": true
+            },
+            {
+              "text": "f\"{1050000:,}\"",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pyf_112",
+      "name": "aligned-chat-receipt",
+      "type": "mini_coding",
+      "title": "Write build_receipt(text) for the sales chat",
+      "description": "Staff paste order lines into the team chat as \"name | quantity | unit price\", with messy spacing and prices like \"210,000\", \"210.000\" or \"35.000 đ\". Turn every valid line into one aligned receipt line (name cut or padded to 16, quantity in 3, price in 9 and amount in 11 with \",\" thousands separators), add a TOTAL line that ends under the amount column, and list the line numbers of invalid lines in \"skipped\" instead of crashing. Blank lines are ignored. The exact rules and column layout are in the starter's docstring; the runner prints your dict as JSON.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "receipt.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Messy spacing and comma thousands separators",
+          "input": {
+            "text": "  Green tea 500ml |  2 | 35,000 \nRice ST25 5kg|1|  210,000\n Thermos bottle | 3 |175,000"
+          },
+          "expected": {
+            "lines": [
+              "Green tea 500ml    2 x    35,000      70,000",
+              "Rice ST25 5kg      1 x   210,000     210,000",
+              "Thermos bottle     3 x   175,000     525,000"
+            ],
+            "total": "TOTAL                                805,000",
+            "skipped": []
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Invalid lines are skipped by line number, blank lines are ignored",
+          "input": {
+            "text": "Green tea 500ml | 2 | 35000\nCoffee beans | 2.5 | 210000\n\nRice ST25 5kg | two | 210000\nTote bag | 35000\nThermos bottle | 1 | 175000\n   \nMug | 4 | 25000 | gift"
+          },
+          "expected": {
+            "lines": [
+              "Green tea 500ml    2 x    35,000      70,000",
+              "Thermos bottle     1 x   175,000     175,000"
+            ],
+            "total": "TOTAL                                245,000",
+            "skipped": [
+              2,
+              4,
+              5,
+              8
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "An empty paste gives no lines and a zero total",
+          "input": {
+            "text": ""
+          },
+          "expected": {
+            "lines": [],
+            "total": "TOTAL                                      0",
+            "skipped": []
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Vietnamese dot separators and a trailing đ",
+          "input": {
+            "text": "Cà phê hạt 500g | 3 | 210.000đ\nTúi vải canvas | 2 | 35.000 đ\nBình giữ nhiệt|1|1.250.000"
+          },
+          "expected": {
+            "lines": [
+              "Cà phê hạt 500g    3 x   210,000     630,000",
+              "Túi vải canvas     2 x    35,000      70,000",
+              "Bình giữ nhiệt     1 x 1,250,000   1,250,000"
+            ],
+            "total": "TOTAL                              1,950,000",
+            "skipped": []
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Long product names are cut to 16 characters",
+          "input": {
+            "text": "Bình giữ nhiệt inox 1 lít | 2 | 175,000\nCharging cable USB-C 2m | 10 | 89,000\nMug | 1 | 25,000"
+          },
+          "expected": {
+            "lines": [
+              "Bình giữ nhiệt i   2 x   175,000     350,000",
+              "Charging cable U  10 x    89,000     890,000",
+              "Mug                1 x    25,000      25,000"
+            ],
+            "total": "TOTAL                              1,265,000",
+            "skipped": []
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Quantity must be plain digits of at least 1, price plain digits; a free gift (price 0) is kept",
+          "input": {
+            "text": "Green tea 500ml | 0 | 35,000\nMug | +2 | 25,000\nTote bag | -1 | 35,000\nFree sticker | 5 | 0\n | 1 | 10,000\nRice ST25 5kg | 1 | -210,000\nNotebook | 3 | abc\nPen | 12 | 7,500"
+          },
+          "expected": {
+            "lines": [
+              "Free sticker       5 x         0           0",
+              "Pen               12 x     7,500      90,000"
+            ],
+            "total": "TOTAL                                 90,000",
+            "skipped": [
+              1,
+              2,
+              3,
+              5,
+              6,
+              7
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

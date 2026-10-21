@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">A dict hides a typo until 2am, a dataclass names it at once</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Same log record, two shapes. The difference is when a wrong field name is noticed, and by whom.</text>
+
+  <!-- Left: dict -->
+  <rect x="40" y="108" width="540" height="300" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="140" font-size="18" font-weight="700" fill="#b91c1c">Record as a dict</text>
+  <text x="64" y="162" font-size="13" fill="#7f1d1d" font-family="Consolas, 'Courier New', monospace">r = {"status_code": 504, "ms": 1830, ...}</text>
+
+  <rect x="64" y="178" width="492" height="110" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="202" font-size="14" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">if r["status"] &gt;= 500:</text>
+  <text x="80" y="226" font-size="13" font-weight="700" fill="#b91c1c">KeyError: 'status'</text>
+  <text x="80" y="248" font-size="13" fill="#7f1d1d">the parser now writes status_code; the report crashes</text>
+  <text x="80" y="268" font-size="13" fill="#7f1d1d">after reading the whole file, so nothing is printed</text>
+
+  <rect x="64" y="300" width="492" height="92" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="324" font-size="14" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">if r.get("stauts", 0) &gt;= 500:</text>
+  <text x="80" y="348" font-size="13" font-weight="700" fill="#b91c1c">no error at all: 0 for every line</text>
+  <text x="80" y="370" font-size="13" fill="#7f1d1d">the report says "5xx errors: 0" during the outage</text>
+
+  <!-- Right: dataclass -->
+  <rect x="620" y="108" width="540" height="300" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="140" font-size="18" font-weight="700" fill="#15803d">Record as a dataclass</text>
+  <text x="644" y="162" font-size="13" fill="#14532d" font-family="Consolas, 'Courier New', monospace">@dataclass(frozen=True, slots=True) class LogEntry</text>
+
+  <rect x="644" y="178" width="492" height="110" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="202" font-size="14" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">if entry.stauts &gt;= 500:</text>
+  <text x="660" y="226" font-size="13" font-weight="700" fill="#15803d">AttributeError ... Did you mean: 'status'?</text>
+  <text x="660" y="248" font-size="13" fill="#14532d">fails at the first use, and names the right field</text>
+  <text x="660" y="268" font-size="13" fill="#14532d">mypy / pyright report it before the script even runs</text>
+
+  <rect x="644" y="300" width="492" height="92" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="324" font-size="14" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">LogEntry(..., status="504", ...)</text>
+  <text x="660" y="348" font-size="13" font-weight="700" fill="#475569">still accepted: type hints are not checked at runtime</text>
+  <text x="660" y="370" font-size="13" fill="#64748b">convert with int() where the text comes in</text>
+
+  <!-- Bottom: pipeline -->
+  <rect x="40" y="428" width="1120" height="140" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="458" font-size="16" font-weight="700" fill="#334155">The fixed script: one record type from the file to the exit code</text>
+
+  <rect x="64" y="474" width="232" height="80" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="498" font-size="14" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">app.log</text>
+  <text x="80" y="518" font-size="12" fill="#475569">pathlib.Path.read_text(...)</text>
+  <text x="80" y="538" font-size="12" fill="#475569" font-family="Consolas, 'Courier New', monospace">encoding="utf-8"</text>
+
+  <rect x="344" y="474" width="232" height="80" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="360" y="498" font-size="14" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">parse_line(line)</text>
+  <text x="360" y="518" font-size="12" fill="#475569">returns a LogEntry</text>
+  <text x="360" y="538" font-size="12" fill="#475569">bad line: skipped and counted</text>
+
+  <rect x="624" y="474" width="232" height="80" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="640" y="498" font-size="14" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">build_report(...)</text>
+  <text x="640" y="518" font-size="12" fill="#475569">Counter by level and path</text>
+  <text x="640" y="538" font-size="12" fill="#475569">sorted() slowest requests</text>
+
+  <rect x="904" y="474" width="232" height="80" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="920" y="498" font-size="14" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">main() -&gt; int</text>
+  <text x="920" y="518" font-size="12" fill="#475569" font-family="Consolas, 'Courier New', monospace">raise SystemExit(main())</text>
+  <text x="920" y="538" font-size="12" fill="#475569">0 ok, 1 skipped, 2 usage</text>
+
+  <line x1="296" y1="514" x2="332" y2="514" stroke="#64748b" stroke-width="2"/>
+  <polygon points="330,508 330,520 342,514" fill="#64748b"/>
+  <line x1="576" y1="514" x2="612" y2="514" stroke="#64748b" stroke-width="2"/>
+  <polygon points="610,508 610,520 622,514" fill="#64748b"/>
+  <line x1="856" y1="514" x2="892" y2="514" stroke="#64748b" stroke-width="2"/>
+  <polygon points="890,508 890,520 902,514" fill="#64748b"/>
+</svg>

@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Swallow, stop or collect: one sheet with 3 bad rows</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The nightly price update reads 500 rows. Rows 12, 87 and 311 are bad. Three ways to handle them:</text>
+
+  <!-- panel 1: swallow -->
+  <rect x="40" y="110" width="360" height="450" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="60" y="144" font-size="18" font-weight="700" fill="#b91c1c">1. Swallow: except: pass</text>
+  <text x="60" y="174" font-size="14" fill="#7f1d1d">Every error disappears - also</text>
+  <text x="60" y="194" font-size="14" fill="#7f1d1d">a NameError from your own typo.</text>
+  <rect x="60" y="216" width="320" height="56" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="76" y="250" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#334155">Updated 0 prices - OK</text>
+  <text x="60" y="306" font-size="14" fill="#7f1d1d">Bad rows: unknown.</text>
+  <text x="60" y="328" font-size="14" fill="#7f1d1d">Typo: unknown.</text>
+  <text x="60" y="350" font-size="14" fill="#7f1d1d">Exit code 0, so nobody is paged.</text>
+  <rect x="60" y="476" width="320" height="64" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="76" y="503" font-size="14" font-weight="700" fill="#b91c1c">Result: silent failure</text>
+  <text x="76" y="525" font-size="13" fill="#64748b">the shop sells at yesterday's prices</text>
+
+  <!-- panel 2: stop -->
+  <rect x="420" y="110" width="360" height="450" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="440" y="144" font-size="18" font-weight="700" fill="#b91c1c">2. Stop at the first error</text>
+  <text x="440" y="174" font-size="14" fill="#7f1d1d">The job fails loudly, but each run</text>
+  <text x="440" y="194" font-size="14" fill="#7f1d1d">shows only one problem.</text>
+  <rect x="440" y="216" width="320" height="40" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="456" y="241" font-size="14" fill="#334155">Run 1: PriceError on row 12</text>
+  <text x="456" y="278" font-size="13" fill="#64748b">fix the sheet, re-run ...</text>
+  <rect x="440" y="292" width="320" height="40" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="456" y="317" font-size="14" fill="#334155">Run 2: PriceError on row 87</text>
+  <text x="456" y="354" font-size="13" fill="#64748b">fix the sheet, re-run ...</text>
+  <rect x="440" y="368" width="320" height="40" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="456" y="393" font-size="14" fill="#334155">Run 3: PriceError on row 311</text>
+  <rect x="440" y="476" width="320" height="64" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="456" y="503" font-size="14" font-weight="700" fill="#b91c1c">Result: 3 runs for 3 problems</text>
+  <text x="456" y="525" font-size="13" fill="#64748b">an hour of fix, re-run, repeat</text>
+
+  <!-- panel 3: collect -->
+  <rect x="800" y="110" width="360" height="450" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="820" y="144" font-size="18" font-weight="700" fill="#15803d">3. Collect, raise one group</text>
+  <text x="820" y="174" font-size="14" fill="#14532d">Check every row, keep each error,</text>
+  <text x="820" y="194" font-size="14" fill="#14532d">raise them together at the end.</text>
+  <rect x="820" y="216" width="320" height="180" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="836" y="242" font-size="14" font-weight="700" fill="#334155">ExceptionGroup</text>
+  <text x="836" y="262" font-size="13" fill="#475569">"3 of 500 rows invalid"</text>
+  <text x="836" y="292" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155">PriceError row 12</text>
+  <text x="836" y="309" font-size="12" fill="#64748b">__cause__: ValueError (bad number)</text>
+  <text x="836" y="333" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155">PriceError row 87</text>
+  <text x="836" y="350" font-size="12" fill="#64748b">__cause__: KeyError (missing field)</text>
+  <text x="836" y="374" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155">PriceError row 311</text>
+  <text x="1000" y="374" font-size="12" fill="#64748b">price -100, no cause</text>
+  <line x1="980" y1="398" x2="980" y2="412" stroke="#334155" stroke-width="2"/>
+  <polygon points="973,411 987,411 980,421" fill="#334155"/>
+  <rect x="820" y="424" width="320" height="40" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="836" y="449" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155">except* PriceError as group:</text>
+  <rect x="820" y="476" width="320" height="64" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="836" y="503" font-size="14" font-weight="700" fill="#15803d">Result: 1 run, all 3 problems</text>
+  <text x="836" y="525" font-size="13" fill="#64748b">good rows applied, exit code 1</text>
+</svg>
