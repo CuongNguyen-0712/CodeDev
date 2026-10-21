@@ -25,6 +25,31 @@ DO $$ BEGIN
 END $$;
 UPDATE catalog.course SET duration = 452, image = 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792425603/codedev/courses/javascript-async-architecture_2026100901/cover', updated_at = now() WHERE public_id = 'javascript-async-architecture_2026100901';
 
+DO $$ BEGIN
+    IF (SELECT count(*) FROM catalog.career_role WHERE code = ANY(ARRAY['frontend_developer', 'backend_developer', 'fullstack_developer', 'mobile_developer']::text[])) <> 4 THEN
+        RAISE EXCEPTION 'course javascript-async-architecture_2026100901: unknown code in careerRoles';
+    END IF;
+END $$;
+DELETE FROM catalog.course_career_role WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901');
+INSERT INTO catalog.course_career_role (course_id, career_role_id) SELECT (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), id FROM catalog.career_role WHERE code = ANY(ARRAY['frontend_developer', 'backend_developer', 'fullstack_developer', 'mobile_developer']::text[]);
+DO $$ BEGIN
+    IF (SELECT count(*) FROM catalog.learning_goal WHERE code = ANY(ARRAY['grow_in_role', 'interview_prep']::text[])) <> 2 THEN
+        RAISE EXCEPTION 'course javascript-async-architecture_2026100901: unknown code in goals';
+    END IF;
+END $$;
+DELETE FROM catalog.course_learning_goal WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901');
+INSERT INTO catalog.course_learning_goal (course_id, learning_goal_id) SELECT (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), id FROM catalog.learning_goal WHERE code = ANY(ARRAY['grow_in_role', 'interview_prep']::text[]);
+DO $$ BEGIN
+    IF (SELECT count(*) FROM catalog.skill WHERE code = ANY(ARRAY['javascript', 'async_programming', 'performance', 'testing']::text[])) <> 4 THEN
+        RAISE EXCEPTION 'course javascript-async-architecture_2026100901: unknown code in skills';
+    END IF;
+END $$;
+DELETE FROM catalog.course_skill WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901');
+INSERT INTO catalog.course_skill (course_id, skill_id, weight)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), s.id, v.weight
+FROM (VALUES ('javascript', 5), ('async_programming', 5), ('performance', 3), ('testing', 2)) AS v(code, weight)
+JOIN catalog.skill s ON s.code = v.code;
+
 -- module 1: Event Loop, Microtasks & Macrotasks
 UPDATE course.module SET title = 'Event Loop, Microtasks & Macrotasks', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 1 AND is_deleted = false LIMIT 1);
 INSERT INTO course.module (course_id, title, order_index)

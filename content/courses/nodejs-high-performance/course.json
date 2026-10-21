@@ -12,6 +12,10 @@
   "cost": 0,
   "pointPrice": 0,
   "reward": 200,
+  "careerRoles": ["backend_developer", "fullstack_developer", "devops_engineer"],
+  "skills": {"nodejs": 5, "concurrency": 5, "performance": 4, "system_design": 3, "async_programming": 3},
+  "goals": ["grow_in_role", "performance"],
+  "industries": ["fintech", "ecommerce"],
   "modules": [
     {
       "orderIndex": 1,

@@ -43,6 +43,34 @@ INSERT INTO commerce.offer (public_id, course_id, price_type, amount, currency)
 SELECT 'ofr_' || replace(gen_random_uuid()::text, '-', ''), (SELECT id FROM catalog.course WHERE public_id = 'python-rag-from-scratch'), 'money', 149000, 'VND'
 WHERE NOT EXISTS (SELECT 1 FROM commerce.offer WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-rag-from-scratch') AND price_type = 'money' AND is_active);
 
+DO $$ BEGIN
+    IF (SELECT count(*) FROM catalog.career_role WHERE code = ANY(ARRAY['ml_engineer', 'data_engineer', 'backend_developer']::text[])) <> 3 THEN
+        RAISE EXCEPTION 'course python-rag-from-scratch: unknown code in careerRoles';
+    END IF;
+END $$;
+DELETE FROM catalog.course_career_role WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-rag-from-scratch');
+INSERT INTO catalog.course_career_role (course_id, career_role_id) SELECT (SELECT id FROM catalog.course WHERE public_id = 'python-rag-from-scratch'), id FROM catalog.career_role WHERE code = ANY(ARRAY['ml_engineer', 'data_engineer', 'backend_developer']::text[]);
+DO $$ BEGIN
+    IF (SELECT count(*) FROM catalog.learning_goal WHERE code = ANY(ARRAY['build_projects', 'grow_in_role']::text[])) <> 2 THEN
+        RAISE EXCEPTION 'course python-rag-from-scratch: unknown code in goals';
+    END IF;
+END $$;
+DELETE FROM catalog.course_learning_goal WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-rag-from-scratch');
+INSERT INTO catalog.course_learning_goal (course_id, learning_goal_id) SELECT (SELECT id FROM catalog.course WHERE public_id = 'python-rag-from-scratch'), id FROM catalog.learning_goal WHERE code = ANY(ARRAY['build_projects', 'grow_in_role']::text[]);
+DO $$ BEGIN
+    IF (SELECT count(*) FROM catalog.skill WHERE code = ANY(ARRAY['python', 'machine_learning', 'data_structures', 'data_analysis']::text[])) <> 4 THEN
+        RAISE EXCEPTION 'course python-rag-from-scratch: unknown code in skills';
+    END IF;
+END $$;
+DELETE FROM catalog.course_skill WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-rag-from-scratch');
+INSERT INTO catalog.course_skill (course_id, skill_id, weight)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'python-rag-from-scratch'), s.id, v.weight
+FROM (VALUES ('python', 5), ('machine_learning', 4), ('data_structures', 3), ('data_analysis', 2)) AS v(code, weight)
+JOIN catalog.skill s ON s.code = v.code;
+DELETE FROM catalog.course_prerequisite WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-rag-from-scratch');
+INSERT INTO catalog.course_prerequisite (course_id, prerequisite_course_id)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'python-rag-from-scratch'), id FROM catalog.course WHERE public_id = ANY(ARRAY['python-foundations-automation']::text[]);
+
 -- module 1: Preparing Documents
 UPDATE course.module SET title = 'Preparing Documents', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-rag-from-scratch') AND order_index = 1 AND is_deleted = false LIMIT 1);
 INSERT INTO course.module (course_id, title, order_index)

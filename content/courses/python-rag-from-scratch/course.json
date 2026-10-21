@@ -18,6 +18,10 @@
     { "priceType": "points", "amount": 300 },
     { "priceType": "money", "amount": 149000, "currency": "VND" }
   ],
+  "careerRoles": ["ml_engineer", "data_engineer", "backend_developer"],
+  "skills": {"python": 5, "machine_learning": 4, "data_structures": 3, "data_analysis": 2},
+  "goals": ["build_projects", "grow_in_role"],
+  "prerequisites": ["python-foundations-automation"],
   "modules": [
     {
       "orderIndex": 1,

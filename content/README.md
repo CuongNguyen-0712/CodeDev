@@ -31,6 +31,16 @@ A course created before this pipeline sets `"existing": true` in `course.json` (
 fields in `update` are written) and `"existing": true` on each old lesson, which the seed
 leaves untouched.
 
+Catalog metadata in `course.json` (onboarding recommendations, filters, admin): `careerRoles`, `industries`,
+`goals` (codes from `catalog.career_role` / `catalog.industry` / `catalog.learning_goal`), `skills`
+(`{ "<catalog.skill code>": weight 1-5 }`) and `prerequisites` (course public ids). Each field present
+replaces that link table for the course; a missing field keeps what the admin set; an unknown code aborts
+the seed.
+
+A course that is only planned has `"modules": []` and an `outline` (modules, lesson titles, planned
+challenges): the seed writes its catalog row and metadata only, and it stays `draft` until its lessons
+are written and moved into `modules`.
+
 ## Pipeline
 
 ```bash

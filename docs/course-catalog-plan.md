@@ -1,7 +1,9 @@
 # Plan: Catalog course đa ngôn ngữ
 
-Trạng thái (2026-10-20): **plan**. Đã triển khai: hạ tầng chấm đa ngôn ngữ (§7) và course mẫu
-`python-rag-from-scratch` (§6, chỉ ở local). Các course khác mới ở mức đề cương.
+Trạng thái (2026-10-21): **đang triển khai**. Đã có: hạ tầng chấm đa ngôn ngữ (§7), course mẫu
+`python-rag-from-scratch` (§6) và JS-1 `js-modern-foundations` (viết đầy đủ). 27 course còn lại đã vào
+catalog dưới dạng **draft chỉ có đề cương** (`content/courses/<id>/course.json`, `modules: []` + `outline`),
+kèm role, skill, goal và prerequisite (§5.1). Tất cả chỉ ở local.
 
 Dựa trên: khuôn lesson của `nodejs-high-performance` và `javascript-async-architecture`
 ([content/README.md](../content/README.md)), EXP và Level ([experience-leveling-design.md](experience-leveling-design.md)),
@@ -362,6 +364,27 @@ HTTP challenges call the handler with `httptest.NewRecorder` (no sockets).
 | Java | JAVA-1 | JAVA-2 | JAVA-3 | – |
 | Go | GO-1 | GO-2 | GO-3 | – |
 | Rust | RS-1 | RS-2 | – | RS-3 |
+
+### 5.1 Phủ theo career role (bổ sung 2026-10-21)
+
+Catalog theo ngôn ngữ ở trên thiếu course cho frontend, mobile, DevOps, data và QA. Thêm 9 course (draft, có đề cương):
+
+| Course | Mức | Ngôn ngữ | Role chính |
+|---|---|---|---|
+| `web-foundations-html-css-a11y` | beginner (free) | HTML5 | frontend, fullstack, mobile, student |
+| `typescript-react-frontend` | intermediate | TypeScript | frontend, fullstack, mobile |
+| `react-native-offline-first` | intermediate | TypeScript | mobile, fullstack, frontend |
+| `test-automation-foundations` | beginner (free) | JavaScript | QA, frontend, backend, fullstack, student |
+| `python-api-testing` | intermediate | Python | QA, backend, DevOps |
+| `devops-foundations-ci-containers` | beginner (free) | Python | DevOps, backend, student |
+| `sql-data-analysis-foundations` | beginner (free) | SQL (SQLite qua Python `sqlite3`) | data analyst, data engineer, student |
+| `python-data-pipelines` | intermediate | Python | data engineer, backend, data analyst |
+| `python-ml-from-scratch` | intermediate | Python | ML engineer, data analyst, data engineer |
+
+Mỗi course có `careerRoles`, `skills` (trọng số 1–5), `goals` và `prerequisites` trong `course.json`; seed ghi
+vào `catalog.course_career_role`, `course_skill`, `course_learning_goal`, `course_industry`, `course_prerequisite`.
+Số course theo role (tính cả draft): backend 25, DevOps 11, student 11, fullstack 9, frontend 6, data engineer 6,
+mobile 5, data analyst 4, ML engineer 4, QA 4. Chưa có: Kotlin/Swift (sandbox chưa chạy hai ngôn ngữ này).
 
 Chủ đề “hot” được ưu tiên: AI/LLM và RAG (JS-2, PY-2), bảo mật API (JS-3), async và concurrency
 (PY-3, JAVA-2, GO-2, CPP-2, RS-3), cloud-native và microservices (JAVA-3, GO-3), hệ thống và hiệu

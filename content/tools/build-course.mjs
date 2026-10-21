@@ -34,7 +34,7 @@ const run = (tool, ...toolArgs) => {
     execFileSync(process.execPath, [path.join(tools, tool), ...toolArgs], { stdio: "inherit" });
 };
 
-const lessons = course.modules.flatMap((m) => m.lessons.map((l) => ({ ...l, module: m.orderIndex })))
+const lessons = (course.modules || []).flatMap((m) => m.lessons.map((l) => ({ ...l, module: m.orderIndex })))
     .filter((l) => !l.existing && (!only || l.folder === only));
 
 if (flag("--storage-only")) {

@@ -18,16 +18,48 @@ BEGIN
     END LOOP;
 END $$;
 
-INSERT INTO catalog.course (public_id, title, concept, description, image, level, duration, instructor, cost, point_price, reward, language_id, category_id, is_hidden, is_deleted)
+INSERT INTO catalog.course (public_id, title, concept, description, image, level, duration, instructor, cost, point_price, reward, language_id, category_id, access_model, publish_status, is_hidden, is_deleted)
 VALUES ('nodejs-high-performance', 'Node.js High Performance: Concurrency & Consistency', 'Keep a Node.js backend correct and fast under concurrent traffic: race conditions, atomicity, distributed locks and idempotency.', 'A hands-on course for backend developers running Node.js services with real money and real traffic. Each lesson starts from a production incident, reproduces it, and fixes it with patterns you can ship: atomic updates and distributed locks, idempotent APIs and reliable messaging, rate limiting and backpressure, and the operational basics - CPU-bound work, graceful shutdown and observability.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792425606/codedev/courses/nodejs-high-performance/cover', 'intermediate'::level_enum, 270, 'CodeDev Engineering Team', 0, 0, 200,
         (SELECT id FROM catalog.language WHERE name = 'JavaScript'),
         (SELECT id FROM catalog.category WHERE name = 'Backend Development'),
-        false, false)
+        'free', NULL, false, false)
 ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, concept = EXCLUDED.concept, description = EXCLUDED.description, image = EXCLUDED.image,
     level = EXCLUDED.level, duration = EXCLUDED.duration, instructor = EXCLUDED.instructor, cost = EXCLUDED.cost,
     point_price = EXCLUDED.point_price, reward = EXCLUDED.reward, language_id = EXCLUDED.language_id,
-    category_id = EXCLUDED.category_id, updated_at = now();
+    category_id = EXCLUDED.category_id, access_model = EXCLUDED.access_model, updated_at = now();
+
+DO $$ BEGIN
+    IF (SELECT count(*) FROM catalog.career_role WHERE code = ANY(ARRAY['backend_developer', 'fullstack_developer', 'devops_engineer']::text[])) <> 3 THEN
+        RAISE EXCEPTION 'course nodejs-high-performance: unknown code in careerRoles';
+    END IF;
+END $$;
+DELETE FROM catalog.course_career_role WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'nodejs-high-performance');
+INSERT INTO catalog.course_career_role (course_id, career_role_id) SELECT (SELECT id FROM catalog.course WHERE public_id = 'nodejs-high-performance'), id FROM catalog.career_role WHERE code = ANY(ARRAY['backend_developer', 'fullstack_developer', 'devops_engineer']::text[]);
+DO $$ BEGIN
+    IF (SELECT count(*) FROM catalog.industry WHERE code = ANY(ARRAY['fintech', 'ecommerce']::text[])) <> 2 THEN
+        RAISE EXCEPTION 'course nodejs-high-performance: unknown code in industries';
+    END IF;
+END $$;
+DELETE FROM catalog.course_industry WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'nodejs-high-performance');
+INSERT INTO catalog.course_industry (course_id, industry_id) SELECT (SELECT id FROM catalog.course WHERE public_id = 'nodejs-high-performance'), id FROM catalog.industry WHERE code = ANY(ARRAY['fintech', 'ecommerce']::text[]);
+DO $$ BEGIN
+    IF (SELECT count(*) FROM catalog.learning_goal WHERE code = ANY(ARRAY['grow_in_role', 'performance']::text[])) <> 2 THEN
+        RAISE EXCEPTION 'course nodejs-high-performance: unknown code in goals';
+    END IF;
+END $$;
+DELETE FROM catalog.course_learning_goal WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'nodejs-high-performance');
+INSERT INTO catalog.course_learning_goal (course_id, learning_goal_id) SELECT (SELECT id FROM catalog.course WHERE public_id = 'nodejs-high-performance'), id FROM catalog.learning_goal WHERE code = ANY(ARRAY['grow_in_role', 'performance']::text[]);
+DO $$ BEGIN
+    IF (SELECT count(*) FROM catalog.skill WHERE code = ANY(ARRAY['nodejs', 'concurrency', 'performance', 'system_design', 'async_programming']::text[])) <> 5 THEN
+        RAISE EXCEPTION 'course nodejs-high-performance: unknown code in skills';
+    END IF;
+END $$;
+DELETE FROM catalog.course_skill WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'nodejs-high-performance');
+INSERT INTO catalog.course_skill (course_id, skill_id, weight)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'nodejs-high-performance'), s.id, v.weight
+FROM (VALUES ('nodejs', 5), ('concurrency', 5), ('performance', 4), ('system_design', 3), ('async_programming', 3)) AS v(code, weight)
+JOIN catalog.skill s ON s.code = v.code;
 
 -- module 1: Concurrency & Data Consistency
 UPDATE course.module SET title = 'Concurrency & Data Consistency', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'nodejs-high-performance') AND order_index = 1 AND is_deleted = false LIMIT 1);

@@ -94,7 +94,48 @@ WHERE NOT EXISTS (SELECT 1 FROM commerce.offer WHERE course_id = ${courseId} AND
 }
 out.push("");
 
-for (const module of course.modules) {
+// Catalog metadata (onboarding recommendations, filters): each field present in course.json replaces
+// that link table for the course; absent fields keep whatever the admin set. Unknown codes abort the seed.
+const links = [
+    { field: "careerRoles", table: "catalog.course_career_role", column: "career_role_id", taxonomy: "catalog.career_role" },
+    { field: "industries", table: "catalog.course_industry", column: "industry_id", taxonomy: "catalog.industry" },
+    { field: "goals", table: "catalog.course_learning_goal", column: "learning_goal_id", taxonomy: "catalog.learning_goal" },
+];
+const codeList = (codes) => `ARRAY[${codes.map(lit).join(", ") || "''"}]::text[]`;
+const checkCodes = (taxonomy, codes, field) => `DO $$ BEGIN
+    IF (SELECT count(*) FROM ${taxonomy} WHERE code = ANY(${codeList(codes)})) <> ${new Set(codes).size} THEN
+        RAISE EXCEPTION 'course ${course.publicId}: unknown code in ${field}';
+    END IF;
+END $$;`;
+for (const { field, table, column, taxonomy } of links) {
+    const codes = course[field];
+    if (!Array.isArray(codes)) continue;
+    out.push(`${checkCodes(taxonomy, codes, field)}
+DELETE FROM ${table} WHERE course_id = ${courseId};
+INSERT INTO ${table} (course_id, ${column}) SELECT ${courseId}, id FROM ${taxonomy} WHERE code = ANY(${codeList(codes)});`);
+}
+if (course.skills) {
+    // { "<skill code>": weight 1 (touches it) .. 5 (core) }
+    const entries = Object.entries(course.skills);
+    out.push(`${checkCodes("catalog.skill", entries.map(([code]) => code), "skills")}
+DELETE FROM catalog.course_skill WHERE course_id = ${courseId};`);
+    if (entries.length) {
+        out.push(`INSERT INTO catalog.course_skill (course_id, skill_id, weight)
+SELECT ${courseId}, s.id, v.weight
+FROM (VALUES ${entries.map(([code, weight]) => `(${lit(code)}, ${Number(weight)})`).join(", ")}) AS v(code, weight)
+JOIN catalog.skill s ON s.code = v.code;`);
+    }
+}
+if (Array.isArray(course.prerequisites)) {
+    // Prerequisites seeded later are skipped here; re-run this seed once they exist.
+    out.push(`DELETE FROM catalog.course_prerequisite WHERE course_id = ${courseId};
+INSERT INTO catalog.course_prerequisite (course_id, prerequisite_course_id)
+SELECT ${courseId}, id FROM catalog.course WHERE public_id = ANY(${codeList(course.prerequisites)});`);
+}
+out.push("");
+
+// An outline-only course (lessons not written yet, see "outline") has no modules: only its catalog row.
+for (const module of course.modules || []) {
     const moduleId = `(SELECT id FROM course.module WHERE course_id = ${courseId} AND order_index = ${module.orderIndex} AND is_deleted = false LIMIT 1)`;
     out.push(`-- module ${module.orderIndex}: ${module.title}`);
     out.push(`UPDATE course.module SET title = ${lit(module.title)}, updated_at = now() WHERE id = ${moduleId};`);

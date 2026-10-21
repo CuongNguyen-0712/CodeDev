@@ -6,6 +6,9 @@
   "title": "JavaScript: Asynchronous Architecture & Production Patterns",
   "language": "JavaScript",
   "category": "Web Development",
+  "careerRoles": ["frontend_developer", "backend_developer", "fullstack_developer", "mobile_developer"],
+  "skills": {"javascript": 5, "async_programming": 5, "performance": 3, "testing": 2},
+  "goals": ["grow_in_role", "interview_prep"],
   "modules": [
     {
       "orderIndex": 1,
