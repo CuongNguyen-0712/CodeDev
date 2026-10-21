@@ -277,7 +277,7 @@ Differences from this plan and `docs/ranking-plan.md`:
 - **EXP tiers** live in `profile.rank_tier` (`kind = 'exp'`, thresholds equal to the level groups) instead of a `rank_group` column on `profile.exp_level`.
 - **Own ranks** come from `GET /api/ranking/me`, not a `ranks` block on `/api/user/me`.
 - **Own public profile** is not redirected to `/profile`: it shows a "This is how other learners see your profile" banner, so learners can preview it.
-- **Gate:** other learners' ranks (the `/ranking` table and ranks on public profiles) appear only with `RANKING_PUBLIC=true`. Leave it unset in production until the code runner grades coding challenges there (RK-6).
+- **Gate:** other learners' ranks (the `/ranking` table and ranks on public profiles) appear once coding is graded on the server (`CODE_RUNNER_URL` or Vercel Sandbox, `serverExecutionEnabled()`). `RANKING_PUBLIC=true|false` overrides it (RK-6).
 - Staff accounts (`admin.read`) and locked accounts are excluded from the boards.
 
 Not done yet:

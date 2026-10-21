@@ -2,13 +2,15 @@ import { rankingDb } from "@/db/ranking.db";
 import { redis } from "@/lib/cache";
 import { cacheKeys, TTL } from "@/lib/cacheKeys";
 import { BOARDS, periodSince, toStanding } from "@/lib/ranking";
+import { serverExecutionEnabled } from "@/lib/challenges/codeRunner";
 
 /**
- * Other learners' ranks are shown only when RANKING_PUBLIC=true: until production grades code on
- * the server (CODE_RUNNER_URL), coding results can be faked, so only a learner's own rank is shown
- * (ranking-plan §9).
+ * Other learners' ranks are shown once coding is graded on the server (code runner or Vercel Sandbox):
+ * without it, coding results can be faked, so only a learner's own rank is shown (ranking-plan §9).
+ * RANKING_PUBLIC=true|false overrides this.
  */
-export const isRankingPublic = () => process.env.RANKING_PUBLIC === "true";
+export const isRankingPublic = () =>
+    process.env.RANKING_PUBLIC ? process.env.RANKING_PUBLIC === "true" : serverExecutionEnabled();
 
 const toEntry = (row) => ({
     position: Number(row.position),

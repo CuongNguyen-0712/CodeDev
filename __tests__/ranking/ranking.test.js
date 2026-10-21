@@ -58,3 +58,29 @@ describe("toStanding", () => {
         expect(toStanding(undefined)).toBeNull();
     });
 });
+
+describe("isRankingPublic", () => {
+    const keys = ["RANKING_PUBLIC", "CODE_RUNNER_URL", "CODE_RUNNER_PROVIDER"];
+    const withEnv = async (env, fn) => {
+        const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+        keys.forEach((k) => delete process.env[k]);
+        Object.assign(process.env, env);
+        try {
+            const { isRankingPublic } = await import("@/services/ranking.service");
+            return fn(isRankingPublic);
+        } finally {
+            keys.forEach((k) => (saved[k] === undefined ? delete process.env[k] : (process.env[k] = saved[k])));
+        }
+    };
+
+    it("opens the board only when coding is graded on the server", async () => {
+        await withEnv({}, (isPublic) => expect(isPublic()).toBe(false));
+        await withEnv({ CODE_RUNNER_URL: "http://127.0.0.1:4100" }, (isPublic) => expect(isPublic()).toBe(true));
+        await withEnv({ CODE_RUNNER_PROVIDER: "vercel" }, (isPublic) => expect(isPublic()).toBe(true));
+    });
+
+    it("lets RANKING_PUBLIC override the runner check", async () => {
+        await withEnv({ RANKING_PUBLIC: "false", CODE_RUNNER_URL: "http://127.0.0.1:4100" }, (isPublic) => expect(isPublic()).toBe(false));
+        await withEnv({ RANKING_PUBLIC: "true" }, (isPublic) => expect(isPublic()).toBe(true));
+    });
+});
