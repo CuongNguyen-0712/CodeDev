@@ -1,0 +1,117 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_jsf_121",
+      "name": "pure-order-summary",
+      "type": "mini_coding",
+      "title": "Summarise orders without touching them",
+      "description": "Write summarizeOrders(orders): the ids of every order grouped by status, the total per customer (cancelled orders ignored) and a ranking of order ids by total, largest first, ties by id. The function must be pure: the tests snapshot the orders before the call and fail if the array is reordered or any order or item is changed.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "summarizeOrders.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Groups ids by status, totals per customer and ranks by total",
+          "input": {
+            "orders": [
+              { "id": "A-1001", "customer": "alice", "status": "paid", "items": [{ "sku": "MUG", "qty": 2, "priceCents": 1250 }] },
+              { "id": "A-1002", "customer": "bob", "status": "pending", "items": [{ "sku": "TEE", "qty": 1, "priceCents": 2000 }, { "sku": "MUG", "qty": 1, "priceCents": 1250 }] },
+              { "id": "A-1003", "customer": "alice", "status": "paid", "items": [{ "sku": "CAP", "qty": 1, "priceCents": 1800 }] }
+            ]
+          },
+          "expected": {
+            "result": {
+              "idsByStatus": { "paid": ["A-1001", "A-1003"], "pending": ["A-1002"] },
+              "totalByCustomer": { "alice": 4300, "bob": 3250 },
+              "ranking": ["A-1002", "A-1001", "A-1003"]
+            },
+            "inputUnchanged": true
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Cancelled orders are grouped but not counted in totals or the ranking",
+          "input": {
+            "orders": [
+              { "id": "A-2001", "customer": "carol", "status": "cancelled", "items": [{ "sku": "BAG", "qty": 1, "priceCents": 9900 }] },
+              { "id": "A-2002", "customer": "dan", "status": "paid", "items": [{ "sku": "MUG", "qty": 1, "priceCents": 1250 }] },
+              { "id": "A-2003", "customer": "carol", "status": "paid", "items": [{ "sku": "TEE", "qty": 2, "priceCents": 2000 }] },
+              { "id": "A-2004", "customer": "erin", "status": "cancelled", "items": [{ "sku": "CAP", "qty": 3, "priceCents": 1800 }] }
+            ]
+          },
+          "expected": {
+            "result": {
+              "idsByStatus": { "cancelled": ["A-2001", "A-2004"], "paid": ["A-2002", "A-2003"] },
+              "totalByCustomer": { "carol": 4000, "dan": 1250 },
+              "ranking": ["A-2003", "A-2002"]
+            },
+            "inputUnchanged": true
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "An empty list gives empty groups, totals and ranking",
+          "input": { "orders": [] },
+          "expected": {
+            "result": { "idsByStatus": {}, "totalByCustomer": {}, "ranking": [] },
+            "inputUnchanged": true
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Equal totals rank by id, and the orders table keeps its order",
+          "input": {
+            "orders": [
+              { "id": "A-3003", "customer": "fay", "status": "paid", "items": [{ "sku": "MUG", "qty": 2, "priceCents": 1250 }] },
+              { "id": "A-3001", "customer": "gus", "status": "paid", "items": [{ "sku": "TEE", "qty": 1, "priceCents": 2500 }] },
+              { "id": "A-3002", "customer": "fay", "status": "shipped", "items": [{ "sku": "CAP", "qty": 1, "priceCents": 1000 }] },
+              { "id": "A-3004", "customer": "gus", "status": "shipped", "items": [] }
+            ]
+          },
+          "expected": {
+            "result": {
+              "idsByStatus": { "paid": ["A-3003", "A-3001"], "shipped": ["A-3002", "A-3004"] },
+              "totalByCustomer": { "fay": 3500, "gus": 2500 },
+              "ranking": ["A-3001", "A-3003", "A-3002", "A-3004"]
+            },
+            "inputUnchanged": true
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "One customer with many statuses, zero-quantity items",
+          "input": {
+            "orders": [
+              { "id": "A-4001", "customer": "hana", "status": "paid", "items": [{ "sku": "MUG", "qty": 0, "priceCents": 1250 }, { "sku": "TEE", "qty": 1, "priceCents": 2000 }] },
+              { "id": "A-4002", "customer": "hana", "status": "refunded", "items": [{ "sku": "BAG", "qty": 1, "priceCents": 9900 }] },
+              { "id": "A-4003", "customer": "hana", "status": "cancelled", "items": [{ "sku": "CAP", "qty": 5, "priceCents": 1800 }] },
+              { "id": "A-4004", "customer": "ivan", "status": "pending", "items": [{ "sku": "MUG", "qty": 4, "priceCents": 1250 }] }
+            ]
+          },
+          "expected": {
+            "result": {
+              "idsByStatus": { "paid": ["A-4001"], "refunded": ["A-4002"], "cancelled": ["A-4003"], "pending": ["A-4004"] },
+              "totalByCustomer": { "hana": 11900, "ivan": 5000 },
+              "ranking": ["A-4002", "A-4004", "A-4001"]
+            },
+            "inputUnchanged": true
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

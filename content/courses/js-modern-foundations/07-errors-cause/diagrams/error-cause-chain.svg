@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#334155"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Follow the cause chain from the edge back to the root</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Each layer adds what it knows and keeps the error it caught as cause. The edge logs the whole chain once.</text>
+
+  <!-- with cause -->
+  <text x="40" y="128" font-size="15" font-weight="700" fill="#166534">WITH cause: one log line tells on-call what to fix</text>
+
+  <rect x="40" y="145" width="250" height="150" rx="12" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="60" y="177" font-size="16" font-weight="700" fill="#1d4ed8">Edge: job runner</text>
+  <text x="60" y="203" font-size="13" fill="#0f172a">the only catch that logs,</text>
+  <text x="60" y="223" font-size="13" fill="#0f172a">alerts and sets the exit code</text>
+  <text x="60" y="255" font-size="13" font-family="Consolas, monospace" fill="#1d4ed8">console.error(err)</text>
+  <text x="60" y="275" font-size="13" font-family="Consolas, monospace" fill="#1d4ed8">process.exitCode = 1</text>
+
+  <line x1="292" y1="220" x2="326" y2="220" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="330" y="145" width="270" height="150" rx="12" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="350" y="177" font-size="16" font-weight="700" fill="#6d28d9">ImportError</text>
+  <text x="350" y="203" font-size="13" font-family="Consolas, monospace" fill="#0f172a">code: IMPORT_INVALID_ROWS</text>
+  <text x="350" y="227" font-size="13" fill="#0f172a">"Import failed: 1 of</text>
+  <text x="350" y="247" font-size="13" fill="#0f172a">48,210 rows invalid"</text>
+  <text x="350" y="279" font-size="13" font-weight="700" fill="#6d28d9">.cause</text>
+
+  <line x1="602" y1="220" x2="636" y2="220" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="640" y="145" width="240" height="150" rx="12" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="660" y="177" font-size="16" font-weight="700" fill="#92400e">AggregateError</text>
+  <text x="660" y="203" font-size="13" fill="#0f172a">"Invalid rows"</text>
+  <text x="660" y="227" font-size="13" fill="#0f172a">one entry per bad row,</text>
+  <text x="660" y="247" font-size="13" fill="#0f172a">all of them at once</text>
+  <text x="660" y="279" font-size="13" font-weight="700" fill="#92400e">.errors[0]</text>
+
+  <line x1="882" y1="220" x2="916" y2="220" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="920" y="145" width="240" height="150" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="940" y="177" font-size="16" font-weight="700" fill="#166534">ValidationError</text>
+  <text x="940" y="203" font-size="13" font-family="Consolas, monospace" fill="#0f172a">code: INVALID_ROW</text>
+  <text x="940" y="227" font-size="13" fill="#0f172a">"Line 4812: invalid</text>
+  <text x="940" y="247" font-size="13" fill="#0f172a">date "2026-02-30""</text>
+  <text x="940" y="279" font-size="13" font-weight="700" fill="#166534">root cause</text>
+
+  <!-- without cause -->
+  <text x="40" y="350" font-size="15" font-weight="700" fill="#991b1b">WITHOUT cause: the chain is cut at the first catch</text>
+
+  <rect x="40" y="367" width="250" height="110" rx="12" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="60" y="399" font-size="16" font-weight="700" fill="#1d4ed8">Edge: job runner</text>
+  <text x="60" y="425" font-size="13" fill="#0f172a">logs what it got - which</text>
+  <text x="60" y="445" font-size="13" fill="#0f172a">is not much</text>
+
+  <line x1="292" y1="422" x2="326" y2="422" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="330" y="367" width="270" height="110" rx="12" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="350" y="399" font-size="16" font-weight="700" fill="#991b1b">Error</text>
+  <text x="350" y="425" font-size="13" fill="#0f172a">"Import failed"</text>
+  <text x="350" y="445" font-size="13" fill="#b91c1c">no code, no line, no cause</text>
+
+  <line x1="602" y1="422" x2="636" y2="422" stroke="#dc2626" stroke-width="2" stroke-dasharray="6 5"/>
+  <text x="619" y="410" font-size="18" font-weight="700" text-anchor="middle" fill="#dc2626">x</text>
+
+  <rect x="640" y="367" width="520" height="110" rx="12" fill="#f8fafc" stroke="#94a3b8" stroke-width="2" stroke-dasharray="6 5"/>
+  <text x="660" y="399" font-size="16" font-weight="700" fill="#64748b">The real error, thrown away</text>
+  <text x="660" y="425" font-size="13" fill="#475569">catch (error) { throw new Error("Import failed"); }</text>
+  <text x="660" y="445" font-size="13" fill="#475569">the variable error is never used: 3 hours of guessing</text>
+
+  <!-- rule -->
+  <rect x="40" y="507" width="1120" height="68" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="60" y="537" font-size="15" font-weight="700" fill="#166534">Rule: catch only to add context or to recover.</text>
+  <text x="60" y="560" font-size="14" fill="#0f172a">Adding context means new Error(message, { cause: error }). Anything you cannot handle is rethrown, and only the edge logs it.</text>
+</svg>

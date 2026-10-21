@@ -1,0 +1,101 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_jsf_421",
+      "name": "node-test-assertions-quiz",
+      "type": "quiz",
+      "title": "What does this assertion actually prove?",
+      "description": "Two assertions from the checkout test suite. Decide what each one checks - and what it lets through.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "toCartLine(sku, qty) returns a new object { sku, qty }. This test fails:\n\nimport assert from 'node:assert/strict';\n\ntest('builds a cart line', () => {\n  assert.strictEqual(toCartLine('A1', 2), { sku: 'A1', qty: 2 });\n});\n\nThe output says: \"Values have same structure but are not reference-equal\". What is the right fix?",
+          "explanation": "strictEqual compares with Object.is. For objects that means \"is this the very same object in memory?\", and a freshly created object is never the same object as the literal written in the test, even with identical contents. deepStrictEqual compares structure instead: same own keys, same values (compared strictly, so 2 and '2' differ), same prototype. Importing plain 'node:assert' changes nothing here: strictEqual always uses Object.is - only the legacy equal/deepEqual are loose there. assert.ok only checks truthiness, so it would pass for any object at all, including a wrong one.",
+          "options": [
+            { "text": "Use assert.deepStrictEqual, which compares keys and values (and the prototype) instead of object identity.", "correct": true },
+            { "text": "Use assert.ok(toCartLine('A1', 2)), because the function clearly returns an object.", "correct": false },
+            { "text": "Import assert from 'node:assert' instead of 'node:assert/strict', so strictEqual becomes a loose comparison.", "correct": false },
+            { "text": "Nothing is wrong with the test: toCartLine must return the same object instance that the test created.", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "The discount suite contained exactly one check:\n\nconst result = applyDiscount(8000, 10);\nassert.ok(result);\n\nIt was green for months. Which statements about this test are true? (Select all that apply.)",
+          "explanation": "assert.ok(value) passes for every truthy value. It proves only that applyDiscount(8000, 10) did not throw and did not return a falsy value (0, '', null, undefined, NaN, false). A price of 800 (the discount instead of the price), 8000 (no discount) or the string '7200' all pass, so it cannot tell a correct function from a broken one. Worse, it would FAIL for a correct 100% discount, whose price is 0. A useful assertion compares against an exact expected value: assert.strictEqual(applyDiscount(8000, 10), 7200).",
+          "options": [
+            { "text": "It passes if applyDiscount returns 800 (the discount amount) instead of 7200 (the price).", "correct": true },
+            { "text": "It proves that the returned price is a number.", "correct": false },
+            { "text": "It would fail for a correct applyDiscount(8000, 100), because the right answer, 0, is falsy.", "correct": true },
+            { "text": "It proves the threshold works, because 8000 is above 5000.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_jsf_422",
+      "name": "tests-that-catch-bugs",
+      "type": "mini_coding",
+      "title": "Write tests that catch the discount bugs",
+      "description": "Replace the incident's assert.ok test with a suite that actually catches bugs. The grader runs your discountSuite(applyDiscount, assert) against the correct applyDiscount - where it must pass - and against several buggy versions, where it must fail. Cover the happy path, both sides of the threshold, 0%, and invalid input on both ends of the range.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "discount.test.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Your suite passes against the correct applyDiscount",
+          "input": { "impl": "correct" },
+          "expected": "passed",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Catches: returns the discount amount instead of the price",
+          "input": { "impl": "returnsDiscount" },
+          "expected": "bug caught",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Catches: a cart of exactly 5000 cents gets no discount",
+          "input": { "impl": "strictThreshold" },
+          "expected": "bug caught",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Catches: an explicit 0% falls back to the default 10%",
+          "input": { "impl": "zeroFallsBack" },
+          "expected": "bug caught",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Catches: a percent above 100 is accepted",
+          "input": { "impl": "noUpperBound" },
+          "expected": "bug caught",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Catches a bug you were not told about",
+          "input": { "impl": "noLowerBound" },
+          "expected": "bug caught",
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

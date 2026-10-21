@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">One instant, three wall clocks, two different days</text>
+  <text x="40" y="82" font-size="16" fill="#475569">A Date is one point on the UTC timeline. Which calendar day it belongs to depends on the time zone you ask in.</text>
+
+  <!-- Row labels -->
+  <text x="40" y="176" font-size="17" font-weight="700" fill="#334155">UTC</text>
+  <text x="40" y="196" font-size="12" fill="#64748b">toISOString()</text>
+  <text x="40" y="286" font-size="17" font-weight="700" fill="#334155">Hanoi</text>
+  <text x="40" y="306" font-size="12" fill="#64748b">Asia/Ho_Chi_Minh</text>
+  <text x="40" y="322" font-size="12" fill="#64748b">UTC+7 all year</text>
+  <text x="40" y="396" font-size="17" font-weight="700" fill="#334155">New York</text>
+  <text x="40" y="416" font-size="12" fill="#64748b">America/New_York</text>
+  <text x="40" y="432" font-size="12" fill="#64748b">UTC-4 until 1 Nov</text>
+
+  <!-- UTC row: 20 Oct [0h,24h) x 200-680, 21 Oct [24h,48h) x 680-1160 -->
+  <rect x="200" y="150" width="480" height="60" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="440" y="186" font-size="15" text-anchor="middle" fill="#0e7490">Tue 20 Oct (UTC)</text>
+  <rect x="680" y="150" width="480" height="60" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="920" y="186" font-size="15" text-anchor="middle" fill="#6d28d9">Wed 21 Oct (UTC)</text>
+
+  <!-- Hanoi row: days start at 17:00Z. 20 Oct ends x 540, 21 Oct x 540-1020, 22 Oct from x 1020 -->
+  <rect x="200" y="260" width="340" height="60" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="370" y="296" font-size="15" text-anchor="middle" fill="#0e7490">Tue 20 Oct (Hanoi)</text>
+  <rect x="540" y="260" width="480" height="60" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="850" y="296" font-size="15" text-anchor="middle" fill="#6d28d9">Wed 21 Oct (Hanoi)</text>
+  <rect x="1020" y="260" width="140" height="60" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="1090" y="296" font-size="15" text-anchor="middle" fill="#15803d">Thu 22 Oct</text>
+  <!-- 00:00-07:00 Hanoi on 21 Oct = 17:00Z-24:00Z on 20 Oct -->
+  <rect x="542" y="262" width="136" height="56" fill="#fef2f2" fill-opacity="0.85" stroke="#ef4444" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="610" y="285" font-size="12" font-weight="700" text-anchor="middle" fill="#b91c1c">00:00-07:00</text>
+  <text x="610" y="303" font-size="11" text-anchor="middle" fill="#b91c1c">UTC says 20 Oct</text>
+
+  <!-- New York row (EDT): days start at 04:00Z. 19 Oct x 200-280, 20 Oct x 280-760, 21 Oct x 760-1160 -->
+  <rect x="200" y="370" width="80" height="60" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="240" y="406" font-size="13" text-anchor="middle" fill="#64748b">19 Oct</text>
+  <rect x="280" y="370" width="480" height="60" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="400" y="406" font-size="15" text-anchor="middle" fill="#0e7490">Tue 20 Oct (New York)</text>
+  <rect x="760" y="370" width="400" height="60" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="960" y="406" font-size="15" text-anchor="middle" fill="#6d28d9">Wed 21 Oct (New York)</text>
+
+  <!-- The instant: 2026-10-20T23:30Z at x 670 -->
+  <line x1="670" y1="120" x2="670" y2="446" stroke="#dc2626" stroke-width="3"/>
+  <circle cx="670" cy="120" r="6" fill="#dc2626"/>
+  <text x="682" y="118" font-size="14" font-weight="700" fill="#b91c1c">order.createdAt = 2026-10-20T23:30:00.000Z</text>
+  <rect x="574" y="214" width="96" height="24" rx="4" fill="#ffffff" stroke="#dc2626" stroke-width="1.5"/>
+  <text x="622" y="231" font-size="13" font-weight="700" text-anchor="middle" fill="#b91c1c">23:30, 20 Oct</text>
+  <rect x="676" y="324" width="96" height="24" rx="4" fill="#ffffff" stroke="#dc2626" stroke-width="1.5"/>
+  <text x="724" y="341" font-size="13" font-weight="700" text-anchor="middle" fill="#b91c1c">06:30, 21 Oct</text>
+  <rect x="574" y="434" width="96" height="24" rx="4" fill="#ffffff" stroke="#dc2626" stroke-width="1.5"/>
+  <text x="622" y="451" font-size="13" font-weight="700" text-anchor="middle" fill="#b91c1c">19:30, 20 Oct</text>
+
+  <!-- UTC axis -->
+  <line x1="200" y1="480" x2="1160" y2="480" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="200" y1="474" x2="200" y2="486" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="440" y1="474" x2="440" y2="486" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="680" y1="474" x2="680" y2="486" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="920" y1="474" x2="920" y2="486" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="1160" y1="474" x2="1160" y2="486" stroke="#94a3b8" stroke-width="2"/>
+  <text x="200" y="504" font-size="12" text-anchor="middle" fill="#64748b">20 Oct 00:00Z</text>
+  <text x="440" y="504" font-size="12" text-anchor="middle" fill="#64748b">12:00Z</text>
+  <text x="680" y="504" font-size="12" text-anchor="middle" fill="#64748b">21 Oct 00:00Z</text>
+  <text x="920" y="504" font-size="12" text-anchor="middle" fill="#64748b">12:00Z</text>
+  <text x="1160" y="504" font-size="12" text-anchor="end" fill="#64748b">22 Oct 00:00Z</text>
+  <text x="40" y="484" font-size="13" font-weight="700" fill="#475569">UTC timeline</text>
+
+  <!-- Rule -->
+  <rect x="40" y="526" width="1120" height="54" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="64" y="558" font-size="15" fill="#334155"><tspan font-weight="700" fill="#15803d">Store the instant in UTC. Pick the zone when you need a day:</tspan><tspan dx="8">Intl.DateTimeFormat("en-US", { timeZone: "Asia/Ho_Chi_Minh", ... })</tspan></text>
+</svg>

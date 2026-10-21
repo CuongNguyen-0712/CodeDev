@@ -1,0 +1,54 @@
+{
+  "publicId": "js-modern-foundations",
+  "title": "Modern JavaScript on Node 24: Fundamentals that Ship",
+  "concept": "Learn the JavaScript every frontend, backend and QA engineer relies on: values and equality, arrays and objects, closures, ES modules, iterator helpers and Set methods, dates and time zones, errors and tests, each taught from a real bug.",
+  "description": "A beginner course for people who can write a little code and want to write JavaScript that works the first time in production. Every lesson starts from a small, real incident - a cart total of 0.30000000000000004, a duplicated order that silently edits the original, a loop that logs the same id five times, a report that shows yesterday for users in Hanoi, an error that lost its cause - and fixes it with modern JavaScript (ES2025) on Node 24: strict equality, immutable updates with structuredClone, closures, ES modules, iterator helpers and Set methods, Intl date formatting, error causes and node:test.",
+  "image": null,
+  "level": "beginner",
+  "durationMinutes": 169,
+  "instructor": "CodeDev Engineering Team",
+  "language": "JavaScript",
+  "category": "Programming Fundamentals",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 50,
+  "accessModel": "free",
+  "publishStatus": "draft",
+  "careerRoles": ["student", "frontend_developer", "fullstack_developer", "backend_developer", "qa_engineer"],
+  "skills": {"javascript": 5, "data_structures": 2, "testing": 2, "async_programming": 1},
+  "goals": ["fundamentals", "first_job", "change_career"],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Values & Data",
+      "lessons": [
+        { "orderIndex": 1, "folder": "01-values-types-equality", "title": "Values, types & equality traps", "sanityId": "lesson-jsf-1-1" },
+        { "orderIndex": 2, "folder": "02-arrays-objects-immutability", "title": "Arrays & objects: map, filter, reduce & structuredClone", "sanityId": "lesson-jsf-1-2" }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Functions & Modules",
+      "lessons": [
+        { "orderIndex": 1, "folder": "03-closures-scope", "title": "Closures & scope bugs in loops", "sanityId": "lesson-jsf-2-1" },
+        { "orderIndex": 2, "folder": "04-es-modules-node", "title": "ES modules in Node 24: import, export & top-level await", "sanityId": "lesson-jsf-2-2" }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Modern Built-ins",
+      "lessons": [
+        { "orderIndex": 1, "folder": "05-iterator-helpers-sets", "title": "Iterator helpers & the new Set methods (ES2025)", "sanityId": "lesson-jsf-3-1" },
+        { "orderIndex": 2, "folder": "06-dates-time-zones", "title": "Dates & time zones: UTC, Intl.DateTimeFormat & day boundaries", "sanityId": "lesson-jsf-3-2" }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Errors & Tests",
+      "lessons": [
+        { "orderIndex": 1, "folder": "07-errors-cause", "title": "Errors that explain themselves: cause, AggregateError & boundaries", "sanityId": "lesson-jsf-4-1" },
+        { "orderIndex": 2, "folder": "08-testing-node-test", "title": "Testing with node:test & assert", "sanityId": "lesson-jsf-4-2" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,151 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_jsf_321",
+      "name": "dates-time-zones-quiz",
+      "type": "quiz",
+      "title": "Which day is it?",
+      "description": "Predict what toISOString() returns for a Hanoi order, then sort out which Date facts are true: parsing, zero-based months, local getters and daylight saving time.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The report job runs on a server whose time zone is set to Asia/Ho_Chi_Minh (UTC+7). An order is placed in Hanoi at 06:30 on 21 October 2026 and stored as \"2026-10-20T23:30:00.000Z\".\n\nconst day = new Date(order.createdAt).toISOString().slice(0, 10);\n\nWhat is day?",
+          "explanation": "A Date holds one instant, and toISOString() always writes that instant in UTC, whatever the time zone of the machine. 06:30 in Hanoi is 23:30 UTC on the previous day, so the slice is \"2026-10-20\" on every server, in Hanoi, in Frankfurt or in a container set to UTC. Moving the server to Hanoi changes what toString() and getDate() return, never what toISOString() returns.",
+          "options": [
+            { "text": "\"2026-10-20\", on every server, because toISOString() always uses UTC", "correct": true },
+            { "text": "\"2026-10-21\", because the server is in Hanoi and toISOString() uses the server's time zone", "correct": false },
+            { "text": "\"2026-10-21\", because new Date() converts the Z time to local time before formatting", "correct": false },
+            { "text": "It throws a RangeError, because the string has milliseconds", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which statements are true? (Select all that apply.)",
+          "explanation": "A date-only ISO string such as \"2026-10-21\" is parsed as midnight UTC, which is still 20 October (20:00) in New York. A date-time string without an offset, such as \"2026-10-21T00:00\", is parsed in the machine's local zone, so its instant depends on where the code runs. The Date constructor counts months from 0, so new Date(2026, 10, 21) is 21 NOVEMBER. getDate() and the other getters without UTC in their name answer in the machine's local zone (getUTCDate() is the UTC one). Asia/Ho_Chi_Minh is UTC+7 all year today, while America/New_York is UTC-4 in summer and UTC-5 in winter (2026: from 8 March to 1 November), which is why a fixed offset is wrong for New York.",
+          "options": [
+            { "text": "new Date(\"2026-10-21\") is midnight UTC, which is still 20 October in New York.", "correct": true },
+            { "text": "new Date(\"2026-10-21T00:00\") (no Z, no offset) is midnight in the time zone of the machine running the code.", "correct": true },
+            { "text": "new Date(2026, 10, 21) is 21 October 2026.", "correct": false },
+            { "text": "date.getDate() returns the day of the month in UTC.", "correct": false },
+            { "text": "Asia/Ho_Chi_Minh has no daylight saving time today, while America/New_York switches between UTC-4 and UTC-5.", "correct": true }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_jsf_322",
+      "name": "group-orders-by-local-day",
+      "type": "mini_coding",
+      "title": "Group orders by calendar day in any time zone",
+      "description": "Write groupByLocalDay(orders, timeZone): total the order amounts per calendar day (YYYY-MM-DD) as seen on the wall clock of an IANA time zone. Use Intl.DateTimeFormat with timeZone and formatToParts; no toISOString, no machine-local getters, no hard-coded offsets. The tests group the same orders in Asia/Ho_Chi_Minh, UTC and America/New_York, including the night New York leaves daylight saving time.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "groupByLocalDay.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: orders between 00:00 and 07:00 in Hanoi belong to the Hanoi day",
+          "input": {
+            "timeZone": "Asia/Ho_Chi_Minh",
+            "orders": [
+              { "createdAt": "2026-10-20T16:30:00Z", "amount": 100000 },
+              { "createdAt": "2026-10-20T17:15:00Z", "amount": 250000 },
+              { "createdAt": "2026-10-20T23:59:00Z", "amount": 150000 },
+              { "createdAt": "2026-10-21T07:00:00+07:00", "amount": 200000 },
+              { "createdAt": "2026-10-21T01:00:00Z", "amount": 300000 },
+              { "createdAt": "2026-10-21T23:59:59+07:00", "amount": 50000 },
+              { "createdAt": "2026-10-22T00:00:00+07:00", "amount": 80000 }
+            ]
+          },
+          "expected": { "2026-10-20": 100000, "2026-10-21": 950000, "2026-10-22": 80000 },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The same orders grouped in UTC",
+          "input": {
+            "timeZone": "UTC",
+            "orders": [
+              { "createdAt": "2026-10-20T16:30:00Z", "amount": 100000 },
+              { "createdAt": "2026-10-20T17:15:00Z", "amount": 250000 },
+              { "createdAt": "2026-10-20T23:59:00Z", "amount": 150000 },
+              { "createdAt": "2026-10-21T07:00:00+07:00", "amount": 200000 },
+              { "createdAt": "2026-10-21T01:00:00Z", "amount": 300000 },
+              { "createdAt": "2026-10-21T23:59:59+07:00", "amount": 50000 },
+              { "createdAt": "2026-10-22T00:00:00+07:00", "amount": 80000 }
+            ]
+          },
+          "expected": { "2026-10-20": 500000, "2026-10-21": 630000 },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "New York around the end of daylight saving time (1 November 2026)",
+          "input": {
+            "timeZone": "America/New_York",
+            "orders": [
+              { "createdAt": "2026-10-31T00:30:00-04:00", "amount": 1500 },
+              { "createdAt": "2026-11-01T01:30:00-04:00", "amount": 2500 },
+              { "createdAt": "2026-11-01T01:30:00-05:00", "amount": 4000 },
+              { "createdAt": "2026-11-01T23:30:00-05:00", "amount": 1000 },
+              { "createdAt": "2026-11-02T05:00:00Z", "amount": 2000 }
+            ]
+          },
+          "expected": { "2026-10-31": 1500, "2026-11-01": 7500, "2026-11-02": 2000 },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The incident orders grouped in New York",
+          "input": {
+            "timeZone": "America/New_York",
+            "orders": [
+              { "createdAt": "2026-10-20T16:30:00Z", "amount": 100000 },
+              { "createdAt": "2026-10-20T17:15:00Z", "amount": 250000 },
+              { "createdAt": "2026-10-20T23:59:00Z", "amount": 150000 },
+              { "createdAt": "2026-10-21T07:00:00+07:00", "amount": 200000 },
+              { "createdAt": "2026-10-21T01:00:00Z", "amount": 300000 },
+              { "createdAt": "2026-10-21T23:59:59+07:00", "amount": 50000 },
+              { "createdAt": "2026-10-22T00:00:00+07:00", "amount": 80000 }
+            ]
+          },
+          "expected": { "2026-10-20": 1000000, "2026-10-21": 130000 },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A date-only string is midnight UTC, which is still the previous day in New York",
+          "input": {
+            "timeZone": "America/New_York",
+            "orders": [
+              { "createdAt": "2026-10-21", "amount": 500 },
+              { "createdAt": "2026-10-21T03:59:59Z", "amount": 700 },
+              { "createdAt": "2026-10-21T04:00:00Z", "amount": 900 }
+            ]
+          },
+          "expected": { "2026-10-20": 1200, "2026-10-21": 900 },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "No orders, no days",
+          "input": { "timeZone": "Asia/Ho_Chi_Minh", "orders": [] },
+          "expected": {},
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

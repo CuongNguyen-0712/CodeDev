@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Dollars as floats drift. Integer cents stay exact.</text>
+  <text x="40" y="82" font-size="16" fill="#475569">A number is a 64-bit binary double: 0.1 and 0.2 can only be stored approximately, but every whole number up to 2^53 is exact.</text>
+
+  <!-- Left: floats -->
+  <rect x="40" y="112" width="545" height="300" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="146" font-size="18" font-weight="700" fill="#b91c1c">Before: parseFloat("0.10") + parseFloat("0.20")</text>
+  <text x="64" y="170" font-size="13" fill="#64748b">what is really stored in memory</text>
+
+  <rect x="64" y="186" width="497" height="40" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+  <text x="80" y="212" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">0.1  ~ 0.1000000000000000055511151...</text>
+  <rect x="64" y="234" width="497" height="40" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+  <text x="80" y="260" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">0.2  ~ 0.2000000000000000111022302...</text>
+  <line x1="80" y1="290" x2="545" y2="290" stroke="#ef4444" stroke-width="2"/>
+  <rect x="64" y="300" width="497" height="40" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+  <text x="80" y="326" font-size="15" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">sum  ~ 0.3000000000000000444089210...</text>
+  <text x="64" y="370" font-size="15" font-weight="700" fill="#b91c1c">Printed: "Total: $0.30000000000000004"</text>
+  <text x="64" y="394" font-size="13" fill="#64748b">and 0.1 + 0.2 === 0.3 is false (0.3 is stored as 0.29999999999999998...)</text>
+
+  <!-- Right: cents -->
+  <rect x="615" y="112" width="545" height="300" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="639" y="146" font-size="18" font-weight="700" fill="#15803d">After: whole cents from the start</text>
+  <text x="639" y="170" font-size="13" fill="#64748b">parse the text, never the float</text>
+
+  <rect x="639" y="186" width="200" height="40" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="739" y="212" font-size="15" text-anchor="middle" fill="#334155" font-family="Consolas, 'Courier New', monospace">"0.10"</text>
+  <line x1="839" y1="206" x2="899" y2="206" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="895,200 895,212 907,206" fill="#16a34a"/>
+  <rect x="911" y="186" width="225" height="40" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="1023" y="212" font-size="15" text-anchor="middle" fill="#15803d" font-family="Consolas, 'Courier New', monospace">0 * 100 + 10 = 10</text>
+
+  <rect x="639" y="234" width="200" height="40" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="739" y="260" font-size="15" text-anchor="middle" fill="#334155" font-family="Consolas, 'Courier New', monospace">"0.20"</text>
+  <line x1="839" y1="254" x2="899" y2="254" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="895,248 895,260 907,254" fill="#16a34a"/>
+  <rect x="911" y="234" width="225" height="40" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="1023" y="260" font-size="15" text-anchor="middle" fill="#15803d" font-family="Consolas, 'Courier New', monospace">0 * 100 + 20 = 20</text>
+
+  <line x1="655" y1="290" x2="1120" y2="290" stroke="#16a34a" stroke-width="2"/>
+  <rect x="911" y="300" width="225" height="40" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="1023" y="326" font-size="15" text-anchor="middle" fill="#15803d" font-family="Consolas, 'Courier New', monospace">10 + 20 = 30</text>
+  <text x="639" y="326" font-size="13" fill="#64748b">integer + integer:</text>
+  <text x="639" y="370" font-size="15" font-weight="700" fill="#15803d">Printed: "Total: $0.30"</text>
+  <text x="639" y="394" font-size="13" fill="#64748b">format once, for display: Intl.NumberFormat(... "USD").format(30 / 100)</text>
+
+  <!-- Pipeline -->
+  <text x="40" y="460" font-size="18" font-weight="700" fill="#334155">The rule for money</text>
+  <rect x="40" y="478" width="340" height="84" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="60" y="508" font-size="15" font-weight="700" fill="#b45309">1  Parse at the edge</text>
+  <text x="60" y="532" font-size="13" fill="#92400e">validate the text, convert to integer cents,</text>
+  <text x="60" y="550" font-size="13" fill="#92400e">reject anything else (NaN never gets in)</text>
+  <line x1="380" y1="520" x2="420" y2="520" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="416,514 416,526 428,520" fill="#94a3b8"/>
+  <rect x="430" y="478" width="340" height="84" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="450" y="508" font-size="15" font-weight="700" fill="#0e7490">2  Compute in integers</text>
+  <text x="450" y="532" font-size="13" fill="#155e75">add, multiply by whole quantities, compare</text>
+  <text x="450" y="550" font-size="13" fill="#155e75">with === - every step is exact</text>
+  <line x1="770" y1="520" x2="810" y2="520" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="806,514 806,526 818,520" fill="#94a3b8"/>
+  <rect x="820" y="478" width="340" height="84" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="840" y="508" font-size="15" font-weight="700" fill="#15803d">3  Format at the edge</text>
+  <text x="840" y="532" font-size="13" fill="#166534">turn cents into "$1,299.21" only when you</text>
+  <text x="840" y="550" font-size="13" fill="#166534">show it; never parse the display string back</text>
+</svg>

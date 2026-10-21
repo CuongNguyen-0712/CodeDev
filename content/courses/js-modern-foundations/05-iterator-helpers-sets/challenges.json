@@ -1,0 +1,90 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_jsf_311",
+      "name": "permission-diff-and-lazy-export",
+      "type": "mini_coding",
+      "title": "Diff role permissions and export the first N users lazily",
+      "description": "Write diffPermissions(before, after), which uses Set methods to report the granted, revoked and unchanged permissions of a role change without duplicates, and firstMatching(users, isMatch, n), which returns the first n matching users from an iterator of users without pulling more users than it needs. The harness counts every user the source generator hands out and checks that the source is closed when you stop early.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "permissions.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "diffPermissions: a role gains, loses and keeps permissions",
+          "input": {
+            "mode": "diff",
+            "before": ["orders:read", "orders:write", "users:read"],
+            "after": ["orders:read", "users:read", "users:write", "billing:read"]
+          },
+          "expected": {
+            "granted": ["billing:read", "users:write"],
+            "revoked": ["orders:write"],
+            "unchanged": ["orders:read", "users:read"]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "diffPermissions: duplicates in the input never appear twice in the audit",
+          "input": {
+            "mode": "diff",
+            "before": ["reports:read", "reports:read", "users:read"],
+            "after": ["users:read", "users:read", "admin:all", "admin:all"]
+          },
+          "expected": {
+            "granted": ["admin:all"],
+            "revoked": ["reports:read"],
+            "unchanged": ["users:read"]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "firstMatching: the first 4 admins, pulling only 12 users",
+          "input": { "mode": "first", "count": 100, "every": 3, "n": 4 },
+          "expected": { "ids": [3, 6, 9, 12], "pulled": 12, "closed": true },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "firstMatching: 10 admins out of 2,000,000 users (the export incident)",
+          "input": { "mode": "first", "count": 2000000, "every": 7, "n": 10 },
+          "expected": { "ids": [7, 14, 21, 28, 35, 42, 49, 56, 63, 70], "pulled": 70, "closed": true },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "firstMatching: fewer matches than n returns what exists",
+          "input": { "mode": "first", "count": 10, "every": 4, "n": 5 },
+          "expected": { "ids": [4, 8], "pulled": 10, "closed": true },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "diffPermissions: a role emptied of every permission",
+          "input": {
+            "mode": "diff",
+            "before": ["billing:refund", "billing:read", "billing:refund"],
+            "after": []
+          },
+          "expected": {
+            "granted": [],
+            "revoked": ["billing:read", "billing:refund"],
+            "unchanged": []
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,139 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_jsf_111",
+      "name": "values-equality-quiz",
+      "type": "quiz",
+      "title": "Predict the checkout bugs",
+      "description": "Two small snippets from the checkout incident: a quantity default that behaves differently for web and mobile clients, and a handful of equality checks around NaN, null and floating-point numbers.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The cart code reads each line's quantity with:\n\nconst qty = line.qty || 1;\n\nThe web checkout sends quantities from a form, as strings. The mobile app sends them from JSON, as numbers. A customer sets an item's quantity to zero to remove it. What is qty on each client?",
+          "explanation": "|| returns its right-hand side whenever the left-hand side is falsy. The number 0 is falsy, so the mobile app gets 1 and the customer pays for an item they removed. The string \"0\" is a non-empty string, and every non-empty string is truthy, so the web client keeps \"0\" (which becomes 0 when multiplied). The same line of code behaves differently because the type of the value is different. ?? only replaces null and undefined, but the real fix is to parse and validate the quantity once, at the edge.",
+          "options": [
+            { "text": "Web: \"0\" (a non-empty string is truthy). Mobile: 1 (the number 0 is falsy).", "correct": true },
+            { "text": "Web: 1. Mobile: 1. Zero is falsy in every form.", "correct": false },
+            { "text": "Web: 1 (\"0\" is falsy). Mobile: 0 (numbers are never replaced by ||).", "correct": false },
+            { "text": "Web: \"0\". Mobile: 0. || only replaces null and undefined.", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which of these expressions evaluate to true in Node 24? (Select all that apply.)",
+          "explanation": "NaN is the only value that is not equal to itself, so NaN === NaN is false; Object.is(NaN, NaN) uses the SameValue algorithm and returns true. Number.isNaN does not convert its argument: \"abc\" is a string, not the NaN value, so it returns false (the global isNaN(\"abc\") converts first and returns true). typeof null is \"object\", a bug kept since the first version of JavaScript for compatibility. 0.1 and 0.2 have no exact binary representation, and their sum is 0.30000000000000004, which is not the same double as 0.3.",
+          "options": [
+            { "text": "NaN === NaN", "correct": false },
+            { "text": "Object.is(NaN, NaN)", "correct": true },
+            { "text": "Number.isNaN(\"abc\")", "correct": false },
+            { "text": "typeof null === \"object\"", "correct": true },
+            { "text": "0.1 + 0.2 === 0.3", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_jsf_112",
+      "name": "checkout-total-in-cents",
+      "type": "mini_coding",
+      "title": "Total a cart exactly, in integer cents",
+      "description": "Write checkoutTotal(lines): parse each price string into integer cents without going through a float, accept only whole, non-negative quantities (0 counts as zero, never as 1), reject the whole cart if any line is invalid, and return the total as { cents, display } with display formatted as US dollars (\"$1,299.21\").",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "checkout.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident cart: $0.10 + $0.20 is exactly 30 cents",
+          "input": {
+            "carts": [
+              [{ "price": "0.10", "qty": "1" }, { "price": "0.20", "qty": "1" }]
+            ]
+          },
+          "expected": [{ "cents": 30, "display": "$0.30" }],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Quantity 0 counts as zero, whether it arrives as a string or a number",
+          "input": {
+            "carts": [
+              [{ "price": "19.99", "qty": "2" }, { "price": "5", "qty": 3 }, { "price": "4.5", "qty": "0" }],
+              [{ "price": "12.00", "qty": 0 }]
+            ]
+          },
+          "expected": [{ "cents": 5498, "display": "$54.98" }, { "cents": 0, "display": "$0.00" }],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "An empty cart is $0.00 and large totals get a thousands separator",
+          "input": {
+            "carts": [
+              [],
+              [{ "price": "1299.00", "qty": "1" }, { "price": "0.07", "qty": "3" }]
+            ]
+          },
+          "expected": [{ "cents": 0, "display": "$0.00" }, { "cents": 129921, "display": "$1,299.21" }],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A price that is not a plain amount is rejected",
+          "input": {
+            "carts": [
+              [{ "price": "19.99abc", "qty": "1" }],
+              [{ "price": "", "qty": "1" }]
+            ]
+          },
+          "expected": ["rejected", "rejected"],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Bad quantities, extra decimals, negatives and non-string prices are rejected",
+          "input": {
+            "carts": [
+              [{ "price": "19.999", "qty": "1" }],
+              [{ "price": "-5", "qty": "1" }],
+              [{ "price": "NaN", "qty": "1" }],
+              [{ "price": "1e3", "qty": "1" }],
+              [{ "price": 5, "qty": 1 }],
+              [{ "price": "5", "qty": "1.5" }],
+              [{ "price": "5", "qty": "" }],
+              [{ "price": "5", "qty": "abc" }],
+              [{ "price": "5", "qty": -1 }],
+              [{ "price": "5" }]
+            ]
+          },
+          "expected": ["rejected", "rejected", "rejected", "rejected", "rejected", "rejected", "rejected", "rejected", "rejected", "rejected"],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "One bad line rejects the whole cart; whole-dollar and one-decimal prices work",
+          "input": {
+            "carts": [
+              [{ "price": "10", "qty": "1" }, { "price": "abc", "qty": "1" }],
+              [{ "price": "0.5", "qty": "3" }, { "price": "100", "qty": 2 }]
+            ]
+          },
+          "expected": ["rejected", { "cents": 20150, "display": "$201.50" }],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

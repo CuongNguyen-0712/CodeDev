@@ -1,0 +1,51 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_jsf_221",
+      "name": "es-modules-evaluation-quiz",
+      "type": "quiz",
+      "title": "Predict how Node evaluates your modules",
+      "description": "Three small module graphs: in which order do the bodies run, what does an importer see after an exported variable changes, and what does top-level await really pause?",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 3,
+          "question": "The project has \"type\": \"module\" in package.json.\n\n// c.js\nconsole.log('c');\n\n// a.js\nimport './c.js';\nconsole.log('a');\n\n// b.js\nimport './c.js';\nconsole.log('b');\n\n// main.js\nconsole.log('main');\nimport './a.js';\nimport './b.js';\n\nWhat does `node main.js` print?",
+          "explanation": "Import declarations are hoisted: Node loads and links the whole graph before any module body runs, no matter where the import lines are written. Evaluation is depth-first and dependencies come first: c.js (first dependency of a.js), then a.js, then b.js, whose dependency c.js has already been evaluated and is not run again, and finally main.js. A module body runs once per process; every later import gets the same cached module.",
+          "options": [
+            { "text": "c, a, b, main", "correct": true },
+            { "text": "main, c, a, b", "correct": false },
+            { "text": "c, a, c, b, main", "correct": false },
+            { "text": "main, c, a, c, b", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 3,
+          "question": "// counter.js\nexport let count = 0;\nexport function inc() { count++; }\nexport default count;\n\n// main.js\nimport snapshot, { count, inc } from './counter.js';\ninc();\n\nWhich statements are true? (Select all that apply.)",
+          "explanation": "A named export of a variable is a live binding: main.js reads the variable inside counter.js, so after inc() it sees 1. `export default count` exports the value of an expression, evaluated once when counter.js ran, so the default import stays 0. Imported bindings are read-only in the importing module: `count = 5` in main.js throws \"TypeError: Assignment to constant variable.\"; only counter.js can change it, for example through inc(). And counter.js is evaluated once: every module that imports it shares the same count.",
+          "options": [
+            { "text": "After inc(), `count` in main.js is 1.", "correct": true },
+            { "text": "After inc(), `snapshot` (the default import) is still 0.", "correct": true },
+            { "text": "Writing `count = 5` in main.js sets the counter to 5 for every module.", "correct": false },
+            { "text": "If report.js also imports counter.js, it gets its own count, starting again at 0.", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 4,
+          "question": "// secrets.js\nconsole.log('secrets: fetching');\nexport const secrets = await fetchSecrets(); // takes about 2 seconds\n\n// metrics.js (imports nothing)\nconsole.log('metrics: ready');\n\n// server.js\nimport { secrets } from './secrets.js';\nimport './metrics.js';\nconsole.log('server: listening');\n\nWhat is true when you run `node server.js`?",
+          "explanation": "Top-level await pauses the evaluation of secrets.js and of every module that depends on it, here server.js, so \"server: listening\" is printed only after the secrets have arrived, and server.js never sees an unfinished value. It does not block the thread: timers, I/O and modules that do not depend on secrets.js keep running, which is why metrics.js can print first. A CommonJS require() of a module graph that contains top-level await fails with ERR_REQUIRE_ASYNC_MODULE; use import() there instead.",
+          "options": [
+            { "text": "\"server: listening\" is printed only after fetchSecrets() has resolved; metrics.js, which does not depend on secrets.js, may run during the wait.", "correct": true },
+            { "text": "The await blocks the whole Node.js process for 2 seconds: no timers, no I/O and no other module run.", "correct": false },
+            { "text": "server.js runs immediately and sees `secrets` as undefined until the fetch completes.", "correct": false },
+            { "text": "A CommonJS file can call require('./secrets.js') and receives a promise of the module.", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

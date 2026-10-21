@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_jsf_411",
+      "key": "challenges/javascript/chal_fix_jsf_411/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "importOrders.js",
+      "size": 3385
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_fix_jsf_411",
+      "key": "challenges/javascript/chal_fix_jsf_411/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 1902
+    }
+  ]
+}

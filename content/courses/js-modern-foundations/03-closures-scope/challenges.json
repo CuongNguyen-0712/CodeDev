@@ -1,0 +1,113 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_jsf_211",
+      "name": "closures-capture-variables-quiz",
+      "type": "quiz",
+      "title": "Predict what the callbacks see",
+      "description": "Two loops build an array of callbacks each, one with var and one with let. Predict what they return, then pick the true statements about what a closure captures.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this log?\n\nconst a = [];\nconst b = [];\nfor (var i = 0; i < 3; i++) a.push(() => i);\nfor (let j = 0; j < 3; j++) b.push(() => j);\nconsole.log(a.map((f) => f()), b.map((f) => f()));",
+          "explanation": "var i is one variable for the whole function (or module), and all three arrows close over that same variable. They run after the loop, when i has been incremented to 3, the value that made the condition i < 3 false. let j in a for header gets a new binding for every iteration, initialised with the previous iteration's value, so each arrow keeps its own j: 0, 1 and 2. A closure stores a reference to the variable, not a copy of its value.",
+          "options": [
+            { "text": "[ 0, 1, 2 ] [ 0, 1, 2 ]", "correct": false },
+            { "text": "[ 3, 3, 3 ] [ 0, 1, 2 ]", "correct": true },
+            { "text": "[ 2, 2, 2 ] [ 0, 1, 2 ]", "correct": false },
+            { "text": "[ 3, 3, 3 ] [ 3, 3, 3 ]", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which statements are true? (Select all that apply.)",
+          "explanation": "A closure keeps a live reference to the variables of the scope where it was created, so it sees every later assignment to them. That is why var in a loop is shared and why a for (let ...) header, which creates a fresh binding per iteration, fixes it. Each call of a factory such as makeCounter() runs its body again and creates new local variables, so every counter has its own private count. Arrow functions do not snapshot values: they close over variables exactly like function expressions. And a const declared inside the loop body is block-scoped, so it is a new binding on every iteration - which is exactly what a later callback needs.",
+          "options": [
+            { "text": "A closure keeps a reference to the outer variable itself, so it sees assignments made to that variable after the closure was created.", "correct": true },
+            { "text": "Each call to a factory like makeCounter() creates a new scope, so two counters it returns never share their count.", "correct": true },
+            { "text": "Arrow functions capture the values of outer variables at the moment the arrow is created.", "correct": false },
+            { "text": "Declaring the loop item with const inside the loop body makes no difference, because the callback runs after the loop has finished.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_jsf_212",
+      "name": "fix-retry-scheduler-closure",
+      "type": "fix_bug",
+      "title": "Fix the notification retry scheduler",
+      "description": "scheduleRetries() registers one delayed retry per failed notification, but every retry sends the last notification in the queue and \"Cancel reminder\" cancels either everything or nothing. Fix it so that each retry sends its own notification exactly once, cancel(messageId) affects only that notification, and the retries still work after the widget empties its pending queue. Hint: how many item variables does the loop create, and what does a callback read when it finally runs?",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "javascript",
+        "filePath": "scheduleRetries.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "3 failed pushes: each user gets their own message",
+          "input": {
+            "baseDelayMs": 1000,
+            "pending": [["u1", "m-101"], ["u2", "m-102"], ["u3", "m-103"]]
+          },
+          "expected": ["u1 <- m-101 @1000", "u2 <- m-102 @2000", "u3 <- m-103 @3000"],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "The incident: 5 retries reach 5 different users, once each",
+          "input": {
+            "baseDelayMs": 2000,
+            "pending": [["ana", "m-201"], ["binh", "m-202"], ["chen", "m-203"], ["dara", "m-204"], ["emil", "m-205"]]
+          },
+          "expected": ["ana <- m-201 @2000", "binh <- m-202 @4000", "chen <- m-203 @6000", "dara <- m-204 @8000", "emil <- m-205 @10000"],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Cancelling one reminder cancels only that one",
+          "input": {
+            "baseDelayMs": 500,
+            "pending": [["u1", "m-301"], ["u2", "m-302"], ["u3", "m-303"], ["u4", "m-304"]],
+            "cancel": ["m-302"]
+          },
+          "expected": ["u1 <- m-301 @500", "u3 <- m-303 @1500", "u4 <- m-304 @2000"],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Retries still work after the widget empties its queue",
+          "input": {
+            "baseDelayMs": 1000,
+            "pending": [["u7", "m-401"], ["u8", "m-402"], ["u9", "m-403"]],
+            "clearQueue": true
+          },
+          "expected": ["u7 <- m-401 @1000", "u8 <- m-402 @2000", "u9 <- m-403 @3000"],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Cancelling the last reminder and an unknown id leaves the others alone",
+          "input": {
+            "baseDelayMs": 250,
+            "pending": [["u1", "m-501"], ["u2", "m-502"], ["u3", "m-503"]],
+            "cancel": ["m-503", "m-999"],
+            "clearQueue": true
+          },
+          "expected": ["u1 <- m-501 @250", "u2 <- m-502 @500"],
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

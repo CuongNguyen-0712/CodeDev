@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Which test catches which bug?</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Each column is one realistic bug in applyDiscount. A test only earns its place if it turns red for at least one of them.</text>
+  <rect x="40" y="118" width="1120" height="70" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="60" y="160" font-size="16" font-weight="700" fill="#334155">Test (node:assert/strict)</text>
+  <text x="565" y="148" font-size="14" font-weight="700" text-anchor="middle" fill="#b45309">Returns the discount</text>
+  <text x="565" y="170" font-size="13" text-anchor="middle" fill="#92400e">(800, not 7200)</text>
+  <text x="735" y="148" font-size="14" font-weight="700" text-anchor="middle" fill="#b45309">Threshold uses ></text>
+  <text x="735" y="170" font-size="13" text-anchor="middle" fill="#92400e">(5000 gets nothing)</text>
+  <text x="905" y="148" font-size="14" font-weight="700" text-anchor="middle" fill="#b45309">0% falls back</text>
+  <text x="905" y="170" font-size="13" text-anchor="middle" fill="#92400e">to default 10%</text>
+  <text x="1075" y="148" font-size="14" font-weight="700" text-anchor="middle" fill="#b45309">Accepts 150%</text>
+  <text x="1075" y="170" font-size="13" text-anchor="middle" fill="#92400e">(negative price)</text>
+  <rect x="40" y="198" width="1120" height="62" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="60" y="225" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#b91c1c">assert.ok(applyDiscount(8000, 10))</text>
+  <text x="60" y="246" font-size="12" fill="#64748b">the test that shipped</text>
+  <text x="565" y="234" font-size="14" text-anchor="middle" fill="#ef4444">missed</text>
+  <text x="735" y="234" font-size="14" text-anchor="middle" fill="#ef4444">missed</text>
+  <text x="905" y="234" font-size="14" text-anchor="middle" fill="#ef4444">missed</text>
+  <text x="1075" y="234" font-size="14" text-anchor="middle" fill="#ef4444">missed</text>
+  <rect x="40" y="266" width="1120" height="62" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+  <text x="60" y="293" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">strictEqual(applyDiscount(8000, 10), 7200)</text>
+  <text x="60" y="314" font-size="12" fill="#64748b">happy path, exact value</text>
+  <rect x="505" y="281" width="120" height="32" rx="16" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="565" y="302" font-size="14" font-weight="700" text-anchor="middle" fill="#15803d">caught</text>
+  <text x="735" y="302" font-size="14" text-anchor="middle" fill="#94a3b8">missed</text>
+  <text x="905" y="302" font-size="14" text-anchor="middle" fill="#94a3b8">missed</text>
+  <text x="1075" y="302" font-size="14" text-anchor="middle" fill="#94a3b8">missed</text>
+  <rect x="40" y="334" width="1120" height="62" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+  <text x="60" y="361" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">strictEqual(applyDiscount(5000, 10), 4500)</text>
+  <text x="60" y="382" font-size="12" fill="#64748b">exactly at the threshold</text>
+  <rect x="505" y="349" width="120" height="32" rx="16" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="565" y="370" font-size="14" font-weight="700" text-anchor="middle" fill="#15803d">caught</text>
+  <rect x="675" y="349" width="120" height="32" rx="16" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="735" y="370" font-size="14" font-weight="700" text-anchor="middle" fill="#15803d">caught</text>
+  <text x="905" y="370" font-size="14" text-anchor="middle" fill="#94a3b8">missed</text>
+  <text x="1075" y="370" font-size="14" text-anchor="middle" fill="#94a3b8">missed</text>
+  <rect x="40" y="402" width="1120" height="62" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+  <text x="60" y="429" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">strictEqual(applyDiscount(8000, 0), 8000)</text>
+  <text x="60" y="450" font-size="12" fill="#64748b">zero discount</text>
+  <rect x="505" y="417" width="120" height="32" rx="16" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="565" y="438" font-size="14" font-weight="700" text-anchor="middle" fill="#15803d">caught</text>
+  <text x="735" y="438" font-size="14" text-anchor="middle" fill="#94a3b8">missed</text>
+  <rect x="845" y="417" width="120" height="32" rx="16" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="905" y="438" font-size="14" font-weight="700" text-anchor="middle" fill="#15803d">caught</text>
+  <text x="1075" y="438" font-size="14" text-anchor="middle" fill="#94a3b8">missed</text>
+  <rect x="40" y="470" width="1120" height="62" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+  <text x="60" y="497" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">throws(() =&gt; applyDiscount(8000, 150), RangeError)</text>
+  <text x="60" y="518" font-size="12" fill="#64748b">just outside the range</text>
+  <text x="565" y="506" font-size="14" text-anchor="middle" fill="#94a3b8">missed</text>
+  <text x="735" y="506" font-size="14" text-anchor="middle" fill="#94a3b8">missed</text>
+  <text x="905" y="506" font-size="14" text-anchor="middle" fill="#94a3b8">missed</text>
+  <rect x="1015" y="485" width="120" height="32" rx="16" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="1075" y="506" font-size="14" font-weight="700" text-anchor="middle" fill="#15803d">caught</text>
+  <text x="40" y="572" font-size="15" fill="#334155"><tspan font-weight="700" fill="#b91c1c">assert.ok(result)</tspan> misses all four: it is green for any truthy value. Every bug is caught by an exact value at an edge.</text>
+</svg>

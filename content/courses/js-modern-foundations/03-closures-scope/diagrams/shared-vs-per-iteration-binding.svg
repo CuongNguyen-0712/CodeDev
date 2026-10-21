@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker>
+    <marker id="green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#16a34a"/></marker>
+  </defs>
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Closures capture variables, not values</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Five retry callbacks are created in a loop and run after it has finished. What each one sends depends on which binding it points to.</text>
+
+  <!-- Left: var -->
+  <rect x="40" y="104" width="540" height="350" rx="10" fill="#fef2f2" stroke="#fecaca" stroke-width="2"/>
+  <text x="60" y="134" font-size="18" font-weight="700" fill="#b91c1c">var: one binding for the whole function</text>
+  <rect x="60" y="150" width="150" height="44" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="135" y="177" font-size="14" text-anchor="middle" fill="#334155">retry 1 @ 2 s</text>
+  <line x1="210" y1="172" x2="328" y2="257" stroke="#ef4444" stroke-width="2" marker-end="url(#red)"/>
+  <rect x="60" y="210" width="150" height="44" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="135" y="237" font-size="14" text-anchor="middle" fill="#334155">retry 2 @ 4 s</text>
+  <line x1="210" y1="232" x2="328" y2="271" stroke="#ef4444" stroke-width="2" marker-end="url(#red)"/>
+  <rect x="60" y="270" width="150" height="44" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="135" y="297" font-size="14" text-anchor="middle" fill="#334155">retry 3 @ 6 s</text>
+  <line x1="210" y1="292" x2="328" y2="285" stroke="#ef4444" stroke-width="2" marker-end="url(#red)"/>
+  <rect x="60" y="330" width="150" height="44" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="135" y="357" font-size="14" text-anchor="middle" fill="#334155">retry 4 @ 8 s</text>
+  <line x1="210" y1="352" x2="328" y2="299" stroke="#ef4444" stroke-width="2" marker-end="url(#red)"/>
+  <rect x="60" y="390" width="150" height="44" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="135" y="417" font-size="14" text-anchor="middle" fill="#334155">retry 5 @ 10 s</text>
+  <line x1="210" y1="412" x2="328" y2="313" stroke="#ef4444" stroke-width="2" marker-end="url(#red)"/>
+  <rect x="330" y="225" width="230" height="120" rx="8" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+  <text x="445" y="252" font-size="13" text-anchor="middle" fill="#64748b">retryFailed() scope</text>
+  <text x="445" y="284" font-size="16" font-weight="700" text-anchor="middle" fill="#b91c1c">reminder = r-805</text>
+  <text x="445" y="310" font-size="16" font-weight="700" text-anchor="middle" fill="#b91c1c">i = 5</text>
+  <text x="445" y="334" font-size="12" text-anchor="middle" fill="#64748b">value after the loop ended</text>
+
+  <!-- Right: let / const -->
+  <rect x="620" y="104" width="540" height="350" rx="10" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="2"/>
+  <text x="640" y="134" font-size="18" font-weight="700" fill="#15803d">let / const: one binding per iteration</text>
+  <rect x="640" y="150" width="150" height="44" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="715" y="177" font-size="14" text-anchor="middle" fill="#334155">retry 1 @ 2 s</text>
+  <line x1="790" y1="172" x2="852" y2="172" stroke="#16a34a" stroke-width="2" marker-end="url(#green)"/>
+  <rect x="860" y="150" width="280" height="44" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="876" y="177" font-size="14" fill="#15803d">iteration 0: reminder = r-801, i = 0</text>
+  <rect x="640" y="210" width="150" height="44" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="715" y="237" font-size="14" text-anchor="middle" fill="#334155">retry 2 @ 4 s</text>
+  <line x1="790" y1="232" x2="852" y2="232" stroke="#16a34a" stroke-width="2" marker-end="url(#green)"/>
+  <rect x="860" y="210" width="280" height="44" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="876" y="237" font-size="14" fill="#15803d">iteration 1: reminder = r-802, i = 1</text>
+  <rect x="640" y="270" width="150" height="44" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="715" y="297" font-size="14" text-anchor="middle" fill="#334155">retry 3 @ 6 s</text>
+  <line x1="790" y1="292" x2="852" y2="292" stroke="#16a34a" stroke-width="2" marker-end="url(#green)"/>
+  <rect x="860" y="270" width="280" height="44" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="876" y="297" font-size="14" fill="#15803d">iteration 2: reminder = r-803, i = 2</text>
+  <rect x="640" y="330" width="150" height="44" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="715" y="357" font-size="14" text-anchor="middle" fill="#334155">retry 4 @ 8 s</text>
+  <line x1="790" y1="352" x2="852" y2="352" stroke="#16a34a" stroke-width="2" marker-end="url(#green)"/>
+  <rect x="860" y="330" width="280" height="44" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="876" y="357" font-size="14" fill="#15803d">iteration 3: reminder = r-804, i = 3</text>
+  <rect x="640" y="390" width="150" height="44" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="715" y="417" font-size="14" text-anchor="middle" fill="#334155">retry 5 @ 10 s</text>
+  <line x1="790" y1="412" x2="852" y2="412" stroke="#16a34a" stroke-width="2" marker-end="url(#green)"/>
+  <rect x="860" y="390" width="280" height="44" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="876" y="417" font-size="14" fill="#15803d">iteration 4: reminder = r-805, i = 4</text>
+
+  <!-- Result -->
+  <rect x="40" y="476" width="540" height="88" rx="8" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+  <text x="60" y="506" font-size="16" font-weight="700" fill="#b91c1c">All five retries send r-805</text>
+  <text x="60" y="530" font-size="14" fill="#334155">p-15 gets the reminder five times, p-11 to p-14 get nothing.</text>
+  <text x="60" y="552" font-size="14" fill="#334155">cancel(r-802) is checked against r-805: no effect.</text>
+  <rect x="620" y="476" width="540" height="88" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="640" y="506" font-size="16" font-weight="700" fill="#15803d">Each retry sends its own reminder, once</text>
+  <text x="640" y="530" font-size="14" fill="#334155">Each callback closes over the binding of its own iteration,</text>
+  <text x="640" y="552" font-size="14" fill="#334155">which nothing reassigns after the loop moves on.</text>
+</svg>

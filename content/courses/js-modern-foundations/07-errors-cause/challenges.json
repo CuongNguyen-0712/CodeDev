@@ -1,0 +1,123 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_fix_jsf_411",
+      "name": "fix-import-errors-cause",
+      "type": "fix_bug",
+      "title": "Make the import job's errors explain themselves",
+      "description": "importOrders() validates a CSV export and saves the rows. Today every failure surfaces as a bare \"Error: Import failed\" - the invalid row, the line number and the database error are all lost - and when the database is down the job reports \"0 rows imported\" as a success. Fix it: throw Error objects, give ImportError a proper name and code and keep the original error as its cause, report every invalid row at once in an AggregateError, and close the store on every path. The tests inspect the thrown error and follow its cause chain.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "javascript",
+        "filePath": "importOrders.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Valid file: every row is saved and the store is closed",
+          "input": { "csv": "id,date,amount\nA-1,2026-03-01,19.90\nA-2,2026-03-02,5\nA-3,2026-03-03,120.5" },
+          "expected": { "outcome": "returned", "value": 3, "savedRows": 3, "closeCalls": 1 },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "One invalid date: an ImportError caused by an AggregateError",
+          "input": { "csv": "id,date,amount\nA-1,2026-03-01,19.90\nA-2,2026-02-30,5\nA-3,2026-03-03,120.5" },
+          "expected": {
+            "outcome": "threw",
+            "error": {
+              "name": "ImportError",
+              "message": "Import failed: 1 of 3 rows invalid",
+              "code": "IMPORT_INVALID_ROWS",
+              "cause": {
+                "name": "AggregateError",
+                "message": "Invalid rows",
+                "errors": [
+                  { "name": "ValidationError", "message": "Line 3: invalid date \"2026-02-30\"", "code": "INVALID_ROW", "line": 3 }
+                ]
+              }
+            },
+            "savedRows": 0,
+            "closeCalls": 1
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Three bad rows are reported together, in file order",
+          "input": { "csv": "id,date,amount\nA-1,2026-03-01,19.90\nA-2,2026-03-02,12,5\nA-3,2026-03-03,120.5\nA-4,2026-03-04,\nA-5,03/05/2026,7" },
+          "expected": {
+            "outcome": "threw",
+            "error": {
+              "name": "ImportError",
+              "message": "Import failed: 3 of 5 rows invalid",
+              "code": "IMPORT_INVALID_ROWS",
+              "cause": {
+                "name": "AggregateError",
+                "message": "Invalid rows",
+                "errors": [
+                  { "name": "ValidationError", "message": "Line 3: expected 3 fields, got 4", "code": "INVALID_ROW", "line": 3 },
+                  { "name": "ValidationError", "message": "Line 5: invalid amount \"\"", "code": "INVALID_ROW", "line": 5 },
+                  { "name": "ValidationError", "message": "Line 6: invalid date \"03/05/2026\"", "code": "INVALID_ROW", "line": 6 }
+                ]
+              }
+            },
+            "savedRows": 0,
+            "closeCalls": 1
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Database down: the original error is kept as the cause",
+          "input": {
+            "csv": "id,date,amount\nA-1,2026-03-01,19.90\nA-2,2026-03-02,5\nA-3,2026-03-03,120.5",
+            "saveFails": { "message": "connection reset", "code": "ECONNRESET" }
+          },
+          "expected": {
+            "outcome": "threw",
+            "error": {
+              "name": "ImportError",
+              "message": "Import failed: could not save 3 rows",
+              "code": "IMPORT_SAVE_FAILED",
+              "cause": { "name": "Error", "message": "connection reset", "code": "ECONNRESET" }
+            },
+            "savedRows": 0,
+            "closeCalls": 1
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Every row invalid: nothing is saved, both rows are reported",
+          "input": { "csv": "id,date,amount\nA-9\nA-10,2026-13-01,abc" },
+          "expected": {
+            "outcome": "threw",
+            "error": {
+              "name": "ImportError",
+              "message": "Import failed: 2 of 2 rows invalid",
+              "code": "IMPORT_INVALID_ROWS",
+              "cause": {
+                "name": "AggregateError",
+                "message": "Invalid rows",
+                "errors": [
+                  { "name": "ValidationError", "message": "Line 2: expected 3 fields, got 1", "code": "INVALID_ROW", "line": 2 },
+                  { "name": "ValidationError", "message": "Line 3: invalid date \"2026-13-01\"", "code": "INVALID_ROW", "line": 3 }
+                ]
+              }
+            },
+            "savedRows": 0,
+            "closeCalls": 1
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}
