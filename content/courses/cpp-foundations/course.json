@@ -3,7 +3,7 @@
   "title": "C++ Foundations: From C to Modern C++",
   "concept": "Learn C++23 the modern way: references and const, std::string and std::vector, functions and classes, STL algorithms and containers, and the iterator bugs everyone hits once.",
   "description": "Learn C++23 the modern way while porting a college exam office's old C tools: references and const, std::string and std::vector instead of raw arrays, reading input safely, functions and classes, object lifetime and RAII, STL algorithms, std::map vs std::unordered_map, and the iterator bugs everyone hits once - ending with a grade book project. 10 lessons, each starting from a real bug or incident, with quizzes and C++ coding challenges.",
-  "image": null,
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594568/codedev/courses/cpp-foundations/cover",
   "level": "beginner",
   "durationMinutes": 227,
   "instructor": "CodeDev Engineering Team",

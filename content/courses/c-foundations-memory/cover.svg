@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: C foundations (bytes in memory, pointers, string terminators, overflow). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101722"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#659AD2" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#659AD2" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#A8B9CC"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#659AD2"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <polygon points="158,146 204,172 204,224 158,250 112,224 112,172" fill="#659AD2"/>
+    <text x="158" y="213.64" text-anchor="middle" font-size="46" font-weight="800" fill="#0B0F18">C</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#A8B9CC">C23 · FOUNDATIONS</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Memory, Pointers</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">&amp; Strings</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Types · Arrays · malloc/free · Safe input</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#CFE0F4">
+      <rect x="110" y="660" width="150" height="52" rx="26" fill="#152031" stroke="#659AD2"/>
+      <text x="185" y="695" text-anchor="middle">sizeof</text>
+      <rect x="276" y="660" width="164" height="52" rx="26" fill="#152031" stroke="#659AD2"/>
+      <text x="358" y="695" text-anchor="middle">char *p</text>
+      <rect x="456" y="660" width="150" height="52" rx="26" fill="#152031" stroke="#659AD2"/>
+      <text x="531" y="695" text-anchor="middle">malloc</text>
+      <rect x="622" y="660" width="136" height="52" rx="26" fill="#152031" stroke="#659AD2"/>
+      <text x="690" y="695" text-anchor="middle">fgets</text>
+    </g>
+  </g>
+
+  <!-- A char buffer in memory: pointer arithmetic, the terminator and an overflow past the end -->
+  <g id="art">
+    <text x="900" y="268" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#A8B9CC" text-anchor="start">char buf[6]</text>
+    <text x="1356" y="268" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#F2555A" text-anchor="start">OVERFLOW</text>
+    <rect x="900" y="340" width="68" height="76" rx="10" fill="#151C29" stroke="#659AD2" stroke-width="2" />
+    <text x="934" y="390" font-family="Consolas, Menlo, monospace" font-size="30" fill="#F4F2F8" text-anchor="middle" font-weight="700">L</text>
+    <text x="934" y="322" font-family="Consolas, Menlo, monospace" font-size="17" fill="#6F6A80" text-anchor="middle">0x10</text>
+    <rect x="976" y="340" width="68" height="76" rx="10" fill="#151C29" stroke="#659AD2" stroke-width="2" />
+    <text x="1010" y="390" font-family="Consolas, Menlo, monospace" font-size="30" fill="#F4F2F8" text-anchor="middle" font-weight="700">o</text>
+    <text x="1010" y="322" font-family="Consolas, Menlo, monospace" font-size="17" fill="#6F6A80" text-anchor="middle">0x11</text>
+    <rect x="1052" y="340" width="68" height="76" rx="10" fill="#151C29" stroke="#659AD2" stroke-width="2" />
+    <text x="1086" y="390" font-family="Consolas, Menlo, monospace" font-size="30" fill="#F4F2F8" text-anchor="middle" font-weight="700">t</text>
+    <text x="1086" y="322" font-family="Consolas, Menlo, monospace" font-size="17" fill="#6F6A80" text-anchor="middle">0x12</text>
+    <rect x="1128" y="340" width="68" height="76" rx="10" fill="#151C29" stroke="#659AD2" stroke-width="2" />
+    <text x="1162" y="390" font-family="Consolas, Menlo, monospace" font-size="30" fill="#F4F2F8" text-anchor="middle" font-weight="700">u</text>
+    <text x="1162" y="322" font-family="Consolas, Menlo, monospace" font-size="17" fill="#6F6A80" text-anchor="middle">0x13</text>
+    <rect x="1204" y="340" width="68" height="76" rx="10" fill="#151C29" stroke="#659AD2" stroke-width="2" />
+    <text x="1238" y="390" font-family="Consolas, Menlo, monospace" font-size="30" fill="#F4F2F8" text-anchor="middle" font-weight="700">s</text>
+    <text x="1238" y="322" font-family="Consolas, Menlo, monospace" font-size="17" fill="#6F6A80" text-anchor="middle">0x14</text>
+    <rect x="1280" y="340" width="68" height="76" rx="10" fill="#659AD2" stroke="#659AD2" stroke-width="2" />
+    <text x="1314" y="390" font-family="Consolas, Menlo, monospace" font-size="30" fill="#0B0F18" text-anchor="middle" font-weight="700">\0</text>
+    <text x="1314" y="322" font-family="Consolas, Menlo, monospace" font-size="17" fill="#6F6A80" text-anchor="middle">0x15</text>
+    <rect x="1356" y="340" width="68" height="76" rx="10" fill="#2A1418" stroke="#F2555A" stroke-width="3" stroke-dasharray="8 6"/>
+    <text x="1390" y="390" font-family="Consolas, Menlo, monospace" font-size="30" fill="#F2555A" text-anchor="middle" font-weight="700">?</text>
+    <text x="1390" y="322" font-family="Consolas, Menlo, monospace" font-size="17" fill="#6F6A80" text-anchor="middle">0x16</text>
+    <rect x="1432" y="340" width="68" height="76" rx="10" fill="#2A1418" stroke="#F2555A" stroke-width="3" stroke-dasharray="8 6"/>
+    <text x="1466" y="390" font-family="Consolas, Menlo, monospace" font-size="30" fill="#F2555A" text-anchor="middle" font-weight="700">?</text>
+    <text x="1466" y="322" font-family="Consolas, Menlo, monospace" font-size="17" fill="#6F6A80" text-anchor="middle">0x17</text>
+    <path d="M1352 300 V440" stroke="#F2555A" stroke-width="3" stroke-dasharray="6 6"/>
+    <rect x="900" y="540" width="180" height="62" rx="12" fill="#152031" stroke="#659AD2" stroke-width="2"/>
+    <text x="990" y="580" font-family="Consolas, Menlo, monospace" font-size="24" fill="#F4F2F8" text-anchor="middle">char *p</text>
+    <path d="M934 540 V428" stroke="#A8B9CC" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+    <rect x="1150" y="540" width="180" height="62" rx="12" fill="#152031" stroke="#659AD2" stroke-width="2"/>
+    <text x="1240" y="580" font-family="Consolas, Menlo, monospace" font-size="24" fill="#F4F2F8" text-anchor="middle">p + 5</text>
+    <path d="M1240 540 C1240 490, 1314 480, 1314 428" stroke="#A8B9CC" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+    <text x="1400" y="580" font-family="Consolas, Menlo, monospace" font-size="22" fill="#B8B2C8" >sizeof = 6</text>
+    <text x="1400" y="616" font-family="Consolas, Menlo, monospace" font-size="22" fill="#B8B2C8" >strlen = 5</text>
+  </g>
+</svg>

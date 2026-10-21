@@ -3,7 +3,7 @@
   "title": "Machine Learning Foundations in Python: Features, Training & Honest Evaluation",
   "concept": "Understand what a model does by building it: features and scaling, k-nearest neighbours, linear and logistic regression with gradient descent, train/validation splits without leakage, and metrics that tell the truth.",
   "description": "Understand what a model does by building it: features and scaling, k-nearest neighbours, linear and logistic regression with gradient descent, train/validation splits without leakage, and metrics that tell the truth. 8 lessons, each starting from a real bug or incident, with graded challenges.",
-  "image": null,
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594609/codedev/courses/python-ml-from-scratch/cover",
   "level": "intermediate",
   "durationMinutes": 160,
   "instructor": "CodeDev Engineering Team",

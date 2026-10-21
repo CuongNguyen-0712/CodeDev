@@ -3,7 +3,7 @@
   "title": "Web Foundations: Semantic HTML, Modern CSS & Accessibility",
   "concept": "Build pages that work for everyone: semantic HTML, the cascade and specificity, Flexbox and Grid, responsive units, colour contrast and keyboard access, with small JavaScript checkers you write yourself.",
   "description": "Build pages that work for everyone: semantic HTML and accessible forms, the cascade, specificity and cascade layers, Flexbox and Grid, responsive units and container queries, WCAG colour contrast, keyboard access and focus order, and images and fonts that load fast, with small JavaScript checkers you write yourself. 8 lessons, each starting from a real bug or incident, with beginner-friendly challenges.",
-  "image": null,
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594629/codedev/courses/web-foundations-html-css-a11y/cover",
   "level": "beginner",
   "durationMinutes": 189,
   "instructor": "CodeDev Engineering Team",

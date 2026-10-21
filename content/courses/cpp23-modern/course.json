@@ -3,7 +3,7 @@
   "title": "Modern C++23: RAII, Move Semantics, Ranges & std::expected",
   "concept": "Write C++ that is safe by construction: RAII and smart pointers, move semantics, ranges pipelines, concepts, std::expected for error handling and std::format / std::print.",
   "description": "Write C++ that is safe by construction: RAII and smart pointers, move semantics, ranges pipelines, concepts, std::expected for error handling and std::format / std::print. 9 lessons, each starting from a real bug or incident, with graded challenges.",
-  "image": null,
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594574/codedev/courses/cpp23-modern/cover",
   "level": "intermediate",
   "durationMinutes": 180,
   "instructor": "CodeDev Engineering Team",

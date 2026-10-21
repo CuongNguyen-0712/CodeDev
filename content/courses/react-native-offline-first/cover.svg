@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Offline-first React Native (phone with local data and a sync queue retrying to the server). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0E1A22"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#61DAFB" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#61DAFB" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#A78BFA"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#61DAFB"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <g fill="none" stroke="#61DAFB" stroke-width="6"><ellipse cx="158" cy="198" rx="48" ry="18"/><ellipse cx="158" cy="198" rx="48" ry="18" transform="rotate(60 158 198)"/><ellipse cx="158" cy="198" rx="48" ry="18" transform="rotate(120 158 198)"/></g>
+    <circle cx="158" cy="198" r="10" fill="#61DAFB"/>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#A78BFA">REACT NATIVE · MOBILE</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Offline-First</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Mobile Apps</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Local storage · Sync queue · Conflicts</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#CBF1FD">
+      <rect x="110" y="660" width="150" height="52" rx="26" fill="#10293A" stroke="#61DAFB"/>
+      <text x="185" y="695" text-anchor="middle">SQLite</text>
+      <rect x="276" y="660" width="207" height="52" rx="26" fill="#10293A" stroke="#61DAFB"/>
+      <text x="379.5" y="695" text-anchor="middle">sync queue</text>
+      <rect x="499" y="660" width="178" height="52" rx="26" fill="#10293A" stroke="#61DAFB"/>
+      <text x="588" y="695" text-anchor="middle">FlatList</text>
+    </g>
+  </g>
+
+  <!-- The app keeps working offline; queued writes sync with retries when the network returns -->
+  <g id="art">
+    <rect x="920" y="236" width="204" height="430" rx="34" fill="#121F29" stroke="#61DAFB" stroke-width="4"/>
+    <rect x="990" y="250" width="64" height="10" rx="5" fill="#22495C"/>
+    <rect x="940" y="276" width="104" height="30" rx="15" fill="#F2C14E" fill-opacity="0.18" stroke="#F2C14E"/>
+    <text x="992" y="297" font-family="Consolas, Menlo, monospace" font-size="18" fill="#F2C14E" text-anchor="middle">offline</text>
+    <rect x="940" y="322" width="164" height="48" rx="10" fill="#22495C" fill-opacity="0.55"/>
+    <circle cx="962" cy="346" r="10" fill="#61DAFB" fill-opacity="0.85"/>
+    <rect x="982" y="338" width="100" height="8" rx="4" fill="#F4F2F8" fill-opacity="0.6"/>
+    <rect x="982" y="352" width="60" height="6" rx="3" fill="#F4F2F8" fill-opacity="0.3"/>
+    <rect x="940" y="384" width="164" height="48" rx="10" fill="#22495C" fill-opacity="0.55"/>
+    <circle cx="962" cy="408" r="10" fill="#F2C14E" fill-opacity="0.85"/>
+    <rect x="982" y="400" width="82" height="8" rx="4" fill="#F4F2F8" fill-opacity="0.6"/>
+    <rect x="982" y="414" width="60" height="6" rx="3" fill="#F4F2F8" fill-opacity="0.3"/>
+    <rect x="940" y="446" width="164" height="48" rx="10" fill="#22495C" fill-opacity="0.55"/>
+    <circle cx="962" cy="470" r="10" fill="#61DAFB" fill-opacity="0.85"/>
+    <rect x="982" y="462" width="64" height="8" rx="4" fill="#F4F2F8" fill-opacity="0.6"/>
+    <rect x="982" y="476" width="60" height="6" rx="3" fill="#F4F2F8" fill-opacity="0.3"/>
+    <rect x="940" y="508" width="164" height="48" rx="10" fill="#22495C" fill-opacity="0.55"/>
+    <circle cx="962" cy="532" r="10" fill="#61DAFB" fill-opacity="0.85"/>
+    <rect x="982" y="524" width="100" height="8" rx="4" fill="#F4F2F8" fill-opacity="0.6"/>
+    <rect x="982" y="538" width="60" height="6" rx="3" fill="#F4F2F8" fill-opacity="0.3"/>
+    <rect x="940" y="570" width="164" height="48" rx="10" fill="#22495C" fill-opacity="0.55"/>
+    <circle cx="962" cy="594" r="10" fill="#61DAFB" fill-opacity="0.85"/>
+    <rect x="982" y="586" width="82" height="8" rx="4" fill="#F4F2F8" fill-opacity="0.6"/>
+    <rect x="982" y="600" width="60" height="6" rx="3" fill="#F4F2F8" fill-opacity="0.3"/>
+    <text x="1180" y="360" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#A78BFA" text-anchor="start">SYNC QUEUE</text>
+    <rect x="1208" y="402" width="120" height="56" rx="10" fill="#121F29" stroke="#A78BFA" stroke-width="2"/>
+    <rect x="1194" y="416" width="120" height="56" rx="10" fill="#121F29" stroke="#A78BFA" stroke-width="2"/>
+    <rect x="1180" y="430" width="120" height="56" rx="10" fill="#121F29" stroke="#A78BFA" stroke-width="2"/>
+    <text x="1240" y="464" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F4F2F8" text-anchor="middle">3 writes</text>
+    <path d="M1130 456 H1170" stroke="#A78BFA" stroke-width="4" marker-end="url(#arrow)"/>
+    <path d="M1336 410 C1370 390, 1390 370, 1404 352" stroke="#A78BFA" stroke-width="4" stroke-dasharray="8 8" fill="none" marker-end="url(#arrow)"/>
+    <path d="M1404 330 a40 40 0 0 1 64 -38 a34 34 0 0 1 50 30 a26 26 0 0 1 -4 52 h-108 a24 24 0 0 1 -2 -44z" fill="#121F29" stroke="#61DAFB" stroke-width="3"/>
+    <text x="1460" y="350" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F4F2F8" text-anchor="middle" font-weight="700">API</text>
+    <text x="1260" y="560" font-family="Consolas, Menlo, monospace" font-size="20" fill="#B8B2C8" >retry 2s, 4s, 8s</text>
+    <text x="1260" y="596" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F2C14E" >conflict: v3 vs v4</text>
+    <text x="1260" y="632" font-family="Consolas, Menlo, monospace" font-size="20" fill="#3DBE7B" >merge by field</text>
+  </g>
+</svg>

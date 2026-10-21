@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Rust foundations (ownership moves to a new owner, shared borrows, heap data). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1A120F"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#F07B3F" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#F07B3F" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#DEA584"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F07B3F"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <circle cx="158" cy="198" r="44" fill="none" stroke="#F07B3F" stroke-width="12" stroke-dasharray="9 7"/>
+    <circle cx="158" cy="198" r="34" fill="#F07B3F"/>
+    <text x="158" y="214" text-anchor="middle" font-size="44" font-weight="800" fill="#1A120F">R</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#DEA584">RUST · FOUNDATIONS</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Ownership</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">&amp; Borrowing</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Moves · References · Enums · Result</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#F6D5C1">
+      <rect x="110" y="660" width="121" height="52" rx="26" fill="#2A1810" stroke="#F07B3F"/>
+      <text x="170.5" y="695" text-anchor="middle">&amp;mut</text>
+      <rect x="247" y="660" width="136" height="52" rx="26" fill="#2A1810" stroke="#F07B3F"/>
+      <text x="315" y="695" text-anchor="middle">match</text>
+      <rect x="399" y="660" width="236" height="52" rx="26" fill="#2A1810" stroke="#F07B3F"/>
+      <text x="517" y="695" text-anchor="middle">Result&lt;T, E&gt;</text>
+    </g>
+  </g>
+
+  <!-- After the move only b owns the heap string; r1 and r2 borrow b without taking it -->
+  <g id="art">
+    <text x="900" y="254" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#DEA584" text-anchor="start">STACK</text>
+    <text x="1330" y="360" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#DEA584" text-anchor="start">HEAP</text>
+    <rect x="900" y="276" width="230" height="62" rx="12" fill="#1D1612" stroke="#6F6A80" stroke-width="2" stroke-dasharray="6 6"/>
+    <text x="922" y="316" font-family="Consolas, Menlo, monospace" font-size="24" fill="#6F6A80" font-weight="700">a</text>
+    <text x="1110" y="316" font-family="Consolas, Menlo, monospace" font-size="18" fill="#6F6A80" text-anchor="end">moved</text>
+    <rect x="900" y="386" width="230" height="62" rx="12" fill="#1D1612" stroke="#F07B3F" stroke-width="2" />
+    <text x="922" y="426" font-family="Consolas, Menlo, monospace" font-size="24" fill="#F4F2F8" font-weight="700">b: String</text>
+    <text x="1110" y="426" font-family="Consolas, Menlo, monospace" font-size="18" fill="#B8B2C8" text-anchor="end">owner</text>
+    <rect x="900" y="496" width="230" height="62" rx="12" fill="#1D1612" stroke="#DEA584" stroke-width="2" />
+    <text x="922" y="536" font-family="Consolas, Menlo, monospace" font-size="24" fill="#F4F2F8" font-weight="700">r1 = &amp;b</text>
+    <text x="1110" y="536" font-family="Consolas, Menlo, monospace" font-size="18" fill="#B8B2C8" text-anchor="end">borrow</text>
+    <rect x="900" y="586" width="230" height="62" rx="12" fill="#1D1612" stroke="#DEA584" stroke-width="2" />
+    <text x="922" y="626" font-family="Consolas, Menlo, monospace" font-size="24" fill="#F4F2F8" font-weight="700">r2 = &amp;b</text>
+    <text x="1110" y="626" font-family="Consolas, Menlo, monospace" font-size="18" fill="#B8B2C8" text-anchor="end">borrow</text>
+    <path d="M1132 306 C1220 306, 1260 370, 1322 396" stroke="#6F6A80" stroke-width="3" fill="none" stroke-dasharray="6 6"/>
+    <path d="M1222 318 l22 22 M1244 318 l-22 22" stroke="#F2555A" stroke-width="5" stroke-linecap="round"/>
+    <path d="M1132 418 H1322" stroke="#F07B3F" stroke-width="5" marker-end="url(#arrowA)"/>
+    <path d="M1132 527 C1180 527, 1190 470, 1160 452" stroke="#DEA584" stroke-width="3" fill="none" stroke-dasharray="8 6" marker-end="url(#arrow)"/>
+    <path d="M1132 617 C1230 617, 1230 470, 1176 452" stroke="#DEA584" stroke-width="3" fill="none" stroke-dasharray="8 6" marker-end="url(#arrow)"/>
+    <rect x="1330" y="390" width="34" height="56" rx="6" fill="#F07B3F" fill-opacity="0.85"/>
+    <text x="1347" y="426" font-family="Consolas, Menlo, monospace" font-size="24" fill="#1A120F" text-anchor="middle" font-weight="700">l</text>
+    <rect x="1370" y="390" width="34" height="56" rx="6" fill="#F07B3F" fill-opacity="0.85"/>
+    <text x="1387" y="426" font-family="Consolas, Menlo, monospace" font-size="24" fill="#1A120F" text-anchor="middle" font-weight="700">o</text>
+    <rect x="1410" y="390" width="34" height="56" rx="6" fill="#F07B3F" fill-opacity="0.85"/>
+    <text x="1427" y="426" font-family="Consolas, Menlo, monospace" font-size="24" fill="#1A120F" text-anchor="middle" font-weight="700">t</text>
+    <rect x="1450" y="390" width="34" height="56" rx="6" fill="#F07B3F" fill-opacity="0.85"/>
+    <text x="1467" y="426" font-family="Consolas, Menlo, monospace" font-size="24" fill="#1A120F" text-anchor="middle" font-weight="700">u</text>
+    <rect x="1490" y="390" width="34" height="56" rx="6" fill="#F07B3F" fill-opacity="0.85"/>
+    <text x="1507" y="426" font-family="Consolas, Menlo, monospace" font-size="24" fill="#1A120F" text-anchor="middle" font-weight="700">s</text>
+    <text x="1330" y="500" font-family="Consolas, Menlo, monospace" font-size="20" fill="#B8B2C8" >freed when b</text>
+    <text x="1330" y="528" font-family="Consolas, Menlo, monospace" font-size="20" fill="#B8B2C8" >goes out of scope</text>
+  </g>
+</svg>

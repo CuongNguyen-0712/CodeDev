@@ -19,7 +19,7 @@ BEGIN
 END $$;
 
 INSERT INTO catalog.course (public_id, title, concept, description, image, level, duration, instructor, cost, point_price, reward, language_id, category_id, access_model, publish_status, is_hidden, is_deleted)
-VALUES ('rust-foundations', 'Rust Foundations: Ownership, Borrowing & Error Handling', 'Learn Rust''s core ideas through small programs: mutability, ownership and moves, borrowing, structs and enums with match, Option and Result, collections and traits.', 'Learn Rust''s core ideas through small programs: mutability, ownership and moves, borrowing, structs and enums with match, Option and Result, collections and traits. 8 lessons, each starting from a real bug or incident, with beginner-friendly challenges.', NULL, 'beginner'::level_enum, 160, 'CodeDev Engineering Team', 0, 0, 50,
+VALUES ('rust-foundations', 'Rust Foundations: Ownership, Borrowing & Error Handling', 'Learn Rust''s core ideas through small programs: mutability, ownership and moves, borrowing, structs and enums with match, Option and Result, collections and traits.', 'Learn Rust''s core ideas through small programs: mutability, ownership and moves, borrowing, structs and enums with match, Option and Result, collections and traits. 8 lessons, each starting from a real bug or incident, with beginner-friendly challenges.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594615/codedev/courses/rust-foundations/cover', 'beginner'::level_enum, 160, 'CodeDev Engineering Team', 0, 0, 50,
         (SELECT id FROM catalog.language WHERE name = 'Rust'),
         (SELECT id FROM catalog.category WHERE name = 'Rust Development'),
         'free', 'draft', true, false)

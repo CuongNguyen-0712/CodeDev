@@ -3,7 +3,7 @@
   "title": "Rust Foundations: Ownership, Borrowing & Error Handling",
   "concept": "Learn Rust's core ideas through small programs: mutability, ownership and moves, borrowing, structs and enums with match, Option and Result, collections and traits.",
   "description": "Learn Rust's core ideas through small programs: mutability, ownership and moves, borrowing, structs and enums with match, Option and Result, collections and traits. 8 lessons, each starting from a real bug or incident, with beginner-friendly challenges.",
-  "image": null,
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594615/codedev/courses/rust-foundations/cover",
   "level": "beginner",
   "durationMinutes": 160,
   "instructor": "CodeDev Engineering Team",

@@ -3,7 +3,7 @@
   "title": "Concurrency in Go: Goroutines, Channels & Context",
   "concept": "Use goroutines and channels without leaks or deadlocks: WaitGroups, select and timeouts, worker pools, pipelines, data races, context cancellation and error propagation.",
   "description": "Use goroutines and channels without leaks or deadlocks: WaitGroups, select and timeouts, worker pools, pipelines, data races, context cancellation and error propagation. 9 lessons, each starting from a real bug or incident, with graded challenges.",
-  "image": null,
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594581/codedev/courses/go-concurrency/cover",
   "level": "intermediate",
   "durationMinutes": 180,
   "instructor": "CodeDev Engineering Team",

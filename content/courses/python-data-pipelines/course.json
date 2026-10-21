@@ -3,7 +3,7 @@
   "title": "Data Engineering with Python & SQL: Batch Pipelines, Idempotent Loads & Data Quality",
   "concept": "Build batch pipelines you can rerun at 3 a.m. without fear: incremental extraction, idempotent upserts, slowly changing dimensions, data quality checks, partitioning and backfills, in Python with SQLite.",
   "description": "Build batch pipelines you can rerun at 3 a.m. without fear: incremental extraction, idempotent upserts, slowly changing dimensions, data quality checks, partitioning and backfills, in Python with SQLite. 9 lessons, each starting from a real bug or incident, with graded challenges.",
-  "image": null,
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594605/codedev/courses/python-data-pipelines/cover",
   "level": "intermediate",
   "durationMinutes": 180,
   "instructor": "CodeDev Engineering Team",

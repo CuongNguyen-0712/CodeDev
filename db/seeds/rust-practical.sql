@@ -19,7 +19,7 @@ BEGIN
 END $$;
 
 INSERT INTO catalog.course (public_id, title, concept, description, image, level, duration, instructor, cost, point_price, reward, language_id, category_id, access_model, publish_status, is_hidden, is_deleted)
-VALUES ('rust-practical', 'Practical Rust: Traits, Iterators & Robust CLIs', 'Write idiomatic Rust for real tools: iterator adapters, closures and Fn traits, trait objects vs generics, error enums, parsing with FromStr, lifetimes in structs and shared ownership.', 'Write idiomatic Rust for real tools: iterator adapters, closures and Fn traits, trait objects vs generics, error enums, parsing with FromStr, lifetimes in structs and shared ownership. 9 lessons, each starting from a real bug or incident, with graded challenges.', NULL, 'intermediate'::level_enum, 180, 'CodeDev Engineering Team', 0, 0, 100,
+VALUES ('rust-practical', 'Practical Rust: Traits, Iterators & Robust CLIs', 'Write idiomatic Rust for real tools: iterator adapters, closures and Fn traits, trait objects vs generics, error enums, parsing with FromStr, lifetimes in structs and shared ownership.', 'Write idiomatic Rust for real tools: iterator adapters, closures and Fn traits, trait objects vs generics, error enums, parsing with FromStr, lifetimes in structs and shared ownership. 9 lessons, each starting from a real bug or incident, with graded challenges.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594617/codedev/courses/rust-practical/cover', 'intermediate'::level_enum, 180, 'CodeDev Engineering Team', 0, 0, 100,
         (SELECT id FROM catalog.language WHERE name = 'Rust'),
         (SELECT id FROM catalog.category WHERE name = 'Rust Development'),
         'premium', 'draft', true, false)

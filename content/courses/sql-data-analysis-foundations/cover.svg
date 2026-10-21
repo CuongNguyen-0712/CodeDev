@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: SQL data analysis (rows grouped into an aggregate, shown as a bar chart). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0E1A1A"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3DBFB0" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#3DBFB0" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#A5E8DF"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3DBFB0"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <ellipse cx="158" cy="164" rx="44" ry="14" fill="#A5E8DF"/>
+    <path d="M114 164 V230 a44 14 0 0 0 88 0 V164 a44 14 0 0 1 -88 0z" fill="#3DBFB0"/>
+    <path d="M114 186 a44 14 0 0 0 88 0 M114 208 a44 14 0 0 0 88 0" fill="none" stroke="#0E1A1A" stroke-width="4"/>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#A5E8DF">SQL &amp; PYTHON · ANALYSIS</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">SQL Thinking</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">for Analysis</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Aggregates · NULLs · Joins · Windows</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#C9F1EC">
+      <rect x="110" y="660" width="178" height="52" rx="26" fill="#10292A" stroke="#3DBFB0"/>
+      <text x="199" y="695" text-anchor="middle">GROUP BY</text>
+      <rect x="304" y="660" width="121" height="52" rx="26" fill="#10292A" stroke="#3DBFB0"/>
+      <text x="364.5" y="695" text-anchor="middle">JOIN</text>
+      <rect x="441" y="660" width="164" height="52" rx="26" fill="#10292A" stroke="#3DBFB0"/>
+      <text x="523" y="695" text-anchor="middle">OVER ()</text>
+    </g>
+  </g>
+
+  <!-- Order rows grouped by month into revenue bars, with the query underneath -->
+  <g id="art">
+    <text x="900" y="280" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#A5E8DF" text-anchor="start">ORDERS</text>
+    <rect x="900" y="300" width="40" height="26" rx="5" fill="#3DBFB0" fill-opacity="0.85"/>
+    <rect x="948" y="300" width="60" height="26" rx="5" fill="#245250" fill-opacity="0.7"/>
+    <rect x="1088" y="300" width="60" height="26" rx="5" fill="#245250" fill-opacity="0.7" />
+    <rect x="900" y="334" width="40" height="26" rx="5" fill="#A5E8DF" fill-opacity="0.85"/>
+    <rect x="948" y="334" width="97" height="26" rx="5" fill="#245250" fill-opacity="0.7"/>
+    <rect x="1088" y="334" width="60" height="26" rx="5" fill="#245250" fill-opacity="0.7" />
+    <rect x="900" y="368" width="40" height="26" rx="5" fill="#C792EA" fill-opacity="0.85"/>
+    <rect x="948" y="368" width="64" height="26" rx="5" fill="#245250" fill-opacity="0.7"/>
+    <rect x="1088" y="368" width="60" height="26" rx="5" fill="#245250" fill-opacity="0.7" />
+    <rect x="900" y="402" width="40" height="26" rx="5" fill="#3DBFB0" fill-opacity="0.85"/>
+    <rect x="948" y="402" width="101" height="26" rx="5" fill="#245250" fill-opacity="0.7"/>
+    <rect x="1088" y="402" width="60" height="26" rx="5" fill="#245250" fill-opacity="0.7" />
+    <rect x="900" y="436" width="40" height="26" rx="5" fill="#A5E8DF" fill-opacity="0.85"/>
+    <rect x="948" y="436" width="68" height="26" rx="5" fill="#245250" fill-opacity="0.7"/>
+    <rect x="1088" y="436" width="60" height="26" rx="5" fill="#245250" fill-opacity="0.7" />
+    <rect x="900" y="470" width="40" height="26" rx="5" fill="#C792EA" fill-opacity="0.85"/>
+    <rect x="948" y="470" width="105" height="26" rx="5" fill="#245250" fill-opacity="0.7"/>
+    <rect x="1088" y="470" width="60" height="26" rx="5" fill="none" fill-opacity="0.7" stroke="#F2C14E" stroke-dasharray="4 4"/>
+    <rect x="900" y="504" width="40" height="26" rx="5" fill="#A5E8DF" fill-opacity="0.85"/>
+    <rect x="948" y="504" width="72" height="26" rx="5" fill="#245250" fill-opacity="0.7"/>
+    <rect x="1088" y="504" width="60" height="26" rx="5" fill="#245250" fill-opacity="0.7" />
+    <rect x="900" y="538" width="40" height="26" rx="5" fill="#3DBFB0" fill-opacity="0.85"/>
+    <rect x="948" y="538" width="109" height="26" rx="5" fill="#245250" fill-opacity="0.7"/>
+    <rect x="1088" y="538" width="60" height="26" rx="5" fill="#245250" fill-opacity="0.7" />
+    <text x="1156" y="488" font-family="Consolas, Menlo, monospace" font-size="18" fill="#F2C14E" >NULL</text>
+    <rect x="1190" y="410" width="96" height="40" rx="20" fill="#10292A" stroke="#3DBFB0" stroke-width="2"/>
+    <path d="M1160 430 H1186 M1290 430 H1316" stroke="#A5E8DF" stroke-width="3"/>
+    <text x="1238" y="436" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F4F2F8" text-anchor="middle">SUM</text>
+    <text x="1330" y="280" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#A5E8DF" text-anchor="start">REVENUE</text>
+    <path d="M1320 590 H1530" stroke="#245250" stroke-width="2"/>
+    <rect x="1330" y="410" width="52" height="180" rx="8" fill="#3DBFB0" fill-opacity="0.9"/>
+    <text x="1356" y="620" font-family="Consolas, Menlo, monospace" font-size="20" fill="#B8B2C8" text-anchor="middle">Aug</text>
+    <rect x="1400" y="340" width="52" height="250" rx="8" fill="#A5E8DF" fill-opacity="0.9"/>
+    <text x="1426" y="620" font-family="Consolas, Menlo, monospace" font-size="20" fill="#B8B2C8" text-anchor="middle">Sep</text>
+    <rect x="1470" y="280" width="52" height="310" rx="8" fill="#C792EA" fill-opacity="0.9"/>
+    <text x="1496" y="620" font-family="Consolas, Menlo, monospace" font-size="20" fill="#B8B2C8" text-anchor="middle">Oct</text>
+    <text x="900" y="680" font-family="Consolas, Menlo, monospace" font-size="20" fill="#A5E8DF" >SELECT month, SUM(total) ... GROUP BY month</text>
+  </g>
+</svg>

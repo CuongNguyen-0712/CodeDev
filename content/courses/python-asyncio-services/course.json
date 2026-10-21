@@ -3,7 +3,7 @@
   "title": "Async Python: asyncio, TaskGroup & High-Throughput Services",
   "concept": "Write asyncio services that stay fast and shut down cleanly: structured concurrency with TaskGroup, timeouts and cancellation, bounded fan-out, queues with backpressure, rate limits and retries.",
   "description": "Write asyncio services that stay fast and shut down cleanly: structured concurrency with TaskGroup, timeouts and cancellation, bounded fan-out, queues with backpressure, rate limits and retries. 9 lessons, each starting from a real bug or incident, with graded challenges.",
-  "image": null,
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594602/codedev/courses/python-asyncio-services/cover",
   "level": "advanced",
   "durationMinutes": 180,
   "instructor": "CodeDev Engineering Team",

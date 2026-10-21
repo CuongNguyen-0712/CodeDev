@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Batch data pipelines in Python and SQL (extract, quality checks, idempotent load, partitions). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0F1724"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3776AB" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#3776AB" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#FFD43B"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3776AB"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="146" width="62" height="62" rx="16" fill="#3776AB"/>
+    <rect x="142" y="176" width="62" height="62" rx="16" fill="#FFD43B"/>
+    <circle cx="132" cy="166" r="6" fill="#0F1724"/>
+    <circle cx="184" cy="218" r="6" fill="#0F1724"/>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#FFD43B">PYTHON &amp; SQL · DATA</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Batch Data</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Pipelines</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Incremental · Idempotent · Quality checks</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#CFE0F4">
+      <rect x="110" y="660" width="150" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="185" y="695" text-anchor="middle">UPSERT</text>
+      <rect x="276" y="660" width="121" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="336.5" y="695" text-anchor="middle">SCD2</text>
+      <rect x="413" y="660" width="178" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="502" y="695" text-anchor="middle">backfill</text>
+    </g>
+  </g>
+
+  <!-- Extract, check, load with upserts, and rerun one date partition safely -->
+  <g id="art">
+    <text x="900" y="290" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#FFD43B" text-anchor="start">EXTRACT</text>
+    <ellipse cx="970" cy="340" rx="66" ry="18" fill="#FFD43B" fill-opacity="0.8"/>
+    <path d="M904 340 V450 a66 18 0 0 0 132 0 V340 a66 18 0 0 1 -132 0z" fill="#3776AB" fill-opacity="0.8"/>
+    <path d="M904 380 a66 18 0 0 0 132 0 M904 416 a66 18 0 0 0 132 0" fill="none" stroke="#0F1724" stroke-width="3"/>
+    <path d="M1044 400 H1090" stroke="#FFD43B" stroke-width="4" marker-end="url(#arrow)"/>
+    <text x="1100" y="290" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#FFD43B" text-anchor="start">CHECK</text>
+    <rect x="1100" y="314" width="200" height="172" rx="16" fill="#141C2C" stroke="#2E4A70" stroke-width="2"/>
+    <path d="M1118 350 l7 7 l14 -14" stroke="#3DBE7B" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <text x="1150" y="357" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F4F2F8" >not null</text>
+    <path d="M1118 396 l7 7 l14 -14" stroke="#3DBE7B" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <text x="1150" y="403" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F4F2F8" >unique key</text>
+    <path d="M1118 442 l7 7 l14 -14" stroke="#3DBE7B" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <text x="1150" y="449" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F4F2F8" >row count</text>
+    <path d="M1306 400 H1340" stroke="#FFD43B" stroke-width="4" marker-end="url(#arrow)"/>
+    <text x="1350" y="290" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#FFD43B" text-anchor="start">LOAD</text>
+    <rect x="1350" y="330" width="180" height="28" rx="6" fill="#3776AB" fill-opacity="0.9"/>
+    <rect x="1350" y="366" width="180" height="28" rx="6" fill="#2E4A70" fill-opacity="0.6"/>
+    <rect x="1350" y="402" width="180" height="28" rx="6" fill="#2E4A70" fill-opacity="0.6"/>
+    <rect x="1350" y="438" width="180" height="28" rx="6" fill="#2E4A70" fill-opacity="0.6"/>
+    <text x="900" y="560" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#FFD43B" text-anchor="start">PARTITIONS · RERUN SAFE</text>
+    <rect x="1040" y="590" width="150" height="62" rx="12" fill="#141C2C" fill-opacity="1" stroke="#2E4A70" stroke-width="2"/>
+    <text x="1115" y="628" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F4F2F8" text-anchor="middle">10-19</text>
+    <rect x="1206" y="590" width="150" height="62" rx="12" fill="#FFD43B" fill-opacity="0.2" stroke="#FFD43B" stroke-width="2"/>
+    <text x="1281" y="628" font-family="Consolas, Menlo, monospace" font-size="22" fill="#FFD43B" text-anchor="middle">10-20</text>
+    <rect x="1372" y="590" width="150" height="62" rx="12" fill="#141C2C" fill-opacity="1" stroke="#2E4A70" stroke-width="2"/>
+    <text x="1447" y="628" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F4F2F8" text-anchor="middle">10-21</text>
+    <text x="904" y="628" font-family="Consolas, Menlo, monospace" font-size="22" fill="#B8B2C8" >dt =</text>
+  </g>
+</svg>

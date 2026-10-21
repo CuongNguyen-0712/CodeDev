@@ -3,7 +3,7 @@
   "title": "Go Fundamentals: Types, Errors, Slices & Maps",
   "concept": "Learn Go the way it is used for services and tooling: zero values, slices and the append aliasing bug, maps and structs, interfaces, errors as values, generics and go test.",
   "description": "Learn Go the way it is used for services and tooling: zero values, slices and the append aliasing bug, maps and structs, interfaces, errors as values, generics and go test. 8 lessons, each starting from a real bug or incident, with beginner-friendly challenges.",
-  "image": null,
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594583/codedev/courses/go-foundations/cover",
   "level": "beginner",
   "durationMinutes": 160,
   "instructor": "CodeDev Engineering Team",

@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Web foundations (semantic landmarks in a browser, a focused element, a contrast check). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1A110F"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#E8622C" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#E8622C" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#4B9EEA"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#E8622C"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <path d="M118 152 H198 L191 230 L158 246 L125 230z" fill="#E8622C"/>
+    <path d="M158 160 H190 L184 224 L158 237z" fill="#4B9EEA"/>
+    <text x="158" y="218" text-anchor="middle" font-size="44" font-weight="800" fill="#FFFFFF">5</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#4B9EEA">HTML · CSS · ACCESSIBILITY</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Web</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Foundations</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Semantic HTML · Cascade · Grid · WCAG</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#F8D2C1">
+      <rect x="110" y="660" width="150" height="52" rx="26" fill="#2A1810" stroke="#E8622C"/>
+      <text x="185" y="695" text-anchor="middle">&lt;main&gt;</text>
+      <rect x="276" y="660" width="150" height="52" rx="26" fill="#2A1810" stroke="#E8622C"/>
+      <text x="351" y="695" text-anchor="middle">@layer</text>
+      <rect x="442" y="660" width="121" height="52" rx="26" fill="#2A1810" stroke="#E8622C"/>
+      <text x="502.5" y="695" text-anchor="middle">grid</text>
+      <rect x="579" y="660" width="136" height="52" rx="26" fill="#2A1810" stroke="#E8622C"/>
+      <text x="647" y="695" text-anchor="middle">4.5:1</text>
+    </g>
+  </g>
+
+  <!-- A page built from landmarks, with a visible keyboard focus ring and a passing contrast check -->
+  <g id="art">
+    <rect x="900" y="236" width="630" height="440" rx="18" fill="#1C1513" stroke="#4D2E22" stroke-width="2"/>
+    <rect x="900" y="236" width="630" height="44" rx="18" fill="#4D2E22" fill-opacity="0.45"/>
+    <rect x="900" y="262" width="630" height="18" fill="#4D2E22" fill-opacity="0.45"/>
+    <circle cx="926" cy="258" r="7" fill="#F2555A" fill-opacity="0.8"/>
+    <circle cx="950" cy="258" r="7" fill="#F2C14E" fill-opacity="0.8"/>
+    <circle cx="974" cy="258" r="7" fill="#3DBE7B" fill-opacity="0.8"/>
+    <rect x="1000" y="248" width="430" height="20" rx="10" fill="#1A110F"/>
+    <rect x="920" y="296" width="590" height="56" rx="8" fill="#E8622C" fill-opacity="0.12" stroke="#E8622C" stroke-opacity="0.7" stroke-width="2"/>
+    <text x="934" y="324" font-family="Consolas, Menlo, monospace" font-size="18" fill="#E8622C" >&lt;header&gt;</text>
+    <rect x="920" y="366" width="150" height="230" rx="8" fill="#4B9EEA" fill-opacity="0.12" stroke="#4B9EEA" stroke-opacity="0.7" stroke-width="2"/>
+    <text x="934" y="394" font-family="Consolas, Menlo, monospace" font-size="18" fill="#4B9EEA" >&lt;nav&gt;</text>
+    <rect x="1084" y="366" width="426" height="230" rx="8" fill="#E8622C" fill-opacity="0.12" stroke="#E8622C" stroke-opacity="0.7" stroke-width="2"/>
+    <text x="1098" y="394" font-family="Consolas, Menlo, monospace" font-size="18" fill="#E8622C" >&lt;main&gt;</text>
+    <rect x="920" y="610" width="590" height="50" rx="8" fill="#4B9EEA" fill-opacity="0.12" stroke="#4B9EEA" stroke-opacity="0.7" stroke-width="2"/>
+    <text x="934" y="638" font-family="Consolas, Menlo, monospace" font-size="18" fill="#4B9EEA" >&lt;footer&gt;</text>
+    <rect x="1104" y="408" width="186" height="80" rx="8" fill="#4D2E22" fill-opacity="0.8"/>
+    <rect x="1306" y="408" width="186" height="80" rx="8" fill="#4D2E22" fill-opacity="0.8"/>
+    <rect x="1112" y="514" width="146" height="44" rx="10" fill="#C2410C"/>
+    <rect x="1104" y="506" width="162" height="60" rx="14" fill="none" stroke="#4B9EEA" stroke-width="3"/>
+    <text x="1185" y="543" font-family="Consolas, Menlo, monospace" font-size="22" fill="#FFFFFF" text-anchor="middle" font-weight="700">Buy</text>
+    <rect x="1306" y="514" width="186" height="44" rx="22" fill="#3DBE7B" fill-opacity="0.15" stroke="#3DBE7B"/>
+    <text x="1399" y="543" font-family="Consolas, Menlo, monospace" font-size="20" fill="#3DBE7B" text-anchor="middle">5.2:1 AA</text>
+  </g>
+</svg>

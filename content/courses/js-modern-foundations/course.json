@@ -3,7 +3,7 @@
   "title": "Modern JavaScript on Node 24: Fundamentals that Ship",
   "concept": "Learn the JavaScript every frontend, backend and QA engineer relies on: values and equality, arrays and objects, closures, ES modules, iterator helpers and Set methods, dates and time zones, errors and tests, each taught from a real bug.",
   "description": "A beginner course for people who can write a little code and want to write JavaScript that works the first time in production. Every lesson starts from a small, real incident - a cart total of 0.30000000000000004, a duplicated order that silently edits the original, a loop that logs the same id five times, a report that shows yesterday for users in Hanoi, an error that lost its cause - and fixes it with modern JavaScript (ES2025) on Node 24: strict equality, immutable updates with structuredClone, closures, ES modules, iterator helpers and Set methods, Intl date formatting, error causes and node:test.",
-  "image": null,
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594593/codedev/courses/js-modern-foundations/cover",
   "level": "beginner",
   "durationMinutes": 169,
   "instructor": "CodeDev Engineering Team",

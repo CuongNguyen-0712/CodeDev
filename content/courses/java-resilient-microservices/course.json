@@ -3,7 +3,7 @@
   "title": "Resilient Microservices in Java: Retries, Circuit Breakers & Outbox",
   "concept": "Keep a microservice system up when its dependencies are not: timeouts and retry budgets, circuit breakers, bulkheads, idempotency keys, the transactional outbox, sagas and tracing.",
   "description": "Keep a microservice system up when its dependencies are not: timeouts and retry budgets, circuit breakers, bulkheads, idempotency keys, the transactional outbox, sagas and tracing. 9 lessons, each starting from a real bug or incident, with graded challenges.",
-  "image": null,
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594586/codedev/courses/java-resilient-microservices/cover",
   "level": "advanced",
   "durationMinutes": 180,
   "instructor": "CodeDev Engineering Team",

@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Go fundamentals (slice header, shared backing array, append aliasing). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0D1A1F"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#00ADD8" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#00ADD8" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#7FD8EE"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#00ADD8"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="160" width="92" height="76" rx="38" fill="#00ADD8"/>
+    <text x="158" y="214" text-anchor="middle" font-size="40" font-weight="800" font-style="italic" fill="#08202A">GO</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#7FD8EE">GO · FUNDAMENTALS</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Types, Errors,</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Slices &amp; Maps</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Zero values · Interfaces · Errors · go test</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#C6EEF8">
+      <rect x="110" y="660" width="107" height="52" rx="26" fill="#0F2630" stroke="#00ADD8"/>
+      <text x="163.5" y="695" text-anchor="middle">[]T</text>
+      <rect x="233" y="660" width="107" height="52" rx="26" fill="#0F2630" stroke="#00ADD8"/>
+      <text x="286.5" y="695" text-anchor="middle">map</text>
+      <rect x="356" y="660" width="136" height="52" rx="26" fill="#0F2630" stroke="#00ADD8"/>
+      <text x="424" y="695" text-anchor="middle">error</text>
+      <rect x="508" y="660" width="164" height="52" rx="26" fill="#0F2630" stroke="#00ADD8"/>
+      <text x="590" y="695" text-anchor="middle">go test</text>
+    </g>
+  </g>
+
+  <!-- Two slice headers share one backing array, which is why append can overwrite a neighbour -->
+  <g id="art">
+    <text x="900" y="266" font-family="Consolas, Menlo, monospace" font-size="24" fill="#00ADD8" font-weight="700">a := []int{7, 3, 9}</text>
+    <rect x="900" y="280" width="300" height="64" rx="12" fill="#12202A" stroke="#00ADD8" stroke-width="2"/>
+    <path d="M1000 280 V344 M1100 280 V344" stroke="#1E4656" stroke-width="2"/>
+    <text x="950" y="320" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F4F2F8" text-anchor="middle">ptr</text>
+    <text x="1050" y="320" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F4F2F8" text-anchor="middle">len 3</text>
+    <text x="1150" y="320" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F4F2F8" text-anchor="middle">cap 5</text>
+    <path d="M950 346 C950 390, 1006 390, 1006 426" stroke="#00ADD8" stroke-width="4" fill="none" marker-end="url(#arrowA)"/>
+    <text x="1210" y="412" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#7FD8EE" text-anchor="start">BACKING ARRAY</text>
+    <rect x="960" y="430" width="92" height="76" rx="10" fill="#00ADD8" fill-opacity="0.85" stroke="#00ADD8" stroke-width="2" />
+    <text x="1006" y="478" font-family="Consolas, Menlo, monospace" font-size="28" fill="#08202A" text-anchor="middle" font-weight="700">7</text>
+    <rect x="1064" y="430" width="92" height="76" rx="10" fill="#00ADD8" fill-opacity="0.85" stroke="#00ADD8" stroke-width="2" />
+    <text x="1110" y="478" font-family="Consolas, Menlo, monospace" font-size="28" fill="#08202A" text-anchor="middle" font-weight="700">3</text>
+    <rect x="1168" y="430" width="92" height="76" rx="10" fill="#00ADD8" fill-opacity="0.85" stroke="#00ADD8" stroke-width="2" />
+    <text x="1214" y="478" font-family="Consolas, Menlo, monospace" font-size="28" fill="#08202A" text-anchor="middle" font-weight="700">9</text>
+    <rect x="1272" y="430" width="92" height="76" rx="10" fill="#12202A" fill-opacity="1" stroke="#00ADD8" stroke-width="2" stroke-dasharray="6 6"/>
+    <text x="1318" y="478" font-family="Consolas, Menlo, monospace" font-size="28" fill="#6F6A80" text-anchor="middle" font-weight="700">0</text>
+    <rect x="1376" y="430" width="92" height="76" rx="10" fill="#12202A" fill-opacity="1" stroke="#00ADD8" stroke-width="2" stroke-dasharray="6 6"/>
+    <text x="1422" y="478" font-family="Consolas, Menlo, monospace" font-size="28" fill="#6F6A80" text-anchor="middle" font-weight="700">0</text>
+    <text x="1220" y="586" font-family="Consolas, Menlo, monospace" font-size="24" fill="#F2C14E" font-weight="700">b := a[1:2]</text>
+    <rect x="1220" y="600" width="300" height="64" rx="12" fill="#12202A" stroke="#F2C14E" stroke-width="2"/>
+    <path d="M1320 600 V664 M1420 600 V664" stroke="#1E4656" stroke-width="2"/>
+    <text x="1270" y="640" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F4F2F8" text-anchor="middle">ptr</text>
+    <text x="1370" y="640" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F4F2F8" text-anchor="middle">len 1</text>
+    <text x="1470" y="640" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F4F2F8" text-anchor="middle">cap 4</text>
+    <path d="M1218 632 C1110 632, 1110 600, 1110 514" stroke="#F2C14E" stroke-width="4" fill="none" marker-end="url(#arrowAmber)"/>
+    <text x="960" y="620" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F2C14E" >append(b, 1)</text>
+    <text x="960" y="652" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F2555A" >overwrites a[2]</text>
+  </g>
+</svg>

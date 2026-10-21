@@ -3,7 +3,7 @@
   "title": "Mobile App Engineering: Offline-First Data, Sync & Performance with React Native",
   "concept": "Build mobile apps that keep working on a bad network: local-first storage, a sync queue with retries, conflict resolution, background work and smooth lists on low-end phones.",
   "description": "Build mobile apps that keep working on a bad network: local-first storage, a sync queue with retries, conflict resolution, background work and smooth lists on low-end phones. 9 lessons, each starting from a real bug or incident, with graded challenges.",
-  "image": null,
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594611/codedev/courses/react-native-offline-first/cover",
   "level": "intermediate",
   "durationMinutes": 180,
   "instructor": "CodeDev Engineering Team",

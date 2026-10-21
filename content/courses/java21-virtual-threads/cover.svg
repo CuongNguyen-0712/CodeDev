@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Java 21 virtual threads (many virtual threads mounted on a few carrier threads, one pinned). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#19130E"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#F89820" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#F89820" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#7FA7C9"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F89820"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="152" width="92" height="92" rx="20" fill="#F89820"/>
+    <path d="M140 172 q8 -10 0 -18 M158 172 q8 -10 0 -18 M176 172 q8 -10 0 -18" fill="none" stroke="#2A1D10" stroke-width="4" stroke-linecap="round"/>
+    <text x="158" y="232" text-anchor="middle" font-size="48" font-weight="800" fill="#2A1D10">J</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#7FA7C9">JAVA 21 · CONCURRENCY</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Virtual Threads</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">at Scale</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Pinning · Concurrent maps · Locks · Timeouts</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#FCE0BC">
+      <rect x="110" y="660" width="221" height="52" rx="26" fill="#2A1D10" stroke="#F89820"/>
+      <text x="220.5" y="695" text-anchor="middle">ofVirtual()</text>
+      <rect x="347" y="660" width="307" height="52" rx="26" fill="#2A1D10" stroke="#F89820"/>
+      <text x="500.5" y="695" text-anchor="middle">CompletableFuture</text>
+    </g>
+  </g>
+
+  <!-- Thousands of virtual threads take turns on a few carrier threads; a pinned one blocks its carrier -->
+  <g id="art">
+    <text x="900" y="254" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#7FA7C9" text-anchor="start">VIRTUAL THREADS × 10,000</text>
+    <circle cx="912" cy="290" r="10" fill="#7FA7C9" fill-opacity="0.35"/>
+    <circle cx="950" cy="290" r="10" fill="#7FA7C9" fill-opacity="0.79"/>
+    <circle cx="988" cy="290" r="10" fill="#7FA7C9" fill-opacity="0.60"/>
+    <circle cx="1026" cy="290" r="10" fill="#7FA7C9" fill-opacity="0.41"/>
+    <circle cx="1064" cy="290" r="10" fill="#7FA7C9" fill-opacity="0.85"/>
+    <circle cx="1102" cy="290" r="10" fill="#7FA7C9" fill-opacity="0.66"/>
+    <circle cx="1140" cy="290" r="10" fill="#7FA7C9" fill-opacity="0.47"/>
+    <circle cx="1178" cy="290" r="10" fill="#7FA7C9" fill-opacity="0.91"/>
+    <circle cx="1216" cy="290" r="10" fill="#7FA7C9" fill-opacity="0.72"/>
+    <circle cx="1254" cy="290" r="10" fill="#7FA7C9" fill-opacity="0.54"/>
+    <circle cx="1292" cy="290" r="10" fill="#7FA7C9" fill-opacity="0.35"/>
+    <circle cx="1330" cy="290" r="10" fill="#7FA7C9" fill-opacity="0.79"/>
+    <circle cx="1368" cy="290" r="10" fill="#7FA7C9" fill-opacity="0.60"/>
+    <circle cx="1406" cy="290" r="10" fill="#7FA7C9" fill-opacity="0.41"/>
+    <circle cx="1444" cy="290" r="10" fill="#7FA7C9" fill-opacity="0.85"/>
+    <circle cx="1482" cy="290" r="10" fill="#7FA7C9" fill-opacity="0.66"/>
+    <circle cx="912" cy="324" r="10" fill="#7FA7C9" fill-opacity="0.54"/>
+    <circle cx="950" cy="324" r="10" fill="#7FA7C9" fill-opacity="0.35"/>
+    <circle cx="988" cy="324" r="10" fill="#7FA7C9" fill-opacity="0.79"/>
+    <circle cx="1026" cy="324" r="10" fill="#7FA7C9" fill-opacity="0.60"/>
+    <circle cx="1064" cy="324" r="10" fill="#7FA7C9" fill-opacity="0.41"/>
+    <circle cx="1102" cy="324" r="10" fill="#7FA7C9" fill-opacity="0.85"/>
+    <circle cx="1140" cy="324" r="10" fill="#7FA7C9" fill-opacity="0.66"/>
+    <circle cx="1178" cy="324" r="10" fill="#7FA7C9" fill-opacity="0.47"/>
+    <circle cx="1216" cy="324" r="10" fill="#7FA7C9" fill-opacity="0.91"/>
+    <circle cx="1254" cy="324" r="10" fill="#7FA7C9" fill-opacity="0.72"/>
+    <circle cx="1292" cy="324" r="10" fill="#7FA7C9" fill-opacity="0.54"/>
+    <circle cx="1330" cy="324" r="10" fill="#7FA7C9" fill-opacity="0.35"/>
+    <circle cx="1368" cy="324" r="10" fill="#7FA7C9" fill-opacity="0.79"/>
+    <circle cx="1406" cy="324" r="10" fill="#7FA7C9" fill-opacity="0.60"/>
+    <circle cx="1444" cy="324" r="10" fill="#7FA7C9" fill-opacity="0.41"/>
+    <circle cx="1482" cy="324" r="10" fill="#7FA7C9" fill-opacity="0.85"/>
+    <circle cx="912" cy="358" r="10" fill="#7FA7C9" fill-opacity="0.72"/>
+    <circle cx="950" cy="358" r="10" fill="#7FA7C9" fill-opacity="0.54"/>
+    <circle cx="988" cy="358" r="10" fill="#7FA7C9" fill-opacity="0.35"/>
+    <circle cx="1026" cy="358" r="10" fill="#7FA7C9" fill-opacity="0.79"/>
+    <circle cx="1064" cy="358" r="10" fill="#7FA7C9" fill-opacity="0.60"/>
+    <circle cx="1102" cy="358" r="10" fill="#7FA7C9" fill-opacity="0.41"/>
+    <circle cx="1140" cy="358" r="10" fill="#7FA7C9" fill-opacity="0.85"/>
+    <circle cx="1178" cy="358" r="10" fill="#7FA7C9" fill-opacity="0.66"/>
+    <circle cx="1216" cy="358" r="10" fill="#7FA7C9" fill-opacity="0.47"/>
+    <circle cx="1254" cy="358" r="10" fill="#7FA7C9" fill-opacity="0.91"/>
+    <circle cx="1292" cy="358" r="10" fill="#7FA7C9" fill-opacity="0.72"/>
+    <circle cx="1330" cy="358" r="10" fill="#F2555A" fill-opacity="1"/>
+    <circle cx="1368" cy="358" r="10" fill="#7FA7C9" fill-opacity="0.35"/>
+    <circle cx="1406" cy="358" r="10" fill="#7FA7C9" fill-opacity="0.79"/>
+    <circle cx="1444" cy="358" r="10" fill="#7FA7C9" fill-opacity="0.60"/>
+    <circle cx="1482" cy="358" r="10" fill="#7FA7C9" fill-opacity="0.41"/>
+    <circle cx="912" cy="392" r="10" fill="#7FA7C9" fill-opacity="0.91"/>
+    <circle cx="950" cy="392" r="10" fill="#7FA7C9" fill-opacity="0.72"/>
+    <circle cx="988" cy="392" r="10" fill="#7FA7C9" fill-opacity="0.54"/>
+    <circle cx="1026" cy="392" r="10" fill="#7FA7C9" fill-opacity="0.35"/>
+    <circle cx="1064" cy="392" r="10" fill="#7FA7C9" fill-opacity="0.79"/>
+    <circle cx="1102" cy="392" r="10" fill="#7FA7C9" fill-opacity="0.60"/>
+    <circle cx="1140" cy="392" r="10" fill="#7FA7C9" fill-opacity="0.41"/>
+    <circle cx="1178" cy="392" r="10" fill="#7FA7C9" fill-opacity="0.85"/>
+    <circle cx="1216" cy="392" r="10" fill="#7FA7C9" fill-opacity="0.66"/>
+    <circle cx="1254" cy="392" r="10" fill="#7FA7C9" fill-opacity="0.47"/>
+    <circle cx="1292" cy="392" r="10" fill="#7FA7C9" fill-opacity="0.91"/>
+    <circle cx="1330" cy="392" r="10" fill="#7FA7C9" fill-opacity="0.72"/>
+    <circle cx="1368" cy="392" r="10" fill="#7FA7C9" fill-opacity="0.54"/>
+    <circle cx="1406" cy="392" r="10" fill="#7FA7C9" fill-opacity="0.35"/>
+    <circle cx="1444" cy="392" r="10" fill="#7FA7C9" fill-opacity="0.79"/>
+    <circle cx="1482" cy="392" r="10" fill="#7FA7C9" fill-opacity="0.60"/>
+    <path d="M1100 420 L1100 486" stroke="#7FA7C9" stroke-width="3" stroke-dasharray="6 6" marker-end="url(#arrow)"/>
+    <text x="1120" y="466" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#B8B2C8" text-anchor="start">MOUNT / UNMOUNT</text>
+    <text x="900" y="528" font-family="Consolas, Menlo, monospace" font-size="22" fill="#B8B2C8" >C1</text>
+    <rect x="960" y="506" width="112" height="28" rx="14" fill="#F89820" fill-opacity="0.85"/>
+    <rect x="1080" y="506" width="82" height="28" rx="14" fill="#7FA7C9" fill-opacity="0.85"/>
+    <rect x="1170" y="506" width="132" height="28" rx="14" fill="#F89820" fill-opacity="0.85"/>
+    <rect x="1310" y="506" width="102" height="28" rx="14" fill="#7FA7C9" fill-opacity="0.85"/>
+    <rect x="1420" y="506" width="92" height="28" rx="14" fill="#F89820" fill-opacity="0.85"/>
+    <text x="900" y="598" font-family="Consolas, Menlo, monospace" font-size="22" fill="#B8B2C8" >C2</text>
+    <rect x="960" y="576" width="72" height="28" rx="14" fill="#F89820" fill-opacity="0.85"/>
+    <rect x="1040" y="576" width="142" height="28" rx="14" fill="#7FA7C9" fill-opacity="0.85"/>
+    <rect x="1190" y="576" width="92" height="28" rx="14" fill="#F89820" fill-opacity="0.85"/>
+    <rect x="1290" y="576" width="122" height="28" rx="14" fill="#7FA7C9" fill-opacity="0.85"/>
+    <rect x="1420" y="576" width="92" height="28" rx="14" fill="#F89820" fill-opacity="0.85"/>
+    <text x="900" y="668" font-family="Consolas, Menlo, monospace" font-size="22" fill="#B8B2C8" >C3</text>
+    <rect x="960" y="646" width="552" height="28" rx="14" fill="#F2555A" fill-opacity="0.35"/>
+    <text x="960" y="712" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F2555A" >C3 pinned: synchronized + blocking I/O</text>
+  </g>
+</svg>

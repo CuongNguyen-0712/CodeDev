@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Rust for systems (zero-copy slices into one buffer, producers and consumers on a bounded queue). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1A120F"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#F07B3F" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#F07B3F" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#DEA584"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F07B3F"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <circle cx="158" cy="198" r="44" fill="none" stroke="#F07B3F" stroke-width="12" stroke-dasharray="9 7"/>
+    <circle cx="158" cy="198" r="34" fill="#F07B3F"/>
+    <text x="158" y="214" text-anchor="middle" font-size="44" font-weight="800" fill="#1A120F">R</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#DEA584">RUST · SYSTEMS</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Zero-Copy</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">&amp; Concurrency</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Arenas · Cow · Send &amp; Sync · MPMC</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#F6D5C1">
+      <rect x="110" y="660" width="136" height="52" rx="26" fill="#2A1810" stroke="#F07B3F"/>
+      <text x="178" y="695" text-anchor="middle">&amp;[u8]</text>
+      <rect x="262" y="660" width="107" height="52" rx="26" fill="#2A1810" stroke="#F07B3F"/>
+      <text x="315.5" y="695" text-anchor="middle">Cow</text>
+      <rect x="385" y="660" width="107" height="52" rx="26" fill="#2A1810" stroke="#F07B3F"/>
+      <text x="438.5" y="695" text-anchor="middle">Arc</text>
+      <rect x="508" y="660" width="150" height="52" rx="26" fill="#2A1810" stroke="#F07B3F"/>
+      <text x="583" y="695" text-anchor="middle">unsafe</text>
+    </g>
+  </g>
+
+  <!-- Parsed fields borrow slices of one buffer instead of copying; threads share a bounded MPMC queue -->
+  <g id="art">
+    <text x="900" y="262" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#DEA584" text-anchor="start">BUFFER: &amp;[u8]</text>
+    <rect x="900" y="282" width="40" height="52" rx="6" fill="#F07B3F" fill-opacity="0.75" stroke="#4D3122"/>
+    <text x="920" y="316" font-family="Consolas, Menlo, monospace" font-size="18" fill="#1A120F" text-anchor="middle" font-weight="700">47</text>
+    <rect x="945" y="282" width="40" height="52" rx="6" fill="#F07B3F" fill-opacity="0.75" stroke="#4D3122"/>
+    <text x="965" y="316" font-family="Consolas, Menlo, monospace" font-size="18" fill="#1A120F" text-anchor="middle" font-weight="700">45</text>
+    <rect x="990" y="282" width="40" height="52" rx="6" fill="#F07B3F" fill-opacity="0.75" stroke="#4D3122"/>
+    <text x="1010" y="316" font-family="Consolas, Menlo, monospace" font-size="18" fill="#1A120F" text-anchor="middle" font-weight="700">54</text>
+    <rect x="1035" y="282" width="40" height="52" rx="6" fill="#1D1612" fill-opacity="1" stroke="#4D3122"/>
+    <text x="1055" y="316" font-family="Consolas, Menlo, monospace" font-size="18" fill="#6F6A80" text-anchor="middle" font-weight="700">20</text>
+    <rect x="1080" y="282" width="40" height="52" rx="6" fill="#DEA584" fill-opacity="0.75" stroke="#4D3122"/>
+    <text x="1100" y="316" font-family="Consolas, Menlo, monospace" font-size="18" fill="#1A120F" text-anchor="middle" font-weight="700">2F</text>
+    <rect x="1125" y="282" width="40" height="52" rx="6" fill="#DEA584" fill-opacity="0.75" stroke="#4D3122"/>
+    <text x="1145" y="316" font-family="Consolas, Menlo, monospace" font-size="18" fill="#1A120F" text-anchor="middle" font-weight="700">6F</text>
+    <rect x="1170" y="282" width="40" height="52" rx="6" fill="#DEA584" fill-opacity="0.75" stroke="#4D3122"/>
+    <text x="1190" y="316" font-family="Consolas, Menlo, monospace" font-size="18" fill="#1A120F" text-anchor="middle" font-weight="700">72</text>
+    <rect x="1215" y="282" width="40" height="52" rx="6" fill="#DEA584" fill-opacity="0.75" stroke="#4D3122"/>
+    <text x="1235" y="316" font-family="Consolas, Menlo, monospace" font-size="18" fill="#1A120F" text-anchor="middle" font-weight="700">64</text>
+    <rect x="1260" y="282" width="40" height="52" rx="6" fill="#DEA584" fill-opacity="0.75" stroke="#4D3122"/>
+    <text x="1280" y="316" font-family="Consolas, Menlo, monospace" font-size="18" fill="#1A120F" text-anchor="middle" font-weight="700">65</text>
+    <rect x="1305" y="282" width="40" height="52" rx="6" fill="#DEA584" fill-opacity="0.75" stroke="#4D3122"/>
+    <text x="1325" y="316" font-family="Consolas, Menlo, monospace" font-size="18" fill="#1A120F" text-anchor="middle" font-weight="700">72</text>
+    <rect x="1350" y="282" width="40" height="52" rx="6" fill="#DEA584" fill-opacity="0.75" stroke="#4D3122"/>
+    <text x="1370" y="316" font-family="Consolas, Menlo, monospace" font-size="18" fill="#1A120F" text-anchor="middle" font-weight="700">73</text>
+    <rect x="1395" y="282" width="40" height="52" rx="6" fill="#1D1612" fill-opacity="1" stroke="#4D3122"/>
+    <text x="1415" y="316" font-family="Consolas, Menlo, monospace" font-size="18" fill="#6F6A80" text-anchor="middle" font-weight="700">0D</text>
+    <rect x="1440" y="282" width="40" height="52" rx="6" fill="#1D1612" fill-opacity="1" stroke="#4D3122"/>
+    <text x="1460" y="316" font-family="Consolas, Menlo, monospace" font-size="18" fill="#6F6A80" text-anchor="middle" font-weight="700">0A</text>
+    <rect x="1485" y="282" width="40" height="52" rx="6" fill="#1D1612" fill-opacity="1" stroke="#4D3122"/>
+    <text x="1505" y="316" font-family="Consolas, Menlo, monospace" font-size="18" fill="#6F6A80" text-anchor="middle" font-weight="700">00</text>
+    <path d="M900 352 V364 H1032 V352" stroke="#F07B3F" stroke-width="3" fill="none"/>
+    <text x="966" y="392" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F07B3F" text-anchor="middle">method</text>
+    <path d="M1080 352 V364 H1392 V352" stroke="#DEA584" stroke-width="3" fill="none"/>
+    <text x="1236" y="392" font-family="Consolas, Menlo, monospace" font-size="20" fill="#DEA584" text-anchor="middle">path: &amp;str, no copy</text>
+    <text x="900" y="470" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#DEA584" text-anchor="start">BOUNDED MPMC</text>
+    <circle cx="936" cy="500" r="16" fill="#1D1612" stroke="#DEA584" stroke-width="3"/>
+    <path d="M954 500 C1050 500, 1060 540, 1140 540" stroke="#DEA584" stroke-opacity="0.7" stroke-width="3" fill="none"/>
+    <circle cx="936" cy="540" r="16" fill="#1D1612" stroke="#DEA584" stroke-width="3"/>
+    <path d="M954 540 C1050 540, 1060 540, 1140 540" stroke="#DEA584" stroke-opacity="0.7" stroke-width="3" fill="none"/>
+    <circle cx="936" cy="580" r="16" fill="#1D1612" stroke="#DEA584" stroke-width="3"/>
+    <path d="M954 580 C1050 580, 1060 540, 1140 540" stroke="#DEA584" stroke-opacity="0.7" stroke-width="3" fill="none"/>
+    <rect x="1140" y="508" width="252" height="64" rx="12" fill="none" stroke="#F07B3F" stroke-width="3"/>
+    <rect x="1150" y="518" width="32" height="44" rx="6" fill="#F07B3F" fill-opacity="0.8" stroke="#F07B3F" stroke-opacity="0.6"/>
+    <rect x="1190" y="518" width="32" height="44" rx="6" fill="#F07B3F" fill-opacity="0.8" stroke="#F07B3F" stroke-opacity="0.6"/>
+    <rect x="1230" y="518" width="32" height="44" rx="6" fill="#F07B3F" fill-opacity="0.8" stroke="#F07B3F" stroke-opacity="0.6"/>
+    <rect x="1270" y="518" width="32" height="44" rx="6" fill="#F07B3F" fill-opacity="0.8" stroke="#F07B3F" stroke-opacity="0.6"/>
+    <rect x="1310" y="518" width="32" height="44" rx="6" fill="#1D1612" fill-opacity="1" stroke="#F07B3F" stroke-opacity="0.6"/>
+    <rect x="1350" y="518" width="32" height="44" rx="6" fill="#1D1612" fill-opacity="1" stroke="#F07B3F" stroke-opacity="0.6"/>
+    <path d="M1394 540 C1440 540, 1440 510, 1480 510" stroke="#F07B3F" stroke-opacity="0.8" stroke-width="3" fill="none"/>
+    <circle cx="1498" cy="510" r="16" fill="#1D1612" stroke="#F07B3F" stroke-width="3"/>
+    <path d="M1394 540 C1440 540, 1440 570, 1480 570" stroke="#F07B3F" stroke-opacity="0.8" stroke-width="3" fill="none"/>
+    <circle cx="1498" cy="570" r="16" fill="#1D1612" stroke="#F07B3F" stroke-width="3"/>
+    <text x="900" y="650" font-family="Consolas, Menlo, monospace" font-size="20" fill="#B8B2C8" >Send + Sync, checked at compile time</text>
+  </g>
+</svg>

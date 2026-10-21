@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: C++ foundations (vector, references, STL algorithms, RAII lifetime). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0F1626"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#4B8FD6" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#4B8FD6" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#9CC3EC"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#4B8FD6"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <polygon points="158,146 204,172 204,224 158,250 112,224 112,172" fill="#4B8FD6"/>
+    <text x="158" y="208.88" text-anchor="middle" font-size="32" font-weight="800" fill="#0B0F18">C++</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#9CC3EC">C++23 · FOUNDATIONS</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">From C to</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Modern C++</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">References · string &amp; vector · RAII · STL</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#CFE2F7">
+      <rect x="110" y="660" width="150" height="52" rx="26" fill="#13213A" stroke="#4B8FD6"/>
+      <text x="185" y="695" text-anchor="middle">const&amp;</text>
+      <rect x="276" y="660" width="221" height="52" rx="26" fill="#13213A" stroke="#4B8FD6"/>
+      <text x="386.5" y="695" text-anchor="middle">std::vector</text>
+      <rect x="513" y="660" width="121" height="52" rx="26" fill="#13213A" stroke="#4B8FD6"/>
+      <text x="573.5" y="695" text-anchor="middle">RAII</text>
+    </g>
+  </g>
+
+  <!-- Modern C++ snippet and the object lifetime RAII ties to its scope -->
+  <g id="art">
+    <rect x="900" y="230" width="630" height="300" rx="18" fill="#141B2C" stroke="#2B4266" stroke-width="2"/>
+    <rect x="900" y="230" width="630" height="44" rx="18" fill="#2B4266" fill-opacity="0.45"/>
+    <rect x="900" y="256" width="630" height="18" fill="#2B4266" fill-opacity="0.45"/>
+    <circle cx="926" cy="252" r="7" fill="#F2555A" fill-opacity="0.8"/>
+    <circle cx="950" cy="252" r="7" fill="#F2C14E" fill-opacity="0.8"/>
+    <circle cx="974" cy="252" r="7" fill="#3DBE7B" fill-opacity="0.8"/>
+    <text x="1506" y="259" font-family="Consolas, Menlo, monospace" font-size="18" fill="#B8B2C8" text-anchor="end">gradebook.cpp</text>
+    <text x="934" y="322" font-family="Consolas, Menlo, monospace" font-size="24" xml:space="preserve"><tspan fill="#82AAFF">std::vector</tspan><tspan fill="#E8E4F2">&lt;</tspan><tspan fill="#C792EA">int</tspan><tspan fill="#E8E4F2">&gt; grades{</tspan><tspan fill="#F78C6C">8</tspan><tspan fill="#E8E4F2">, </tspan><tspan fill="#F78C6C">9</tspan><tspan fill="#E8E4F2">, </tspan><tspan fill="#F78C6C">7</tspan><tspan fill="#E8E4F2">};</tspan></text>
+    <text x="934" y="368" font-family="Consolas, Menlo, monospace" font-size="24" xml:space="preserve"><tspan fill="#C792EA">for </tspan><tspan fill="#E8E4F2">(</tspan><tspan fill="#C792EA">const auto</tspan><tspan fill="#E8E4F2">&amp; g : grades)</tspan></text>
+    <text x="934" y="414" font-family="Consolas, Menlo, monospace" font-size="24" xml:space="preserve"><tspan fill="#E8E4F2">    total += g;</tspan></text>
+    <text x="934" y="460" font-family="Consolas, Menlo, monospace" font-size="24" xml:space="preserve"><tspan fill="#82AAFF">std::ranges::sort</tspan><tspan fill="#E8E4F2">(grades);</tspan></text>
+    <text x="934" y="506" font-family="Consolas, Menlo, monospace" font-size="24" xml:space="preserve"><tspan fill="#6F6A80">// no delete[]: freed at }</tspan></text>
+    <text x="900" y="600" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#9CC3EC" text-anchor="start">LIFETIME</text>
+    <circle cx="1090" cy="640" r="11" fill="#3DBE7B"/>
+    <path d="M1102 640 H1388" stroke="#4B8FD6" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="1400" cy="640" r="11" fill="#9CC3EC"/>
+    <text x="1090" y="684" font-family="Consolas, Menlo, monospace" font-size="20" fill="#B8B2C8" text-anchor="middle">ctor</text>
+    <text x="1400" y="684" font-family="Consolas, Menlo, monospace" font-size="20" fill="#B8B2C8" text-anchor="middle">~dtor</text>
+  </g>
+</svg>

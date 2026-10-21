@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Go concurrency (goroutines feeding a buffered channel, select with context cancellation). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0D1A1F"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#00ADD8" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#00ADD8" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#7FD8EE"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#00ADD8"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="160" width="92" height="76" rx="38" fill="#00ADD8"/>
+    <text x="158" y="214" text-anchor="middle" font-size="40" font-weight="800" font-style="italic" fill="#08202A">GO</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#7FD8EE">GO · CONCURRENCY</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Goroutines</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">&amp; Channels</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">WaitGroup · select · Pipelines · Context</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#C6EEF8">
+      <rect x="110" y="660" width="121" height="52" rx="26" fill="#0F2630" stroke="#00ADD8"/>
+      <text x="170.5" y="695" text-anchor="middle">chan</text>
+      <rect x="247" y="660" width="150" height="52" rx="26" fill="#0F2630" stroke="#00ADD8"/>
+      <text x="322" y="695" text-anchor="middle">select</text>
+      <rect x="413" y="660" width="207" height="52" rx="26" fill="#0F2630" stroke="#00ADD8"/>
+      <text x="516.5" y="695" text-anchor="middle">ctx.Done()</text>
+    </g>
+  </g>
+
+  <!-- Goroutines send into a buffered channel; select reads it until the context is cancelled -->
+  <g id="art">
+    <text x="900" y="236" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#7FD8EE" text-anchor="start">GOROUTINES</text>
+    <text x="1104" y="396" font-family="Consolas, Menlo, monospace" font-size="20" fill="#7FD8EE" >chan T (cap 5)</text>
+    <rect x="900" y="266" width="82" height="48" rx="24" fill="#12202A" stroke="#00ADD8" stroke-width="2"/>
+    <text x="941" y="298" font-family="Consolas, Menlo, monospace" font-size="22" fill="#7FD8EE" text-anchor="middle" font-weight="700">go</text>
+    <path d="M984 290 C1040 290, 1050 450, 1100 450" stroke="#00ADD8" stroke-opacity="0.75" stroke-width="4" fill="none"/>
+    <rect x="900" y="356" width="82" height="48" rx="24" fill="#12202A" stroke="#00ADD8" stroke-width="2"/>
+    <text x="941" y="388" font-family="Consolas, Menlo, monospace" font-size="22" fill="#7FD8EE" text-anchor="middle" font-weight="700">go</text>
+    <path d="M984 380 C1040 380, 1050 450, 1100 450" stroke="#00ADD8" stroke-opacity="0.75" stroke-width="4" fill="none"/>
+    <rect x="900" y="496" width="82" height="48" rx="24" fill="#12202A" stroke="#00ADD8" stroke-width="2"/>
+    <text x="941" y="528" font-family="Consolas, Menlo, monospace" font-size="22" fill="#7FD8EE" text-anchor="middle" font-weight="700">go</text>
+    <path d="M984 520 C1040 520, 1050 450, 1100 450" stroke="#00ADD8" stroke-opacity="0.75" stroke-width="4" fill="none"/>
+    <rect x="900" y="586" width="82" height="48" rx="24" fill="#12202A" stroke="#00ADD8" stroke-width="2"/>
+    <text x="941" y="618" font-family="Consolas, Menlo, monospace" font-size="22" fill="#7FD8EE" text-anchor="middle" font-weight="700">go</text>
+    <path d="M984 610 C1040 610, 1050 450, 1100 450" stroke="#00ADD8" stroke-opacity="0.75" stroke-width="4" fill="none"/>
+    <rect x="1100" y="414" width="244" height="72" rx="36" fill="none" stroke="#7FD8EE" stroke-width="3"/>
+    <rect x="1118" y="428" width="36" height="44" rx="8" fill="#00ADD8" stroke="#00ADD8" stroke-width="2"/>
+    <rect x="1164" y="428" width="36" height="44" rx="8" fill="#00ADD8" stroke="#00ADD8" stroke-width="2"/>
+    <rect x="1210" y="428" width="36" height="44" rx="8" fill="#00ADD8" stroke="#00ADD8" stroke-width="2"/>
+    <rect x="1256" y="428" width="36" height="44" rx="8" fill="#12202A" stroke="#00ADD8" stroke-width="2"/>
+    <rect x="1302" y="428" width="36" height="44" rx="8" fill="#12202A" stroke="#00ADD8" stroke-width="2"/>
+    <path d="M1346 450 H1392" stroke="#7FD8EE" stroke-width="4" marker-end="url(#arrow)"/>
+    <rect x="1398" y="404" width="132" height="92" rx="14" fill="#12202A" stroke="#00ADD8" stroke-width="3"/>
+    <text x="1464" y="458" font-family="Consolas, Menlo, monospace" font-size="26" fill="#F4F2F8" text-anchor="middle" font-weight="700">select</text>
+    <path d="M1464 640 V510" stroke="#F2555A" stroke-width="3" stroke-dasharray="8 8" marker-end="url(#arrowRed)"/>
+    <text x="1464" y="676" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F2555A" text-anchor="middle">ctx.Done()</text>
+    <path d="M1464 400 V326" stroke="#3DBE7B" stroke-width="4" marker-end="url(#arrowA)"/>
+    <text x="1464" y="304" font-family="Consolas, Menlo, monospace" font-size="22" fill="#3DBE7B" text-anchor="middle">result</text>
+  </g>
+</svg>

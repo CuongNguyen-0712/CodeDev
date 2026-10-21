@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Practical Rust (a CLI run and the iterator chain that parses its input). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1A120F"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#F07B3F" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#F07B3F" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#DEA584"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F07B3F"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <circle cx="158" cy="198" r="44" fill="none" stroke="#F07B3F" stroke-width="12" stroke-dasharray="9 7"/>
+    <circle cx="158" cy="198" r="34" fill="#F07B3F"/>
+    <text x="158" y="214" text-anchor="middle" font-size="44" font-weight="800" fill="#1A120F">R</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#DEA584">RUST · PRACTICAL</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Idiomatic Rust</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">for Real Tools</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Iterators · Traits · Errors · Lifetimes</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#F6D5C1">
+      <rect x="110" y="660" width="207" height="52" rx="26" fill="#2A1810" stroke="#F07B3F"/>
+      <text x="213.5" y="695" text-anchor="middle">impl Trait</text>
+      <rect x="333" y="660" width="164" height="52" rx="26" fill="#2A1810" stroke="#F07B3F"/>
+      <text x="415" y="695" text-anchor="middle">FromStr</text>
+      <rect x="513" y="660" width="78" height="52" rx="26" fill="#2A1810" stroke="#F07B3F"/>
+      <text x="552" y="695" text-anchor="middle">?</text>
+    </g>
+  </g>
+
+  <!-- A CLI that parses its input with an iterator chain and reports the bad line instead of panicking -->
+  <g id="art">
+    <rect x="900" y="236" width="630" height="200" rx="18" fill="#1D1612" stroke="#4D3122" stroke-width="2"/>
+    <rect x="900" y="236" width="630" height="44" rx="18" fill="#4D3122" fill-opacity="0.45"/>
+    <rect x="900" y="262" width="630" height="18" fill="#4D3122" fill-opacity="0.45"/>
+    <circle cx="926" cy="258" r="7" fill="#F2555A" fill-opacity="0.8"/>
+    <circle cx="950" cy="258" r="7" fill="#F2C14E" fill-opacity="0.8"/>
+    <circle cx="974" cy="258" r="7" fill="#3DBE7B" fill-opacity="0.8"/>
+    <text x="928" y="330" font-family="Consolas, Menlo, monospace" font-size="24" fill="#F4F2F8" >$ cargo run -- --input sales.log</text>
+    <text x="928" y="372" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F2555A" >Error: line 42: invalid price "12,5"</text>
+    <text x="928" y="410" font-family="Consolas, Menlo, monospace" font-size="22" fill="#B8B2C8" >  caused by: ParseFloatError</text>
+    <text x="900" y="500" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#DEA584" text-anchor="start">ITERATOR CHAIN</text>
+    <rect x="900" y="540" width="150" height="54" rx="27" fill="#2A1810" stroke="#F07B3F" stroke-width="2"/>
+    <text x="975" y="574" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F4F2F8" text-anchor="middle">.lines()</text>
+    <rect x="1066" y="540" width="260" height="54" rx="27" fill="#2A1810" stroke="#F07B3F" stroke-width="2"/>
+    <text x="1196" y="574" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F4F2F8" text-anchor="middle">.map(str::parse)</text>
+    <rect x="1342" y="540" width="188" height="54" rx="27" fill="#2A1810" stroke="#F07B3F" stroke-width="2"/>
+    <text x="1436" y="574" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F4F2F8" text-anchor="middle">.sum()?</text>
+    <path d="M1050 567 H1062 M1326 567 H1338" stroke="#DEA584" stroke-width="3"/>
+    <text x="900" y="650" font-family="Consolas, Menlo, monospace" font-size="20" fill="#B8B2C8" >no unwrap, no panic: errors are values</text>
+  </g>
+</svg>

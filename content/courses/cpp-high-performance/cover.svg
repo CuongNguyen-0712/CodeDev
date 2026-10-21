@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: High-performance C++ (array-of-structs vs struct-of-arrays in cache lines, threads). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0F1626"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#4B8FD6" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#4B8FD6" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#9CC3EC"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#4B8FD6"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <polygon points="158,146 204,172 204,224 158,250 112,224 112,172" fill="#4B8FD6"/>
+    <text x="158" y="208.88" text-anchor="middle" font-size="32" font-weight="800" fill="#0B0F18">C++</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#9CC3EC">C++ · PERFORMANCE</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Data-Oriented</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">C++</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Cache layouts · Flat containers · Atomics</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#CFE2F7">
+      <rect x="110" y="660" width="107" height="52" rx="26" fill="#13213A" stroke="#4B8FD6"/>
+      <text x="163.5" y="695" text-anchor="middle">SoA</text>
+      <rect x="233" y="660" width="164" height="52" rx="26" fill="#13213A" stroke="#4B8FD6"/>
+      <text x="315" y="695" text-anchor="middle">jthread</text>
+      <rect x="413" y="660" width="150" height="52" rx="26" fill="#13213A" stroke="#4B8FD6"/>
+      <text x="488" y="695" text-anchor="middle">atomic</text>
+      <rect x="579" y="660" width="193" height="52" rx="26" fill="#13213A" stroke="#4B8FD6"/>
+      <text x="675.5" y="695" text-anchor="middle">lock-free</text>
+    </g>
+  </g>
+
+  <!-- Array-of-structs wastes each cache line; struct-of-arrays fills it with the field the loop reads -->
+  <g id="art">
+    <text x="900" y="262" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#9CC3EC" text-anchor="start">ARRAY OF STRUCTS</text>
+    <rect x="900" y="282" width="46" height="60" rx="8" fill="#4B8FD6" fill-opacity="0.95"/>
+    <rect x="952" y="282" width="46" height="60" rx="8" fill="#C792EA" fill-opacity="0.4"/>
+    <rect x="1004" y="282" width="46" height="60" rx="8" fill="#6F6A80" fill-opacity="0.4"/>
+    <rect x="1056" y="282" width="46" height="60" rx="8" fill="#4B8FD6" fill-opacity="0.95"/>
+    <rect x="1108" y="282" width="46" height="60" rx="8" fill="#C792EA" fill-opacity="0.4"/>
+    <rect x="1160" y="282" width="46" height="60" rx="8" fill="#6F6A80" fill-opacity="0.4"/>
+    <rect x="1212" y="282" width="46" height="60" rx="8" fill="#4B8FD6" fill-opacity="0.95"/>
+    <rect x="1264" y="282" width="46" height="60" rx="8" fill="#C792EA" fill-opacity="0.4"/>
+    <rect x="1316" y="282" width="46" height="60" rx="8" fill="#6F6A80" fill-opacity="0.4"/>
+    <rect x="1368" y="282" width="46" height="60" rx="8" fill="#4B8FD6" fill-opacity="0.95"/>
+    <rect x="1420" y="282" width="46" height="60" rx="8" fill="#C792EA" fill-opacity="0.4"/>
+    <rect x="1472" y="282" width="46" height="60" rx="8" fill="#6F6A80" fill-opacity="0.4"/>
+    <path d="M900 360 H1310" stroke="#F2555A" stroke-width="4"/>
+    <path d="M900 352 V368 M1310 352 V368" stroke="#F2555A" stroke-width="4"/>
+    <text x="1330" y="386" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F2555A" >3 of 8 used</text>
+    <text x="900" y="442" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#9CC3EC" text-anchor="start">STRUCT OF ARRAYS</text>
+    <rect x="900" y="462" width="46" height="60" rx="8" fill="#4B8FD6" fill-opacity="0.95"/>
+    <rect x="952" y="462" width="46" height="60" rx="8" fill="#4B8FD6" fill-opacity="0.95"/>
+    <rect x="1004" y="462" width="46" height="60" rx="8" fill="#4B8FD6" fill-opacity="0.95"/>
+    <rect x="1056" y="462" width="46" height="60" rx="8" fill="#4B8FD6" fill-opacity="0.95"/>
+    <rect x="1108" y="462" width="46" height="60" rx="8" fill="#4B8FD6" fill-opacity="0.95"/>
+    <rect x="1160" y="462" width="46" height="60" rx="8" fill="#4B8FD6" fill-opacity="0.95"/>
+    <rect x="1212" y="462" width="46" height="60" rx="8" fill="#4B8FD6" fill-opacity="0.95"/>
+    <rect x="1264" y="462" width="46" height="60" rx="8" fill="#4B8FD6" fill-opacity="0.95"/>
+    <rect x="1316" y="462" width="46" height="60" rx="8" fill="#C792EA" fill-opacity="0.4"/>
+    <rect x="1368" y="462" width="46" height="60" rx="8" fill="#C792EA" fill-opacity="0.4"/>
+    <rect x="1420" y="462" width="46" height="60" rx="8" fill="#C792EA" fill-opacity="0.4"/>
+    <rect x="1472" y="462" width="46" height="60" rx="8" fill="#C792EA" fill-opacity="0.4"/>
+    <path d="M900 540 H1310" stroke="#3DBE7B" stroke-width="4"/>
+    <path d="M900 532 V548 M1310 532 V548" stroke="#3DBE7B" stroke-width="4"/>
+    <text x="1330" y="566" font-family="Consolas, Menlo, monospace" font-size="22" fill="#3DBE7B" >8 of 8 used</text>
+    <text x="1330" y="410" font-family="Consolas, Menlo, monospace" font-size="20" fill="#B8B2C8" >64-byte line</text>
+    <text x="900" y="628" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#9CC3EC" text-anchor="start">THREADS</text>
+    <g stroke-linecap="round" stroke-width="8">
+    <path d="M1040 622 H1240" stroke="#4B8FD6"/><path d="M1260 622 H1520" stroke="#4B8FD6" stroke-opacity="0.6"/>
+    <path d="M1040 652 H1180" stroke="#9CC3EC"/><path d="M1200 652 H1440" stroke="#9CC3EC" stroke-opacity="0.6"/>
+    </g>
+  </g>
+</svg>

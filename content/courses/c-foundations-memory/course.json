@@ -3,7 +3,7 @@
   "title": "C Foundations: Memory, Pointers & Strings",
   "concept": "Learn how programs really use memory with C23: types and overflow, arrays, pointers, strings and their terminators, malloc and free, structs and reading input safely.",
   "description": "A beginner course for people who can write a little code and want to know what their programs really do with memory. Every lesson starts from an incident in the C programs behind Lotus Mart's warehouse scanners and label printers - a stock report with 4294967295 boxes of tea, a weekly total that changes on every run, a return that never reaches the shelf count, a customer name that eats the city on a shipping label, a recent-scans list that shows one product three times, a log tool that gives up after 1,000 scans, a quantity prompt that loops forever, a fragile mug with a normal label - and fixes it with C23: integer types and overflow with ckd_add, arrays and half-open ranges, pointers and pointer arithmetic, strings, terminators and snprintf, malloc and free, structs and a growable array, fgets and strtol, and the new bool, nullptr, constexpr and typeof. Every bug is reproduced and found with gcc warnings, AddressSanitizer and UBSan. 8 lessons with quizzes and C coding challenges.",
-  "image": null,
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594562/codedev/courses/c-foundations-memory/cover",
   "level": "beginner",
   "durationMinutes": 177,
   "instructor": "CodeDev Engineering Team",

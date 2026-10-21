@@ -19,7 +19,7 @@ BEGIN
 END $$;
 
 INSERT INTO catalog.course (public_id, title, concept, description, image, level, duration, instructor, cost, point_price, reward, language_id, category_id, access_model, publish_status, is_hidden, is_deleted)
-VALUES ('go-foundations', 'Go Fundamentals: Types, Errors, Slices & Maps', 'Learn Go the way it is used for services and tooling: zero values, slices and the append aliasing bug, maps and structs, interfaces, errors as values, generics and go test.', 'Learn Go the way it is used for services and tooling: zero values, slices and the append aliasing bug, maps and structs, interfaces, errors as values, generics and go test. 8 lessons, each starting from a real bug or incident, with beginner-friendly challenges.', NULL, 'beginner'::level_enum, 160, 'CodeDev Engineering Team', 0, 0, 50,
+VALUES ('go-foundations', 'Go Fundamentals: Types, Errors, Slices & Maps', 'Learn Go the way it is used for services and tooling: zero values, slices and the append aliasing bug, maps and structs, interfaces, errors as values, generics and go test.', 'Learn Go the way it is used for services and tooling: zero values, slices and the append aliasing bug, maps and structs, interfaces, errors as values, generics and go test. 8 lessons, each starting from a real bug or incident, with beginner-friendly challenges.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594583/codedev/courses/go-foundations/cover', 'beginner'::level_enum, 160, 'CodeDev Engineering Team', 0, 0, 50,
         (SELECT id FROM catalog.language WHERE name = 'Go'),
         (SELECT id FROM catalog.category WHERE name = 'Go Development'),
         'free', 'draft', true, false)

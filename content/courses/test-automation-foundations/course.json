@@ -3,7 +3,7 @@
   "title": "Test Automation Foundations: Unit, Integration & Flaky Tests in JavaScript",
   "concept": "Learn to write tests that catch real bugs and never cry wolf: the test pyramid, assertions and test doubles, testing async code with fake timers, finding flaky tests and measuring what a suite really covers.",
   "description": "Learn to write tests that catch real bugs and never cry wolf: the test pyramid and the trophy, assertions that explain failures, test data builders, stubs, spies and fakes, async code under fake timers, integration tests against an in-memory store, flaky tests, snapshot tests and coverage versus mutation score - all with Node 24's built-in test runner. 9 lessons, each starting from a real bug or incident, with beginner-friendly challenges.",
-  "image": null,
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594625/codedev/courses/test-automation-foundations/cover",
   "level": "beginner",
   "durationMinutes": 205,
   "instructor": "CodeDev Engineering Team",

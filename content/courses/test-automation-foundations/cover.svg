@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Test automation foundations (test pyramid and a test run with one flaky test). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0E1A14"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3DBE7B" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#3DBE7B" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3DBE7B"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="152" width="92" height="92" rx="46" fill="#3DBE7B"/>
+    <path d="M134 199 L152 217 L184 181" fill="none" stroke="#0B1A12" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#F2C14E">JAVASCRIPT · TESTING</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Test Automation</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Foundations</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Assertions · Test doubles · Flaky tests</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#C8F0DA">
+      <rect x="110" y="660" width="150" height="52" rx="26" fill="#10281C" stroke="#3DBE7B"/>
+      <text x="185" y="695" text-anchor="middle">expect</text>
+      <rect x="276" y="660" width="107" height="52" rx="26" fill="#10281C" stroke="#3DBE7B"/>
+      <text x="329.5" y="695" text-anchor="middle">spy</text>
+      <rect x="399" y="660" width="221" height="52" rx="26" fill="#10281C" stroke="#3DBE7B"/>
+      <text x="509.5" y="695" text-anchor="middle">fake timers</text>
+    </g>
+  </g>
+
+  <!-- Many fast unit tests, fewer integration and end-to-end tests, and a run that flags the flaky one -->
+  <g id="art">
+    <text x="900" y="254" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#F2C14E" text-anchor="start">PYRAMID</text>
+    <path d="M1060 276 L1110 380 H1010z" fill="#F2C14E" fill-opacity="0.85"/>
+    <path d="M1006 388 H1114 L1170 504 H950z" fill="#3DBE7B" fill-opacity="0.55"/>
+    <path d="M946 512 H1174 L1230 628 H890z" fill="#3DBE7B" fill-opacity="0.9"/>
+    <text x="1060" y="364" font-family="Consolas, Menlo, monospace" font-size="20" fill="#1A1405" text-anchor="middle" font-weight="700">e2e</text>
+    <text x="1060" y="456" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F4F2F8" text-anchor="middle" font-weight="600">integration</text>
+    <text x="1060" y="580" font-family="Consolas, Menlo, monospace" font-size="22" fill="#0B1A12" text-anchor="middle" font-weight="700">unit</text>
+    <text x="1280" y="254" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#F2C14E" text-anchor="start">TEST RUN</text>
+    <rect x="1280" y="278" width="250" height="296" rx="14" fill="#121E18" stroke="#245038" stroke-width="2"/>
+    <path d="M1300 314 l7 7 l14 -14" stroke="#3DBE7B" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <text x="1334" y="322" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F4F2F8" >adds VAT to total</text>
+    <path d="M1300 370 l7 7 l14 -14" stroke="#3DBE7B" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <text x="1334" y="378" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F4F2F8" >rounds to cents</text>
+    <path d="M1300 426 l7 7 l14 -14" stroke="#3DBE7B" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <text x="1334" y="434" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F4F2F8" >applies BOOK10</text>
+    <path d="M1318 476 a10 10 0 1 1 -12 -2" stroke="#F2C14E" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <text x="1334" y="490" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F2C14E" >retries after 2s</text>
+    <path d="M1300 538 l7 7 l14 -14" stroke="#3DBE7B" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <text x="1334" y="546" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F4F2F8" >saves the order</text>
+    <text x="1290" y="620" font-family="Consolas, Menlo, monospace" font-size="20" fill="#B8B2C8" >4 passed, 1 flaky</text>
+  </g>
+</svg>

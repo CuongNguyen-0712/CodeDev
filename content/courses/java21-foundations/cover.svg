@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Java 21 foundations (records, collections and a stream pipeline). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#19130E"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#F89820" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#F89820" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#7FA7C9"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F89820"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="152" width="92" height="92" rx="20" fill="#F89820"/>
+    <path d="M140 172 q8 -10 0 -18 M158 172 q8 -10 0 -18 M176 172 q8 -10 0 -18" fill="none" stroke="#2A1D10" stroke-width="4" stroke-linecap="round"/>
+    <text x="158" y="232" text-anchor="middle" font-size="48" font-weight="800" fill="#2A1D10">J</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#7FA7C9">JAVA 21 · FOUNDATIONS</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Modern Java</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Foundations</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Records · Collections · Streams · Sealed</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#FCE0BC">
+      <rect x="110" y="660" width="150" height="52" rx="26" fill="#2A1D10" stroke="#F89820"/>
+      <text x="185" y="695" text-anchor="middle">record</text>
+      <rect x="276" y="660" width="150" height="52" rx="26" fill="#2A1D10" stroke="#F89820"/>
+      <text x="351" y="695" text-anchor="middle">switch</text>
+      <rect x="442" y="660" width="150" height="52" rx="26" fill="#2A1D10" stroke="#F89820"/>
+      <text x="517" y="695" text-anchor="middle">Stream</text>
+      <rect x="608" y="660" width="178" height="52" rx="26" fill="#2A1D10" stroke="#F89820"/>
+      <text x="697" y="695" text-anchor="middle">Optional</text>
+    </g>
+  </g>
+
+  <!-- A record and a stream pipeline from the bookstore lessons -->
+  <g id="art">
+    <rect x="900" y="240" width="630" height="346" rx="18" fill="#1C1712" stroke="#4D3A22" stroke-width="2"/>
+    <rect x="900" y="240" width="630" height="44" rx="18" fill="#4D3A22" fill-opacity="0.45"/>
+    <rect x="900" y="266" width="630" height="18" fill="#4D3A22" fill-opacity="0.45"/>
+    <circle cx="926" cy="262" r="7" fill="#F2555A" fill-opacity="0.8"/>
+    <circle cx="950" cy="262" r="7" fill="#F2C14E" fill-opacity="0.8"/>
+    <circle cx="974" cy="262" r="7" fill="#3DBE7B" fill-opacity="0.8"/>
+    <text x="1506" y="269" font-family="Consolas, Menlo, monospace" font-size="18" fill="#B8B2C8" text-anchor="end">Inventory.java</text>
+    <text x="934" y="332" font-family="Consolas, Menlo, monospace" font-size="24" xml:space="preserve"><tspan fill="#C792EA">record </tspan><tspan fill="#82AAFF">Book</tspan><tspan fill="#E8E4F2">(String title, </tspan><tspan fill="#C792EA">int </tspan><tspan fill="#E8E4F2">price) {}</tspan></text>
+    <text x="934" y="378" font-family="Consolas, Menlo, monospace" font-size="24" xml:space="preserve"><tspan fill="#E8E4F2"></tspan></text>
+    <text x="934" y="424" font-family="Consolas, Menlo, monospace" font-size="24" xml:space="preserve"><tspan fill="#C792EA">var </tspan><tspan fill="#E8E4F2">titles = books.</tspan><tspan fill="#82AAFF">stream</tspan><tspan fill="#E8E4F2">()</tspan></text>
+    <text x="934" y="470" font-family="Consolas, Menlo, monospace" font-size="24" xml:space="preserve"><tspan fill="#E8E4F2">    .</tspan><tspan fill="#82AAFF">filter</tspan><tspan fill="#E8E4F2">(b -&gt; b.price() &gt; </tspan><tspan fill="#F78C6C">10</tspan><tspan fill="#E8E4F2">)</tspan></text>
+    <text x="934" y="516" font-family="Consolas, Menlo, monospace" font-size="24" xml:space="preserve"><tspan fill="#E8E4F2">    .</tspan><tspan fill="#82AAFF">map</tspan><tspan fill="#E8E4F2">(Book::title)</tspan></text>
+    <text x="934" y="562" font-family="Consolas, Menlo, monospace" font-size="24" xml:space="preserve"><tspan fill="#E8E4F2">    .</tspan><tspan fill="#82AAFF">toList</tspan><tspan fill="#E8E4F2">();  </tspan><tspan fill="#6F6A80">// immutable</tspan></text>
+  </g>
+</svg>

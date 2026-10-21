@@ -3,7 +3,7 @@
   "title": "High-Performance C++: Data-Oriented Design & Concurrency",
   "concept": "Make C++ fast on real hardware: cache-friendly layouts, flat containers, allocation-free hot paths, heaps and an order-book matching engine, jthread, atomics and a lock-free queue.",
   "description": "Make C++ fast on real hardware: cache-friendly layouts, flat containers, allocation-free hot paths, heaps and an order-book matching engine, jthread, atomics and a lock-free queue. 9 lessons, each starting from a real bug or incident, with graded challenges.",
-  "image": null,
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594571/codedev/courses/cpp-high-performance/cover",
   "level": "expert",
   "durationMinutes": 180,
   "instructor": "CodeDev Engineering Team",

@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Cloud-native Go (clients through a gateway's middleware chain to load-balanced services). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0D1A1F"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#00ADD8" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#00ADD8" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#7FD8EE"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#00ADD8"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="160" width="92" height="76" rx="38" fill="#00ADD8"/>
+    <text x="158" y="214" text-anchor="middle" font-size="40" font-weight="800" font-style="italic" fill="#08202A">GO</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#7FD8EE">GO · CLOUD NATIVE</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Build an</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">API Gateway</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Middleware · Rate limits · Load balancing</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#C6EEF8">
+      <rect x="110" y="660" width="207" height="52" rx="26" fill="#0F2630" stroke="#00ADD8"/>
+      <text x="213.5" y="695" text-anchor="middle">middleware</text>
+      <rect x="333" y="660" width="236" height="52" rx="26" fill="#0F2630" stroke="#00ADD8"/>
+      <text x="451" y="695" text-anchor="middle">token bucket</text>
+      <rect x="585" y="660" width="193" height="52" rx="26" fill="#0F2630" stroke="#00ADD8"/>
+      <text x="681.5" y="695" text-anchor="middle">hash ring</text>
+    </g>
+  </g>
+
+  <!-- Clients pass a middleware chain in the gateway and are balanced across healthy services -->
+  <g id="art">
+    <text x="900" y="262" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#7FD8EE" text-anchor="start">CLIENTS</text>
+    <text x="1094" y="262" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#7FD8EE" text-anchor="start">GATEWAY</text>
+    <text x="1378" y="232" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#7FD8EE" text-anchor="start">SERVICES</text>
+    <circle cx="930" cy="300" r="24" fill="#12202A" stroke="#7FD8EE" stroke-width="3"/>
+    <path d="M956 300 C1010 300, 1020 450, 1074 450" stroke="#7FD8EE" stroke-opacity="0.7" stroke-width="3" fill="none"/>
+    <circle cx="930" cy="390" r="24" fill="#12202A" stroke="#7FD8EE" stroke-width="3"/>
+    <path d="M956 390 C1010 390, 1020 450, 1074 450" stroke="#7FD8EE" stroke-opacity="0.7" stroke-width="3" fill="none"/>
+    <circle cx="930" cy="480" r="24" fill="#12202A" stroke="#7FD8EE" stroke-width="3"/>
+    <path d="M956 480 C1010 480, 1020 450, 1074 450" stroke="#7FD8EE" stroke-opacity="0.7" stroke-width="3" fill="none"/>
+    <circle cx="930" cy="570" r="24" fill="#12202A" stroke="#7FD8EE" stroke-width="3"/>
+    <path d="M956 570 C1010 570, 1020 450, 1074 450" stroke="#7FD8EE" stroke-opacity="0.7" stroke-width="3" fill="none"/>
+    <rect x="1074" y="294" width="200" height="300" rx="18" fill="none" stroke="#00ADD8" stroke-width="3"/>
+    <rect x="1094" y="318" width="160" height="52" rx="10" fill="#00ADD8" fill-opacity="0.85"/>
+    <text x="1174" y="352" font-family="Consolas, Menlo, monospace" font-size="22" fill="#08202A" text-anchor="middle" font-weight="600">auth</text>
+    <rect x="1094" y="386" width="160" height="52" rx="10" fill="#00ADD8" fill-opacity="0.70"/>
+    <text x="1174" y="420" font-family="Consolas, Menlo, monospace" font-size="22" fill="#08202A" text-anchor="middle" font-weight="600">rate limit</text>
+    <rect x="1094" y="454" width="160" height="52" rx="10" fill="#00ADD8" fill-opacity="0.55"/>
+    <text x="1174" y="488" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F4F2F8" text-anchor="middle" font-weight="600">validate</text>
+    <rect x="1094" y="522" width="160" height="52" rx="10" fill="#00ADD8" fill-opacity="0.40"/>
+    <text x="1174" y="556" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F4F2F8" text-anchor="middle" font-weight="600">cache</text>
+    <path d="M1276 450 C1320 450, 1330 300, 1374 300" stroke="#00ADD8" stroke-width="4" fill="none" />
+    <rect x="1378" y="260" width="150" height="80" rx="12" fill="#12202A" stroke="#1E4656" stroke-width="2"/>
+    <text x="1440" y="308" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F4F2F8" text-anchor="middle">svc-1</text>
+    <circle cx="1506" cy="280" r="8" fill="#3DBE7B"/>
+    <path d="M1276 450 C1320 450, 1330 450, 1374 450" stroke="#00ADD8" stroke-width="4" fill="none" />
+    <rect x="1378" y="410" width="150" height="80" rx="12" fill="#12202A" stroke="#1E4656" stroke-width="2"/>
+    <text x="1440" y="458" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F4F2F8" text-anchor="middle">svc-2</text>
+    <circle cx="1506" cy="430" r="8" fill="#3DBE7B"/>
+    <path d="M1276 450 C1320 450, 1330 600, 1374 600" stroke="#6F6A80" stroke-width="4" fill="none" stroke-dasharray="6 8"/>
+    <rect x="1378" y="560" width="150" height="80" rx="12" fill="#12202A" stroke="#F2555A" stroke-width="2"/>
+    <text x="1440" y="608" font-family="Consolas, Menlo, monospace" font-size="22" fill="#6F6A80" text-anchor="middle">svc-3</text>
+    <circle cx="1506" cy="580" r="8" fill="#F2555A"/>
+  </g>
+</svg>

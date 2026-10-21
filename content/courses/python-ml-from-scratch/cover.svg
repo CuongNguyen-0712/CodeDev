@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Machine learning foundations in Python (two classes, decision boundary, loss curve, train/val split). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0F1724"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3776AB" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#3776AB" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#FFD43B"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3776AB"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="146" width="62" height="62" rx="16" fill="#3776AB"/>
+    <rect x="142" y="176" width="62" height="62" rx="16" fill="#FFD43B"/>
+    <circle cx="132" cy="166" r="6" fill="#0F1724"/>
+    <circle cx="184" cy="218" r="6" fill="#0F1724"/>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#FFD43B">PYTHON · MACHINE LEARNING</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">ML Foundations</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">from Scratch</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Features · kNN · Regression · Evaluation</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#CFE0F4">
+      <rect x="110" y="660" width="107" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="163.5" y="695" text-anchor="middle">kNN</text>
+      <rect x="233" y="660" width="178" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="322" y="695" text-anchor="middle">gradient</text>
+      <rect x="427" y="660" width="93" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="473.5" y="695" text-anchor="middle">F1</text>
+      <rect x="536" y="660" width="207" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="639.5" y="695" text-anchor="middle">no leakage</text>
+    </g>
+  </g>
+
+  <!-- Two classes split by a learned boundary, the training loss, and a held-out validation split -->
+  <g id="art">
+    <text x="900" y="254" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#FFD43B" text-anchor="start">DECISION BOUNDARY</text>
+    <rect x="900" y="276" width="400" height="364" rx="14" fill="#141C2C" stroke="#2E4A70" stroke-width="2"/>
+    <circle cx="1097" cy="475" r="9" fill="#FFD43B" fill-opacity="0.9"/>
+    <circle cx="969" cy="371" r="9" fill="#FFD43B" fill-opacity="0.9"/>
+    <circle cx="1081" cy="457" r="9" fill="#FFD43B" fill-opacity="0.9"/>
+    <circle cx="957" cy="580" r="9" fill="#FFD43B" fill-opacity="0.9"/>
+    <circle cx="1130" cy="426" r="9" fill="#7AA7D6" fill-opacity="0.9"/>
+    <circle cx="1027" cy="548" r="9" fill="#7AA7D6" fill-opacity="0.9"/>
+    <circle cx="1154" cy="315" r="9" fill="#FFD43B" fill-opacity="0.9"/>
+    <circle cx="1100" cy="368" r="9" fill="#FFD43B" fill-opacity="0.9"/>
+    <circle cx="1158" cy="342" r="9" fill="#FFD43B" fill-opacity="0.9"/>
+    <circle cx="1121" cy="451" r="9" fill="#7AA7D6" fill-opacity="0.9"/>
+    <circle cx="990" cy="307" r="9" fill="#FFD43B" fill-opacity="0.9"/>
+    <circle cx="1249" cy="610" r="9" fill="#7AA7D6" fill-opacity="0.9"/>
+    <circle cx="971" cy="437" r="9" fill="#FFD43B" fill-opacity="0.9"/>
+    <circle cx="1255" cy="352" r="9" fill="#FFD43B" fill-opacity="0.9"/>
+    <circle cx="1073" cy="472" r="9" fill="#FFD43B" fill-opacity="0.9"/>
+    <circle cx="1158" cy="383" r="9" fill="#FFD43B" fill-opacity="0.9"/>
+    <circle cx="988" cy="615" r="9" fill="#7AA7D6" fill-opacity="0.9"/>
+    <circle cx="1082" cy="367" r="9" fill="#FFD43B" fill-opacity="0.9"/>
+    <circle cx="1116" cy="399" r="9" fill="#FFD43B" fill-opacity="0.9"/>
+    <circle cx="982" cy="545" r="9" fill="#FFD43B" fill-opacity="0.9"/>
+    <circle cx="1050" cy="406" r="9" fill="#FFD43B" fill-opacity="0.9"/>
+    <circle cx="957" cy="596" r="9" fill="#7AA7D6" fill-opacity="0.9"/>
+    <circle cx="1011" cy="582" r="9" fill="#7AA7D6" fill-opacity="0.9"/>
+    <circle cx="1090" cy="368" r="9" fill="#FFD43B" fill-opacity="0.9"/>
+    <circle cx="1135" cy="423" r="9" fill="#7AA7D6" fill-opacity="0.9"/>
+    <circle cx="1188" cy="505" r="9" fill="#7AA7D6" fill-opacity="0.9"/>
+    <circle cx="976" cy="364" r="9" fill="#7AA7D6" fill-opacity="0.9"/>
+    <circle cx="1083" cy="320" r="9" fill="#FFD43B" fill-opacity="0.9"/>
+    <circle cx="946" cy="426" r="9" fill="#FFD43B" fill-opacity="0.9"/>
+    <circle cx="1162" cy="503" r="9" fill="#7AA7D6" fill-opacity="0.9"/>
+    <circle cx="1255" cy="397" r="9" fill="#7AA7D6" fill-opacity="0.9"/>
+    <circle cx="1079" cy="454" r="9" fill="#FFD43B" fill-opacity="0.9"/>
+    <circle cx="1079" cy="567" r="9" fill="#7AA7D6" fill-opacity="0.9"/>
+    <circle cx="1083" cy="435" r="9" fill="#FFD43B" fill-opacity="0.9"/>
+    <path d="M912 628 L1290 278" stroke="#F4F2F8" stroke-width="3" stroke-dasharray="10 8"/>
+    <text x="1340" y="254" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#FFD43B" text-anchor="start">LOSS</text>
+    <rect x="1340" y="276" width="190" height="180" rx="14" fill="#141C2C" stroke="#2E4A70" stroke-width="2"/>
+    <path d="M1356 296 C1380 380, 1410 420, 1512 432" stroke="#FFD43B" stroke-width="4" fill="none"/>
+    <path d="M1356 296 C1380 370, 1420 400, 1512 404" stroke="#7AA7D6" stroke-width="3" fill="none" stroke-dasharray="6 6"/>
+    <text x="1340" y="510" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#FFD43B" text-anchor="start">SPLIT</text>
+    <rect x="1340" y="530" width="148" height="40" rx="8" fill="#3776AB"/>
+    <rect x="1494" y="530" width="36" height="40" rx="8" fill="#FFD43B"/>
+    <text x="1414" y="557" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F4F2F8" text-anchor="middle">train</text>
+    <text x="1340" y="610" font-family="Consolas, Menlo, monospace" font-size="22" fill="#3DBE7B" >val F1: 0.91</text>
+  </g>
+</svg>

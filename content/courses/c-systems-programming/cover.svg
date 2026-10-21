@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Systems programming in C (ring buffer with head/tail, arena allocator). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101722"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#659AD2" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#659AD2" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#A8B9CC"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#659AD2"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <polygon points="158,146 204,172 204,224 158,250 112,224 112,172" fill="#659AD2"/>
+    <text x="158" y="213.64" text-anchor="middle" font-size="46" font-weight="800" fill="#0B0F18">C</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#A8B9CC">C · SYSTEMS PROGRAMMING</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Allocators, Rings</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">&amp; Parsers</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Arenas · Alignment · Hash tables · Bit flags</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#CFE0F4">
+      <rect x="110" y="660" width="136" height="52" rx="26" fill="#152031" stroke="#659AD2"/>
+      <text x="178" y="695" text-anchor="middle">arena</text>
+      <rect x="262" y="660" width="164" height="52" rx="26" fill="#152031" stroke="#659AD2"/>
+      <text x="344" y="695" text-anchor="middle">alignof</text>
+      <rect x="442" y="660" width="178" height="52" rx="26" fill="#152031" stroke="#659AD2"/>
+      <text x="531" y="695" text-anchor="middle">ring[16]</text>
+      <rect x="636" y="660" width="93" height="52" rx="26" fill="#152031" stroke="#659AD2"/>
+      <text x="682.5" y="695" text-anchor="middle">UB</text>
+    </g>
+  </g>
+
+  <!-- A ring buffer with head and tail, beside an arena that bumps a pointer -->
+  <g id="art">
+    <path d="M1074.9 288.1 A162 162 0 0 1 1127.5 298.5 L1104.1 360.2 A96 96 0 0 0 1072.9 354.0 Z" fill="#151C29" fill-opacity="1" stroke="#2C3E57" stroke-width="2"/>
+    <path d="M1136.5 302.3 A162 162 0 0 1 1181.1 332.1 L1135.8 380.1 A96 96 0 0 0 1109.4 362.4 Z" fill="#151C29" fill-opacity="1" stroke="#2C3E57" stroke-width="2"/>
+    <path d="M1187.9 338.9 A162 162 0 0 1 1217.7 383.5 L1157.6 410.6 A96 96 0 0 0 1139.9 384.2 Z" fill="#151C29" fill-opacity="1" stroke="#2C3E57" stroke-width="2"/>
+    <path d="M1221.5 392.5 A162 162 0 0 1 1231.9 445.1 L1166.0 447.1 A96 96 0 0 0 1159.8 415.9 Z" fill="#659AD2" fill-opacity="0.35" stroke="#659AD2" stroke-width="2"/>
+    <path d="M1231.9 454.9 A162 162 0 0 1 1221.5 507.5 L1159.8 484.1 A96 96 0 0 0 1166.0 452.9 Z" fill="#659AD2" fill-opacity="0.44" stroke="#659AD2" stroke-width="2"/>
+    <path d="M1217.7 516.5 A162 162 0 0 1 1187.9 561.1 L1139.9 515.8 A96 96 0 0 0 1157.6 489.4 Z" fill="#659AD2" fill-opacity="0.53" stroke="#659AD2" stroke-width="2"/>
+    <path d="M1181.1 567.9 A162 162 0 0 1 1136.5 597.7 L1109.4 537.6 A96 96 0 0 0 1135.8 519.9 Z" fill="#659AD2" fill-opacity="0.62" stroke="#659AD2" stroke-width="2"/>
+    <path d="M1127.5 601.5 A162 162 0 0 1 1074.9 611.9 L1072.9 546.0 A96 96 0 0 0 1104.1 539.8 Z" fill="#659AD2" fill-opacity="0.71" stroke="#659AD2" stroke-width="2"/>
+    <path d="M1065.1 611.9 A162 162 0 0 1 1012.5 601.5 L1035.9 539.8 A96 96 0 0 0 1067.1 546.0 Z" fill="#659AD2" fill-opacity="0.80" stroke="#659AD2" stroke-width="2"/>
+    <path d="M1003.5 597.7 A162 162 0 0 1 958.9 567.9 L1004.2 519.9 A96 96 0 0 0 1030.6 537.6 Z" fill="#659AD2" fill-opacity="0.89" stroke="#659AD2" stroke-width="2"/>
+    <path d="M952.1 561.1 A162 162 0 0 1 922.3 516.5 L982.4 489.4 A96 96 0 0 0 1000.1 515.8 Z" fill="#151C29" fill-opacity="1" stroke="#2C3E57" stroke-width="2"/>
+    <path d="M918.5 507.5 A162 162 0 0 1 908.1 454.9 L974.0 452.9 A96 96 0 0 0 980.2 484.1 Z" fill="#151C29" fill-opacity="1" stroke="#2C3E57" stroke-width="2"/>
+    <path d="M908.1 445.1 A162 162 0 0 1 918.5 392.5 L980.2 415.9 A96 96 0 0 0 974.0 447.1 Z" fill="#151C29" fill-opacity="1" stroke="#2C3E57" stroke-width="2"/>
+    <path d="M922.3 383.5 A162 162 0 0 1 952.1 338.9 L1000.1 384.2 A96 96 0 0 0 982.4 410.6 Z" fill="#151C29" fill-opacity="1" stroke="#2C3E57" stroke-width="2"/>
+    <path d="M958.9 332.1 A162 162 0 0 1 1003.5 302.3 L1030.6 362.4 A96 96 0 0 0 1004.2 380.1 Z" fill="#151C29" fill-opacity="1" stroke="#2C3E57" stroke-width="2"/>
+    <path d="M1012.5 298.5 A162 162 0 0 1 1065.1 288.1 L1067.1 354.0 A96 96 0 0 0 1035.9 360.2 Z" fill="#151C29" fill-opacity="1" stroke="#2C3E57" stroke-width="2"/>
+    <circle cx="1070" cy="450" r="82" fill="#151C29" stroke="#2C3E57" stroke-width="2"/>
+    <text x="1070" y="444" font-family="Consolas, Menlo, monospace" font-size="30" fill="#F4F2F8" text-anchor="middle" font-weight="700">ring</text>
+    <text x="1070" y="478" font-family="Consolas, Menlo, monospace" font-size="22" fill="#B8B2C8" text-anchor="middle">7 / 16</text>
+    <path d="M1279 364 L1233 383" stroke="#A8B9CC" stroke-width="4" marker-end="url(#arrow)"/>
+    <text x="1239" y="350" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#A8B9CC" text-anchor="start">TAIL</text>
+    <path d="M910 610 L946 574" stroke="#F2C14E" stroke-width="4" marker-end="url(#arrowAmber)"/>
+    <text x="922" y="640" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#F2C14E" text-anchor="start">HEAD</text>
+    <text x="1360" y="268" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#A8B9CC" text-anchor="start">ARENA</text>
+    <rect x="1360" y="290" width="80" height="380" rx="12" fill="#151C29" stroke="#2C3E57" stroke-width="2"/>
+    <rect x="1368" y="298" width="64" height="70" rx="6" fill="#659AD2" fill-opacity="0.9"/>
+    <rect x="1368" y="374" width="64" height="40" rx="6" fill="#659AD2" fill-opacity="0.65"/>
+    <rect x="1368" y="420" width="64" height="96" rx="6" fill="#659AD2" fill-opacity="0.45"/>
+    <path d="M1450 524 H1500" stroke="#F2C14E" stroke-width="4" marker-start="url(#arrowAmber)"/>
+    <text x="1508" y="532" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F2C14E" >top</text>
+    <text x="1460" y="360" font-family="Consolas, Menlo, monospace" font-size="20" fill="#B8B2C8" >align 16</text>
+  </g>
+</svg>

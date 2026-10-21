@@ -19,7 +19,7 @@ BEGIN
 END $$;
 
 INSERT INTO catalog.course (public_id, title, concept, description, image, level, duration, instructor, cost, point_price, reward, language_id, category_id, access_model, publish_status, is_hidden, is_deleted)
-VALUES ('java21-virtual-threads', 'Java 21 Concurrency: Virtual Threads & Structured Patterns', 'Handle thousands of concurrent requests in Java 21: virtual threads and pinning, atomic counters, concurrent maps, locks, CompletableFuture with timeouts and bounded queues.', 'Handle thousands of concurrent requests in Java 21: virtual threads and pinning, atomic counters, concurrent maps, locks, CompletableFuture with timeouts and bounded queues. 9 lessons, each starting from a real bug or incident, with graded challenges.', NULL, 'intermediate'::level_enum, 180, 'CodeDev Engineering Team', 0, 0, 100,
+VALUES ('java21-virtual-threads', 'Java 21 Concurrency: Virtual Threads & Structured Patterns', 'Handle thousands of concurrent requests in Java 21: virtual threads and pinning, atomic counters, concurrent maps, locks, CompletableFuture with timeouts and bounded queues.', 'Handle thousands of concurrent requests in Java 21: virtual threads and pinning, atomic counters, concurrent maps, locks, CompletableFuture with timeouts and bounded queues. 9 lessons, each starting from a real bug or incident, with graded challenges.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594590/codedev/courses/java21-virtual-threads/cover', 'intermediate'::level_enum, 180, 'CodeDev Engineering Team', 0, 0, 100,
         (SELECT id FROM catalog.language WHERE name = 'Java'),
         (SELECT id FROM catalog.category WHERE name = 'Backend Development'),
         'premium', 'draft', true, false)

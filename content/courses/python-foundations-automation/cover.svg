@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Python foundations for automation (a script turning a messy CSV into a clean report). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0F1724"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3776AB" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#3776AB" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#FFD43B"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3776AB"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="146" width="62" height="62" rx="16" fill="#3776AB"/>
+    <rect x="142" y="176" width="62" height="62" rx="16" fill="#FFD43B"/>
+    <circle cx="132" cy="166" r="6" fill="#0F1724"/>
+    <circle cx="184" cy="218" r="6" fill="#0F1724"/>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#FFD43B">PYTHON 3.14 · AUTOMATION</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Python</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Foundations</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Strings · Collections · Files · Clean data</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#CFE0F4">
+      <rect x="110" y="660" width="178" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="199" y="695" text-anchor="middle">f-string</text>
+      <rect x="304" y="660" width="164" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="386" y="695" text-anchor="middle">pathlib</text>
+      <rect x="484" y="660" width="107" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="537.5" y="695" text-anchor="middle">csv</text>
+      <rect x="607" y="660" width="136" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="675" y="695" text-anchor="middle">match</text>
+    </g>
+  </g>
+
+  <!-- A script reads a messy CSV, cleans it and writes a JSON report -->
+  <g id="art">
+    <rect x="900" y="236" width="630" height="270" rx="18" fill="#141C2C" stroke="#2E4A70" stroke-width="2"/>
+    <rect x="900" y="236" width="630" height="44" rx="18" fill="#2E4A70" fill-opacity="0.45"/>
+    <rect x="900" y="262" width="630" height="18" fill="#2E4A70" fill-opacity="0.45"/>
+    <circle cx="926" cy="258" r="7" fill="#F2555A" fill-opacity="0.8"/>
+    <circle cx="950" cy="258" r="7" fill="#F2C14E" fill-opacity="0.8"/>
+    <circle cx="974" cy="258" r="7" fill="#3DBE7B" fill-opacity="0.8"/>
+    <text x="928" y="330" font-family="Consolas, Menlo, monospace" font-size="24" fill="#F4F2F8" >$ python report.py orders.csv</text>
+    <text x="928" y="374" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F2C14E" >  skipped 3 rows: bad price</text>
+    <text x="928" y="412" font-family="Consolas, Menlo, monospace" font-size="22" fill="#3DBE7B" >  cleaned 1,284 rows</text>
+    <text x="928" y="450" font-family="Consolas, Menlo, monospace" font-size="22" fill="#3DBE7B" >  wrote report.json</text>
+    <text x="928" y="488" font-family="Consolas, Menlo, monospace" font-size="24" fill="#B8B2C8" >$ _</text>
+    <path d="M940 540 h90 l30 30 v120 h-120z" fill="#141C2C" stroke="#FFD43B" stroke-width="3"/>
+    <path d="M1030 540 v30 h30" fill="none" stroke="#FFD43B" stroke-width="3"/>
+    <text x="1000" y="650" font-family="Consolas, Menlo, monospace" font-size="24" fill="#FFD43B" text-anchor="middle" font-weight="700">CSV</text>
+    <path d="M1080 620 H1190" stroke="#FFD43B" stroke-width="4" marker-end="url(#arrow)"/>
+    <text x="1135" y="604" font-family="Consolas, Menlo, monospace" font-size="20" fill="#B8B2C8" text-anchor="middle">clean</text>
+    <path d="M1210 540 h90 l30 30 v120 h-120z" fill="#141C2C" stroke="#7AA7D6" stroke-width="3"/>
+    <path d="M1300 540 v30 h30" fill="none" stroke="#7AA7D6" stroke-width="3"/>
+    <text x="1270" y="650" font-family="Consolas, Menlo, monospace" font-size="24" fill="#7AA7D6" text-anchor="middle" font-weight="700">JSON</text>
+    <text x="1370" y="600" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F2555A" text-decoration="line-through">price: 175000</text>
+    <text x="1370" y="636" font-family="Consolas, Menlo, monospace" font-size="20" fill="#3DBE7B" >price: 175.0</text>
+  </g>
+</svg>

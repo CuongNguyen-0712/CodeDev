@@ -3,7 +3,7 @@
   "title": "Rust for Systems: Zero-Copy Parsing, Concurrency & Performance",
   "concept": "Push Rust to systems-level performance: zero-copy parsing, arenas, Cow, threads and channels, Send and Sync, scoped threads, unsafe invariants, how futures are polled and a bounded MPMC queue.",
   "description": "Push Rust to systems-level performance: zero-copy parsing, arenas, Cow, threads and channels, Send and Sync, scoped threads, unsafe invariants, how futures are polled and a bounded MPMC queue. 9 lessons, each starting from a real bug or incident, with graded challenges.",
-  "image": null,
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594619/codedev/courses/rust-systems-concurrency/cover",
   "level": "expert",
   "durationMinutes": 180,
   "instructor": "CodeDev Engineering Team",

@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Modern C++23 (ranges pipeline, std::expected value-or-error). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0F1626"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#4B8FD6" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#4B8FD6" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#9CC3EC"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#4B8FD6"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <polygon points="158,146 204,172 204,224 158,250 112,224 112,172" fill="#4B8FD6"/>
+    <text x="158" y="208.88" text-anchor="middle" font-size="32" font-weight="800" fill="#0B0F18">C++</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#9CC3EC">C++23 · MODERN</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Safe by</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Construction</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">RAII · Move · Ranges · Concepts · expected</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#CFE2F7">
+      <rect x="110" y="660" width="207" height="52" rx="26" fill="#13213A" stroke="#4B8FD6"/>
+      <text x="213.5" y="695" text-anchor="middle">unique_ptr</text>
+      <rect x="333" y="660" width="136" height="52" rx="26" fill="#13213A" stroke="#4B8FD6"/>
+      <text x="401" y="695" text-anchor="middle">views</text>
+      <rect x="485" y="660" width="178" height="52" rx="26" fill="#13213A" stroke="#4B8FD6"/>
+      <text x="574" y="695" text-anchor="middle">expected</text>
+    </g>
+  </g>
+
+  <!-- A ranges pipeline narrows the input; std::expected returns either a value or an error -->
+  <g id="art">
+    <text x="900" y="262" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#9CC3EC" text-anchor="start">RANGES</text>
+    <rect x="900" y="282" width="44" height="44" rx="9" fill="#9CC3EC" fill-opacity="0.55"/>
+    <rect x="956" y="282" width="44" height="44" rx="9" fill="#9CC3EC" fill-opacity="0.55"/>
+    <rect x="1012" y="282" width="44" height="44" rx="9" fill="#9CC3EC" fill-opacity="0.55"/>
+    <rect x="1068" y="282" width="44" height="44" rx="9" fill="#9CC3EC" fill-opacity="0.55"/>
+    <rect x="1124" y="282" width="44" height="44" rx="9" fill="#9CC3EC" fill-opacity="0.55"/>
+    <rect x="1180" y="282" width="44" height="44" rx="9" fill="#9CC3EC" fill-opacity="0.55"/>
+    <rect x="900" y="360" width="324" height="52" rx="26" fill="#13213A" stroke="#4B8FD6" stroke-width="2"/>
+    <text x="1062" y="394" font-family="Consolas, Menlo, monospace" font-size="24" fill="#F4F2F8" text-anchor="middle">| views::filter</text>
+    <rect x="900" y="432" width="324" height="52" rx="26" fill="#13213A" stroke="#4B8FD6" stroke-width="2"/>
+    <text x="1062" y="466" font-family="Consolas, Menlo, monospace" font-size="24" fill="#F4F2F8" text-anchor="middle">| views::transform</text>
+    <rect x="900" y="506" width="44" height="44" rx="9" fill="#4B8FD6" fill-opacity="0.95"/>
+    <rect x="956" y="506" width="44" height="44" rx="9" fill="#4B8FD6" fill-opacity="0.95"/>
+    <rect x="1012" y="506" width="44" height="44" rx="9" fill="#4B8FD6" fill-opacity="0.95"/>
+    <path d="M1062 334 V356 M1062 414 V428 M1062 486 V502" stroke="#9CC3EC" stroke-width="3"/>
+    <text x="1290" y="262" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#9CC3EC" text-anchor="start">EXPECTED</text>
+    <rect x="1290" y="282" width="240" height="62" rx="12" fill="#141B2C" stroke="#4B8FD6" stroke-width="2"/>
+    <text x="1410" y="322" font-family="Consolas, Menlo, monospace" font-size="24" fill="#F4F2F8" text-anchor="middle">expected&lt;T, E&gt;</text>
+    <path d="M1350 346 C1350 400, 1340 420, 1340 470" stroke="#3DBE7B" stroke-width="4" fill="none"/>
+    <path d="M1470 346 C1470 400, 1480 420, 1480 470" stroke="#F2555A" stroke-width="4" fill="none"/>
+    <circle cx="1340" cy="520" r="48" fill="#3DBE7B" fill-opacity="0.18" stroke="#3DBE7B" stroke-width="3"/>
+    <text x="1340" y="528" font-family="Consolas, Menlo, monospace" font-size="22" fill="#3DBE7B" text-anchor="middle">value</text>
+    <circle cx="1480" cy="520" r="48" fill="#F2555A" fill-opacity="0.15" stroke="#F2555A" stroke-width="3"/>
+    <text x="1480" y="528" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F2555A" text-anchor="middle">error</text>
+    <text x="1290" y="620" font-family="Consolas, Menlo, monospace" font-size="20" fill="#B8B2C8" >no exceptions,</text>
+    <text x="1290" y="648" font-family="Consolas, Menlo, monospace" font-size="20" fill="#B8B2C8" >no silent nulls</text>
+  </g>
+</svg>

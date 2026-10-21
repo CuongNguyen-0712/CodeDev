@@ -3,7 +3,7 @@
   "title": "Cloud-Native Go: Building an API Gateway",
   "concept": "Build the core of an API gateway in Go: middleware chains, per-client rate limiting, validation, consistent-hash load balancing, health checks, caching, graceful shutdown, structured logs and metrics.",
   "description": "Build the core of an API gateway in Go: middleware chains, per-client rate limiting, validation, consistent-hash load balancing, health checks, caching, graceful shutdown, structured logs and metrics. 9 lessons, each starting from a real bug or incident, with graded challenges.",
-  "image": null,
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594578/codedev/courses/go-cloud-native/cover",
   "level": "advanced",
   "durationMinutes": 180,
   "instructor": "CodeDev Engineering Team",

@@ -3,7 +3,7 @@
   "title": "Java 21 Concurrency: Virtual Threads & Structured Patterns",
   "concept": "Handle thousands of concurrent requests in Java 21: virtual threads and pinning, atomic counters, concurrent maps, locks, CompletableFuture with timeouts and bounded queues.",
   "description": "Handle thousands of concurrent requests in Java 21: virtual threads and pinning, atomic counters, concurrent maps, locks, CompletableFuture with timeouts and bounded queues. 9 lessons, each starting from a real bug or incident, with graded challenges.",
-  "image": null,
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594590/codedev/courses/java21-virtual-threads/cover",
   "level": "intermediate",
   "durationMinutes": 180,
   "instructor": "CodeDev Engineering Team",

@@ -19,7 +19,7 @@ BEGIN
 END $$;
 
 INSERT INTO catalog.course (public_id, title, concept, description, image, level, duration, instructor, cost, point_price, reward, language_id, category_id, access_model, publish_status, is_hidden, is_deleted)
-VALUES ('cpp-high-performance', 'High-Performance C++: Data-Oriented Design & Concurrency', 'Make C++ fast on real hardware: cache-friendly layouts, flat containers, allocation-free hot paths, heaps and an order-book matching engine, jthread, atomics and a lock-free queue.', 'Make C++ fast on real hardware: cache-friendly layouts, flat containers, allocation-free hot paths, heaps and an order-book matching engine, jthread, atomics and a lock-free queue. 9 lessons, each starting from a real bug or incident, with graded challenges.', NULL, 'expert'::level_enum, 180, 'CodeDev Engineering Team', 0, 0, 200,
+VALUES ('cpp-high-performance', 'High-Performance C++: Data-Oriented Design & Concurrency', 'Make C++ fast on real hardware: cache-friendly layouts, flat containers, allocation-free hot paths, heaps and an order-book matching engine, jthread, atomics and a lock-free queue.', 'Make C++ fast on real hardware: cache-friendly layouts, flat containers, allocation-free hot paths, heaps and an order-book matching engine, jthread, atomics and a lock-free queue. 9 lessons, each starting from a real bug or incident, with graded challenges.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594571/codedev/courses/cpp-high-performance/cover', 'expert'::level_enum, 180, 'CodeDev Engineering Team', 0, 0, 200,
         (SELECT id FROM catalog.language WHERE name = 'C++'),
         (SELECT id FROM catalog.category WHERE name = 'Performance Optimization'),
         'premium', 'draft', true, false)
