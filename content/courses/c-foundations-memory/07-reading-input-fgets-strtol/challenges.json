@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_cf_411",
+      "name": "validate-scanner-quantities",
+      "type": "mini_coding",
+      "title": "Write parse_qty(): validate scanner quantities",
+      "description": "Warehouse operators type a quantity (1 to 9999) at the scanner prompt, and the old code trusted atoi(): \"12kg\" booked 12 units and an empty line booked 0. Write parse_qty(line, out) with strtol, errno and endptr: reject empty lines, text that is not a number, trailing characters and out-of-range values (including overflow), in the order the header describes, and store the value only on success. The test runner reads the lines with fgets and prints \"ok <n>\" or \"error: <reason>\" for each.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "c",
+        "filePath": "parse_qty.c",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Valid quantities: signs, leading zeros, spaces around the number",
+          "input": "42\n 42\n+42\n42 \n0042\n1\n9999\n",
+          "expected": "ok 42\nok 42\nok 42\nok 42\nok 42\nok 1\nok 9999",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Empty and whitespace-only lines",
+          "input": "\n   \n\t\n42\n",
+          "expected": "error: empty\nerror: empty\nerror: empty\nok 42",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Lines that do not start with a number",
+          "input": "abc\n-\n+\nx42\n",
+          "expected": "error: not a number\nerror: not a number\nerror: not a number\nerror: not a number",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Trailing characters after the number (0x1A is 0 then x1A in base 10)",
+          "input": "12a\n1 2\n0x1A\n12kg\n9999x\n",
+          "expected": "error: trailing characters\nerror: trailing characters\nerror: trailing characters\nerror: trailing characters\nerror: trailing characters",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Out of range, including numbers too big for a long (ERANGE)",
+          "input": "0\n-1\n10000\n99999999999999999999\n-99999999999999999999\n",
+          "expected": "error: out of range\nerror: out of range\nerror: out of range\nerror: out of range\nerror: out of range",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Fits in a long but not in an int, a too-long line, last line without newline",
+          "input": "4294967338\n7\n\t15\t\n2147483648\n000000000000000000000000000000000000042\n  8",
+          "expected": "error: out of range\nok 7\nok 15\nerror: out of range\nerror: line too long\nok 8",
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

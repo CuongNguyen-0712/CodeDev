@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_cf_321",
+      "key": "challenges/c/chal_coding_cf_321/starter.c",
+      "contentType": "text/x-c; charset=utf-8",
+      "originalName": "scan_vec.c",
+      "size": 5694
+    }
+  ]
+}

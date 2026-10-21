@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_cf_112",
+      "key": "challenges/c/chal_coding_cf_112/starter.c",
+      "contentType": "text/x-c; charset=utf-8",
+      "originalName": "sum_scans.c",
+      "size": 2447
+    }
+  ]
+}

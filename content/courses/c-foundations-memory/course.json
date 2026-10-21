@@ -1,0 +1,103 @@
+{
+  "publicId": "c-foundations-memory",
+  "title": "C Foundations: Memory, Pointers & Strings",
+  "concept": "Learn how programs really use memory with C23: types and overflow, arrays, pointers, strings and their terminators, malloc and free, structs and reading input safely.",
+  "description": "A beginner course for people who can write a little code and want to know what their programs really do with memory. Every lesson starts from an incident in the C programs behind Lotus Mart's warehouse scanners and label printers - a stock report with 4294967295 boxes of tea, a weekly total that changes on every run, a return that never reaches the shelf count, a customer name that eats the city on a shipping label, a recent-scans list that shows one product three times, a log tool that gives up after 1,000 scans, a quantity prompt that loops forever, a fragile mug with a normal label - and fixes it with C23: integer types and overflow with ckd_add, arrays and half-open ranges, pointers and pointer arithmetic, strings, terminators and snprintf, malloc and free, structs and a growable array, fgets and strtol, and the new bool, nullptr, constexpr and typeof. Every bug is reproduced and found with gcc warnings, AddressSanitizer and UBSan. 8 lessons with quizzes and C coding challenges.",
+  "image": null,
+  "level": "beginner",
+  "durationMinutes": 177,
+  "instructor": "CodeDev Engineering Team",
+  "language": "C",
+  "category": "Programming Fundamentals",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 50,
+  "accessModel": "free",
+  "publishStatus": "draft",
+  "careerRoles": [
+    "student",
+    "backend_developer"
+  ],
+  "skills": {
+    "data_structures": 4,
+    "performance": 2
+  },
+  "goals": [
+    "fundamentals",
+    "interview_prep"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Values",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-types-sizes-overflow",
+          "title": "Types, sizes & integer overflow",
+          "sanityId": "lesson-cf-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-arrays-off-by-one",
+          "title": "Arrays & loops: the off-by-one",
+          "sanityId": "lesson-cf-1-2"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Pointers",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "03-pointers-arithmetic",
+          "title": "Pointers & pointer arithmetic",
+          "sanityId": "lesson-cf-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "04-strings-terminators-overflows",
+          "title": "Strings: terminators & buffer overflows",
+          "sanityId": "lesson-cf-2-2"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Memory",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "05-malloc-free-leaks-uaf",
+          "title": "malloc/free, leaks & use-after-free",
+          "sanityId": "lesson-cf-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "06-structs-growable-array",
+          "title": "Structs & a growable array",
+          "sanityId": "lesson-cf-3-2"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Safe C",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "07-reading-input-fgets-strtol",
+          "title": "Reading input safely: fgets, strtol",
+          "sanityId": "lesson-cf-4-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-c23-essentials",
+          "title": "C23 essentials: bool, nullptr, constexpr, typeof",
+          "sanityId": "lesson-cf-4-2"
+        }
+      ]
+    }
+  ]
+}

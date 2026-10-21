@@ -1,0 +1,136 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_cf_111",
+      "name": "types-overflow-conversions-quiz",
+      "type": "quiz",
+      "title": "Wrap, UB or promotion?",
+      "description": "Predict what C really does at the edges of an integer type before you write the checked sum.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "#include <limits.h>\n#include <stdint.h>\n\nint big = INT_MAX;\nunsigned int u = 0;\nuint8_t a = 200, b = 100;\n\nOn x86-64 Linux with gcc 15 (-std=c23), which statements are true? (Select all that apply.)",
+          "explanation": "Unsigned arithmetic is defined to wrap modulo 2^N, so u - 1 is UINT_MAX (4294967295 for a 32-bit unsigned int) on every conforming compiler. big + 1 is signed overflow: undefined behaviour. One build may print INT_MIN, another may do something else, and UBSan reports it; the standard guarantees nothing. a + b is computed after integer promotion: both uint8_t operands become int first, so the result is an int with the value 300 (it only becomes 44 if you store it back into a uint8_t). Integer division truncates toward zero, so -7 / 2 is -3, not -4. sizeof(long) is implementation-defined: 8 on 64-bit Linux (LP64), but 4 on 64-bit Windows.",
+          "options": [
+            {
+              "text": "u - 1 is UINT_MAX (4294967295), and the C standard guarantees that result",
+              "correct": true
+            },
+            {
+              "text": "big + 1 is INT_MIN (-2147483648), and the C standard guarantees that result",
+              "correct": false
+            },
+            {
+              "text": "a + b has type int and the value 300",
+              "correct": true
+            },
+            {
+              "text": "-7 / 2 is -4",
+              "correct": false
+            },
+            {
+              "text": "sizeof(long) is 8 on every C compiler",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "#include <stdio.h>\n\nint main(void)\n{\n    unsigned int stock = 2;\n    int sold = 3;\n    if (stock - sold < 0)\n        printf(\"oversold\\n\");\n    else\n        printf(\"stock=%u\\n\", stock - sold);\n    return 0;\n}\n\nWhat does this program print (gcc 15, x86-64 Linux)?",
+          "explanation": "stock - sold mixes unsigned int and int, so sold is converted to unsigned int and the subtraction is done in unsigned arithmetic: 2 - 3 wraps to 4294967295. That is defined behaviour, not UB. An unsigned value is never less than 0, so the if is always false (gcc -Wextra even warns that the comparison is always false), and the else branch prints the wrapped value. To detect \"not enough stock\", compare before subtracting (if (sold > stock)) or use ckd_sub, which returns true when the exact result does not fit.",
+          "options": [
+            {
+              "text": "oversold",
+              "correct": false
+            },
+            {
+              "text": "stock=-1",
+              "correct": false
+            },
+            {
+              "text": "stock=4294967295",
+              "correct": true
+            },
+            {
+              "text": "Nothing predictable: it is undefined behaviour",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_cf_112",
+      "name": "checked-scan-total",
+      "type": "mini_coding",
+      "title": "Write sum_scans(): a day's total without overflow",
+      "description": "Add up one SKU's scanner log for the day (receipts are positive, picks and returns to the supplier negative). The nightly tool stores every running total in an int32_t, so use ckd_add and report the 1-based line of the first quantity that does not fit instead of letting the sum wrap or overflow. The test runner at the bottom of the file reads one quantity per line and prints total=N or overflow at line N.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "c",
+        "filePath": "sum_scans.c",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Normal day: receipts, picks and a return",
+          "input": "12\n5\n-3\n20\n",
+          "expected": "total=34",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "No scans today: empty log gives total 0",
+          "input": "",
+          "expected": "total=0",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Running total ends exactly at INT32_MAX (no overflow)",
+          "input": "2147483000\n647\n",
+          "expected": "total=2147483647",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "More picks than receipts: a negative total is not an overflow",
+          "input": "-5\n-7\n3\n",
+          "expected": "total=-9",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "One past INT32_MAX reports the line of the first overflowing quantity",
+          "input": "2147483000\n600\n47\n1\n-10\n",
+          "expected": "overflow at line 4",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Reaches exactly INT32_MIN, then goes below it",
+          "input": "-2147483000\n-648\n5\n-6\n",
+          "expected": "overflow at line 4",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A running total that overflows counts even if the final sum would fit",
+          "input": "2147483647\n1\n-1\n",
+          "expected": "overflow at line 2",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

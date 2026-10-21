@@ -1,0 +1,149 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_cf_311",
+      "name": "heap-lifetimes-quiz",
+      "type": "quiz",
+      "title": "Who owns this memory?",
+      "description": "Read each snippet the way C runs it: which pointers share one buffer, which functions leak or leave a dangling pointer, and what free really does.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 4,
+          "question": "What does this print?\n\nchar buf[16];\nchar *names[3];\nconst char *scans[3] = {\"TEA-500\", \"MUG-01\", \"CARD-TET\"};\nfor (int i = 0; i < 3; i++) {\n    snprintf(buf, sizeof buf, \"%s\", scans[i]);\n    names[i] = buf;\n}\nprintf(\"%s %s %s\\n\", names[0], names[1], names[2]);",
+          "explanation": "names[i] = buf stores the ADDRESS of the one array buf, not its characters. All three entries hold the same address, and printf reads the array as it is at the end of the loop, so it prints the last name three times. Nothing here is undefined: buf is still alive. To keep three names you need three copies, for example names[i] = strdup(buf) (and a free for each later).",
+          "options": [
+            {
+              "text": "TEA-500 MUG-01 CARD-TET",
+              "correct": false
+            },
+            {
+              "text": "CARD-TET CARD-TET CARD-TET",
+              "correct": true
+            },
+            {
+              "text": "TEA-500 TEA-500 TEA-500",
+              "correct": false
+            },
+            {
+              "text": "Undefined behaviour: buf is reused",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 3,
+          "question": "Which of these are free of memory bugs (no leak, no dangling pointer, no use-after-free)? Every list[i] holds a string from malloc/strdup that the list owns. (Select all that apply.)\n\n/* A */\nchar *copy_sku(const char *s) {\n    char *p = malloc(strlen(s) + 1);\n    if (p == NULL)\n        return NULL;\n    memcpy(p, s, strlen(s) + 1);\n    return p;\n}\n\n/* B */\nchar *scanner_label(void) {\n    char buf[32];\n    snprintf(buf, sizeof buf, \"SCN-%02d\", 7);\n    return buf;\n}\n\n/* C */\nbool replace_name(char *list[], size_t i, const char *s) {\n    char *p = strdup(s);\n    if (p == NULL)\n        return false;\n    free(list[i]);\n    list[i] = p;\n    return true;\n}\n\n/* D */\nvoid replace_name(char *list[], size_t i, const char *s) {\n    list[i] = strdup(s);\n}",
+          "explanation": "A allocates strlen(s) + 1 bytes (room for the '\\0'), checks for NULL and hands ownership to the caller: correct. B returns the address of a local array whose lifetime ends at the return: the pointer dangles (gcc warns -Wreturn-local-addr). C makes the new copy first, frees the old string it owns, then stores the new one: correct, and on failure the list is unchanged. D overwrites list[i] without freeing the old string, so that block can never be freed again: a leak (LeakSanitizer reports it), and it also ignores a NULL result.",
+          "options": [
+            {
+              "text": "A - copy_sku",
+              "correct": true
+            },
+            {
+              "text": "B - scanner_label",
+              "correct": false
+            },
+            {
+              "text": "C - replace_name with strdup, free, store",
+              "correct": true
+            },
+            {
+              "text": "D - replace_name that only assigns strdup(s)",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 3,
+          "question": "What happens here?\n\nchar *a = strdup(\"TEA-500\");\nchar *b = a;\nfree(a);\na = NULL;\nfree(b);",
+          "explanation": "a and b are two copies of the same address. free(a) releases the block; a = NULL changes only the variable a, not b, which still holds the old address. free(b) frees the same block a second time: a double free, which is undefined behaviour (ASan reports attempting double-free, gcc warns -Wuse-after-free). Setting a pointer to NULL protects only that one pointer, which is why a block should have exactly one owner that frees it.",
+          "options": [
+            {
+              "text": "Nothing bad: after a = NULL the second free is a no-op",
+              "correct": false
+            },
+            {
+              "text": "Double free, undefined behaviour: b still holds the freed address",
+              "correct": true
+            },
+            {
+              "text": "free(b) frees a separate copy made by b = a",
+              "correct": false
+            },
+            {
+              "text": "It does not compile: b is a dangling pointer",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_cf_312",
+      "name": "fix-recent-scans-list",
+      "type": "fix_bug",
+      "title": "Fix the scanner's recent scans list",
+      "description": "The handheld scanner SCN-07 keeps the last few product names in a bounded \"recent scans\" list: when it is full, the oldest name is dropped. Every entry on the screen shows the LAST scanned name, and after a shift the scanner has leaked memory. Fix recent_add() so it stores an owned copy of each name and frees the entry it drops, and recent_free() so it frees every entry. Allocate only with xmalloc/xstrdup/xfree: the test runner counts live allocations and reports double frees.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "c",
+        "filePath": "recent_scans.c",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Fewer names than the capacity: every name is its own copy",
+          "input": "5\nTEA-500\nMUG-01\nCARD-TET\n",
+          "expected": "1: TEA-500\n2: MUG-01\n3: CARD-TET\ncount=3\nafter free: count=0 live_allocations=0",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Exactly capacity names: nothing is dropped",
+          "input": "3\nTEA-500\nCOFFEE-1KG\nMUG-01\n",
+          "expected": "1: TEA-500\n2: COFFEE-1KG\n3: MUG-01\ncount=3\nafter free: count=0 live_allocations=0",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "More names than the capacity: the two oldest are dropped and freed",
+          "input": "3\nTEA-500\nMUG-01\nCARD-TET\nCOFFEE-1KG\nRICE-5KG\n",
+          "expected": "1: CARD-TET\n2: COFFEE-1KG\n3: RICE-5KG\ncount=3\nafter free: count=0 live_allocations=0",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "No scans at all: empty list and no allocations",
+          "input": "4\n",
+          "expected": "count=0\nafter free: count=0 live_allocations=0",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Long product names are kept complete, also after a drop",
+          "input": "2\nTEA-500\nBANH-CHUNG-TET Banh chung Tet loai dac biet goi la dong xanh nhan dau xanh thit heo tieu hat, hop qua 4 chiec, giao kho Binh Duong ca 2 ngay 28 thang Chap\nMUG-01\nCOMBO-QUA-TET-2027 Hop qua Tet cao cap: tra sen Tay Ho 200 g, ca phe Buon Ma Thuot 500 g, mut gung, hat dieu rang muoi, banh pia Soc Trang va thiep chuc Tet\n",
+          "expected": "1: MUG-01\n2: COMBO-QUA-TET-2027 Hop qua Tet cao cap: tra sen Tay Ho 200 g, ca phe Buon Ma Thuot 500 g, mut gung, hat dieu rang muoi, banh pia Soc Trang va thiep chuc Tet\ncount=2\nafter free: count=0 live_allocations=0",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Capacity 1 with many scans: only the newest survives, nothing leaks",
+          "input": "1\nTEA-500\nMUG-01\nCARD-TET\nCOFFEE-1KG\nRICE-5KG\nTEA-500\n",
+          "expected": "1: TEA-500\ncount=1\nafter free: count=0 live_allocations=0",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

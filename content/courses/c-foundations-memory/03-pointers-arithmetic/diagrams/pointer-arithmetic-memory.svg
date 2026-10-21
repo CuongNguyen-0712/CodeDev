@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#334155"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#b91c1c"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#15803d"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">A pointer is an address: p + 1 moves one element, not one byte</text>
+  <text x="40" y="82" font-size="16" fill="#475569">int is 4 bytes on x86-64 Linux, so every step of an int * adds 4 to the address.</text>
+
+  <!-- Top: the array -->
+  <rect x="40" y="102" width="1120" height="240" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="130" font-size="15" font-weight="700" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">int scans[5] = {12, 0, 7, 31, 4};</text>
+
+  <!-- pointer labels -->
+  <text x="165" y="164" font-size="14" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="'JetBrains Mono', Consolas, monospace">p = scans</text>
+  <line x1="165" y1="171" x2="165" y2="194" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="295" y="164" font-size="14" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="'JetBrains Mono', Consolas, monospace">p + 1</text>
+  <line x1="295" y1="171" x2="295" y2="194" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="815" y="164" font-size="14" font-weight="700" fill="#b91c1c" text-anchor="middle" font-family="'JetBrains Mono', Consolas, monospace">end = scans + 5</text>
+  <line x1="815" y1="171" x2="815" y2="194" stroke="#b91c1c" stroke-width="2" marker-end="url(#arrow-red)"/>
+
+  <!-- cells -->
+  <g font-family="'JetBrains Mono', Consolas, monospace" text-anchor="middle">
+    <rect x="100" y="198" width="130" height="58" fill="#ffffff" stroke="#64748b" stroke-width="2"/>
+    <rect x="230" y="198" width="130" height="58" fill="#ffffff" stroke="#64748b" stroke-width="2"/>
+    <rect x="360" y="198" width="130" height="58" fill="#ffffff" stroke="#64748b" stroke-width="2"/>
+    <rect x="490" y="198" width="130" height="58" fill="#ffffff" stroke="#64748b" stroke-width="2"/>
+    <rect x="620" y="198" width="130" height="58" fill="#ffffff" stroke="#64748b" stroke-width="2"/>
+    <rect x="750" y="198" width="130" height="58" fill="#fef2f2" stroke="#b91c1c" stroke-width="2" stroke-dasharray="6 5"/>
+    <text x="165" y="234" font-size="20" font-weight="700" fill="#0f172a">12</text>
+    <text x="295" y="234" font-size="20" font-weight="700" fill="#0f172a">0</text>
+    <text x="425" y="234" font-size="20" font-weight="700" fill="#0f172a">7</text>
+    <text x="555" y="234" font-size="20" font-weight="700" fill="#0f172a">31</text>
+    <text x="685" y="234" font-size="20" font-weight="700" fill="#0f172a">4</text>
+    <text x="815" y="234" font-size="16" font-weight="700" fill="#b91c1c">?</text>
+
+    <text x="165" y="278" font-size="13" fill="#475569">0x...f40</text>
+    <text x="295" y="278" font-size="13" fill="#475569">0x...f44</text>
+    <text x="425" y="278" font-size="13" fill="#475569">0x...f48</text>
+    <text x="555" y="278" font-size="13" fill="#475569">0x...f4c</text>
+    <text x="685" y="278" font-size="13" fill="#475569">0x...f50</text>
+    <text x="815" y="278" font-size="13" fill="#b91c1c">0x...f54</text>
+
+    <text x="165" y="298" font-size="13" fill="#64748b">scans[0]</text>
+    <text x="295" y="298" font-size="13" fill="#64748b">scans[1]</text>
+    <text x="425" y="298" font-size="13" fill="#64748b">scans[2]</text>
+    <text x="555" y="298" font-size="13" fill="#64748b">scans[3]</text>
+    <text x="685" y="298" font-size="13" fill="#64748b">scans[4]</text>
+  </g>
+  <text x="815" y="298" font-size="13" font-weight="700" fill="#b91c1c" text-anchor="middle">one past the end</text>
+  <text x="815" y="316" font-size="13" fill="#b91c1c" text-anchor="middle">valid pointer, never read *end</text>
+
+  <!-- 4 bytes bracket -->
+  <path d="M100 306 L100 314 L230 314 L230 306" fill="none" stroke="#334155" stroke-width="1.5"/>
+  <text x="165" y="332" font-size="12" fill="#334155" text-anchor="middle">4 bytes = sizeof *p</text>
+
+  <!-- notes on the right -->
+  <text x="912" y="210" font-size="14" font-weight="700" fill="#0f172a" font-family="'JetBrains Mono', Consolas, monospace">scans[i]</text>
+  <text x="912" y="232" font-size="14" font-weight="700" fill="#0f172a" font-family="'JetBrains Mono', Consolas, monospace">== *(scans + i)</text>
+  <text x="912" y="268" font-size="14" font-weight="700" fill="#0f172a" font-family="'JetBrains Mono', Consolas, monospace">end - scans == 5</text>
+  <text x="912" y="290" font-size="13" fill="#334155">elements, type ptrdiff_t (%td)</text>
+
+  <!-- Bottom left: pass by value -->
+  <rect x="40" y="360" width="545" height="220" rx="10" fill="#fef2f2" stroke="#fecaca" stroke-width="2"/>
+  <text x="64" y="390" font-size="15" font-weight="700" fill="#b91c1c" font-family="'JetBrains Mono', Consolas, monospace">apply_return(int stock, int qty)</text>
+  <text x="64" y="412" font-size="13" fill="#7f1d1d">the function gets a COPY at a different address</text>
+
+  <text x="64" y="446" font-size="14" font-weight="700" fill="#334155">main</text>
+  <rect x="64" y="456" width="150" height="50" fill="#ffffff" stroke="#64748b" stroke-width="2"/>
+  <text x="139" y="488" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="'JetBrains Mono', Consolas, monospace">120</text>
+  <text x="139" y="526" font-size="13" fill="#475569" text-anchor="middle" font-family="'JetBrains Mono', Consolas, monospace">stock 0x...4b4</text>
+
+  <text x="350" y="446" font-size="14" font-weight="700" fill="#334155">apply_return</text>
+  <rect x="350" y="456" width="190" height="50" fill="#ffffff" stroke="#b91c1c" stroke-width="2"/>
+  <text x="445" y="488" font-size="18" font-weight="700" fill="#b91c1c" text-anchor="middle" font-family="'JetBrains Mono', Consolas, monospace">120 + 3</text>
+  <text x="445" y="526" font-size="13" fill="#475569" text-anchor="middle" font-family="'JetBrains Mono', Consolas, monospace">stock 0x...49c</text>
+
+  <line x1="218" y1="481" x2="344" y2="481" stroke="#b91c1c" stroke-width="2" marker-end="url(#arrow-red)"/>
+  <text x="281" y="472" font-size="13" fill="#b91c1c" text-anchor="middle">copy</text>
+  <text x="64" y="562" font-size="14" font-weight="700" fill="#b91c1c">The copy becomes 123; main still has 120.</text>
+
+  <!-- Bottom right: pass a pointer -->
+  <rect x="615" y="360" width="545" height="220" rx="10" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="2"/>
+  <text x="639" y="390" font-size="15" font-weight="700" fill="#15803d" font-family="'JetBrains Mono', Consolas, monospace">apply_return(int *stock, int qty)</text>
+  <text x="639" y="412" font-size="13" fill="#14532d">the function gets main's ADDRESS and writes through it</text>
+
+  <text x="639" y="446" font-size="14" font-weight="700" fill="#334155">main</text>
+  <rect x="639" y="456" width="150" height="50" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="714" y="488" font-size="18" font-weight="700" fill="#15803d" text-anchor="middle" font-family="'JetBrains Mono', Consolas, monospace">123</text>
+  <text x="714" y="526" font-size="13" fill="#475569" text-anchor="middle" font-family="'JetBrains Mono', Consolas, monospace">stock 0x...4b4</text>
+
+  <text x="950" y="446" font-size="14" font-weight="700" fill="#334155">apply_return</text>
+  <rect x="950" y="456" width="190" height="50" fill="#ffffff" stroke="#64748b" stroke-width="2"/>
+  <text x="1045" y="488" font-size="16" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="'JetBrains Mono', Consolas, monospace">0x...4b4</text>
+  <text x="1045" y="526" font-size="13" fill="#475569" text-anchor="middle" font-family="'JetBrains Mono', Consolas, monospace">int *stock</text>
+
+  <line x1="944" y1="481" x2="795" y2="481" stroke="#15803d" stroke-width="2" marker-end="url(#arrow-green)"/>
+  <text x="869" y="472" font-size="13" font-weight="700" fill="#15803d" text-anchor="middle" font-family="'JetBrains Mono', Consolas, monospace">*stock += 3</text>
+  <text x="639" y="562" font-size="14" font-weight="700" fill="#15803d">The call apply_return(&amp;stock, 3) changes main's stock.</text>
+</svg>

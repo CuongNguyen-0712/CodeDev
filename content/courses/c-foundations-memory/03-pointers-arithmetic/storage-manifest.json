@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_cf_212",
+      "key": "challenges/c/chal_coding_cf_212/starter.c",
+      "contentType": "text/x-c; charset=utf-8",
+      "originalName": "compact_scans.c",
+      "size": 3070
+    }
+  ]
+}

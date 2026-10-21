@@ -1,0 +1,121 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_cf_221",
+      "name": "strings-terminators-quiz",
+      "type": "quiz",
+      "title": "Predict it: sizes, terminators and truncation",
+      "description": "Read each snippet the way the C compiler and library do: where does a string end, how many bytes does it need, and which lines are undefined behaviour?",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 4,
+          "question": "What does this print on x86-64 Linux (gcc, LP64)?\n\nchar sku[16] = \"MUG-01\";\nconst char *p = sku;\nprintf(\"%zu %zu %zu %zu\\n\", sizeof sku, strlen(sku), sizeof p, strlen(p + 4));",
+          "explanation": "sizeof sku is the size of the whole array: 16 bytes, no matter what is stored in it. strlen counts the chars before the first '\\0': \"MUG-01\" has 6. sizeof p is the size of the POINTER, not of what it points to: 8 bytes on LP64. p + 4 points at the '0' of \"01\" (pointer arithmetic from lesson 2.1), so strlen(p + 4) counts \"01\": 2.",
+          "options": [
+            { "text": "16 6 8 2", "correct": true },
+            { "text": "7 6 8 2", "correct": false },
+            { "text": "16 6 16 2", "correct": false },
+            { "text": "16 7 8 3", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 3,
+          "question": "Which of these snippets have undefined behaviour? (Select all that apply.)",
+          "explanation": "\"TEA-500\" needs 8 bytes (7 chars + '\\0'), so strcpy into char[7] writes one byte past the array. A string literal must never be modified, and char *s = \"...\" points at the literal itself (on Linux it lives in read-only memory and the write gets SIGSEGV). char s[] = \"...\" is your own array that is merely initialized from the literal, so changing it is fine. snprintf with sizeof buf writes at most 8 bytes and always terminates: buf holds \"Nguyen \" (7 chars + '\\0'), cut but valid. strncpy copies exactly 4 bytes (\"TEA-\") and adds no '\\0' because the source is longer, so printf(\"%s\") reads past the end of f.",
+          "options": [
+            { "text": "char code[7];\nstrcpy(code, \"TEA-500\");", "correct": true },
+            { "text": "char *s = \"TEA-500\";\ns[0] = 't';", "correct": true },
+            { "text": "char s[] = \"TEA-500\";\ns[0] = 't';", "correct": false },
+            { "text": "char buf[8];\nsnprintf(buf, sizeof buf, \"%s\", \"Nguyen Thi\");", "correct": false },
+            { "text": "char f[4];\nstrncpy(f, \"TEA-500\", sizeof f);\nprintf(\"%s\\n\", f);", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 3,
+          "question": "What does this print?\n\nchar label[12];\nint n = snprintf(label, sizeof label, \"%s/%s\", \"LM-1042\", \"Binh Duong\");\nprintf(\"%d [%s]\\n\", n, label);",
+          "explanation": "snprintf returns the length the WHOLE result would have had, without the '\\0': 7 + 1 + 10 = 18. It writes at most sizeof label = 12 bytes, and the last one is always the terminator, so label holds the first 11 chars, \"LM-1042/Bin\". Because 18 >= 12, the caller knows the label was cut.",
+          "options": [
+            { "text": "18 [LM-1042/Bin]", "correct": true },
+            { "text": "11 [LM-1042/Bin]", "correct": false },
+            { "text": "18 [LM-1042/Binh Duong]", "correct": false },
+            { "text": "-1 []", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_cf_222",
+      "name": "fix-label-field-copy",
+      "type": "fix_bug",
+      "title": "Make the label field copy always fit and always terminate",
+      "description": "label_copy() copies one field of a shipping label (customer name, city, ...) into its fixed-size slot on the Lotus Mart label printer. Short names print fine. But for \"Nguyen Thi Phuong Thao\" in a 16-byte slot the label shows the name running into the next field, a 1-byte slot gets overwritten next door, and the printer service cannot tell that a name was cut because label_copy returns how much it copied. Fix label_copy so that it never writes outside its cap bytes (not even when cap is 0), always leaves a terminated string when cap > 0, and returns strlen(src) so the caller can detect truncation with ret >= cap. The test runner puts the slot in the middle of a bigger array filled with '#' and reports guard=broken if any byte outside the slot changed.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "c",
+        "filePath": "label_copy.c",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A short SKU fits in a 16-byte slot",
+          "input": "16\nTEA-500\n",
+          "expected": "ret=7\ntext=[TEA-500]\nterminated=yes\ntruncated=no\nguard=ok",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A 22-char customer name is cut to 15 chars + terminator, ret reports 22",
+          "input": "16\nNguyen Thi Phuong Thao\n",
+          "expected": "ret=22\ntext=[Nguyen Thi Phuo]\nterminated=yes\ntruncated=yes\nguard=ok",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Exact fit: 7 chars + terminator in an 8-byte slot",
+          "input": "8\nTEA-500\n",
+          "expected": "ret=7\ntext=[TEA-500]\nterminated=yes\ntruncated=no\nguard=ok",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Empty source gives an empty terminated string",
+          "input": "16\n\n",
+          "expected": "ret=0\ntext=[]\nterminated=yes\ntruncated=no\nguard=ok",
+          "hidden": false,
+          "score": 2
+        },
+        {
+          "name": "One byte too long: 7 chars into a 7-byte slot",
+          "input": "7\nTEA-500\n",
+          "expected": "ret=7\ntext=[TEA-50]\nterminated=yes\ntruncated=yes\nguard=ok",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A 1-byte slot only has room for the terminator",
+          "input": "1\nBinh Duong\n",
+          "expected": "ret=10\ntext=[]\nterminated=yes\ntruncated=yes\nguard=ok",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A 0-byte slot must not be written at all",
+          "input": "0\nLM-1042\n",
+          "expected": "ret=7\ntext=[]\nterminated=-\ntruncated=yes\nguard=ok",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

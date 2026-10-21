@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+<rect width="1200" height="600" fill="#ffffff"/>
+<text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Storing the buffer&#8217;s address vs storing owned copies</text>
+<text x="40" y="82" font-size="16" fill="#475569">recent[i] = line copies an address (8 bytes). strdup(line) copies the characters into a new heap block that the list owns.</text>
+<rect x="40" y="108" width="540" height="420" rx="10" fill="#fef2f2" stroke="#fecaca" stroke-width="2"/>
+<text x="64" y="140" font-size="18" font-weight="700" fill="#b91c1c" font-family="'JetBrains Mono', Consolas, monospace">recent[i] = line;</text>
+<text x="64" y="162" font-size="13" fill="#7f1d1d">three pointers, one buffer: every row shows the last scan</text>
+<text x="64" y="196" font-size="14" font-weight="700" fill="#334155">stack (main)</text>
+<text x="64" y="220" font-size="13" fill="#475569" font-family="'JetBrains Mono', Consolas, monospace">char line[64]  @ 0x7ffd...f30</text>
+<rect x="64" y="232" width="36" height="36" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/><text x="82" y="255" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">M</text>
+<rect x="100" y="232" width="36" height="36" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/><text x="118" y="255" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">U</text>
+<rect x="136" y="232" width="36" height="36" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/><text x="154" y="255" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">G</text>
+<rect x="172" y="232" width="36" height="36" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/><text x="190" y="255" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">-</text>
+<rect x="208" y="232" width="36" height="36" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/><text x="226" y="255" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">0</text>
+<rect x="244" y="232" width="36" height="36" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/><text x="262" y="255" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">1</text>
+<rect x="280" y="232" width="36" height="36" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/><text x="298" y="255" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">\0</text>
+<rect x="316" y="232" width="36" height="36" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/><text x="334" y="255" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">...</text>
+<text x="370" y="255" font-size="13" fill="#7f1d1d">overwritten by</text>
+<text x="370" y="273" font-size="13" fill="#7f1d1d">every fgets</text>
+<text x="180" y="320" font-size="13" fill="#475569" font-family="'JetBrains Mono', Consolas, monospace">char *recent[8]</text>
+<rect x="180" y="334" width="220" height="34" rx="4" fill="#fee2e2" stroke="#dc2626" stroke-width="1.5"/><text x="194" y="356" font-size="13" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">[0] 0x7ffd...f30</text>
+<path d="M180 351 L82 351" fill="none" stroke="#dc2626" stroke-width="2"/>
+<rect x="180" y="380" width="220" height="34" rx="4" fill="#fee2e2" stroke="#dc2626" stroke-width="1.5"/><text x="194" y="402" font-size="13" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">[1] 0x7ffd...f30</text>
+<path d="M180 397 L82 397" fill="none" stroke="#dc2626" stroke-width="2"/>
+<rect x="180" y="426" width="220" height="34" rx="4" fill="#fee2e2" stroke="#dc2626" stroke-width="1.5"/><text x="194" y="448" font-size="13" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">[2] 0x7ffd...f30</text>
+<path d="M180 443 L82 443" fill="none" stroke="#dc2626" stroke-width="2"/>
+<path d="M82 443 L82 280" fill="none" stroke="#dc2626" stroke-width="2"/>
+<polygon points="76,280 88,280 82,270" fill="#dc2626"/>
+<text x="64" y="484" font-size="14" font-weight="700" fill="#b91c1c">printf shows MUG-01, MUG-01, MUG-01</text>
+<text x="64" y="506" font-size="13" fill="#7f1d1d">the next scan overwrites line, and all three rows change with it</text>
+<rect x="620" y="108" width="540" height="420" rx="10" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="2"/>
+<text x="644" y="140" font-size="18" font-weight="700" fill="#15803d" font-family="'JetBrains Mono', Consolas, monospace">recent[i] = strdup(line);</text>
+<text x="644" y="162" font-size="13" fill="#14532d">one heap copy per scan: the list owns each block</text>
+<text x="644" y="196" font-size="14" font-weight="700" fill="#334155">stack (main)</text>
+<text x="644" y="220" font-size="13" fill="#475569" font-family="'JetBrains Mono', Consolas, monospace">char line[64]  (reused)</text>
+<rect x="644" y="232" width="32" height="36" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/><text x="660" y="255" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">M</text>
+<rect x="676" y="232" width="32" height="36" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/><text x="692" y="255" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">U</text>
+<rect x="708" y="232" width="32" height="36" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/><text x="724" y="255" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">G</text>
+<rect x="740" y="232" width="32" height="36" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/><text x="756" y="255" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">-</text>
+<rect x="772" y="232" width="32" height="36" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/><text x="788" y="255" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">0</text>
+<rect x="804" y="232" width="32" height="36" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/><text x="820" y="255" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">1</text>
+<rect x="836" y="232" width="32" height="36" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/><text x="852" y="255" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">\0</text>
+<rect x="868" y="232" width="32" height="36" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/><text x="884" y="255" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">...</text>
+<text x="912" y="255" font-size="13" fill="#14532d">only read by strdup,</text>
+<text x="912" y="273" font-size="13" fill="#14532d">then reused safely</text>
+<text x="644" y="320" font-size="13" fill="#475569" font-family="'JetBrains Mono', Consolas, monospace">char *recent[8]</text>
+<rect x="872" y="300" width="268" height="160" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="886" y="322" font-size="14" font-weight="700" fill="#334155">heap (strdup = malloc + copy)</text>
+<rect x="644" y="334" width="180" height="34" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/><text x="656" y="356" font-size="13" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">[0] 0x5f2...2a0</text>
+<rect x="886" y="337" width="26" height="28" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/><text x="899" y="356" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">T</text>
+<rect x="912" y="337" width="26" height="28" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/><text x="925" y="356" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">E</text>
+<rect x="938" y="337" width="26" height="28" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/><text x="951" y="356" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">A</text>
+<rect x="964" y="337" width="26" height="28" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/><text x="977" y="356" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">-</text>
+<rect x="990" y="337" width="26" height="28" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/><text x="1003" y="356" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">5</text>
+<rect x="1016" y="337" width="26" height="28" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/><text x="1029" y="356" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">0</text>
+<rect x="1042" y="337" width="26" height="28" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/><text x="1055" y="356" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">0</text>
+<rect x="1068" y="337" width="26" height="28" fill="#e2e8f0" stroke="#16a34a" stroke-width="1.5"/><text x="1081" y="356" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">\0</text>
+<path d="M824 351 L876 351" fill="none" stroke="#16a34a" stroke-width="2"/>
+<polygon points="876,345 876,357 886,351" fill="#16a34a"/>
+<rect x="644" y="376" width="180" height="34" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/><text x="656" y="398" font-size="13" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">[1] 0x5f2...2c0</text>
+<rect x="886" y="379" width="26" height="28" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/><text x="899" y="398" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">M</text>
+<rect x="912" y="379" width="26" height="28" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/><text x="925" y="398" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">U</text>
+<rect x="938" y="379" width="26" height="28" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/><text x="951" y="398" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">G</text>
+<rect x="964" y="379" width="26" height="28" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/><text x="977" y="398" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">-</text>
+<rect x="990" y="379" width="26" height="28" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/><text x="1003" y="398" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">0</text>
+<rect x="1016" y="379" width="26" height="28" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/><text x="1029" y="398" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">1</text>
+<rect x="1042" y="379" width="26" height="28" fill="#e2e8f0" stroke="#16a34a" stroke-width="1.5"/><text x="1055" y="398" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">\0</text>
+<path d="M824 393 L876 393" fill="none" stroke="#16a34a" stroke-width="2"/>
+<polygon points="876,387 876,399 886,393" fill="#16a34a"/>
+<rect x="644" y="418" width="180" height="34" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/><text x="656" y="440" font-size="13" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">[2] 0x5f2...2e0</text>
+<rect x="886" y="421" width="26" height="28" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/><text x="899" y="440" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">C</text>
+<rect x="912" y="421" width="26" height="28" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/><text x="925" y="440" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">A</text>
+<rect x="938" y="421" width="26" height="28" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/><text x="951" y="440" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">R</text>
+<rect x="964" y="421" width="26" height="28" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/><text x="977" y="440" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">D</text>
+<rect x="990" y="421" width="26" height="28" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/><text x="1003" y="440" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">-</text>
+<rect x="1016" y="421" width="26" height="28" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/><text x="1029" y="440" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">T</text>
+<rect x="1042" y="421" width="26" height="28" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/><text x="1055" y="440" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">E</text>
+<rect x="1068" y="421" width="26" height="28" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/><text x="1081" y="440" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">T</text>
+<rect x="1094" y="421" width="26" height="28" fill="#e2e8f0" stroke="#16a34a" stroke-width="1.5"/><text x="1107" y="440" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">\0</text>
+<path d="M824 435 L876 435" fill="none" stroke="#16a34a" stroke-width="2"/>
+<polygon points="876,429 876,441 886,435" fill="#16a34a"/>
+<text x="644" y="484" font-size="14" font-weight="700" fill="#15803d">printf shows TEA-500, MUG-01, CARD-TET</text>
+<text x="644" y="506" font-size="13" fill="#14532d">one owner per block: free(recent[i]) exactly once, then recent[i] = NULL</text>
+<text x="40" y="566" font-size="13" fill="#475569">Addresses are illustrative. The stack frame of main lives until main returns; a heap block lives until free() is called on it.</text>
+</svg>

@@ -1,0 +1,109 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_cf_211",
+      "name": "pointer-arithmetic-quiz",
+      "type": "quiz",
+      "title": "Where does the pointer point?",
+      "description": "Predict what pointer arithmetic, indexing and the one-past-the-end pointer really do before you write an in-place function.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "#include <stdio.h>\n\nint main(void) {\n    int a[5] = {10, 20, 30, 40, 50};\n    int *p = a + 1;\n    printf(\"%d %d %td\\n\", *(p + 2), p[-1], &a[4] - p);\n    return 0;\n}\n\nWhat does it print?",
+          "explanation": "p = a + 1 points at a[1] (20). *(p + 2) is the element two ints further: a[3] = 40. p[-1] means *(p - 1), which is a[0] = 10; a negative index is fine as long as the result stays inside the array. &a[4] - p subtracts two pointers into the same array and gives the distance in ELEMENTS, not bytes: 4 - 1 = 3, of type ptrdiff_t, printed with %td. Output: 40 10 3.",
+          "options": [
+            { "text": "40 10 3", "correct": true },
+            { "text": "30 20 3", "correct": false },
+            { "text": "40 10 12", "correct": false },
+            { "text": "It does not compile: an index cannot be negative.", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "int a[4] = {1, 2, 3, 4};\nint *end = a + 4;\n\nvoid f(int a[4]);   /* defined elsewhere */\n\nWhich statements are true on x86-64 Linux with gcc? (Select all that apply.)",
+          "explanation": "a + 4 is the one-past-the-end pointer: forming it and comparing with it (end != a) is valid C, and end - a is 4 elements of type ptrdiff_t. Reading *end is undefined behaviour, because there is no element there; ASan reports it as a stack-buffer-overflow. Inside f, the parameter int a[4] is adjusted to int *a, so sizeof a is the size of a pointer (8 here), not 16; gcc even warns with -Wsizeof-array-argument. const int *q = a; makes the ints read-only through q, but q itself can still move, so q++ compiles. a + 5 is not even allowed to be computed: only pointers into the array and one past its end are valid.",
+          "options": [
+            { "text": "end - a is 4, and its type is ptrdiff_t.", "correct": true },
+            { "text": "Reading *end is fine; it just gives an unspecified number.", "correct": false },
+            { "text": "Inside f, sizeof a is 8, not 16.", "correct": true },
+            { "text": "With const int *q = a; the statement q++; is a compile error.", "correct": false },
+            { "text": "Computing a + 5 (without reading it) is valid, like a + 4.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_cf_212",
+      "name": "compact-scans-in-place",
+      "type": "mini_coding",
+      "title": "Write compact_scans(first, last, max_kept)",
+      "description": "Scanner SCN-07 logs weight readings; a reading <= 0 is a misread. Write size_t compact_scans(int *first, int *last, int *max_kept) that removes the misreads from the half-open range [first, last) in place with a read pointer and a write pointer, keeps the good readings in their original order at the front, returns how many were kept, and stores the largest kept reading in *max_kept (only when at least one was kept). The test runner prints the count, the kept readings, max and whether you wrote outside the range.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "c",
+        "filePath": "compact_scans.c",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Mixed readings: misreads removed, order kept",
+          "input": "8\n5 0 7 -3 9 0 2 -1\n",
+          "expected": "count=4\nkept=5 7 9 2\nmax=9\nguard=ok",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "No misreads: everything is kept",
+          "input": "3\n4 8 1\n",
+          "expected": "count=3\nkept=4 8 1\nmax=8\nguard=ok",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "All misreads: count 0 and max not written",
+          "input": "4\n0 -5 0 -1\n",
+          "expected": "count=0\nkept=\nmax=none\nguard=ok",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "One reading",
+          "input": "1\n42\n",
+          "expected": "count=1\nkept=42\nmax=42\nguard=ok",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Empty range (first == last)",
+          "input": "0\n",
+          "expected": "count=0\nkept=\nmax=none\nguard=ok",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "INT_MIN is removed, INT_MAX is kept",
+          "input": "4\n-2147483648 2147483647 0 1\n",
+          "expected": "count=2\nkept=2147483647 1\nmax=2147483647\nguard=ok",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Misreads at both ends, equal readings in the middle",
+          "input": "6\n0 -2 6 6 3 0\n",
+          "expected": "count=3\nkept=6 6 3\nmax=6\nguard=ok",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

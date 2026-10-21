@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_cf_222",
+      "key": "challenges/c/chal_fix_cf_222/starter.c",
+      "contentType": "text/x-c; charset=utf-8",
+      "originalName": "label_copy.c",
+      "size": 2750
+    }
+  ]
+}

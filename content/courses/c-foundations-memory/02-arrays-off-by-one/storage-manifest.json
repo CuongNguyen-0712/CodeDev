@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_cf_121",
+      "key": "challenges/c/chal_fix_cf_121/starter.c",
+      "contentType": "text/x-c; charset=utf-8",
+      "originalName": "best_window.c",
+      "size": 2657
+    }
+  ]
+}

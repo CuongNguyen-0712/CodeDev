@@ -1,0 +1,52 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_cf_421",
+      "name": "c23-essentials-quiz",
+      "type": "quiz",
+      "title": "bool, constexpr, nullptr and typeof: what does C23 really do?",
+      "description": "Predict what the C23 replacements for old header idioms do before you modernize a legacy header.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 3,
+          "question": "#include <stdio.h>\n\ntypedef unsigned char BOOL;\n\nint main(void)\n{\n    unsigned flags = 0x300;          /* bit 9 = COLD, bit 8 = FRAGILE */\n    BOOL a = flags & 0x200;\n    bool b = flags & 0x200;\n    int  c = flags & 0x200;\n    printf(\"%d %d %d\\n\", a, b, c);\n    return 0;\n}\n\nCompiled with gcc -std=c23 on x86-64 Linux, what does it print?",
+          "explanation": "flags & 0x200 is the unsigned value 512. Converting it to unsigned char keeps the value modulo 256, and 512 mod 256 is 0, so the COLD flag silently disappears from a. Converting any scalar to bool gives true (1) when the value is not zero, so b is 1. An int can hold 512, so c keeps the full value. gcc prints no warning for the BOOL line with -Wall -Wextra; only -Wconversion reports \"may change value\".",
+          "options": [
+            { "text": "0 1 512", "correct": true },
+            { "text": "1 1 512", "correct": false },
+            { "text": "0 512 512", "correct": false },
+            { "text": "1 1 1", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 4,
+          "question": "#include <stddef.h>\n\n#define N_OLD 32 + 1\nconstexpr int N = 32 + 1;\n\n[[gnu::sentinel]] void print_skus(const char *first, ...);   /* list ends with a null pointer */\n\nWhich statements are true for gcc 15 with -std=c23 on x86-64 Linux? (Select all that apply.)",
+          "explanation": "N is a real int object with the value 33, so N * 2 is 66 and a file-scope array of that size is allowed; N_OLD is pasted as text, so N_OLD * 2 becomes 32 + 1 * 2 = 34. A constexpr initializer must be representable in the object's type: 0x100 does not fit in unsigned char, so gcc stops with \"'constexpr' initializer not representable in type of object\" instead of truncating. The literal 0 is an int (4 bytes here), not a pointer; in the ... part of a variadic call it is passed as an int while print_skus reads a const char * (8 bytes), which is undefined behaviour, and gcc warns \"missing sentinel in function call\". nullptr always has the type nullptr_t, so the _Generic selects 1.",
+          "options": [
+            { "text": "static char buf[N * 2]; at file scope compiles, and sizeof buf is 66.", "correct": true },
+            { "text": "sizeof(char[N_OLD * 2]) is 66.", "correct": false },
+            { "text": "constexpr unsigned char MASK = 0x100; compiles and MASK is 0.", "correct": false },
+            { "text": "print_skus(\"TEA-500\", \"MUG-01\", 0); is a correct way to end the list.", "correct": false },
+            { "text": "_Generic(nullptr, nullptr_t: 1, default: 0) is 1.", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 3,
+          "question": "#include <stdio.h>\n\nint main(void)\n{\n    const int limit = 33;\n    typeof_unqual(limit) a = limit;\n    typeof(limit) b = limit;\n    a += 1;      /* line A */\n    b += 1;      /* line B */\n    printf(\"%d %d\\n\", a, b);\n    return 0;\n}\n\nWhat happens with gcc -std=c23?",
+          "explanation": "typeof(limit) is exactly the type of limit, including the qualifier: const int. typeof_unqual removes qualifiers such as const and volatile, so a is a plain int. Line A is fine; line B assigns to a const object, and gcc stops with \"assignment of read-only variable 'b'\". Nothing is printed because the program never compiles.",
+          "options": [
+            { "text": "It prints 34 34.", "correct": false },
+            { "text": "It prints 34 33: line B is ignored at run time.", "correct": false },
+            { "text": "It does not compile: line B assigns to a const int.", "correct": true },
+            { "text": "It does not compile: line A assigns to a const int.", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

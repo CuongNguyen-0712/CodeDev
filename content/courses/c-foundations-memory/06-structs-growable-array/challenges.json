@@ -1,0 +1,73 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_cf_321",
+      "name": "scan-vec-push",
+      "type": "mini_coding",
+      "title": "Write vec_push and vec_free for the scan log",
+      "description": "The nightly scanlog tool loads every scan of the night into a growable array: struct scan_vec { struct scan *data; size_t len; size_t cap; }, which starts empty. The Tết quick fix grew the block by one record per push and assigned the result of realloc straight to data. Write vec_push so that the first allocation holds 4 records and the capacity doubles whenever the array is full, using the runner's xrealloc. When xrealloc fails, vec_push must return false and leave data, len, cap and every stored record exactly as they were. Write vec_free so it releases the block with xfree and resets the vector to {nullptr, 0, 0}. The runner prints len and cap after each push, stops at the first failed push, prints the total quantity per SKU, and counts xrealloc calls and live blocks.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "c",
+        "filePath": "scan_vec.c",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Five pushes: capacity grows 0 -> 4 -> 8 with 2 xrealloc calls",
+          "input": "TEA-500 2\nMUG-01 1\nTEA-500 3\nRICE-5KG 10\nMUG-01 4\n",
+          "expected": "push TEA-500 ok len=1 cap=4\npush MUG-01 ok len=2 cap=4\npush TEA-500 ok len=3 cap=4\npush RICE-5KG ok len=4 cap=4\npush MUG-01 ok len=5 cap=8\nTEA-500 total=5\nMUG-01 total=5\nRICE-5KG total=10\nxrealloc calls=2\nafter free: len=0 cap=0 live_blocks=0",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Exactly four pushes fill the first block without growing",
+          "input": "TEA-500 2\nMUG-01 1\nTEA-500 3\nRICE-5KG 10\n",
+          "expected": "push TEA-500 ok len=1 cap=4\npush MUG-01 ok len=2 cap=4\npush TEA-500 ok len=3 cap=4\npush RICE-5KG ok len=4 cap=4\nTEA-500 total=5\nMUG-01 total=1\nRICE-5KG total=10\nxrealloc calls=1\nafter free: len=0 cap=0 live_blocks=0",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "No records: nothing is allocated and vec_free is safe",
+          "input": "",
+          "expected": "no records\nxrealloc calls=0\nafter free: len=0 cap=0 live_blocks=0",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Tet night: 1300 scans need only 10 xrealloc calls (cap 2048)",
+          "input": "bulk 1300 RICE-5KG\n",
+          "expected": "bulk RICE-5KG pushed=1300 len=1300 cap=2048\nRICE-5KG total=1300\nxrealloc calls=10\nafter free: len=0 cap=0 live_blocks=0",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The 3rd xrealloc fails: push returns false, the 8 records and cap stay intact",
+          "input": "fail_at=3\nTEA-500 2\nMUG-01 1\nTEA-500 3\nRICE-5KG 10\nMUG-01 4\nCOFFEE-1 1\nTEA-500 1\nMUG-01 2\nSOAP-3 5\nRICE-5KG 1\n",
+          "expected": "push TEA-500 ok len=1 cap=4\npush MUG-01 ok len=2 cap=4\npush TEA-500 ok len=3 cap=4\npush RICE-5KG ok len=4 cap=4\npush MUG-01 ok len=5 cap=8\npush COFFEE-1 ok len=6 cap=8\npush TEA-500 ok len=7 cap=8\npush MUG-01 ok len=8 cap=8\npush SOAP-3 failed len=8 cap=8 data=kept\nstop: out of memory\nTEA-500 total=6\nMUG-01 total=7\nRICE-5KG total=10\nCOFFEE-1 total=1\nxrealloc calls=3\nafter free: len=0 cap=0 live_blocks=0",
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "The very first allocation fails: vector stays empty, nothing leaks",
+          "input": "fail_at=1\nTEA-500 2\nMUG-01 1\n",
+          "expected": "push TEA-500 failed len=0 cap=0 data=kept\nstop: out of memory\nno records\nxrealloc calls=1\nafter free: len=0 cap=0 live_blocks=0",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Growing from 256 to 512 fails in the middle of a bulk load",
+          "input": "fail_at=8\nTEA-500 2\nbulk 1300 RICE-5KG\nMUG-01 1\n",
+          "expected": "push TEA-500 ok len=1 cap=4\npush RICE-5KG failed len=256 cap=256 data=kept\nbulk RICE-5KG pushed=255 len=256 cap=256\nstop: out of memory\nTEA-500 total=2\nRICE-5KG total=255\nxrealloc calls=8\nafter free: len=0 cap=0 live_blocks=0",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

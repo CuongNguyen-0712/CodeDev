@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#b91c1c"/>
+    </marker>
+    <marker id="arrow-grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Same 4 bytes, different rules at the edge</text>
+  <text x="40" y="82" font-size="16" fill="#475569">unsigned int and int are both 4 bytes on x86-64 Linux. Past the last value, one wraps by definition, the other is undefined behaviour.</text>
+
+  <!-- Panel A: unsigned wrap -->
+  <rect x="40" y="108" width="360" height="308" rx="10" fill="#fef2f2" stroke="#fecaca" stroke-width="2"/>
+  <text x="64" y="140" font-size="18" font-weight="700" fill="#b91c1c">unsigned int stock</text>
+  <text x="64" y="162" font-size="13" fill="#7f1d1d">defined behaviour, but wrong for a count</text>
+  <text x="64" y="192" font-size="14" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">stock = stock - 1;</text>
+  <text x="64" y="214" font-size="13" fill="#334155">before: 0</text>
+  <g font-family="'JetBrains Mono', Consolas, monospace" font-size="15" fill="#334155" text-anchor="middle">
+    <rect x="64" y="224" width="60" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+    <rect x="130" y="224" width="60" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+    <rect x="196" y="224" width="60" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+    <rect x="262" y="224" width="60" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+    <text x="94" y="247">00</text><text x="160" y="247">00</text><text x="226" y="247">00</text><text x="292" y="247">00</text>
+  </g>
+  <g font-family="'JetBrains Mono', Consolas, monospace" font-size="11" fill="#64748b" text-anchor="middle">
+    <text x="94" y="276">+0</text><text x="160" y="276">+1</text><text x="226" y="276">+2</text><text x="292" y="276">+3</text>
+  </g>
+  <text x="332" y="276" font-size="11" fill="#64748b">byte</text>
+  <line x1="192" y1="284" x2="192" y2="308" stroke="#b91c1c" stroke-width="2" marker-end="url(#arrow-red)"/>
+  <text x="204" y="301" font-size="13" font-weight="700" fill="#b91c1c">- 1, wraps mod 2^32</text>
+  <text x="64" y="328" font-size="13" fill="#334155">after: 4294967295</text>
+  <g font-family="'JetBrains Mono', Consolas, monospace" font-size="15" fill="#b91c1c" text-anchor="middle">
+    <rect x="64" y="338" width="60" height="36" rx="4" fill="#fee2e2" stroke="#dc2626" stroke-width="1.5"/>
+    <rect x="130" y="338" width="60" height="36" rx="4" fill="#fee2e2" stroke="#dc2626" stroke-width="1.5"/>
+    <rect x="196" y="338" width="60" height="36" rx="4" fill="#fee2e2" stroke="#dc2626" stroke-width="1.5"/>
+    <rect x="262" y="338" width="60" height="36" rx="4" fill="#fee2e2" stroke="#dc2626" stroke-width="1.5"/>
+    <text x="94" y="361">FF</text><text x="160" y="361">FF</text><text x="226" y="361">FF</text><text x="292" y="361">FF</text>
+  </g>
+  <text x="64" y="400" font-size="14" font-weight="700" fill="#b91c1c">the report shows 4294967295 boxes</text>
+
+  <!-- Panel B: signed overflow -->
+  <rect x="420" y="108" width="360" height="308" rx="10" fill="#fef2f2" stroke="#fecaca" stroke-width="2"/>
+  <text x="444" y="140" font-size="18" font-weight="700" fill="#b91c1c">int spent</text>
+  <text x="444" y="162" font-size="13" fill="#7f1d1d">signed overflow: undefined behaviour (UB)</text>
+  <text x="444" y="192" font-size="14" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">spent = spent + 1;</text>
+  <text x="444" y="214" font-size="13" fill="#334155">before: INT_MAX = 2147483647 (lowest byte first)</text>
+  <g font-family="'JetBrains Mono', Consolas, monospace" font-size="15" fill="#334155" text-anchor="middle">
+    <rect x="444" y="224" width="60" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+    <rect x="510" y="224" width="60" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+    <rect x="576" y="224" width="60" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+    <rect x="642" y="224" width="60" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+    <text x="474" y="247">FF</text><text x="540" y="247">FF</text><text x="606" y="247">FF</text><text x="672" y="247">7F</text>
+  </g>
+  <g font-family="'JetBrains Mono', Consolas, monospace" font-size="11" fill="#64748b" text-anchor="middle">
+    <text x="474" y="276">+0</text><text x="540" y="276">+1</text><text x="606" y="276">+2</text><text x="672" y="276">+3</text>
+  </g>
+  <text x="712" y="276" font-size="11" fill="#64748b">byte</text>
+  <line x1="572" y1="284" x2="572" y2="308" stroke="#b91c1c" stroke-width="2" marker-end="url(#arrow-red)"/>
+  <text x="584" y="301" font-size="13" font-weight="700" fill="#b91c1c">+ 1, does not fit</text>
+  <text x="444" y="328" font-size="13" fill="#334155">after: the standard promises no value at all</text>
+  <g font-family="'JetBrains Mono', Consolas, monospace" font-size="15" fill="#64748b" text-anchor="middle">
+    <rect x="444" y="338" width="60" height="36" rx="4" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <rect x="510" y="338" width="60" height="36" rx="4" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <rect x="576" y="338" width="60" height="36" rx="4" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <rect x="642" y="338" width="60" height="36" rx="4" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="474" y="361">??</text><text x="540" y="361">??</text><text x="606" y="361">??</text><text x="672" y="361">??</text>
+  </g>
+  <text x="444" y="400" font-size="14" font-weight="700" fill="#b91c1c">UBSan: signed integer overflow</text>
+
+  <!-- Panel C: checked arithmetic -->
+  <rect x="800" y="108" width="360" height="308" rx="10" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="2"/>
+  <text x="824" y="140" font-size="18" font-weight="700" fill="#15803d">ckd_add, ckd_sub, ckd_mul</text>
+  <text x="824" y="162" font-size="13" fill="#14532d">&lt;stdckdint.h&gt; (C23): check first, then use</text>
+  <text x="824" y="192" font-size="14" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">if (ckd_add(&amp;r, a, b))</text>
+  <text x="824" y="214" font-size="13" fill="#334155">true = the exact result does not fit in r</text>
+  <text x="824" y="244" font-size="13" fill="#334155">or a wider type: long long, 8 bytes</text>
+  <g font-family="'JetBrains Mono', Consolas, monospace" font-size="13" fill="#15803d" text-anchor="middle">
+    <rect x="824" y="254" width="34" height="36" rx="4" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/>
+    <rect x="862" y="254" width="34" height="36" rx="4" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/>
+    <rect x="900" y="254" width="34" height="36" rx="4" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/>
+    <rect x="938" y="254" width="34" height="36" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+    <rect x="976" y="254" width="34" height="36" rx="4" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/>
+    <rect x="1014" y="254" width="34" height="36" rx="4" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/>
+    <rect x="1052" y="254" width="34" height="36" rx="4" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/>
+    <rect x="1090" y="254" width="34" height="36" rx="4" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/>
+    <text x="841" y="277">00</text><text x="879" y="277">00</text><text x="917" y="277">00</text><text x="955" y="277">80</text>
+    <text x="993" y="277">00</text><text x="1031" y="277">00</text><text x="1069" y="277">00</text><text x="1107" y="277">00</text>
+  </g>
+  <g font-family="'JetBrains Mono', Consolas, monospace" font-size="11" fill="#64748b" text-anchor="middle">
+    <text x="841" y="306">+0</text><text x="955" y="306">+3</text><text x="1107" y="306">+7</text>
+  </g>
+  <text x="824" y="332" font-size="13" fill="#334155">2147483648 fits easily in 64 bits</text>
+  <text x="824" y="366" font-size="14" font-weight="700" fill="#15803d">overflow is reported, never wrapped</text>
+  <text x="824" y="400" font-size="13" fill="#14532d">no UB, and the bad total never reaches the report</text>
+
+  <!-- Bottom: one bit pattern, two readings -->
+  <rect x="40" y="436" width="1120" height="140" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="466" font-size="16" font-weight="700" fill="#334155">One bit pattern, two readings</text>
+  <g font-family="'JetBrains Mono', Consolas, monospace" font-size="15" fill="#334155" text-anchor="middle">
+    <rect x="64" y="486" width="60" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+    <rect x="130" y="486" width="60" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+    <rect x="196" y="486" width="60" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+    <rect x="262" y="486" width="60" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+    <text x="94" y="509">FF</text><text x="160" y="509">FF</text><text x="226" y="509">FF</text><text x="292" y="509">FF</text>
+  </g>
+  <path d="M330 496 L370 482" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#arrow-grey)"/>
+  <path d="M330 512 L370 526" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#arrow-grey)"/>
+  <text x="384" y="486" font-size="14" fill="#334155">read as <tspan font-weight="700">unsigned int</tspan> (%u): 4294967295</text>
+  <text x="384" y="532" font-size="14" fill="#334155">read as <tspan font-weight="700">int</tspan> (%d): -1</text>
+  <text x="740" y="486" font-size="13" fill="#334155">The bytes do not know their type: the type decides.</text>
+  <text x="740" y="508" font-size="13" fill="#334155">C23 requires two's complement for signed integers,</text>
+  <text x="740" y="530" font-size="13" fill="#334155">so -1 has all 32 bits set.</text>
+  <text x="64" y="560" font-size="12" fill="#64748b">Sizes are for x86-64 Linux (LP64). The standard only promises minimums: int at least 16 bits, long at least 32, long long at least 64.</text>
+</svg>

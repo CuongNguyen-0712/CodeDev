@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+<defs><marker id="arr" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#15803d"/></marker></defs>
+<rect width="1200" height="600" fill="#ffffff"/>
+<text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">A struct is bytes in a fixed layout; a growable array is a header plus a heap block</text>
+<text x="40" y="82" font-size="16" fill="#475569">struct scan on x86-64 Linux (gcc 15): sizeof 24, alignof 8. struct scan_vec holds data, len and cap; the records live on the heap.</text>
+<rect x="40" y="104" width="1120" height="200" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+<text x="64" y="134" font-size="17" font-weight="700" fill="#334155">struct scan { char sku[9]; int32_t qty; int64_t ts; }</text>
+<rect x="64" y="190" width="39" height="46" rx="4" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="83.5" y="219" font-size="14" text-anchor="middle" fill="#1d4ed8" font-family="'JetBrains Mono', Consolas, monospace">T</text>
+<rect x="107" y="190" width="39" height="46" rx="4" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="126.5" y="219" font-size="14" text-anchor="middle" fill="#1d4ed8" font-family="'JetBrains Mono', Consolas, monospace">E</text>
+<rect x="150" y="190" width="39" height="46" rx="4" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="169.5" y="219" font-size="14" text-anchor="middle" fill="#1d4ed8" font-family="'JetBrains Mono', Consolas, monospace">A</text>
+<rect x="193" y="190" width="39" height="46" rx="4" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="212.5" y="219" font-size="14" text-anchor="middle" fill="#1d4ed8" font-family="'JetBrains Mono', Consolas, monospace">-</text>
+<rect x="236" y="190" width="39" height="46" rx="4" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="255.5" y="219" font-size="14" text-anchor="middle" fill="#1d4ed8" font-family="'JetBrains Mono', Consolas, monospace">5</text>
+<rect x="279" y="190" width="39" height="46" rx="4" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="298.5" y="219" font-size="14" text-anchor="middle" fill="#1d4ed8" font-family="'JetBrains Mono', Consolas, monospace">0</text>
+<rect x="322" y="190" width="39" height="46" rx="4" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="341.5" y="219" font-size="14" text-anchor="middle" fill="#1d4ed8" font-family="'JetBrains Mono', Consolas, monospace">0</text>
+<rect x="365" y="190" width="39" height="46" rx="4" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="384.5" y="219" font-size="14" text-anchor="middle" fill="#1d4ed8" font-family="'JetBrains Mono', Consolas, monospace">\0</text>
+<rect x="408" y="190" width="39" height="46" rx="4" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="427.5" y="219" font-size="14" text-anchor="middle" fill="#1d4ed8" font-family="'JetBrains Mono', Consolas, monospace">\0</text>
+<text x="255.5" y="176" font-size="14" font-weight="700" text-anchor="middle" fill="#1d4ed8">sku[9]  offset 0</text>
+<rect x="451" y="190" width="39" height="46" rx="4" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="470.5" y="219" font-size="14" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">?</text>
+<rect x="494" y="190" width="39" height="46" rx="4" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="513.5" y="219" font-size="14" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">?</text>
+<rect x="537" y="190" width="39" height="46" rx="4" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="556.5" y="219" font-size="14" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">?</text>
+<text x="513.5" y="176" font-size="14" font-weight="700" text-anchor="middle" fill="#64748b">3 padding bytes</text>
+<rect x="580" y="190" width="39" height="46" rx="4" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+<rect x="623" y="190" width="39" height="46" rx="4" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+<rect x="666" y="190" width="39" height="46" rx="4" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+<rect x="709" y="190" width="39" height="46" rx="4" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+<text x="664" y="176" font-size="14" font-weight="700" text-anchor="middle" fill="#b45309">qty  offset 12</text>
+<rect x="752" y="190" width="39" height="46" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+<rect x="795" y="190" width="39" height="46" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+<rect x="838" y="190" width="39" height="46" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+<rect x="881" y="190" width="39" height="46" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+<rect x="924" y="190" width="39" height="46" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+<rect x="967" y="190" width="39" height="46" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+<rect x="1010" y="190" width="39" height="46" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+<rect x="1053" y="190" width="39" height="46" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+<text x="922" y="176" font-size="14" font-weight="700" text-anchor="middle" fill="#15803d">ts  offset 16</text>
+<text x="664" y="258" font-size="14" text-anchor="middle" fill="#b45309" font-family="'JetBrains Mono', Consolas, monospace">qty = 2</text>
+<text x="922" y="258" font-size="14" text-anchor="middle" fill="#15803d" font-family="'JetBrains Mono', Consolas, monospace">ts = 1790000000</text>
+<text x="62" y="256" font-size="13" text-anchor="middle" fill="#475569" font-family="'JetBrains Mono', Consolas, monospace">0</text>
+<text x="449" y="256" font-size="13" text-anchor="middle" fill="#475569" font-family="'JetBrains Mono', Consolas, monospace">9</text>
+<text x="578" y="256" font-size="13" text-anchor="middle" fill="#475569" font-family="'JetBrains Mono', Consolas, monospace">12</text>
+<text x="750" y="256" font-size="13" text-anchor="middle" fill="#475569" font-family="'JetBrains Mono', Consolas, monospace">16</text>
+<text x="1094" y="256" font-size="13" text-anchor="middle" fill="#475569" font-family="'JetBrains Mono', Consolas, monospace">24</text>
+<text x="64" y="290" font-size="14" fill="#334155">qty must start at a multiple of 4 and ts at a multiple of 8, so the compiler inserts padding. Order sku, ts, qty instead and sizeof becomes 32.</text>
+<rect x="40" y="324" width="700" height="248" rx="10" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="2"/>
+<text x="64" y="354" font-size="17" font-weight="700" fill="#15803d">struct scan_vec v  (after 5 pushes)</text>
+<text x="64" y="384" font-size="13" font-weight="700" fill="#475569">STACK: the header, 24 bytes</text>
+<rect x="64" y="398" width="230" height="40" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+<text x="80" y="424" font-size="14" font-weight="700" fill="#334155">data</text>
+<text x="140" y="424" font-size="14" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">0x5d1c...2a0</text>
+<rect x="64" y="448" width="230" height="40" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+<text x="80" y="474" font-size="14" font-weight="700" fill="#334155">len</text>
+<text x="140" y="474" font-size="14" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">5</text>
+<rect x="64" y="498" width="230" height="40" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+<text x="80" y="524" font-size="14" font-weight="700" fill="#334155">cap</text>
+<text x="140" y="524" font-size="14" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">8</text>
+<text x="370" y="384" font-size="13" font-weight="700" fill="#475569">HEAP: one block of cap = 8 records (192 bytes)</text>
+<rect x="370" y="420" width="38" height="50" rx="4" fill="#bbf7d0" stroke="#16a34a" stroke-width="1.5"/>
+<text x="389" y="451" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">0</text>
+<rect x="412" y="420" width="38" height="50" rx="4" fill="#bbf7d0" stroke="#16a34a" stroke-width="1.5"/>
+<text x="431" y="451" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">1</text>
+<rect x="454" y="420" width="38" height="50" rx="4" fill="#bbf7d0" stroke="#16a34a" stroke-width="1.5"/>
+<text x="473" y="451" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">2</text>
+<rect x="496" y="420" width="38" height="50" rx="4" fill="#bbf7d0" stroke="#16a34a" stroke-width="1.5"/>
+<text x="515" y="451" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">3</text>
+<rect x="538" y="420" width="38" height="50" rx="4" fill="#bbf7d0" stroke="#16a34a" stroke-width="1.5"/>
+<text x="557" y="451" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">4</text>
+<rect x="580" y="420" width="38" height="50" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="599" y="451" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">5</text>
+<rect x="622" y="420" width="38" height="50" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="641" y="451" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">6</text>
+<rect x="664" y="420" width="38" height="50" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="683" y="451" font-size="13" text-anchor="middle" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">7</text>
+<path d="M296 418 C 330 418, 330 445, 364 445" fill="none" stroke="#15803d" stroke-width="2" marker-end="url(#arr)"/>
+<text x="370" y="494" font-size="13" fill="#15803d">data[0] .. data[4]: in use (len = 5)</text>
+<text x="370" y="514" font-size="13" fill="#64748b">data[5] .. data[7]: room for 3 more pushes</text>
+<text x="64" y="560" font-size="13" fill="#334155">Full (len == cap)? tmp = realloc(data, 2 * cap * sizeof *data); keep data if tmp is a null pointer.</text>
+<rect x="760" y="324" width="400" height="248" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+<text x="784" y="354" font-size="17" font-weight="700" fill="#334155">1300 pushes (Tết night)</text>
+<rect x="784" y="372" width="352" height="84" rx="8" fill="#fef2f2" stroke="#fecaca" stroke-width="2"/>
+<text x="800" y="398" font-size="15" font-weight="700" fill="#b91c1c">grow by +1</text>
+<text x="800" y="420" font-size="13" fill="#334155">1300 realloc calls</text>
+<text x="800" y="442" font-size="13" fill="#334155">up to 844,350 record copies (20 MB)</text>
+<rect x="784" y="470" width="352" height="84" rx="8" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="2"/>
+<text x="800" y="496" font-size="15" font-weight="700" fill="#15803d">double: 4, 8, 16 ... 2048</text>
+<text x="800" y="518" font-size="13" fill="#334155">10 realloc calls</text>
+<text x="800" y="540" font-size="13" fill="#334155">at most 2,044 record copies (49 KB)</text>
+</svg>

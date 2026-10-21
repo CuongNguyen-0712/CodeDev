@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_cf_411",
+      "key": "challenges/c/chal_coding_cf_411/starter.c",
+      "contentType": "text/x-c; charset=utf-8",
+      "originalName": "parse_qty.c",
+      "size": 3382
+    }
+  ]
+}

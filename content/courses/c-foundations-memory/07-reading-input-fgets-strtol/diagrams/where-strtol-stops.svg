@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Where strtol stops: end points at the first byte it did not use</text>
+  <text x="40" y="82" font-size="16" fill="#475569">char line[8] after fgets; then strtol(line, &amp;end, 10). It skips leading whitespace, reads an optional sign and the digits, and stops.</text>
+
+  <rect x="40" y="100" width="1120" height="140" rx="10" fill="#fef2f2" stroke="#fecaca" stroke-width="2"/>
+  <text x="72" y="128" xml:space="preserve" font-size="16" font-weight="700" fill="#b91c1c" font-family="'JetBrains Mono', Consolas, monospace">"12a" after the newline was stripped</text>
+  <text x="102" y="150" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[0]</text>
+  <rect x="72" y="156" width="60" height="44" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="102" y="184" font-size="17" font-weight="400" text-anchor="middle" fill="#0f172a" font-family="'JetBrains Mono', Consolas, monospace">1</text>
+  <text x="162" y="150" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[1]</text>
+  <rect x="132" y="156" width="60" height="44" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="162" y="184" font-size="17" font-weight="400" text-anchor="middle" fill="#0f172a" font-family="'JetBrains Mono', Consolas, monospace">2</text>
+  <text x="222" y="150" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[2]</text>
+  <rect x="192" y="156" width="60" height="44" fill="#ffffff" stroke="#b91c1c" stroke-width="3"/>
+  <text x="222" y="184" font-size="17" font-weight="400" text-anchor="middle" fill="#0f172a" font-family="'JetBrains Mono', Consolas, monospace">a</text>
+  <text x="282" y="150" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[3]</text>
+  <rect x="252" y="156" width="60" height="44" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="282" y="184" font-size="17" font-weight="700" text-anchor="middle" fill="#0f172a" font-family="'JetBrains Mono', Consolas, monospace">\0</text>
+  <text x="342" y="150" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[4]</text>
+  <rect x="312" y="156" width="60" height="44" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="342" y="184" font-size="17" font-weight="700" text-anchor="middle" fill="#0f172a" font-family="'JetBrains Mono', Consolas, monospace">\0</text>
+  <text x="402" y="150" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[5]</text>
+  <rect x="372" y="156" width="60" height="44" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="402" y="184" font-size="17" font-weight="400" text-anchor="middle" fill="#94a3b8" font-family="'JetBrains Mono', Consolas, monospace">?</text>
+  <text x="462" y="150" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[6]</text>
+  <rect x="432" y="156" width="60" height="44" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="462" y="184" font-size="17" font-weight="400" text-anchor="middle" fill="#94a3b8" font-family="'JetBrains Mono', Consolas, monospace">?</text>
+  <text x="522" y="150" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[7]</text>
+  <rect x="492" y="156" width="60" height="44" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="522" y="184" font-size="17" font-weight="400" text-anchor="middle" fill="#94a3b8" font-family="'JetBrains Mono', Consolas, monospace">?</text>
+  <text x="282" y="233" font-size="12" text-anchor="middle" fill="#64748b">was \n</text>
+  <line x1="102" y1="220" x2="102" y2="210" stroke="#475569" stroke-width="2"/>
+  <polygon points="96,212 108,212 102,202" fill="#475569"/>
+  <text x="102" y="234" font-size="13" font-weight="700" text-anchor="middle" fill="#475569" font-family="'JetBrains Mono', Consolas, monospace">line</text>
+  <line x1="222" y1="220" x2="222" y2="210" stroke="#b91c1c" stroke-width="2"/>
+  <polygon points="216,212 228,212 222,202" fill="#b91c1c"/>
+  <text x="222" y="234" font-size="13" font-weight="700" text-anchor="middle" fill="#b91c1c" font-family="'JetBrains Mono', Consolas, monospace">end</text>
+  <text x="640" y="164" font-size="14" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">v = 12, errno = 0, end - line = 2</text>
+  <text x="640" y="190" font-size="14" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">*end is 'a': not whitespace, not '\0'</text>
+  <text x="640" y="222" font-size="16" font-weight="700" fill="#b91c1c">reject: trailing characters</text>
+
+  <rect x="40" y="252" width="1120" height="140" rx="10" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="2"/>
+  <text x="72" y="280" xml:space="preserve" font-size="16" font-weight="700" fill="#15803d" font-family="'JetBrains Mono', Consolas, monospace">"  42\n" straight from fgets (not stripped)</text>
+  <text x="102" y="302" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[0]</text>
+  <rect x="72" y="308" width="60" height="44" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="102" y="336" font-size="13" font-weight="400" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">sp</text>
+  <text x="162" y="302" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[1]</text>
+  <rect x="132" y="308" width="60" height="44" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="162" y="336" font-size="13" font-weight="400" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">sp</text>
+  <text x="222" y="302" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[2]</text>
+  <rect x="192" y="308" width="60" height="44" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="222" y="336" font-size="17" font-weight="400" text-anchor="middle" fill="#0f172a" font-family="'JetBrains Mono', Consolas, monospace">4</text>
+  <text x="282" y="302" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[3]</text>
+  <rect x="252" y="308" width="60" height="44" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="282" y="336" font-size="17" font-weight="400" text-anchor="middle" fill="#0f172a" font-family="'JetBrains Mono', Consolas, monospace">2</text>
+  <text x="342" y="302" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[4]</text>
+  <rect x="312" y="308" width="60" height="44" fill="#fef9c3" stroke="#15803d" stroke-width="3"/>
+  <text x="342" y="336" font-size="17" font-weight="700" text-anchor="middle" fill="#0f172a" font-family="'JetBrains Mono', Consolas, monospace">\n</text>
+  <text x="402" y="302" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[5]</text>
+  <rect x="372" y="308" width="60" height="44" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="402" y="336" font-size="17" font-weight="700" text-anchor="middle" fill="#0f172a" font-family="'JetBrains Mono', Consolas, monospace">\0</text>
+  <text x="462" y="302" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[6]</text>
+  <rect x="432" y="308" width="60" height="44" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="462" y="336" font-size="17" font-weight="400" text-anchor="middle" fill="#94a3b8" font-family="'JetBrains Mono', Consolas, monospace">?</text>
+  <text x="522" y="302" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[7]</text>
+  <rect x="492" y="308" width="60" height="44" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="522" y="336" font-size="17" font-weight="400" text-anchor="middle" fill="#94a3b8" font-family="'JetBrains Mono', Consolas, monospace">?</text>
+  <line x1="102" y1="372" x2="102" y2="362" stroke="#475569" stroke-width="2"/>
+  <polygon points="96,364 108,364 102,354" fill="#475569"/>
+  <text x="102" y="386" font-size="13" font-weight="700" text-anchor="middle" fill="#475569" font-family="'JetBrains Mono', Consolas, monospace">line</text>
+  <line x1="342" y1="372" x2="342" y2="362" stroke="#15803d" stroke-width="2"/>
+  <polygon points="336,364 348,364 342,354" fill="#15803d"/>
+  <text x="342" y="386" font-size="13" font-weight="700" text-anchor="middle" fill="#15803d" font-family="'JetBrains Mono', Consolas, monospace">end</text>
+  <text x="640" y="316" font-size="14" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">v = 42, errno = 0, end - line = 4</text>
+  <text x="640" y="342" font-size="14" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">skip whitespace from end: '\n', then '\0'</text>
+  <text x="640" y="374" font-size="16" font-weight="700" fill="#15803d">ok: the whole line was a number</text>
+
+  <rect x="40" y="404" width="1120" height="140" rx="10" fill="#fef2f2" stroke="#fecaca" stroke-width="2"/>
+  <text x="72" y="432" xml:space="preserve" font-size="16" font-weight="700" fill="#b91c1c" font-family="'JetBrains Mono', Consolas, monospace">"" an empty line after the newline was stripped</text>
+  <text x="102" y="454" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[0]</text>
+  <rect x="72" y="460" width="60" height="44" fill="#e2e8f0" stroke="#b91c1c" stroke-width="3"/>
+  <text x="102" y="488" font-size="17" font-weight="700" text-anchor="middle" fill="#0f172a" font-family="'JetBrains Mono', Consolas, monospace">\0</text>
+  <text x="162" y="454" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[1]</text>
+  <rect x="132" y="460" width="60" height="44" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="162" y="488" font-size="17" font-weight="700" text-anchor="middle" fill="#0f172a" font-family="'JetBrains Mono', Consolas, monospace">\0</text>
+  <text x="222" y="454" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[2]</text>
+  <rect x="192" y="460" width="60" height="44" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="222" y="488" font-size="17" font-weight="400" text-anchor="middle" fill="#94a3b8" font-family="'JetBrains Mono', Consolas, monospace">?</text>
+  <text x="282" y="454" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[3]</text>
+  <rect x="252" y="460" width="60" height="44" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="282" y="488" font-size="17" font-weight="400" text-anchor="middle" fill="#94a3b8" font-family="'JetBrains Mono', Consolas, monospace">?</text>
+  <text x="342" y="454" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[4]</text>
+  <rect x="312" y="460" width="60" height="44" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="342" y="488" font-size="17" font-weight="400" text-anchor="middle" fill="#94a3b8" font-family="'JetBrains Mono', Consolas, monospace">?</text>
+  <text x="402" y="454" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[5]</text>
+  <rect x="372" y="460" width="60" height="44" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="402" y="488" font-size="17" font-weight="400" text-anchor="middle" fill="#94a3b8" font-family="'JetBrains Mono', Consolas, monospace">?</text>
+  <text x="462" y="454" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[6]</text>
+  <rect x="432" y="460" width="60" height="44" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="462" y="488" font-size="17" font-weight="400" text-anchor="middle" fill="#94a3b8" font-family="'JetBrains Mono', Consolas, monospace">?</text>
+  <text x="522" y="454" font-size="12" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono', Consolas, monospace">[7]</text>
+  <rect x="492" y="460" width="60" height="44" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="522" y="488" font-size="17" font-weight="400" text-anchor="middle" fill="#94a3b8" font-family="'JetBrains Mono', Consolas, monospace">?</text>
+  <text x="222" y="537" font-size="12" text-anchor="middle" fill="#64748b">[0] was \n</text>
+  <line x1="86" y1="524" x2="86" y2="514" stroke="#475569" stroke-width="2"/>
+  <polygon points="80,516 92,516 86,506" fill="#475569"/>
+  <text x="92" y="538" font-size="13" font-weight="700" text-anchor="end" fill="#475569" font-family="'JetBrains Mono', Consolas, monospace">line</text>
+  <line x1="118" y1="524" x2="118" y2="514" stroke="#b91c1c" stroke-width="2"/>
+  <polygon points="112,516 124,516 118,506" fill="#b91c1c"/>
+  <text x="112" y="538" font-size="13" font-weight="700" text-anchor="start" fill="#b91c1c" font-family="'JetBrains Mono', Consolas, monospace">end</text>
+  <text x="640" y="468" font-size="14" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">v = 0, errno = 0: looks like a valid 0</text>
+  <text x="640" y="494" font-size="14" fill="#334155" font-family="'JetBrains Mono', Consolas, monospace">end == line: no digits were read</text>
+  <text x="640" y="526" font-size="16" font-weight="700" fill="#b91c1c">reject: no number at all</text>
+
+  <text x="40" y="582" font-size="14" fill="#334155">Checks in order: end == line means no number; after skipping spaces, *end must be '\0'; then errno == ERANGE and min..max.</text>
+</svg>
