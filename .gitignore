@@ -65,3 +65,6 @@ sanity.config.js
 
 # Crash dumps
 *.stackdump
+
+# Playwright MCP snapshots, logs & screenshots
+/.playwright-mcp
