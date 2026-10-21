@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Anatomy of a failure message</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The same failing order export, reported two ways. A useful message answers four questions without a re-run.</text>
+
+  <!-- Before -->
+  <rect x="40" y="108" width="540" height="334" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="60" y="140" font-size="17" font-weight="700" fill="#b91c1c">Before: one compound assert.ok</text>
+  <g xml:space="preserve" font-family="Consolas, 'Courier New', monospace" font-size="14" fill="#334155">
+    <text x="60" y="180">FAIL order export works</text>
+    <text x="60" y="204">AssertionError [ERR_ASSERTION]:</text>
+    <text x="60" y="228">The expression evaluated to a falsy value:</text>
+    <text x="60" y="264">  assert.ok(order.total === 7200 &amp;&amp;</text>
+    <text x="60" y="288">    order.status === "paid" &amp;&amp;</text>
+    <text x="60" y="312">    order.lines.length === 2)</text>
+  </g>
+  <text x="60" y="360" font-size="15" fill="#475569">The only fact it gives: the whole expression was false.</text>
+  <text x="60" y="404" font-size="15" font-weight="700" fill="#b91c1c" xml:space="preserve">which case?    where?    expected?    actual?</text>
+  <text x="60" y="428" font-size="13" fill="#64748b">Answer found after an hour of local re-runs: line 2's quantity.</text>
+
+  <!-- After -->
+  <rect x="620" y="108" width="540" height="334" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="640" y="140" font-size="17" font-weight="700" fill="#15803d">After: a domain assertion that explains</text>
+  <g xml:space="preserve" font-family="Consolas, 'Courier New', monospace" font-size="14" fill="#334155">
+    <text x="640" y="180">FAIL <tspan fill="#2563eb" font-weight="700">exports order A-1042 as paid</tspan></text>
+    <text x="640" y="204">Error: order mismatch:</text>
+    <text x="640" y="228">  <tspan fill="#b45309" font-weight="700">total</tspan>: expected <tspan fill="#15803d" font-weight="700">7200</tspan>, got <tspan fill="#b91c1c" font-weight="700">6000</tspan></text>
+    <text x="640" y="252">  <tspan fill="#b45309" font-weight="700">lines[1].qty</tspan>: expected <tspan fill="#15803d" font-weight="700">3</tspan>, got <tspan fill="#b91c1c" font-weight="700">2</tspan></text>
+  </g>
+  <text x="640" y="300" font-size="15" fill="#475569">Read in ten seconds: line 2 has quantity 2 instead of 3,</text>
+  <text x="640" y="322" font-size="15" fill="#475569">and the total is off by exactly that line's price.</text>
+  <text x="640" y="404" font-size="15" font-weight="700" xml:space="preserve"><tspan fill="#2563eb">which case</tspan><tspan fill="#94a3b8">  /  </tspan><tspan fill="#b45309">where</tspan><tspan fill="#94a3b8">  /  </tspan><tspan fill="#15803d">expected</tspan><tspan fill="#94a3b8">  /  </tspan><tspan fill="#b91c1c">actual</tspan></text>
+  <text x="640" y="428" font-size="13" fill="#64748b">Every difference is listed, not only the first one.</text>
+
+  <!-- Four parts -->
+  <rect x="40" y="466" width="265" height="110" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="56" y="494" font-size="16" font-weight="700" fill="#2563eb">Which case</text>
+  <text x="56" y="522" font-size="14" fill="#334155">The test name names the order</text>
+  <text x="56" y="544" font-size="14" fill="#334155">and the rule under test.</text>
+
+  <rect x="325" y="466" width="265" height="110" rx="8" fill="#fffbeb" stroke="#b45309" stroke-width="2"/>
+  <text x="341" y="494" font-size="16" font-weight="700" fill="#b45309">Where</text>
+  <text x="341" y="522" font-size="14" fill="#334155">A path into the data, not just</text>
+  <text x="341" y="544" font-size="14" fill="#334155">a field name: lines[1].qty</text>
+
+  <rect x="610" y="466" width="265" height="110" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="626" y="494" font-size="16" font-weight="700" fill="#15803d">Expected</text>
+  <text x="626" y="522" font-size="14" fill="#334155">The value the spec demands,</text>
+  <text x="626" y="544" font-size="14" fill="#334155">written in the test as a literal.</text>
+
+  <rect x="895" y="466" width="265" height="110" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="911" y="494" font-size="16" font-weight="700" fill="#b91c1c">Actual</text>
+  <text x="911" y="522" font-size="14" fill="#334155">What the code produced, shown</text>
+  <text x="911" y="544" font-size="14" fill="#334155">with its type: 2 is not "2".</text>
+</svg>

@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_qaf_212",
+      "key": "challenges/javascript/chal_coding_qaf_212/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "createSpy.js",
+      "size": 3106
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_coding_qaf_212",
+      "key": "challenges/javascript/chal_coding_qaf_212/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 8791
+    }
+  ]
+}

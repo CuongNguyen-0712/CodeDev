@@ -1,0 +1,115 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_qaf_321",
+      "name": "normalize-for-snapshot",
+      "type": "mini_coding",
+      "title": "Make the invoice snapshot deterministic",
+      "description": "The invoice snapshot changes on every run: fresh UUIDs, a new createdAt and a key order that depends on how the object was merged. Write normalizeForSnapshot(value): it returns a new deep copy with object keys sorted at every depth, ISO-8601 timestamps replaced by \"<timestamp>\" and UUIDs replaced by \"<id-1>\", \"<id-2>\", ... numbered by first appearance, so the same id always gets the same placeholder. Two runs of the same invoice must then produce the same snapshot, while a missing VAT line still shows up as a difference.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "normalizeForSnapshot.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Sorts object keys at every depth, including objects inside arrays",
+          "input": {
+            "check": "value",
+            "value": {
+              "total": 2750,
+              "customer": { "name": "Nguyen An", "country": "VN" },
+              "lines": [{ "sku": "MUG-01", "qty": 2 }]
+            }
+          },
+          "expected": "{\"customer\":{\"country\":\"VN\",\"name\":\"Nguyen An\"},\"lines\":[{\"qty\":2,\"sku\":\"MUG-01\"}],\"total\":2750}",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Replaces whole-string ISO-8601 timestamps and keeps every other value",
+          "input": {
+            "check": "value",
+            "value": {
+              "status": "paid",
+              "createdAt": "2026-10-21T09:19:24.446Z",
+              "paidAt": "2026-10-21T16:19:24+07:00",
+              "dueDate": "2026-11-20",
+              "note": "paid at 2026-10-21T09:19:24Z",
+              "shippedAt": null,
+              "paid": true
+            }
+          },
+          "expected": "{\"createdAt\":\"<timestamp>\",\"dueDate\":\"2026-11-20\",\"note\":\"paid at 2026-10-21T09:19:24Z\",\"paid\":true,\"paidAt\":\"<timestamp>\",\"shippedAt\":null,\"status\":\"paid\"}",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Numbers UUIDs by first appearance (sorted keys) and keeps references to the same id",
+          "input": {
+            "check": "value",
+            "value": {
+              "invoiceId": "0b6e5f6a-58f1-4c1e-9d1a-6f2a1c9e7b10",
+              "lines": [
+                { "id": "3c2d1e0f-4a5b-4c6d-8e7f-901a2b3c4d5e", "sku": "MUG-01" },
+                { "id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "sku": "TEE-02" }
+              ],
+              "discounts": [{ "appliesTo": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "amountCents": 300 }]
+            }
+          },
+          "expected": "{\"discounts\":[{\"amountCents\":300,\"appliesTo\":\"<id-1>\"}],\"invoiceId\":\"<id-2>\",\"lines\":[{\"id\":\"<id-3>\",\"sku\":\"MUG-01\"},{\"id\":\"<id-1>\",\"sku\":\"TEE-02\"}]}",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Leaves the input untouched and returns a new copy",
+          "input": {
+            "check": "mutation",
+            "value": {
+              "invoiceId": "0b6e5f6a-58f1-4c1e-9d1a-6f2a1c9e7b10",
+              "createdAt": "2026-10-21T09:19:24.446Z",
+              "lines": [{ "sku": "MUG-01", "id": "3c2d1e0f-4a5b-4c6d-8e7f-901a2b3c4d5e", "qty": 2 }],
+              "customer": { "name": "Nguyen An", "country": "VN" }
+            }
+          },
+          "expected": "input unchanged, new copy",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The incident: two runs of one invoice snapshot the same, a missing VAT line does not",
+          "input": { "check": "incident" },
+          "expected": { "sameInvoiceTwoRuns": "identical", "missingVatLine": "differs" },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Edge cases: deep nesting, empty values, arrays of primitives and repeated ids",
+          "input": {
+            "check": "value",
+            "value": {
+              "tags": ["b", "a", "b"],
+              "matrix": [[3, 1], [2]],
+              "empty": {},
+              "list": [],
+              "zero": 0,
+              "flag": false,
+              "nothing": null,
+              "refs": ["0B6E5F6A-58F1-4C1E-9D1A-6F2A1C9E7B10", "0B6E5F6A-58F1-4C1E-9D1A-6F2A1C9E7B10", "<id-1>"],
+              "nested": { "z": { "y": { "x": "2026-01-01T00:00:00Z", "w": "f0e1d2c3-b4a5-4968-8776-5a4b3c2d1e0f" } } }
+            }
+          },
+          "expected": "{\"empty\":{},\"flag\":false,\"list\":[],\"matrix\":[[3,1],[2]],\"nested\":{\"z\":{\"y\":{\"w\":\"<id-1>\",\"x\":\"<timestamp>\"}}},\"nothing\":null,\"refs\":[\"<id-2>\",\"<id-2>\",\"<id-1>\"],\"tags\":[\"b\",\"a\",\"b\"],\"zero\":0}",
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,405 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_qaf_121",
+      "name": "order-assertion-explains-differences",
+      "type": "mini_coding",
+      "title": "Write an order assertion that explains every difference",
+      "description": "The order-export test failed at 02:00 with \"The expression evaluated to a falsy value\" and nothing else. Replace that compound boolean with a domain assertion: assertSameOrder(actual, expected) returns quietly when two orders are deep-equal and otherwise throws an Error that lists every difference with its path, the expected value and the actual value - nested objects, array items, missing fields and unexpected extra fields included, compared strictly so 2 and \"2\" differ.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "assertSameOrder.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Equal orders pass, even with keys in a different order",
+          "input": {
+            "actual": {
+              "lines": [
+                {
+                  "priceCents": 1800,
+                  "sku": "MUG-01",
+                  "qty": 2
+                },
+                {
+                  "qty": 3,
+                  "sku": "TEE-02",
+                  "priceCents": 1200
+                }
+              ],
+              "shipping": {
+                "trackingId": null,
+                "method": "dhl"
+              },
+              "total": 7200,
+              "customer": {
+                "address": {
+                  "postcode": "69002",
+                  "city": "Lyon"
+                },
+                "name": "Mina Okafor"
+              },
+              "status": "paid",
+              "id": "A-1042"
+            },
+            "expected": {
+              "id": "A-1042",
+              "status": "paid",
+              "total": 7200,
+              "customer": {
+                "name": "Mina Okafor",
+                "address": {
+                  "city": "Lyon",
+                  "postcode": "69002"
+                }
+              },
+              "lines": [
+                {
+                  "sku": "MUG-01",
+                  "qty": 2,
+                  "priceCents": 1800
+                },
+                {
+                  "sku": "TEE-02",
+                  "qty": 3,
+                  "priceCents": 1200
+                }
+              ],
+              "shipping": {
+                "method": "dhl",
+                "trackingId": null
+              }
+            }
+          },
+          "expected": "ok",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "One wrong field: status",
+          "input": {
+            "actual": {
+              "id": "A-1042",
+              "status": "pending",
+              "total": 7200,
+              "customer": {
+                "name": "Mina Okafor",
+                "address": {
+                  "city": "Lyon",
+                  "postcode": "69002"
+                }
+              },
+              "lines": [
+                {
+                  "sku": "MUG-01",
+                  "qty": 2,
+                  "priceCents": 1800
+                },
+                {
+                  "sku": "TEE-02",
+                  "qty": 3,
+                  "priceCents": 1200
+                }
+              ],
+              "shipping": {
+                "method": "dhl",
+                "trackingId": null
+              }
+            },
+            "expected": {
+              "id": "A-1042",
+              "status": "paid",
+              "total": 7200,
+              "customer": {
+                "name": "Mina Okafor",
+                "address": {
+                  "city": "Lyon",
+                  "postcode": "69002"
+                }
+              },
+              "lines": [
+                {
+                  "sku": "MUG-01",
+                  "qty": 2,
+                  "priceCents": 1800
+                },
+                {
+                  "sku": "TEE-02",
+                  "qty": 3,
+                  "priceCents": 1200
+                }
+              ],
+              "shipping": {
+                "method": "dhl",
+                "trackingId": null
+              }
+            }
+          },
+          "expected": "order mismatch:\n  status: expected \"paid\", got \"pending\"",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The 02:00 incident: the total and a line quantity, both reported",
+          "input": {
+            "actual": {
+              "id": "A-1042",
+              "status": "paid",
+              "total": 6000,
+              "customer": {
+                "name": "Mina Okafor",
+                "address": {
+                  "city": "Lyon",
+                  "postcode": "69002"
+                }
+              },
+              "lines": [
+                {
+                  "sku": "MUG-01",
+                  "qty": 2,
+                  "priceCents": 1800
+                },
+                {
+                  "sku": "TEE-02",
+                  "qty": 2,
+                  "priceCents": 1200
+                }
+              ],
+              "shipping": {
+                "method": "dhl",
+                "trackingId": null
+              }
+            },
+            "expected": {
+              "id": "A-1042",
+              "status": "paid",
+              "total": 7200,
+              "customer": {
+                "name": "Mina Okafor",
+                "address": {
+                  "city": "Lyon",
+                  "postcode": "69002"
+                }
+              },
+              "lines": [
+                {
+                  "sku": "MUG-01",
+                  "qty": 2,
+                  "priceCents": 1800
+                },
+                {
+                  "sku": "TEE-02",
+                  "qty": 3,
+                  "priceCents": 1200
+                }
+              ],
+              "shipping": {
+                "method": "dhl",
+                "trackingId": null
+              }
+            }
+          },
+          "expected": "order mismatch:\n  total: expected 7200, got 6000\n  lines[1].qty: expected 3, got 2",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Nested paths, and 2 is not \"2\"",
+          "input": {
+            "actual": {
+              "id": "A-1042",
+              "status": "paid",
+              "total": 7200,
+              "customer": {
+                "name": "Mina Okafor",
+                "address": {
+                  "city": "Lille",
+                  "postcode": "69002"
+                }
+              },
+              "lines": [
+                {
+                  "sku": "MUG-01",
+                  "qty": "2",
+                  "priceCents": 1800
+                },
+                {
+                  "sku": "TEE-02",
+                  "qty": 3,
+                  "priceCents": 1200
+                }
+              ],
+              "shipping": {
+                "method": "dhl",
+                "trackingId": "null"
+              }
+            },
+            "expected": {
+              "id": "A-1042",
+              "status": "paid",
+              "total": 7200,
+              "customer": {
+                "name": "Mina Okafor",
+                "address": {
+                  "city": "Lyon",
+                  "postcode": "69002"
+                }
+              },
+              "lines": [
+                {
+                  "sku": "MUG-01",
+                  "qty": 2,
+                  "priceCents": 1800
+                },
+                {
+                  "sku": "TEE-02",
+                  "qty": 3,
+                  "priceCents": 1200
+                }
+              ],
+              "shipping": {
+                "method": "dhl",
+                "trackingId": null
+              }
+            }
+          },
+          "expected": "order mismatch:\n  customer.address.city: expected \"Lyon\", got \"Lille\"\n  lines[0].qty: expected 2, got \"2\"\n  shipping.trackingId: expected null, got \"null\"",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A missing field and an unexpected extra field",
+          "input": {
+            "actual": {
+              "id": "A-1042",
+              "status": "paid",
+              "total": 7200,
+              "customer": {
+                "name": "Mina Okafor",
+                "address": {
+                  "city": "Lyon",
+                  "postcode": "69002"
+                }
+              },
+              "lines": [
+                {
+                  "sku": "MUG-01",
+                  "qty": 2,
+                  "priceCents": 1800
+                },
+                {
+                  "sku": "TEE-02",
+                  "qty": 3,
+                  "priceCents": 1200
+                }
+              ],
+              "shipping": {
+                "method": "dhl",
+                "trackingId": null
+              },
+              "debug": true
+            },
+            "expected": {
+              "id": "A-1042",
+              "status": "paid",
+              "total": 7200,
+              "customer": {
+                "name": "Mina Okafor",
+                "address": {
+                  "city": "Lyon",
+                  "postcode": "69002"
+                }
+              },
+              "lines": [
+                {
+                  "sku": "MUG-01",
+                  "qty": 2,
+                  "priceCents": 1800
+                },
+                {
+                  "sku": "TEE-02",
+                  "qty": 3,
+                  "priceCents": 1200
+                }
+              ],
+              "shipping": {
+                "method": "dhl",
+                "trackingId": null
+              },
+              "coupon": "AUTUMN10"
+            }
+          },
+          "expected": "order mismatch:\n  coupon: expected \"AUTUMN10\", got undefined\n  debug: expected undefined, got true",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Arrays of different lengths, null and mismatched kinds",
+          "input": {
+            "actual": {
+              "id": "A-1042",
+              "status": "paid",
+              "total": 7200,
+              "customer": {
+                "name": "Mina Okafor",
+                "address": {
+                  "city": "Lyon",
+                  "postcode": "69002"
+                },
+                "note": "leave at door"
+              },
+              "lines": [
+                {
+                  "sku": "MUG-01",
+                  "qty": 2,
+                  "priceCents": 1800
+                }
+              ],
+              "shipping": null,
+              "tags": {}
+            },
+            "expected": {
+              "id": "A-1042",
+              "status": "paid",
+              "total": 7200,
+              "customer": {
+                "name": "Mina Okafor",
+                "address": {
+                  "city": "Lyon",
+                  "postcode": "69002"
+                }
+              },
+              "lines": [
+                {
+                  "sku": "MUG-01",
+                  "qty": 2,
+                  "priceCents": 1800
+                },
+                {
+                  "sku": "TEE-02",
+                  "qty": 3,
+                  "priceCents": 1200
+                }
+              ],
+              "shipping": {
+                "method": "dhl",
+                "trackingId": null
+              },
+              "tags": []
+            }
+          },
+          "expected": "order mismatch:\n  customer.note: expected undefined, got \"leave at door\"\n  lines[1]: expected {\"sku\":\"TEE-02\",\"qty\":3,\"priceCents\":1200}, got undefined\n  shipping: expected {\"method\":\"dhl\",\"trackingId\":null}, got null\n  tags: expected [], got {}",
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

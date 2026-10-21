@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_qaf_231",
+      "key": "challenges/javascript/chal_coding_qaf_231/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "memory-user-store.js",
+      "size": 2613
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_coding_qaf_231",
+      "key": "challenges/javascript/chal_coding_qaf_231/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 10273
+    }
+  ]
+}

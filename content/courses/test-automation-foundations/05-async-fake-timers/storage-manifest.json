@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_qaf_221",
+      "key": "challenges/javascript/chal_coding_qaf_221/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "fakeClock.js",
+      "size": 3085
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_coding_qaf_221",
+      "key": "challenges/javascript/chal_coding_qaf_221/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 7169
+    }
+  ]
+}

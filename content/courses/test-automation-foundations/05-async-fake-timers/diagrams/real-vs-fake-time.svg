@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Real waiting vs fake ticking</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The same retry schedule: attempts at 0 s, 1 s, 3 s and 7 s, then give up. One test waits for it, the other simulates it.</text>
+
+  <!-- time axis: x = 250 + 54 * seconds -->
+  <line x1="250" y1="126" x2="1114" y2="126" stroke="#94a3b8" stroke-width="2"/>
+  <g font-size="13" fill="#64748b" text-anchor="middle">
+    <text x="250" y="116">0 s</text>
+    <text x="358" y="116">2 s</text>
+    <text x="466" y="116">4 s</text>
+    <text x="574" y="116">6 s</text>
+    <text x="682" y="116">8 s</text>
+    <text x="790" y="116">10 s</text>
+    <text x="898" y="116">12 s</text>
+    <text x="1006" y="116">14 s</text>
+    <text x="1114" y="116">16 s</text>
+  </g>
+  <g stroke="#94a3b8" stroke-width="2">
+    <line x1="250" y1="121" x2="250" y2="131"/>
+    <line x1="358" y1="121" x2="358" y2="131"/>
+    <line x1="466" y1="121" x2="466" y2="131"/>
+    <line x1="574" y1="121" x2="574" y2="131"/>
+    <line x1="682" y1="121" x2="682" y2="131"/>
+    <line x1="790" y1="121" x2="790" y2="131"/>
+    <line x1="898" y1="121" x2="898" y2="131"/>
+    <line x1="1006" y1="121" x2="1006" y2="131"/>
+    <line x1="1114" y1="121" x2="1114" y2="131"/>
+  </g>
+
+  <!-- lane A: real time -->
+  <rect x="40" y="146" width="1120" height="104" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="60" y="180" font-size="16" font-weight="700" fill="#0f172a">Real time</text>
+  <text x="60" y="202" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155">await sleep(ms)</text>
+  <text x="60" y="224" font-size="13" fill="#64748b">7 s of waiting per test</text>
+
+  <g stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="4 4">
+    <line x1="250" y1="146" x2="250" y2="384"/>
+    <line x1="304" y1="146" x2="304" y2="384"/>
+    <line x1="412" y1="146" x2="412" y2="384"/>
+    <line x1="628" y1="146" x2="628" y2="384"/>
+  </g>
+  <g fill="#fde68a" stroke="#b45309" stroke-width="1.5">
+    <rect x="260" y="191" width="34" height="16" rx="4"/>
+    <rect x="322" y="191" width="80" height="16" rx="4"/>
+    <rect x="422" y="191" width="196" height="16" rx="4"/>
+  </g>
+  <g font-size="13" fill="#92400e" text-anchor="middle">
+    <text x="277" y="182">1 s</text>
+    <text x="362" y="182">2 s</text>
+    <text x="520" y="182">4 s</text>
+  </g>
+  <g fill="#475569">
+    <circle cx="250" cy="199" r="8"/>
+    <circle cx="304" cy="199" r="8"/>
+    <circle cx="412" cy="199" r="8"/>
+    <circle cx="628" cy="199" r="8"/>
+  </g>
+  <text x="650" y="236" font-size="13" fill="#64748b">dots = capture attempts, bars = real sleeps</text>
+  <text x="650" y="204" font-size="14" fill="#334155">rejects after 4 attempts</text>
+  <text x="1140" y="176" font-size="13" text-anchor="end" fill="#b91c1c">Scaled down to 7 ms, a busy CI runner</text>
+  <text x="1140" y="194" font-size="13" text-anchor="end" fill="#b91c1c">adds 50 ms of noise: "under 50 ms" flaked,</text>
+  <text x="1140" y="212" font-size="13" text-anchor="end" fill="#b91c1c">the test was skipped</text>
+
+  <!-- lane B: fake time -->
+  <rect x="40" y="266" width="1120" height="118" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="60" y="300" font-size="16" font-weight="700" fill="#0f172a">Fake time</text>
+  <text x="60" y="322" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155">t.mock.timers</text>
+  <text x="60" y="344" font-size="13" fill="#64748b">about 20 ms per test</text>
+
+  <g stroke="#2563eb" stroke-width="2">
+    <line x1="304" y1="278" x2="304" y2="292"/>
+    <line x1="358" y1="278" x2="358" y2="292"/>
+    <line x1="412" y1="278" x2="412" y2="292"/>
+    <line x1="466" y1="278" x2="466" y2="292"/>
+    <line x1="520" y1="278" x2="520" y2="292"/>
+    <line x1="574" y1="278" x2="574" y2="292"/>
+    <line x1="628" y1="278" x2="628" y2="292"/>
+    <line x1="682" y1="278" x2="682" y2="292"/>
+    <line x1="736" y1="278" x2="736" y2="292"/>
+    <line x1="790" y1="278" x2="790" y2="292"/>
+    <line x1="844" y1="278" x2="844" y2="292"/>
+    <line x1="898" y1="278" x2="898" y2="292"/>
+    <line x1="952" y1="278" x2="952" y2="292"/>
+    <line x1="1006" y1="278" x2="1006" y2="292"/>
+    <line x1="1060" y1="278" x2="1060" y2="292"/>
+    <line x1="1114" y1="278" x2="1114" y2="292"/>
+  </g>
+  <g fill="#16a34a">
+    <circle cx="250" cy="322" r="8"/>
+    <circle cx="304" cy="322" r="8"/>
+    <circle cx="412" cy="322" r="8"/>
+    <circle cx="628" cy="322" r="8"/>
+  </g>
+  <line x1="1060" y1="292" x2="1060" y2="314" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4 4"/>
+  <circle cx="1060" cy="322" r="8" fill="#ef4444"/>
+  <text x="1040" y="327" font-size="13" text-anchor="end" fill="#b91c1c">bug: a 5th attempt at 15 s</text>
+  <text x="250" y="366" font-size="13" fill="#1d4ed8">blue marks = tick(1000), then await flush()</text>
+  <text x="1140" y="366" font-size="13" text-anchor="end" fill="#b91c1c">[0, 1000, 3000, 7000, 15000]: red in CI</text>
+
+  <!-- bottom: one step -->
+  <rect x="40" y="400" width="1120" height="184" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="60" y="428" font-size="16" font-weight="700" fill="#0f172a">Inside one step: why the flush matters</text>
+
+  <rect x="60" y="444" width="236" height="88" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="76" y="470" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">tick(1000)</text>
+  <text x="76" y="492" font-size="13" fill="#334155">synchronous: runs the</text>
+  <text x="76" y="512" font-size="13" fill="#334155">due setTimeout callback</text>
+
+  <rect x="338" y="444" width="236" height="88" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="354" y="470" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">sleep() resolves</text>
+  <text x="354" y="492" font-size="13" fill="#334155">the code after the await is</text>
+  <text x="354" y="512" font-size="13" fill="#334155">only queued (a microtask)</text>
+
+  <rect x="616" y="444" width="236" height="88" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="632" y="470" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#15803d">await flush()</text>
+  <text x="632" y="492" font-size="13" fill="#334155">queued callbacks run:</text>
+  <text x="632" y="512" font-size="13" fill="#334155">capture() is called again</text>
+
+  <rect x="894" y="444" width="246" height="88" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="910" y="470" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">setTimeout(2000)</text>
+  <text x="910" y="492" font-size="13" fill="#334155">the next backoff exists,</text>
+  <text x="910" y="512" font-size="13" fill="#334155">so the next tick() can fire it</text>
+
+  <g stroke="#64748b" stroke-width="2" marker-end="url(#arrow)">
+    <line x1="298" y1="488" x2="334" y2="488"/>
+    <line x1="576" y1="488" x2="612" y2="488"/>
+    <line x1="854" y1="488" x2="890" y2="488"/>
+  </g>
+  <text x="60" y="562" font-size="14" fill="#b91c1c">Skip the flush and the next tick() finds no timer: the retry is still queued, and the test sees only the first attempt, [0].</text>
+</svg>

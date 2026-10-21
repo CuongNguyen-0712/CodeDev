@@ -1,0 +1,101 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_fix_qaf_131",
+      "name": "fix-order-builder-shared-state",
+      "type": "fix_bug",
+      "title": "Fix the order builder that leaks data between tests",
+      "description": "The order suite moved from copy-pasted literals to a test data builder, anOrder(overrides). Now tests pass alone but fail together: the builder hands out the same nested lines and customer to every test, a customer override wipes the customer's name and email, and resetIds() does not reset anything. Fix the builder so every call returns an independent, valid order: deep copies, customer merged key by key, arrays replaced, the caller's overrides left untouched, sequential ids that restart at ORD-1 after resetIds(), and a total that matches the final lines. The tests use the builder the way a test file would and inspect what it returns.",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "javascript",
+        "filePath": "orderBuilder.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "anOrder() after resetIds() is the default order with id ORD-1",
+          "input": { "scenario": "defaults" },
+          "expected": {
+            "id": "ORD-1",
+            "currency": "USD",
+            "status": "pending",
+            "customer": { "name": "Lan Tran", "email": "lan@example.com", "country": "US" },
+            "lines": [{ "sku": "MUG-01", "qty": 2, "priceCents": 1250 }],
+            "shippingCents": 499,
+            "totalCents": 2999
+          },
+          "hidden": false,
+          "score": 2
+        },
+        {
+          "name": "Changing one built order (push a line, rename the customer) does not change the next build",
+          "input": { "scenario": "independent" },
+          "expected": {
+            "secondLines": [{ "sku": "MUG-01", "qty": 2, "priceCents": 1250 }],
+            "secondCustomer": { "name": "Lan Tran", "email": "lan@example.com", "country": "US" },
+            "secondStatus": "pending",
+            "secondTotal": 2999,
+            "sharesLines": false,
+            "sharesCustomer": false
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Top-level overrides replace defaults, lines are replaced and the total follows them",
+          "input": { "scenario": "overrides" },
+          "expected": {
+            "status": "paid",
+            "currency": "USD",
+            "lineSkus": ["TEE-02", "CAP-03"],
+            "shippingCents": 0,
+            "totalCents": 4549,
+            "explicitTotal": 1,
+            "explicitTotalLines": 1
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A customer override is merged with the default customer",
+          "input": { "scenario": "nestedMerge" },
+          "expected": {
+            "vn": { "name": "Lan Tran", "email": "lan@example.com", "country": "VN" },
+            "renamed": { "name": "Minh Pham", "email": "minh@example.com", "country": "US" },
+            "plainAfter": { "name": "Lan Tran", "email": "lan@example.com", "country": "US" }
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Ids are sequential, an explicit id does not use a number, resetIds() starts again at ORD-1",
+          "input": { "scenario": "ids" },
+          "expected": {
+            "first": ["ORD-1", "ORD-CUSTOM", "ORD-2", "ORD-3"],
+            "afterReset": ["ORD-1", "ORD-2"]
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "The overrides object is never changed and never shared with the built order",
+          "input": { "scenario": "overridesUntouched" },
+          "expected": {
+            "overridesUnchanged": true,
+            "againLines": [{ "sku": "TEE-02", "qty": 1, "priceCents": 1999 }],
+            "againCustomer": { "name": "Lan Tran", "email": "lan@example.com", "country": "VN" },
+            "againTotal": 2498
+          },
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

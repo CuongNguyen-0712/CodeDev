@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Coverage vs mutation score</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The same code and the same green suite: every line ran, yet four of five deliberate bugs went unnoticed.</text>
+
+  <rect x="40" y="100" width="1120" height="42" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="60" y="127" font-size="14" font-weight="700" fill="#334155">The suite (all green):</text>
+  <text x="232" y="127" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">typeof shippingFee(3000)   ·   typeof shippingFee(25000)   ·   throws(() =&gt; shippingFee(-1))</text>
+
+  <!-- Left: coverage -->
+  <rect x="40" y="160" width="540" height="360" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="60" y="192" font-size="18" font-weight="700" fill="#0f172a">Coverage: did each line run?</text>
+  <text x="60" y="214" font-size="13" fill="#64748b">node --test --experimental-test-coverage</text>
+
+  <g xml:space="preserve" font-size="13" font-family="Consolas, 'Courier New', monospace">
+    <text x="64" y="252" fill="#94a3b8">1</text><text x="90" y="252" fill="#0f172a">function shippingFee(cents) {</text>
+    <text x="64" y="284" fill="#94a3b8">2</text><text x="90" y="284" fill="#0f172a">  if (!Number.isInteger(cents) || cents &lt; 0)</text>
+    <text x="64" y="316" fill="#94a3b8">3</text><text x="90" y="316" fill="#0f172a">    throw new RangeError("bad subtotal");</text>
+    <text x="64" y="348" fill="#94a3b8">4</text><text x="90" y="348" fill="#0f172a">  if (cents &gt;= FREE_SHIPPING_CENTS)</text>
+    <text x="64" y="380" fill="#94a3b8">5</text><text x="90" y="380" fill="#0f172a">    return 0;</text>
+    <text x="64" y="412" fill="#94a3b8">6</text><text x="90" y="412" fill="#0f172a">  return FLAT_FEE_CENTS;</text>
+    <text x="64" y="444" fill="#94a3b8">7</text><text x="90" y="444" fill="#0f172a">}</text>
+  </g>
+  <g font-size="12" font-weight="700" text-anchor="middle" fill="#15803d">
+    <rect x="496" y="236" width="64" height="22" rx="11" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/><text x="528" y="252">ran</text>
+    <rect x="496" y="268" width="64" height="22" rx="11" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/><text x="528" y="284">ran</text>
+    <rect x="496" y="300" width="64" height="22" rx="11" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/><text x="528" y="316">ran</text>
+    <rect x="496" y="332" width="64" height="22" rx="11" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/><text x="528" y="348">ran</text>
+    <rect x="496" y="364" width="64" height="22" rx="11" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/><text x="528" y="380">ran</text>
+    <rect x="496" y="396" width="64" height="22" rx="11" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/><text x="528" y="412">ran</text>
+    <rect x="496" y="428" width="64" height="22" rx="11" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/><text x="528" y="444">ran</text>
+  </g>
+  <rect x="60" y="464" width="500" height="40" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="310" y="490" font-size="16" font-weight="700" text-anchor="middle" fill="#15803d">line 100%  ·  branch 100%  ·  funcs 100%</text>
+
+  <!-- Right: mutation -->
+  <rect x="620" y="160" width="540" height="360" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="640" y="192" font-size="18" font-weight="700" fill="#0f172a">Mutation: did a test notice the change?</text>
+  <text x="640" y="214" font-size="13" fill="#64748b">one small change per mutant, then the whole suite runs again</text>
+
+  <g font-size="12" fill="#64748b">
+    <text x="644" y="240">relational, line 4</text>
+    <text x="644" y="284">relational, line 2</text>
+    <text x="644" y="328">logical, line 2</text>
+    <text x="644" y="372">negated condition, line 4</text>
+    <text x="644" y="416">return value, line 6</text>
+  </g>
+  <g font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">
+    <text x="644" y="258">if (cents &gt; FREE_SHIPPING_CENTS)</text>
+    <text x="644" y="302">... || cents &lt;= 0)</text>
+    <text x="644" y="346">!Number.isInteger(cents) &amp;&amp; cents &lt; 0</text>
+    <text x="644" y="390">if (!(cents &gt;= FREE_SHIPPING_CENTS))</text>
+    <text x="644" y="434">return 0;</text>
+  </g>
+  <g font-size="12" font-weight="700" text-anchor="middle">
+    <rect x="1048" y="234" width="92" height="24" rx="12" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/><text x="1094" y="251" fill="#b91c1c">survived</text>
+    <rect x="1048" y="278" width="92" height="24" rx="12" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/><text x="1094" y="295" fill="#b91c1c">survived</text>
+    <rect x="1048" y="322" width="92" height="24" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/><text x="1094" y="339" fill="#15803d">killed</text>
+    <rect x="1048" y="366" width="92" height="24" rx="12" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/><text x="1094" y="383" fill="#b91c1c">survived</text>
+    <rect x="1048" y="410" width="92" height="24" rx="12" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/><text x="1094" y="427" fill="#b91c1c">survived</text>
+  </g>
+  <rect x="640" y="452" width="500" height="52" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="890" y="474" font-size="14" text-anchor="middle" fill="#334155">mutation score = killed / (total - equivalent)</text>
+  <text x="890" y="495" font-size="16" font-weight="700" text-anchor="middle" fill="#b91c1c">1 / (5 - 0) = 20%</text>
+
+  <text x="40" y="566" font-size="15" fill="#334155"><tspan font-weight="700" fill="#0f172a">Coverage</tspan> finds code that never ran. <tspan font-weight="700" fill="#0f172a">Mutation score</tspan> finds code that ran but that no assertion really checked.</text>
+</svg>

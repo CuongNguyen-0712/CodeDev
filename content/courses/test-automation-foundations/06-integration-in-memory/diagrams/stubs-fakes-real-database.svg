@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Stubs, an in-memory fake, the real database</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Replace only the slow edge, and prove the fake behaves like the real store with one shared contract suite.</text>
+
+  <!-- Column 1: unit test with stubs -->
+  <rect x="40" y="100" width="360" height="310" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="220" y="130" font-size="17" font-weight="700" text-anchor="middle" fill="#b91c1c">Unit test + hand-written stubs</text>
+  <text x="220" y="152" font-size="14" text-anchor="middle" fill="#475569">about 1 ms; agrees with the code</text>
+  <rect x="80" y="170" width="280" height="36" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="220" y="193" font-size="14" text-anchor="middle" fill="#334155">unit test</text>
+  <line x1="220" y1="206" x2="220" y2="224" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="80" y="226" width="280" height="36" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="220" y="249" font-size="14" text-anchor="middle" fill="#334155">signup service</text>
+  <line x1="220" y1="262" x2="220" y2="338" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="232" y="305" font-size="12" fill="#64748b">no handler, no store</text>
+  <rect x="64" y="340" width="312" height="52" rx="8" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+  <text x="220" y="361" font-size="13" text-anchor="middle" font-family="Consolas, 'Courier New', monospace" fill="#b91c1c">findByEmail: async () =&gt; null</text>
+  <text x="220" y="381" font-size="13" text-anchor="middle" font-family="Consolas, 'Courier New', monospace" fill="#b91c1c">insert: returns the same object</text>
+
+  <!-- Column 2: integration test with in-memory fake -->
+  <rect x="420" y="100" width="360" height="310" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="600" y="130" font-size="17" font-weight="700" text-anchor="middle" fill="#15803d">Integration test + in-memory fake</text>
+  <text x="600" y="152" font-size="14" text-anchor="middle" fill="#475569">about 1 ms; real wiring, fake edge</text>
+  <rect x="460" y="170" width="280" height="36" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="600" y="193" font-size="14" text-anchor="middle" fill="#334155">integration test</text>
+  <line x1="600" y1="206" x2="600" y2="224" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="460" y="226" width="280" height="36" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="600" y="249" font-size="13" text-anchor="middle" font-family="Consolas, 'Courier New', monospace" fill="#334155">handleSignup(req)</text>
+  <line x1="600" y1="262" x2="600" y2="280" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="460" y="282" width="280" height="36" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="600" y="305" font-size="14" text-anchor="middle" fill="#334155">signup service + validation</text>
+  <line x1="600" y1="318" x2="600" y2="338" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="444" y="340" width="312" height="52" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="600" y="361" font-size="13" text-anchor="middle" font-family="Consolas, 'Courier New', monospace" fill="#15803d">createInMemoryUserStore()</text>
+  <text x="600" y="381" font-size="13" text-anchor="middle" fill="#15803d">copies, unique in any case, null, codes</text>
+
+  <!-- Column 3: real database -->
+  <rect x="800" y="100" width="360" height="310" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="980" y="130" font-size="17" font-weight="700" text-anchor="middle" fill="#2563eb">Real database test</text>
+  <text x="980" y="152" font-size="14" text-anchor="middle" fill="#475569">slower; needs Postgres (Docker in CI)</text>
+  <rect x="840" y="170" width="280" height="36" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="980" y="193" font-size="14" text-anchor="middle" fill="#334155">contract test</text>
+  <line x1="980" y1="206" x2="980" y2="224" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="840" y="226" width="280" height="36" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="980" y="249" font-size="13" text-anchor="middle" font-family="Consolas, 'Courier New', monospace" fill="#334155">createPgUserStore(pool)</text>
+  <line x1="980" y1="262" x2="980" y2="338" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="992" y="305" font-size="12" fill="#64748b">real SQL, real errors</text>
+  <rect x="824" y="340" width="312" height="52" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="2"/>
+  <text x="980" y="361" font-size="14" text-anchor="middle" fill="#2563eb">Postgres in Docker</text>
+  <text x="980" y="381" font-size="13" text-anchor="middle" fill="#2563eb">unique index on lower(email)</text>
+
+  <!-- Shared contract suite -->
+  <line x1="600" y1="460" x2="600" y2="394" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="980" y1="460" x2="980" y2="394" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="612" y="436" font-size="13" fill="#475569">same suite</text>
+  <text x="992" y="436" font-size="13" fill="#475569">same suite</text>
+  <rect x="420" y="460" width="740" height="110" rx="8" fill="#f8fafc" stroke="#334155" stroke-width="2"/>
+  <text x="440" y="490" font-size="16" font-weight="700" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">runUserStoreContract(makeStore)</text>
+  <text x="440" y="514" font-size="14" fill="#334155">One suite: against the fake on every run, against Postgres in CI.</text>
+  <text x="440" y="538" font-size="14" fill="#334155">Returns copies; the same email in any case rejects with DUPLICATE_EMAIL;</text>
+  <text x="440" y="560" font-size="14" fill="#334155">an unknown email gives null. If the fake passes, its answers are the database's.</text>
+
+  <!-- Note under the stub column -->
+  <rect x="40" y="460" width="360" height="110" rx="8" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+  <text x="56" y="490" font-size="14" font-weight="700" fill="#b91c1c">Nothing checks a stub</text>
+  <text x="56" y="514" font-size="14" fill="#334155">Each stub is a guess written inside one</text>
+  <text x="56" y="536" font-size="14" fill="#334155">test. These guesses kept the suite green</text>
+  <text x="56" y="558" font-size="14" fill="#334155">while production answered 500.</text>
+</svg>

@@ -1,0 +1,69 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_qaf_331",
+      "name": "coverage-vs-mutation-quiz",
+      "type": "quiz",
+      "title": "What do coverage and mutation score really say?",
+      "description": "Compute a mutation score from a real-looking report, and decide which claims about node:test coverage are true.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A mutation run on src/coupons.js produced this report:\n\n  mutants generated   20\n  killed              14\n  survived             6\n\nThe team reviewed the 6 survivors. Two of them change i < items.length to i !== items.length in a loop where i starts at 0 and goes up by 1 - they behave exactly like the original for every input. The other 4 are real gaps. What is the mutation score?",
+          "explanation": "Mutation score = killed / (total - equivalent). The two loop mutants are equivalent: no test can ever kill them, so they are removed from the denominator instead of being counted as failures or as successes. 14 / (20 - 2) = 14 / 18 = 77.8%. 70% (14 / 20) treats the equivalent mutants as gaps the suite should have caught, which punishes the team for something no test can do. 80% ((14 + 2) / 20) and 88.9% ((14 + 2) / 18) count the equivalent mutants as killed, which inflates the score: nothing in the suite actually caught them. The 4 real survivors stay in the denominator - each one is a missing test case.",
+          "options": [
+            { "text": "70% (14 / 20)", "correct": false },
+            { "text": "77.8% (14 / 18)", "correct": true },
+            { "text": "80% ((14 + 2) / 20)", "correct": false },
+            { "text": "88.9% ((14 + 2) / 18)", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Your project runs:\n\nnode --test --experimental-test-coverage --test-coverage-lines=90\n\nWhich statements are true on Node 24? (Select all that apply.)",
+          "explanation": "Line coverage counts a line as covered when any part of it ran, so if (coupon.expired) throw new Error(...) on one line is covered by a test that only checks the condition - the throw never ran; branch coverage (and splitting the line) shows it. With --test-coverage-lines=90 the runner prints an error such as \"77.78% line coverage does not meet threshold of 90%.\" and exits with code 1 even when every test passed, which fails the CI step. The report only lists files that were loaded while the tests ran: a source file no test imports does not appear at all, so it cannot drag the percentage down - it is silently missing, not 0%. And coverage records only that code ran; whether an assertion checked the result is invisible to it, which is why a suite of typeof checks can reach 100%.",
+          "options": [
+            { "text": "A file can show 100.00 line % while a throw inside it never ran, if the if and the throw are on one line.", "correct": true },
+            { "text": "If line coverage is below 90%, the run exits with code 1 even when every test passed.", "correct": true },
+            { "text": "A source file that no test imports is listed with 0.00 line %, so it lowers the total.", "correct": false },
+            { "text": "100% line coverage means every line's result was checked by at least one assertion.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_qaf_332",
+      "name": "kill-the-surviving-mutants",
+      "type": "mini_coding",
+      "title": "Kill the surviving mutants",
+      "description": "The shipping-fee suite reaches 100% line coverage, yet a mutation report lists seven surviving mutants and one equivalent one. Turn each survivor into a missing test case: the grader runs your shippingFeeSuite(shippingFee, assert) against the correct shippingFee, where it must pass, and against every mutant - including one that is not in the report - where it must fail.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "shipping.test.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        { "name": "Your suite passes against the correct shippingFee", "input": { "mutant": "correct" }, "expected": "passed", "hidden": false, "score": 3 },
+        { "name": "Kills #1: line 4 >= changed to >", "input": { "mutant": "m1" }, "expected": "killed", "hidden": false, "score": 3 },
+        { "name": "Kills #2: line 4 && changed to ||", "input": { "mutant": "m2" }, "expected": "killed", "hidden": false, "score": 3 },
+        { "name": "Kills #3: line 4 <= changed to <", "input": { "mutant": "m3" }, "expected": "killed", "hidden": false, "score": 3 },
+        { "name": "Kills #4: line 6 + changed to -", "input": { "mutant": "m4" }, "expected": "killed", "hidden": false, "score": 3 },
+        { "name": "Kills #5: line 6 Math.ceil changed to Math.floor", "input": { "mutant": "m5" }, "expected": "killed", "hidden": false, "score": 3 },
+        { "name": "Kills #6: line 7 && changed to ||", "input": { "mutant": "m6" }, "expected": "killed", "hidden": false, "score": 3 },
+        { "name": "Kills #7: line 8 return value replaced by 0", "input": { "mutant": "m7" }, "expected": "killed", "hidden": false, "score": 3 },
+        { "name": "Kills a mutant that is not in the report", "input": { "mutant": "hidden" }, "expected": "killed", "hidden": true, "score": 3 },
+        { "name": "Mutation score with the equivalent mutant #8 excluded", "input": { "mutant": "score" }, "expected": "mutation score: 8 killed / (9 mutants - 1 equivalent) = 100%", "hidden": false, "score": 3 }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Where flaky tests come from</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Same code, different result. Each cause leaves a recognisable symptom, and each has a fix by design.</text>
+
+  <rect x="40" y="100" width="1120" height="36" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="60" y="124" font-size="15" font-weight="700" fill="#334155">Cause</text>
+  <text x="356" y="124" font-size="15" font-weight="700" fill="#b91c1c">Symptom in CI</text>
+  <text x="792" y="124" font-size="15" font-weight="700" fill="#15803d">Fix by design</text>
+
+  <!-- row 1 -->
+  <rect x="40" y="144" width="290" height="72" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="60" y="174" font-size="16" font-weight="700" fill="#0f172a">Shared state, order</text>
+  <text x="60" y="198" font-size="13" fill="#64748b">module-level cart, leftover data</text>
+  <rect x="340" y="144" width="420" height="72" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="356" y="174" font-size="14" fill="#0f172a">Passes alone, fails after another test -</text>
+  <text x="356" y="196" font-size="14" fill="#0f172a">or only in one particular order.</text>
+  <rect x="776" y="144" width="384" height="72" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="792" y="174" font-size="14" fill="#0f172a">Fresh data in beforeEach; run each test</text>
+  <text x="792" y="196" font-size="14" fill="#0f172a">alone and in a seeded shuffled order.</text>
+
+  <!-- row 2 -->
+  <rect x="40" y="224" width="290" height="72" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="60" y="254" font-size="16" font-weight="700" fill="#0f172a">Real clock, time zones</text>
+  <text x="60" y="278" font-size="13" fill="#64748b">new Date(), UTC vs local, month end</text>
+  <rect x="340" y="224" width="420" height="72" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="356" y="254" font-size="14" fill="#0f172a">Fails at night, on the last day of the month,</text>
+  <text x="356" y="276" font-size="14" fill="#0f172a">or only on runners in another time zone.</text>
+  <rect x="776" y="224" width="384" height="72" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="792" y="254" font-size="14" fill="#0f172a">Pin an exact instant per test:</text>
+  <text x="792" y="276" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#15803d">t.mock.timers.enable({ apis: ["Date"] })</text>
+
+  <!-- row 3 -->
+  <rect x="40" y="304" width="290" height="72" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="60" y="334" font-size="16" font-weight="700" fill="#0f172a">Randomness</text>
+  <text x="60" y="358" font-size="13" fill="#64748b">Math.random() in data or ids</text>
+  <rect x="340" y="304" width="420" height="72" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="356" y="334" font-size="14" fill="#0f172a">Fails for some generated inputs; the failing</text>
+  <text x="356" y="356" font-size="14" fill="#0f172a">input is never logged, so it cannot be replayed.</text>
+  <rect x="776" y="304" width="384" height="72" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="792" y="334" font-size="14" fill="#0f172a">Fixed inputs, or inject a seeded random</text>
+  <text x="792" y="356" font-size="14" fill="#0f172a">function and print the seed on every run.</text>
+
+  <!-- row 4 -->
+  <rect x="40" y="384" width="290" height="72" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="60" y="414" font-size="16" font-weight="700" fill="#0f172a">Async waits, races</text>
+  <text x="60" y="438" font-size="13" fill="#64748b">sleep(200), a promise not awaited</text>
+  <rect x="340" y="384" width="420" height="72" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="356" y="414" font-size="14" fill="#0f172a">Green on a fast laptop, red on a busy CI</text>
+  <text x="356" y="436" font-size="14" fill="#0f172a">runner; a longer sleep only makes it rarer.</text>
+  <rect x="776" y="384" width="384" height="72" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="792" y="414" font-size="14" fill="#0f172a">Await the promise or event itself;</text>
+  <text x="792" y="436" font-size="14" fill="#0f172a">fake timers instead of real sleeps.</text>
+
+  <!-- row 5 -->
+  <rect x="40" y="464" width="290" height="72" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="60" y="494" font-size="16" font-weight="700" fill="#0f172a">External services, leaks</text>
+  <text x="60" y="518" font-size="13" fill="#64748b">staging APIs, ports, files, timers</text>
+  <rect x="340" y="464" width="420" height="72" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="356" y="494" font-size="14" fill="#0f172a">Timeouts and 503s, "port already in use",</text>
+  <text x="356" y="516" font-size="14" fill="#0f172a">files or rows left behind by the previous run.</text>
+  <rect x="776" y="464" width="384" height="72" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="792" y="494" font-size="14" fill="#0f172a">Fakes in unit tests; unique names and</text>
+  <text x="792" y="516" font-size="14" fill="#0f172a">cleanup in afterEach for integration tests.</text>
+
+  <text x="40" y="574" font-size="15" fill="#92400e"><tspan font-weight="700">Retries and quarantine treat the symptom only.</tspan> A quarantined test needs an owner, a ticket and a deadline.</text>
+</svg>

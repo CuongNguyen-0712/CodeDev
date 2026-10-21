@@ -1,0 +1,135 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_qaf_211",
+      "name": "picking-the-right-double-quiz",
+      "type": "quiz",
+      "title": "Pick the double, spot the over-specification",
+      "description": "Four scenarios from the shop's test suites and one test of placeOrder. Decide which double fits each job, and which assertion will break on a harmless refactor.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which of these pairings of scenario and test double are good choices? (Select all that apply.)",
+          "explanation": "A dummy is right when a collaborator is required by the constructor but never used on the path under test: the coupon path never touches the logger, so {} is enough (and a crash would tell you the assumption is wrong). A stub is right when the code needs an answer from a collaborator: the tax rate is an input, and the test checks the resulting total (state verification). The stub mailer is wrong: it always resolves, so it cannot tell whether an email was sent, how many, or to whom, and it can never fail - which is exactly how the password-reset outage went unnoticed. Use a spy or a fake mailer with an outbox, and a double that rejects to test the outage path. Replacing a method of the payment provider's SDK in every checkout test is wrong: you do not own that interface, your double encodes your guess of how it behaves, and every checkout test is coupled to the SDK's shape. Wrap the SDK in a small payments adapter you own, fake the adapter in checkout tests, and test the adapter itself in a few tests against the provider's sandbox.",
+          "options": [
+            { "text": "Testing that a coupon gives 10% off. The cart service requires a logger, but the coupon path never calls it: pass a dummy {}.", "correct": true },
+            { "text": "Testing the order total for a German customer: stub the tax service so taxRate(\"DE\") resolves to 19, then assert the total in cents.", "correct": true },
+            { "text": "Testing that a password-reset email is sent exactly once: a stub mailer whose send() always resolves, then assert requestReset returned { status: \"email sent\" }.", "correct": false },
+            { "text": "Testing checkout payments: in every checkout test, replace the provider SDK's client.charges.create with t.mock.method and assert the exact SDK request object.", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A test of placeOrder(cart) uses an in-memory order store, a fake mailer with an outbox, a spy for the payments adapter and a spy for the internal price cache. It ends with four assertions:\n\n// A\nassert.strictEqual(order.totalCents, 5998);\n// B\nassert.deepStrictEqual(mailer.outbox.map((m) => m.template), [\"order-confirmation\"]);\n// C\nassert.deepStrictEqual(payments.charge.mock.calls.map((c) => c.arguments), [[order.id, 5998]]);\n// D\nassert.strictEqual(priceCache.get.mock.callCount(), 2);\n\nA teammate changes placeOrder to look up both prices with one priceCache.getMany() call. Customers see no difference. Which assertion is over-specified and will break for no good reason?",
+          "explanation": "D is over-specified: how many times placeOrder reads its own price cache is an implementation detail no customer can observe, so a harmless refactor (one batched lookup instead of two single ones) turns it red. A checks state - the outcome the customer pays - and survives any refactor that keeps the price right. B checks the outbox of a fake mailer: the confirmation email is a real outcome, and checking the template list (not the internal call sequence) leaves the service free to build the email however it likes. C is interaction verification, but here the interaction IS the outcome: charging the card exactly once with the right amount is the business rule, so counting the calls to the payments adapter is correct.",
+          "options": [
+            { "text": "D - the number of price-cache reads is an internal detail; the batched lookup changes it while the order stays the same.", "correct": true },
+            { "text": "A - asserting the exact total couples the test to the pricing code.", "correct": false },
+            { "text": "B - tests should never look at emails, only at return values.", "correct": false },
+            { "text": "C - verifying calls to any double is always over-specification; the charge should not be checked.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_qaf_212",
+      "name": "build-a-spy",
+      "type": "mini_coding",
+      "title": "Build your own spy",
+      "description": "Implement createSpy(impl), a small subset of node:test's t.mock.fn: it records every call (arguments, result, error, this), re-throws errors, counts calls, queues one-off implementations with mockImplementationOnce and forgets its history with resetCalls. The grader checks the spy directly, then uses it as the mailer double in a password-reset test suite - which must pass for the correct service and catch the services that swallow mailer errors or send the email twice.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "createSpy.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Records arguments, result and this for every call",
+          "input": { "case": "records" },
+          "expected": {
+            "returned": ["cart:MUG-01x2", "wishlist:TEE-02x1"],
+            "callCount": 2,
+            "calls": [
+              { "arguments": ["MUG-01", 2], "result": "cart:MUG-01x2", "error": null, "this": "cart" },
+              { "arguments": ["TEE-02", 1], "result": "wishlist:TEE-02x1", "error": null, "this": "wishlist" }
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A throwing implementation: the error is recorded, counted and the same error re-thrown",
+          "input": { "case": "throws" },
+          "expected": {
+            "returned": [2500, "same error re-thrown", 3750],
+            "callCount": 3,
+            "calls": [
+              { "arguments": [2], "result": 2500, "error": null },
+              { "arguments": [0], "result": "(undefined)", "error": "RangeError: qty must be >= 1, got 0" },
+              { "arguments": [3], "result": 3750, "error": null }
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "mockImplementationOnce queues implementations, used once each and in order",
+          "input": { "case": "once" },
+          "expected": {
+            "returned": ["first", "second", "default", "third", "default"],
+            "callCount": 5
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "createSpy() returns undefined; resetCalls clears the history but keeps the queue",
+          "input": { "case": "reset" },
+          "expected": {
+            "first": "(undefined)",
+            "afterReset": { "callCount": 0, "calls": 0 },
+            "next": ["queued", "(undefined)"],
+            "callCount": 2,
+            "calls": [
+              { "arguments": ["b"], "result": "queued", "error": null },
+              { "arguments": ["c"], "result": "(undefined)", "error": null }
+            ]
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Your spy as the mailer double: the suite passes for the correct password-reset service",
+          "input": { "case": "service", "service": "correct" },
+          "expected": "passed",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Your spy as the mailer double: the suite catches the service that swallows mailer errors",
+          "input": { "case": "service", "service": "swallowsErrors" },
+          "expected": "bug caught",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Your spy as the mailer double: the suite catches a bug you were not told about",
+          "input": { "case": "service", "service": "sendsTwice" },
+          "expected": "bug caught",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_qaf_231",
+      "name": "in-memory-user-store",
+      "type": "mini_coding",
+      "title": "Build an in-memory user store that keeps the contract",
+      "description": "The signup tests used a quick fake that returned its own objects, compared emails with === and answered undefined for an unknown user - it agreed with the code, not with Postgres. Replace it with createInMemoryUserStore(): async insert, findByEmail and list, sequential ids, copies on the way in and out, case-insensitive unique emails rejected with code DUPLICATE_EMAIL, and null when nothing matches. The grader runs a contract suite against your store, then wires it to the shop's signup service and handleSignup handler and checks the 201, 409 and 400 responses.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "memory-user-store.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Contract: insert, findByEmail and list return promises, ids 1, 2, ... and the stored fields",
+          "input": { "group": "basics" },
+          "expected": "passed",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Contract: changing an object passed in or returned never changes the stored rows",
+          "input": { "group": "isolation" },
+          "expected": "passed",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Contract: the same email in any case is rejected with an Error whose code is DUPLICATE_EMAIL",
+          "input": { "group": "duplicates" },
+          "expected": "passed",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Contract: findByEmail ignores case and resolves to null for an unknown email",
+          "input": { "group": "lookup" },
+          "expected": "passed",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Integration: handleSignup with your store answers 201, 409 for a legacy mixed-case row, and 400",
+          "input": { "group": "signup" },
+          "expected": "passed",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Integration: fresh stores, simultaneous signups and list order",
+          "input": { "group": "hidden" },
+          "expected": "passed",
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

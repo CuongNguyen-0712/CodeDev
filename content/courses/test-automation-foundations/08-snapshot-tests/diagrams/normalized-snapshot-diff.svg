@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">One lost VAT line, two snapshot diffs</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Left: the raw invoice snapshot, which changes on every run. Right: the same change after normalizing volatile fields.</text>
+  <rect x="40" y="104" width="550" height="440" rx="8" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+  <text x="60" y="136" font-size="18" font-weight="700" fill="#b91c1c">Raw snapshot: 16 changed lines</text>
+  <rect x="56" y="147" width="518" height="20" rx="3" fill="#fef2f2"/>
+  <text x="66" y="162" font-size="13" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#b91c1c">-  "invoiceId": "b9f55193-a43c-46b7-9ff9-6c3247edb9f6",</text>
+  <rect x="56" y="167" width="518" height="20" rx="3" fill="#fef2f2"/>
+  <text x="66" y="182" font-size="13" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#b91c1c">+  "invoiceId": "3e0d64b8-ccf9-4095-914b-e6d375bdd655",</text>
+  <rect x="56" y="187" width="518" height="20" rx="3" fill="#fef2f2"/>
+  <text x="66" y="202" font-size="13" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#b91c1c">-  "createdAt": "2026-10-21T09:38:13.713Z",</text>
+  <rect x="56" y="207" width="518" height="20" rx="3" fill="#fef2f2"/>
+  <text x="66" y="222" font-size="13" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#b91c1c">+  "createdAt": "2026-10-22T02:14:51.090Z",</text>
+  <rect x="56" y="227" width="518" height="20" rx="3" fill="#fef2f2"/>
+  <text x="66" y="242" font-size="13" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#b91c1c">-  "customer": { "name": "Nguyen An", "country": "VN" },</text>
+  <rect x="56" y="247" width="518" height="20" rx="3" fill="#fef2f2"/>
+  <text x="66" y="262" font-size="13" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#b91c1c">+  "customer": { "country": "VN", "name": "Nguyen An" },</text>
+  <rect x="56" y="267" width="518" height="20" rx="3" fill="#fef2f2"/>
+  <text x="66" y="282" font-size="13" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#b91c1c">-      "id": "5f96820f-59cd-40db-a306-5548963d6aa2",</text>
+  <rect x="56" y="287" width="518" height="20" rx="3" fill="#fef2f2"/>
+  <text x="66" y="302" font-size="13" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#b91c1c">+      "id": "b736c5f5-201e-4edc-8fd4-859056c598aa",</text>
+  <rect x="56" y="307" width="518" height="20" rx="3" fill="#fef2f2"/>
+  <text x="66" y="322" font-size="13" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#b91c1c">-      "id": "52a3bd14-9977-4504-8f17-b327412a8ccc",</text>
+  <rect x="56" y="327" width="518" height="20" rx="3" fill="#fef2f2"/>
+  <text x="66" y="342" font-size="13" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#b91c1c">+      "id": "5d2dabae-4c45-436a-8d2f-08319a1b24cb",</text>
+  <rect x="56" y="347" width="4" height="20" fill="#b45309"/>
+  <text x="66" y="362" font-size="13" font-weight="700" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#92400e">-  "taxes": [{ "id": "c8c571f2-...", "name": "VAT 10%", ... }],</text>
+  <rect x="56" y="367" width="4" height="20" fill="#b45309"/>
+  <text x="66" y="382" font-size="13" font-weight="700" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#92400e">+  "taxes": [],</text>
+  <rect x="56" y="387" width="4" height="20" fill="#b45309"/>
+  <text x="66" y="402" font-size="13" font-weight="700" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#92400e">-  "taxCents": 400,</text>
+  <rect x="56" y="407" width="4" height="20" fill="#b45309"/>
+  <text x="66" y="422" font-size="13" font-weight="700" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#92400e">+  "taxCents": 0,</text>
+  <rect x="56" y="427" width="4" height="20" fill="#b45309"/>
+  <text x="66" y="442" font-size="13" font-weight="700" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#92400e">-  "totalCents": 4400</text>
+  <rect x="56" y="447" width="4" height="20" fill="#b45309"/>
+  <text x="66" y="462" font-size="13" font-weight="700" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#92400e">+  "totalCents": 4000</text>
+  <text x="60" y="500" font-size="14" fill="#b91c1c" font-weight="700">10 of 16 lines are noise: new ids, a new clock, key order.</text>
+  <text x="60" y="522" font-size="14" fill="#b91c1c">The lost VAT hides among them, and the update is approved unread.</text>
+  <rect x="610" y="104" width="550" height="440" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="630" y="136" font-size="18" font-weight="700" fill="#15803d">Normalized snapshot: 6 changed lines</text>
+  <text x="636" y="162" font-size="13" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#64748b">   "createdAt": "&lt;timestamp&gt;",</text>
+  <text x="636" y="182" font-size="13" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#64748b">   "customer": { "country": "VN", "name": "Nguyen An" },</text>
+  <text x="636" y="202" font-size="13" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#64748b">   "invoiceId": "&lt;id-1&gt;",</text>
+  <text x="636" y="222" font-size="13" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#64748b">   "lines": [{ ..., "id": "&lt;id-2&gt;", ... },</text>
+  <text x="636" y="242" font-size="13" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#64748b">             { ..., "id": "&lt;id-3&gt;", ... }],</text>
+  <text x="636" y="262" font-size="13" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#64748b">   "subtotalCents": 4000,</text>
+  <rect x="626" y="267" width="4" height="20" fill="#b45309"/>
+  <text x="636" y="282" font-size="13" font-weight="700" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#92400e">-  "taxCents": 400,</text>
+  <rect x="626" y="287" width="4" height="20" fill="#b45309"/>
+  <text x="636" y="302" font-size="13" font-weight="700" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#92400e">+  "taxCents": 0,</text>
+  <rect x="626" y="307" width="4" height="20" fill="#b45309"/>
+  <text x="636" y="322" font-size="13" font-weight="700" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#92400e">-  "taxes": [{ "amountCents": 400, "id": "&lt;id-4&gt;", ... }],</text>
+  <rect x="626" y="327" width="4" height="20" fill="#b45309"/>
+  <text x="636" y="342" font-size="13" font-weight="700" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#92400e">+  "taxes": [],</text>
+  <rect x="626" y="347" width="4" height="20" fill="#b45309"/>
+  <text x="636" y="362" font-size="13" font-weight="700" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#92400e">-  "totalCents": 4400</text>
+  <rect x="626" y="367" width="4" height="20" fill="#b45309"/>
+  <text x="636" y="382" font-size="13" font-weight="700" font-family="Consolas, 'Courier New', monospace" xml:space="preserve" fill="#92400e">+  "totalCents": 4000</text>
+  <text x="630" y="500" font-size="14" fill="#15803d" font-weight="700">Every changed line is a real change.</text>
+  <text x="630" y="522" font-size="14" fill="#15803d">Sorted keys, "&lt;timestamp&gt;" and "&lt;id-n&gt;" are identical on every run.</text>
+  <text x="40" y="580" font-size="15" fill="#334155"><tspan font-weight="700" fill="#92400e">Amber</tspan> = the behaviour change a reviewer must see. <tspan font-weight="700" fill="#b91c1c">Red</tspan> = volatile fields that change on every run and train people to stop reading.</text>
+</svg>

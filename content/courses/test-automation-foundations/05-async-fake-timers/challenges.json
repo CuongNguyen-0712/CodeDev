@@ -1,0 +1,180 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_qaf_221",
+      "name": "fake-clock-test-double",
+      "type": "mini_coding",
+      "title": "Build a fake clock",
+      "description": "Write createFakeClock(startMs): a test double for time with now(), setTimeout(fn, ms), clearTimeout(id) and tick(ms). tick() must run due timers in order of due time (ties in scheduling order), set now() to each timer's own due time while its callback runs, and also run timers that callbacks schedule during the tick when they fall due by its end. The grader checks these rules directly and uses your clock to drive a debounced search box, a payment retry with exponential backoff and a 500 ms timeout.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "fakeClock.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Timers run in order of due time, the one due exactly at the end included",
+          "input": {
+            "scenario": "basic"
+          },
+          "expected": {
+            "after99": {
+              "log": [],
+              "now": 1099
+            },
+            "log": [
+              "b@1100",
+              "a@1300"
+            ],
+            "now": 1600
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "During one long tick, each callback sees its own due time in now()",
+          "input": {
+            "scenario": "nowDuringCallback"
+          },
+          "expected": {
+            "log": [
+              "audit@200",
+              "receipt@300",
+              "email@500"
+            ],
+            "now": 1000
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A timer scheduled by a callback runs in the same tick if it falls due by the end",
+          "input": {
+            "scenario": "nestedTimers"
+          },
+          "expected": {
+            "afterFirstTick": {
+              "log": [
+                "A@100",
+                "B@200",
+                "D@200"
+              ],
+              "now": 1000
+            },
+            "log": [
+              "A@100",
+              "B@200",
+              "D@200",
+              "C@5100"
+            ],
+            "now": 5100
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Same due time runs in scheduling order; clearTimeout cancels and ignores fired or unknown ids",
+          "input": {
+            "scenario": "tiesAndClear"
+          },
+          "expected": {
+            "distinctIds": true,
+            "log": [
+              "x@10",
+              "a@50",
+              "d@50",
+              "e@100"
+            ],
+            "now": 100
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Drives a debounced search box: only the last keystroke within 300 ms is sent",
+          "input": {
+            "scenario": "debounce"
+          },
+          "expected": {
+            "justBefore": [],
+            "sent": [
+              "sho@550",
+              "shoe@850"
+            ],
+            "now": 1550
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Drives a payment retry with backoff 1 s, 2 s, 4 s through one tick(60000)",
+          "input": {
+            "scenario": "retry"
+          },
+          "expected": {
+            "alwaysDown": {
+              "attempts": [
+                0,
+                1000,
+                3000,
+                7000
+              ],
+              "outcome": "503@7000"
+            },
+            "upOnThirdTry": {
+              "attempts": [
+                0,
+                1000,
+                3000
+              ],
+              "outcome": "captured@3000"
+            }
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Drives a 500 ms timeout around a fast and a slow shipping quote",
+          "input": {
+            "scenario": "timeout"
+          },
+          "expected": {
+            "fast": [
+              "quote@300"
+            ],
+            "slow": [
+              "timed out after 500 ms@500"
+            ]
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Defaults: start time 0, setTimeout without ms, tick(0) and many small ticks",
+          "input": {
+            "scenario": "defaults"
+          },
+          "expected": {
+            "start": 0,
+            "before": [
+              "zero@0"
+            ],
+            "log": [
+              "zero@0",
+              "half@500"
+            ],
+            "now": 500
+          },
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_qaf_332",
+      "key": "challenges/javascript/chal_coding_qaf_332/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "shipping.test.js",
+      "size": 4215
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_coding_qaf_332",
+      "key": "challenges/javascript/chal_coding_qaf_332/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 4233
+    }
+  ]
+}

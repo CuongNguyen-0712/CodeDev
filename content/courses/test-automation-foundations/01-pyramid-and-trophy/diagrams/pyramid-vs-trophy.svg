@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Two shapes for one test suite</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The width of a layer is how many tests live there. Both shapes keep end-to-end tests few; they disagree on unit vs integration.</text>
+
+  <!-- Pyramid -->
+  <text x="280" y="122" font-size="18" font-weight="700" text-anchor="middle" fill="#0f172a">Test pyramid</text>
+  <text x="280" y="142" font-size="13" text-anchor="middle" fill="#64748b">Mike Cohn: most tests are unit tests</text>
+  <polygon points="240,160 320,160 374,280 186,280" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="280" y="216" font-size="16" font-weight="700" text-anchor="middle" fill="#b91c1c">End-to-end</text>
+  <text x="280" y="238" font-size="13" text-anchor="middle" fill="#b91c1c">a few journeys</text>
+  <polygon points="186,284 374,284 437,424 123,424" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="280" y="348" font-size="16" font-weight="700" text-anchor="middle" fill="#1d4ed8">Integration</text>
+  <text x="280" y="370" font-size="13" text-anchor="middle" fill="#1d4ed8">service + database / API</text>
+  <polygon points="123,428 437,428 500,548 60,548" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="280" y="482" font-size="16" font-weight="700" text-anchor="middle" fill="#15803d">Unit</text>
+  <text x="280" y="504" font-size="13" text-anchor="middle" fill="#15803d">business rules, pure functions</text>
+
+  <!-- Axis -->
+  <line x1="610" y1="490" x2="610" y2="232" stroke="#334155" stroke-width="2"/>
+  <polygon points="610,218 601,236 619,236" fill="#334155"/>
+  <text x="610" y="164" font-size="13" font-weight="700" text-anchor="middle" fill="#92400e">Higher up</text>
+  <text x="610" y="184" font-size="13" text-anchor="middle" fill="#334155">slower, costlier, flakier</text>
+  <text x="610" y="202" font-size="13" text-anchor="middle" fill="#334155">more confidence per test</text>
+  <text x="610" y="514" font-size="13" font-weight="700" text-anchor="middle" fill="#15803d">Lower down</text>
+  <text x="610" y="534" font-size="13" text-anchor="middle" fill="#334155">milliseconds, cheap, stable</text>
+  <text x="610" y="552" font-size="13" text-anchor="middle" fill="#334155">failure names the bug</text>
+
+  <!-- Trophy -->
+  <text x="930" y="122" font-size="18" font-weight="700" text-anchor="middle" fill="#0f172a">Testing trophy</text>
+  <text x="930" y="142" font-size="13" text-anchor="middle" fill="#64748b">Kent C. Dodds: most tests are integration tests</text>
+  <rect x="860" y="160" width="140" height="64" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="930" y="188" font-size="16" font-weight="700" text-anchor="middle" fill="#b91c1c">End-to-end</text>
+  <text x="930" y="208" font-size="13" text-anchor="middle" fill="#b91c1c">a few journeys</text>
+  <path d="M 730 228 L 1130 228 L 1060 372 Q 1050 384 1036 384 L 824 384 Q 810 384 800 372 Z" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="930" y="292" font-size="16" font-weight="700" text-anchor="middle" fill="#1d4ed8">Integration</text>
+  <text x="930" y="314" font-size="13" text-anchor="middle" fill="#1d4ed8">several modules together,</text>
+  <text x="930" y="332" font-size="13" text-anchor="middle" fill="#1d4ed8">in-memory store or test database</text>
+  <rect x="840" y="388" width="180" height="72" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="930" y="418" font-size="16" font-weight="700" text-anchor="middle" fill="#15803d">Unit</text>
+  <text x="930" y="440" font-size="13" text-anchor="middle" fill="#15803d">complex pure logic</text>
+  <rect x="740" y="464" width="380" height="84" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="930" y="496" font-size="16" font-weight="700" text-anchor="middle" fill="#334155">Static</text>
+  <text x="930" y="518" font-size="13" text-anchor="middle" fill="#334155">linter, type checker: typos, wrong types,</text>
+  <text x="930" y="536" font-size="13" text-anchor="middle" fill="#334155">undefined names - checked on every save</text>
+
+  <text x="40" y="584" font-size="15" fill="#334155"><tspan font-weight="700" fill="#b91c1c">The incident suite was upside down:</tspan> 180 end-to-end tests and 0 unit tests for a rounding rule.</text>
+</svg>

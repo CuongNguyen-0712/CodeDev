@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Five test doubles, from least to most behaviour</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Each step to the right does more - and is more code to keep in sync with the real collaborator.</text>
+  <line x1="40" y1="106" x2="1150" y2="106" stroke="#94a3b8" stroke-width="2"/>
+  <path d="M1160 106 L1146 99 L1146 113 Z" fill="#94a3b8"/>
+
+  <!-- Dummy -->
+  <rect x="40" y="124" width="208" height="292" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="56" y="158" font-size="20" font-weight="700" fill="#0f172a">Dummy</text>
+  <text x="56" y="180" font-size="13" fill="#475569">fills a parameter</text>
+  <text x="56" y="212" font-size="11" font-weight="700" fill="#64748b" letter-spacing="1">DOES</text>
+  <text x="56" y="232" font-size="14" fill="#334155">Passed because the</text>
+  <text x="56" y="251" font-size="14" fill="#334155">signature needs it;</text>
+  <text x="56" y="270" font-size="14" fill="#334155">never actually used.</text>
+  <text x="56" y="302" font-size="11" font-weight="700" fill="#64748b" letter-spacing="1">SHOP EXAMPLE</text>
+  <text x="56" y="322" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">logger: {}</text>
+  <text x="56" y="341" font-size="13" fill="#475569">the coupon path never logs</text>
+  <line x1="56" y1="362" x2="232" y2="362" stroke="#e2e8f0" stroke-width="2"/>
+  <text x="56" y="390" font-size="14" font-weight="700" fill="#64748b">Check: nothing</text>
+
+  <!-- Stub -->
+  <rect x="268" y="124" width="208" height="292" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="284" y="158" font-size="20" font-weight="700" fill="#0f172a">Stub</text>
+  <text x="284" y="180" font-size="13" fill="#475569">canned answers</text>
+  <text x="284" y="212" font-size="11" font-weight="700" fill="#64748b" letter-spacing="1">DOES</text>
+  <text x="284" y="232" font-size="14" fill="#334155">Returns fixed answers</text>
+  <text x="284" y="251" font-size="14" fill="#334155">so the code takes the</text>
+  <text x="284" y="270" font-size="14" fill="#334155">path you want to test.</text>
+  <text x="284" y="302" font-size="11" font-weight="700" fill="#64748b" letter-spacing="1">SHOP EXAMPLE</text>
+  <text x="284" y="322" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">taxRate: async () =&gt; 19</text>
+  <text x="284" y="341" font-size="13" fill="#475569">a German customer</text>
+  <line x1="284" y1="362" x2="460" y2="362" stroke="#e2e8f0" stroke-width="2"/>
+  <text x="284" y="390" font-size="14" font-weight="700" fill="#15803d">Check: the result</text>
+
+  <!-- Spy -->
+  <rect x="496" y="124" width="208" height="292" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="512" y="158" font-size="20" font-weight="700" fill="#0f172a">Spy</text>
+  <text x="512" y="180" font-size="13" fill="#475569">records calls</text>
+  <text x="512" y="212" font-size="11" font-weight="700" fill="#64748b" letter-spacing="1">DOES</text>
+  <text x="512" y="232" font-size="14" fill="#334155">Records arguments,</text>
+  <text x="512" y="251" font-size="14" fill="#334155">result and error of</text>
+  <text x="512" y="270" font-size="14" fill="#334155">every call, for later.</text>
+  <text x="512" y="302" font-size="11" font-weight="700" fill="#64748b" letter-spacing="1">SHOP EXAMPLE</text>
+  <text x="512" y="322" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">send = t.mock.fn()</text>
+  <text x="512" y="341" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">send.mock.calls</text>
+  <line x1="512" y1="362" x2="688" y2="362" stroke="#bfdbfe" stroke-width="2"/>
+  <text x="512" y="390" font-size="14" font-weight="700" fill="#b45309">Check: the calls</text>
+
+  <!-- Mock -->
+  <rect x="724" y="124" width="208" height="292" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="740" y="158" font-size="20" font-weight="700" fill="#0f172a">Mock</text>
+  <text x="740" y="180" font-size="13" fill="#475569">expects calls</text>
+  <text x="740" y="212" font-size="11" font-weight="700" fill="#64748b" letter-spacing="1">DOES</text>
+  <text x="740" y="232" font-size="14" fill="#334155">Is told up front which</text>
+  <text x="740" y="251" font-size="14" fill="#334155">calls it must receive;</text>
+  <text x="740" y="270" font-size="14" fill="#334155">fails when they differ.</text>
+  <text x="740" y="302" font-size="11" font-weight="700" fill="#64748b" letter-spacing="1">SHOP EXAMPLE</text>
+  <text x="740" y="322" font-size="13" fill="#475569">expect one charge of</text>
+  <text x="740" y="341" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">("A-1", 4999)</text>
+  <line x1="740" y1="362" x2="916" y2="362" stroke="#bfdbfe" stroke-width="2"/>
+  <text x="740" y="390" font-size="14" font-weight="700" fill="#b45309">Check: the interaction</text>
+
+  <!-- Fake -->
+  <rect x="952" y="124" width="208" height="292" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="968" y="158" font-size="20" font-weight="700" fill="#0f172a">Fake</text>
+  <text x="968" y="180" font-size="13" fill="#475569">works, but lightweight</text>
+  <text x="968" y="212" font-size="11" font-weight="700" fill="#64748b" letter-spacing="1">DOES</text>
+  <text x="968" y="232" font-size="14" fill="#334155">A small working</text>
+  <text x="968" y="251" font-size="14" fill="#334155">implementation: a Map,</text>
+  <text x="968" y="270" font-size="14" fill="#334155">an array, an outbox.</text>
+  <text x="968" y="302" font-size="11" font-weight="700" fill="#64748b" letter-spacing="1">SHOP EXAMPLE</text>
+  <text x="968" y="322" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">createFakeMailer()</text>
+  <text x="968" y="341" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">mailer.outbox</text>
+  <line x1="968" y1="362" x2="1144" y2="362" stroke="#e2e8f0" stroke-width="2"/>
+  <text x="968" y="390" font-size="14" font-weight="700" fill="#15803d">Check: what it holds</text>
+
+  <!-- State vs interaction -->
+  <rect x="40" y="436" width="548" height="132" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="60" y="468" font-size="17" font-weight="700" fill="#15803d">State verification (the default)</text>
+  <text x="60" y="496" font-size="15" fill="#334155">Assert on the result, or on what a fake holds afterwards:</text>
+  <text x="60" y="520" font-size="15" fill="#334155">total is 5998 cents, the outbox holds one reset email.</text>
+  <text x="60" y="544" font-size="15" fill="#334155">Survives refactors that keep the behaviour.</text>
+
+  <rect x="612" y="436" width="548" height="132" rx="8" fill="#fffbeb" stroke="#b45309" stroke-width="2"/>
+  <text x="632" y="468" font-size="17" font-weight="700" fill="#92400e">Interaction verification (when the call is the outcome)</text>
+  <text x="632" y="496" font-size="15" fill="#334155">Assert on the calls a spy or mock received - only when</text>
+  <text x="632" y="520" font-size="15" fill="#334155">the call itself is what matters: the card is charged</text>
+  <text x="632" y="544" font-size="15" fill="#334155">exactly once, the email is actually sent.</text>
+</svg>

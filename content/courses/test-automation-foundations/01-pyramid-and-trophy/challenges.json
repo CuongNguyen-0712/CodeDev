@@ -1,0 +1,39 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_qaf_111",
+      "name": "pyramid-and-trophy-quiz",
+      "type": "quiz",
+      "title": "Which level should catch this bug?",
+      "description": "Two decisions from the checkout team's test plan: where one bug should be caught, and what the pyramid and the trophy really say about end-to-end tests.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The order-history page must list a customer's orders newest first. The repository builds the query like this:\n\n// src/orders.repository.js\nexport async function listOrders(db, customerId) {\n  return db.query(\n    'SELECT id, total_cents, created_at FROM orders WHERE customer_id = $1 ORDER BY created_at',\n    [customerId]\n  );\n}\n\nORDER BY created_at sorts oldest first. What is the LOWEST test level that can reliably catch this bug?",
+          "explanation": "Integration is right: the bug is in what the database does with the SQL, so a test must run the real query against a real (or local test) database with two or three orders and check their order. A static check (linter, type checker) only sees a valid string and a valid function; it knows nothing about the 'newest first' rule or what ORDER BY means. A unit test with a mocked db cannot catch it either: the mock returns whatever rows the test gives it, in whatever order, so the test checks the mock instead of the query. An end-to-end test through the browser would catch it, but it is not the lowest level: it needs the whole product running, takes seconds, and when it fails it points at a page, not at the query.",
+          "options": [
+            { "text": "Static checks: a linter or type checker reading orders.repository.js", "correct": false },
+            { "text": "A unit test of listOrders with a mocked db whose query() returns three rows", "correct": false },
+            { "text": "An integration test that runs listOrders against a test database containing a few orders", "correct": true },
+            { "text": "An end-to-end test that logs in through the browser and reads the order-history page", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "The team is redesigning the checkout suite that missed the VAT bug (about 180 browser tests, 42 minutes, red in about 6% of runs for unrelated reasons). Which statements are true? (Select all that apply.)",
+          "explanation": "True: both the pyramid (Mike Cohn) and the trophy (Kent C. Dodds) keep end-to-end tests to a small top layer; they disagree on whether unit or integration tests form the bulk. True: a test that fails often for reasons unrelated to the change teaches people to ignore red, so a real failure is ignored too - that is what happened with the nightly report. False: the trophy still has a unit layer (and a static base); it only says integration tests should be the largest layer. False: e2e tests are slower and flakier because of what they run - a browser, servers, a database, the network and third-party pages - not only because of how they are written. Good selectors reduce flakiness but cannot make a multi-second browser journey as fast or as stable as a function call.",
+          "options": [
+            { "text": "Both the test pyramid and the testing trophy keep end-to-end tests to a small layer at the top.", "correct": true },
+            { "text": "The testing trophy says to replace unit tests with integration tests completely.", "correct": false },
+            { "text": "A test that is red in about 6% of runs for unrelated reasons can do harm: people learn to ignore red, including real failures.", "correct": true },
+            { "text": "End-to-end tests are only slow and flaky when they are written badly; with good selectors they are as fast and stable as unit tests.", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

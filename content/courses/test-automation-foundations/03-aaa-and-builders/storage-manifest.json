@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_qaf_131",
+      "key": "challenges/javascript/chal_fix_qaf_131/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "orderBuilder.js",
+      "size": 2976
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_fix_qaf_131",
+      "key": "challenges/javascript/chal_fix_qaf_131/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 3645
+    }
+  ]
+}

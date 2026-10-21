@@ -1,0 +1,65 @@
+{
+  "publicId": "test-automation-foundations",
+  "title": "Test Automation Foundations: Unit, Integration & Flaky Tests in JavaScript",
+  "concept": "Learn to write tests that catch real bugs and never cry wolf: the test pyramid, assertions and test doubles, testing async code with fake timers, finding flaky tests and measuring what a suite really covers.",
+  "description": "Learn to write tests that catch real bugs and never cry wolf: the test pyramid and the trophy, assertions that explain failures, test data builders, stubs, spies and fakes, async code under fake timers, integration tests against an in-memory store, flaky tests, snapshot tests and coverage versus mutation score - all with Node 24's built-in test runner. 9 lessons, each starting from a real bug or incident, with beginner-friendly challenges.",
+  "image": null,
+  "level": "beginner",
+  "durationMinutes": 205,
+  "instructor": "CodeDev Engineering Team",
+  "language": "JavaScript",
+  "category": "Testing & QA",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 50,
+  "accessModel": "free",
+  "publishStatus": "draft",
+  "careerRoles": [
+    "qa_engineer",
+    "frontend_developer",
+    "backend_developer",
+    "fullstack_developer",
+    "student"
+  ],
+  "skills": {
+    "testing": 5,
+    "javascript": 4,
+    "async_programming": 2,
+    "api_design": 1
+  },
+  "goals": [
+    "fundamentals",
+    "first_job",
+    "grow_in_role"
+  ],
+  "prerequisites": ["js-modern-foundations"],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Writing Tests",
+      "lessons": [
+        { "orderIndex": 1, "folder": "01-pyramid-and-trophy", "title": "What to test: the pyramid & the trophy", "sanityId": "lesson-qaf-1-1" },
+        { "orderIndex": 2, "folder": "02-assertions-that-explain", "title": "Assertions that explain failures", "sanityId": "lesson-qaf-1-2" },
+        { "orderIndex": 3, "folder": "03-aaa-and-builders", "title": "Arrange-act-assert & test data builders", "sanityId": "lesson-qaf-1-3" }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Isolation",
+      "lessons": [
+        { "orderIndex": 1, "folder": "04-test-doubles", "title": "Stubs, mocks & fakes: picking the right double", "sanityId": "lesson-qaf-2-1" },
+        { "orderIndex": 2, "folder": "05-async-fake-timers", "title": "Testing async code with fake timers", "sanityId": "lesson-qaf-2-2" },
+        { "orderIndex": 3, "folder": "06-integration-in-memory", "title": "Integration tests against an in-memory store", "sanityId": "lesson-qaf-2-3" }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Keeping Suites Healthy",
+      "lessons": [
+        { "orderIndex": 1, "folder": "07-flaky-tests", "title": "Flaky tests: order, time & shared state", "sanityId": "lesson-qaf-3-1" },
+        { "orderIndex": 2, "folder": "08-snapshot-tests", "title": "Snapshot tests that don't lie", "sanityId": "lesson-qaf-3-2" },
+        { "orderIndex": 3, "folder": "09-coverage-vs-mutation", "title": "Coverage vs mutation score", "sanityId": "lesson-qaf-3-3" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_qaf_311",
+      "name": "flaky-test-causes-quiz",
+      "type": "quiz",
+      "title": "Why is it flaky, and what do you do about it?",
+      "description": "Two situations from the shop's CI. Decide which tests can change their result without a code change, and how a team should respond to a test that fails 1 run in 20.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which of these tests can pass on one run and fail on the next, with exactly the same code? (Select all that apply.)\n\nA)\ntest('a random product gets free shipping', () => {\n  const product = products[Math.floor(Math.random() * products.length)];\n  assert.equal(shippingCents(product), 0);\n});\n// one of the 12 fixture products is oversized and always pays shipping\n\nB)\ntest('sends the order confirmation', async () => {\n  placeOrder(order);                        // not awaited; it calls the staging mail API\n  await new Promise((r) => setTimeout(r, 200));\n  assert.equal(mailbox.sent.length, 1);\n});\n\nC)\nbeforeEach(() => { cart = createCart(); });\ntest('SAVE10 expires after its last second', (t) => {\n  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-01T00:00:00.000Z') });\n  assert.equal(isCouponValid(save10, cart), false);\n});\n\nD)\ntest('formats 1999 cents', () => {\n  assert.equal(formatPrice(1999), '$19.99');   // formatPrice is a pure function\n});",
+          "explanation": "A is flaky through randomness: the test passes for 11 of the 12 products and fails whenever Math.random() picks the oversized one - with nothing logged, nobody can replay the failing input. Use fixed inputs, or inject a seeded random function and print the seed. B is flaky in two ways: it races a fixed 200 ms sleep against a real network call to the staging mail API, which is sometimes slower than 200 ms (and sometimes down). Await the promise placeOrder returns and use a fake mailer in a unit test. C is deterministic: the cart is fresh for every test and the time is pinned to an exact instant with t.mock.timers, so it gives the same result on every run, in every order and time zone. D is deterministic too: a pure function with fixed input has nothing that can change between runs (it can still be wrong, but it is wrong every time).",
+          "options": [
+            { "text": "A - it picks a random product from the fixtures.", "correct": true },
+            { "text": "B - it waits 200 ms for a real call to the staging mail API.", "correct": true },
+            { "text": "C - it pins the time with t.mock.timers and creates a fresh cart in beforeEach.", "correct": false },
+            { "text": "D - it checks a pure function with a fixed input.", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The test \"applies the loyalty discount at checkout\" fails about 1 run in 20 in CI. Nobody knows why yet, and it is blocking other teams' merges. Which response is right?",
+          "explanation": "Quarantine is a legitimate short-term move: it stops one unexplained test from blocking everyone, but only with an owner, a ticket that holds the failure logs (and seed, if any) and a deadline, and only while the test keeps running somewhere you can see its results - otherwise it is just a slow way to delete it. The owner then finds the cause (shared state, time, randomness, an async wait, an external service) or the bug in the code, as in this lesson's incident. Turning on retries makes CI green without explaining anything: a real bug that fails 1 run in 20 is hidden just as well as a test bug. Deleting the test throws away the check and whatever it was trying to tell you. A longer sleep or timeout only changes how often a race loses; it makes the suite slower and the failure rarer and harder to reproduce.",
+          "options": [
+            { "text": "Move it to a non-blocking job with a named owner, a ticket with the failing logs and a deadline; find and fix the cause before the deadline.", "correct": true },
+            { "text": "Configure CI to retry failed tests 3 times: if a retry passes, the code is fine.", "correct": false },
+            { "text": "Delete the test: a test that fails randomly gives no information.", "correct": false },
+            { "text": "Add await sleep(500) before the assertion and raise the test timeout, so slow CI runners have enough time.", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_qaf_312",
+      "name": "stabilise-the-coupon-suite",
+      "type": "fix_bug",
+      "title": "Make the coupon suite stable - without making it blind",
+      "description": "The coupon suite from the incident shares one cart between tests, builds its times from the real clock and only passes in the written order. Fix the tests, not isCouponValid: the grader runs your suite in many orders, each test alone, and at several wall-clock times (including 00:30 in Vietnam and the last millisecond of a month), and every run must pass. It also runs your suite against buggy versions of isCouponValid, where it must fail in every run - so deleting the flaky tests does not count as a fix.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "javascript",
+        "filePath": "coupons.test.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Passes in the written order, in reverse and in 6 shuffled orders",
+          "input": { "check": "orders" },
+          "expected": "stable",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Every test passes when it runs alone",
+          "input": { "check": "alone" },
+          "expected": "stable",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Passes at 5 wall-clock times, including 00:30 in Vietnam and the last millisecond of October",
+          "input": { "check": "times" },
+          "expected": "stable",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Catches, in every run: a coupon rejected during its last second",
+          "input": { "check": "bug", "impl": "expiresOneSecondEarly" },
+          "expected": "bug caught",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Catches, in every run: the minimum cart total is ignored",
+          "input": { "check": "bug", "impl": "ignoresMinimum" },
+          "expected": "bug caught",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Catches a bug you were not told about (1)",
+          "input": { "check": "bug", "impl": "minimumOffByOne" },
+          "expected": "bug caught",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Catches a bug you were not told about (2)",
+          "input": { "check": "bug", "impl": "validOneSecondLate" },
+          "expected": "bug caught",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}
