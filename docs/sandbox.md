@@ -123,7 +123,9 @@ than a VM per submission. Recycle sessions regularly to bound how long a comprom
 
 Ubuntu 26.04 with the same layout as the managed `vercel/sandbox/ubuntu` image (user `ubuntu` with
 sudo, `HOME=/vercel`). Toolchains: Node.js 24, Python 3.14, gcc/g++ 15.2, OpenJDK 21, Go 1.26
-(std cache pre-built, read-only, in `/opt/gocache`), rustc 1.93. About 530 MB.
+(std cache pre-built, read-only, in `/opt/gocache`), rustc 1.93; since `v3` also PHP 8 (`php -l` as the compile
+step), TypeScript 5.9 (`tsc --strict`, then node), Kotlin 2.3 (`kotlinc` + kotlinx.coroutines, run on the JVM) and
+.NET 10 (Roslyn `csc.dll` called directly with the framework reference assemblies and implicit usings, no NuGet).
 
 - Slot users `run01`..`run08` (uid 2001–2008, no sudo, no home) run learner code, compilers included.
 - `/vercel/jobs` (0700, `ubuntu`) receives job files; `/work/<slot>` (0700, slot user) is the job's

@@ -55,6 +55,31 @@ const LANGS = {
     },
     go: { file: "main.go", compile: ["/usr/bin/go", "build", "-o", "main", "main.go"], run: () => ["./main"] },
     rust: { file: "main.rs", compile: ["/usr/bin/rustc", "-O", "--edition", "2024", "-o", "main", "main.rs"], run: () => ["./main"], addressSpace: 64 },
+    php: {
+        file: "main.php",
+        compile: ["/usr/bin/php", "-d", "display_errors=stderr", "-l", "main.php"],
+        run: (mb) => ["/usr/bin/php", "-d", `memory_limit=${mb}M`, "-d", "display_errors=stderr", "-d", "log_errors=0", "main.php"],
+        addressSpace: 128,
+    },
+    typescript: {
+        file: "main.ts",
+        // Type errors fail the build like any compiler error; main.js is CommonJS (no package.json).
+        compile: ["/usr/local/bin/tsc", "--strict", "--target", "es2024", "--module", "nodenext", "--skipLibCheck",
+            "--typeRoots", "/usr/local/lib/node_modules/@types", "--types", "node", "main.ts"],
+        run: (mb) => ["/usr/local/bin/node", `--max-old-space-size=${mb}`, "main.js"],
+    },
+    kotlin: {
+        file: "main.kt",
+        compile: ["/opt/kotlin/bin/kotlinc", "-nowarn", "-cp", "/opt/kotlin/lib/kotlinx-coroutines-core.jar", "-d", "out", "main.kt"],
+        run: (mb) => ["/usr/bin/java", `-Xmx${mb}m`, "-Xss64m", "-XX:+UseSerialGC", "-XX:-UsePerfData",
+            "-cp", "out:/opt/kotlin/lib/kotlin-stdlib.jar:/opt/kotlin/lib/kotlinx-coroutines-core.jar", "MainKt"],
+    },
+    csharp: {
+        file: "main.cs",
+        compile: ["/opt/codedev/csharp/csc", "-nologo", "-noconfig", "-langversion:latest", "-nullable:enable", "-optimize+",
+            "-target:exe", "-out:main.dll", "@/opt/codedev/csharp/refs.rsp", "/opt/codedev/csharp/GlobalUsings.cs", "main.cs"],
+        run: (mb) => ["/usr/bin/env", `DOTNET_GCHeapHardLimit=0x${(mb * 1024 * 1024).toString(16)}`, "/usr/bin/dotnet", "main.dll"],
+    },
 };
 // RLIMIT_AS is only set where the runtime does not reserve huge virtual ranges (V8, the JVM and
 // the Go runtime do); those are held by their own heap flags and the VM's memory instead.
@@ -164,6 +189,7 @@ function prepareSlot(user, job) {
         execFileSync("/usr/bin/cp", ["-r", GO_CACHE, cache]);
         execFileSync("/usr/bin/chown", ["-R", `${user.uid}:${user.gid}`, cache]);
     }
+    if (job.language === "csharp") write("main.runtimeconfig.json", fs.readFileSync("/opt/codedev/csharp/main.runtimeconfig.json"));
 }
 
 function userEnv(user) {
@@ -178,6 +204,12 @@ function userEnv(user) {
         GOTOOLCHAIN: "local",
         GOPROXY: "off",
         GOTELEMETRY: "off",
+        // kotlinc (a JVM): C1 only and serial GC start faster; the heap fits the compile limits.
+        JAVA_OPTS: "-Xmx512m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:-UsePerfData",
+        DOTNET_CLI_TELEMETRY_OPTOUT: "1",
+        DOTNET_NOLOGO: "1",
+        DOTNET_gcServer: "0",
+        DOTNET_EnableDiagnostics: "0", // no diagnostic IPC sockets in TMPDIR
     };
 }
 
@@ -249,9 +281,10 @@ async function compile(user, job) {
     if (!job.lang.compile) return { ok: true, error: null, timeMs: 0 };
     const run = await exec(user, limited(job.lang.compile, { cpuSeconds: COMPILE_MS / 1000, fileBytes: 64 * 1024 * 1024 }), { wallMs: COMPILE_MS });
     const ok = run.exitCode === 0 && !run.timedOut;
+    // tsc and kotlinc print diagnostics on stdout.
     return {
         ok,
-        error: ok ? null : run.timedOut ? `Compilation timed out (${COMPILE_MS}ms)` : tail(run.stderr, 4000) || "Compilation failed",
+        error: ok ? null : run.timedOut ? `Compilation timed out (${COMPILE_MS}ms)` : tail(run.stderr, 4000) || tail(run.stdout, 4000) || "Compilation failed",
         timeMs: run.timeMs,
     };
 }

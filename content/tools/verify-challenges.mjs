@@ -7,7 +7,7 @@
  *
  * javascript is assembled the same way the browser worker does it (lib/challenges/runner.js):
  * user code + harness in one Function scope, entry = first function in starter.js.
- * Other languages (python, c, cpp, java, go, rust) run in the code runner, exactly as they are
+ * Other languages (python, c, cpp, java, go, rust, php, typescript, kotlin, csharp) run in the code runner, exactly as they are
  * graded: start it with `npm run services:up` and set CODE_RUNNER_URL / CODE_RUNNER_TOKEN in
  * .env.local (or pass --env <file>).
  *

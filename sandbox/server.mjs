@@ -9,8 +9,8 @@
  *   - RUN_JOB set (the codedev_sandbox image, sandbox/vercel/Dockerfile target `docker`): every
  *     language goes through run-job, the same grader as the Vercel Sandbox. Learner code runs as
  *     a per-slot user (run01..run08), one slot per concurrent job. javascript keeps the runner.cjs
- *     harness contract ("function" mode); python, c, cpp, java, go and rust read stdin and write
- *     stdout ("stdio" mode).
+ *     harness contract ("function" mode); python, c, cpp, java, go, rust, php, typescript, kotlin and
+ *     csharp read stdin and write stdout ("stdio" mode).
  *   - RUN_JOB unset (host, tests): javascript only, one throw-away Node process per test (runner.cjs).
  *
  *   GET  /health        -> 200 { status: "ok", running, queued, languages }
@@ -39,7 +39,7 @@ const RUN_JOB = process.env.RUN_JOB || "";
 // run-job has 8 slot users; each running job holds one.
 const MAX_CONCURRENCY = Math.min(intEnv("MAX_CONCURRENCY", 2, 1), RUN_JOB ? 8 : Infinity);
 const MAX_QUEUE = intEnv("MAX_QUEUE", 16, 0);
-const LANGUAGES = RUN_JOB ? ["javascript", "python", "c", "cpp", "java", "go", "rust"] : ["javascript"];
+const LANGUAGES = RUN_JOB ? ["javascript", "python", "c", "cpp", "java", "go", "rust", "php", "typescript", "kotlin", "csharp"] : ["javascript"];
 const JOBS_DIR = "/vercel/jobs";
 const COMPILE_BUDGET_MS = 20_000; // run-job's own compile limit
 

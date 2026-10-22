@@ -17,11 +17,18 @@ FROM ubuntu:26.04 AS runner
 ENV LANG=C.UTF-8
 ARG DEBIAN_FRONTEND=noninteractive
 ARG NODE_VERSION=24.11.1
+ARG KOTLIN_VERSION=2.3.0
+ARG KOTLIN_SHA256=ea16ab1cab29d419bf41b60ecc0e305d449fa661d9c05fbcc5b2a6672505456a
+ARG KOTLINX_COROUTINES_VERSION=1.10.2
+ARG KOTLINX_COROUTINES_SHA256=5ca175b38df331fd64155b35cd8cae1251fa9ee369709b36d42e0a288ccce3fd
+ARG TYPESCRIPT_VERSION=5.9.3
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      ca-certificates sudo curl xz-utils libatomic1 procps \
+      ca-certificates sudo curl xz-utils unzip libatomic1 procps \
       python3 \
+      php-cli php-mbstring \
+      dotnet-sdk-10.0 \
       gcc g++ libc6-dev \
       openjdk-21-jdk-headless \
       golang-go \
@@ -30,6 +37,29 @@ RUN apt-get update && \
 
 RUN curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" \
       | tar -xJ --strip-components=1 -C /usr/local --exclude CHANGELOG.md --exclude LICENSE --exclude README.md
+
+# TypeScript: tsc type-checks (--strict) and emits main.js, which node runs; @types/node for stdin.
+RUN npm install -g --no-fund --no-audit "typescript@${TYPESCRIPT_VERSION}" "@types/node@24" && npm cache clean --force
+
+# Kotlin compiler (JVM, reuses OpenJDK 21) + kotlinx.coroutines; programs run as `java -cp out:<stdlib>:<coroutines> MainKt`.
+RUN curl -fsSL -o /tmp/kotlin.zip "https://github.com/JetBrains/kotlin/releases/download/v${KOTLIN_VERSION}/kotlin-compiler-${KOTLIN_VERSION}.zip" && \
+    echo "${KOTLIN_SHA256}  /tmp/kotlin.zip" | sha256sum -c - && \
+    unzip -q /tmp/kotlin.zip -d /opt && mv /opt/kotlinc /opt/kotlin && rm /tmp/kotlin.zip && \
+    curl -fsSL -o /opt/kotlin/lib/kotlinx-coroutines-core.jar "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/${KOTLINX_COROUTINES_VERSION}/kotlinx-coroutines-core-jvm-${KOTLINX_COROUTINES_VERSION}.jar" && \
+    echo "${KOTLINX_COROUTINES_SHA256}  /opt/kotlin/lib/kotlinx-coroutines-core.jar" | sha256sum -c -
+
+# C#: Roslyn's csc.dll is called directly (no `dotnet build`/NuGet restore, much faster) with the
+# shared framework's reference assemblies and implicit usings; main.dll runs on the shared runtime.
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
+RUN set -e; mkdir -p /opt/codedev/csharp; cd /opt/codedev/csharp; \
+    csc="$(ls -d /usr/lib/dotnet/sdk/*/Roslyn/bincore/csc.dll | sort -V | tail -1)"; \
+    refs="$(ls -d /usr/lib/dotnet/packs/Microsoft.NETCore.App.Ref/*/ref/net* | sort -V | tail -1)"; \
+    rt="$(ls /usr/lib/dotnet/shared/Microsoft.NETCore.App | sort -V | tail -1)"; \
+    printf '#!/bin/sh\nexec /usr/bin/dotnet %s "$@"\n' "$csc" > csc; \
+    for f in "$refs"/*.dll; do echo "-r:$f"; done > refs.rsp; \
+    printf 'global using System;\nglobal using System.Collections.Generic;\nglobal using System.IO;\nglobal using System.Linq;\nglobal using System.Text;\nglobal using System.Threading.Tasks;\n' > GlobalUsings.cs; \
+    printf '{"runtimeOptions":{"tfm":"net%s","framework":{"name":"Microsoft.NETCore.App","version":"%s"}}}\n' "${rt%.*}" "$rt" > main.runtimeconfig.json; \
+    chmod 0755 csc; chmod 0644 refs.rsp GlobalUsings.cs main.runtimeconfig.json
 
 # `ubuntu` drives the sandbox (sudo, like the managed images); run01..run08 run learner code: no
 # sudo, no home, one per job slot, so concurrent jobs cannot read or signal each other.
@@ -59,7 +89,8 @@ COPY --chown=root:root --chmod=0755 vercel/run-job /opt/codedev/run-job
 COPY --chown=root:root --chmod=0644 runner.cjs vercel/selftest.mjs /opt/codedev/
 
 RUN node --version && python3 --version && gcc --version | head -1 && g++ --version | head -1 && \
-    javac -version && go version && rustc --version && prlimit --version
+    javac -version && go version && rustc --version && prlimit --version && \
+    php --version | head -1 && tsc --version && /opt/kotlin/bin/kotlinc -version 2>&1 | tail -1 && dotnet --list-runtimes
 
 ENV HOME=/vercel SHELL=/bin/bash
 USER ubuntu

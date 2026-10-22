@@ -14,6 +14,10 @@ export const LANGUAGES = {
     java: { ext: "java", contentType: "text/x-java; charset=utf-8" },
     go: { ext: "go", contentType: "text/x-go; charset=utf-8" },
     rust: { ext: "rs", contentType: "text/x-rust; charset=utf-8" },
+    php: { ext: "php", contentType: "text/x-php; charset=utf-8" },
+    typescript: { ext: "ts", contentType: "application/typescript; charset=utf-8" },
+    kotlin: { ext: "kt", contentType: "text/x-kotlin; charset=utf-8" },
+    csharp: { ext: "cs", contentType: "text/x-csharp; charset=utf-8" },
 };
 
 /** Language of a coding challenge from challenges.json (javascript when unset). */

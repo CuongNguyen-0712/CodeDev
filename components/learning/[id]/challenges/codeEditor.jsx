@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { SiC, SiCplusplus, SiGo, SiJavascript, SiOpenjdk, SiPython, SiRust, SiTypescript } from "react-icons/si";
+import { SiC, SiCplusplus, SiDotnet, SiGo, SiJavascript, SiKotlin, SiOpenjdk, SiPhp, SiPython, SiRust, SiTypescript } from "react-icons/si";
 import { LuAlignLeft, LuFileCode, LuKeyboard } from "react-icons/lu";
 
 import { Button } from "@/components/shadcn/button";
@@ -51,6 +51,9 @@ const LANGUAGE_ICONS = {
     java: SiOpenjdk,
     go: SiGo,
     rust: SiRust, rs: SiRust,
+    php: SiPhp,
+    kotlin: SiKotlin, kt: SiKotlin,
+    csharp: SiDotnet, cs: SiDotnet,
 };
 
 function LanguageIcon({ language = "", fileName = "" }) {

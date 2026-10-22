@@ -32,6 +32,9 @@ const LANGUAGE_FILES = {
     java: { ext: "java", mime: "text/x-java" },
     go: { ext: "go", mime: "text/x-go" },
     rust: { ext: "rs", mime: "text/x-rust" },
+    php: { ext: "php", mime: "text/x-php" },
+    kotlin: { ext: "kt", mime: "text/x-kotlin" },
+    csharp: { ext: "cs", mime: "text/x-csharp" },
 };
 
 function codeRunnerRequired() {

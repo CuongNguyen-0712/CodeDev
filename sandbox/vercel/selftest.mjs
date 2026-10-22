@@ -30,6 +30,10 @@ const PRIMES = {
     java: `import java.util.*;public class Main{public static void main(String[] a){int n=new Scanner(System.in).nextInt(),c=0;for(int i=2;i<n;i++){boolean p=true;for(int j=2;j*j<=i;j++)if(i%j==0){p=false;break;}if(p)c++;}System.out.println(c);}}`,
     go: `package main\nimport "fmt"\nfunc main(){var n,c int;fmt.Scan(&n);for i:=2;i<n;i++{p:=1;for j:=2;j*j<=i;j++{if i%j==0{p=0;break}};c+=p};fmt.Println(c)}`,
     rust: `use std::io::Read;fn main(){let mut s=String::new();std::io::stdin().read_to_string(&mut s).unwrap();let n:u32=s.trim().parse().unwrap();let mut c=0;for i in 2..n{let mut p=1;let mut j=2;while j*j<=i{if i%j==0{p=0;break}j+=1}c+=p}println!("{}",c)}`,
+    php: `<?php\n$n=(int)trim(fgets(STDIN));$c=0;for($i=2;$i<$n;$i++){$p=1;for($j=2;$j*$j<=$i;$j++)if($i%$j==0){$p=0;break;}$c+=$p;}echo $c,"\n";`,
+    typescript: `const n: number = Number(require("fs").readFileSync(0, "utf8"));let c = 0;for (let i = 2; i < n; i++) { let p = 1; for (let j = 2; j * j <= i; j++) if (i % j === 0) { p = 0; break } c += p }console.log(c)`,
+    kotlin: `fun main(){val n=readln().trim().toInt();var c=0;for(i in 2 until n){var p=1;var j=2;while(j*j<=i){if(i%j==0){p=0;break};j++};c+=p};println(c)}`,
+    csharp: `int n=int.Parse(Console.ReadLine()!.Trim());int c=0;for(int i=2;i<n;i++){int p=1;for(int j=2;j*j<=i;j++)if(i%j==0){p=0;break;}c+=p;}Console.WriteLine(c);`,
 };
 
 const cases = [];
