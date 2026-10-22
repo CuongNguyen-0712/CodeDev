@@ -63,12 +63,18 @@ Step by step, per lesson (`tools/`):
    enrolled earlier the history rows for new lessons).
 6. `push-lesson.mjs <lesson>`: writes the Sanity draft; publish it in the Studio (`/studio`).
 
+Roadmaps: `content/roadmaps.json` (one roadmap per career role, ordered nodes, linked course public ids) ->
+`node content/tools/build-roadmaps.mjs` -> `db/seeds/roadmaps.sql`. Apply it after the course seeds; draft courses
+stay off roadmap pages until they are published.
+
 Production: upload storage first (`build-course.mjs <course> --storage-only --storage-env .env.production`),
 then apply `db/seeds/<course>.sql` (test it on a Neon branch first).
 
 ## Rules for challenges
 
-- Languages and file extensions: `tools/languages.mjs` (javascript, python, c, cpp, java, go, rust).
+- Languages and file extensions: `tools/languages.mjs` (javascript, python, c, cpp, java, go, rust, php,
+  typescript, kotlin, csharp). TypeScript is type-checked with `tsc --strict`; Kotlin can use kotlinx.coroutines;
+  C# gets implicit usings (System, Collections.Generic, IO, Linq, Text, Threading.Tasks) and top-level statements.
   Every language except javascript is a `stdio` challenge that only runs in the code runner
   (`npm run services:up`, `CODE_RUNNER_URL`/`CODE_RUNNER_TOKEN` in `.env.local`; verify-challenges uses it too):
   - the starter reads one test case from stdin (a string as is, anything else as JSON) and prints the

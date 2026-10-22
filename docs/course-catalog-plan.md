@@ -386,6 +386,31 @@ vào `catalog.course_career_role`, `course_skill`, `course_learning_goal`, `cour
 Số course theo role (tính cả draft): backend 25, DevOps 11, student 11, fullstack 9, frontend 6, data engineer 6,
 mobile 5, data analyst 4, ML engineer 4, QA 4. Chưa có: Kotlin/Swift (sandbox chưa chạy hai ngôn ngữ này).
 
+### 5.2 Ngôn ngữ mới và cân bằng role (bổ sung 2026-10-22)
+
+Runner `codedev-runner:v3` chạy thêm PHP, TypeScript (`tsc --strict`), Kotlin (kèm kotlinx.coroutines) và C# (.NET 10).
+Thêm 14 course (draft, có đề cương) để mỗi role có đủ beginner -> advanced:
+
+| Course | Mức | Ngôn ngữ | Role chính |
+|---|---|---|---|
+| `php-foundations` | beginner (free) | PHP | student, backend, fullstack |
+| `php-modern-apis` | intermediate | PHP | backend, fullstack |
+| `kotlin-foundations` | beginner (free) | Kotlin | student, mobile, backend |
+| `kotlin-coroutines-flows` | intermediate | Kotlin | mobile, backend |
+| `kotlin-mobile-architecture` | advanced | Kotlin | mobile, fullstack |
+| `csharp-foundations` | beginner (free) | C# | student, backend, fullstack |
+| `csharp-async-services` | intermediate | C# | backend, fullstack |
+| `typescript-foundations` | beginner (free) | TypeScript | student, frontend, fullstack, mobile, QA |
+| `typescript-type-level` | advanced | TypeScript | frontend, fullstack |
+| `typescript-test-design` | intermediate | TypeScript | QA, frontend, fullstack |
+| `sql-window-analytics` | intermediate | SQL | data analyst, data engineer, backend |
+| `python-ml-evaluation` | advanced | Python | ML engineer, data analyst, data engineer |
+| `qa-performance-reliability` | advanced | Python | QA, DevOps, backend |
+| `frontend-web-performance` | advanced | JavaScript | frontend, fullstack |
+
+Roadmap: `content/roadmaps.json` có 10 roadmap, mỗi career role một cái (thay 7 roadmap chung chung cũ chưa gắn
+course). Mỗi node gắn course thật; course draft không hiện trên trang roadmap cho tới khi publish.
+
 Chủ đề “hot” được ưu tiên: AI/LLM và RAG (JS-2, PY-2), bảo mật API (JS-3), async và concurrency
 (PY-3, JAVA-2, GO-2, CPP-2, RS-3), cloud-native và microservices (JAVA-3, GO-3), hệ thống và hiệu
 năng (C-2, CPP-2, RS-3). Các course beginner đều dẫn thẳng sang course intermediate cùng ngôn ngữ.

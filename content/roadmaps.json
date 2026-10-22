@@ -1,0 +1,145 @@
+{
+  "roadmaps": [
+    {
+      "id": 1, "role": "frontend_developer", "level": "beginner",
+      "title": "Frontend Developer",
+      "description": "From semantic HTML and accessible CSS to typed React apps that load fast: JavaScript, TypeScript, async UI code, testing and web performance.",
+      "nodes": [
+        { "title": "Web Foundations", "description": "Semantic HTML, modern CSS layout, responsive design and accessibility.", "courses": ["web-foundations-html-css-a11y"] },
+        { "title": "JavaScript Fundamentals", "description": "Values, arrays and objects, closures, modules, errors and tests in modern JavaScript.", "courses": ["js-modern-foundations"] },
+        { "title": "TypeScript", "description": "Types, narrowing, generics and discriminated unions that catch bugs before users do.", "courses": ["typescript-foundations"] },
+        { "title": "Asynchronous JavaScript", "description": "Promises, cancellation, retries and race conditions in UI code.", "courses": ["javascript-async-architecture_2026100901"] },
+        { "title": "React with TypeScript", "description": "Components, state, effects and data fetching with typed props and hooks.", "courses": ["typescript-react-frontend"] },
+        { "title": "Testing the Frontend", "description": "Unit, integration and property-based tests that find real bugs.", "courses": ["test-automation-foundations", "typescript-test-design"] },
+        { "title": "Web Performance", "description": "Core Web Vitals, rendering, data loading and performance budgets.", "courses": ["frontend-web-performance"] },
+        { "title": "Advanced TypeScript", "description": "Type-level programming for safe APIs and libraries.", "courses": ["typescript-type-level"] }
+      ]
+    },
+    {
+      "id": 2, "role": "backend_developer", "level": "beginner",
+      "title": "Backend Developer",
+      "description": "Pick a server language, learn SQL, then build APIs and services that stay correct under concurrency, failures and attacks.",
+      "nodes": [
+        { "title": "A Server Language", "description": "Learn one language well first: JavaScript, Python, Java, Go, PHP or C#.", "courses": ["js-modern-foundations", "python-foundations-automation", "java21-foundations", "go-foundations", "php-foundations", "csharp-foundations"] },
+        { "title": "Databases & SQL", "description": "Queries, joins, aggregation and the traps that produce wrong numbers.", "courses": ["sql-data-analysis-foundations"] },
+        { "title": "Building APIs", "description": "Routing, validation, errors, pagination and clean service code.", "courses": ["php-modern-apis", "csharp-async-services", "javascript-async-architecture_2026100901"] },
+        { "title": "Concurrency & Async", "description": "Goroutines, virtual threads, asyncio and the bugs they bring.", "courses": ["go-concurrency", "java21-virtual-threads", "python-asyncio-services"] },
+        { "title": "Performance", "description": "Profiling, event loop health, caching and backpressure.", "courses": ["nodejs-high-performance"] },
+        { "title": "API Security", "description": "Authentication, authorization, input handling and abuse protection.", "courses": ["nodejs-api-security"] },
+        { "title": "Distributed Systems", "description": "Resilient microservices, timeouts, retries and cloud-native services.", "courses": ["java-resilient-microservices", "go-cloud-native"] },
+        { "title": "Systems Languages", "description": "Rust and C++ for services where memory and latency matter.", "courses": ["rust-foundations", "rust-practical", "cpp23-modern"] }
+      ]
+    },
+    {
+      "id": 3, "role": "fullstack_developer", "level": "beginner",
+      "title": "Fullstack Developer",
+      "description": "Ship complete features: a typed React frontend, a backend API with a database, tests, deployment and AI features.",
+      "nodes": [
+        { "title": "Web & JavaScript Foundations", "description": "HTML, CSS, accessibility and modern JavaScript.", "courses": ["web-foundations-html-css-a11y", "js-modern-foundations"] },
+        { "title": "TypeScript & React", "description": "Typed components, state and data fetching.", "courses": ["typescript-foundations", "typescript-react-frontend"] },
+        { "title": "Backend Basics", "description": "Asynchronous server code and a second backend language.", "courses": ["javascript-async-architecture_2026100901", "php-foundations", "csharp-foundations"] },
+        { "title": "Databases & SQL", "description": "Model and query the data your features need.", "courses": ["sql-data-analysis-foundations"] },
+        { "title": "APIs & Security", "description": "Design APIs and protect them.", "courses": ["php-modern-apis", "nodejs-api-security"] },
+        { "title": "Testing", "description": "Automated tests across the stack.", "courses": ["test-automation-foundations", "typescript-test-design"] },
+        { "title": "Delivery", "description": "Containers, CI pipelines and performance in production.", "courses": ["devops-foundations-ci-containers", "nodejs-high-performance", "frontend-web-performance"] },
+        { "title": "AI Features", "description": "LLM calls, retrieval and evaluation inside a product.", "courses": ["nodejs-ai-engineering"] }
+      ]
+    },
+    {
+      "id": 4, "role": "mobile_developer", "level": "beginner",
+      "title": "Mobile Developer",
+      "description": "Build Android and cross-platform apps: Kotlin, coroutines and Flow, React Native offline-first data, and an architecture that stays testable.",
+      "nodes": [
+        { "title": "Kotlin Foundations", "description": "Null safety, data classes, collections and errors.", "courses": ["kotlin-foundations"] },
+        { "title": "Typed JavaScript for Cross-Platform", "description": "TypeScript for React Native apps.", "courses": ["typescript-foundations"] },
+        { "title": "The JVM & Java", "description": "Java skills most Android codebases still rely on.", "courses": ["java21-foundations"] },
+        { "title": "Coroutines & Flow", "description": "Background work, cancellation and UI state streams.", "courses": ["kotlin-coroutines-flows"] },
+        { "title": "Cross-Platform & Offline-First", "description": "React Native apps that work without a network.", "courses": ["react-native-offline-first"] },
+        { "title": "App Architecture", "description": "State machines, caching, paging and testable features.", "courses": ["kotlin-mobile-architecture"] },
+        { "title": "Testing & Quality", "description": "Automated tests that keep releases safe.", "courses": ["test-automation-foundations"] }
+      ]
+    },
+    {
+      "id": 5, "role": "devops_engineer", "level": "intermediate",
+      "title": "DevOps Engineer",
+      "description": "Automate delivery and run reliable systems: processes, containers and CI, scripting, Go tooling, cloud-native services and reliability testing.",
+      "nodes": [
+        { "title": "Linux, Containers & CI", "description": "Processes, logs, images, environment config and pipelines.", "courses": ["devops-foundations-ci-containers"] },
+        { "title": "Scripting & Automation", "description": "Python for automation and tooling.", "courses": ["python-foundations-automation"] },
+        { "title": "Go for Tooling", "description": "The language of most cloud infrastructure.", "courses": ["go-foundations", "go-concurrency"] },
+        { "title": "Cloud-Native Services", "description": "Health checks, graceful shutdown, config and observability.", "courses": ["go-cloud-native"] },
+        { "title": "Performance & Reliability", "description": "Load tests, SLOs, error budgets and chaos experiments.", "courses": ["qa-performance-reliability", "nodejs-high-performance"] },
+        { "title": "Securing Services", "description": "Hardening the APIs you deploy.", "courses": ["nodejs-api-security"] },
+        { "title": "Systems Programming", "description": "What really happens below the runtime.", "courses": ["c-systems-programming", "rust-practical"] }
+      ]
+    },
+    {
+      "id": 6, "role": "ml_engineer", "level": "intermediate",
+      "title": "Machine Learning Engineer",
+      "description": "From Python and data to models you can trust in production: ML from scratch, evaluation, retrieval-augmented generation and AI services.",
+      "nodes": [
+        { "title": "Python", "description": "The language of the ML ecosystem.", "courses": ["python-foundations-automation"] },
+        { "title": "Data & SQL", "description": "Getting and shaping the data a model learns from.", "courses": ["sql-data-analysis-foundations", "python-data-pipelines"] },
+        { "title": "Machine Learning from Scratch", "description": "Regression, classification and gradient descent without libraries.", "courses": ["python-ml-from-scratch"] },
+        { "title": "Evaluating Models", "description": "Metrics, leakage, calibration and drift.", "courses": ["python-ml-evaluation"] },
+        { "title": "LLM Applications", "description": "Retrieval-augmented generation, embeddings and AI services.", "courses": ["python-rag-from-scratch", "nodejs-ai-engineering"] },
+        { "title": "Serving Models", "description": "Async Python services around your models.", "courses": ["python-asyncio-services"] }
+      ]
+    },
+    {
+      "id": 7, "role": "qa_engineer", "level": "beginner",
+      "title": "QA Engineer",
+      "description": "Become the engineer who finds bugs first: a programming base, test automation, API testing, test design, and performance and reliability testing.",
+      "nodes": [
+        { "title": "A Programming Base", "description": "Enough code to automate tests: JavaScript, TypeScript or Python.", "courses": ["js-modern-foundations", "typescript-foundations", "python-foundations-automation"] },
+        { "title": "Test Automation", "description": "Unit and integration tests, fixtures and test doubles.", "courses": ["test-automation-foundations"] },
+        { "title": "API Testing", "description": "Testing HTTP APIs, contracts and data.", "courses": ["python-api-testing"] },
+        { "title": "Test Design", "description": "Boundaries, properties, contracts and mutation testing.", "courses": ["typescript-test-design"] },
+        { "title": "Performance & Reliability Testing", "description": "Load, latency percentiles and chaos experiments.", "courses": ["qa-performance-reliability"] },
+        { "title": "Tests in CI", "description": "Pipelines that run your tests on every change.", "courses": ["devops-foundations-ci-containers"] }
+      ]
+    },
+    {
+      "id": 8, "role": "data_engineer", "level": "intermediate",
+      "title": "Data Engineer",
+      "description": "Move and model data reliably: Python and SQL, analytics queries, pipelines with idempotent loads, async services and the ML they feed.",
+      "nodes": [
+        { "title": "Python", "description": "Scripting, files and data structures.", "courses": ["python-foundations-automation"] },
+        { "title": "SQL", "description": "Joins, aggregation and correct numbers.", "courses": ["sql-data-analysis-foundations"] },
+        { "title": "Analytics SQL", "description": "Window functions, cohorts and deduplication.", "courses": ["sql-window-analytics"] },
+        { "title": "Data Pipelines", "description": "Extract, validate, transform and load without duplicates.", "courses": ["python-data-pipelines"] },
+        { "title": "Async Services", "description": "High-throughput Python services and workers.", "courses": ["python-asyncio-services"] },
+        { "title": "Containers & CI", "description": "Package and ship pipelines.", "courses": ["devops-foundations-ci-containers"] },
+        { "title": "Feeding Machine Learning", "description": "What models need from the data platform.", "courses": ["python-ml-from-scratch", "python-rag-from-scratch"] }
+      ]
+    },
+    {
+      "id": 9, "role": "data_analyst", "level": "beginner",
+      "title": "Data Analyst",
+      "description": "Answer business questions with data: SQL first, then Python, analytics queries for product metrics, pipelines and model evaluation.",
+      "nodes": [
+        { "title": "SQL Foundations", "description": "Filtering, joins, grouping and NULLs.", "courses": ["sql-data-analysis-foundations"] },
+        { "title": "Python for Analysis", "description": "Cleaning and summarising data in Python.", "courses": ["python-foundations-automation"] },
+        { "title": "Product Analytics in SQL", "description": "Windows, cohorts, funnels and sessions.", "courses": ["sql-window-analytics"] },
+        { "title": "Data Pipelines", "description": "Reliable data for your dashboards.", "courses": ["python-data-pipelines"] },
+        { "title": "Machine Learning Basics", "description": "Models an analyst can build and explain.", "courses": ["python-ml-from-scratch"] },
+        { "title": "Evaluating Models", "description": "Is the model actually better? Metrics and A/B tests.", "courses": ["python-ml-evaluation"] }
+      ]
+    },
+    {
+      "id": 10, "role": "student", "level": "beginner",
+      "title": "Programming Foundations",
+      "description": "Start from zero and try every major language family before choosing a career path: the web, Python and JavaScript, C and C++, typed languages, Go and Rust, SQL and testing.",
+      "nodes": [
+        { "title": "The Web", "description": "HTML, CSS and accessibility.", "courses": ["web-foundations-html-css-a11y"] },
+        { "title": "Your First Language", "description": "Python or JavaScript.", "courses": ["python-foundations-automation", "js-modern-foundations"] },
+        { "title": "How Computers Run Code", "description": "Memory, pointers and types in C and C++.", "courses": ["c-foundations-memory", "cpp-foundations"] },
+        { "title": "Typed Languages", "description": "Java, C#, Kotlin and TypeScript.", "courses": ["java21-foundations", "csharp-foundations", "kotlin-foundations", "typescript-foundations"] },
+        { "title": "Modern Systems Languages", "description": "Go and Rust.", "courses": ["go-foundations", "rust-foundations"] },
+        { "title": "Server-Side Web", "description": "PHP, still behind a large part of the web.", "courses": ["php-foundations"] },
+        { "title": "Data & SQL", "description": "Ask questions of a database.", "courses": ["sql-data-analysis-foundations"] },
+        { "title": "Testing Your Code", "description": "Automated tests from day one.", "courses": ["test-automation-foundations"] }
+      ]
+    }
+  ]
+}

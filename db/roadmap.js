@@ -24,7 +24,7 @@ export const roadmapDb = {
             FROM roadmap.roadmaps r
             LEFT JOIN roadmap.nodes n ON n.roadmap_id = r.id
             LEFT JOIN roadmap.node_course nc ON nc.node_id = n.id
-            LEFT JOIN catalog.course c ON c.id = nc.course_id
+            LEFT JOIN catalog.course c ON c.id = nc.course_id AND c.is_hidden = false AND c.is_deleted = false
             LEFT JOIN catalog.language l ON c.language_id = l.id
             GROUP BY r.id
             ORDER BY r.id;
@@ -80,7 +80,8 @@ export const roadmapDb = {
                 ) AS courses
             FROM roadmap.nodes n
             LEFT JOIN roadmap.node_course nc ON nc.node_id = n.id
-            LEFT JOIN catalog.course c ON c.id = nc.course_id
+            -- Draft and hidden courses stay off roadmaps until they are published.
+            LEFT JOIN catalog.course c ON c.id = nc.course_id AND c.is_hidden = false AND c.is_deleted = false
             LEFT JOIN catalog.language l ON c.language_id = l.id
             LEFT JOIN catalog.category cat ON c.category_id = cat.id
             LEFT JOIN learning.register r ON r.course_id = c.id 
