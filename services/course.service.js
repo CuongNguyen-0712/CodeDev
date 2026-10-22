@@ -127,7 +127,7 @@ export const courseService = {
         const response = await courseDb.postWithdraw(data);
 
         if (!response || response.rowCount === 0) {
-            throw new Error('Failed to withdraw from the course, try again later');
+            throw new Error('Only an enrolled course you have not started can be withdrawn');
         }
 
         await afterProgressChange({ userId: data.userId, courseId: data.courseId, reason: progressReasons.WITHDRAWN });

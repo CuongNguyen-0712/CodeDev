@@ -248,7 +248,7 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                     })}
                 </nav>}
                 <span className="ml-auto text-xs text-muted-foreground tabular">
-                    {currentQuestion.points ?? 10} pts
+                    {Number(currentQuestion.points) || 0} pts
                 </span>
             </div>
             <Progress value={progressPercent} className="h-0.5 rounded-none bg-transparent" aria-label="Questions answered" />

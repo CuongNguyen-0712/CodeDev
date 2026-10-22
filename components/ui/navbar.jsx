@@ -206,12 +206,16 @@ function AccountMenu() {
         ) : (
           <>
             <span className="max-w-full truncate text-[13px] font-medium">{name}</span>
-            <span className="flex items-center gap-1 text-xs text-muted-foreground tabular">
-              <span className="font-semibold text-xp">Lv {Number(data?.level) || 1}</span>
-              <span aria-hidden="true">·</span>
-              <LuCoins className="size-3 text-warning" aria-hidden="true" />
-              {points} pts
-            </span>
+            {data ? (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground tabular">
+                <span className="font-semibold text-xp">Lv {Number(data.level) || 1}</span>
+                <span aria-hidden="true">·</span>
+                <LuCoins className="size-3 text-warning" aria-hidden="true" />
+                {points} pts
+              </span>
+            ) : (
+              <span className="text-xs text-muted-foreground">Stats unavailable</span>
+            )}
           </>
         )}
       </span>
@@ -236,6 +240,14 @@ function AccountMenu() {
         </span>
       </div>
 
+      {/* /me failed: say so instead of a made-up "Lv 1 · 0 pts · Max level". */}
+      {!data ? (
+        isLoading ? <Skeleton className="h-20 w-full rounded-xl" /> : (
+          <p className="rounded-xl border border-border/50 bg-muted/40 p-2.5 text-xs text-muted-foreground">
+            Couldn&apos;t load your level and points. Try again later.
+          </p>
+        )
+      ) : (
       <div className="rounded-xl border border-border/50 bg-muted/40 p-2.5 transition-colors">
         <div className="flex items-center justify-between gap-2">
           <span className="inline-flex items-center gap-1.5 tabular text-xs font-semibold text-xp">
@@ -277,6 +289,7 @@ function AccountMenu() {
           </span>
         </div>
       </div>
+      )}
     </div>
   );
 

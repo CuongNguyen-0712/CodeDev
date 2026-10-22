@@ -308,6 +308,9 @@ export const courseDb = {
         params.push(courseId);
         conditions.push(`course_id = (select id from catalog.course where public_id = $${params.length})`);
 
+        // Only an active enrolment that has not been started can be withdrawn.
+        conditions.push(`status = 'enrolled'`, `is_deleted = false`);
+
         const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
         const query = `      

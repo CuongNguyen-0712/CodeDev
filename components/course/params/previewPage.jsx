@@ -55,7 +55,7 @@ const ENROLLMENT_STATUS = {
     in_progress: { label: 'In progress', variant: 'primary' },
     completed: { label: 'Completed', variant: 'success' },
     paused: { label: 'Paused', variant: 'warning' },
-    dropped: { label: 'Dropped', variant: 'destructive' },
+    cancelled: { label: 'Cancelled', variant: 'destructive' },
 };
 
 // `content_type` also carries storage values such as "sanity" (rich text in the CMS),

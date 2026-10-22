@@ -428,8 +428,14 @@ describe.skipIf(!hasDb)("onboarding + premium courses (PostgreSQL)", () => {
         );
         expect(entitlement.source).toBe("free");
 
-        // Withdrawing closes the lessons again (enrolment is required as well).
-        await courseDb.postWithdraw({ userId: publicId, courseId: courses.free.publicId });
+        // Opening the course started it, and a started course cannot be withdrawn.
+        const blocked = await courseDb.postWithdraw({ userId: publicId, courseId: courses.free.publicId });
+        expect(blocked.rowCount).toBe(0);
+
+        // Withdrawing a course not started yet closes the lessons again (enrolment is required as well).
+        await sql(`UPDATE learning.register SET status = 'enrolled' WHERE user_id = $1 AND course_id = $2`, [users.stranger.id, courses.free.id]);
+        const withdrawn = await courseDb.postWithdraw({ userId: publicId, courseId: courses.free.publicId });
+        expect(withdrawn.rowCount).toBe(1);
         await expectDbError(courseDb.getLearning({ userId: publicId, lessonId: courses.free.lessonId }), "CD403");
     });
 
