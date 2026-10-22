@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_gof_412",
+      "key": "challenges/go/chal_fix_gof_412/starter.go",
+      "contentType": "text/x-go; charset=utf-8",
+      "originalName": "main.go",
+      "size": 3174
+    }
+  ]
+}

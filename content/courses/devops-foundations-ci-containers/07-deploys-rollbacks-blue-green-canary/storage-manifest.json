@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_devf_332",
+      "key": "challenges/python/chal_coding_devf_332/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "canary_gate.py",
+      "size": 3036
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_gof_421",
+      "key": "challenges/go/chal_coding_gof_421/starter.go",
+      "contentType": "text/x-go; charset=utf-8",
+      "originalName": "main.go",
+      "size": 2674
+    }
+  ]
+}

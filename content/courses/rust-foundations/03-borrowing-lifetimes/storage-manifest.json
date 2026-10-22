@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_rsf_212",
+      "key": "challenges/rust/chal_fix_rsf_212/starter.rs",
+      "contentType": "text/x-rust; charset=utf-8",
+      "originalName": "main.rs",
+      "size": 2742
+    }
+  ]
+}

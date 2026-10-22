@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_devf_411",
+      "key": "challenges/python/chal_coding_devf_411/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "latency_report.py",
+      "size": 2670
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_devf_221",
+      "key": "challenges/python/chal_coding_devf_221/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "config_check.py",
+      "size": 3621
+    }
+  ]
+}

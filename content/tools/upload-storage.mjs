@@ -75,7 +75,13 @@ if (fs.existsSync(templateDir)) {
     });
 }
 
-for (const f of files) f.size = fs.statSync(f.source).size;
+// Source files are uploaded with LF endings: a Windows checkout (core.autocrlf) has CRLF on disk,
+// which would otherwise change the starter learners get and the size recorded in the manifest.
+for (const f of files) {
+    const raw = fs.readFileSync(f.source);
+    f.body = f.contentType === "application/zip" ? raw : Buffer.from(raw.toString("utf8").replace(/\r\n/g, "\n"), "utf8");
+    f.size = f.body.length;
+}
 
 // ------------------------------------------------------------- upload
 const storage = resolveStorageConfig();
@@ -91,7 +97,7 @@ if (!dryRun) {
         await client.send(new PutObjectCommand({
             Bucket: storage.buckets.public,
             Key: f.key,
-            Body: fs.readFileSync(f.source),
+            Body: f.body,
             ContentType: f.contentType,
         }));
         console.log(`uploaded ${f.key} (${f.size} bytes)`);
