@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="640" fill="#ffffff"/>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">One enum, four statuses, each with its own data</text>
+  <text x="40" y="82" font-size="16" fill="#475569">enum Status: a parcel is in exactly one variant, and match must handle every variant.</text>
+
+  <!-- InDepot -->
+  <rect x="60" y="230" width="230" height="96" rx="10" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="80" y="266" font-size="17" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">InDepot</text>
+  <text x="80" y="296" font-size="14" fill="#475569">no extra data</text>
+
+  <!-- OutForDelivery -->
+  <rect x="440" y="230" width="300" height="96" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="460" y="266" font-size="17" font-weight="700" fill="#1d4ed8" font-family="Consolas, 'Courier New', monospace">OutForDelivery</text>
+  <text x="460" y="296" font-size="14" fill="#1e3a8a" font-family="Consolas, 'Courier New', monospace">{ driver: String }</text>
+
+  <!-- Delivered -->
+  <rect x="880" y="120" width="270" height="96" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="900" y="156" font-size="17" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">Delivered</text>
+  <text x="900" y="186" font-size="14" fill="#14532d" font-family="Consolas, 'Courier New', monospace">{ cod: u32 }</text>
+
+  <!-- Returned -->
+  <rect x="880" y="400" width="270" height="96" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="900" y="436" font-size="17" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">Returned</text>
+  <text x="900" y="466" font-size="14" fill="#7f1d1d" font-family="Consolas, 'Courier New', monospace">{ reason: String }</text>
+
+  <!-- Arrows -->
+  <line x1="290" y1="262" x2="436" y2="262" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="300" y="250" font-size="14" fill="#334155">Out { driver }</text>
+
+  <path d="M 590 326 C 590 380, 175 380, 175 330" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="250" y="404" font-size="14" fill="#334155">Fail, attempts 1 and 2: back to the depot</text>
+
+  <line x1="740" y1="250" x2="876" y2="180" stroke="#16a34a" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="620" y="176" font-size="14" fill="#15803d">Deliver { cod }</text>
+  <text x="620" y="196" font-size="13" fill="#15803d">only if cod == cod_due</text>
+
+  <line x1="740" y1="306" x2="876" y2="430" stroke="#dc2626" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="640" y="384" font-size="14" fill="#b91c1c">Fail, 3rd attempt</text>
+
+  <path d="M 175 326 C 175 520, 600 520, 876 470" fill="none" stroke="#dc2626" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+  <text x="330" y="532" font-size="14" fill="#b91c1c">Recall (from the depot only)</text>
+
+  <!-- Bottom note -->
+  <rect x="40" y="548" width="1120" height="70" rx="10" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="64" y="578" font-size="15" font-weight="700" fill="#b45309">Every other event is rejected.</text>
+  <text x="64" y="602" font-size="14" fill="#78350f">Delivered and Returned are final. A typo such as Status::Delivred does not compile, and a new variant breaks every match that forgets it (E0004).</text>
+</svg>

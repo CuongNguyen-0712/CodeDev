@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="620" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">A move copies three numbers. A clone copies the text.</text>
+  <text x="40" y="82" font-size="16" fill="#475569">A String is a small value on the stack (pointer, length, capacity) that owns a buffer on the heap.</text>
+
+  <!-- Column titles -->
+  <text x="60" y="124" font-size="16" font-weight="700" fill="#334155">Stack (variables of main)</text>
+  <text x="760" y="124" font-size="16" font-weight="700" fill="#334155">Heap (owned buffers)</text>
+
+  <!-- Row 1: let route -->
+  <text x="60" y="164" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">let route = String::from("DN-07");</text>
+  <rect x="60" y="178" width="400" height="48" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="76" y="208" font-size="15" fill="#1e3a8a" font-family="Consolas, 'Courier New', monospace">route: ptr | len 5 | cap 5</text>
+  <line x1="460" y1="202" x2="756" y2="202" stroke="#2563eb" stroke-width="2"/>
+  <polygon points="756,196 768,202 756,208" fill="#2563eb"/>
+  <rect x="770" y="178" width="220" height="48" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="790" y="208" font-size="16" fill="#1e3a8a" font-family="Consolas, 'Courier New', monospace">D N - 0 7</text>
+
+  <!-- Row 2: move -->
+  <rect x="40" y="250" width="1120" height="160" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="60" y="280" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">let moved = route;</text>
+  <text x="330" y="280" font-size="15" font-weight="700" fill="#b91c1c">move: the 3 numbers are copied, route is no longer usable</text>
+  <rect x="60" y="294" width="400" height="44" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="76" y="322" font-size="15" fill="#94a3b8" font-family="Consolas, 'Courier New', monospace">route: (moved out)</text>
+  <rect x="60" y="348" width="400" height="44" rx="6" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
+  <text x="76" y="376" font-size="15" fill="#7f1d1d" font-family="Consolas, 'Courier New', monospace">moved: ptr | len 5 | cap 5</text>
+  <line x1="460" y1="370" x2="756" y2="330" stroke="#dc2626" stroke-width="2"/>
+  <polygon points="754,323 768,328 757,337" fill="#dc2626"/>
+  <rect x="770" y="300" width="220" height="48" rx="6" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
+  <text x="790" y="330" font-size="16" fill="#7f1d1d" font-family="Consolas, 'Courier New', monospace">D N - 0 7</text>
+  <text x="770" y="378" font-size="14" fill="#7f1d1d">still ONE buffer, one owner: moved</text>
+  <text x="770" y="398" font-size="14" fill="#7f1d1d">using route now is error E0382</text>
+
+  <!-- Row 3: clone -->
+  <rect x="40" y="430" width="1120" height="160" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="60" y="460" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">let copy = moved.clone();</text>
+  <text x="330" y="460" font-size="15" font-weight="700" fill="#15803d">clone: a second buffer, two independent owners</text>
+  <rect x="60" y="474" width="400" height="44" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="76" y="502" font-size="15" fill="#14532d" font-family="Consolas, 'Courier New', monospace">moved: ptr | len 5 | cap 5</text>
+  <rect x="60" y="528" width="400" height="44" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="76" y="556" font-size="15" fill="#14532d" font-family="Consolas, 'Courier New', monospace">copy:  ptr | len 5 | cap 5</text>
+  <line x1="460" y1="496" x2="756" y2="496" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="756,490 768,496 756,502" fill="#16a34a"/>
+  <line x1="460" y1="550" x2="756" y2="550" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="756,544 768,550 756,556" fill="#16a34a"/>
+  <rect x="770" y="474" width="220" height="44" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="790" y="502" font-size="16" fill="#14532d" font-family="Consolas, 'Courier New', monospace">D N - 0 7</text>
+  <rect x="770" y="528" width="220" height="44" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="790" y="556" font-size="16" fill="#14532d" font-family="Consolas, 'Courier New', monospace">D N - 0 7</text>
+  <text x="1010" y="502" font-size="14" fill="#14532d">changing one</text>
+  <text x="1010" y="524" font-size="14" fill="#14532d">never changes</text>
+  <text x="1010" y="546" font-size="14" fill="#14532d">the other</text>
+</svg>

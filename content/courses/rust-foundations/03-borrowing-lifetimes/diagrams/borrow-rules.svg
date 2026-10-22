@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="660" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Readers or one writer, and why remove(i) skips a neighbour</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The borrow checker enforces the rule on the left. The index loop on the right compiles and is still wrong.</text>
+
+  <!-- Left: borrow rules -->
+  <rect x="40" y="106" width="520" height="520" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="140" font-size="18" font-weight="700" fill="#334155">The rule, at every point in the code</text>
+
+  <rect x="64" y="160" width="472" height="132" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="84" y="190" font-size="16" font-weight="700" fill="#15803d">Any number of shared borrows &amp;T</text>
+  <text x="84" y="220" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">let a = &amp;cage;</text>
+  <text x="84" y="246" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">let b = &amp;cage;</text>
+  <text x="84" y="276" font-size="14" fill="#14532d">read-only: nobody can change the cage meanwhile</text>
+
+  <text x="300" y="320" font-size="18" font-weight="700" fill="#475569" text-anchor="middle">OR</text>
+
+  <rect x="64" y="336" width="472" height="132" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="84" y="366" font-size="16" font-weight="700" fill="#1d4ed8">Exactly one mutable borrow &amp;mut T</text>
+  <text x="84" y="396" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">let w = &amp;mut cage;</text>
+  <text x="84" y="422" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">w.push(...);</text>
+  <text x="84" y="452" font-size="14" fill="#1e3a8a">nobody else may even read the cage meanwhile</text>
+
+  <rect x="64" y="488" width="472" height="118" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="84" y="516" font-size="15" font-weight="700" fill="#b91c1c">E0502: &amp; and &amp;mut overlap</text>
+  <text x="84" y="542" font-size="14" fill="#7f1d1d">E0499: two &amp;mut overlap</text>
+  <text x="84" y="568" font-size="14" fill="#7f1d1d">A borrow lasts until its LAST use,</text>
+  <text x="84" y="590" font-size="14" fill="#7f1d1d">not until the end of the block.</text>
+
+  <!-- Right: remove(i) walk -->
+  <rect x="600" y="106" width="560" height="520" rx="10" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="624" y="140" font-size="18" font-weight="700" fill="#b45309">for i in 0..len: remove(i) when delivered</text>
+  <text x="624" y="166" font-size="14" fill="#78350f">delivered: SH-1002 and SH-1003 (neighbours)</text>
+
+  <text x="624" y="206" font-size="14" font-weight="700" fill="#334155">i = 1</text>
+  <rect x="690" y="186" width="104" height="32" rx="4" fill="#ffffff" stroke="#94a3b8"/>
+  <text x="704" y="208" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">1001</text>
+  <rect x="800" y="186" width="104" height="32" rx="4" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="814" y="208" font-size="14" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">1002</text>
+  <rect x="910" y="186" width="104" height="32" rx="4" fill="#ffffff" stroke="#94a3b8"/>
+  <text x="924" y="208" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">1003</text>
+  <rect x="1020" y="186" width="104" height="32" rx="4" fill="#ffffff" stroke="#94a3b8"/>
+  <text x="1034" y="208" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">1004</text>
+  <text x="690" y="244" font-size="14" fill="#7f1d1d">1002 is delivered: remove(1)</text>
+
+  <text x="624" y="294" font-size="14" font-weight="700" fill="#334155">i = 2</text>
+  <rect x="690" y="274" width="104" height="32" rx="4" fill="#ffffff" stroke="#94a3b8"/>
+  <text x="704" y="296" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">1001</text>
+  <rect x="800" y="274" width="104" height="32" rx="4" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+  <text x="814" y="296" font-size="14" fill="#b45309" font-family="Consolas, 'Courier New', monospace">1003</text>
+  <rect x="910" y="274" width="104" height="32" rx="4" fill="#ffffff" stroke="#2563eb" stroke-width="2"/>
+  <text x="924" y="296" font-size="14" fill="#1d4ed8" font-family="Consolas, 'Courier New', monospace">1004</text>
+  <text x="690" y="332" font-size="14" fill="#78350f">1003 slid into index 1, which is already done:</text>
+  <text x="690" y="352" font-size="14" fill="#78350f">the loop checks 1004 at index 2 and skips 1003</text>
+
+  <text x="624" y="402" font-size="14" font-weight="700" fill="#334155">i = 3</text>
+  <text x="690" y="402" font-size="14" fill="#b91c1c">len is now 3, but the range 0..4 was fixed at the start:</text>
+  <text x="690" y="424" font-size="14" font-weight="700" fill="#b91c1c">panic: index out of bounds: the len is 3 but the index is 3</text>
+
+  <rect x="624" y="452" width="512" height="154" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="482" font-size="16" font-weight="700" fill="#15803d">Fixes</text>
+  <text x="644" y="512" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">cage.retain(|p| !delivered.contains(p));</text>
+  <text x="644" y="540" font-size="14" fill="#14532d">one pass, keeps order, no index to get wrong</text>
+  <text x="644" y="572" font-size="14" fill="#334155">or a while loop that does i += 1 only when</text>
+  <text x="644" y="594" font-size="14" fill="#334155">nothing was removed at i</text>
+</svg>

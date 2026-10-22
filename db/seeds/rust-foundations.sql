@@ -19,7 +19,7 @@ BEGIN
 END $$;
 
 INSERT INTO catalog.course (public_id, title, concept, description, image, level, duration, instructor, cost, point_price, reward, language_id, category_id, access_model, publish_status, is_hidden, is_deleted)
-VALUES ('rust-foundations', 'Rust Foundations: Ownership, Borrowing & Error Handling', 'Learn Rust''s core ideas through small programs: mutability, ownership and moves, borrowing, structs and enums with match, Option and Result, collections and traits.', 'Learn Rust''s core ideas through small programs: mutability, ownership and moves, borrowing, structs and enums with match, Option and Result, collections and traits. 8 lessons, each starting from a real bug or incident, with beginner-friendly challenges.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594615/codedev/courses/rust-foundations/cover', 'beginner'::level_enum, 160, 'CodeDev Engineering Team', 0, 0, 50,
+VALUES ('rust-foundations', 'Rust Foundations: Ownership, Borrowing & Error Handling', 'Learn Rust 2024 through small programs: types and overflow, ownership and moves, borrowing, structs and enums with match, Option and Result, Vec, HashMap and UTF-8 strings, and traits.', 'Learn Rust 2024 while fixing the tools of a parcel depot in Da Nang: variables, integer types and overflow in debug and release builds, ownership and moves, borrowing and the first lifetime errors, structs and enums with match, Option and Result with the ? operator, Vec and HashMap, String, &str and UTF-8, and traits - ending with a CSV summary CLI built from the standard library only. 9 lessons, each starting from a real bug or incident, with quizzes and Rust coding challenges.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594615/codedev/courses/rust-foundations/cover', 'beginner'::level_enum, 223, 'CodeDev Engineering Team', 0, 0, 50,
         (SELECT id FROM catalog.language WHERE name = 'Rust'),
         (SELECT id FROM catalog.category WHERE name = 'Rust Development'),
         'free', 'draft', true, false)
@@ -53,6 +53,713 @@ INSERT INTO catalog.course_skill (course_id, skill_id, weight)
 SELECT (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations'), s.id, v.weight
 FROM (VALUES ('data_structures', 3), ('performance', 2)) AS v(code, weight)
 JOIN catalog.skill s ON s.code = v.code;
+
+-- module 1: Basics
+UPDATE course.module SET title = 'Basics', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations'), 'Basics', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 1 AND is_deleted = false);
+
+-- lesson 1.1: Variables, mutability & types (Sanity lesson-rsf-1-1)
+UPDATE course.lesson SET title = 'Variables, mutability & types', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-1-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), 'Variables, mutability & types', 'sanity', 'lesson-rsf-1-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-rsf-1-1' AND is_deleted = false);
+
+-- challenge chal_quiz_rsf_111 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_rsf_111', (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-1-1' AND is_deleted = false LIMIT 1), 'integer-types-and-overflow-quiz', 'Integer overflow and what compiles', 'Read each snippet the way rustc does: which arithmetic wraps, which reports the overflow, and which assignments and conversions the compiler accepts.', 'open', 'easy'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rsf_111'), 'This program is built in release mode (cargo build --release, or rustc -O). What does it print?
+
+fn main() {
+    let a: u8 = 250;
+    let b: u8 = 10;
+    println!("{} {:?} {} {}", a.wrapping_add(b), a.checked_add(b), a.saturating_add(b), 300_i32 as u8);
+}', 'single_choice'::question_type, '250 + 10 = 260 does not fit in a u8 (0 to 255). wrapping_add drops the bit that does not fit, so it gives 260 - 256 = 4. checked_add reports the overflow as None instead of a number. saturating_add stops at the largest u8, 255. 300_i32 as u8 keeps only the lowest 8 bits of 300, which is 300 - 256 = 44: as never fails and never panics. The explicit methods behave the same in debug and release builds; only the plain + operator changes (panic in debug, wrap in release). Some(260) is impossible because a u8 can never hold 260; 4 None 255 255 assumes as saturates like saturating_add, which it only does for float-to-integer casts.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rsf_111') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('4 None 255 44', true),
+        ('260 Some(260) 260 300', false),
+        ('4 Some(4) 255 44', false),
+        ('4 None 255 255', false),
+        ('It panics with "attempt to add with overflow"', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rsf_111'), 'Each option is a complete program compiled with rustc --edition 2024. Which of them compile? (Select all that apply.)', 'multiple_choice'::question_type, 'Shadowing compiles: the second let count creates a new variable of type u32 that hides the &str one. u64::from(total) compiles: From is implemented for every conversion that can never lose information, and u32 always fits in u64. let count = 5; count += 1; is error[E0384]: cannot assign twice to immutable variable (variables are immutable unless declared with let mut). let x: u8 = 256; is error: literal out of range for `u8` (the overflowing_literals lint is deny by default). let w: u64 = total; with total: u32 is error[E0308]: mismatched types, because Rust never converts numbers implicitly, not even to a wider type. 7 / 2.0 is error[E0277]: cannot divide `{integer}` by `{float}`: both sides of an arithmetic operator must have the same type, so write 7.0 / 2.0 or convert with f64::from.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rsf_111') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('fn main() {
+    let count = "5";
+    let count: u32 = count.parse().unwrap();
+    println!("{count}");
+}', true),
+        ('fn main() {
+    let total: u32 = 10;
+    let w = u64::from(total);
+    println!("{w}");
+}', true),
+        ('fn main() {
+    let count = 5;
+    count += 1;
+    println!("{count}");
+}', false),
+        ('fn main() {
+    let x: u8 = 256;
+    println!("{x}");
+}', false),
+        ('fn main() {
+    let total: u32 = 10;
+    let w: u64 = total;
+    println!("{w}");
+}', false),
+        ('fn main() {
+    let avg = 7 / 2.0;
+    println!("{avg}");
+}', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_rsf_112 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_rsf_112', (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-1-1' AND is_deleted = false LIMIT 1), 'load-bags-into-cages-without-overflow', 'Load bags into roll cages without overflow', 'The Da Nang depot''s scanner stores parcel counts as u8. Write bag_count(raw: u32) -> Option<u8>, which returns None when a scanned count does not fit in a u8 (300 must not become 44), load(cage: u8, bag: u8) -> Option<u8>, which returns the cage''s new count or None when the sum does not fit (the runner then starts a new cage), and average(parcels: u32, cages: u32) -> f64, which returns parcels per cage with the fraction. The test runner reads one bag per line, prints the rejected bags, every cage''s count and a summary line. It is built in release mode, so a plain + wraps around silently.', 'open', 'easy'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_112'), 'stdio', 2000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_112');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_112'), 'Example from the task: 200 + 100 opens a second cage, 300 is rejected', '"DN-0412 200\nDN-0413 100\nDN-0414 40\nDN-0415 300\n"', '"DN-0415 rejected: 300 does not fit in a u8\ncage 1: 200\ncage 2: 140\ncages: 2, parcels: 340, average: 170.00"', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_112'), '255 still fits in one cage, 256 does not', '"DN-1001 255\nDN-1002 1\nDN-1003 0\n"', '"cage 1: 255\ncage 2: 1\ncages: 2, parcels: 256, average: 128.00"', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_112'), '256 and 1000 are rejected, not wrapped to 0 and 232', '"DN-2001 256\nDN-2002 120\nDN-2003 1000\nDN-2004 135\n"', '"DN-2001 rejected: 256 does not fit in a u8\nDN-2003 rejected: 1000 does not fit in a u8\ncage 1: 255\ncages: 1, parcels: 255, average: 255.00"', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_112'), '250 + 10 opens a new cage instead of stopping at 255; the average keeps its fraction', '"DN-3001 250\nDN-3002 10\nDN-3003 41\n"', '"cage 1: 250\ncage 2: 51\ncages: 2, parcels: 301, average: 150.50"', 4, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_112'), 'Three cages and an average of 167.33', '"DN-4001 100\nDN-4002 100\nDN-4003 100\nDN-4004 100\nDN-4005 100\nDN-4006 2\n"', '"cage 1: 200\ncage 2: 200\ncage 3: 102\ncages: 3, parcels: 502, average: 167.33"', 4, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_112'), 'Only rejected bags: one empty cage', '"DN-5001 70000\nDN-5002 4294967295\n"', '"DN-5001 rejected: 70000 does not fit in a u8\nDN-5002 rejected: 4294967295 does not fit in a u8\ncage 1: 0\ncages: 1, parcels: 0, average: 0.00"', 4, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_rsf_112_starter', 's3', 'challenges/rust/chal_coding_rsf_112/starter.rs', 'raw', 'text/x-rust', 2849, 'main.rs')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_112'), 'rust', 'main.rs', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_rsf_112_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 1.2: Ownership & moves (Sanity lesson-rsf-1-2)
+UPDATE course.lesson SET title = 'Ownership & moves', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-1-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), 'Ownership & moves', 'sanity', 'lesson-rsf-1-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-rsf-1-2' AND is_deleted = false);
+
+-- challenge chal_quiz_rsf_121 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_rsf_121', (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-1-2' AND is_deleted = false LIMIT 1), 'moves-copies-and-clones-quiz', 'Moves, copies and clones', 'Decide which values are moved, which are copied, and which programs the borrow checker accepts.', 'open', 'easy'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rsf_121'), 'This program does not compile. Which line does rustc report as the error?
+
+fn ship(route: String) -> usize {
+    route.len()
+}
+
+fn main() {
+    let route = String::from("DN-07");
+    let parcels: u32 = 300;
+    let total = parcels;           // (A)
+    let n = ship(route);           // (B)
+    println!("{parcels} {total}"); // (C)
+    println!("{n}");               // (D)
+    println!("{route}");           // (E)
+}', 'single_choice'::question_type, 'Line (E): error[E0382]: borrow of moved value: `route`. Passing route to ship at (B) moves the String into the function''s parameter, and the String is dropped when ship returns, so main may not use route afterwards. Line (B) itself is fine: moving a value into a function is allowed, it only ends main''s ownership. Line (C) is fine because u32 is a Copy type: let total = parcels copies the number, and both variables stay usable. Line (D) prints the usize that ship returned, which main owns. The program would compile if (E) were removed, or if ship were called with route.clone().', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rsf_121') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('(A), because parcels is moved into total', false),
+        ('(B), because a String cannot be passed to a function by value', false),
+        ('(C), because parcels was moved at (A)', false),
+        ('(E), because route was moved into ship at (B)', true),
+        ('Both (C) and (E)', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rsf_121'), 'Each option is the body of main in a program compiled with rustc --edition 2024, which also contains fn take(s: String) -> String { s }. Which of them compile? (Select all that apply.)', 'multiple_choice'::question_type, 'a.clone() makes a second, independent String, so a and b both own their own text and can both be printed. A &str such as "DN-07" is a Copy type (copying it copies a reference to text that lives for the whole program), so b = a leaves a usable. take(a) moves a into the function and the function gives the String back; let a = take(a) binds the returned String to a new a, so printing it is fine. The tuple (3_u8, String) is NOT Copy because one of its parts, the String, is not Copy: b = a moves the whole tuple and printing a is error[E0382]: borrow of moved value: `a`. for x in v consumes the vector (it calls into_iter, which takes ownership), so v.len() afterwards is error[E0382] too; for x in &v would borrow it instead.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rsf_121') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('let a = String::from("DN-07");
+let b = a.clone();
+println!("{a} {b}");', true),
+        ('let a: &str = "DN-07";
+let b = a;
+println!("{a} {b}");', true),
+        ('let a = String::from("x");
+let a = take(a);
+println!("{a}");', true),
+        ('let a = (3_u8, String::from("x"));
+let b = a;
+println!("{:?} {:?}", a, b);', false),
+        ('let v = vec![1, 2];
+for x in v {
+    println!("{x}");
+}
+println!("{}", v.len());', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_fix_rsf_122 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_fix_rsf_122', (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-1-2' AND is_deleted = false LIMIT 1), 'fix-cage-manifest-clones', 'Fix the cage manifest that cloned its way to compiling', 'The cage manifest tool compiles, but bags never show up on the manifest, a parcel scanned twice in one bag is listed twice, and after a merge the parcels appear in both cages. add_bag and merge were written by adding .clone() until the compiler stopped complaining, so they change copies and return the wrong values. Fix both functions so they take ownership of the cages they are given, change them, and give the right ones back. The test runner reads bag and merge commands and prints every cage at the end.', 'open', 'easy'::difficulty_question, 'fix_bug', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_122'), 'stdio', 2000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_122');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_122'), 'Example from the task: a double beep and a merge', '"bag DN-07 SH-1001 SH-1002\nbag DN-07 SH-1003 SH-1003\nbag DN-08 SH-2001\nmerge DN-08 DN-07\n"', '"DN-07: 4 parcels [SH-1001, SH-1002, SH-1003, SH-2001]\nDN-08: 0 parcels []"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_122'), 'Two bags into one cage, a parcel re-scanned in the second bag', '"bag DN-11 SH-3001 SH-3002 SH-3003\nbag DN-11 SH-3002 SH-3004\n"', '"DN-11: 4 parcels [SH-3001, SH-3002, SH-3003, SH-3004]"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_122'), 'After a merge the source cage is empty', '"bag DN-03 SH-4001\nbag DN-05 SH-5001 SH-5002\nmerge DN-05 DN-03\n"', '"DN-03: 3 parcels [SH-4001, SH-5001, SH-5002]\nDN-05: 0 parcels []"', 4, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_122'), 'A parcel scanned into both cages is listed once after the merge', '"bag DN-07 SH-6001 SH-6002\nbag DN-09 SH-6002 SH-6003 SH-6003\nmerge DN-09 DN-07\nbag DN-09 SH-6004\n"', '"DN-07: 3 parcels [SH-6001, SH-6002, SH-6003]\nDN-09: 1 parcels [SH-6004]"', 4, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_122'), 'Chained merges into an empty cage keep first-scan order', '"bag DN-01 SH-7001 SH-7002\nbag DN-02 SH-7003\nmerge DN-01 DN-04\nmerge DN-02 DN-04\nbag DN-01 SH-7001\nbag DN-04 SH-7001 SH-7005\n"', '"DN-01: 1 parcels [SH-7001]\nDN-02: 0 parcels []\nDN-04: 4 parcels [SH-7001, SH-7002, SH-7003, SH-7005]"', 4, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_rsf_122_starter', 's3', 'challenges/rust/chal_fix_rsf_122/starter.rs', 'raw', 'text/x-rust', 3729, 'main.rs')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_122'), 'rust', 'main.rs', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_rsf_122_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 2: Borrowing & Types
+UPDATE course.module SET title = 'Borrowing & Types', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations'), 'Borrowing & Types', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 2 AND is_deleted = false);
+
+-- lesson 2.1: Borrowing & the first lifetime errors (Sanity lesson-rsf-2-1)
+UPDATE course.lesson SET title = 'Borrowing & the first lifetime errors', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-2-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Borrowing & the first lifetime errors', 'sanity', 'lesson-rsf-2-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-rsf-2-1' AND is_deleted = false);
+
+-- challenge chal_quiz_rsf_211 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_rsf_211', (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-2-1' AND is_deleted = false LIMIT 1), 'borrowing-rules-quiz', 'Borrows, index loops and dangling references', 'Trace an index loop that removes elements, then decide which borrows and function signatures the borrow checker accepts.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rsf_211'), 'What does this program print?
+
+fn main() {
+    let mut cage = vec!["SH-1", "SH-2", "SH-3", "SH-4", "SH-5"];
+    let delivered = ["SH-2", "SH-3", "SH-5"];
+    let mut i = 0;
+    while i < cage.len() {
+        if delivered.contains(&cage[i]) {
+            cage.remove(i);
+        }
+        i += 1;
+    }
+    println!("{cage:?}");
+}', 'single_choice'::question_type, 'remove(i) shifts every later element one place to the left, and the loop then moves on with i += 1, so the element that slid into position i is never checked. i = 0: SH-1 stays. i = 1: SH-2 is removed, the cage becomes [SH-1, SH-3, SH-4, SH-5] and SH-3 is now at index 1, which the loop has already passed. i = 2: SH-4 stays. i = 3: SH-5 is removed, the cage becomes [SH-1, SH-3, SH-4]. i = 4 is not below the length 3, so the loop ends. Result: ["SH-1", "SH-3", "SH-4"]: the delivered SH-3 is still in the cage. ["SH-1", "SH-4"] is what the author meant. The while condition re-reads cage.len() every time, so this version cannot go out of bounds and does not panic. It compiles, because indexing borrows cage only for the duration of each check.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rsf_211') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('["SH-1", "SH-4"]', false),
+        ('["SH-1", "SH-3", "SH-4"]', true),
+        ('["SH-1", "SH-3", "SH-4", "SH-5"]', false),
+        ('It panics: index out of bounds', false),
+        ('It does not compile: error[E0502], cage is borrowed while it is changed', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rsf_211'), 'Each option is a complete program (the body of main, or a function plus main) compiled with rustc --edition 2024. Which of them compile? (Select all that apply.)', 'multiple_choice'::question_type, 'A borrow lasts until its last use. In the second option first is last used in the println! before v.push(4), so the shared borrow is over when the vector is changed. In the first option first is used AFTER push, while v is borrowed: error[E0502] (push may move the vector''s buffer, which would leave first pointing at freed memory). Two &mut borrows of s one after the other are fine, because a''s last use comes before b is created; creating b while a is still used later is error[E0499]: cannot borrow `s` as mutable more than once at a time. first_word has one reference parameter, so the lifetime elision rules give the returned &str the same lifetime as s, and no annotation is needed. label returns a reference with no parameter to borrow it from: error[E0106]: missing lifetime specifier, and the reference would point at a String that is dropped when the function returns. Return a String instead.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rsf_211') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('let mut v = vec![1, 2, 3];
+let first = &v[0];
+v.push(4);
+println!("{first}");', false),
+        ('let mut v = vec![1, 2, 3];
+let first = &v[0];
+println!("{first}");
+v.push(4);', true),
+        ('let mut s = String::from("DN");
+let a = &mut s;
+a.push(''-'');
+let b = &mut s;
+b.push(''7'');
+println!("{s}");', true),
+        ('let mut s = String::from("DN");
+let a = &mut s;
+let b = &mut s;
+a.push(''-'');
+b.push(''7'');', false),
+        ('fn first_word(s: &str) -> &str {
+    s.split('' '').next().unwrap()
+}
+
+fn main() {
+    println!("{}", first_word("Da Nang"));
+}', true),
+        ('fn label() -> &str {
+    let s = String::from("DN-07");
+    &s
+}
+
+fn main() {
+    println!("{}", label());
+}', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_fix_rsf_212 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_fix_rsf_212', (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-2-1' AND is_deleted = false LIMIT 1), 'fix-unload-and-fragile-sheet', 'Unload the cage without skipping or panicking', 'The Hoi An hub''s unload tool borrows the cage mutably. unload removes delivered parcels with an index loop that panics with index out of bounds after the first removal, and take_fragile builds the fragile sheet but leaves the fragile parcels in the cage, because it removes them from a clone. Fix both functions so they change the borrowed cage itself, never skip a parcel that moved into the current position, and return the right count and list. The test runner reads load, deliver and fragile commands.', 'open', 'medium'::difficulty_question, 'fix_bug', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_212'), 'stdio', 2000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_212');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_212'), 'Example from the task: two neighbours delivered', '"load SH-1001 SH-1002 SH-1003 SH-1004\ndeliver SH-1002 SH-1003\n"', '"delivered: 2\ncage: 2 [SH-1001, SH-1004]"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_212'), 'A delivered id that is not in the cage does not count', '"load SH-2001 SH-2002 SH-2003\ndeliver SH-2003 SH-9999\n"', '"delivered: 1\ncage: 2 [SH-2001, SH-2002]"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_212'), 'Fragile parcels leave the cage', '"load SH-3001-F SH-3002 SH-3003-F SH-3004\nfragile\n"', '"fragile: [SH-3001-F, SH-3003-F]\ncage: 2 [SH-3002, SH-3004]"', 4, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_212'), 'Neighbouring fragile parcels, then a delivery and a late load', '"load SH-4001 SH-4002-F SH-4003-F SH-4004\nfragile\ndeliver SH-4001 SH-4004\nload SH-4005-F SH-4006\nfragile\n"', '"fragile: [SH-4002-F, SH-4003-F]\ndelivered: 2\nfragile: [SH-4005-F]\ncage: 1 [SH-4006]"', 4, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_212'), 'Deliver every parcel, including three in a row', '"load SH-5001 SH-5002 SH-5003 SH-5004\ndeliver SH-5004 SH-5001 SH-5002 SH-5003\nload SH-5005\ndeliver SH-5005\n"', '"delivered: 4\ndelivered: 1\ncage: 0 []"', 4, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_rsf_212_starter', 's3', 'challenges/rust/chal_fix_rsf_212/starter.rs', 'raw', 'text/x-rust', 2742, 'main.rs')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_212'), 'rust', 'main.rs', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_rsf_212_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 2.2: Structs, enums & match (Sanity lesson-rsf-2-2)
+UPDATE course.lesson SET title = 'Structs, enums & match', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-2-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Structs, enums & match', 'sanity', 'lesson-rsf-2-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-rsf-2-2' AND is_deleted = false);
+
+-- challenge chal_coding_rsf_221 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_rsf_221', (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-2-2' AND is_deleted = false LIMIT 1), 'parcel-status-state-machine', 'Track a parcel''s status with an enum', 'Parcel statuses used to be strings, and the cash report missed every parcel marked "Delivered" instead of "delivered". Now a Status enum carries the data of each status (the driver, the collected cash, the return reason). Write three methods of Parcel: apply(&mut self, event: Event) -> bool, which moves the parcel to its next status when the event is allowed (out, deliver with the exact cash due, fail with three attempts before a return, recall) and returns false otherwise; label(&self) -> String; and cod_collected(&self) -> u32. The test runner reads parcel registrations and events, prints every rejected event, each parcel''s label and the cash collected.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_221'), 'stdio', 2000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_221');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_221'), 'Example from the task: the wrong cash amount is rejected', '"new SH-1001 250000\nSH-1001 out Minh\nSH-1001 deliver 200000\nSH-1001 deliver 250000\n"', '"SH-1001: rejected deliver (out with Minh)\nSH-1001: delivered, COD 250000 VND\nCOD collected: 250000 VND"', 5, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_221'), 'Three failed attempts return the parcel; a fourth trip is rejected', '"new SH-2001 0\nSH-2001 out Lan\nSH-2001 fail nobody home\nSH-2001 out Lan\nSH-2001 fail nobody home\nSH-2001 out Lan\nSH-2001 fail wrong address\nSH-2001 out Lan\n"', '"SH-2001: rejected out (returned: wrong address)\nSH-2001: returned: wrong address\nCOD collected: 0 VND"', 5, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_221'), 'Recall from the depot, and events that are not allowed', '"new SH-3001 90000\nSH-3001 deliver 90000\nSH-3001 recall\nSH-3001 out Hoa\nnew SH-3002 120000\nSH-3002 out Hoa\nSH-3002 recall\n"', '"SH-3001: rejected deliver (in depot)\nSH-3001: rejected out (returned: recalled by sender)\nSH-3002: rejected recall (out with Hoa)\nSH-3001: returned: recalled by sender\nSH-3002: out with Hoa\nCOD collected: 0 VND"', 5, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_221'), 'Several parcels: a prepaid delivery, cash totals and a parcel still out', '"new SH-4001 0\nnew SH-4002 315000\nnew SH-4003 48000\nSH-4001 out Tuan\nSH-4002 out Tuan\nSH-4003 out Tuan\nSH-4001 deliver 0\nSH-4002 deliver 315000\n"', '"SH-4001: delivered, COD 0 VND\nSH-4002: delivered, COD 315000 VND\nSH-4003: out with Tuan\nCOD collected: 315000 VND"', 5, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_221'), 'Two failed attempts, then a delivery; a delivered parcel never changes', '"new SH-5001 60000\nSH-5001 out Minh\nSH-5001 fail gate locked\nSH-5001 out Minh\nSH-5001 fail gate locked\nSH-5001 out Minh\nSH-5001 deliver 60000\nSH-5001 fail too late\nSH-5001 recall\nSH-5001 out Minh\n"', '"SH-5001: rejected fail (delivered, COD 60000 VND)\nSH-5001: rejected recall (delivered, COD 60000 VND)\nSH-5001: rejected out (delivered, COD 60000 VND)\nSH-5001: delivered, COD 60000 VND\nCOD collected: 60000 VND"', 5, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_221'), 'Unknown parcels are ignored; failed attempts are counted per parcel', '"new SH-6001 10000\nnew SH-6002 20000\nSH-9999 out Lan\nSH-6001 out Lan\nSH-6001 fail closed\nSH-6002 out Lan\nSH-6002 fail closed\nSH-6001 out Lan\nSH-6001 fail closed\nSH-6002 out Lan\nSH-6002 deliver 20000\nSH-6001 out Lan\nSH-6001 fail moved away\n"', '"SH-6001: returned: moved away\nSH-6002: delivered, COD 20000 VND\nCOD collected: 20000 VND"', 5, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_rsf_221_starter', 's3', 'challenges/rust/chal_coding_rsf_221/starter.rs', 'raw', 'text/x-rust', 4680, 'main.rs')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_221'), 'rust', 'main.rs', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_rsf_221_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 3: Errors & Collections
+UPDATE course.module SET title = 'Errors & Collections', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations'), 'Errors & Collections', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 3 AND is_deleted = false);
+
+-- lesson 3.1: Option, Result & the ? operator (Sanity lesson-rsf-3-1)
+UPDATE course.lesson SET title = 'Option, Result & the ? operator', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-3-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Option, Result & the ? operator', 'sanity', 'lesson-rsf-3-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-rsf-3-1' AND is_deleted = false);
+
+-- challenge chal_coding_rsf_311 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_rsf_311', (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-3-1' AND is_deleted = false LIMIT 1), 'validate-scan-log-lines', 'Validate the scan log without panicking', 'The nightly import lost a whole batch because one line of the scan log could not be parsed and the tool called unwrap(). Write parse_line(line: &str) -> Result<Scan, ScanError>, which splits a "<parcel id>,<route>,<weight in grams>" line, trims the fields and returns the first problem it finds: wrong number of fields, missing parcel id, a route that does not start with DN-, a weight that is not a u32, or a weight above 30000 g. ScanError and its messages are already written. The test runner prints every accepted or rejected line with its line number and a summary, so one bad line must never stop the batch.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_311'), 'stdio', 2000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_311');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_311'), 'Example from the task: a garbled weight, a blank line and a foreign route', '"SH10231,DN-07,1250\nSH10232,DN-07,12O0\n\nSH10233,HA-01,410\n"', '"line 1: SH10231 DN-07 1250 g\nline 2: rejected: bad weight ''12O0'': invalid digit found in string\nline 4: rejected: unknown route ''HA-01''\naccepted: 1, rejected: 2, total: 1250 g"', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_311'), 'Spaces around fields are trimmed; 30000 g is allowed, 30001 g and -5 are not', '" SH10240 , DN-11 , 30000 \nSH10241,DN-11,30001\nSH10242,DN-11,-5\n"', '"line 1: SH10240 DN-11 30000 g\nline 2: rejected: 30001 g is over the 30000 g limit\nline 3: rejected: bad weight ''-5'': invalid digit found in string\naccepted: 1, rejected: 2, total: 30000 g"', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_311'), 'Two or four fields, a missing id and an empty weight', '"SH10250,DN-02\nSH10251,DN-02,500,fragile\n,DN-02,700\nSH10252,DN-02,\n"', '"line 1: rejected: expected 3 fields, found 2\nline 2: rejected: expected 3 fields, found 4\nline 3: rejected: missing parcel id\nline 4: rejected: bad weight '''': cannot parse integer from empty string\naccepted: 0, rejected: 4, total: 0 g"', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_311'), 'A bad route is reported before a bad weight; a weight too large for u32', '"SH10260,HA-01,12O0\nSH10261,dn-07,900\nSH10262,DN-05,99999999999\n"', '"line 1: rejected: unknown route ''HA-01''\nline 2: rejected: unknown route ''dn-07''\nline 3: rejected: bad weight ''99999999999'': number too large to fit in target type\naccepted: 0, rejected: 3, total: 0 g"', 4, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_311'), 'Blank lines still count for the line numbers', '"SH1,DN-01,100\n\n\nSH2,DN-01,200\nSH3,DN-09,30000\n"', '"line 1: SH1 DN-01 100 g\nline 4: SH2 DN-01 200 g\nline 5: SH3 DN-09 30000 g\naccepted: 3, rejected: 0, total: 30300 g"', 4, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_311'), 'Only commas, only spaces and a lone id', '",,\n   \nSH10270\nSH10271,DN-04,0\n"', '"line 1: rejected: missing parcel id\nline 3: rejected: expected 3 fields, found 1\nline 4: SH10271 DN-04 0 g\naccepted: 1, rejected: 2, total: 0 g"', 4, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_rsf_311_starter', 's3', 'challenges/rust/chal_coding_rsf_311/starter.rs', 'raw', 'text/x-rust', 3693, 'main.rs')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_311'), 'rust', 'main.rs', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_rsf_311_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 3.2: Vec & HashMap (Sanity lesson-rsf-3-2)
+UPDATE course.lesson SET title = 'Vec & HashMap', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-3-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Vec & HashMap', 'sanity', 'lesson-rsf-3-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-rsf-3-2' AND is_deleted = false);
+
+-- challenge chal_coding_rsf_321 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_rsf_321', (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-3-2' AND is_deleted = false LIMIT 1), 'stable-route-report', 'A route report in the same order every day', 'The audit compares today''s route report with yesterday''s, and a HashMap printed the routes in a different order on every run. Write group_by_route, which groups the scans into a HashMap from route to its parcel ids (sorted, each id once, because scanners sometimes read a parcel twice), ranking, which returns (route, count) pairs with the busiest route first and ties in A-Z order of the route, and top, which returns the first k entries without panicking when there are fewer than k. The test runner prints the top routes with their parcel ids, the total number of parcels and the number of double reads.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_321'), 'stdio', 2000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_321');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_321'), 'Example from the task: one double read, top 2 of 3 routes', '"top 2\nDN-07 SH1003\nDN-03 SH1001\nDN-07 SH1002\nDN-07 SH1003\nDN-11 SH1004\n"', '"top 2 of 3 routes:\nDN-07: 2 parcels (SH1002 SH1003)\nDN-03: 1 parcels (SH1001)\nparcels: 4, double reads: 1"', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_321'), 'Four routes with one parcel each: ties in A-Z order', '"top 3\nDN-11 SH2001\nDN-03 SH2002\nDN-07 SH2003\nDN-01 SH2004\n"', '"top 3 of 4 routes:\nDN-01: 1 parcels (SH2004)\nDN-03: 1 parcels (SH2002)\nDN-07: 1 parcels (SH2003)\nparcels: 4, double reads: 0"', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_321'), 'top 10 of 2 routes, and double reads that are not next to each other', '"top 10\nDN-05 SH3009\nDN-05 SH3001\nDN-05 SH3009\nDN-02 SH3002\nDN-05 SH3001\n"', '"top 10 of 2 routes:\nDN-05: 2 parcels (SH3001 SH3009)\nDN-02: 1 parcels (SH3002)\nparcels: 3, double reads: 2"', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_321'), 'Busy day: ties at 3 and at 2 parcels', '"top 4\nDN-09 SH4101\nDN-04 SH4102\nDN-09 SH4103\nDN-12 SH4104\nDN-04 SH4105\nDN-09 SH4106\nDN-04 SH4107\nDN-12 SH4108\nDN-06 SH4109\nDN-10 SH4110\nDN-10 SH4111\nDN-09 SH4103\nDN-06 SH4109\n"', '"top 4 of 5 routes:\nDN-04: 3 parcels (SH4102 SH4105 SH4107)\nDN-09: 3 parcels (SH4101 SH4103 SH4106)\nDN-10: 2 parcels (SH4110 SH4111)\nDN-12: 2 parcels (SH4104 SH4108)\nparcels: 11, double reads: 2"', 4, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_321'), 'top 0 prints no routes but still counts every parcel', '"top 0\nDN-01 SH5001\nDN-02 SH5002\nDN-01 SH5003\n"', '"top 0 of 2 routes:\nparcels: 3, double reads: 0"', 4, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_321'), 'The same parcel id on two routes counts once on each', '"top 5\nDN-08 SH6001\nDN-15 SH6001\nDN-08 SH6001\nDN-15 SH6000\n"', '"top 5 of 2 routes:\nDN-15: 2 parcels (SH6000 SH6001)\nDN-08: 1 parcels (SH6001)\nparcels: 3, double reads: 1"', 4, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_rsf_321_starter', 's3', 'challenges/rust/chal_coding_rsf_321/starter.rs', 'raw', 'text/x-rust', 3130, 'main.rs')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_321'), 'rust', 'main.rs', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_rsf_321_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 3.3: Strings: String, &str & UTF-8 (Sanity lesson-rsf-3-3)
+UPDATE course.lesson SET title = 'Strings: String, &str & UTF-8', order_index = 3, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-3-3' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Strings: String, &str & UTF-8', 'sanity', 'lesson-rsf-3-3', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-rsf-3-3' AND is_deleted = false);
+
+-- challenge chal_quiz_rsf_331 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_rsf_331', (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-3-3' AND is_deleted = false LIMIT 1), 'string-bytes-chars-quiz', 'Bytes, characters and String operations', 'Predict what Rust does with Vietnamese text: how len() and chars() count, which String operations compile, and which slices panic at run time.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rsf_331'), 'What does this program print? (The source file is UTF-8, and every letter is one precomposed character.)
+
+fn main() {
+    let s = "Đà Nẵng";
+    println!("{} {} {:?}", s.len(), s.chars().count(), s.chars().nth(1));
+}', 'single_choice'::question_type, 'len() counts bytes of UTF-8, not characters. Đ (U+0110) and à (U+00E0) take 2 bytes each, ẵ (U+1EB5) takes 3, and the space, N, n and g take 1 each: 2 + 2 + 1 + 1 + 3 + 1 + 1 = 11. chars() walks Unicode scalar values, so there are 7 of them, and nth(1) is the second one, Some(''à''). 7 7 assumes len() counts characters, which it only does for ASCII text. 11 11 assumes chars() counts bytes. Some(''\u{90}'') would be the second byte of Đ (0xC4 0x90) misread as a character; chars() never splits a character. The program does not index the string, so there is no compile error.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rsf_331') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('11 7 Some(''à'')', true),
+        ('7 7 Some(''à'')', false),
+        ('11 11 Some(''à'')', false),
+        ('11 7 Some(''\u{90}'')', false),
+        ('It does not compile: a string cannot be indexed by position', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rsf_331'), 'Each option is the body of fn main() { ... } compiled with rustc --edition 2024. Which ones compile AND run without panicking? (Select all that apply.)', 'multiple_choice'::question_type, 'String + &str compiles: + takes the String on the left by value, appends the &str and returns the result, so t is "Hội An hub" (s is moved and can no longer be used). chars().take(3).collect() builds a new String from the first 3 characters, "Hội", without ever cutting a character. push_str appends a &str and push appends one char, giving "DN-07!". a + b with two Strings is error[E0308]: mismatched types, expected `&str`, found `String`; the fix is a + &b, or format!("{a}{b}"). s[0] is error[E0277]: the type `str` cannot be indexed by `{integer}`, because a byte position is not a character. &s[0..2] compiles, because string slices take byte ranges, but it panics at run time: byte index 2 is not a char boundary; it is inside ''ộ'' (bytes 1..4) of `Hội An`.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rsf_331') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('let s = String::from("Hội An");
+let t = s + " hub";
+println!("{t}");', true),
+        ('let s = "Hội An";
+let first: String = s.chars().take(3).collect();
+println!("{first}");', true),
+        ('let mut s = String::from("DN");
+s.push_str("-07");
+s.push(''!'');
+println!("{s}");', true),
+        ('let a = String::from("DN-");
+let b = String::from("07");
+let c = a + b;
+println!("{c}");', false),
+        ('let s = "Hội An";
+let c = s[0];
+println!("{c}");', false),
+        ('let s = "Hội An";
+println!("{}", &s[0..2]);', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_fix_rsf_332 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_fix_rsf_332', (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-3-3' AND is_deleted = false LIMIT 1), 'fix-label-printer-utf8', 'Fix the label printer for Vietnamese addresses', 'The label printer''s text line is "<route> | <NAME> | <address>": the name uppercased and padded to 16 characters, the address cut to 23 characters plus "…" when it is longer than 24 characters. It works for the English test data, but it crashes with "byte index 23 is not a char boundary" on some Vietnamese addresses, cuts others that would have fitted, and misaligns the address column for names with diacritics. The code counts and slices bytes where it should count characters. Fix name_column and short_address so every label is right for any UTF-8 text. The test runner reads "<route>;<name>;<address>" lines and prints one label per line.', 'open', 'medium'::difficulty_question, 'fix_bug', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_332'), 'stdio', 2000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_332');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_332'), 'English test data: one address is cut, one fits', '"DN-07;Tran Van Binh;45 Bach Dang, Hai Chau, Da Nang\nDN-03;Le Hoa;7 Tran Phu, Hoi An\n"', '"DN-07 | TRAN VAN BINH    | 45 Bach Dang, Hai Chau,…\nDN-03 | LE HOA           | 7 Tran Phu, Hoi An"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_332'), 'The address that crashed the printer', '"DN-12;Phạm Thị Lan;3 Ông Ích Khiêm, Hải Châu\n"', '"DN-12 | PHẠM THỊ LAN     | 3 Ông Ích Khiêm, Hải Ch…"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_332'), 'Addresses that fit in 24 characters but not in 24 bytes are not cut', '"DN-05;Nguyễn Văn An;88 Lê Duẩn, Thanh Khê\nDN-02;Võ Thị Sáu;15 Lý Thường Kiệt, Huế\n"', '"DN-05 | NGUYỄN VĂN AN    | 88 Lê Duẩn, Thanh Khê\nDN-02 | VÕ THỊ SÁU       | 15 Lý Thường Kiệt, Huế"', 4, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_332'), 'A name longer than the column and a long address', '"DN-09;Tôn Nữ Thị Phương Thảo;210 Hùng Vương, Tam Kỳ, Quảng Nam\n"', '"DN-09 | TÔN NỮ THỊ PHƯƠNG THẢO | 210 Hùng Vương, Tam Kỳ,…"', 4, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_332'), 'Spaces around the fields, a lowercase đ and an address of exactly 24 characters', '"  dn-01 ; đỗ minh tâm  ;  120 Nguyễn Văn Linh, Huế  \n"', '"dn-01 | ĐỖ MINH TÂM      | 120 Nguyễn Văn Linh, Huế"', 4, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_rsf_332_starter', 's3', 'challenges/rust/chal_fix_rsf_332/starter.rs', 'raw', 'text/x-rust', 2447, 'main.rs')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_rsf_332'), 'rust', 'main.rs', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_rsf_332_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 4: Putting It Together
+UPDATE course.module SET title = 'Putting It Together', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations'), 'Putting It Together', 4
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 4 AND is_deleted = false);
+
+-- lesson 4.1: Traits basics (Sanity lesson-rsf-4-1)
+UPDATE course.lesson SET title = 'Traits basics', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-4-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), 'Traits basics', 'sanity', 'lesson-rsf-4-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-rsf-4-1' AND is_deleted = false);
+
+-- challenge chal_quiz_rsf_411 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_rsf_411', (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-4-1' AND is_deleted = false LIMIT 1), 'traits-derive-display-quiz', 'Derives, Display and trait bounds', 'Predict what derived traits do, and decide which programs the compiler accepts once traits, Display and generic bounds are involved.', 'open', 'easy'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rsf_411'), 'What does this program print?
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Priority {
+    Standard,
+    Express,
+    SameDay,
+}
+
+fn main() {
+    let mut queue = vec![Priority::Express, Priority::SameDay, Priority::Standard, Priority::Express];
+    queue.sort();
+    queue.dedup();
+    println!("{:?} {}", queue, Priority::SameDay > Priority::Express);
+}', 'single_choice'::question_type, 'A derived Ord on an enum orders the variants in the order they are declared: Standard < Express < SameDay. sort() therefore gives [Standard, Express, Express, SameDay], and dedup() removes consecutive equal elements (it uses PartialEq), leaving [Standard, Express, SameDay]. SameDay > Express is true because SameDay is declared later. The derive never sorts by the variant names, so [Express, SameDay, Standard] (alphabetical) is wrong. dedup only removes neighbours that are equal, and after sorting the two Express values are neighbours, so the duplicate does not survive. The program compiles: Ord and PartialOrd are exactly what sort() and > need.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rsf_411') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('[Standard, Express, SameDay] true', true),
+        ('[Express, SameDay, Standard] false', false),
+        ('[Standard, Express, Express, SameDay] true', false),
+        ('[Standard, Express, SameDay] false', false),
+        ('It does not compile: enums cannot be compared with >', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rsf_411'), 'Each option is a complete program compiled with rustc --edition 2024. Which of them compile? (Select all that apply.)', 'multiple_choice'::question_type, 'Implementing fmt::Display compiles, and it also gives the type a to_string() method for free. A struct with derive(PartialEq, Eq, Hash) can be a HashMap key, because a HashMap needs exactly Eq and Hash on its keys. A trait with a default method compiles even when the impl writes only the required method: Document gets price_text() from the trait. derive(Debug) alone does not make {} work: the compiler reports error[E0277]: `Parcel` doesn''t implement `std::fmt::Display`. derive(Clone, Copy) on a struct with a String field is error[E0204]: the trait `Copy` cannot be implemented for this type, because a String owns heap memory and cannot be copied bit by bit. A generic function cannot use > on a T without a bound: error[E0369]: binary operation `>` cannot be applied to type `T`, and the compiler suggests T: PartialOrd.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rsf_411') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('use std::fmt;
+
+struct Parcel {
+    id: String,
+}
+
+impl fmt::Display for Parcel {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "parcel {}", self.id)
+    }
+}
+
+fn main() {
+    let p = Parcel { id: String::from("DN-07-0412") };
+    let text: String = p.to_string();
+    println!("{text}");
+}', true),
+        ('use std::collections::HashMap;
+
+#[derive(PartialEq, Eq, Hash)]
+struct RouteCode {
+    depot: String,
+    number: u16,
+}
+
+fn main() {
+    let mut counts = HashMap::new();
+    counts.insert(RouteCode { depot: String::from("DN"), number: 7 }, 300);
+    println!("{}", counts.len());
+}', true),
+        ('trait Priced {
+    fn price_vnd(&self) -> u64;
+    fn price_text(&self) -> String {
+        format!("{} VND", self.price_vnd())
+    }
+}
+
+struct Document;
+
+impl Priced for Document {
+    fn price_vnd(&self) -> u64 {
+        15_000
+    }
+}
+
+fn main() {
+    println!("{}", Document.price_text());
+}', true),
+        ('#[derive(Debug)]
+struct Parcel {
+    id: String,
+}
+
+fn main() {
+    let p = Parcel { id: String::from("DN-07-0412") };
+    println!("{}", p);
+}', false),
+        ('#[derive(Debug, Clone, Copy)]
+struct Parcel {
+    id: String,
+    weight_g: u32,
+}
+
+fn main() {
+    let p = Parcel { id: String::from("DN-07-0412"), weight_g: 1250 };
+    println!("{p:?}");
+}', false),
+        ('fn heavier<T>(a: T, b: T) -> bool {
+    a > b
+}
+
+fn main() {
+    println!("{}", heavier(1250, 800));
+}', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_rsf_412 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_rsf_412', (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-4-1' AND is_deleted = false LIMIT 1), 'route-sheet-labels-and-prices', 'Labels and prices for the route sheet', 'The evening route sheet prints documents and packages in their Debug form, and every price is 0. Implement the Priced trait for Document (15000 VND, 25000 VND for express) and Package (20000 VND up to 1000 g, plus 5000 VND for every started 500 g above that), implement fmt::Display for both ("DN-07-0413 document (express)", "DN-07-0412 package 1.25 kg"), and write the generic fn total<T: Priced>(items: &[T]) -> u64. The test runner reads one item per line and prints every label with its price, then the totals per kind.', 'open', 'easy'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_412'), 'stdio', 2000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_412');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_412'), 'Example from the task: two packages and an express document', '"pkg DN-07-0412 1250\ndoc DN-07-0413 express\npkg DN-07-0415 800\n"', '"DN-07-0412 package 1.25 kg: 25000 VND\nDN-07-0413 document (express): 25000 VND\nDN-07-0415 package 0.80 kg: 20000 VND\ndocuments: 1, total 25000 VND\npackages: 2, total 45000 VND"', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_412'), 'Weight steps: 1000 g, 1001 g, 1500 g, 1501 g and 2000 g', '"pkg DN-12-0101 1000\npkg DN-12-0102 1001\npkg DN-12-0103 1500\npkg DN-12-0104 1501\npkg DN-12-0105 2000\n"', '"DN-12-0101 package 1.00 kg: 20000 VND\nDN-12-0102 package 1.00 kg: 25000 VND\nDN-12-0103 package 1.50 kg: 25000 VND\nDN-12-0104 package 1.50 kg: 30000 VND\nDN-12-0105 package 2.00 kg: 30000 VND\ndocuments: 0, total 0 VND\npackages: 5, total 130000 VND"', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_412'), 'Documents only: express and standard, no packages', '"doc HA-03-0007 express\ndoc HA-03-0008 standard\ndoc HA-03-0009 standard\n"', '"HA-03-0007 document (express): 25000 VND\nHA-03-0008 document: 15000 VND\nHA-03-0009 document: 15000 VND\ndocuments: 3, total 55000 VND\npackages: 0, total 0 VND"', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_412'), 'A heavy carton of 7.35 kg and a light one of 500 g', '"pkg DN-07-0901 7350\ndoc DN-07-0902 express\npkg DN-07-0903 500\n"', '"DN-07-0901 package 7.35 kg: 85000 VND\nDN-07-0902 document (express): 25000 VND\nDN-07-0903 package 0.50 kg: 20000 VND\ndocuments: 1, total 25000 VND\npackages: 2, total 105000 VND"', 4, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_412'), 'Exactly 2500 g, a 30 g envelope and a standard document', '"doc DN-21-0300 standard\npkg DN-21-0301 2500\npkg DN-21-0302 30\n"', '"DN-21-0300 document: 15000 VND\nDN-21-0301 package 2.50 kg: 35000 VND\nDN-21-0302 package 0.03 kg: 20000 VND\ndocuments: 1, total 15000 VND\npackages: 2, total 55000 VND"', 4, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_412'), '1990 g is two blocks, 2001 g is three', '"pkg HA-05-0010 1990\npkg HA-05-0011 2001\ndoc HA-05-0012 express\n"', '"HA-05-0010 package 1.99 kg: 30000 VND\nHA-05-0011 package 2.00 kg: 35000 VND\nHA-05-0012 document (express): 25000 VND\ndocuments: 1, total 25000 VND\npackages: 2, total 65000 VND"', 4, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_rsf_412_starter', 's3', 'challenges/rust/chal_coding_rsf_412/starter.rs', 'raw', 'text/x-rust', 3962, 'main.rs')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_412'), 'rust', 'main.rs', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_rsf_412_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 4.2: Mini project: a CSV summary CLI (Sanity lesson-rsf-4-2)
+UPDATE course.lesson SET title = 'Mini project: a CSV summary CLI', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-4-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), 'Mini project: a CSV summary CLI', 'sanity', 'lesson-rsf-4-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-rsf-4-2' AND is_deleted = false);
+
+-- challenge chal_coding_rsf_421 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_rsf_421', (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'rust-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rsf-4-2' AND is_deleted = false LIMIT 1), 'end-of-day-delivery-summary', 'End-of-day delivery summary', 'The drivers'' handhelds export the day''s deliveries as a CSV: parcel_id,route,weight_g,cod_vnd,status. Write parse_row(line: &str) -> Result<Delivery, String>, which trims every field and rejects a row with the exact messages from the task (wrong field count, empty parcel_id or route, bad weight_g, bad cod_vnd, unknown status), and add(totals: &mut RouteTotals, delivery: &Delivery), which counts parcels, weight, delivered and failed parcels, and the cash on delivery collected (delivered) or still open (failed). The test runner skips the header and blank lines, groups the rows per route in a BTreeMap and prints the summary, the failed parcels and every rejected line with its line number.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_421'), 'stdio', 2000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_421');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_421'), 'Example from the task: a decimal comma makes 6 fields, a failed parcel keeps its COD open', '"parcel_id,route,weight_g,cod_vnd,status\nDN-07-0412,DN-07,1100,185000,delivered\nDN-12-0101,DN-12,1,5,120000,failed\nDN-07-0413,DN-07,2200,90000,failed\n\n"', '"DN-07: parcels 2, weight 3.300 kg, delivered 1, failed 1, COD collected 185000 VND, COD open 90000 VND\ntotal: parcels 2, weight 3.300 kg, delivered 1, failed 1, COD collected 185000 VND, COD open 90000 VND\nfailed parcels: DN-07-0413\nerrors: 1\nline 3: expected 5 fields, found 6"', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_421'), 'Three routes in sorted order, prepaid and COD parcels', '"parcel_id,route,weight_g,cod_vnd,status\nHA-03-0007,HA-03,850,0,delivered\nDN-12-0102,DN-12,400,90000,delivered\nDN-07-0412,DN-07,1100,185000,delivered\nDN-07-0414,DN-07,5250,1200000,failed\nHA-03-0008,HA-03,3000,250000,delivered\n"', '"DN-07: parcels 2, weight 6.350 kg, delivered 1, failed 1, COD collected 185000 VND, COD open 1200000 VND\nDN-12: parcels 1, weight 0.400 kg, delivered 1, failed 0, COD collected 90000 VND, COD open 0 VND\nHA-03: parcels 2, weight 3.850 kg, delivered 2, failed 0, COD collected 250000 VND, COD open 0 VND\ntotal: parcels 5, weight 10.600 kg, delivered 4, failed 1, COD collected 525000 VND, COD open 1200000 VND\nfailed parcels: DN-07-0414\nerrors: 0"', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_421'), 'Every kind of bad row is reported with its line number', '"parcel_id,route,weight_g,cod_vnd,status\nDN-07-0420,DN-07,1500,abc,delivered\nDN-07-0421,DN-07,-5,0,delivered\n,DN-07,100,0,delivered\nDN-07-0422,DN-07,700,30000,returned\nDN-07-0423,DN-07,700\nDN-07-0424,DN-07,640,45000,delivered\n"', '"DN-07: parcels 1, weight 0.640 kg, delivered 1, failed 0, COD collected 45000 VND, COD open 0 VND\ntotal: parcels 1, weight 0.640 kg, delivered 1, failed 0, COD collected 45000 VND, COD open 0 VND\nfailed parcels: none\nerrors: 5\nline 2: bad cod_vnd \"abc\"\nline 3: bad weight_g \"-5\"\nline 4: parcel_id and route must not be empty\nline 5: unknown status \"returned\"\nline 6: expected 5 fields, found 3"', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_421'), 'Spaces around fields and Windows line endings', '"parcel_id,route,weight_g,cod_vnd,status\r\n DN-21-0300 , DN-21 , 1999 , 75000 , delivered \r\nDN-21-0301,DN-21, 1 ,0,failed\r\n\r\nDN-21-0302 ,DN-21,2000, 120000,failed\r\n"', '"DN-21: parcels 3, weight 4.000 kg, delivered 1, failed 2, COD collected 75000 VND, COD open 120000 VND\ntotal: parcels 3, weight 4.000 kg, delivered 1, failed 2, COD collected 75000 VND, COD open 120000 VND\nfailed parcels: DN-21-0301, DN-21-0302\nerrors: 0"', 4, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_421'), 'Only the header: empty totals, no failed parcels', '"parcel_id,route,weight_g,cod_vnd,status\n"', '"total: parcels 0, weight 0.000 kg, delivered 0, failed 0, COD collected 0 VND, COD open 0 VND\nfailed parcels: none\nerrors: 0"', 4, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_421'), 'Capitalised status, a decimal comma and several blank lines', '"parcel_id,route,weight_g,cod_vnd,status\nDN-12-0110,DN-12,2,5,0,delivered\n\nDN-12-0111,DN-12,2500,310000,Delivered\nDN-12-0112,DN-12,2500,310000,delivered\nDN-07-0500,DN-07,12000,0,failed\n\n\n"', '"DN-07: parcels 1, weight 12.000 kg, delivered 0, failed 1, COD collected 0 VND, COD open 0 VND\nDN-12: parcels 1, weight 2.500 kg, delivered 1, failed 0, COD collected 310000 VND, COD open 0 VND\ntotal: parcels 2, weight 14.500 kg, delivered 1, failed 1, COD collected 310000 VND, COD open 0 VND\nfailed parcels: DN-07-0500\nerrors: 2\nline 2: expected 5 fields, found 6\nline 4: unknown status \"Delivered\""', 4, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_rsf_421_starter', 's3', 'challenges/rust/chal_coding_rsf_421/starter.rs', 'raw', 'text/x-rust', 4870, 'main.rs')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rsf_421'), 'rust', 'main.rs', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_rsf_421_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
 
 -- learners enrolled before these lessons existed
 INSERT INTO learning.history (user_id, course_id, module_id, lesson_id)

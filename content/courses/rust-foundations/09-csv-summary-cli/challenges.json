@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_rsf_421",
+      "name": "end-of-day-delivery-summary",
+      "type": "mini_coding",
+      "title": "End-of-day delivery summary",
+      "description": "The drivers' handhelds export the day's deliveries as a CSV: parcel_id,route,weight_g,cod_vnd,status. Write parse_row(line: &str) -> Result<Delivery, String>, which trims every field and rejects a row with the exact messages from the task (wrong field count, empty parcel_id or route, bad weight_g, bad cod_vnd, unknown status), and add(totals: &mut RouteTotals, delivery: &Delivery), which counts parcels, weight, delivered and failed parcels, and the cash on delivery collected (delivered) or still open (failed). The test runner skips the header and blank lines, groups the rows per route in a BTreeMap and prints the summary, the failed parcels and every rejected line with its line number.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "rust",
+        "filePath": "main.rs",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Example from the task: a decimal comma makes 6 fields, a failed parcel keeps its COD open",
+          "input": "parcel_id,route,weight_g,cod_vnd,status\nDN-07-0412,DN-07,1100,185000,delivered\nDN-12-0101,DN-12,1,5,120000,failed\nDN-07-0413,DN-07,2200,90000,failed\n\n",
+          "expected": "DN-07: parcels 2, weight 3.300 kg, delivered 1, failed 1, COD collected 185000 VND, COD open 90000 VND\ntotal: parcels 2, weight 3.300 kg, delivered 1, failed 1, COD collected 185000 VND, COD open 90000 VND\nfailed parcels: DN-07-0413\nerrors: 1\nline 3: expected 5 fields, found 6",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Three routes in sorted order, prepaid and COD parcels",
+          "input": "parcel_id,route,weight_g,cod_vnd,status\nHA-03-0007,HA-03,850,0,delivered\nDN-12-0102,DN-12,400,90000,delivered\nDN-07-0412,DN-07,1100,185000,delivered\nDN-07-0414,DN-07,5250,1200000,failed\nHA-03-0008,HA-03,3000,250000,delivered\n",
+          "expected": "DN-07: parcels 2, weight 6.350 kg, delivered 1, failed 1, COD collected 185000 VND, COD open 1200000 VND\nDN-12: parcels 1, weight 0.400 kg, delivered 1, failed 0, COD collected 90000 VND, COD open 0 VND\nHA-03: parcels 2, weight 3.850 kg, delivered 2, failed 0, COD collected 250000 VND, COD open 0 VND\ntotal: parcels 5, weight 10.600 kg, delivered 4, failed 1, COD collected 525000 VND, COD open 1200000 VND\nfailed parcels: DN-07-0414\nerrors: 0",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Every kind of bad row is reported with its line number",
+          "input": "parcel_id,route,weight_g,cod_vnd,status\nDN-07-0420,DN-07,1500,abc,delivered\nDN-07-0421,DN-07,-5,0,delivered\n,DN-07,100,0,delivered\nDN-07-0422,DN-07,700,30000,returned\nDN-07-0423,DN-07,700\nDN-07-0424,DN-07,640,45000,delivered\n",
+          "expected": "DN-07: parcels 1, weight 0.640 kg, delivered 1, failed 0, COD collected 45000 VND, COD open 0 VND\ntotal: parcels 1, weight 0.640 kg, delivered 1, failed 0, COD collected 45000 VND, COD open 0 VND\nfailed parcels: none\nerrors: 5\nline 2: bad cod_vnd \"abc\"\nline 3: bad weight_g \"-5\"\nline 4: parcel_id and route must not be empty\nline 5: unknown status \"returned\"\nline 6: expected 5 fields, found 3",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Spaces around fields and Windows line endings",
+          "input": "parcel_id,route,weight_g,cod_vnd,status\r\n DN-21-0300 , DN-21 , 1999 , 75000 , delivered \r\nDN-21-0301,DN-21, 1 ,0,failed\r\n\r\nDN-21-0302 ,DN-21,2000, 120000,failed\r\n",
+          "expected": "DN-21: parcels 3, weight 4.000 kg, delivered 1, failed 2, COD collected 75000 VND, COD open 120000 VND\ntotal: parcels 3, weight 4.000 kg, delivered 1, failed 2, COD collected 75000 VND, COD open 120000 VND\nfailed parcels: DN-21-0301, DN-21-0302\nerrors: 0",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Only the header: empty totals, no failed parcels",
+          "input": "parcel_id,route,weight_g,cod_vnd,status\n",
+          "expected": "total: parcels 0, weight 0.000 kg, delivered 0, failed 0, COD collected 0 VND, COD open 0 VND\nfailed parcels: none\nerrors: 0",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Capitalised status, a decimal comma and several blank lines",
+          "input": "parcel_id,route,weight_g,cod_vnd,status\nDN-12-0110,DN-12,2,5,0,delivered\n\nDN-12-0111,DN-12,2500,310000,Delivered\nDN-12-0112,DN-12,2500,310000,delivered\nDN-07-0500,DN-07,12000,0,failed\n\n\n",
+          "expected": "DN-07: parcels 1, weight 12.000 kg, delivered 0, failed 1, COD collected 0 VND, COD open 0 VND\nDN-12: parcels 1, weight 2.500 kg, delivered 1, failed 0, COD collected 310000 VND, COD open 0 VND\ntotal: parcels 2, weight 14.500 kg, delivered 1, failed 1, COD collected 310000 VND, COD open 0 VND\nfailed parcels: DN-07-0500\nerrors: 2\nline 2: expected 5 fields, found 6\nline 4: unknown status \"Delivered\"",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

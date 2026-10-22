@@ -1,0 +1,130 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_rsf_331",
+      "name": "string-bytes-chars-quiz",
+      "type": "quiz",
+      "title": "Bytes, characters and String operations",
+      "description": "Predict what Rust does with Vietnamese text: how len() and chars() count, which String operations compile, and which slices panic at run time.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this program print? (The source file is UTF-8, and every letter is one precomposed character.)\n\nfn main() {\n    let s = \"Đà Nẵng\";\n    println!(\"{} {} {:?}\", s.len(), s.chars().count(), s.chars().nth(1));\n}",
+          "explanation": "len() counts bytes of UTF-8, not characters. Đ (U+0110) and à (U+00E0) take 2 bytes each, ẵ (U+1EB5) takes 3, and the space, N, n and g take 1 each: 2 + 2 + 1 + 1 + 3 + 1 + 1 = 11. chars() walks Unicode scalar values, so there are 7 of them, and nth(1) is the second one, Some('à'). 7 7 assumes len() counts characters, which it only does for ASCII text. 11 11 assumes chars() counts bytes. Some('\\u{90}') would be the second byte of Đ (0xC4 0x90) misread as a character; chars() never splits a character. The program does not index the string, so there is no compile error.",
+          "options": [
+            {
+              "text": "11 7 Some('à')",
+              "correct": true
+            },
+            {
+              "text": "7 7 Some('à')",
+              "correct": false
+            },
+            {
+              "text": "11 11 Some('à')",
+              "correct": false
+            },
+            {
+              "text": "11 7 Some('\\u{90}')",
+              "correct": false
+            },
+            {
+              "text": "It does not compile: a string cannot be indexed by position",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Each option is the body of fn main() { ... } compiled with rustc --edition 2024. Which ones compile AND run without panicking? (Select all that apply.)",
+          "explanation": "String + &str compiles: + takes the String on the left by value, appends the &str and returns the result, so t is \"Hội An hub\" (s is moved and can no longer be used). chars().take(3).collect() builds a new String from the first 3 characters, \"Hội\", without ever cutting a character. push_str appends a &str and push appends one char, giving \"DN-07!\". a + b with two Strings is error[E0308]: mismatched types, expected `&str`, found `String`; the fix is a + &b, or format!(\"{a}{b}\"). s[0] is error[E0277]: the type `str` cannot be indexed by `{integer}`, because a byte position is not a character. &s[0..2] compiles, because string slices take byte ranges, but it panics at run time: byte index 2 is not a char boundary; it is inside 'ộ' (bytes 1..4) of `Hội An`.",
+          "options": [
+            {
+              "text": "let s = String::from(\"Hội An\");\nlet t = s + \" hub\";\nprintln!(\"{t}\");",
+              "correct": true
+            },
+            {
+              "text": "let s = \"Hội An\";\nlet first: String = s.chars().take(3).collect();\nprintln!(\"{first}\");",
+              "correct": true
+            },
+            {
+              "text": "let mut s = String::from(\"DN\");\ns.push_str(\"-07\");\ns.push('!');\nprintln!(\"{s}\");",
+              "correct": true
+            },
+            {
+              "text": "let a = String::from(\"DN-\");\nlet b = String::from(\"07\");\nlet c = a + b;\nprintln!(\"{c}\");",
+              "correct": false
+            },
+            {
+              "text": "let s = \"Hội An\";\nlet c = s[0];\nprintln!(\"{c}\");",
+              "correct": false
+            },
+            {
+              "text": "let s = \"Hội An\";\nprintln!(\"{}\", &s[0..2]);",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_rsf_332",
+      "name": "fix-label-printer-utf8",
+      "type": "fix_bug",
+      "title": "Fix the label printer for Vietnamese addresses",
+      "description": "The label printer's text line is \"<route> | <NAME> | <address>\": the name uppercased and padded to 16 characters, the address cut to 23 characters plus \"…\" when it is longer than 24 characters. It works for the English test data, but it crashes with \"byte index 23 is not a char boundary\" on some Vietnamese addresses, cuts others that would have fitted, and misaligns the address column for names with diacritics. The code counts and slices bytes where it should count characters. Fix name_column and short_address so every label is right for any UTF-8 text. The test runner reads \"<route>;<name>;<address>\" lines and prints one label per line.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "rust",
+        "filePath": "main.rs",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "English test data: one address is cut, one fits",
+          "input": "DN-07;Tran Van Binh;45 Bach Dang, Hai Chau, Da Nang\nDN-03;Le Hoa;7 Tran Phu, Hoi An\n",
+          "expected": "DN-07 | TRAN VAN BINH    | 45 Bach Dang, Hai Chau,…\nDN-03 | LE HOA           | 7 Tran Phu, Hoi An",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "The address that crashed the printer",
+          "input": "DN-12;Phạm Thị Lan;3 Ông Ích Khiêm, Hải Châu\n",
+          "expected": "DN-12 | PHẠM THỊ LAN     | 3 Ông Ích Khiêm, Hải Ch…",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Addresses that fit in 24 characters but not in 24 bytes are not cut",
+          "input": "DN-05;Nguyễn Văn An;88 Lê Duẩn, Thanh Khê\nDN-02;Võ Thị Sáu;15 Lý Thường Kiệt, Huế\n",
+          "expected": "DN-05 | NGUYỄN VĂN AN    | 88 Lê Duẩn, Thanh Khê\nDN-02 | VÕ THỊ SÁU       | 15 Lý Thường Kiệt, Huế",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A name longer than the column and a long address",
+          "input": "DN-09;Tôn Nữ Thị Phương Thảo;210 Hùng Vương, Tam Kỳ, Quảng Nam\n",
+          "expected": "DN-09 | TÔN NỮ THỊ PHƯƠNG THẢO | 210 Hùng Vương, Tam Kỳ,…",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Spaces around the fields, a lowercase đ and an address of exactly 24 characters",
+          "input": "  dn-01 ; đỗ minh tâm  ;  120 Nguyễn Văn Linh, Huế  \n",
+          "expected": "dn-01 | ĐỖ MINH TÂM      | 120 Nguyễn Văn Linh, Huế",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

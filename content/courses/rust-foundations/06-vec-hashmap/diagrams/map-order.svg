@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="620" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Same data, three containers: which order do you get?</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Counts per route from one scan log: DN-07 = 3, DN-03 = 2, DN-01 = 1, DN-11 = 1.</text>
+
+  <!-- HashMap -->
+  <rect x="40" y="106" width="360" height="330" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="140" font-size="17" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">HashMap&lt;String, u32&gt;</text>
+  <text x="64" y="166" font-size="14" fill="#7f1d1d">order = where the hashes land</text>
+  <text x="64" y="204" font-size="14" font-weight="700" fill="#334155">run 1</text>
+  <text x="64" y="230" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">DN-01: 1</text>
+  <text x="64" y="254" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">DN-03: 2</text>
+  <text x="64" y="278" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">DN-07: 3</text>
+  <text x="64" y="302" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">DN-11: 1</text>
+  <text x="230" y="204" font-size="14" font-weight="700" fill="#334155">run 2</text>
+  <text x="230" y="230" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">DN-03: 2</text>
+  <text x="230" y="254" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">DN-11: 1</text>
+  <text x="230" y="278" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">DN-07: 3</text>
+  <text x="230" y="302" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">DN-01: 1</text>
+  <text x="64" y="346" font-size="14" fill="#334155">Fast lookups by key.</text>
+  <text x="64" y="370" font-size="14" fill="#334155">Iteration order is random per</text>
+  <text x="64" y="394" font-size="14" fill="#334155">run: never print it as is.</text>
+
+  <!-- BTreeMap -->
+  <rect x="420" y="106" width="360" height="330" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="444" y="140" font-size="17" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">BTreeMap&lt;String, u32&gt;</text>
+  <text x="444" y="166" font-size="14" fill="#14532d">order = keys sorted</text>
+  <text x="444" y="204" font-size="14" font-weight="700" fill="#334155">every run</text>
+  <text x="444" y="230" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">DN-01: 1</text>
+  <text x="444" y="254" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">DN-03: 2</text>
+  <text x="444" y="278" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">DN-07: 3</text>
+  <text x="444" y="302" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">DN-11: 1</text>
+  <text x="444" y="346" font-size="14" fill="#334155">Same API as HashMap (insert,</text>
+  <text x="444" y="370" font-size="14" fill="#334155">get, entry). Use it when the</text>
+  <text x="444" y="394" font-size="14" fill="#334155">output should be A-Z by key.</text>
+
+  <!-- sorted Vec -->
+  <rect x="800" y="106" width="360" height="330" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="824" y="140" font-size="17" font-weight="700" fill="#1d4ed8" font-family="Consolas, 'Courier New', monospace">Vec&lt;(&amp;str, u32)&gt; + sort_by</text>
+  <text x="824" y="166" font-size="14" fill="#1e3a8a">order = the rule you write</text>
+  <text x="824" y="204" font-size="14" font-weight="700" fill="#334155">every run</text>
+  <text x="824" y="230" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">DN-07: 3</text>
+  <text x="824" y="254" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">DN-03: 2</text>
+  <text x="824" y="278" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">DN-01: 1</text>
+  <text x="824" y="302" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">DN-11: 1</text>
+  <text x="824" y="346" font-size="14" fill="#334155">Count first, then copy into a</text>
+  <text x="824" y="370" font-size="14" fill="#334155">Vec and sort by count, with</text>
+  <text x="824" y="394" font-size="14" fill="#334155">the name as the tie-breaker.</text>
+
+  <!-- sort rule -->
+  <rect x="40" y="460" width="1120" height="128" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="492" font-size="16" font-weight="700" fill="#334155">The sort rule for the report</text>
+  <text x="64" y="526" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">report.sort_by(|a, b| b.1.cmp(&amp;a.1).then(a.0.cmp(&amp;b.0)));</text>
+  <text x="64" y="560" font-size="14" fill="#475569">b.1.cmp(&amp;a.1): counts, largest first (b before a reverses the order).</text>
+  <text x="640" y="560" font-size="14" fill="#475569">.then(a.0.cmp(&amp;b.0)): equal counts, route A-Z.</text>
+</svg>

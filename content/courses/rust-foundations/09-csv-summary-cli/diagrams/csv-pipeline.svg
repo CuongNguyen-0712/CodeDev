@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="620" fill="#ffffff"/>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">route-summary: every line ends up in the report or in the error list</text>
+  <text x="40" y="82" font-size="16" fill="#475569">No unwrap on input data: a bad row becomes a message with its line number, and the program keeps going.</text>
+
+  <!-- Row 1 -->
+  <rect x="40" y="110" width="250" height="130" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="60" y="142" font-size="16" font-weight="700" fill="#334155">1. Read stdin</text>
+  <text x="60" y="172" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">read_to_string</text>
+  <text x="60" y="198" font-size="13" fill="#475569">one String with the</text>
+  <text x="60" y="218" font-size="13" fill="#475569">whole CSV file</text>
+
+  <rect x="330" y="110" width="250" height="130" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="350" y="142" font-size="16" font-weight="700" fill="#334155">2. Number the lines</text>
+  <text x="350" y="172" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">lines().enumerate()</text>
+  <text x="350" y="198" font-size="13" fill="#475569">line_no = index + 1</text>
+  <text x="350" y="218" font-size="13" fill="#475569">\r\n and \n both work</text>
+
+  <rect x="620" y="110" width="250" height="130" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="640" y="142" font-size="16" font-weight="700" fill="#334155">3. Skip</text>
+  <text x="640" y="172" font-size="14" fill="#475569">line 1: the header</text>
+  <text x="640" y="198" font-size="14" fill="#475569">blank lines</text>
+  <text x="640" y="224" font-size="13" fill="#64748b">(the panic in the incident)</text>
+
+  <rect x="910" y="110" width="250" height="130" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="930" y="142" font-size="16" font-weight="700" fill="#1d4ed8">4. parse_row(line)</text>
+  <text x="930" y="172" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">Result&lt;Row, String&gt;</text>
+  <text x="930" y="198" font-size="13" fill="#475569">field count, empty fields,</text>
+  <text x="930" y="218" font-size="13" fill="#475569">numbers parsed with ?</text>
+
+  <line x1="290" y1="175" x2="326" y2="175" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="580" y1="175" x2="616" y2="175" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="870" y1="175" x2="906" y2="175" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Branches -->
+  <line x1="980" y1="240" x2="760" y2="290" stroke="#16a34a" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="820" y="262" font-size="14" font-weight="700" fill="#15803d">Ok(row)</text>
+  <line x1="1090" y1="240" x2="1090" y2="290" stroke="#dc2626" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="1080" y="272" font-size="14" font-weight="700" fill="#b91c1c" text-anchor="end">Err(message)</text>
+
+  <rect x="330" y="294" width="540" height="150" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="350" y="326" font-size="16" font-weight="700" fill="#15803d">5. Group per route</text>
+  <text x="350" y="356" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">BTreeMap&lt;String, RouteTotals&gt;</text>
+  <text x="350" y="382" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">routes.entry(route).or_default()</text>
+  <text x="350" y="410" font-size="13" fill="#475569">grams and VND as integers: sums are exact</text>
+  <text x="350" y="430" font-size="13" fill="#475569">BTreeMap keeps the routes sorted: DN-07, DN-12, HA-03</text>
+
+  <rect x="910" y="294" width="250" height="150" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="930" y="326" font-size="16" font-weight="700" fill="#b91c1c">errors: Vec&lt;String&gt;</text>
+  <text x="930" y="356" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">line 4: expected 4</text>
+  <text x="944" y="376" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">fields, found 5</text>
+  <text x="930" y="406" font-size="13" fill="#475569">then continue with</text>
+  <text x="930" y="426" font-size="13" fill="#475569">the next line</text>
+
+  <!-- Report -->
+  <line x1="600" y1="444" x2="600" y2="480" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="1035" y1="444" x2="880" y2="490" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="330" y="484" width="540" height="110" rx="10" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="350" y="516" font-size="16" font-weight="700" fill="#b45309">6. Report</text>
+  <text x="350" y="546" font-size="13" fill="#334155">one line per route, a total line,</text>
+  <text x="350" y="568" font-size="13" fill="#334155">then every skipped row with its line number</text>
+
+  <rect x="40" y="294" width="250" height="300" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="60" y="326" font-size="15" font-weight="700" fill="#334155">Not handled on purpose</text>
+  <text x="60" y="356" font-size="13" fill="#475569">quoted fields with commas</text>
+  <text x="60" y="378" font-size="13" fill="#475569">inside, such as</text>
+  <text x="60" y="400" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">"Hoi An, Quang Nam"</text>
+  <text x="60" y="430" font-size="13" fill="#475569">The export never writes</text>
+  <text x="60" y="452" font-size="13" fill="#475569">them. A file that can</text>
+  <text x="60" y="474" font-size="13" fill="#475569">contain them needs a</text>
+  <text x="60" y="496" font-size="13" fill="#475569">real CSV parser (the</text>
+  <text x="60" y="518" font-size="13" fill="#475569">csv crate).</text>
+</svg>

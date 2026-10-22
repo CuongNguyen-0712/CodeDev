@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_rsf_321",
+      "name": "stable-route-report",
+      "type": "mini_coding",
+      "title": "A route report in the same order every day",
+      "description": "The audit compares today's route report with yesterday's, and a HashMap printed the routes in a different order on every run. Write group_by_route, which groups the scans into a HashMap from route to its parcel ids (sorted, each id once, because scanners sometimes read a parcel twice), ranking, which returns (route, count) pairs with the busiest route first and ties in A-Z order of the route, and top, which returns the first k entries without panicking when there are fewer than k. The test runner prints the top routes with their parcel ids, the total number of parcels and the number of double reads.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "rust",
+        "filePath": "main.rs",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Example from the task: one double read, top 2 of 3 routes",
+          "input": "top 2\nDN-07 SH1003\nDN-03 SH1001\nDN-07 SH1002\nDN-07 SH1003\nDN-11 SH1004\n",
+          "expected": "top 2 of 3 routes:\nDN-07: 2 parcels (SH1002 SH1003)\nDN-03: 1 parcels (SH1001)\nparcels: 4, double reads: 1",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Four routes with one parcel each: ties in A-Z order",
+          "input": "top 3\nDN-11 SH2001\nDN-03 SH2002\nDN-07 SH2003\nDN-01 SH2004\n",
+          "expected": "top 3 of 4 routes:\nDN-01: 1 parcels (SH2004)\nDN-03: 1 parcels (SH2002)\nDN-07: 1 parcels (SH2003)\nparcels: 4, double reads: 0",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "top 10 of 2 routes, and double reads that are not next to each other",
+          "input": "top 10\nDN-05 SH3009\nDN-05 SH3001\nDN-05 SH3009\nDN-02 SH3002\nDN-05 SH3001\n",
+          "expected": "top 10 of 2 routes:\nDN-05: 2 parcels (SH3001 SH3009)\nDN-02: 1 parcels (SH3002)\nparcels: 3, double reads: 2",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Busy day: ties at 3 and at 2 parcels",
+          "input": "top 4\nDN-09 SH4101\nDN-04 SH4102\nDN-09 SH4103\nDN-12 SH4104\nDN-04 SH4105\nDN-09 SH4106\nDN-04 SH4107\nDN-12 SH4108\nDN-06 SH4109\nDN-10 SH4110\nDN-10 SH4111\nDN-09 SH4103\nDN-06 SH4109\n",
+          "expected": "top 4 of 5 routes:\nDN-04: 3 parcels (SH4102 SH4105 SH4107)\nDN-09: 3 parcels (SH4101 SH4103 SH4106)\nDN-10: 2 parcels (SH4110 SH4111)\nDN-12: 2 parcels (SH4104 SH4108)\nparcels: 11, double reads: 2",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "top 0 prints no routes but still counts every parcel",
+          "input": "top 0\nDN-01 SH5001\nDN-02 SH5002\nDN-01 SH5003\n",
+          "expected": "top 0 of 2 routes:\nparcels: 3, double reads: 0",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "The same parcel id on two routes counts once on each",
+          "input": "top 5\nDN-08 SH6001\nDN-15 SH6001\nDN-08 SH6001\nDN-15 SH6000\n",
+          "expected": "top 5 of 2 routes:\nDN-15: 2 parcels (SH6000 SH6001)\nDN-08: 1 parcels (SH6001)\nparcels: 3, double reads: 1",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

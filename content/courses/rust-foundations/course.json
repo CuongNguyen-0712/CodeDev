@@ -1,11 +1,11 @@
 {
   "publicId": "rust-foundations",
   "title": "Rust Foundations: Ownership, Borrowing & Error Handling",
-  "concept": "Learn Rust's core ideas through small programs: mutability, ownership and moves, borrowing, structs and enums with match, Option and Result, collections and traits.",
-  "description": "Learn Rust's core ideas through small programs: mutability, ownership and moves, borrowing, structs and enums with match, Option and Result, collections and traits. 8 lessons, each starting from a real bug or incident, with beginner-friendly challenges.",
+  "concept": "Learn Rust 2024 through small programs: types and overflow, ownership and moves, borrowing, structs and enums with match, Option and Result, Vec, HashMap and UTF-8 strings, and traits.",
+  "description": "Learn Rust 2024 while fixing the tools of a parcel depot in Da Nang: variables, integer types and overflow in debug and release builds, ownership and moves, borrowing and the first lifetime errors, structs and enums with match, Option and Result with the ? operator, Vec and HashMap, String, &str and UTF-8, and traits - ending with a CSV summary CLI built from the standard library only. 9 lessons, each starting from a real bug or incident, with quizzes and Rust coding challenges.",
   "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594615/codedev/courses/rust-foundations/cover",
   "level": "beginner",
-  "durationMinutes": 160,
+  "durationMinutes": 223,
   "instructor": "CodeDev Engineering Team",
   "language": "Rust",
   "category": "Rust Development",
@@ -25,21 +25,22 @@
   "goals": [
     "fundamentals"
   ],
-  "modules": [],
-  "outline": [
+  "modules": [
     {
       "orderIndex": 1,
       "title": "Basics",
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "01-variables-mutability-types",
           "title": "Variables, mutability & types",
-          "challenges": "Q(e) + C(e)"
+          "sanityId": "lesson-rsf-1-1"
         },
         {
           "orderIndex": 2,
+          "folder": "02-ownership-moves",
           "title": "Ownership & moves",
-          "challenges": "Q(e) + F(e)"
+          "sanityId": "lesson-rsf-1-2"
         }
       ]
     },
@@ -49,13 +50,15 @@
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "03-borrowing-lifetimes",
           "title": "Borrowing & the first lifetime errors",
-          "challenges": "Q(m) + F(m)"
+          "sanityId": "lesson-rsf-2-1"
         },
         {
           "orderIndex": 2,
+          "folder": "04-structs-enums-match",
           "title": "Structs, enums & match",
-          "challenges": "C(m)"
+          "sanityId": "lesson-rsf-2-2"
         }
       ]
     },
@@ -65,13 +68,21 @@
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "05-option-result-question-mark",
           "title": "Option, Result & the ? operator",
-          "challenges": "C(m)"
+          "sanityId": "lesson-rsf-3-1"
         },
         {
           "orderIndex": 2,
-          "title": "Vec, HashMap & String",
-          "challenges": "C(m)"
+          "folder": "06-vec-hashmap",
+          "title": "Vec & HashMap",
+          "sanityId": "lesson-rsf-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "07-strings-utf8",
+          "title": "Strings: String, &str & UTF-8",
+          "sanityId": "lesson-rsf-3-3"
         }
       ]
     },
@@ -81,13 +92,15 @@
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "08-traits-basics",
           "title": "Traits basics",
-          "challenges": "Q(e)"
+          "sanityId": "lesson-rsf-4-1"
         },
         {
           "orderIndex": 2,
+          "folder": "09-csv-summary-cli",
           "title": "Mini project: a CSV summary CLI",
-          "challenges": "C(m)"
+          "sanityId": "lesson-rsf-4-2"
         }
       ]
     }

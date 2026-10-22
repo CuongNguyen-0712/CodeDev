@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_rsf_221",
+      "name": "parcel-status-state-machine",
+      "type": "mini_coding",
+      "title": "Track a parcel's status with an enum",
+      "description": "Parcel statuses used to be strings, and the cash report missed every parcel marked \"Delivered\" instead of \"delivered\". Now a Status enum carries the data of each status (the driver, the collected cash, the return reason). Write three methods of Parcel: apply(&mut self, event: Event) -> bool, which moves the parcel to its next status when the event is allowed (out, deliver with the exact cash due, fail with three attempts before a return, recall) and returns false otherwise; label(&self) -> String; and cod_collected(&self) -> u32. The test runner reads parcel registrations and events, prints every rejected event, each parcel's label and the cash collected.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "rust",
+        "filePath": "main.rs",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Example from the task: the wrong cash amount is rejected",
+          "input": "new SH-1001 250000\nSH-1001 out Minh\nSH-1001 deliver 200000\nSH-1001 deliver 250000\n",
+          "expected": "SH-1001: rejected deliver (out with Minh)\nSH-1001: delivered, COD 250000 VND\nCOD collected: 250000 VND",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Three failed attempts return the parcel; a fourth trip is rejected",
+          "input": "new SH-2001 0\nSH-2001 out Lan\nSH-2001 fail nobody home\nSH-2001 out Lan\nSH-2001 fail nobody home\nSH-2001 out Lan\nSH-2001 fail wrong address\nSH-2001 out Lan\n",
+          "expected": "SH-2001: rejected out (returned: wrong address)\nSH-2001: returned: wrong address\nCOD collected: 0 VND",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Recall from the depot, and events that are not allowed",
+          "input": "new SH-3001 90000\nSH-3001 deliver 90000\nSH-3001 recall\nSH-3001 out Hoa\nnew SH-3002 120000\nSH-3002 out Hoa\nSH-3002 recall\n",
+          "expected": "SH-3001: rejected deliver (in depot)\nSH-3001: rejected out (returned: recalled by sender)\nSH-3002: rejected recall (out with Hoa)\nSH-3001: returned: recalled by sender\nSH-3002: out with Hoa\nCOD collected: 0 VND",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Several parcels: a prepaid delivery, cash totals and a parcel still out",
+          "input": "new SH-4001 0\nnew SH-4002 315000\nnew SH-4003 48000\nSH-4001 out Tuan\nSH-4002 out Tuan\nSH-4003 out Tuan\nSH-4001 deliver 0\nSH-4002 deliver 315000\n",
+          "expected": "SH-4001: delivered, COD 0 VND\nSH-4002: delivered, COD 315000 VND\nSH-4003: out with Tuan\nCOD collected: 315000 VND",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Two failed attempts, then a delivery; a delivered parcel never changes",
+          "input": "new SH-5001 60000\nSH-5001 out Minh\nSH-5001 fail gate locked\nSH-5001 out Minh\nSH-5001 fail gate locked\nSH-5001 out Minh\nSH-5001 deliver 60000\nSH-5001 fail too late\nSH-5001 recall\nSH-5001 out Minh\n",
+          "expected": "SH-5001: rejected fail (delivered, COD 60000 VND)\nSH-5001: rejected recall (delivered, COD 60000 VND)\nSH-5001: rejected out (delivered, COD 60000 VND)\nSH-5001: delivered, COD 60000 VND\nCOD collected: 60000 VND",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Unknown parcels are ignored; failed attempts are counted per parcel",
+          "input": "new SH-6001 10000\nnew SH-6002 20000\nSH-9999 out Lan\nSH-6001 out Lan\nSH-6001 fail closed\nSH-6002 out Lan\nSH-6002 fail closed\nSH-6001 out Lan\nSH-6001 fail closed\nSH-6002 out Lan\nSH-6002 deliver 20000\nSH-6001 out Lan\nSH-6001 fail moved away\n",
+          "expected": "SH-6001: returned: moved away\nSH-6002: delivered, COD 20000 VND\nCOD collected: 20000 VND",
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

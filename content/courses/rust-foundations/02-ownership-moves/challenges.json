@@ -1,0 +1,126 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_rsf_121",
+      "name": "moves-copies-and-clones-quiz",
+      "type": "quiz",
+      "title": "Moves, copies and clones",
+      "description": "Decide which values are moved, which are copied, and which programs the borrow checker accepts.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "This program does not compile. Which line does rustc report as the error?\n\nfn ship(route: String) -> usize {\n    route.len()\n}\n\nfn main() {\n    let route = String::from(\"DN-07\");\n    let parcels: u32 = 300;\n    let total = parcels;           // (A)\n    let n = ship(route);           // (B)\n    println!(\"{parcels} {total}\"); // (C)\n    println!(\"{n}\");               // (D)\n    println!(\"{route}\");           // (E)\n}",
+          "explanation": "Line (E): error[E0382]: borrow of moved value: `route`. Passing route to ship at (B) moves the String into the function's parameter, and the String is dropped when ship returns, so main may not use route afterwards. Line (B) itself is fine: moving a value into a function is allowed, it only ends main's ownership. Line (C) is fine because u32 is a Copy type: let total = parcels copies the number, and both variables stay usable. Line (D) prints the usize that ship returned, which main owns. The program would compile if (E) were removed, or if ship were called with route.clone().",
+          "options": [
+            {
+              "text": "(A), because parcels is moved into total",
+              "correct": false
+            },
+            {
+              "text": "(B), because a String cannot be passed to a function by value",
+              "correct": false
+            },
+            {
+              "text": "(C), because parcels was moved at (A)",
+              "correct": false
+            },
+            {
+              "text": "(E), because route was moved into ship at (B)",
+              "correct": true
+            },
+            {
+              "text": "Both (C) and (E)",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Each option is the body of main in a program compiled with rustc --edition 2024, which also contains fn take(s: String) -> String { s }. Which of them compile? (Select all that apply.)",
+          "explanation": "a.clone() makes a second, independent String, so a and b both own their own text and can both be printed. A &str such as \"DN-07\" is a Copy type (copying it copies a reference to text that lives for the whole program), so b = a leaves a usable. take(a) moves a into the function and the function gives the String back; let a = take(a) binds the returned String to a new a, so printing it is fine. The tuple (3_u8, String) is NOT Copy because one of its parts, the String, is not Copy: b = a moves the whole tuple and printing a is error[E0382]: borrow of moved value: `a`. for x in v consumes the vector (it calls into_iter, which takes ownership), so v.len() afterwards is error[E0382] too; for x in &v would borrow it instead.",
+          "options": [
+            {
+              "text": "let a = String::from(\"DN-07\");\nlet b = a.clone();\nprintln!(\"{a} {b}\");",
+              "correct": true
+            },
+            {
+              "text": "let a: &str = \"DN-07\";\nlet b = a;\nprintln!(\"{a} {b}\");",
+              "correct": true
+            },
+            {
+              "text": "let a = String::from(\"x\");\nlet a = take(a);\nprintln!(\"{a}\");",
+              "correct": true
+            },
+            {
+              "text": "let a = (3_u8, String::from(\"x\"));\nlet b = a;\nprintln!(\"{:?} {:?}\", a, b);",
+              "correct": false
+            },
+            {
+              "text": "let v = vec![1, 2];\nfor x in v {\n    println!(\"{x}\");\n}\nprintln!(\"{}\", v.len());",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_rsf_122",
+      "name": "fix-cage-manifest-clones",
+      "type": "fix_bug",
+      "title": "Fix the cage manifest that cloned its way to compiling",
+      "description": "The cage manifest tool compiles, but bags never show up on the manifest, a parcel scanned twice in one bag is listed twice, and after a merge the parcels appear in both cages. add_bag and merge were written by adding .clone() until the compiler stopped complaining, so they change copies and return the wrong values. Fix both functions so they take ownership of the cages they are given, change them, and give the right ones back. The test runner reads bag and merge commands and prints every cage at the end.",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "rust",
+        "filePath": "main.rs",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Example from the task: a double beep and a merge",
+          "input": "bag DN-07 SH-1001 SH-1002\nbag DN-07 SH-1003 SH-1003\nbag DN-08 SH-2001\nmerge DN-08 DN-07\n",
+          "expected": "DN-07: 4 parcels [SH-1001, SH-1002, SH-1003, SH-2001]\nDN-08: 0 parcels []",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Two bags into one cage, a parcel re-scanned in the second bag",
+          "input": "bag DN-11 SH-3001 SH-3002 SH-3003\nbag DN-11 SH-3002 SH-3004\n",
+          "expected": "DN-11: 4 parcels [SH-3001, SH-3002, SH-3003, SH-3004]",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "After a merge the source cage is empty",
+          "input": "bag DN-03 SH-4001\nbag DN-05 SH-5001 SH-5002\nmerge DN-05 DN-03\n",
+          "expected": "DN-03: 3 parcels [SH-4001, SH-5001, SH-5002]\nDN-05: 0 parcels []",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A parcel scanned into both cages is listed once after the merge",
+          "input": "bag DN-07 SH-6001 SH-6002\nbag DN-09 SH-6002 SH-6003 SH-6003\nmerge DN-09 DN-07\nbag DN-09 SH-6004\n",
+          "expected": "DN-07: 3 parcels [SH-6001, SH-6002, SH-6003]\nDN-09: 1 parcels [SH-6004]",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Chained merges into an empty cage keep first-scan order",
+          "input": "bag DN-01 SH-7001 SH-7002\nbag DN-02 SH-7003\nmerge DN-01 DN-04\nmerge DN-02 DN-04\nbag DN-01 SH-7001\nbag DN-04 SH-7001 SH-7005\n",
+          "expected": "DN-01: 1 parcels [SH-7001]\nDN-02: 0 parcels []\nDN-04: 4 parcels [SH-7001, SH-7002, SH-7003, SH-7005]",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

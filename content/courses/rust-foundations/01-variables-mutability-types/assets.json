@@ -1,0 +1,10 @@
+{
+  "images": {
+    "u8-overflow": {
+      "publicId": "codedev/courses/rust-foundations/01-variables-mutability-types/u8-overflow",
+      "url": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/q_auto/v1792640699/codedev/courses/rust-foundations/01-variables-mutability-types/u8-overflow.png?_a=BAMAROWQ0",
+      "width": 1200,
+      "height": 640
+    }
+  }
+}

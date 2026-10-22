@@ -1,0 +1,137 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_rsf_411",
+      "name": "traits-derive-display-quiz",
+      "type": "quiz",
+      "title": "Derives, Display and trait bounds",
+      "description": "Predict what derived traits do, and decide which programs the compiler accepts once traits, Display and generic bounds are involved.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this program print?\n\n#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]\nenum Priority {\n    Standard,\n    Express,\n    SameDay,\n}\n\nfn main() {\n    let mut queue = vec![Priority::Express, Priority::SameDay, Priority::Standard, Priority::Express];\n    queue.sort();\n    queue.dedup();\n    println!(\"{:?} {}\", queue, Priority::SameDay > Priority::Express);\n}",
+          "explanation": "A derived Ord on an enum orders the variants in the order they are declared: Standard < Express < SameDay. sort() therefore gives [Standard, Express, Express, SameDay], and dedup() removes consecutive equal elements (it uses PartialEq), leaving [Standard, Express, SameDay]. SameDay > Express is true because SameDay is declared later. The derive never sorts by the variant names, so [Express, SameDay, Standard] (alphabetical) is wrong. dedup only removes neighbours that are equal, and after sorting the two Express values are neighbours, so the duplicate does not survive. The program compiles: Ord and PartialOrd are exactly what sort() and > need.",
+          "options": [
+            {
+              "text": "[Standard, Express, SameDay] true",
+              "correct": true
+            },
+            {
+              "text": "[Express, SameDay, Standard] false",
+              "correct": false
+            },
+            {
+              "text": "[Standard, Express, Express, SameDay] true",
+              "correct": false
+            },
+            {
+              "text": "[Standard, Express, SameDay] false",
+              "correct": false
+            },
+            {
+              "text": "It does not compile: enums cannot be compared with >",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Each option is a complete program compiled with rustc --edition 2024. Which of them compile? (Select all that apply.)",
+          "explanation": "Implementing fmt::Display compiles, and it also gives the type a to_string() method for free. A struct with derive(PartialEq, Eq, Hash) can be a HashMap key, because a HashMap needs exactly Eq and Hash on its keys. A trait with a default method compiles even when the impl writes only the required method: Document gets price_text() from the trait. derive(Debug) alone does not make {} work: the compiler reports error[E0277]: `Parcel` doesn't implement `std::fmt::Display`. derive(Clone, Copy) on a struct with a String field is error[E0204]: the trait `Copy` cannot be implemented for this type, because a String owns heap memory and cannot be copied bit by bit. A generic function cannot use > on a T without a bound: error[E0369]: binary operation `>` cannot be applied to type `T`, and the compiler suggests T: PartialOrd.",
+          "options": [
+            {
+              "text": "use std::fmt;\n\nstruct Parcel {\n    id: String,\n}\n\nimpl fmt::Display for Parcel {\n    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {\n        write!(f, \"parcel {}\", self.id)\n    }\n}\n\nfn main() {\n    let p = Parcel { id: String::from(\"DN-07-0412\") };\n    let text: String = p.to_string();\n    println!(\"{text}\");\n}",
+              "correct": true
+            },
+            {
+              "text": "use std::collections::HashMap;\n\n#[derive(PartialEq, Eq, Hash)]\nstruct RouteCode {\n    depot: String,\n    number: u16,\n}\n\nfn main() {\n    let mut counts = HashMap::new();\n    counts.insert(RouteCode { depot: String::from(\"DN\"), number: 7 }, 300);\n    println!(\"{}\", counts.len());\n}",
+              "correct": true
+            },
+            {
+              "text": "trait Priced {\n    fn price_vnd(&self) -> u64;\n    fn price_text(&self) -> String {\n        format!(\"{} VND\", self.price_vnd())\n    }\n}\n\nstruct Document;\n\nimpl Priced for Document {\n    fn price_vnd(&self) -> u64 {\n        15_000\n    }\n}\n\nfn main() {\n    println!(\"{}\", Document.price_text());\n}",
+              "correct": true
+            },
+            {
+              "text": "#[derive(Debug)]\nstruct Parcel {\n    id: String,\n}\n\nfn main() {\n    let p = Parcel { id: String::from(\"DN-07-0412\") };\n    println!(\"{}\", p);\n}",
+              "correct": false
+            },
+            {
+              "text": "#[derive(Debug, Clone, Copy)]\nstruct Parcel {\n    id: String,\n    weight_g: u32,\n}\n\nfn main() {\n    let p = Parcel { id: String::from(\"DN-07-0412\"), weight_g: 1250 };\n    println!(\"{p:?}\");\n}",
+              "correct": false
+            },
+            {
+              "text": "fn heavier<T>(a: T, b: T) -> bool {\n    a > b\n}\n\nfn main() {\n    println!(\"{}\", heavier(1250, 800));\n}",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_rsf_412",
+      "name": "route-sheet-labels-and-prices",
+      "type": "mini_coding",
+      "title": "Labels and prices for the route sheet",
+      "description": "The evening route sheet prints documents and packages in their Debug form, and every price is 0. Implement the Priced trait for Document (15000 VND, 25000 VND for express) and Package (20000 VND up to 1000 g, plus 5000 VND for every started 500 g above that), implement fmt::Display for both (\"DN-07-0413 document (express)\", \"DN-07-0412 package 1.25 kg\"), and write the generic fn total<T: Priced>(items: &[T]) -> u64. The test runner reads one item per line and prints every label with its price, then the totals per kind.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "rust",
+        "filePath": "main.rs",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Example from the task: two packages and an express document",
+          "input": "pkg DN-07-0412 1250\ndoc DN-07-0413 express\npkg DN-07-0415 800\n",
+          "expected": "DN-07-0412 package 1.25 kg: 25000 VND\nDN-07-0413 document (express): 25000 VND\nDN-07-0415 package 0.80 kg: 20000 VND\ndocuments: 1, total 25000 VND\npackages: 2, total 45000 VND",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Weight steps: 1000 g, 1001 g, 1500 g, 1501 g and 2000 g",
+          "input": "pkg DN-12-0101 1000\npkg DN-12-0102 1001\npkg DN-12-0103 1500\npkg DN-12-0104 1501\npkg DN-12-0105 2000\n",
+          "expected": "DN-12-0101 package 1.00 kg: 20000 VND\nDN-12-0102 package 1.00 kg: 25000 VND\nDN-12-0103 package 1.50 kg: 25000 VND\nDN-12-0104 package 1.50 kg: 30000 VND\nDN-12-0105 package 2.00 kg: 30000 VND\ndocuments: 0, total 0 VND\npackages: 5, total 130000 VND",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Documents only: express and standard, no packages",
+          "input": "doc HA-03-0007 express\ndoc HA-03-0008 standard\ndoc HA-03-0009 standard\n",
+          "expected": "HA-03-0007 document (express): 25000 VND\nHA-03-0008 document: 15000 VND\nHA-03-0009 document: 15000 VND\ndocuments: 3, total 55000 VND\npackages: 0, total 0 VND",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A heavy carton of 7.35 kg and a light one of 500 g",
+          "input": "pkg DN-07-0901 7350\ndoc DN-07-0902 express\npkg DN-07-0903 500\n",
+          "expected": "DN-07-0901 package 7.35 kg: 85000 VND\nDN-07-0902 document (express): 25000 VND\nDN-07-0903 package 0.50 kg: 20000 VND\ndocuments: 1, total 25000 VND\npackages: 2, total 105000 VND",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Exactly 2500 g, a 30 g envelope and a standard document",
+          "input": "doc DN-21-0300 standard\npkg DN-21-0301 2500\npkg DN-21-0302 30\n",
+          "expected": "DN-21-0300 document: 15000 VND\nDN-21-0301 package 2.50 kg: 35000 VND\nDN-21-0302 package 0.03 kg: 20000 VND\ndocuments: 1, total 15000 VND\npackages: 2, total 55000 VND",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "1990 g is two blocks, 2001 g is three",
+          "input": "pkg HA-05-0010 1990\npkg HA-05-0011 2001\ndoc HA-05-0012 express\n",
+          "expected": "HA-05-0010 package 1.99 kg: 30000 VND\nHA-05-0011 package 2.00 kg: 35000 VND\nHA-05-0012 document (express): 25000 VND\ndocuments: 1, total 25000 VND\npackages: 2, total 65000 VND",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,130 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_rsf_211",
+      "name": "borrowing-rules-quiz",
+      "type": "quiz",
+      "title": "Borrows, index loops and dangling references",
+      "description": "Trace an index loop that removes elements, then decide which borrows and function signatures the borrow checker accepts.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this program print?\n\nfn main() {\n    let mut cage = vec![\"SH-1\", \"SH-2\", \"SH-3\", \"SH-4\", \"SH-5\"];\n    let delivered = [\"SH-2\", \"SH-3\", \"SH-5\"];\n    let mut i = 0;\n    while i < cage.len() {\n        if delivered.contains(&cage[i]) {\n            cage.remove(i);\n        }\n        i += 1;\n    }\n    println!(\"{cage:?}\");\n}",
+          "explanation": "remove(i) shifts every later element one place to the left, and the loop then moves on with i += 1, so the element that slid into position i is never checked. i = 0: SH-1 stays. i = 1: SH-2 is removed, the cage becomes [SH-1, SH-3, SH-4, SH-5] and SH-3 is now at index 1, which the loop has already passed. i = 2: SH-4 stays. i = 3: SH-5 is removed, the cage becomes [SH-1, SH-3, SH-4]. i = 4 is not below the length 3, so the loop ends. Result: [\"SH-1\", \"SH-3\", \"SH-4\"]: the delivered SH-3 is still in the cage. [\"SH-1\", \"SH-4\"] is what the author meant. The while condition re-reads cage.len() every time, so this version cannot go out of bounds and does not panic. It compiles, because indexing borrows cage only for the duration of each check.",
+          "options": [
+            {
+              "text": "[\"SH-1\", \"SH-4\"]",
+              "correct": false
+            },
+            {
+              "text": "[\"SH-1\", \"SH-3\", \"SH-4\"]",
+              "correct": true
+            },
+            {
+              "text": "[\"SH-1\", \"SH-3\", \"SH-4\", \"SH-5\"]",
+              "correct": false
+            },
+            {
+              "text": "It panics: index out of bounds",
+              "correct": false
+            },
+            {
+              "text": "It does not compile: error[E0502], cage is borrowed while it is changed",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Each option is a complete program (the body of main, or a function plus main) compiled with rustc --edition 2024. Which of them compile? (Select all that apply.)",
+          "explanation": "A borrow lasts until its last use. In the second option first is last used in the println! before v.push(4), so the shared borrow is over when the vector is changed. In the first option first is used AFTER push, while v is borrowed: error[E0502] (push may move the vector's buffer, which would leave first pointing at freed memory). Two &mut borrows of s one after the other are fine, because a's last use comes before b is created; creating b while a is still used later is error[E0499]: cannot borrow `s` as mutable more than once at a time. first_word has one reference parameter, so the lifetime elision rules give the returned &str the same lifetime as s, and no annotation is needed. label returns a reference with no parameter to borrow it from: error[E0106]: missing lifetime specifier, and the reference would point at a String that is dropped when the function returns. Return a String instead.",
+          "options": [
+            {
+              "text": "let mut v = vec![1, 2, 3];\nlet first = &v[0];\nv.push(4);\nprintln!(\"{first}\");",
+              "correct": false
+            },
+            {
+              "text": "let mut v = vec![1, 2, 3];\nlet first = &v[0];\nprintln!(\"{first}\");\nv.push(4);",
+              "correct": true
+            },
+            {
+              "text": "let mut s = String::from(\"DN\");\nlet a = &mut s;\na.push('-');\nlet b = &mut s;\nb.push('7');\nprintln!(\"{s}\");",
+              "correct": true
+            },
+            {
+              "text": "let mut s = String::from(\"DN\");\nlet a = &mut s;\nlet b = &mut s;\na.push('-');\nb.push('7');",
+              "correct": false
+            },
+            {
+              "text": "fn first_word(s: &str) -> &str {\n    s.split(' ').next().unwrap()\n}\n\nfn main() {\n    println!(\"{}\", first_word(\"Da Nang\"));\n}",
+              "correct": true
+            },
+            {
+              "text": "fn label() -> &str {\n    let s = String::from(\"DN-07\");\n    &s\n}\n\nfn main() {\n    println!(\"{}\", label());\n}",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_rsf_212",
+      "name": "fix-unload-and-fragile-sheet",
+      "type": "fix_bug",
+      "title": "Unload the cage without skipping or panicking",
+      "description": "The Hoi An hub's unload tool borrows the cage mutably. unload removes delivered parcels with an index loop that panics with index out of bounds after the first removal, and take_fragile builds the fragile sheet but leaves the fragile parcels in the cage, because it removes them from a clone. Fix both functions so they change the borrowed cage itself, never skip a parcel that moved into the current position, and return the right count and list. The test runner reads load, deliver and fragile commands.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "rust",
+        "filePath": "main.rs",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Example from the task: two neighbours delivered",
+          "input": "load SH-1001 SH-1002 SH-1003 SH-1004\ndeliver SH-1002 SH-1003\n",
+          "expected": "delivered: 2\ncage: 2 [SH-1001, SH-1004]",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A delivered id that is not in the cage does not count",
+          "input": "load SH-2001 SH-2002 SH-2003\ndeliver SH-2003 SH-9999\n",
+          "expected": "delivered: 1\ncage: 2 [SH-2001, SH-2002]",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Fragile parcels leave the cage",
+          "input": "load SH-3001-F SH-3002 SH-3003-F SH-3004\nfragile\n",
+          "expected": "fragile: [SH-3001-F, SH-3003-F]\ncage: 2 [SH-3002, SH-3004]",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Neighbouring fragile parcels, then a delivery and a late load",
+          "input": "load SH-4001 SH-4002-F SH-4003-F SH-4004\nfragile\ndeliver SH-4001 SH-4004\nload SH-4005-F SH-4006\nfragile\n",
+          "expected": "fragile: [SH-4002-F, SH-4003-F]\ndelivered: 2\nfragile: [SH-4005-F]\ncage: 1 [SH-4006]",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Deliver every parcel, including three in a row",
+          "input": "load SH-5001 SH-5002 SH-5003 SH-5004\ndeliver SH-5004 SH-5001 SH-5002 SH-5003\nload SH-5005\ndeliver SH-5005\n",
+          "expected": "delivered: 4\ndelivered: 1\ncage: 0 []",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

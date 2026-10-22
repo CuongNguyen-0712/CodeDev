@@ -1,0 +1,10 @@
+{
+  "images": {
+    "debug-vs-display": {
+      "publicId": "codedev/courses/rust-foundations/08-traits-basics/debug-vs-display",
+      "url": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/q_auto/v1792641670/codedev/courses/rust-foundations/08-traits-basics/debug-vs-display.png?_a=BAMAROWQ0",
+      "width": 1200,
+      "height": 660
+    }
+  }
+}

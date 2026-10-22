@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="660" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">One Parcel, two formats: {:?} is for developers, {} is for people</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Both are traits. Debug can be derived; Display has to be written, because only you know what a customer should read.</text>
+
+  <!-- Debug -->
+  <rect x="40" y="106" width="540" height="230" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="140" font-size="17" font-weight="700" fill="#b91c1c">Debug: {:?} and {:#?}</text>
+  <text x="64" y="172" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">#[derive(Debug)]</text>
+  <text x="64" y="204" font-size="14" fill="#475569">Generated from the field names. Shows everything,</text>
+  <text x="64" y="226" font-size="14" fill="#475569">quotes strings, changes when a field is added.</text>
+  <rect x="64" y="244" width="492" height="72" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="270" font-size="13" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">Parcel { id: "DN-07-0412",</text>
+  <text x="96" y="294" font-size="13" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">weight_g: 1250, cod_vnd: 185000 }</text>
+
+  <!-- Display -->
+  <rect x="620" y="106" width="540" height="230" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="140" font-size="17" font-weight="700" fill="#15803d">Display: {} and .to_string()</text>
+  <text x="644" y="172" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">impl fmt::Display for Parcel</text>
+  <text x="644" y="204" font-size="14" fill="#475569">Written by hand in fn fmt. You choose the words,</text>
+  <text x="644" y="226" font-size="14" fill="#475569">units and order. Cannot be derived.</text>
+  <rect x="644" y="244" width="492" height="72" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="286" font-size="14" fill="#15803d" font-family="Consolas, 'Courier New', monospace">DN-07-0412 (1.25 kg)</text>
+
+  <!-- Derive table -->
+  <rect x="40" y="360" width="1120" height="270" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="392" font-size="17" font-weight="700" fill="#334155">What each derive gives a type</text>
+  <text x="64" y="428" font-size="15" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">Debug</text>
+  <text x="330" y="428" font-size="15" fill="#334155">{:?}, {:#?}, and readable assert_eq! failures</text>
+  <text x="64" y="460" font-size="15" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">Clone</text>
+  <text x="330" y="460" font-size="15" fill="#334155">.clone(): an explicit, possibly expensive copy</text>
+  <text x="64" y="492" font-size="15" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">Copy (needs Clone)</text>
+  <text x="330" y="492" font-size="15" fill="#334155">let q = p; copies instead of moving. Only if every field is Copy (no String, no Vec)</text>
+  <text x="64" y="524" font-size="15" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">PartialEq, Eq</text>
+  <text x="330" y="524" font-size="15" fill="#334155">== and !=, contains(), dedup(): all fields equal</text>
+  <text x="64" y="556" font-size="15" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">Hash (with Eq)</text>
+  <text x="330" y="556" font-size="15" fill="#334155">a key in HashMap and HashSet</text>
+  <text x="64" y="588" font-size="15" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">PartialOrd, Ord</text>
+  <text x="330" y="588" font-size="15" fill="#334155">&lt; and &gt;, sort(), max(), BTreeMap keys: fields top to bottom, variants in declaration order</text>
+  <text x="64" y="616" font-size="13" fill="#64748b">Not derived: Display, and your own traits such as Priced. Those you implement with impl Trait for Type.</text>
+</svg>

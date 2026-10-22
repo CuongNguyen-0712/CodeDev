@@ -1,0 +1,10 @@
+{
+  "images": {
+    "string-move": {
+      "publicId": "codedev/courses/rust-foundations/02-ownership-moves/string-move",
+      "url": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/q_auto/v1792641336/codedev/courses/rust-foundations/02-ownership-moves/string-move.png?_a=BAMAROWQ0",
+      "width": 1200,
+      "height": 620
+    }
+  }
+}

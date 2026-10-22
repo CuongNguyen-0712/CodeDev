@@ -1,0 +1,137 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_rsf_111",
+      "name": "integer-types-and-overflow-quiz",
+      "type": "quiz",
+      "title": "Integer overflow and what compiles",
+      "description": "Read each snippet the way rustc does: which arithmetic wraps, which reports the overflow, and which assignments and conversions the compiler accepts.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "This program is built in release mode (cargo build --release, or rustc -O). What does it print?\n\nfn main() {\n    let a: u8 = 250;\n    let b: u8 = 10;\n    println!(\"{} {:?} {} {}\", a.wrapping_add(b), a.checked_add(b), a.saturating_add(b), 300_i32 as u8);\n}",
+          "explanation": "250 + 10 = 260 does not fit in a u8 (0 to 255). wrapping_add drops the bit that does not fit, so it gives 260 - 256 = 4. checked_add reports the overflow as None instead of a number. saturating_add stops at the largest u8, 255. 300_i32 as u8 keeps only the lowest 8 bits of 300, which is 300 - 256 = 44: as never fails and never panics. The explicit methods behave the same in debug and release builds; only the plain + operator changes (panic in debug, wrap in release). Some(260) is impossible because a u8 can never hold 260; 4 None 255 255 assumes as saturates like saturating_add, which it only does for float-to-integer casts.",
+          "options": [
+            {
+              "text": "4 None 255 44",
+              "correct": true
+            },
+            {
+              "text": "260 Some(260) 260 300",
+              "correct": false
+            },
+            {
+              "text": "4 Some(4) 255 44",
+              "correct": false
+            },
+            {
+              "text": "4 None 255 255",
+              "correct": false
+            },
+            {
+              "text": "It panics with \"attempt to add with overflow\"",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Each option is a complete program compiled with rustc --edition 2024. Which of them compile? (Select all that apply.)",
+          "explanation": "Shadowing compiles: the second let count creates a new variable of type u32 that hides the &str one. u64::from(total) compiles: From is implemented for every conversion that can never lose information, and u32 always fits in u64. let count = 5; count += 1; is error[E0384]: cannot assign twice to immutable variable (variables are immutable unless declared with let mut). let x: u8 = 256; is error: literal out of range for `u8` (the overflowing_literals lint is deny by default). let w: u64 = total; with total: u32 is error[E0308]: mismatched types, because Rust never converts numbers implicitly, not even to a wider type. 7 / 2.0 is error[E0277]: cannot divide `{integer}` by `{float}`: both sides of an arithmetic operator must have the same type, so write 7.0 / 2.0 or convert with f64::from.",
+          "options": [
+            {
+              "text": "fn main() {\n    let count = \"5\";\n    let count: u32 = count.parse().unwrap();\n    println!(\"{count}\");\n}",
+              "correct": true
+            },
+            {
+              "text": "fn main() {\n    let total: u32 = 10;\n    let w = u64::from(total);\n    println!(\"{w}\");\n}",
+              "correct": true
+            },
+            {
+              "text": "fn main() {\n    let count = 5;\n    count += 1;\n    println!(\"{count}\");\n}",
+              "correct": false
+            },
+            {
+              "text": "fn main() {\n    let x: u8 = 256;\n    println!(\"{x}\");\n}",
+              "correct": false
+            },
+            {
+              "text": "fn main() {\n    let total: u32 = 10;\n    let w: u64 = total;\n    println!(\"{w}\");\n}",
+              "correct": false
+            },
+            {
+              "text": "fn main() {\n    let avg = 7 / 2.0;\n    println!(\"{avg}\");\n}",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_rsf_112",
+      "name": "load-bags-into-cages-without-overflow",
+      "type": "mini_coding",
+      "title": "Load bags into roll cages without overflow",
+      "description": "The Da Nang depot's scanner stores parcel counts as u8. Write bag_count(raw: u32) -> Option<u8>, which returns None when a scanned count does not fit in a u8 (300 must not become 44), load(cage: u8, bag: u8) -> Option<u8>, which returns the cage's new count or None when the sum does not fit (the runner then starts a new cage), and average(parcels: u32, cages: u32) -> f64, which returns parcels per cage with the fraction. The test runner reads one bag per line, prints the rejected bags, every cage's count and a summary line. It is built in release mode, so a plain + wraps around silently.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "rust",
+        "filePath": "main.rs",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Example from the task: 200 + 100 opens a second cage, 300 is rejected",
+          "input": "DN-0412 200\nDN-0413 100\nDN-0414 40\nDN-0415 300\n",
+          "expected": "DN-0415 rejected: 300 does not fit in a u8\ncage 1: 200\ncage 2: 140\ncages: 2, parcels: 340, average: 170.00",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "255 still fits in one cage, 256 does not",
+          "input": "DN-1001 255\nDN-1002 1\nDN-1003 0\n",
+          "expected": "cage 1: 255\ncage 2: 1\ncages: 2, parcels: 256, average: 128.00",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "256 and 1000 are rejected, not wrapped to 0 and 232",
+          "input": "DN-2001 256\nDN-2002 120\nDN-2003 1000\nDN-2004 135\n",
+          "expected": "DN-2001 rejected: 256 does not fit in a u8\nDN-2003 rejected: 1000 does not fit in a u8\ncage 1: 255\ncages: 1, parcels: 255, average: 255.00",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "250 + 10 opens a new cage instead of stopping at 255; the average keeps its fraction",
+          "input": "DN-3001 250\nDN-3002 10\nDN-3003 41\n",
+          "expected": "cage 1: 250\ncage 2: 51\ncages: 2, parcels: 301, average: 150.50",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Three cages and an average of 167.33",
+          "input": "DN-4001 100\nDN-4002 100\nDN-4003 100\nDN-4004 100\nDN-4005 100\nDN-4006 2\n",
+          "expected": "cage 1: 200\ncage 2: 200\ncage 3: 102\ncages: 3, parcels: 502, average: 167.33",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Only rejected bags: one empty cage",
+          "input": "DN-5001 70000\nDN-5002 4294967295\n",
+          "expected": "DN-5001 rejected: 70000 does not fit in a u8\nDN-5002 rejected: 4294967295 does not fit in a u8\ncage 1: 0\ncages: 1, parcels: 0, average: 0.00",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

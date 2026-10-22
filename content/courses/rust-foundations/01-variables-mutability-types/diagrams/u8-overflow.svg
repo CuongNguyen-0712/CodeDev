@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="640" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">200 + 100 in a u8: the result needs 9 bits, a u8 has 8</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The same addition, written six ways. Only the plain + changes between debug and release builds.</text>
+
+  <!-- Bits -->
+  <rect x="40" y="106" width="1120" height="150" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="140" font-size="16" font-weight="700" fill="#334155">In binary</text>
+  <text x="300" y="140" font-size="18" fill="#334155" font-family="Consolas, 'Courier New', monospace">200 = 1100 1000</text>
+  <text x="300" y="170" font-size="18" fill="#334155" font-family="Consolas, 'Courier New', monospace">100 = 0110 0100</text>
+  <text x="300" y="206" font-size="18" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">300 = 1 0010 1100</text>
+  <text x="700" y="140" font-size="15" fill="#475569">The 9th bit (worth 256) has no place in a u8.</text>
+  <text x="700" y="170" font-size="15" fill="#475569">Dropping it leaves 0010 1100 = 44,</text>
+  <text x="700" y="200" font-size="15" fill="#475569">which is 300 - 256: the value wraps around.</text>
+  <text x="64" y="240" font-size="14" fill="#64748b">u8 holds 0 to 255. u16 holds 0 to 65 535, so u16::from(200) + u16::from(100) is simply 300.</text>
+
+  <!-- Plain + -->
+  <rect x="40" y="276" width="540" height="160" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="308" font-size="17" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">morning + evening</text>
+  <text x="64" y="346" font-size="15" font-weight="700" fill="#334155">debug build (cargo run, cargo test)</text>
+  <text x="64" y="370" font-size="15" fill="#475569">panics: attempt to add with overflow</text>
+  <text x="64" y="404" font-size="15" font-weight="700" fill="#334155">release build (cargo build --release)</text>
+  <text x="64" y="428" font-size="15" fill="#b91c1c">silently gives 44</text>
+
+  <!-- Explicit methods -->
+  <rect x="620" y="276" width="540" height="160" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="308" font-size="17" font-weight="700" fill="#15803d">Say what you want: same result in every build</text>
+  <text x="644" y="342" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">checked_add</text>
+  <text x="860" y="342" font-size="15" fill="#334155">None (you decide what to do)</text>
+  <text x="644" y="368" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">saturating_add</text>
+  <text x="860" y="368" font-size="15" fill="#334155">255 (stops at the max)</text>
+  <text x="644" y="394" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">wrapping_add</text>
+  <text x="860" y="394" font-size="15" fill="#334155">44 (wraps, on purpose)</text>
+  <text x="644" y="420" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">overflowing_add</text>
+  <text x="860" y="420" font-size="15" fill="#334155">(44, true)</text>
+
+  <!-- Casts -->
+  <rect x="40" y="460" width="1120" height="148" rx="10" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="64" y="492" font-size="17" font-weight="700" fill="#b45309">Converting 300 into a u8</text>
+  <text x="64" y="528" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">300_u32 as u8</text>
+  <text x="360" y="528" font-size="15" fill="#334155">44: as keeps the low 8 bits, never fails, never warns</text>
+  <text x="64" y="560" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">u8::try_from(300_u32)</text>
+  <text x="360" y="560" font-size="15" fill="#334155">Err(TryFromIntError(())): the conversion is checked</text>
+  <text x="64" y="592" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">u16::from(200_u8)</text>
+  <text x="360" y="592" font-size="15" fill="#334155">200: From exists only where nothing can be lost</text>
+</svg>

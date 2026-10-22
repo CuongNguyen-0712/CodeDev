@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_rsf_311",
+      "name": "validate-scan-log-lines",
+      "type": "mini_coding",
+      "title": "Validate the scan log without panicking",
+      "description": "The nightly import lost a whole batch because one line of the scan log could not be parsed and the tool called unwrap(). Write parse_line(line: &str) -> Result<Scan, ScanError>, which splits a \"<parcel id>,<route>,<weight in grams>\" line, trims the fields and returns the first problem it finds: wrong number of fields, missing parcel id, a route that does not start with DN-, a weight that is not a u32, or a weight above 30000 g. ScanError and its messages are already written. The test runner prints every accepted or rejected line with its line number and a summary, so one bad line must never stop the batch.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "rust",
+        "filePath": "main.rs",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Example from the task: a garbled weight, a blank line and a foreign route",
+          "input": "SH10231,DN-07,1250\nSH10232,DN-07,12O0\n\nSH10233,HA-01,410\n",
+          "expected": "line 1: SH10231 DN-07 1250 g\nline 2: rejected: bad weight '12O0': invalid digit found in string\nline 4: rejected: unknown route 'HA-01'\naccepted: 1, rejected: 2, total: 1250 g",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Spaces around fields are trimmed; 30000 g is allowed, 30001 g and -5 are not",
+          "input": " SH10240 , DN-11 , 30000 \nSH10241,DN-11,30001\nSH10242,DN-11,-5\n",
+          "expected": "line 1: SH10240 DN-11 30000 g\nline 2: rejected: 30001 g is over the 30000 g limit\nline 3: rejected: bad weight '-5': invalid digit found in string\naccepted: 1, rejected: 2, total: 30000 g",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Two or four fields, a missing id and an empty weight",
+          "input": "SH10250,DN-02\nSH10251,DN-02,500,fragile\n,DN-02,700\nSH10252,DN-02,\n",
+          "expected": "line 1: rejected: expected 3 fields, found 2\nline 2: rejected: expected 3 fields, found 4\nline 3: rejected: missing parcel id\nline 4: rejected: bad weight '': cannot parse integer from empty string\naccepted: 0, rejected: 4, total: 0 g",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A bad route is reported before a bad weight; a weight too large for u32",
+          "input": "SH10260,HA-01,12O0\nSH10261,dn-07,900\nSH10262,DN-05,99999999999\n",
+          "expected": "line 1: rejected: unknown route 'HA-01'\nline 2: rejected: unknown route 'dn-07'\nline 3: rejected: bad weight '99999999999': number too large to fit in target type\naccepted: 0, rejected: 3, total: 0 g",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Blank lines still count for the line numbers",
+          "input": "SH1,DN-01,100\n\n\nSH2,DN-01,200\nSH3,DN-09,30000\n",
+          "expected": "line 1: SH1 DN-01 100 g\nline 4: SH2 DN-01 200 g\nline 5: SH3 DN-09 30000 g\naccepted: 3, rejected: 0, total: 30300 g",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Only commas, only spaces and a lone id",
+          "input": ",,\n   \nSH10270\nSH10271,DN-04,0\n",
+          "expected": "line 1: rejected: missing parcel id\nline 3: rejected: expected 3 fields, found 1\nline 4: SH10271 DN-04 0 g\naccepted: 1, rejected: 2, total: 0 g",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}
