@@ -89,8 +89,9 @@ internet, 169.254.169.254, the host and `redis` all unreachable), `CapEff` 0, re
 
 Live since 2026-10-20 (`lib/challenges/vercelRunner.js`, selected by `CODE_RUNNER_PROVIDER=vercel`):
 
-- **One shared, named, persistent sandbox** `codedev-runner-v3` (image `codedev-runner:v3` from VCR since
-  2026-10-22, adds PHP, TypeScript, Kotlin and C#; `v2` before,
+- **One shared, named, persistent sandbox** `codedev-runner-v4` (image `codedev-runner:v4` from VCR since
+  2026-10-22: v3 added PHP, TypeScript, Kotlin and C#, v4 a kotlinc class-data archive and a 60 s Kotlin
+  compile limit; `v2` before,
   `deny-all` network, 2 vCPU = slots `run01`/`run02`, `keepLastSnapshots: 1`). Chosen over one
   sandbox per language: on the Hobby plan (10 concurrent sandboxes, 15 GB snapshot storage, 5 h
   Active CPU/month) a single warm VM has fewer cold starts and one snapshot, and the image already
@@ -106,7 +107,7 @@ Live since 2026-10-20 (`lib/challenges/vercelRunner.js`, selected by `CODE_RUNNE
   name (`-vN`), deploy, then remove the old sandbox (`vercel sandbox remove <name> --delete-orphan-snapshots`).
   Recycle the sandbox the same way periodically so a compromise cannot persist.
 - Test: `__tests__/sandbox/vercel.integration.test.js` (opt-in, needs `VERCEL_OIDC_TOKEN` and a
-  `CODE_RUNNER_SANDBOX` name containing "test"); 8/8 on 2026-10-20, 12/12 on v3 (2026-10-22).
+  `CODE_RUNNER_SANDBOX` name containing "test"); 8/8 on 2026-10-20, 12/12 on v3 and v4 (2026-10-22).
 
 ### Background (design notes)
 

@@ -28,6 +28,7 @@ const JOBS_DIR = "/vercel/jobs";
 const WORK_ROOT = "/work";
 const RUNNER = "/opt/codedev/runner.cjs";
 const GO_CACHE = "/opt/gocache";
+const KOTLINC_CDS = "/opt/kotlin/kotlinc.jsa";
 // Every world-writable directory in the image (others are made read-only in the Dockerfile);
 // selftest.mjs fails if a new one appears.
 const SHARED_TMP = ["/tmp", "/var/tmp", "/dev/shm", "/run/lock"];
@@ -37,7 +38,7 @@ const MAX_INPUT_BYTES = 128 * 1024;
 const MAX_TESTS = 50;
 const LIMITS = { timeLimitMs: [100, 10_000], memoryLimitMb: [32, 256] };
 const STARTUP_MS = 1000;          // process start-up, not counted against the challenge limit
-const COMPILE_MS = 20_000;
+const COMPILE_MS = 20_000;        // per language override: lang.compileMs
 const MAX_STDOUT = 256 * 1024;
 const MAX_STDERR = 8 * 1024;
 const NPROC = 64;                 // per slot user (threads count): stops fork bombs
@@ -70,6 +71,7 @@ const LANGS = {
     },
     kotlin: {
         file: "main.kt",
+        compileMs: 60_000, // kotlinc is a JVM: 5 s idle, 15-20 s when another compile shares the CPUs
         compile: ["/opt/kotlin/bin/kotlinc", "-nowarn", "-cp", "/opt/kotlin/lib/kotlinx-coroutines-core.jar", "-d", "out", "main.kt"],
         run: (mb) => ["/usr/bin/java", `-Xmx${mb}m`, "-Xss64m", "-XX:+UseSerialGC", "-XX:-UsePerfData",
             "-cp", "out:/opt/kotlin/lib/kotlin-stdlib.jar:/opt/kotlin/lib/kotlinx-coroutines-core.jar", "MainKt"],
@@ -204,8 +206,10 @@ function userEnv(user) {
         GOTOOLCHAIN: "local",
         GOPROXY: "off",
         GOTELEMETRY: "off",
-        // kotlinc (a JVM): C1 only and serial GC start faster; the heap fits the compile limits.
-        JAVA_OPTS: "-Xmx512m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:-UsePerfData",
+        // kotlinc (a JVM): C1 only, serial GC and the class-data archive built in the image start
+        // faster; colours off so jansi does not try to load its native library from noexec /tmp.
+        JAVA_OPTS: `-Xmx512m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:-UsePerfData -XX:SharedArchiveFile=${KOTLINC_CDS} `
+            + `-Dkotlin.colors.enabled=false -Djava.io.tmpdir=${path.join(user.dir, "tmp")}`,
         DOTNET_CLI_TELEMETRY_OPTOUT: "1",
         DOTNET_NOLOGO: "1",
         DOTNET_gcServer: "0",
@@ -279,12 +283,13 @@ function failure(run, job, fallback) {
 
 async function compile(user, job) {
     if (!job.lang.compile) return { ok: true, error: null, timeMs: 0 };
-    const run = await exec(user, limited(job.lang.compile, { cpuSeconds: COMPILE_MS / 1000, fileBytes: 64 * 1024 * 1024 }), { wallMs: COMPILE_MS });
+    const limitMs = job.lang.compileMs || COMPILE_MS;
+    const run = await exec(user, limited(job.lang.compile, { cpuSeconds: limitMs / 1000, fileBytes: 64 * 1024 * 1024 }), { wallMs: limitMs });
     const ok = run.exitCode === 0 && !run.timedOut;
     // tsc and kotlinc print diagnostics on stdout.
     return {
         ok,
-        error: ok ? null : run.timedOut ? `Compilation timed out (${COMPILE_MS}ms)` : tail(run.stderr, 4000) || tail(run.stdout, 4000) || "Compilation failed",
+        error: ok ? null : run.timedOut ? `Compilation timed out (${limitMs}ms)` : tail(run.stderr, 4000) || tail(run.stdout, 4000) || "Compilation failed",
         timeMs: run.timeMs,
     };
 }

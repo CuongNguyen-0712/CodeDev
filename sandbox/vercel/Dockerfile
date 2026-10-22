@@ -46,7 +46,12 @@ RUN curl -fsSL -o /tmp/kotlin.zip "https://github.com/JetBrains/kotlin/releases/
     echo "${KOTLIN_SHA256}  /tmp/kotlin.zip" | sha256sum -c - && \
     unzip -q /tmp/kotlin.zip -d /opt && mv /opt/kotlinc /opt/kotlin && rm /tmp/kotlin.zip && \
     curl -fsSL -o /opt/kotlin/lib/kotlinx-coroutines-core.jar "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/${KOTLINX_COROUTINES_VERSION}/kotlinx-coroutines-core-jvm-${KOTLINX_COROUTINES_VERSION}.jar" && \
-    echo "${KOTLINX_COROUTINES_SHA256}  /opt/kotlin/lib/kotlinx-coroutines-core.jar" | sha256sum -c -
+    echo "${KOTLINX_COROUTINES_SHA256}  /opt/kotlin/lib/kotlinx-coroutines-core.jar" | sha256sum -c - && \
+    # Class-data archive of kotlinc (read-only, used through JAVA_OPTS in run-job; same GC flags).
+    echo 'fun main() { println(listOf(1, 2).map { it * 2 }.joinToString()) }' > /tmp/w.kt && \
+    JAVA_OPTS="-Xmx512m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:-UsePerfData -XX:ArchiveClassesAtExit=/opt/kotlin/kotlinc.jsa -Dkotlin.colors.enabled=false" \
+      /opt/kotlin/bin/kotlinc -nowarn -cp /opt/kotlin/lib/kotlinx-coroutines-core.jar -d /tmp/wout /tmp/w.kt && \
+    rm -rf /tmp/w.kt /tmp/wout && chmod 0644 /opt/kotlin/kotlinc.jsa
 
 # C#: Roslyn's csc.dll is called directly (no `dotnet build`/NuGet restore, much faster) with the
 # shared framework's reference assemblies and implicit usings; main.dll runs on the shared runtime.

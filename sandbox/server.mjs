@@ -41,7 +41,7 @@ const MAX_CONCURRENCY = Math.min(intEnv("MAX_CONCURRENCY", 2, 1), RUN_JOB ? 8 : 
 const MAX_QUEUE = intEnv("MAX_QUEUE", 16, 0);
 const LANGUAGES = RUN_JOB ? ["javascript", "python", "c", "cpp", "java", "go", "rust", "php", "typescript", "kotlin", "csharp"] : ["javascript"];
 const JOBS_DIR = "/vercel/jobs";
-const COMPILE_BUDGET_MS = 20_000; // run-job's own compile limit
+const COMPILE_BUDGET_MS = 60_000; // run-job's longest compile limit (kotlin)
 
 const RUNNER = fileURLToPath(new URL("./runner.cjs", import.meta.url));
 const MAX_BODY_BYTES = 512 * 1024;
