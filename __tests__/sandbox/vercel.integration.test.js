@@ -25,6 +25,10 @@ describe.skipIf(!enabled)("code runner on Vercel Sandbox", () => {
         java: "import java.util.Scanner;\npublic class Main { public static void main(String[] args) { var s = new Scanner(System.in); System.out.println(s.nextInt() + s.nextInt()); } }",
         go: 'package main\nimport "fmt"\nfunc main() { var a, b int; fmt.Scan(&a, &b); fmt.Println(a + b) }',
         rust: "use std::io::Read;\nfn main() { let mut s = String::new(); std::io::stdin().read_to_string(&mut s).unwrap(); let n: i64 = s.split_whitespace().map(|x| x.parse::<i64>().unwrap()).sum(); println!(\"{n}\"); }",
+        php: "<?php\n[$a, $b] = array_map('intval', preg_split('/\\s+/', trim(stream_get_contents(STDIN))));\necho $a + $b, \"\\n\";",
+        typescript: "const [a, b]: number[] = require(\"node:fs\").readFileSync(0, \"utf8\").trim().split(/\\s+/).map(Number);\nconsole.log(a + b);",
+        kotlin: "fun main() { val (a, b) = readln().trim().split(\" \").map { it.toInt() }; println(a + b) }",
+        csharp: "var p = Console.ReadLine()!.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToArray();\nConsole.WriteLine(p[0] + p[1]);",
     };
 
     for (const [language, code] of Object.entries(sum)) {
