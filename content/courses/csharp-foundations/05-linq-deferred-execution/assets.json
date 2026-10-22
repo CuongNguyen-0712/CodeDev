@@ -1,0 +1,10 @@
+{
+  "images": {
+    "one-query-two-runs": {
+      "publicId": "codedev/courses/csharp-foundations/05-linq-deferred-execution/one-query-two-runs",
+      "url": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/q_auto/v1792646127/codedev/courses/csharp-foundations/05-linq-deferred-execution/one-query-two-runs.png?_a=BAMAROWQ0",
+      "width": 1200,
+      "height": 720
+    }
+  }
+}

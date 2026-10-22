@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+    <marker id="arrRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#dc2626"/></marker>
+  </defs>
+  <rect width="1200" height="720" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">string? is checked by the compiler, never by the runtime</text>
+  <text x="40" y="82" font-size="16" fill="#475569">An "email only" guardian reaches code that was written when every guardian had a phone</text>
+
+  <!-- guardian object -->
+  <rect x="40" y="110" width="330" height="190" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="60" y="140" font-size="15" font-weight="700" fill="#334155">Guardian from the signup form</text>
+  <text x="60" y="176" font-size="14" fill="#475569" font-family="Consolas, 'Courier New', monospace">Name  "Trần Thu Hà"</text>
+  <rect x="52" y="190" width="300" height="34" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="60" y="213" font-size="14" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">Phone null</text>
+  <text x="60" y="250" font-size="14" fill="#475569" font-family="Consolas, 'Courier New', monospace">Email "thuha.tran@..."</text>
+  <text x="60" y="282" font-size="13" fill="#64748b">declared string? Phone: may be null</text>
+
+  <!-- compile time -->
+  <rect x="430" y="110" width="730" height="84" rx="10" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="450" y="140" font-size="15" font-weight="700" fill="#92400e">Compile time: a warning in the build log</text>
+  <text x="450" y="172" font-size="14" fill="#92400e" font-family="Consolas, 'Courier New', monospace">Program.cs(14,20): warning CS8602: Dereference of a possibly null reference.</text>
+
+  <!-- run time -->
+  <rect x="430" y="216" width="730" height="84" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="450" y="246" font-size="15" font-weight="700" fill="#b91c1c">Run time, Sunday 20:00: the job stops at the first email-only guardian</text>
+  <text x="450" y="278" font-size="14" fill="#7f1d1d" font-family="Consolas, 'Courier New', monospace">student.Guardian.Phone.Replace(" ", "")  -&gt;  NullReferenceException</text>
+
+  <line x1="370" y1="160" x2="426" y2="152" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="370" y1="240" x2="426" y2="254" stroke="#dc2626" stroke-width="2" marker-end="url(#arrRed)"/>
+
+  <text x="40" y="346" font-size="18" font-weight="700" fill="#0f172a">Four ways to answer the warning - three handle null, one hides it</text>
+
+  <rect x="40" y="366" width="265" height="170" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="58" y="396" font-size="16" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">g?.Phone</text>
+  <text x="58" y="428" font-size="14" fill="#166534">Stops at the first null</text>
+  <text x="58" y="450" font-size="14" fill="#166534">and gives null instead</text>
+  <text x="58" y="472" font-size="14" fill="#166534">of throwing.</text>
+
+  <rect x="320" y="366" width="265" height="170" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="338" y="396" font-size="16" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">phone ?? email</text>
+  <text x="338" y="428" font-size="14" fill="#166534">Uses a fallback when</text>
+  <text x="338" y="450" font-size="14" fill="#166534">the left side is null.</text>
+
+  <rect x="600" y="366" width="265" height="170" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="618" y="396" font-size="15" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">if (x is not null)</text>
+  <text x="618" y="428" font-size="14" fill="#166534">Flow analysis: inside the</text>
+  <text x="618" y="450" font-size="14" fill="#166534">if, x is not null, so no</text>
+  <text x="618" y="472" font-size="14" fill="#166534">warning. Same after</text>
+  <text x="618" y="494" font-size="14" fill="#166534">!IsNullOrWhiteSpace(x).</text>
+
+  <rect x="880" y="366" width="280" height="170" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="898" y="396" font-size="16" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">g.Phone!</text>
+  <text x="898" y="428" font-size="14" fill="#7f1d1d">"Trust me, not null."</text>
+  <text x="898" y="450" font-size="14" fill="#7f1d1d">The warning disappears,</text>
+  <text x="898" y="472" font-size="14" fill="#7f1d1d">the crash does not: it</text>
+  <text x="898" y="494" font-size="14" fill="#7f1d1d">just moves.</text>
+
+  <rect x="40" y="566" width="1120" height="110" rx="10" fill="#ecfdf5" stroke="#16a34a" stroke-width="2"/>
+  <text x="60" y="598" font-size="16" font-weight="700" fill="#15803d">Make the build fail instead of the Sunday job</text>
+  <text x="60" y="630" font-size="14" fill="#166534" font-family="Consolas, 'Courier New', monospace">&lt;Nullable&gt;enable&lt;/Nullable&gt;  +  &lt;WarningsAsErrors&gt;nullable&lt;/WarningsAsErrors&gt;</text>
+  <text x="60" y="658" font-size="14" fill="#166534">CS8602 becomes "error CS8602" and the change cannot be merged until null is handled.</text>
+</svg>

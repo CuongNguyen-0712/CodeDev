@@ -1,0 +1,87 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_csf_421",
+      "name": "term-class-report",
+      "type": "mini_coding",
+      "title": "Build the end-of-term class report",
+      "description": "Sen Academy's teachers and parents get one report per class at the end of the term. Extend the lesson's TermReport into BuildReport: reject bad lines with their line number and reason, let a later line correct an earlier one, compute each student's weighted average with decimal and round a half up, rank it on the Vietnamese scale, and print one block per class with the class average, the students in a stable order, the incomplete students with their missing components and the number of students per rank, then the rejected lines. The test runner switches to the Long Biên server's culture (vi-VN) before it calls BuildReport, so parsing and formatting must not depend on the current culture.",
+      "difficulty": "hard",
+      "points": 30,
+      "coding": {
+        "language": "csharp",
+        "filePath": "main.cs",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The example from the comment",
+          "input": "student,name,class,component,score\nHS-1024,Nguyễn Gia Bảo,TOAN9-A,hw,8.5\nHS-1024,Nguyễn Gia Bảo,TOAN9-A,mid,8\nHS-1024,Nguyễn Gia Bảo,TOAN9-A,final,9\nHS-1027,Đỗ Mai Anh,TOAN9-A,hw,9\nHS-1027,Đỗ Mai Anh,TOAN9-A,midterm,8\n",
+          "expected": "TOAN9-A: students 2, class average 8.6\n  8.6 Giỏi Nguyễn Gia Bảo (HS-1024)\n  incomplete Đỗ Mai Anh (HS-1027): missing mid, final\n  ranks: Giỏi 1, Khá 0, Trung bình 0, Yếu 0\nrejected: 1\n  line 6: unknown component \"midterm\"",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "The lesson's scores.csv: two classes, a correction, a rejected line",
+          "input": "student,name,class,component,score\nHS-1024,Nguyễn Gia Bảo,TOAN9-A,hw,8.5\nHS-1024,Nguyễn Gia Bảo,TOAN9-A,mid,8\nHS-1024,Nguyễn Gia Bảo,TOAN9-A,final,9\nHS-1026,Lê Hoàng Nam,TOAN9-A,hw,7\nHS-1026,Lê Hoàng Nam,TOAN9-A,mid,0\nHS-1026,Lê Hoàng Nam,TOAN9-A,final,7.5\nHS-1029,Hoàng Thu Trang,TOAN9-A,hw,6\nHS-1029,Hoàng Thu Trang,TOAN9-A,mid,6.5\nHS-1029,Hoàng Thu Trang,TOAN9-A,final,6.75\nHS-1027,Đỗ Mai Anh,TOAN9-A,hw,9\nHS-1027,Đỗ Mai Anh,TOAN9-A,midterm,8\nHS-1027,Đỗ Mai Anh,TOAN9-A,final,8.5\nHS-1024,Nguyễn Gia Bảo,ANH7-B,hw,7\nHS-1024,Nguyễn Gia Bảo,ANH7-B,mid,7\nHS-1024,Nguyễn Gia Bảo,ANH7-B,final,7\nHS-1026,Lê Hoàng Nam,TOAN9-A,mid,7\n",
+          "expected": "ANH7-B: students 1, class average 7.0\n  7.0 Khá Nguyễn Gia Bảo (HS-1024)\n  ranks: Giỏi 0, Khá 1, Trung bình 0, Yếu 0\nTOAN9-A: students 4, class average 7.4\n  8.6 Giỏi Nguyễn Gia Bảo (HS-1024)\n  7.2 Khá Lê Hoàng Nam (HS-1026)\n  6.5 Khá Hoàng Thu Trang (HS-1029)\n  incomplete Đỗ Mai Anh (HS-1027): missing mid\n  ranks: Giỏi 1, Khá 2, Trung bình 0, Yếu 0\nrejected: 1\n  line 12: unknown component \"midterm\"",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "6.45 is Khá, and a class average of 7.05",
+          "input": "student,name,class,component,score\nHS-1030,Phan Anh Khoa,LY10-A,hw,7\nHS-1030,Phan Anh Khoa,LY10-A,mid,7\nHS-1030,Phan Anh Khoa,LY10-A,final,7\nHS-1028,Vũ Đức Huy,LY10-A,hw,7\nHS-1028,Vũ Đức Huy,LY10-A,mid,7\nHS-1028,Vũ Đức Huy,LY10-A,final,7.25\nHS-1029,Hoàng Thu Trang,HOA11-A,hw,6\nHS-1029,Hoàng Thu Trang,HOA11-A,mid,6.5\nHS-1029,Hoàng Thu Trang,HOA11-A,final,6.75\n",
+          "expected": "HOA11-A: students 1, class average 6.5\n  6.5 Khá Hoàng Thu Trang (HS-1029)\n  ranks: Giỏi 0, Khá 1, Trung bình 0, Yếu 0\nLY10-A: students 2, class average 7.1\n  7.1 Khá Vũ Đức Huy (HS-1028)\n  7.0 Khá Phan Anh Khoa (HS-1030)\n  ranks: Giỏi 0, Khá 2, Trung bình 0, Yếu 0\nrejected: 0",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Corrections: the later line wins, also for the name",
+          "input": "student,name,class,component,score\nHS-1026,Lê Hoàng Nam,TOAN9-A,hw,7\nHS-1026,Lê Hoàng Nam,TOAN9-A,mid,0\nHS-1026,Lê Hoàng Nam,TOAN9-A,final,7.5\nHS-1029,Hoang Thu Trang,TOAN9-A,hw,6\nHS-1029,Hoang Thu Trang,TOAN9-A,mid,6.5\nHS-1029,Hoang Thu Trang,TOAN9-A,final,5\nHS-1026,Lê Hoàng Nam,TOAN9-A,mid,7\nHS-1029,Hoàng Thu Trang,TOAN9-A,final,6.75\n",
+          "expected": "TOAN9-A: students 2, class average 6.9\n  7.2 Khá Lê Hoàng Nam (HS-1026)\n  6.5 Khá Hoàng Thu Trang (HS-1029)\n  ranks: Giỏi 0, Khá 2, Trung bình 0, Yếu 0\nrejected: 0",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Every reason to reject a line, between blank lines",
+          "input": "student,name,class,component,score\nHS-1024,Nguyễn Gia Bảo,ANH7-B,hw,8.5\nHS-1024,Nguyễn Gia Bảo,ANH7-B,mid\n\nHS-1024,Nguyễn Gia Bảo,ANH7-B,mid,8,5\nHS-1024,Nguyễn Gia Bảo,ANH7-B,Final,9\nHS-1024,Nguyễn Gia Bảo,ANH7-B,final,vắng\n\nHS-1024,Nguyễn Gia Bảo,ANH7-B,final,\nHS-1024,Nguyễn Gia Bảo,ANH7-B,mid,85\nHS-1024,Nguyễn Gia Bảo,ANH7-B,final,-0.5\nHS-1024,Nguyễn Gia Bảo,ANH7-B,mid,8.25\nHS-1024,Nguyễn Gia Bảo,ANH7-B,final,9.5\n",
+          "expected": "ANH7-B: students 1, class average 8.8\n  8.8 Giỏi Nguyễn Gia Bảo (HS-1024)\n  ranks: Giỏi 1, Khá 0, Trung bình 0, Yếu 0\nrejected: 7\n  line 3: expected 5 fields, got 4\n  line 5: expected 5 fields, got 6\n  line 6: unknown component \"Final\"\n  line 7: score \"vắng\" is not a number\n  line 9: score \"\" is not a number\n  line 10: score 85 is out of range 0-10\n  line 11: score -0.5 is out of range 0-10",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Equal averages: by name, then by id",
+          "input": "student,name,class,component,score\nHS-1028,Vũ Đức Huy,TOAN9-A,hw,8\nHS-1028,Vũ Đức Huy,TOAN9-A,mid,8\nHS-1028,Vũ Đức Huy,TOAN9-A,final,8\nHS-1030,Phan Anh Khoa,TOAN9-A,hw,8\nHS-1030,Phan Anh Khoa,TOAN9-A,mid,8\nHS-1030,Phan Anh Khoa,TOAN9-A,final,8\nHS-1041,Nguyễn Văn An,TOAN9-A,hw,8\nHS-1041,Nguyễn Văn An,TOAN9-A,mid,8\nHS-1041,Nguyễn Văn An,TOAN9-A,final,8\nHS-1040,Nguyễn Văn An,TOAN9-A,hw,8\nHS-1040,Nguyễn Văn An,TOAN9-A,mid,8\nHS-1040,Nguyễn Văn An,TOAN9-A,final,8\nHS-1027,Đỗ Mai Anh,TOAN9-A,hw,9\nHS-1027,Đỗ Mai Anh,TOAN9-A,mid,9\nHS-1027,Đỗ Mai Anh,TOAN9-A,final,7.75\n",
+          "expected": "TOAN9-A: students 5, class average 8.1\n  8.5 Giỏi Đỗ Mai Anh (HS-1027)\n  8.0 Giỏi Nguyễn Văn An (HS-1040)\n  8.0 Giỏi Nguyễn Văn An (HS-1041)\n  8.0 Giỏi Phan Anh Khoa (HS-1030)\n  8.0 Giỏi Vũ Đức Huy (HS-1028)\n  ranks: Giỏi 5, Khá 0, Trung bình 0, Yếu 0\nrejected: 0",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Nobody complete in one class, classes in ordinal order, Windows line endings",
+          "input": "student,name,class,component,score\r\nHS-1031,Ngô Bảo Châu,VAN8-A,mid,7\r\nHS-1032,Trịnh Minh Thư, VAN8-A ,final, 8 \r\nHS-1032,Trịnh Minh Thư,VAN8-A,hw,6\r\nHS-1029,Hoàng Thu Trang,HOA11-A,hw,9\r\nHS-1029,Hoàng Thu Trang,HOA11-A,mid,9\r\nHS-1029,Hoàng Thu Trang,HOA11-A,final,9\r\nHS-1024,Nguyễn Gia Bảo,ANH7-B,hw,6\r\nHS-1024,Nguyễn Gia Bảo,ANH7-B,mid,6\r\nHS-1024,Nguyễn Gia Bảo,ANH7-B,final,6\r\n",
+          "expected": "ANH7-B: students 1, class average 6.0\n  6.0 Trung bình Nguyễn Gia Bảo (HS-1024)\n  ranks: Giỏi 0, Khá 0, Trung bình 1, Yếu 0\nHOA11-A: students 1, class average 9.0\n  9.0 Giỏi Hoàng Thu Trang (HS-1029)\n  ranks: Giỏi 1, Khá 0, Trung bình 0, Yếu 0\nVAN8-A: students 2, class average n/a\n  incomplete Ngô Bảo Châu (HS-1031): missing hw, final\n  incomplete Trịnh Minh Thư (HS-1032): missing mid\n  ranks: Giỏi 0, Khá 0, Trung bình 0, Yếu 0\nrejected: 0",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Perfect scores, Yếu and Trung bình",
+          "input": "student,name,class,component,score\nHS-1033,Lý Minh Tâm,TOAN9-A,hw,10\nHS-1033,Lý Minh Tâm,TOAN9-A,mid,10\nHS-1033,Lý Minh Tâm,TOAN9-A,final,10\nHS-1034,Bùi Gia Hân,TOAN9-A,hw,4.5\nHS-1034,Bùi Gia Hân,TOAN9-A,mid,5\nHS-1034,Bùi Gia Hân,TOAN9-A,final,4.75\nHS-1035,Mạc Văn Toàn,TOAN9-A,hw,5\nHS-1035,Mạc Văn Toàn,TOAN9-A,mid,5\nHS-1035,Mạc Văn Toàn,TOAN9-A,final,5\n",
+          "expected": "TOAN9-A: students 3, class average 6.6\n  10.0 Giỏi Lý Minh Tâm (HS-1033)\n  5.0 Trung bình Mạc Văn Toàn (HS-1035)\n  4.8 Yếu Bùi Gia Hân (HS-1034)\n  ranks: Giỏi 1, Khá 0, Trung bình 1, Yếu 1\nrejected: 0",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Only the header",
+          "input": "student,name,class,component,score\n",
+          "expected": "rejected: 0",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

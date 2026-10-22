@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+    <marker id="arrRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#dc2626"/></marker>
+  </defs>
+  <rect width="1200" height="720" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">var plan = TuitionPlans.Math9; copies a reference or a whole value</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The same line of code, run once per student. Only the declaration of TuitionPlan changed.</text>
+
+  <!-- left: class -->
+  <rect x="30" y="104" width="555" height="470" rx="12" fill="#fef2f2" stroke="#fca5a5" stroke-width="2"/>
+  <text x="54" y="138" font-size="20" font-weight="700" fill="#b91c1c">class TuitionPlan (reference type)</text>
+  <text x="54" y="164" font-size="14" fill="#7f1d1d">every variable holds a reference to ONE object</text>
+
+  <rect x="54" y="188" width="170" height="48" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="68" y="218" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">Math9</text>
+  <rect x="54" y="252" width="170" height="48" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="68" y="282" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">Bảo's plan</text>
+  <rect x="54" y="316" width="170" height="48" rx="8" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+  <text x="68" y="346" font-size="15" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">Linh's plan</text>
+  <rect x="54" y="380" width="170" height="48" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="68" y="410" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">Nam's plan</text>
+
+  <line x1="224" y1="212" x2="330" y2="290" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="224" y1="276" x2="330" y2="300" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="224" y1="340" x2="330" y2="314" stroke="#dc2626" stroke-width="2" marker-end="url(#arrRed)"/>
+  <line x1="224" y1="404" x2="330" y2="326" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+
+  <rect x="336" y="244" width="226" height="126" rx="10" fill="#ffffff" stroke="#dc2626" stroke-width="3"/>
+  <text x="352" y="272" font-size="14" font-weight="700" fill="#334155">TuitionPlan object</text>
+  <text x="352" y="300" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">Course: Toán 9</text>
+  <text x="352" y="324" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">Fee: 1800000</text>
+  <text x="352" y="348" font-size="14" font-weight="700" fill="#dc2626" font-family="Consolas, 'Courier New', monospace">Discount: 50</text>
+
+  <text x="54" y="468" font-size="15" fill="#7f1d1d">Linh's scholarship writes into the shared object,</text>
+  <text x="54" y="492" font-size="15" fill="#7f1d1d">so every invoice and the default now say 50%.</text>
+  <text x="54" y="540" font-size="15" font-weight="700" fill="#b91c1c">Bảo 900000, Linh 900000, Nam 900000</text>
+
+  <!-- right: struct -->
+  <rect x="615" y="104" width="555" height="470" rx="12" fill="#f0fdf4" stroke="#86efac" stroke-width="2"/>
+  <text x="639" y="138" font-size="20" font-weight="700" fill="#15803d">struct TuitionPlan (value type)</text>
+  <text x="639" y="164" font-size="14" fill="#14532d">every variable holds its own copy of all the fields</text>
+
+  <rect x="639" y="188" width="240" height="56" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="653" y="211" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">Math9</text>
+  <text x="653" y="233" font-size="13" fill="#475569" font-family="Consolas, 'Courier New', monospace">Toán 9  1800000  0</text>
+  <rect x="639" y="260" width="240" height="56" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="653" y="283" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">Bảo's plan</text>
+  <text x="653" y="305" font-size="13" fill="#475569" font-family="Consolas, 'Courier New', monospace">Toán 9  1800000  0</text>
+  <rect x="639" y="332" width="240" height="56" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="3"/>
+  <text x="653" y="355" font-size="14" fill="#15803d" font-family="Consolas, 'Courier New', monospace">Linh's plan</text>
+  <text x="653" y="377" font-size="13" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">Toán 9  1800000  50</text>
+  <rect x="639" y="404" width="240" height="56" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="653" y="427" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">Nam's plan</text>
+  <text x="653" y="449" font-size="13" fill="#475569" font-family="Consolas, 'Courier New', monospace">Toán 9  1800000  0</text>
+
+  <text x="905" y="226" font-size="14" fill="#14532d">the default</text>
+  <text x="905" y="298" font-size="14" fill="#14532d">a copy</text>
+  <text x="905" y="370" font-size="14" fill="#14532d">a copy, then 50%</text>
+  <text x="905" y="442" font-size="14" fill="#14532d">a copy</text>
+
+  <text x="639" y="492" font-size="15" fill="#14532d">The scholarship changes Linh's copy only.</text>
+  <text x="639" y="540" font-size="15" font-weight="700" fill="#15803d">Bảo 1800000, Linh 900000, Nam 1800000</text>
+
+  <!-- bottom notes -->
+  <text x="40" y="616" font-size="15" fill="#334155">Value types: int, long, decimal, double, bool, char, enums, structs (and tuples). Assignment copies the value.</text>
+  <text x="40" y="644" font-size="15" fill="#334155">Reference types: classes, arrays, string, List and Dictionary. Assignment copies the reference, not the object.</text>
+  <text x="40" y="684" font-size="15" font-weight="700" fill="#0f172a">Rule: before you change an object you got from somewhere else, ask who else holds a reference to it.</text>
+</svg>

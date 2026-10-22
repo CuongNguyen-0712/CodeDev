@@ -1,0 +1,133 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_csf_121",
+      "name": "nullable-operators-quiz",
+      "type": "quiz",
+      "title": "Predict it: ?., ?? and what the compiler checks",
+      "description": "Follow a guardian without a phone through ?. and ??, then decide which statements about nullable reference types are true.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Guardian has two properties, string? Phone and string? Email. What does this print?\n\nGuardian? g = new Guardian { Email = \"ha@example.vn\" };\n\nstring contact = g?.Phone ?? g?.Email ?? \"none\";\nint? length = g?.Phone?.Length;\n\nConsole.WriteLine($\"{contact} {length ?? -1}\");",
+          "explanation": "g is not null, so g?.Phone reads the property: it is null, because the initializer only set Email. ?? moves on to g?.Email, which is \"ha@example.vn\", so contact is the email and \"none\" is never used. In g?.Phone?.Length the second ?. sees a null Phone and the whole expression is null - an int? without a value, not 0. length ?? -1 then gives -1. Nothing throws: every access that could hit null goes through ?. (a plain g.Phone.Length would throw a NullReferenceException).",
+          "options": [
+            {
+              "text": "ha@example.vn -1",
+              "correct": true
+            },
+            {
+              "text": "none -1",
+              "correct": false
+            },
+            {
+              "text": "ha@example.vn 0",
+              "correct": false
+            },
+            {
+              "text": "It throws a NullReferenceException",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "A project has <Nullable>enable</Nullable> and no WarningsAsErrors. Which statements are true? (Select all that apply.)",
+          "explanation": "The ! operator only tells the compiler \"trust me\": phone!.Length compiles without a warning, and if phone is null it still throws a NullReferenceException at run time. After if (string.IsNullOrWhiteSpace(phone)) return; the compiler knows phone is not null, because the method is annotated [NotNullWhen(false)]. GetValueOrDefault(id) on a Dictionary<string, string> returns default(string), which is null, when the key is missing; its return type is string?. string? is an annotation for the compiler: nothing is checked at run time, and no ArgumentNullException appears by itself (ArgumentNullException.ThrowIfNull does that). string name = null; is a warning (CS8600), not an error, until you add <WarningsAsErrors>nullable</WarningsAsErrors>. x ??= y assigns y only when x is null.",
+          "options": [
+            {
+              "text": "string? phone = null; int n = phone!.Length; compiles without a warning and throws a NullReferenceException at run time",
+              "correct": true
+            },
+            {
+              "text": "After if (string.IsNullOrWhiteSpace(phone)) return; the compiler treats phone as not null",
+              "correct": true
+            },
+            {
+              "text": "phones.GetValueOrDefault(id) on a Dictionary<string, string> can return null",
+              "correct": true
+            },
+            {
+              "text": "Declaring a property as string? Phone makes the runtime throw an ArgumentNullException when it is read while null",
+              "correct": false
+            },
+            {
+              "text": "string name = null; is a compile error",
+              "correct": false
+            },
+            {
+              "text": "x ??= y assigns y to x every time it runs",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_csf_122",
+      "name": "fix-class-reminders-null",
+      "type": "fix_bug",
+      "title": "Fix the Sunday reminder job that crashes on missing contacts",
+      "description": "Every Sunday at 20:00 Sen Academy sends each guardian a reminder for Monday's class: by SMS when there is a phone number, by email otherwise, and the student is skipped when there is neither. Guardians may now register with an email only, older students may have no guardian on file, and a phone number changed through the Zalo form wins over the signup form. The job crashes with a NullReferenceException and nobody gets a reminder. Fix BuildReminder so that missing guardians, missing or blank phones and missing or blank emails are handled, and the updated phone is used whenever there is one. The test runner reads the students and the phone updates, then prints one reminder per student and the totals.",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "csharp",
+        "filePath": "main.cs",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Every guardian has a phone",
+          "input": "student|HS-1024|Nguyễn Gia Bảo|TOAN9-A|Nguyễn Văn Hùng|0912 345 678|\nstudent|HS-1026|Lê Hoàng Nam|TOAN9-A|Lê Minh Châu|0987 654 321|chau.le@example.vn\n",
+          "expected": "sms 0912345678: Nguyễn Gia Bảo (HS-1024) has TOAN9-A on Monday at 18:00\nsms 0987654321: Lê Hoàng Nam (HS-1026) has TOAN9-A on Monday at 18:00\nsms 2, email 0, skipped 0",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "An email-only guardian (the Sunday incident)",
+          "input": "student|HS-1024|Nguyễn Gia Bảo|TOAN9-A|Nguyễn Văn Hùng|0912 345 678|\nstudent|HS-1025|Trần Khánh Linh|TOAN9-A|Trần Thu Hà||thuha.tran@example.vn\n",
+          "expected": "sms 0912345678: Nguyễn Gia Bảo (HS-1024) has TOAN9-A on Monday at 18:00\nemail thuha.tran@example.vn: Trần Khánh Linh (HS-1025) has TOAN9-A on Monday at 18:00\nsms 1, email 1, skipped 0",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "No guardian on file",
+          "input": "student|HS-1030|Phan Anh Khoa|LY10-A|||\nstudent|HS-1027|Đỗ Mai Anh|LY10-A|Đỗ Văn Tâm|0903 222 333|\n",
+          "expected": "skip HS-1030: no contact\nsms 0903222333: Đỗ Mai Anh (HS-1027) has LY10-A on Monday at 18:00\nsms 1, email 0, skipped 1",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A Zalo update wins, even without a guardian or a signup phone",
+          "input": "student|HS-1024|Nguyễn Gia Bảo|ANH7-B|Nguyễn Văn Hùng|0912 345 678|\nstudent|HS-1025|Trần Khánh Linh|ANH7-B|Trần Thu Hà||thuha.tran@example.vn\nstudent|HS-1030|Phan Anh Khoa|ANH7-B|||\nupdate|HS-1024|0912 000 111\nupdate|HS-1025|0904 111 222\nupdate|HS-1030|0977 888 999\n",
+          "expected": "sms 0912000111: Nguyễn Gia Bảo (HS-1024) has ANH7-B on Monday at 18:00\nsms 0904111222: Trần Khánh Linh (HS-1025) has ANH7-B on Monday at 18:00\nsms 0977888999: Phan Anh Khoa (HS-1030) has ANH7-B on Monday at 18:00\nsms 3, email 0, skipped 0",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Blank phones and blank emails count as missing",
+          "input": "student|HS-1028|Vũ Đức Huy|HOA11-A|Vũ Thị Lan|   |lan.vu@example.vn\nstudent|HS-1029|Hoàng Thu Trang|HOA11-A|Hoàng Văn Phúc|  |  \nstudent|HS-1026|Lê Hoàng Nam|HOA11-A|Lê Minh Châu|0987 654 321| \n",
+          "expected": "email lan.vu@example.vn: Vũ Đức Huy (HS-1028) has HOA11-A on Monday at 18:00\nskip HS-1029: no contact\nsms 0987654321: Lê Hoàng Nam (HS-1026) has HOA11-A on Monday at 18:00\nsms 1, email 1, skipped 1",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A whole class with every case",
+          "input": "student|HS-1024|Nguyễn Gia Bảo|VAN8-A|Nguyễn Văn Hùng|0912 345 678|\nstudent|HS-1025|Trần Khánh Linh|VAN8-A|Trần Thu Hà||thuha.tran@example.vn\nstudent|HS-1026|Lê Hoàng Nam|VAN8-A|Lê Minh Châu||\nstudent|HS-1027|Đỗ Mai Anh|VAN8-A|Đỗ Văn Tâm| |tam.do@example.vn\nstudent|HS-1028|Vũ Đức Huy|VAN8-A|||\nstudent|HS-1029|Hoàng Thu Trang|VAN8-A|Hoàng Văn Phúc||phuc.hoang@example.vn\nstudent|HS-1030|Phan Anh Khoa|VAN8-A|||\nupdate|HS-1029|0966 123 456\nupdate|HS-1030|0977 888 999\n",
+          "expected": "sms 0912345678: Nguyễn Gia Bảo (HS-1024) has VAN8-A on Monday at 18:00\nemail thuha.tran@example.vn: Trần Khánh Linh (HS-1025) has VAN8-A on Monday at 18:00\nskip HS-1026: no contact\nemail tam.do@example.vn: Đỗ Mai Anh (HS-1027) has VAN8-A on Monday at 18:00\nskip HS-1028: no contact\nsms 0966123456: Hoàng Thu Trang (HS-1029) has VAN8-A on Monday at 18:00\nsms 0977888999: Phan Anh Khoa (HS-1030) has VAN8-A on Monday at 18:00\nsms 3, email 2, skipped 2",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

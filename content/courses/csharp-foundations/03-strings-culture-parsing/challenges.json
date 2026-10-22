@@ -1,0 +1,133 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_csf_131",
+      "name": "culture-parsing-quiz",
+      "type": "quiz",
+      "title": "Predict it: one string, two cultures",
+      "description": "Parse and format a score on a server with Vietnamese settings, then decide which string operations do what their authors expected.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The import worker runs with Vietnamese settings. What does this print?\n\nCultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(\"vi-VN\");\n\ndecimal score = decimal.Parse(\"8.5\");\nConsole.WriteLine($\"{score} {score / 10:F2}\");",
+          "explanation": "decimal.Parse without a culture uses the current culture. In vi-VN the dot is the thousands separator and the comma is the decimal separator, and the default NumberStyles accepts thousands separators anywhere, so \"8.5\" is read as 85 - no exception. score / 10 is 8.5, and both interpolation holes format with the current culture too: 85 prints as \"85\" and 8.5 with F2 as \"8,50\". The output is \"85 8,50\". \"8.5 0.85\" is what an invariant server prints. \"8,5 0,85\" would need the parse to be right and only the formatting to be Vietnamese. There is no FormatException: a misplaced group separator is accepted.",
+          "options": [
+            {
+              "text": "8.5 0.85",
+              "correct": false
+            },
+            {
+              "text": "8,5 0,85",
+              "correct": false
+            },
+            {
+              "text": "85 8,50",
+              "correct": true
+            },
+            {
+              "text": "It throws a FormatException",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which of these statements are true? (Select all that apply.)",
+          "explanation": "In the invariant culture the comma is the thousands separator, so decimal.Parse(\"8,5\", CultureInfo.InvariantCulture) returns 85: choosing the right culture is not enough when the input itself is wrong. NumberStyles.Float does not include AllowThousands, so TryParse with it rejects \"8,5\" and returns false - the row can be reported instead of imported as 85. Ordinal comparison with OrdinalIgnoreCase compares the characters ignoring case, so \"toan9-a\" equals \"TOAN9-A\". F1 is a fixed-point format, but its decimal separator still comes from the culture: on a vi-VN thread $\"{8.5m:F1}\" is \"8,5\". Strings are immutable: classCode.ToUpperInvariant() returns a new string, and without classCode = ... the result is lost. \"Nguyễn\".Length counts UTF-16 code units: 6 when ễ is one precomposed character, 8 when the same name arrives decomposed (e + two combining marks), for example pasted from some macOS apps.",
+          "options": [
+            {
+              "text": "decimal.Parse(\"8,5\", CultureInfo.InvariantCulture) returns 85",
+              "correct": true
+            },
+            {
+              "text": "decimal.TryParse(\"8,5\", NumberStyles.Float, CultureInfo.InvariantCulture, out var s) returns false",
+              "correct": true
+            },
+            {
+              "text": "\"toan9-a\".Equals(\"TOAN9-A\", StringComparison.OrdinalIgnoreCase) is true",
+              "correct": true
+            },
+            {
+              "text": "$\"{score:F1}\" always prints a dot, because F1 is a fixed-point format",
+              "correct": false
+            },
+            {
+              "text": "classCode.ToUpperInvariant(); changes classCode to upper case",
+              "correct": false
+            },
+            {
+              "text": "\"Nguyễn\".Length is always 6",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_csf_132",
+      "name": "fix-score-import-culture",
+      "type": "fix_bug",
+      "title": "Fix the score import on the Vietnamese server",
+      "description": "Teachers upload term scores with a dot for decimals (8.5). Since the import worker moved to a container image with Vietnamese settings, scores like 8.5 are read as 85 and rejected, and the CSV export writes 8,3, which adds a column for the reporting tools. The SMS to parents, on the other hand, must keep the Vietnamese decimal comma. Fix TryParseScore, CsvRow and SmsText so that parsing and the CSV export use the invariant culture, the SMS uses vi-VN, and none of them depends on the server's current culture. The test runner sets the current culture to vi-VN, reads one student per line and prints the CSV row and SMS text for every valid line, an error for every invalid one, and the totals.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "csharp",
+        "filePath": "main.cs",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: scores with decimals",
+          "input": "HS-1024,Nguyễn Gia Bảo,8.5,7,9.5\nHS-1025,Trần Khánh Linh,9,8.75,10\nHS-1026,Lê Hoàng Nam,6.5,7.5,8\n",
+          "expected": "csv HS-1024,Nguyễn Gia Bảo,8.3\nsms Nguyễn Gia Bảo - điểm trung bình 8,3\ncsv HS-1025,Trần Khánh Linh,9.3\nsms Trần Khánh Linh - điểm trung bình 9,3\ncsv HS-1026,Lê Hoàng Nam,7.3\nsms Lê Hoàng Nam - điểm trung bình 7,3\nexported 3, errors 0",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Whole-number scores: the export still breaks",
+          "input": "HS-1027,Đỗ Mai Anh,8,9,7\nHS-1028,Vũ Đức Huy,10,10,10\n",
+          "expected": "csv HS-1027,Đỗ Mai Anh,8.0\nsms Đỗ Mai Anh - điểm trung bình 8,0\ncsv HS-1028,Vũ Đức Huy,10.0\nsms Vũ Đức Huy - điểm trung bình 10,0\nexported 2, errors 0",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A score that is not a number",
+          "input": "HS-1024,Nguyễn Gia Bảo,8.5,7,9.5\nHS-1027,Đỗ Mai Anh,8,vắng,9\n",
+          "expected": "csv HS-1024,Nguyễn Gia Bảo,8.3\nsms Nguyễn Gia Bảo - điểm trung bình 8,3\nerror line 2: bad score 'vắng'\nexported 1, errors 1",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Averages that round half up",
+          "input": "HS-1029,Hoàng Thu Trang,8,8.5\nHS-1030,Phan Anh Khoa,6.2,6.5\nHS-1025,Trần Khánh Linh,9.25\n",
+          "expected": "csv HS-1029,Hoàng Thu Trang,8.3\nsms Hoàng Thu Trang - điểm trung bình 8,3\ncsv HS-1030,Phan Anh Khoa,6.4\nsms Phan Anh Khoa - điểm trung bình 6,4\ncsv HS-1025,Trần Khánh Linh,9.3\nsms Trần Khánh Linh - điểm trung bình 9,3\nexported 3, errors 0",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Out of range, malformed, missing and padded scores",
+          "input": "HS-1024,Nguyễn Gia Bảo,11,8\nHS-1025,Trần Khánh Linh,8,-1\nHS-1026,Lê Hoàng Nam,8.5.1\nHS-1027,Đỗ Mai Anh,7,1.000\nHS-1028,Vũ Đức Huy\nHS-1029,Hoàng Thu Trang,  9.5 ,8.25\n",
+          "expected": "error line 1: bad score '11'\nerror line 2: bad score '-1'\nerror line 3: bad score '8.5.1'\ncsv HS-1027,Đỗ Mai Anh,4.0\nsms Đỗ Mai Anh - điểm trung bình 4,0\nerror line 5: bad score ''\ncsv HS-1029,Hoàng Thu Trang,8.9\nsms Hoàng Thu Trang - điểm trung bình 8,9\nexported 2, errors 4",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A whole class",
+          "input": "HS-1024,Nguyễn Gia Bảo,8.5,7,9.5\nHS-1025,Trần Khánh Linh,9,8.75,10\nHS-1026,Lê Hoàng Nam,6.5,vắng,8\nHS-1027,Đỗ Mai Anh,0,4.5,5\nHS-1028,Vũ Đức Huy,7.25,7.75\nHS-1029,Hoàng Thu Trang,10\nHS-1030,Phan Anh Khoa,12,9\n",
+          "expected": "csv HS-1024,Nguyễn Gia Bảo,8.3\nsms Nguyễn Gia Bảo - điểm trung bình 8,3\ncsv HS-1025,Trần Khánh Linh,9.3\nsms Trần Khánh Linh - điểm trung bình 9,3\nerror line 3: bad score 'vắng'\ncsv HS-1027,Đỗ Mai Anh,3.2\nsms Đỗ Mai Anh - điểm trung bình 3,2\ncsv HS-1028,Vũ Đức Huy,7.5\nsms Vũ Đức Huy - điểm trung bình 7,5\ncsv HS-1029,Hoàng Thu Trang,10.0\nsms Hoàng Thu Trang - điểm trung bình 10,0\nerror line 7: bad score '12'\nexported 5, errors 2",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

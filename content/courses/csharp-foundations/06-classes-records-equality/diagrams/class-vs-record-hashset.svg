@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+  </defs>
+  <rect width="1200" height="720" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">One enrollment from two sources: what HashSet.Add sees</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Bảo's October enrollment arrives from the website and from the front desk: HS-1024, TOAN9-A, 2026-10</text>
+
+  <!-- left: class -->
+  <rect x="40" y="108" width="540" height="420" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="60" y="142" font-size="18" font-weight="700" fill="#b91c1c">class Enrollment (before)</text>
+  <text x="60" y="166" font-size="14" fill="#7f1d1d">Equals and GetHashCode come from object: identity</text>
+
+  <rect x="60" y="186" width="230" height="84" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="74" y="210" font-size="13" fill="#475569">object #1 (website)</text>
+  <text x="74" y="236" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">HS-1024 TOAN9-A</text>
+  <text x="74" y="258" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">2026-10</text>
+  <rect x="320" y="186" width="230" height="84" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="334" y="210" font-size="13" fill="#475569">object #2 (front desk)</text>
+  <text x="334" y="236" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">HS-1024 TOAN9-A</text>
+  <text x="334" y="258" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">2026-10</text>
+
+  <text x="60" y="302" font-size="14" fill="#334155">hash #1 = 46104728   hash #2 = 12289376</text>
+  <text x="60" y="324" font-size="13" fill="#64748b">(from the object's identity - the numbers change every run)</text>
+  <line x1="175" y1="334" x2="175" y2="380" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="435" y1="334" x2="435" y2="380" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <rect x="60" y="384" width="230" height="52" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="74" y="416" font-size="14" fill="#b91c1c">bucket 3: object #1</text>
+  <rect x="320" y="384" width="230" height="52" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="334" y="416" font-size="14" fill="#b91c1c">bucket 11: object #2</text>
+  <text x="60" y="470" font-size="15" font-weight="700" fill="#b91c1c">Different buckets: Equals is never called.</text>
+  <text x="60" y="496" font-size="15" fill="#7f1d1d">Add returns true twice - Bảo is billed twice.</text>
+
+  <!-- right: record -->
+  <rect x="620" y="108" width="540" height="420" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="640" y="142" font-size="18" font-weight="700" fill="#15803d">record Enrollment (after)</text>
+  <text x="640" y="166" font-size="14" fill="#14532d">Equals and GetHashCode are generated from the values</text>
+
+  <rect x="640" y="186" width="230" height="84" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="654" y="210" font-size="13" fill="#475569">object #1 (website)</text>
+  <text x="654" y="236" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">HS-1024 TOAN9-A</text>
+  <text x="654" y="258" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">2026-10</text>
+  <rect x="900" y="186" width="230" height="84" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="914" y="210" font-size="13" fill="#475569">object #2 (front desk)</text>
+  <text x="914" y="236" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">HS-1024 TOAN9-A</text>
+  <text x="914" y="258" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">2026-10</text>
+
+  <text x="640" y="302" font-size="14" fill="#334155">hash #1 = hash #2 (computed from the 3 values)</text>
+  <text x="640" y="324" font-size="13" fill="#64748b">same bucket, so HashSet asks Equals: true</text>
+  <line x1="755" y1="334" x2="880" y2="380" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="1015" y1="334" x2="900" y2="380" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <rect x="760" y="384" width="260" height="52" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="776" y="416" font-size="14" fill="#15803d">bucket 7: object #1 only</text>
+  <text x="640" y="470" font-size="15" font-weight="700" fill="#15803d">Second Add returns false: one invoice line.</text>
+  <text x="640" y="496" font-size="15" fill="#14532d">4 rows in, 3 enrollments to bill.</text>
+
+  <!-- bottom -->
+  <rect x="40" y="552" width="1120" height="140" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="60" y="584" font-size="16" font-weight="700" fill="#0f172a">How a HashSet or a Dictionary finds an item</text>
+  <text x="60" y="612" font-size="14" fill="#334155">1. GetHashCode picks the bucket.  2. Equals compares only with the items in that bucket.</text>
+  <text x="60" y="638" font-size="14" fill="#334155">Equal objects MUST have equal hash codes. Override both or neither - or use a record, which generates both.</text>
+  <text x="60" y="664" font-size="14" fill="#334155">Never change a property that is part of the key while the object is in the set: its bucket would be wrong.</text>
+</svg>

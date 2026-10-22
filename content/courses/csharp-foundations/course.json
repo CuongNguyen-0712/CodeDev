@@ -5,7 +5,7 @@
   "description": "Start C# the way .NET teams write it today: value and reference types, nullable reference types, strings and culture-safe parsing, List and Dictionary, LINQ, classes and records, pattern matching and exceptions. 9 lessons, each starting from a real bug or incident, with graded challenges.",
   "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792641973/codedev/courses/csharp-foundations/cover",
   "level": "beginner",
-  "durationMinutes": 180,
+  "durationMinutes": 189,
   "instructor": "CodeDev Engineering Team",
   "language": "C#",
   "category": "C# Development",
@@ -29,26 +29,28 @@
     "first_job",
     "change_career"
   ],
-  "modules": [],
-  "outline": [
+  "modules": [
     {
       "orderIndex": 1,
       "title": "Basics",
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "01-types-value-reference",
           "title": "Types, var & value vs reference",
-          "challenges": "Q(e) + C(e)"
+          "sanityId": "lesson-csf-1-1"
         },
         {
           "orderIndex": 2,
+          "folder": "02-nullable-reference-types",
           "title": "Nullable reference types & the NullReferenceException",
-          "challenges": "Q(e) + F(e)"
+          "sanityId": "lesson-csf-1-2"
         },
         {
           "orderIndex": 3,
+          "folder": "03-strings-culture-parsing",
           "title": "Strings, interpolation & culture-safe parsing",
-          "challenges": "Q(m) + F(m)"
+          "sanityId": "lesson-csf-1-3"
         }
       ]
     },
@@ -58,13 +60,15 @@
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "04-list-dictionary-hashset",
           "title": "List, Dictionary & HashSet",
-          "challenges": "C(m)"
+          "sanityId": "lesson-csf-2-1"
         },
         {
           "orderIndex": 2,
+          "folder": "05-linq-deferred-execution",
           "title": "LINQ: Where, Select, GroupBy & deferred execution",
-          "challenges": "Q(m) + F(m)"
+          "sanityId": "lesson-csf-2-2"
         }
       ]
     },
@@ -74,13 +78,15 @@
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "06-classes-records-equality",
           "title": "Classes, records & equality",
-          "challenges": "Q(m) + C(m)"
+          "sanityId": "lesson-csf-3-1"
         },
         {
           "orderIndex": 2,
+          "folder": "07-pattern-matching-switch",
           "title": "Pattern matching & switch expressions",
-          "challenges": "C(m)"
+          "sanityId": "lesson-csf-3-2"
         }
       ]
     },
@@ -90,13 +96,15 @@
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "08-exceptions-tryparse-guards",
           "title": "Exceptions, TryParse & guard clauses",
-          "challenges": "F(m)"
+          "sanityId": "lesson-csf-4-1"
         },
         {
           "orderIndex": 2,
+          "folder": "09-mini-project-grade-report",
           "title": "Mini project: a grade report",
-          "challenges": "C(h)"
+          "sanityId": "lesson-csf-4-2"
         }
       ]
     }

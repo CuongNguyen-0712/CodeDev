@@ -1,0 +1,140 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_csf_311",
+      "name": "records-equality-quiz",
+      "type": "quiz",
+      "title": "Predict it: equality, with-expressions and hash codes",
+      "description": "Follow a record with a list inside through a with-expression, then decide which statements about class and record equality are true.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this program print?\n\nvar a = new Course(\"TOAN9-A\", [\"HS-1024\"]);\nvar b = a with { };\nb.Students.Add(\"HS-1025\");\nvar c = new Course(\"TOAN9-A\", [\"HS-1024\", \"HS-1025\"]);\nConsole.WriteLine($\"{a == b} {a.Students.Count} {a == c}\");\n\nrecord Course(string Code, List<string> Students);",
+          "explanation": "A with-expression makes a shallow copy: b is a new Course, but its Students property holds the same List<string> reference as a's. b.Students.Add therefore adds to the one list both records share, so a.Students.Count is 2. Record equality compares each property with its default equality: Code is equal, and Students is the same reference, so a == b is True. c has its own list with the same two ids, but List<T> does not override Equals, so the lists are compared by reference and a == c is False. \"False 1 False\" would need with to copy the list (a deep copy); \"True 2 True\" would need records to compare list contents.",
+          "options": [
+            {
+              "text": "False 1 False",
+              "correct": false
+            },
+            {
+              "text": "True 2 False",
+              "correct": true
+            },
+            {
+              "text": "True 2 True",
+              "correct": false
+            },
+            {
+              "text": "False 2 True",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which of these statements are true? (Select all that apply.)",
+          "explanation": "HashSet first compares hash codes and only calls Equals for items in the same bucket. A class that overrides Equals but not GetHashCode keeps object's reference-based hash code, so two equal objects usually land in different buckets and both stay in the set (the compiler warns with CS0659). For classes, == compares references unless the class declares operator ==; overriding Equals does not change it. The properties of a positional record are init-only, so e.StudentId = \"x\" after construction is error CS8852. A readonly record struct gets value-based Equals and GetHashCode, so it works as a Dictionary or HashSet key. Records compare strings with the default string equality, which is ordinal and case-sensitive: \"hs-1024\" and \"HS-1024\" are different, so normalize before you build the record. with copies the property values; a property that holds a list still points at the same list.",
+          "options": [
+            {
+              "text": "A class that overrides Equals but not GetHashCode can end up twice in a HashSet even though the two objects are Equal",
+              "correct": true
+            },
+            {
+              "text": "Once a class overrides Equals, a == b on two of its instances calls that Equals",
+              "correct": false
+            },
+            {
+              "text": "With record Enrollment(string StudentId, string ClassCode, string Month), writing e.StudentId = \"HS-1025\" after construction does not compile",
+              "correct": true
+            },
+            {
+              "text": "readonly record struct ClassTerm(string ClassCode, string Term) can be used as a Dictionary key: two keys with the same class code and term find the same entry",
+              "correct": true
+            },
+            {
+              "text": "Records compare strings ignoring letter case, so new Enrollment(\"hs-1024\", ...) equals new Enrollment(\"HS-1024\", ...)",
+              "correct": false
+            },
+            {
+              "text": "a with { Month = \"2026-11\" } makes a deep copy: lists inside a are copied too",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_csf_312",
+      "name": "merge-score-sheets",
+      "type": "mini_coding",
+      "title": "Merge the score sheets without counting a test twice",
+      "description": "Sen Academy's term averages are computed from test scores that arrive from two sources: teachers type them into the portal and the online quiz system sends the ones it graded. Some tests arrive from both, typed in lower case or written as 8.50 instead of 8.5, and were counted twice. Write ParseRow, Deduplicate and GroupByClassTerm: build a normalized record per row, remove exact duplicates with value equality, and group the rows by a (class, term) record key. The test runner reads one score per line and prints the row counts and, per class and term, the number of scores, students and the average.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "csharp",
+        "filePath": "main.cs",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The example: one test typed twice",
+          "input": "HS-1024 TOAN9-A HK1 KT15-1 8.5\nHS-1025 TOAN9-A HK1 KT15-1 7\nhs-1024 toan9-a hk1 kt15-1 8.50\nHS-1024 TOAN9-A HK1 KT15-2 9\n",
+          "expected": "rows 4, unique 3\nTOAN9-A HK1: 3 scores from 2 students, average 8.17",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Lower case and 8.50 from the quiz system",
+          "input": "HS-1026 ANH7-B HK1 KT45-1 6.50\nhs-1026 anh7-b HK1 KT45-1 6.5\nHS-1027 ANH7-B HK1 KT45-1 9\nHS-1027 ANH7-B hk1 kt45-1 9.0\n",
+          "expected": "rows 4, unique 2\nANH7-B HK1: 2 scores from 2 students, average 7.75",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Different tests with the same score are different rows",
+          "input": "HS-1028 LY10-A HK1 KT15-1 8\nHS-1028 LY10-A HK1 KT15-2 8\nHS-1028 LY10-A HK1 KT45-1 8\nHS-1029 LY10-A HK1 KT15-1 5.5\n",
+          "expected": "rows 4, unique 4\nLY10-A HK1: 4 scores from 2 students, average 7.38",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Several classes and terms, sorted",
+          "input": "HS-1030 TOAN9-A HK2 KT15-1 7.25\nHS-1024 TOAN9-A HK1 KT15-1 8.5\nHS-1031 VAN8-A HK1 KT15-1 6\nHS-1026 ANH7-B HK2 KT15-1 9.5\nHS-1032 HOA11-A HK1 KT15-1 4.75\nHS-1026 ANH7-B HK1 KT15-1 8\nhs-1030 toan9-a hk2 kt15-1 7.250\nHS-1033 HOA11-A HK1 KT15-1 6\n",
+          "expected": "rows 8, unique 7\nANH7-B HK1: 1 scores from 1 students, average 8.00\nANH7-B HK2: 1 scores from 1 students, average 9.50\nHOA11-A HK1: 2 scores from 2 students, average 5.38\nTOAN9-A HK1: 1 scores from 1 students, average 8.50\nTOAN9-A HK2: 1 scores from 1 students, average 7.25\nVAN8-A HK1: 1 scores from 1 students, average 6.00",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "The same row three times, extra spaces",
+          "input": "HS-1024  TOAN9-A HK1 KT15-1 8.5\nHS-1024 TOAN9-A  HK1 KT15-1   8.5\nhs-1024 TOAN9-A HK1 KT15-1 8.50\nHS-1025 TOAN9-A HK1 KT15-1 7.5\n",
+          "expected": "rows 4, unique 2\nTOAN9-A HK1: 2 scores from 2 students, average 8.00",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A class typed in lower case is still one group",
+          "input": "hs-1027 van8-a hk2 kt15-1 7\nhs-1028 van8-a hk2 kt15-1 8\nHS-1029 VAN8-A HK2 KT15-1 9\nHS-1029 VAN8-A HK2 KT15-2 6.75\n",
+          "expected": "rows 4, unique 4\nVAN8-A HK2: 4 scores from 3 students, average 7.69",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "No scores yet",
+          "input": "",
+          "expected": "rows 0, unique 0",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

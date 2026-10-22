@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="720" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">TermReport: five steps, and the v1 bug each step removes</text>
+  <text x="40" y="82" font-size="16" fill="#475569">scores.csv in, one line per student and class out - the same on every server</text>
+
+  <text x="40" y="118" font-size="14" font-weight="700" fill="#15803d">TermReport (new)</text>
+  <text x="700" y="118" font-size="14" font-weight="700" fill="#b91c1c">v1 (the script it replaces)</text>
+
+  <!-- Step 1 -->
+  <rect x="40" y="130" width="620" height="100" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="60" y="158" font-size="16" font-weight="700" fill="#15803d">1. Parse each line</text>
+  <text x="60" y="184" font-size="13" fill="#166534" font-family="Consolas, 'Courier New', monospace">decimal.TryParse(text, NumberStyles.Float, InvariantCulture, ...)</text>
+  <text x="60" y="210" font-size="13" fill="#166534">5 fields, known component, number, 0-10 - or "line N: reason"</text>
+  <rect x="700" y="130" width="460" height="100" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="720" y="160" font-size="13" fill="#7f1d1d">decimal.Parse(f[4]) with the server's culture:</text>
+  <text x="720" y="182" font-size="13" fill="#7f1d1d">on Long Biên (vi-VN) "8.5" is 85.</text>
+  <text x="720" y="204" font-size="13" fill="#7f1d1d">"midterm" was skipped without a word.</text>
+  <line x1="660" y1="180" x2="700" y2="180" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4 4"/>
+
+  <!-- Step 2 -->
+  <rect x="40" y="244" width="620" height="80" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="60" y="272" font-size="16" font-weight="700" fill="#15803d">2. Keep the latest score per key</text>
+  <text x="60" y="300" font-size="13" fill="#166534" font-family="Consolas, 'Courier New', monospace">latest[new ScoreKey(student, class, component)] = line</text>
+  <rect x="700" y="244" width="460" height="80" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="720" y="274" font-size="13" fill="#7f1d1d">Nam's midterm counted twice: the hotfix's 0</text>
+  <text x="720" y="296" font-size="13" fill="#7f1d1d">and the make-up exam's 7 - average 5.5.</text>
+  <line x1="660" y1="284" x2="700" y2="284" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4 4"/>
+
+  <!-- Step 3 -->
+  <rect x="40" y="338" width="620" height="80" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="60" y="366" font-size="16" font-weight="700" fill="#15803d">3. Group per student AND class</text>
+  <text x="60" y="394" font-size="13" fill="#166534" font-family="Consolas, 'Courier New', monospace">latest.Values.GroupBy(s =&gt; (s.Student, s.Class))</text>
+  <rect x="700" y="338" width="460" height="80" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="720" y="368" font-size="13" fill="#7f1d1d">Keyed by student id only: Bảo's Toán 9</text>
+  <text x="720" y="390" font-size="13" fill="#7f1d1d">and Tiếng Anh 7 mixed into one 7.8.</text>
+  <line x1="660" y1="378" x2="700" y2="378" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4 4"/>
+
+  <!-- Step 4 -->
+  <rect x="40" y="432" width="620" height="100" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="60" y="460" font-size="16" font-weight="700" fill="#15803d">4. Weighted average in decimal</text>
+  <text x="60" y="486" font-size="13" fill="#166534" font-family="Consolas, 'Courier New', monospace">Math.Round(0.3 hw + 0.3 mid + 0.4 final, 1, AwayFromZero)</text>
+  <text x="60" y="512" font-size="13" fill="#166534">null when a component is missing: the student is incomplete</text>
+  <rect x="700" y="432" width="460" height="100" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="720" y="462" font-size="13" fill="#7f1d1d">Math.Round(x, 1) rounds a half to even:</text>
+  <text x="720" y="484" font-size="13" fill="#7f1d1d">Trang's 6.45 became 6.4, Trung bình.</text>
+  <text x="720" y="506" font-size="13" fill="#7f1d1d">Mai Anh got 8.7 from two of three scores.</text>
+  <line x1="660" y1="482" x2="700" y2="482" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4 4"/>
+
+  <!-- Step 5 -->
+  <rect x="40" y="546" width="620" height="120" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="60" y="574" font-size="16" font-weight="700" fill="#15803d">5. Rank, sort, format</text>
+  <text x="60" y="600" font-size="13" fill="#166534" font-family="Consolas, 'Courier New', monospace">average switch { &gt;= 8.0m =&gt; "Giỏi", ... }</text>
+  <text x="60" y="624" font-size="13" fill="#166534" font-family="Consolas, 'Courier New', monospace">OrderBy(class).ThenByDescending(avg).ThenBy(name)</text>
+  <text x="60" y="648" font-size="13" fill="#166534" font-family="Consolas, 'Courier New', monospace">string.Create(CultureInfo.InvariantCulture, $"...")</text>
+  <rect x="700" y="546" width="460" height="120" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="720" y="578" font-size="13" fill="#7f1d1d">Printed with the current culture:</text>
+  <text x="720" y="600" font-size="13" fill="#7f1d1d">"291,3 Giỏi" on Long Biên.</text>
+  <text x="720" y="622" font-size="13" fill="#7f1d1d">Printed in dictionary order, which is</text>
+  <text x="720" y="644" font-size="13" fill="#7f1d1d">the order the lines happened to arrive in.</text>
+  <line x1="660" y1="606" x2="700" y2="606" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4 4"/>
+
+  <text x="40" y="698" font-size="14" fill="#334155">Each step is a small function with its own check - and each v1 bug is one lesson of this course.</text>
+</svg>

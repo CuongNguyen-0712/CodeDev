@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="720" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Where the catch sits decides what one bad line costs</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The same six lines of scores-2026-10-20.csv, imported three ways</text>
+
+  <!-- Column 1: v1 -->
+  <rect x="40" y="104" width="360" height="400" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="60" y="134" font-size="17" font-weight="700" fill="#334155">v1: one try around the loop</text>
+  <text x="60" y="158" font-size="12" fill="#475569" font-family="Consolas, 'Courier New', monospace">try { foreach ... } catch (Exception)</text>
+  <g font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#94a3b8">
+    <text x="60" y="196">2  HS-1024 8.5</text>
+    <text x="60" y="226">3  HS-1025 9</text>
+    <text x="60" y="256" fill="#b91c1c" font-weight="700">4  HS-1026 vắng</text>
+    <text x="60" y="286">5  HS-1027 7.25</text>
+    <text x="60" y="316">6  HS-1028 (cut off)</text>
+    <text x="60" y="346">7  HS-1029 85</text>
+  </g>
+  <text x="236" y="256" font-size="13" font-weight="700" fill="#b91c1c">FormatException</text>
+  <line x1="236" y1="270" x2="236" y2="356" stroke="#dc2626" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="246" y="376" font-size="12" fill="#b91c1c">lines 5-7 never read</text>
+  <rect x="60" y="392" width="320" height="90" rx="8" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="76" y="420" font-size="14" font-weight="700" fill="#b91c1c">0 of 6 saved</text>
+  <text x="76" y="444" font-size="13" fill="#7f1d1d">Save() is after the loop and never runs.</text>
+  <text x="76" y="466" font-size="13" fill="#7f1d1d">The log has one line: "import failed".</text>
+
+  <!-- Column 2: hotfix -->
+  <rect x="420" y="104" width="360" height="400" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="440" y="134" font-size="17" font-weight="700" fill="#b91c1c">Hotfix: catch-all per row</text>
+  <text x="440" y="158" font-size="12" fill="#7f1d1d" font-family="Consolas, 'Courier New', monospace">catch (Exception) { score = 0; }</text>
+  <g font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155">
+    <text x="440" y="196">2  HS-1024 8.5</text>
+    <text x="440" y="226">3  HS-1025 9</text>
+    <text x="440" y="256">4  HS-1026 vắng</text>
+    <text x="440" y="286">5  HS-1027 7.25</text>
+    <text x="440" y="316">6  HS-1028 (cut off)</text>
+    <text x="440" y="346">7  HS-1029 85</text>
+  </g>
+  <g font-size="13" font-weight="700">
+    <text x="640" y="196" fill="#15803d">8.5</text>
+    <text x="640" y="226" fill="#15803d">9</text>
+    <text x="640" y="256" fill="#b91c1c">0 (was absent)</text>
+    <text x="640" y="286" fill="#15803d">7.25</text>
+    <text x="640" y="316" fill="#b91c1c">0 (IndexOutOf...)</text>
+    <text x="640" y="346" fill="#b91c1c">85 (out of 10)</text>
+  </g>
+  <rect x="440" y="392" width="320" height="90" rx="8" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="456" y="420" font-size="14" font-weight="700" fill="#b91c1c">6 of 6 saved, 3 of them wrong</text>
+  <text x="456" y="444" font-size="13" fill="#7f1d1d">No error anywhere: the catch also</text>
+  <text x="456" y="466" font-size="13" fill="#7f1d1d">swallows the bugs it was not written for.</text>
+
+  <!-- Column 3: fix -->
+  <rect x="800" y="104" width="360" height="400" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="820" y="134" font-size="17" font-weight="700" fill="#15803d">Fix: validate each line</text>
+  <text x="820" y="158" font-size="12" fill="#166534" font-family="Consolas, 'Courier New', monospace">TryParse + checks, report + go on</text>
+  <g font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#334155">
+    <text x="820" y="196">2  HS-1024 8.5</text>
+    <text x="820" y="226">3  HS-1025 9</text>
+    <text x="820" y="256">4  HS-1026 vắng</text>
+    <text x="820" y="286">5  HS-1027 7.25</text>
+    <text x="820" y="316">6  HS-1028 (cut off)</text>
+    <text x="820" y="346">7  HS-1029 85</text>
+  </g>
+  <g font-size="13" font-weight="700">
+    <text x="1020" y="196" fill="#15803d">8.5</text>
+    <text x="1020" y="226" fill="#15803d">9</text>
+    <text x="1020" y="256" fill="#15803d">absent</text>
+    <text x="1020" y="286" fill="#15803d">7.25</text>
+    <text x="1020" y="316" fill="#b45309">error, line 6</text>
+    <text x="1020" y="346" fill="#b45309">error, line 7</text>
+  </g>
+  <rect x="820" y="392" width="320" height="90" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="836" y="420" font-size="14" font-weight="700" fill="#15803d">4 saved (1 absent), 2 reported</text>
+  <text x="836" y="444" font-size="13" fill="#166534">The teacher gets the line numbers</text>
+  <text x="836" y="466" font-size="13" fill="#166534">and the reasons the next morning.</text>
+
+  <!-- Bottom: rules -->
+  <rect x="40" y="528" width="1120" height="164" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="560" font-size="16" font-weight="700" fill="#334155">Catch only what you can handle, where you can handle it</text>
+  <text x="64" y="592" font-size="14" fill="#334155">Expected bad input (a word, a cut-off line): check it with TryParse and if, or catch the one exception type for it</text>
+  <text x="64" y="616" font-size="14" fill="#334155">around ONE line, and report it with the line number. The import goes on.</text>
+  <text x="64" y="648" font-size="14" fill="#334155">Unexpected exceptions are bugs: let them reach the top of the job, log them with the stack trace, exit with an error</text>
+  <text x="64" y="672" font-size="14" fill="#334155">code and alert someone. catch (Exception) that carries on turns a crash you would see into data you cannot trust.</text>
+</svg>

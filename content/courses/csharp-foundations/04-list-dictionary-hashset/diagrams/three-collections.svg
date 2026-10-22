@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="720" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">List, Dictionary, HashSet: pick the collection by the question you ask</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The enrollment dashboard needs all three: an order of seats, a lookup by course, and "is this student already in?"</text>
+
+  <!-- List -->
+  <rect x="40" y="108" width="360" height="370" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="60" y="140" font-size="18" font-weight="700" fill="#1d4ed8" font-family="Consolas, 'Courier New', monospace">List&lt;string&gt;</text>
+  <text x="60" y="164" font-size="14" fill="#1e3a8a">ordered, indexed, duplicates allowed</text>
+  <rect x="60" y="180" width="320" height="36" fill="#ffffff" stroke="#93c5fd" stroke-width="2"/>
+  <text x="72" y="204" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">[0] HS-1024</text>
+  <rect x="60" y="216" width="320" height="36" fill="#ffffff" stroke="#93c5fd" stroke-width="2"/>
+  <text x="72" y="240" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">[1] HS-1026</text>
+  <rect x="60" y="252" width="320" height="36" fill="#ffffff" stroke="#93c5fd" stroke-width="2"/>
+  <text x="72" y="276" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">[2] HS-1027</text>
+  <text x="60" y="318" font-size="14" fill="#334155">list[i], Add: fast</text>
+  <text x="60" y="342" font-size="14" fill="#334155">Contains, Remove, Insert(0, x): walk or</text>
+  <text x="60" y="362" font-size="14" fill="#334155">shift the whole list</text>
+  <text x="60" y="400" font-size="14" font-weight="700" fill="#b91c1c">trap: Remove inside foreach</text>
+  <text x="60" y="422" font-size="13" fill="#b91c1c">InvalidOperationException: Collection</text>
+  <text x="60" y="442" font-size="13" fill="#b91c1c">was modified. Use RemoveAll(...)</text>
+
+  <!-- Dictionary -->
+  <rect x="420" y="108" width="360" height="370" rx="10" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="440" y="140" font-size="18" font-weight="700" fill="#b45309" font-family="Consolas, 'Courier New', monospace">Dictionary&lt;K, V&gt;</text>
+  <text x="440" y="164" font-size="14" fill="#78350f">one value per key, found by the key</text>
+  <rect x="440" y="180" width="320" height="36" fill="#ffffff" stroke="#fcd34d" stroke-width="2"/>
+  <text x="452" y="204" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">"ANH7-B"  -&gt; 3</text>
+  <rect x="440" y="216" width="320" height="36" fill="#ffffff" stroke="#fcd34d" stroke-width="2"/>
+  <text x="452" y="240" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">"TOAN9-A" -&gt; 28</text>
+  <rect x="440" y="252" width="320" height="36" fill="#ffffff" stroke="#fcd34d" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="452" y="276" font-size="14" fill="#94a3b8" font-family="Consolas, 'Courier New', monospace">"LY10-A"  (missing)</text>
+  <text x="440" y="318" font-size="14" fill="#334155">d[key] = v: adds or overwrites</text>
+  <text x="440" y="342" font-size="14" fill="#334155">TryGetValue, GetValueOrDefault:</text>
+  <text x="440" y="362" font-size="14" fill="#334155">read without throwing</text>
+  <text x="440" y="400" font-size="14" font-weight="700" fill="#b91c1c">trap: reading a missing key</text>
+  <text x="440" y="422" font-size="13" fill="#b91c1c">d["LY10-A"] and d["LY10-A"]++ throw</text>
+  <text x="440" y="442" font-size="13" fill="#b91c1c">KeyNotFoundException</text>
+
+  <!-- HashSet -->
+  <rect x="800" y="108" width="360" height="370" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="820" y="140" font-size="18" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">HashSet&lt;string&gt;</text>
+  <text x="820" y="164" font-size="14" fill="#14532d">each item once, no order you can rely on</text>
+  <rect x="820" y="180" width="320" height="108" rx="40" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="850" y="222" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">HS-1024   HS-1026</text>
+  <text x="850" y="252" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">HS-1027</text>
+  <text x="820" y="318" font-size="14" fill="#334155">Add(x) returns false if x is there</text>
+  <text x="820" y="342" font-size="14" fill="#334155">Contains, Remove: fast</text>
+  <text x="820" y="362" font-size="14" fill="#334155">UnionWith, IntersectWith, ExceptWith</text>
+  <text x="820" y="400" font-size="14" font-weight="700" fill="#15803d">tip: say what "equal" means</text>
+  <text x="820" y="422" font-size="13" fill="#14532d">new(StringComparer.OrdinalIgnoreCase)</text>
+  <text x="820" y="442" font-size="13" fill="#14532d">treats hs-1024 and HS-1024 as one id</text>
+
+  <!-- Incident vs fix -->
+  <rect x="40" y="500" width="550" height="190" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="60" y="532" font-size="16" font-weight="700" fill="#b91c1c">First day of term, ANH7-B (3 seats)</text>
+  <text x="60" y="562" font-size="14" fill="#7f1d1d">08:02  counts[course]++ on a new course:</text>
+  <text x="110" y="584" font-size="14" fill="#7f1d1d">KeyNotFoundException, dashboard down</text>
+  <text x="60" y="614" font-size="14" fill="#7f1d1d">08:40  hotfix with ContainsKey: Bảo's double-click</text>
+  <text x="110" y="636" font-size="14" fill="#7f1d1d">counts as 2 seats, ANH7-B "full" at 2 students,</text>
+  <text x="110" y="658" font-size="14" fill="#7f1d1d">HS-1027 sent to the waitlist</text>
+
+  <rect x="610" y="500" width="550" height="190" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="630" y="532" font-size="16" font-weight="700" fill="#15803d">The fix: count students, not clicks</text>
+  <text x="630" y="564" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">Dictionary&lt;string, HashSet&lt;string&gt;&gt;</text>
+  <text x="630" y="594" font-size="14" fill="#14532d">course -&gt; the set of its students</text>
+  <text x="630" y="622" font-size="14" fill="#14532d">set.Add(student) is false for the second click</text>
+  <text x="630" y="650" font-size="14" fill="#14532d">seats taken = set.Count; cancel = set.Remove</text>
+</svg>

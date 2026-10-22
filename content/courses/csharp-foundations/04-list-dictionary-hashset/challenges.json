@@ -1,0 +1,73 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_csf_211",
+      "name": "class-rosters-waitlist",
+      "type": "mini_coding",
+      "title": "Build the class rosters with a waitlist",
+      "description": "On the first day of term, Sen Academy's portal replays the sign-up log to build every class roster. Write Enroll, Cancel and Report: give each sign-up a seat while the class has room and put the rest on a first-come-first-served waitlist, ignore repeated sign-ups (student ids are case-insensitive), move the first waiting student into a seat when an enrolled student cancels, and print one line per class sorted by course code. The test runner reads capacity, enroll and cancel commands and prints your report.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "csharp",
+        "filePath": "main.cs",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The example: a double-click and a full class",
+          "input": "capacity ANH7-B 3\nenroll HS-1024 ANH7-B\nenroll HS-1024 ANH7-B\nenroll HS-1026 ANH7-B\nenroll HS-1027 ANH7-B\nenroll HS-1028 ANH7-B\n",
+          "expected": "ANH7-B 3/3: HS-1024, HS-1026, HS-1027 | waitlist: HS-1028",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A cancellation gives the seat to the first waiting student",
+          "input": "capacity TOAN9-A 2\ncapacity ANH7-B 2\nenroll HS-1024 ANH7-B\nenroll HS-1025 TOAN9-A\nenroll HS-1026 ANH7-B\nenroll HS-1027 ANH7-B\nenroll HS-1028 ANH7-B\ncancel HS-1024 ANH7-B\n",
+          "expected": "ANH7-B 2/2: HS-1026, HS-1027 | waitlist: HS-1028\nTOAN9-A 1/2: HS-1025 | waitlist: -",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Student ids are case-insensitive",
+          "input": "capacity LY10-A 2\nenroll HS-1029 LY10-A\nenroll hs-1029 LY10-A\nenroll Hs-1030 LY10-A\nenroll HS-1031 LY10-A\ncancel hs-1030 LY10-A\n",
+          "expected": "LY10-A 2/2: HS-1029, HS-1031 | waitlist: -",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Cancelling a waiting student, a stranger, and signing up again",
+          "input": "capacity ANH7-B 1\nenroll HS-1024 ANH7-B\nenroll HS-1026 ANH7-B\nenroll HS-1027 ANH7-B\nenroll HS-1028 ANH7-B\ncancel HS-1027 ANH7-B\ncancel HS-1099 ANH7-B\nenroll HS-1027 ANH7-B\ncancel HS-1024 ANH7-B\n",
+          "expected": "ANH7-B 1/1: HS-1026 | waitlist: HS-1028, HS-1027",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Unknown courses, an empty class and a class with no seats",
+          "input": "capacity VAN8-A 0\ncapacity HOA11-A 25\ncapacity TOAN9-A 1\nenroll HS-1024 TOAN10-B\nenroll HS-1025 VAN8-A\nenroll HS-1026 VAN8-A\ncancel HS-1025 TOAN10-B\nenroll HS-1027 TOAN9-A\ncancel HS-1025 VAN8-A\n",
+          "expected": "HOA11-A 0/25: - | waitlist: -\nTOAN9-A 1/1: HS-1027 | waitlist: -\nVAN8-A 0/0: - | waitlist: HS-1026",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "First day of term: three classes, many changes",
+          "input": "capacity TOAN9-A 3\ncapacity ANH7-B 2\ncapacity LY10-A 2\nenroll HS-1024 TOAN9-A\nenroll HS-1024 ANH7-B\nenroll HS-1025 TOAN9-A\nenroll HS-1026 ANH7-B\nenroll HS-1027 ANH7-B\nenroll hs-1024 anh7-b\nenroll hs-1024 ANH7-B\nenroll HS-1028 TOAN9-A\nenroll HS-1029 TOAN9-A\nenroll HS-1030 TOAN9-A\nenroll HS-1031 ANH7-B\nenroll HS-1032 LY10-A\ncancel HS-1025 TOAN9-A\ncancel HS-1026 ANH7-B\ncancel HS-1024 ANH7-B\nenroll HS-1025 TOAN9-A\ncancel HS-1029 TOAN9-A\nenroll HS-1026 ANH7-B\ncancel HS-1032 LY10-A\nenroll HS-1033 LY10-A\n",
+          "expected": "ANH7-B 2/2: HS-1027, HS-1031 | waitlist: HS-1026\nLY10-A 1/2: HS-1033 | waitlist: -\nTOAN9-A 3/3: HS-1024, HS-1028, HS-1030 | waitlist: HS-1025",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Ordinal order of course codes",
+          "input": "capacity TOAN9-A 1\ncapacity TOAN10-A 1\ncapacity ANH7-B 1\ncapacity ANH10-A 1\nenroll HS-1024 TOAN10-A\nenroll HS-1025 ANH10-A\n",
+          "expected": "ANH10-A 1/1: HS-1025 | waitlist: -\nANH7-B 0/1: - | waitlist: -\nTOAN10-A 1/1: HS-1024 | waitlist: -\nTOAN9-A 0/1: - | waitlist: -",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

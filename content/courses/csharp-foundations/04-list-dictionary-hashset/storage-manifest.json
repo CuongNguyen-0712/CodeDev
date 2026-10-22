@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_csf_211",
+      "key": "challenges/csharp/chal_coding_csf_211/starter.cs",
+      "contentType": "text/x-csharp; charset=utf-8",
+      "originalName": "main.cs",
+      "size": 3597
+    }
+  ]
+}

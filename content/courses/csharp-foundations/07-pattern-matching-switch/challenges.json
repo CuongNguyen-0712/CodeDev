@@ -1,0 +1,73 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_csf_321",
+      "name": "tuition-rules-switch",
+      "type": "mini_coding",
+      "title": "Rewrite the tuition rules with switch expressions",
+      "description": "Sen Academy's tuition rules lived in an if/else chain and a switch statement with a default branch: the 3-sibling discount was unreachable for a year, and online classes were billed 0 VND for two weeks. Rewrite them as switch expressions: BasePrice per class kind (Group, Private, Online, Camp), DiscountPercent from volume and sibling rules with property and relational patterns and a 20% cap, and Bill, which skips enrollments without sessions. The test runner reads one enrollment per line and prints each bill.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "csharp",
+        "filePath": "main.cs",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The example: group, group with a sibling, private",
+          "input": "HS-1024 Group 8 1\nHS-1025 Group 12 2\nHS-1026 Private 8 1\n",
+          "expected": "HS-1024 Group: 1200000 VND (base 1200000, discount 0%)\nHS-1025 Group: 1440000 VND (base 1800000, discount 20%)\nHS-1026 Private: 3040000 VND (base 3200000, discount 5%)",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Every sibling tier",
+          "input": "HS-1027 Group 4 1\nHS-1028 Group 4 2\nHS-1029 Group 4 3\nHS-1030 Group 4 4\n",
+          "expected": "HS-1027 Group: 600000 VND (base 600000, discount 0%)\nHS-1028 Group: 540000 VND (base 600000, discount 10%)\nHS-1029 Group: 510000 VND (base 600000, discount 15%)\nHS-1030 Group: 510000 VND (base 600000, discount 15%)",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Online classes are not free",
+          "input": "HS-1031 Online 8 1\nHS-1032 Online 12 3\n",
+          "expected": "HS-1031 Online: 800000 VND (base 800000, discount 0%)\nHS-1032 Online: 960000 VND (base 1200000, discount 20%)",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Exactly at the volume thresholds",
+          "input": "HS-1033 Group 11 1\nHS-1034 Group 12 1\nHS-1035 Private 7 1\nHS-1036 Private 8 1\nHS-1037 Online 11 2\nHS-1038 Online 12 1\n",
+          "expected": "HS-1033 Group: 1650000 VND (base 1650000, discount 0%)\nHS-1034 Group: 1620000 VND (base 1800000, discount 10%)\nHS-1035 Private: 2800000 VND (base 2800000, discount 0%)\nHS-1036 Private: 3040000 VND (base 3200000, discount 5%)\nHS-1037 Online: 990000 VND (base 1100000, discount 10%)\nHS-1038 Online: 1080000 VND (base 1200000, discount 10%)",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Holiday camp: flat price, no discounts",
+          "input": "HS-1039 Camp 0 3\nHS-1040 Camp 5 1\nHS-1041 Camp 12 2\n",
+          "expected": "HS-1039 Camp: 2500000 VND (base 2500000, discount 0%)\nHS-1040 Camp: 2500000 VND (base 2500000, discount 0%)\nHS-1041 Camp: 2500000 VND (base 2500000, discount 0%)",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "No sessions this month",
+          "input": "HS-1042 Group 0 2\nHS-1043 Private 0 1\nHS-1044 Online 0 3\nHS-1045 Camp 0 1\n",
+          "expected": "HS-1042: no sessions\nHS-1043: no sessions\nHS-1044: no sessions\nHS-1045 Camp: 2500000 VND (base 2500000, discount 0%)",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Any letter case, discounts at the cap",
+          "input": "HS-1046 private 20 3\nHS-1047 ONLINE 16 2\nHS-1048 group 12 5\n",
+          "expected": "HS-1046 Private: 6400000 VND (base 8000000, discount 20%)\nHS-1047 Online: 1280000 VND (base 1600000, discount 20%)\nHS-1048 Group: 1440000 VND (base 1800000, discount 20%)",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

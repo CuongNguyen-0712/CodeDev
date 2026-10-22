@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_csf_222",
+      "key": "challenges/csharp/chal_fix_csf_222/starter.cs",
+      "contentType": "text/x-csharp; charset=utf-8",
+      "originalName": "main.cs",
+      "size": 3317
+    }
+  ]
+}

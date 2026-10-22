@@ -1,0 +1,147 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_csf_411",
+      "name": "exceptions-tryparse-quiz",
+      "type": "quiz",
+      "title": "Predict it: catch, finally and rethrowing",
+      "description": "Follow an exception through try, catch and finally, then decide which statements about catching, rethrowing, TryParse and guard clauses are true.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this print?\n\ntry\n{\n    Console.Write(\"a \");\n    int.Parse(\"vắng\");\n    Console.Write(\"b \");\n}\ncatch (FormatException)\n{\n    Console.Write(\"c \");\n}\ncatch (Exception)\n{\n    Console.Write(\"d \");\n}\nfinally\n{\n    Console.Write(\"e \");\n}\nConsole.Write(\"f\");",
+          "explanation": "int.Parse(\"vắng\") throws a FormatException, so the rest of the try block is skipped: \"b \" is never printed. The runtime picks the FIRST catch clause whose type matches, which is catch (FormatException): it prints \"c \". Only one catch clause runs, so catch (Exception) does not run even though a FormatException is also an Exception. finally runs on every way out of the try statement and prints \"e \". The exception was handled, so execution continues after the try statement and prints \"f\". The output is \"a c e f\".",
+          "options": [
+            {
+              "text": "a b e f",
+              "correct": false
+            },
+            {
+              "text": "a c e f",
+              "correct": true
+            },
+            {
+              "text": "a c d e f",
+              "correct": false
+            },
+            {
+              "text": "a c e",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which of these statements are true? (Select all that apply.)",
+          "explanation": "throw; inside a catch block rethrows the exception being handled and keeps its stack trace, so the trace still shows the method that failed; throw ex; throws the same object again but restarts the stack trace at that line. A catch (Exception) before a catch (FormatException) is the compile error CS0160 (\"A previous catch clause already catches all exceptions of this or of a super type\"), because the second clause could never run. int.TryParse(\"12a\", out var n) returns false and sets n to 0, the default of int. ArgumentOutOfRangeException.ThrowIfGreaterThan(score, 10m) throws only when score is greater than 10, so exactly 10 is accepted. finally also runs when the try block leaves with return, break or an exception. An exception filter (catch ... when (condition)) only catches exceptions for which the condition is true; the others keep propagating as if the clause were not there.",
+          "options": [
+            {
+              "text": "Inside a catch block, throw; keeps the original stack trace, while throw ex; restarts it at the throw ex; line",
+              "correct": true
+            },
+            {
+              "text": "catch (Exception) { } placed before catch (FormatException) { } compiles, and the second clause handles format errors",
+              "correct": false
+            },
+            {
+              "text": "int.TryParse(\"12a\", out var n) returns false and sets n to 0",
+              "correct": true
+            },
+            {
+              "text": "ArgumentOutOfRangeException.ThrowIfGreaterThan(score, 10m) throws when score is exactly 10",
+              "correct": false
+            },
+            {
+              "text": "A finally block does not run when the try block leaves with return",
+              "correct": false
+            },
+            {
+              "text": "catch (IOException ex) when (ex.Message.Contains(\"locked\")) only catches the IOExceptions whose message contains \"locked\"; the others keep propagating",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_csf_412",
+      "name": "fix-nightly-score-import",
+      "type": "fix_bug",
+      "title": "Fix the nightly score import",
+      "description": "Sen Academy's nightly job imports one CSV of scores per class. Last month a single \"vắng\" (absent) aborted the whole file; the hotfix made it worse: absent students and cut-off lines get a silent 0, a score of 85 goes through, and a line without any comma still stops the import. Fix ImportScores and ParseRow so that valid lines are imported, absent students are imported as absent, and every bad line is reported with its line number and the first reason that applies, without stopping the other lines. The test runner reads the CSV and prints the imported rows and the errors.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "csharp",
+        "filePath": "main.cs",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A clean file",
+          "input": "student,class,score\nHS-1024,TOAN9-A,8.5\nHS-1025,TOAN9-A,9\nHS-1026,TOAN9-A,7.25\n",
+          "expected": "imported: 3 scores, 0 absent\nHS-1024 TOAN9-A 8.5\nHS-1025 TOAN9-A 9\nHS-1026 TOAN9-A 7.25\nerrors: 0",
+          "hidden": false,
+          "score": 2
+        },
+        {
+          "name": "An absent student is not a 0",
+          "input": "student,class,score\nHS-1024,TOAN9-A,8.5\nHS-1026,TOAN9-A,vắng\nHS-1027,TOAN9-A,6\n",
+          "expected": "imported: 2 scores, 1 absent\nHS-1024 TOAN9-A 8.5\nHS-1026 TOAN9-A absent\nHS-1027 TOAN9-A 6\nerrors: 0",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A cut-off line and a word in the score column",
+          "input": "student,class,score\nHS-1024,TOAN9-A,8.5\nHS-1027,TOAN9-A\nHS-1028,TOAN9-A,abc\nHS-1029,TOAN9-A,10\n",
+          "expected": "imported: 2 scores, 0 absent\nHS-1024 TOAN9-A 8.5\nHS-1029 TOAN9-A 10\nerrors: 2\nline 3: expected 3 fields, got 2\nline 4: score \"abc\" is not a number",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Out of range and a missing student id",
+          "input": "student,class,score\nHS-1029,TOAN9-A,85\n,TOAN9-A,7\nHS-1030,TOAN9-A,-1\nHS-1031,TOAN9-A,0\n",
+          "expected": "imported: 1 scores, 0 absent\nHS-1031 TOAN9-A 0\nerrors: 3\nline 2: score 85 is out of range 0-10\nline 3: missing student id\nline 4: score -1 is out of range 0-10",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A line without any comma in the middle of the file",
+          "input": "student,class,score\nHS-1024,ANH7-B,7.5\nHS-1025\nHS-1026,ANH7-B,8\nHS-1027,ANH7-B,vắng\n",
+          "expected": "imported: 2 scores, 1 absent\nHS-1024 ANH7-B 7.5\nHS-1026 ANH7-B 8\nHS-1027 ANH7-B absent\nerrors: 1\nline 3: expected 3 fields, got 1",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Blank lines, spaces and Windows line endings",
+          "input": "student,class,score\r\nHS-1024 , LY10-A , 8.5\r\n\r\nHS-1025,LY10-A, vắng \r\n\r\nHS-1026,LY10-A,\r\n",
+          "expected": "imported: 1 scores, 1 absent\nHS-1024 LY10-A 8.5\nHS-1025 LY10-A absent\nerrors: 1\nline 6: score \"\" is not a number",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Too many fields, and several errors in a row",
+          "input": "student,class,score\nHS-1032,TOAN9-A,7.5,extra\nHS-1033,TOAN9-A,8,5\n , TOAN9-A , 9\nHS-1034,TOAN9-A,10.5\nHS-1035,TOAN9-A,9.75\n",
+          "expected": "imported: 1 scores, 0 absent\nHS-1035 TOAN9-A 9.75\nerrors: 4\nline 2: expected 3 fields, got 4\nline 3: expected 3 fields, got 4\nline 4: missing student id\nline 5: score 10.5 is out of range 0-10",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Only the header",
+          "input": "student,class,score\n",
+          "expected": "imported: 0 scores, 0 absent\nerrors: 0",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

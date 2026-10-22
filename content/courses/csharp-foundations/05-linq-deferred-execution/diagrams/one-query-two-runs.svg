@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+  </defs>
+  <rect width="1200" height="720" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">One query, two runs: a LINQ query runs every time it is enumerated</text>
+  <text x="40" y="82" font-size="16" fill="#475569">var reminders = invoices.Where(i =&gt; ... i.DaysLate &gt; graceDays).Select(i =&gt; outbox.Queue(...));</text>
+
+  <!-- the query object -->
+  <rect x="40" y="110" width="330" height="250" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="60" y="142" font-size="17" font-weight="700" fill="#334155">reminders holds no results</text>
+  <text x="60" y="172" font-size="14" fill="#475569">only a recipe:</text>
+  <text x="60" y="198" font-size="14" fill="#334155">- the source list invoices</text>
+  <text x="60" y="222" font-size="14" fill="#334155">- the Where lambda, which reads</text>
+  <text x="76" y="244" font-size="14" fill="#334155">the VARIABLE graceDays</text>
+  <text x="60" y="268" font-size="14" fill="#334155">- the Select lambda, which calls</text>
+  <text x="76" y="290" font-size="14" fill="#334155">outbox.Queue (inserts a row)</text>
+  <text x="60" y="324" font-size="14" font-weight="700" fill="#b91c1c">Nothing runs until someone</text>
+  <text x="60" y="346" font-size="14" font-weight="700" fill="#b91c1c">enumerates it - and then all of it.</text>
+
+  <!-- run 1 -->
+  <rect x="400" y="110" width="760" height="110" rx="10" fill="#fff7ed" stroke="#f97316" stroke-width="2"/>
+  <text x="420" y="140" font-size="16" font-weight="700" fill="#c2410c">Run 1: reminders.Count() for the log line, graceDays = 5</text>
+  <rect x="420" y="156" width="170" height="44" rx="6" fill="#ffffff" stroke="#fdba74" stroke-width="2"/>
+  <text x="436" y="184" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">#501 HS-1025</text>
+  <rect x="600" y="156" width="170" height="44" rx="6" fill="#ffffff" stroke="#fdba74" stroke-width="2"/>
+  <text x="616" y="184" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">#502 HS-1026</text>
+  <text x="800" y="176" font-size="14" fill="#7c2d12">rows inserted, nothing sent;</text>
+  <text x="800" y="198" font-size="14" fill="#7c2d12">log: "2 reminders to send"</text>
+
+  <!-- change -->
+  <rect x="400" y="236" width="760" height="44" rx="10" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="420" y="264" font-size="15" fill="#334155">if (firstMonthOfTerm) graceDays = 3;   the lambda will read 3 next time</text>
+
+  <!-- run 2 -->
+  <rect x="400" y="296" width="760" height="110" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="420" y="326" font-size="16" font-weight="700" fill="#1d4ed8">Run 2: foreach to send the SMS, graceDays = 3</text>
+  <rect x="420" y="342" width="170" height="44" rx="6" fill="#ffffff" stroke="#93c5fd" stroke-width="2"/>
+  <text x="436" y="370" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">#503 HS-1024</text>
+  <rect x="600" y="342" width="170" height="44" rx="6" fill="#ffffff" stroke="#93c5fd" stroke-width="2"/>
+  <text x="616" y="370" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">#504 HS-1025</text>
+  <rect x="780" y="342" width="170" height="44" rx="6" fill="#ffffff" stroke="#93c5fd" stroke-width="2"/>
+  <text x="796" y="370" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">#505 HS-1026</text>
+  <rect x="960" y="342" width="170" height="44" rx="6" fill="#ffffff" stroke="#93c5fd" stroke-width="2"/>
+  <text x="976" y="370" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">#506 HS-1029</text>
+
+  <line x1="370" y1="165" x2="398" y2="165" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="370" y1="350" x2="398" y2="350" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- outbox -->
+  <rect x="40" y="430" width="560" height="260" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="60" y="462" font-size="16" font-weight="700" fill="#b91c1c">The outbox Bùi Thị Hạnh found: 6 rows, 4 SMS</text>
+  <text x="60" y="494" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">#501 HS-1025   never sent</text>
+  <text x="60" y="520" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">#502 HS-1026   never sent</text>
+  <text x="60" y="546" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">#503 HS-1024   sent</text>
+  <text x="60" y="572" font-size="15" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">#504 HS-1025   sent (2nd row)</text>
+  <text x="60" y="598" font-size="15" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">#505 HS-1026   sent (2nd row)</text>
+  <text x="60" y="624" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">#506 HS-1029   sent</text>
+  <text x="60" y="664" font-size="14" fill="#7f1d1d">the log said 2; parents of 4 students got an SMS</text>
+
+  <!-- fix -->
+  <rect x="620" y="430" width="540" height="260" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="640" y="462" font-size="16" font-weight="700" fill="#15803d">The fix: decide, run once, then act</text>
+  <text x="640" y="496" font-size="14" fill="#14532d">1. set graceDays before the query runs</text>
+  <text x="640" y="526" font-size="14" fill="#14532d">2. materialize once:</text>
+  <text x="660" y="552" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">var due = invoices.Where(...).ToList();</text>
+  <text x="640" y="584" font-size="14" fill="#14532d">3. side effects in a foreach, once per item:</text>
+  <text x="660" y="610" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">foreach (var i in due) outbox.Queue(...);</text>
+  <text x="640" y="650" font-size="14" fill="#14532d">due.Count, the SMS and the outbox now agree:</text>
+  <text x="640" y="672" font-size="14" fill="#14532d">4 rows, #501 to #504</text>
+</svg>

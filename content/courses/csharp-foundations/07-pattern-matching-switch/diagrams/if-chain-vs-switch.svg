@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="720" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">The same rules, two ways: only one of them lets the compiler check</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Sibling discount tiers and the price per class kind, as written in production and as switch expressions</text>
+
+  <!-- left: before -->
+  <rect x="40" y="108" width="540" height="440" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="60" y="142" font-size="18" font-weight="700" fill="#b91c1c">if/else and switch with default (before)</text>
+  <text x="60" y="180" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">if (siblings &gt;= 2) return 10;</text>
+  <text x="60" y="204" font-size="14" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">else if (siblings &gt;= 3) return 15;</text>
+  <text x="60" y="228" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">return 0;</text>
+  <text x="60" y="258" font-size="14" fill="#7f1d1d">3 siblings: 3 &gt;= 2 is true, so the first branch wins.</text>
+  <text x="60" y="280" font-size="14" fill="#7f1d1d">15% is unreachable - and nothing says so.</text>
+
+  <text x="60" y="324" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">case ClassKind.Group:   return 150_000m * n;</text>
+  <text x="60" y="348" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">case ClassKind.Private: return 400_000m * n;</text>
+  <text x="60" y="372" font-size="14" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">default:                return 0m;</text>
+  <text x="60" y="402" font-size="14" fill="#7f1d1d">ClassKind.Online is added in October:</text>
+  <text x="60" y="424" font-size="14" fill="#7f1d1d">it compiles, lands in default, costs 0 VND.</text>
+  <rect x="60" y="456" width="500" height="68" rx="8" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="76" y="484" font-size="15" font-weight="700" fill="#b91c1c">Build: 0 errors, 0 warnings</text>
+  <text x="76" y="508" font-size="14" fill="#7f1d1d">Both bugs ship. One lasts a year, one two weeks.</text>
+
+  <!-- right: after -->
+  <rect x="620" y="108" width="540" height="440" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="640" y="142" font-size="18" font-weight="700" fill="#15803d">switch expressions (after)</text>
+  <text x="640" y="180" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">siblings switch {</text>
+  <text x="664" y="204" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">&gt;= 2 =&gt; 10,</text>
+  <text x="664" y="228" font-size="14" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">&gt;= 3 =&gt; 15,   error CS8510</text>
+  <text x="664" y="252" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">_ =&gt; 0 }</text>
+  <text x="640" y="280" font-size="14" fill="#14532d">"The pattern is unreachable": fix the order.</text>
+
+  <text x="640" y="324" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">kind switch {</text>
+  <text x="664" y="348" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">ClassKind.Group =&gt; ...,</text>
+  <text x="664" y="372" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">ClassKind.Private =&gt; ... }</text>
+  <text x="640" y="402" font-size="14" fill="#14532d">warning CS8509: 'ClassKind.Online' is not covered.</text>
+  <text x="640" y="424" font-size="14" fill="#14532d">At run time: SwitchExpressionException, not 0 VND.</text>
+  <rect x="640" y="456" width="500" height="68" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="656" y="484" font-size="15" font-weight="700" fill="#15803d">Most specific first, no silent default</text>
+  <text x="656" y="508" font-size="14" fill="#14532d">&gt;= 3 =&gt; 15, 2 =&gt; 10, _ =&gt; 0  and one arm per kind</text>
+
+  <!-- bottom -->
+  <rect x="40" y="572" width="1120" height="120" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="60" y="604" font-size="16" font-weight="700" fill="#0f172a">Why the switch expression catches both bugs</text>
+  <text x="60" y="632" font-size="14" fill="#334155">Arms are tried from top to bottom, and the compiler knows which values each pattern matches:</text>
+  <text x="60" y="656" font-size="14" fill="#334155">an arm that can never be reached is an error, and an input no arm matches is a warning (make it an error in the .csproj).</text>
+</svg>

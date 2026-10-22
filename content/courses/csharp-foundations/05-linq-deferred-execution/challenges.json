@@ -1,0 +1,140 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_csf_221",
+      "name": "linq-deferred-execution-quiz",
+      "type": "quiz",
+      "title": "Predict it: when does a LINQ query run?",
+      "description": "Run a deferred query in your head after its inputs change, then decide which LINQ statements behave the way their authors expected.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this print?\n\nvar days = new List<int> { 2, 8, 6 };\nint grace = 5;\nvar late = days.Where(d => d > grace);\n\ngrace = 7;\ndays.Add(10);\n\nConsole.WriteLine(string.Join(\",\", late));",
+          "explanation": "Where does not run when the query is defined: late only stores the source list and the lambda. string.Join enumerates it at the last line, and at that moment the lambda reads the CURRENT value of the captured variable grace (7) and walks the CURRENT list (2, 8, 6, 10). 8 > 7 and 10 > 7, so it prints \"8,10\". \"8,6\" is what you would get by calling ToList() right after Where, when grace was still 5 and 10 was not in the list. \"8,6,10\" mixes the old grace with the new list, and \"8\" the new grace with the old list.",
+          "options": [
+            {
+              "text": "8,6",
+              "correct": false
+            },
+            {
+              "text": "8,6,10",
+              "correct": false
+            },
+            {
+              "text": "8,10",
+              "correct": true
+            },
+            {
+              "text": "8",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which of these statements are true? (Select all that apply.)",
+          "explanation": "scores.Where(s => s > 8).Count() and scores.Count(s => s > 8) count the same elements; the second is just shorter. ToList() enumerates the query at once and copies the results into a new list, which later changes to the source do not affect. Average() on an empty sequence of double throws InvalidOperationException \"Sequence contains no elements\" (Sum() returns 0, Average() has no value to return). FirstOrDefault() on an empty List<string> returns default(string), which is null. ids.Select(id => Send(id)) sends nothing at that line: Select is deferred, so Send runs only when something enumerates the query, and once more on every further enumeration. Single(predicate) throws InvalidOperationException \"Sequence contains more than one matching element\" when several elements match; it never picks one.",
+          "options": [
+            {
+              "text": "scores.Where(s => s > 8).Count() and scores.Count(s => s > 8) return the same number",
+              "correct": true
+            },
+            {
+              "text": "After var list = query.ToList(), adding items to the query's source list does not change list",
+              "correct": true
+            },
+            {
+              "text": "new List<double>().Average() returns 0",
+              "correct": false
+            },
+            {
+              "text": "new List<string>().FirstOrDefault() returns null",
+              "correct": true
+            },
+            {
+              "text": "var sent = ids.Select(id => Send(id)); sends every SMS exactly once, at this line",
+              "correct": false
+            },
+            {
+              "text": "Single(predicate) returns the first match when several elements match",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_csf_222",
+      "name": "fix-late-fee-reminder-job",
+      "type": "fix_bug",
+      "title": "Fix the late-fee job that queues every reminder twice",
+      "description": "Every morning at 06:00, Sen Academy's late-fee job sends one reminder per overdue invoice: one outbox row and one SMS to the parents, with a shorter grace period in the first month of term. The accountant finds the same student two or three times in the outbox with different ids, and the log announces fewer reminders than the SMS that go out. Fix RunReminderJob so that every overdue invoice gets exactly one outbox row, the first-month rule is applied, and both log lines describe the reminders that were really sent. The test runner reads the settings and the invoices, runs the job and prints the outbox.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "csharp",
+        "filePath": "main.cs",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A normal month: two overdue invoices",
+          "input": "grace 5\nfirst-month no\nHS-1024 1800000 4 unpaid\nHS-1025 1800000 12 unpaid\nHS-1026 1500000 7 unpaid\nHS-1028 1500000 9 paid\n",
+          "expected": "[log] 2 reminders to send\n[sms] #501 to the parents of HS-1025: late fee 36000 VND\n[sms] #502 to the parents of HS-1026: late fee 30000 VND\n[log] late fees total 66000 VND\n[db] outbox: 2 rows\n#501 HS-1025 36000\n#502 HS-1026 30000",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "First month of term: the grace period is 3 days",
+          "input": "grace 5\nfirst-month yes\nHS-1024 1800000 4 unpaid\nHS-1025 1800000 12 unpaid\nHS-1026 1500000 7 unpaid\nHS-1028 1500000 9 paid\nHS-1029 1800000 4 unpaid\n",
+          "expected": "[log] 4 reminders to send\n[sms] #501 to the parents of HS-1024: late fee 36000 VND\n[sms] #502 to the parents of HS-1025: late fee 36000 VND\n[sms] #503 to the parents of HS-1026: late fee 30000 VND\n[sms] #504 to the parents of HS-1029: late fee 36000 VND\n[log] late fees total 138000 VND\n[db] outbox: 4 rows\n#501 HS-1024 36000\n#502 HS-1025 36000\n#503 HS-1026 30000\n#504 HS-1029 36000",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Nobody is overdue",
+          "input": "grace 5\nfirst-month no\nHS-1024 1800000 2 unpaid\nHS-1025 1800000 5 unpaid\n",
+          "expected": "[log] 0 reminders to send\n[log] late fees total 0 VND\n[db] outbox: 0 rows",
+          "hidden": false,
+          "score": 2
+        },
+        {
+          "name": "Exactly at the end of the grace period is not late yet",
+          "input": "grace 5\nfirst-month yes\nHS-1030 1500000 3 unpaid\nHS-1031 1800000 4 unpaid\nHS-1032 1200000 5 unpaid\n",
+          "expected": "[log] 2 reminders to send\n[sms] #501 to the parents of HS-1031: late fee 36000 VND\n[sms] #502 to the parents of HS-1032: late fee 24000 VND\n[log] late fees total 60000 VND\n[db] outbox: 2 rows\n#501 HS-1031 36000\n#502 HS-1032 24000",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Paid invoices never get a reminder",
+          "input": "grace 5\nfirst-month no\nHS-1024 1800000 30 paid\nHS-1025 1800000 6 unpaid\nHS-1026 1500000 6 paid\nHS-1027 1500000 20 unpaid\n",
+          "expected": "[log] 2 reminders to send\n[sms] #501 to the parents of HS-1025: late fee 36000 VND\n[sms] #502 to the parents of HS-1027: late fee 30000 VND\n[log] late fees total 66000 VND\n[db] outbox: 2 rows\n#501 HS-1025 36000\n#502 HS-1027 30000",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A busy morning: eight invoices, grace 7 days",
+          "input": "grace 7\nfirst-month no\nHS-1024 1800000 8 unpaid\nHS-1025 1800000 7 unpaid\nHS-1026 1500000 15 unpaid\nHS-1027 1500000 1 unpaid\nHS-1028 1500000 9 paid\nHS-1029 1800000 22 unpaid\nHS-1030 2100000 10 unpaid\nHS-1031 1200000 6 unpaid\n",
+          "expected": "[log] 4 reminders to send\n[sms] #501 to the parents of HS-1024: late fee 36000 VND\n[sms] #502 to the parents of HS-1026: late fee 30000 VND\n[sms] #503 to the parents of HS-1029: late fee 36000 VND\n[sms] #504 to the parents of HS-1030: late fee 42000 VND\n[log] late fees total 144000 VND\n[db] outbox: 4 rows\n#501 HS-1024 36000\n#502 HS-1026 30000\n#503 HS-1029 36000\n#504 HS-1030 42000",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "First month with a grace setting below 3 days",
+          "input": "grace 2\nfirst-month yes\nHS-1024 1800000 3 unpaid\nHS-1025 1800000 4 unpaid\n",
+          "expected": "[log] 1 reminders to send\n[sms] #501 to the parents of HS-1025: late fee 36000 VND\n[log] late fees total 36000 VND\n[db] outbox: 1 rows\n#501 HS-1025 36000",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}
