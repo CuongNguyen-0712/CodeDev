@@ -1,0 +1,497 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_devf_421",
+      "name": "alerting-symptoms-and-ratios-quiz",
+      "type": "quiz",
+      "title": "Which alerts should page, and what the error ratio really says",
+      "description": "Decide which alerts deserve a 3am page, then compute what an error-ratio alert really returns when one small route is failing.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Rice Rocket's on-call rule: a page must be urgent, actionable and about something users feel right now. Which of these alerts should page the on-call engineer at 3am? (Select all that apply.)",
+          "explanation": "Checkout 5xx ratio above 2% for 5 minutes is a symptom users feel right now (failed orders), it is urgent and someone can act on it: page. A fast error-budget burn (14.4x over both the last 1 hour and the last 5 minutes) means 2% of the whole 30-day budget is gone in an hour and the outage is still happening: page. CPU above 80% on one node is a cause, not a symptom: if users are fine it is not urgent, and if they are not, a symptom alert already fired; at most a ticket or a dashboard. A backup that finished but ran slow is real and worth a look, but nothing is broken for users tonight: open a ticket for working hours. One pod restart that Kubernetes already fixed needs no human at all; a rising restart count belongs on a dashboard or in a ticket.",
+          "options": [
+            {
+              "text": "Checkout 5xx ratio above 2% for 5 minutes (route=/checkout)",
+              "correct": true
+            },
+            {
+              "text": "Checkout error budget burning at 14.4x over both the last 1h and the last 5m",
+              "correct": true
+            },
+            {
+              "text": "CPU above 80% on node api-3",
+              "correct": false
+            },
+            {
+              "text": "The nightly database backup finished, but took 3 hours instead of the usual 1",
+              "correct": false
+            },
+            {
+              "text": "Pod dispatch-7f9c restarted once and is healthy again",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "During the outage, the last 5 minutes of traffic looked like this:\n\n  route       requests   5xx\n  /menu         9000       0\n  /search       2400       6\n  /checkout      600     150\n\nThe only error alert was:\n\n  expr: sum(rate(http_requests_total{code=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m])) > 0.05\n  for: 5m\n\nWhat does the expression return, and does the alert fire?",
+          "explanation": "The expression divides the total 5xx count by the total request count: 156 / 12000 = 0.013, about 1.3%, which is below 0.05, so the alert never fires while a quarter of all checkouts fail. Quiet traffic on /menu dilutes the busy failure on the small but important route. Adding by (route) to both sums keeps one ratio per route, and /checkout is 150 / 600 = 25%, far above 5%. 25% is the /checkout ratio, not what the expression returns. About 8.4% is the average of the three per-route ratios (0%, 0.25%, 25%): an average of ratios gives a tiny route the same weight as a big one, and it is not what sum()/sum() computes either. 5% is only the threshold, and for: 5m does not change the value, only how long it must stay above the threshold.",
+          "options": [
+            {
+              "text": "About 25%: it fires, because /checkout is far above 5%",
+              "correct": false
+            },
+            {
+              "text": "About 8.4%: it fires, because the average error ratio of the routes is above 5%",
+              "correct": false
+            },
+            {
+              "text": "About 1.3%: it never fires; with sum by (route) the /checkout ratio would be 25%",
+              "correct": true
+            },
+            {
+              "text": "Exactly 5%: it stays pending forever because of for: 5m",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_devf_422",
+      "name": "fix-flapping-alert-evaluator",
+      "type": "fix_bug",
+      "title": "Stop the CPU alert from paging every few minutes",
+      "description": "evaluate(rule, series) replays one metric series (one value per minute) through an alert rule and lists the pages it would send. The on-call review uses it to tune rules, but it has the same bugs as last night's alert: a pending alert is never dropped when the value dips back under the threshold, so short spikes add up and fire, and a firing alert resolves the moment the value is not above the threshold, so a metric hovering around 80 pages again and again. Fix it so the replay follows the rules in the docstring: fire only after the condition has been true for for_minutes minutes in a row (starting again from zero after any false minute), and resolve only when the value drops below clear_below. The runner at the bottom (do not change it) prints the alerts with fired_at and resolved_at and the number of pages.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "python",
+        "filePath": "alert_replay.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Night CPU from the incident: for 5m and clear below 70 turn the flapping into one page",
+          "input": {
+            "rule": {
+              "threshold": 80,
+              "for_minutes": 5,
+              "clear_below": 70
+            },
+            "series": [
+              [
+                0,
+                72
+              ],
+              [
+                1,
+                79
+              ],
+              [
+                2,
+                83
+              ],
+              [
+                3,
+                78
+              ],
+              [
+                4,
+                81
+              ],
+              [
+                5,
+                79
+              ],
+              [
+                6,
+                84
+              ],
+              [
+                7,
+                77
+              ],
+              [
+                8,
+                82
+              ],
+              [
+                9,
+                80
+              ],
+              [
+                10,
+                86
+              ],
+              [
+                11,
+                88
+              ],
+              [
+                12,
+                91
+              ],
+              [
+                13,
+                93
+              ],
+              [
+                14,
+                90
+              ],
+              [
+                15,
+                87
+              ],
+              [
+                16,
+                84
+              ],
+              [
+                17,
+                79
+              ],
+              [
+                18,
+                76
+              ],
+              [
+                19,
+                81
+              ],
+              [
+                20,
+                74
+              ],
+              [
+                21,
+                68
+              ],
+              [
+                22,
+                66
+              ],
+              [
+                23,
+                71
+              ],
+              [
+                24,
+                82
+              ],
+              [
+                25,
+                79
+              ],
+              [
+                26,
+                73
+              ],
+              [
+                27,
+                69
+              ],
+              [
+                28,
+                64
+              ],
+              [
+                29,
+                62
+              ]
+            ]
+          },
+          "expected": {
+            "alerts": [
+              {
+                "fired_at": 15,
+                "resolved_at": 21
+              }
+            ],
+            "pages": 1
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Spikes shorter than for_minutes never page, even when they keep coming back",
+          "input": {
+            "rule": {
+              "threshold": 80,
+              "for_minutes": 3,
+              "clear_below": 70
+            },
+            "series": [
+              [
+                120,
+                75
+              ],
+              [
+                121,
+                85
+              ],
+              [
+                122,
+                88
+              ],
+              [
+                123,
+                79
+              ],
+              [
+                124,
+                86
+              ],
+              [
+                125,
+                90
+              ],
+              [
+                126,
+                78
+              ],
+              [
+                127,
+                91
+              ],
+              [
+                128,
+                84
+              ],
+              [
+                129,
+                80
+              ],
+              [
+                130,
+                83
+              ],
+              [
+                131,
+                87
+              ],
+              [
+                132,
+                76
+              ]
+            ]
+          },
+          "expected": {
+            "alerts": [],
+            "pages": 0
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "for_minutes 0 pages at once; a value between clear_below and threshold keeps it firing",
+          "input": {
+            "rule": {
+              "threshold": 90,
+              "for_minutes": 0,
+              "clear_below": 75
+            },
+            "series": [
+              [
+                0,
+                70
+              ],
+              [
+                1,
+                95
+              ],
+              [
+                2,
+                88
+              ],
+              [
+                3,
+                92
+              ],
+              [
+                4,
+                80
+              ],
+              [
+                5,
+                74
+              ],
+              [
+                6,
+                60
+              ]
+            ]
+          },
+          "expected": {
+            "alerts": [
+              {
+                "fired_at": 1,
+                "resolved_at": 5
+              }
+            ],
+            "pages": 1
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Exactly threshold is not above it, exactly clear_below does not resolve, still firing at the end",
+          "input": {
+            "rule": {
+              "threshold": 80,
+              "for_minutes": 2,
+              "clear_below": 70
+            },
+            "series": [
+              [
+                300,
+                80
+              ],
+              [
+                301,
+                81
+              ],
+              [
+                302,
+                85
+              ],
+              [
+                303,
+                90
+              ],
+              [
+                304,
+                70
+              ],
+              [
+                305,
+                72
+              ],
+              [
+                306,
+                70
+              ]
+            ]
+          },
+          "expected": {
+            "alerts": [
+              {
+                "fired_at": 303,
+                "resolved_at": null
+              }
+            ],
+            "pages": 1
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Two real incidents in one night give two pages, each with its own resolve minute",
+          "input": {
+            "rule": {
+              "threshold": 80,
+              "for_minutes": 3,
+              "clear_below": 65
+            },
+            "series": [
+              [
+                0,
+                50
+              ],
+              [
+                1,
+                84
+              ],
+              [
+                2,
+                86
+              ],
+              [
+                3,
+                88
+              ],
+              [
+                4,
+                90
+              ],
+              [
+                5,
+                79
+              ],
+              [
+                6,
+                70
+              ],
+              [
+                7,
+                60
+              ],
+              [
+                8,
+                85
+              ],
+              [
+                9,
+                83
+              ],
+              [
+                10,
+                50
+              ],
+              [
+                11,
+                82
+              ],
+              [
+                12,
+                84
+              ],
+              [
+                13,
+                87
+              ],
+              [
+                14,
+                91
+              ],
+              [
+                15,
+                64
+              ],
+              [
+                16,
+                55
+              ]
+            ]
+          },
+          "expected": {
+            "alerts": [
+              {
+                "fired_at": 4,
+                "resolved_at": 7
+              },
+              {
+                "fired_at": 14,
+                "resolved_at": 15
+              }
+            ],
+            "pages": 2
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

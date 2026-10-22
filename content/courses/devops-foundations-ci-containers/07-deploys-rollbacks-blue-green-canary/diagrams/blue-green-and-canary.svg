@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="680" fill="#ffffff"/>
+  <text x="40" y="50" font-size="26" font-weight="700" fill="#0f172a">Blue-green switches all traffic at once, canary moves it in measured steps</text>
+  <text x="40" y="80" font-size="16" fill="#475569">Both keep the old version running, so a rollback is a traffic change, not a rebuild.</text>
+
+  <!-- Blue-green -->
+  <rect x="40" y="104" width="1120" height="230" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="136" font-size="18" font-weight="700" fill="#0f172a">Blue-green</text>
+  <text x="64" y="160" font-size="13" fill="#475569">Two full environments. The router points at one of them.</text>
+
+  <rect x="64" y="200" width="150" height="70" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="2"/>
+  <text x="139" y="230" font-size="15" font-weight="700" fill="#334155" text-anchor="middle">Users</text>
+  <text x="139" y="252" font-size="12" fill="#64748b" text-anchor="middle">100% of traffic</text>
+
+  <line x1="214" y1="235" x2="290" y2="235" stroke="#334155" stroke-width="2"/>
+  <polygon points="288,229 300,235 288,241" fill="#334155"/>
+  <rect x="300" y="200" width="150" height="70" rx="8" fill="#ffffff" stroke="#334155" stroke-width="2"/>
+  <text x="375" y="230" font-size="15" font-weight="700" fill="#334155" text-anchor="middle">Router</text>
+  <text x="375" y="252" font-size="12" fill="#64748b" text-anchor="middle">load balancer</text>
+
+  <line x1="450" y1="225" x2="560" y2="200" stroke="#2563eb" stroke-width="3"/>
+  <polygon points="556,194 568,198 559,206" fill="#2563eb"/>
+  <line x1="450" y1="248" x2="560" y2="276" stroke="#94a3b8" stroke-width="2" stroke-dasharray="6 4"/>
+
+  <rect x="570" y="168" width="250" height="62" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="590" y="194" font-size="15" font-weight="700" fill="#1d4ed8">Blue: v2.13.4 (live)</text>
+  <text x="590" y="216" font-size="12" fill="#1e3a8a">serves every request today</text>
+  <rect x="570" y="246" width="250" height="62" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="590" y="272" font-size="15" font-weight="700" fill="#15803d">Green: v2.14.0 (idle)</text>
+  <text x="590" y="294" font-size="12" fill="#14532d">deployed, smoke-tested, no users</text>
+
+  <rect x="850" y="168" width="290" height="140" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="870" y="194" font-size="13" font-weight="700" fill="#334155">Release: point the router at green</text>
+  <text x="870" y="218" font-size="13" fill="#475569">All users move in one step.</text>
+  <text x="870" y="246" font-size="13" font-weight="700" fill="#15803d">Rollback: point it back at blue</text>
+  <text x="870" y="270" font-size="13" fill="#475569">Seconds, as long as blue is kept.</text>
+  <text x="870" y="294" font-size="13" fill="#b91c1c">Cost: twice the servers for a while.</text>
+
+  <!-- Canary -->
+  <rect x="40" y="352" width="1120" height="300" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="384" font-size="18" font-weight="700" fill="#0f172a">Canary</text>
+  <text x="64" y="408" font-size="13" fill="#475569">A growing share of traffic goes to the new version. A gate compares canary with baseline after every step.</text>
+
+  <rect x="64" y="440" width="180" height="80" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="154" y="474" font-size="22" font-weight="700" fill="#15803d" text-anchor="middle">5%</text>
+  <text x="154" y="500" font-size="12" fill="#14532d" text-anchor="middle">canary: v2.14.0</text>
+  <rect x="320" y="440" width="180" height="80" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="410" y="474" font-size="22" font-weight="700" fill="#15803d" text-anchor="middle">25%</text>
+  <text x="410" y="500" font-size="12" fill="#14532d" text-anchor="middle">canary: v2.14.0</text>
+  <rect x="576" y="440" width="180" height="80" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="666" y="474" font-size="22" font-weight="700" fill="#15803d" text-anchor="middle">50%</text>
+  <text x="666" y="500" font-size="12" fill="#14532d" text-anchor="middle">canary: v2.14.0</text>
+  <rect x="832" y="440" width="180" height="80" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="922" y="474" font-size="22" font-weight="700" fill="#15803d" text-anchor="middle">100%</text>
+  <text x="922" y="500" font-size="12" fill="#14532d" text-anchor="middle">promoted</text>
+
+  <line x1="244" y1="480" x2="310" y2="480" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="308,474 320,480 308,486" fill="#16a34a"/>
+  <line x1="500" y1="480" x2="566" y2="480" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="564,474 576,480 564,486" fill="#16a34a"/>
+  <line x1="756" y1="480" x2="822" y2="480" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="820,474 832,480 820,486" fill="#16a34a"/>
+  <text x="282" y="468" font-size="12" font-weight="700" fill="#15803d" text-anchor="middle">gate</text>
+  <text x="538" y="468" font-size="12" font-weight="700" fill="#15803d" text-anchor="middle">gate</text>
+  <text x="794" y="468" font-size="12" font-weight="700" fill="#15803d" text-anchor="middle">gate</text>
+
+  <rect x="64" y="548" width="690" height="84" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="84" y="574" font-size="13" font-weight="700" fill="#334155">Each gate compares the canary with the baseline (old version, same minutes):</text>
+  <text x="84" y="598" font-size="13" fill="#475569">1. enough canary requests to judge (else HOLD)</text>
+  <text x="84" y="620" font-size="13" fill="#475569">2. error rate and p95 close enough to the baseline (else ROLLBACK)</text>
+
+  <rect x="784" y="548" width="352" height="84" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="804" y="574" font-size="13" font-weight="700" fill="#b91c1c">Rollback at any gate</text>
+  <text x="804" y="598" font-size="13" fill="#7f1d1d">send the canary share back to v2.13.4;</text>
+  <text x="804" y="620" font-size="13" fill="#7f1d1d">only 5-50% of users ever saw the bug</text>
+</svg>

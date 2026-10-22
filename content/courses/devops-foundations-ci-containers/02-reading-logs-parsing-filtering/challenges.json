@@ -1,0 +1,297 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_devf_121",
+      "name": "filter-logfmt-logs",
+      "type": "mini_coding",
+      "title": "Find the real error in the checkout logs",
+      "description": "During the checkout outage, grep ERROR found nothing: the services log level=error in lowercase logfmt, the cause was a multi-line traceback, and dispatch logs in +07:00 while api logs in UTC. Write parse_line(line), which reads one logfmt line (timestamp, then key=value pairs with optional double-quoted values) and normalizes the level, and summarize(lines, min_level), which attaches indented continuation lines to the entry above, counts entries per level and unparsed lines, and returns every entry at min_level or above with its time converted to UTC, sorted by real time. The test runner reads the lines from stdin and prints the summary as JSON.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "log_filter.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The outage: lowercase level=error and a traceback that belongs to it",
+          "input": {
+            "min_level": "ERROR",
+            "lines": [
+              "2026-10-22T08:13:58Z level=info service=api msg=\"GET /orders/8812 200\" request_id=r-7a1",
+              "2026-10-22T08:14:01Z level=warn service=checkout msg=\"payment provider slow\" latency_ms=2950 request_id=r-7a2",
+              "2026-10-22T08:14:03Z level=error service=checkout msg=\"payment timeout\" request_id=r-7a2",
+              "  Traceback (most recent call last):",
+              "    File \"/app/checkout/pay.py\", line 41, in charge",
+              "      resp = client.post(url, json=body, timeout=3)",
+              "  TimeoutError: timed out",
+              "2026-10-22T08:14:04Z level=info service=api msg=\"GET /health 200\""
+            ]
+          },
+          "expected": {
+            "total": 4,
+            "unparsed": 0,
+            "by_level": {
+              "INFO": 2,
+              "WARN": 1,
+              "ERROR": 1
+            },
+            "matches": [
+              {
+                "time": "2026-10-22T08:14:03Z",
+                "level": "ERROR",
+                "service": "checkout",
+                "msg": "payment timeout",
+                "extra_lines": 4
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Quoted messages with spaces and escaped quotes, WARNING is WARN",
+          "input": {
+            "min_level": "WARN",
+            "lines": [
+              "2026-10-22T09:00:00Z level=INFO service=dispatch msg=\"driver 1043 assigned\" order=55120",
+              "2026-10-22T09:00:02Z level=WARNING service=dispatch msg=\"no driver within 3 km\" order=55121",
+              "2026-10-22T09:00:05Z level=Error service=api msg=\"bad JSON: expected \\\"}\\\" at 18\" request_id=r-9c0",
+              "2026-10-22T09:00:06Z level=debug service=api msg=\"cache hit\" key=menu:12",
+              "2026-10-22T09:00:07Z level=FATAL service=dispatch msg=\"cannot reach redis:6379, exiting\""
+            ]
+          },
+          "expected": {
+            "total": 5,
+            "unparsed": 0,
+            "by_level": {
+              "DEBUG": 1,
+              "INFO": 1,
+              "WARN": 1,
+              "ERROR": 1,
+              "FATAL": 1
+            },
+            "matches": [
+              {
+                "time": "2026-10-22T09:00:02Z",
+                "level": "WARN",
+                "service": "dispatch",
+                "msg": "no driver within 3 km",
+                "extra_lines": 0
+              },
+              {
+                "time": "2026-10-22T09:00:05Z",
+                "level": "ERROR",
+                "service": "api",
+                "msg": "bad JSON: expected \"}\" at 18",
+                "extra_lines": 0
+              },
+              {
+                "time": "2026-10-22T09:00:07Z",
+                "level": "FATAL",
+                "service": "dispatch",
+                "msg": "cannot reach redis:6379, exiting",
+                "extra_lines": 0
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "UTC and +07:00 timestamps are put back in real time order",
+          "input": {
+            "min_level": "WARN",
+            "lines": [
+              "2026-10-22T15:20:10+07:00 level=error service=dispatch msg=\"redis connection reset\"",
+              "2026-10-22T08:20:05Z level=error service=api msg=\"upstream dispatch 502\" request_id=r-1f3",
+              "2026-10-22T08:20:12Z level=warn service=api msg=\"retrying dispatch\" attempt=2",
+              "2026-10-22T15:20:09+07:00 level=warn service=dispatch msg=\"redis latency 900ms\"",
+              "2026-10-22T08:20:15Z level=info service=api msg=\"dispatch recovered\""
+            ]
+          },
+          "expected": {
+            "total": 5,
+            "unparsed": 0,
+            "by_level": {
+              "INFO": 1,
+              "WARN": 2,
+              "ERROR": 2
+            },
+            "matches": [
+              {
+                "time": "2026-10-22T08:20:05Z",
+                "level": "ERROR",
+                "service": "api",
+                "msg": "upstream dispatch 502",
+                "extra_lines": 0
+              },
+              {
+                "time": "2026-10-22T08:20:09Z",
+                "level": "WARN",
+                "service": "dispatch",
+                "msg": "redis latency 900ms",
+                "extra_lines": 0
+              },
+              {
+                "time": "2026-10-22T08:20:10Z",
+                "level": "ERROR",
+                "service": "dispatch",
+                "msg": "redis connection reset",
+                "extra_lines": 0
+              },
+              {
+                "time": "2026-10-22T08:20:12Z",
+                "level": "WARN",
+                "service": "api",
+                "msg": "retrying dispatch",
+                "extra_lines": 0
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Unparsed lines: no timezone, unknown level, stray words, orphan continuations",
+          "input": {
+            "min_level": "INFO",
+            "lines": [
+              "    at the very top: a continuation with nothing above it",
+              "2026-10-22T10:00:00 level=info service=api msg=\"no timezone\"",
+              "2026-10-22T10:00:01Z level=notice service=api msg=\"unknown level\"",
+              "2026-10-22T10:00:02Z service=api msg=\"no level at all\"",
+              "2026-10-22T10:00:03Z level=error service=api oops msg=\"a word without =\"",
+              "\tcontinuation of an unparsed line",
+              "starting checkout worker...",
+              "2026-10-22T10:00:04Z level=error service=checkout msg=\"unclosed quote",
+              "2026-10-22T10:00:05Z level=info service=checkout msg=ready",
+              "\tworkers=4"
+            ]
+          },
+          "expected": {
+            "total": 1,
+            "unparsed": 8,
+            "by_level": {
+              "INFO": 1
+            },
+            "matches": [
+              {
+                "time": "2026-10-22T10:00:05Z",
+                "level": "INFO",
+                "service": "checkout",
+                "msg": "ready",
+                "extra_lines": 1
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "min_level DEBUG keeps everything; FATAL keeps only FATAL",
+          "input": {
+            "min_level": "FATAL",
+            "lines": [
+              "2026-10-22T11:00:00Z level=debug service=api msg=\"config loaded\"",
+              "2026-10-22T11:00:01Z level=fatal service=checkout msg=\"DATABASE_URL is not set\"",
+              "2026-10-22T11:00:02Z level=error service=api msg=\"db pool exhausted\"",
+              "2026-10-22T11:00:03Z level=warn service=api msg=\"slow query\" ms=1800",
+              "2026-10-22T18:00:00+07:00 level=FATAL service=api msg=\"out of file descriptors\""
+            ]
+          },
+          "expected": {
+            "total": 5,
+            "unparsed": 0,
+            "by_level": {
+              "DEBUG": 1,
+              "WARN": 1,
+              "ERROR": 1,
+              "FATAL": 2
+            },
+            "matches": [
+              {
+                "time": "2026-10-22T11:00:00Z",
+                "level": "FATAL",
+                "service": "api",
+                "msg": "out of file descriptors",
+                "extra_lines": 0
+              },
+              {
+                "time": "2026-10-22T11:00:01Z",
+                "level": "FATAL",
+                "service": "checkout",
+                "msg": "DATABASE_URL is not set",
+                "extra_lines": 0
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Empty lines, tabs, empty values, '=' inside quotes, missing service and msg",
+          "input": {
+            "min_level": "WARN",
+            "lines": [
+              "",
+              "2026-10-22T12:00:00Z level=warn msg=\"retry=3 backoff=2s\" service=",
+              "\tcaused by: ConnectionResetError",
+              "",
+              "2026-10-22T12:00:01Z level=error service=dispatch",
+              "2026-10-22T12:00:01Z level=error service=api msg=\"same second, listed after dispatch\"",
+              "2026-10-22T12:00:02.500Z level=info service=api msg=\"fractions are allowed in the input\"",
+              "2026-10-22T12:00:03Z   level=warn   service=api   msg=\"extra spaces\"   "
+            ]
+          },
+          "expected": {
+            "total": 5,
+            "unparsed": 0,
+            "by_level": {
+              "INFO": 1,
+              "WARN": 2,
+              "ERROR": 2
+            },
+            "matches": [
+              {
+                "time": "2026-10-22T12:00:00Z",
+                "level": "WARN",
+                "service": "",
+                "msg": "retry=3 backoff=2s",
+                "extra_lines": 1
+              },
+              {
+                "time": "2026-10-22T12:00:01Z",
+                "level": "ERROR",
+                "service": "dispatch",
+                "msg": null,
+                "extra_lines": 0
+              },
+              {
+                "time": "2026-10-22T12:00:01Z",
+                "level": "ERROR",
+                "service": "api",
+                "msg": "same second, listed after dispatch",
+                "extra_lines": 0
+              },
+              {
+                "time": "2026-10-22T12:00:03Z",
+                "level": "WARN",
+                "service": "api",
+                "msg": "extra spaces",
+                "extra_lines": 0
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

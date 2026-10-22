@@ -1,0 +1,16 @@
+{
+  "images": {
+    "blue-green-and-canary": {
+      "publicId": "codedev/courses/devops-foundations-ci-containers/07-deploys-rollbacks-blue-green-canary/blue-green-and-canary",
+      "url": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/q_auto/v1792640799/codedev/courses/devops-foundations-ci-containers/07-deploys-rollbacks-blue-green-canary/blue-green-and-canary.png?_a=BAMAROWQ0",
+      "width": 1200,
+      "height": 680
+    },
+    "expand-contract": {
+      "publicId": "codedev/courses/devops-foundations-ci-containers/07-deploys-rollbacks-blue-green-canary/expand-contract",
+      "url": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/q_auto/v1792640801/codedev/courses/devops-foundations-ci-containers/07-deploys-rollbacks-blue-green-canary/expand-contract.png?_a=BAMAROWQ0",
+      "width": 1200,
+      "height": 620
+    }
+  }
+}

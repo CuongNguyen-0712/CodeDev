@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="640" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">One changed file: which layers run again?</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Same commit (only app/main.py changed), two Dockerfiles. The cache is checked top to bottom; the first miss rebuilds everything below it.</text>
+  <rect x="40" y="108" width="540" height="462" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="140" font-size="18" font-weight="700" fill="#b91c1c">COPY . . first</text>
+  <text x="64" y="163" font-size="13" fill="#334155">Every file is copied before the dependencies are installed</text>
+  <rect x="60" y="180" width="500" height="44" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="76" y="207" font-size="14" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">FROM python:3.13-slim</text>
+  <rect x="448" y="188" width="100" height="28" rx="14" fill="#e2e8f0"/>
+  <text x="498" y="207" font-size="13" font-weight="700" fill="#334155" text-anchor="middle">CACHED</text>
+  <rect x="60" y="234" width="500" height="44" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="76" y="261" font-size="14" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">WORKDIR /app</text>
+  <rect x="448" y="242" width="100" height="28" rx="14" fill="#e2e8f0"/>
+  <text x="498" y="261" font-size="13" font-weight="700" fill="#334155" text-anchor="middle">CACHED</text>
+  <rect x="60" y="288" width="500" height="44" rx="6" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
+  <text x="76" y="315" font-size="14" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">COPY . .</text>
+  <text x="340" y="315" font-size="12" fill="#b91c1c">main.py changed</text>
+  <rect x="448" y="296" width="100" height="28" rx="14" fill="#fee2e2"/>
+  <text x="498" y="315" font-size="13" font-weight="700" fill="#b91c1c" text-anchor="middle">BUILD</text>
+  <rect x="60" y="342" width="500" height="44" rx="6" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
+  <text x="76" y="369" font-size="14" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">RUN pip install ...</text>
+  <text x="340" y="369" font-size="12" fill="#b91c1c">parent missed</text>
+  <rect x="448" y="350" width="100" height="28" rx="14" fill="#fee2e2"/>
+  <text x="498" y="369" font-size="13" font-weight="700" fill="#b91c1c" text-anchor="middle">BUILD</text>
+  <rect x="60" y="396" width="500" height="44" rx="6" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
+  <text x="76" y="423" font-size="14" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">CMD [&quot;python&quot;, ...]</text>
+  <rect x="448" y="404" width="100" height="28" rx="14" fill="#fee2e2"/>
+  <text x="498" y="423" font-size="13" font-weight="700" fill="#b91c1c" text-anchor="middle">BUILD</text>
+  <text x="64" y="528" font-size="14" font-weight="700" fill="#b91c1c">pip install runs again: about 4 minutes</text>
+  <text x="64" y="551" font-size="13" fill="#334155">Every commit pays for all dependencies, even a README fix.</text>
+  <rect x="620" y="108" width="540" height="462" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="140" font-size="18" font-weight="700" fill="#15803d">requirements.txt first</text>
+  <text x="644" y="163" font-size="13" fill="#334155">Dependencies change rarely, code changes on every commit</text>
+  <rect x="640" y="180" width="500" height="44" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="656" y="207" font-size="14" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">FROM python:3.13-slim</text>
+  <rect x="1028" y="188" width="100" height="28" rx="14" fill="#e2e8f0"/>
+  <text x="1078" y="207" font-size="13" font-weight="700" fill="#334155" text-anchor="middle">CACHED</text>
+  <rect x="640" y="234" width="500" height="44" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="656" y="261" font-size="14" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">WORKDIR /app</text>
+  <rect x="1028" y="242" width="100" height="28" rx="14" fill="#e2e8f0"/>
+  <text x="1078" y="261" font-size="13" font-weight="700" fill="#334155" text-anchor="middle">CACHED</text>
+  <rect x="640" y="288" width="500" height="44" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="656" y="315" font-size="14" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">COPY requirements.txt .</text>
+  <rect x="1028" y="296" width="100" height="28" rx="14" fill="#e2e8f0"/>
+  <text x="1078" y="315" font-size="13" font-weight="700" fill="#334155" text-anchor="middle">CACHED</text>
+  <rect x="640" y="342" width="500" height="44" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="656" y="369" font-size="14" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">RUN pip install ...</text>
+  <rect x="1028" y="350" width="100" height="28" rx="14" fill="#e2e8f0"/>
+  <text x="1078" y="369" font-size="13" font-weight="700" fill="#334155" text-anchor="middle">CACHED</text>
+  <rect x="640" y="396" width="500" height="44" rx="6" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
+  <text x="656" y="423" font-size="14" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">COPY . .</text>
+  <text x="920" y="423" font-size="12" fill="#b91c1c">main.py changed</text>
+  <rect x="1028" y="404" width="100" height="28" rx="14" fill="#fee2e2"/>
+  <text x="1078" y="423" font-size="13" font-weight="700" fill="#b91c1c" text-anchor="middle">BUILD</text>
+  <rect x="640" y="450" width="500" height="44" rx="6" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
+  <text x="656" y="477" font-size="14" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">CMD [&quot;python&quot;, ...]</text>
+  <rect x="1028" y="458" width="100" height="28" rx="14" fill="#fee2e2"/>
+  <text x="1078" y="477" font-size="13" font-weight="700" fill="#b91c1c" text-anchor="middle">BUILD</text>
+  <text x="644" y="528" font-size="14" font-weight="700" fill="#15803d">Only the code layer is rebuilt: about 2 seconds</text>
+  <text x="644" y="551" font-size="13" fill="#334155">pip runs again only when requirements.txt itself changes.</text>
+  <text x="40" y="606" font-size="14" fill="#334155">A step is reused when its parent step, its instruction text and (for COPY and ADD) the content of the copied files</text>
+  <text x="40" y="626" font-size="14" fill="#334155">are all the same as in an earlier build. Order the Dockerfile from what changes least to what changes most.</text>
+</svg>

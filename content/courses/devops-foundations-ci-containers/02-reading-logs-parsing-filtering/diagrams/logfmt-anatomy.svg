@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="680" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Anatomy of a log entry</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Fields on the first line, continuation lines below it. grep sees five separate lines; a parser sees one entry.</text>
+
+  <!-- the entry -->
+  <rect x="40" y="104" width="1120" height="250" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <!-- field boxes -->
+  <rect x="60" y="150" width="225" height="40" rx="6" fill="#e0f2fe" stroke="#0284c7" stroke-width="2"/>
+  <text x="72" y="176" font-size="13" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">2026-10-22T08:14:03Z</text>
+  <rect x="295" y="150" width="140" height="40" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="307" y="176" font-size="13" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">level=error</text>
+  <rect x="445" y="150" width="190" height="40" rx="6" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="457" y="176" font-size="13" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">service=checkout</text>
+  <rect x="645" y="150" width="235" height="40" rx="6" fill="#fef9c3" stroke="#ca8a04" stroke-width="2"/>
+  <text x="657" y="176" font-size="13" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">msg="payment timeout"</text>
+  <rect x="890" y="150" width="190" height="40" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="902" y="176" font-size="13" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">request_id=r-7a2</text>
+  <!-- labels -->
+  <text x="60" y="140" font-size="13" font-weight="700" fill="#0369a1">time: ISO 8601, UTC (Z)</text>
+  <text x="295" y="140" font-size="13" font-weight="700" fill="#b91c1c">level: any case</text>
+  <text x="445" y="140" font-size="13" font-weight="700" fill="#6d28d9">who logged it</text>
+  <text x="645" y="140" font-size="13" font-weight="700" fill="#a16207">quoted: may contain spaces</text>
+  <text x="890" y="140" font-size="13" font-weight="700" fill="#15803d">links one request</text>
+  <!-- continuation lines -->
+  <rect x="88" y="208" width="760" height="128" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="104" y="232" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">Traceback (most recent call last):</text>
+  <text x="128" y="258" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">File "/app/checkout/pay.py", line 41, in charge</text>
+  <text x="152" y="284" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">resp = client.post(url, json=body, timeout=3)</text>
+  <text x="104" y="310" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">TimeoutError: timed out</text>
+  <text x="870" y="252" font-size="14" font-weight="700" fill="#334155">continuation lines</text>
+  <text x="870" y="276" font-size="13" fill="#475569">start with a space or a tab,</text>
+  <text x="870" y="298" font-size="13" fill="#475569">belong to the entry above:</text>
+  <text x="870" y="320" font-size="13" fill="#475569">extra_lines = 4</text>
+
+  <!-- red: grep -->
+  <rect x="40" y="378" width="540" height="270" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="412" font-size="18" font-weight="700" fill="#b91c1c">Searching line by line</text>
+  <text x="64" y="446" font-size="14" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">grep ERROR</text>
+  <text x="250" y="446" font-size="14" fill="#7f1d1d">0 lines: the level is lowercase</text>
+  <text x="64" y="478" font-size="14" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">grep -i error</text>
+  <text x="250" y="478" font-size="14" fill="#7f1d1d">2 of 5 lines, the frames are lost</text>
+  <text x="64" y="512" font-size="14" fill="#334155">WARN &gt; ERROR as text: level filters go wrong</text>
+  <text x="64" y="540" font-size="14" fill="#334155">08:14:03Z and 15:14:01+07:00 look 7 h apart</text>
+  <text x="64" y="610" font-size="15" font-weight="700" fill="#b91c1c">Result: the cause stays hidden for 48 minutes</text>
+
+  <!-- green: parser -->
+  <rect x="620" y="378" width="540" height="270" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="412" font-size="18" font-weight="700" fill="#15803d">Parsing entries</text>
+  <text x="644" y="446" font-size="14" fill="#334155">read the fields, respecting the quotes</text>
+  <text x="644" y="474" font-size="14" fill="#334155">normalize the level, compare by severity:</text>
+  <text x="664" y="500" font-size="14" font-weight="700" fill="#0f172a">DEBUG &lt; INFO &lt; WARN &lt; ERROR &lt; FATAL</text>
+  <text x="644" y="528" font-size="14" fill="#334155">keep continuation lines with their entry</text>
+  <text x="644" y="556" font-size="14" fill="#334155">convert every time to UTC, then sort</text>
+  <text x="644" y="610" font-size="15" font-weight="700" fill="#15803d">Result: one entry, its traceback, the real order</text>
+</svg>

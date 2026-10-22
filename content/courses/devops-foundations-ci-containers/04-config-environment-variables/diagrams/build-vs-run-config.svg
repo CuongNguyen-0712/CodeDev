@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="640" fill="#ffffff"/>
+  <defs><marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#475569"/></marker></defs>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Config baked into the image vs injected at run time</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The image is shared with every environment and everyone who can pull it. Configuration and secrets belong to the environment.</text>
+  <rect x="40" y="108" width="540" height="470" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="140" font-size="18" font-weight="700" fill="#b91c1c">Baked in at build time</text>
+  <rect x="64" y="158" width="492" height="72" rx="8" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
+  <text x="80" y="182" font-size="14" fill="#0f172a" font-weight="700">Dockerfile</text>
+  <text x="80" y="203" font-size="13" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">ENV DATABASE_URL=postgres://api:Pr0d...@db.prod</text>
+  <line x1="310" y1="232" x2="310" y2="258" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <rect x="64" y="262" width="492" height="72" rx="8" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
+  <text x="80" y="286" font-size="14" fill="#0f172a" font-weight="700">Image api:2026.10.3 in the registry</text>
+  <text x="80" y="307" font-size="13" fill="#0f172a">the URL and password are in the image config</text>
+  <line x1="310" y1="336" x2="310" y2="362" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <rect x="64" y="366" width="492" height="120" rx="8" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="80" y="390" font-size="14" fill="#0f172a" font-weight="700">Everyone who pulls the image</text>
+  <text x="80" y="411" font-size="13" fill="#0f172a">docker history --no-trunc and docker inspect</text>
+  <text x="80" y="432" font-size="13" fill="#0f172a">print the production password</text>
+  <text x="80" y="453" font-size="13" fill="#0f172a">staging and laptops connect to the production DB</text>
+  <text x="64" y="520" font-size="14" font-weight="700" fill="#b91c1c">Changing the password means rebuilding the image,</text>
+  <text x="64" y="542" font-size="14" font-weight="700" fill="#b91c1c">and old copies of the image keep the old one forever.</text>
+  <rect x="620" y="108" width="540" height="470" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="140" font-size="18" font-weight="700" fill="#15803d">Injected at run time</text>
+  <rect x="644" y="158" width="492" height="72" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="660" y="182" font-size="14" fill="#0f172a" font-weight="700">One image: api:2026.10.3</text>
+  <text x="660" y="203" font-size="13" fill="#0f172a">no URLs, no passwords, the same in every environment</text>
+  <line x1="780" y1="232" x2="760" y2="278" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="1000" y1="232" x2="1020" y2="278" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <rect x="644" y="282" width="236" height="168" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="660" y="306" font-size="14" fill="#0f172a" font-weight="700">staging</text>
+  <text x="660" y="327" font-size="13" fill="#0f172a">env from the</text>
+  <text x="660" y="348" font-size="13" fill="#0f172a">staging secret store</text>
+  <text x="660" y="369" font-size="13" fill="#0f172a">DATABASE_URL =</text>
+  <text x="660" y="390" font-size="13" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">db.staging...</text>
+  <text x="660" y="411" font-size="13" fill="#0f172a">DEBUG = false</text>
+  <rect x="900" y="282" width="236" height="168" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="916" y="306" font-size="14" fill="#0f172a" font-weight="700">production</text>
+  <text x="916" y="327" font-size="13" fill="#0f172a">env from the</text>
+  <text x="916" y="348" font-size="13" fill="#0f172a">production secret store</text>
+  <text x="916" y="369" font-size="13" fill="#0f172a">DATABASE_URL =</text>
+  <text x="916" y="390" font-size="13" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">db.prod...</text>
+  <text x="916" y="411" font-size="13" fill="#0f172a">DEBUG = false</text>
+  <text x="644" y="490" font-size="14" font-weight="700" fill="#15803d">The app checks every variable at startup and</text>
+  <text x="644" y="512" font-size="14" font-weight="700" fill="#15803d">refuses to start when one is missing or invalid.</text>
+  <text x="644" y="542" font-size="13" fill="#334155">Rotating a password needs a restart, not a rebuild.</text>
+  <text x="40" y="612" font-size="14" fill="#334155">ENV and ARG values persist in the image and its history. Pass secrets at run time: -e, --env-file, Compose or a secret store.</text>
+</svg>

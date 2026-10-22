@@ -1,0 +1,256 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_devf_321",
+      "name": "plan-release-semver-changelog",
+      "type": "mini_coding",
+      "title": "Pick the latest tag, the next version and the changelog",
+      "description": "Rice Rocket's release script sorted tags as text and deployed v1.9.0 after v1.10.0, and a removed API field went out as a patch. Write plan_release(tags, commits): sort the version tags by SemVer precedence (pre-releases included, invalid tags ignored), find the latest stable release, decide the bump from Conventional Commits (a ! or a BREAKING CHANGE footer is major, feat is minor, fix and perf are patch), compute the next version and group the commits into a changelog. The runner reads the tags and commits from stdin and prints the plan as JSON.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "plan_release.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Example: v1.10.0 is newer than v1.9.0, a feature makes a minor release",
+          "input": {
+            "tags": [
+              "v1.9.0",
+              "v1.10.0",
+              "v1.2.3"
+            ],
+            "commits": [
+              "feat(menu): show spicy level",
+              "fix: round VAT"
+            ]
+          },
+          "expected": {
+            "sorted": [
+              "v1.2.3",
+              "v1.9.0",
+              "v1.10.0"
+            ],
+            "latest": "v1.10.0",
+            "bump": "minor",
+            "next": "v1.11.0",
+            "changelog": {
+              "Features": [
+                "menu: show spicy level"
+              ],
+              "Fixes": [
+                "round VAT"
+              ]
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Pre-releases sort below their release, rc.10 after rc.2, and an rc is never the latest",
+          "input": {
+            "tags": [
+              "v2.0.0-rc.10",
+              "v2.1.0-rc.1",
+              "v1.10.0",
+              "v2.0.0",
+              "v2.0.0-rc.2",
+              "v2.0.0-beta",
+              "v2.0.0-alpha.1"
+            ],
+            "commits": [
+              "fix(checkout): retry the payment callback once",
+              "docs: explain the refund flow",
+              "perf(dispatch): cache the driver lookup"
+            ]
+          },
+          "expected": {
+            "sorted": [
+              "v1.10.0",
+              "v2.0.0-alpha.1",
+              "v2.0.0-beta",
+              "v2.0.0-rc.2",
+              "v2.0.0-rc.10",
+              "v2.0.0",
+              "v2.1.0-rc.1"
+            ],
+            "latest": "v2.0.0",
+            "bump": "patch",
+            "next": "v2.0.1",
+            "changelog": {
+              "Fixes": [
+                "checkout: retry the payment callback once",
+                "dispatch: cache the driver lookup"
+              ]
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A BREAKING CHANGE footer makes a major release, whatever the commit type",
+          "input": {
+            "tags": [
+              "v1.4.2",
+              "v1.4.1",
+              "v1.3.0"
+            ],
+            "commits": [
+              "feat(orders): add a pickup time to orders",
+              "refactor(api): rename orders.total to orders.total_vnd\n\nThe mobile app must read the new field.\n\nBREAKING CHANGE: orders.total is removed from the API response",
+              "fix: show the right currency symbol",
+              "chore(ci): pin actions to commit SHAs"
+            ]
+          },
+          "expected": {
+            "sorted": [
+              "v1.3.0",
+              "v1.4.1",
+              "v1.4.2"
+            ],
+            "latest": "v1.4.2",
+            "bump": "major",
+            "next": "v2.0.0",
+            "changelog": {
+              "Breaking changes": [
+                "api: rename orders.total to orders.total_vnd"
+              ],
+              "Features": [
+                "orders: add a pickup time to orders"
+              ],
+              "Fixes": [
+                "show the right currency symbol"
+              ]
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Invalid tags are ignored; chores and docs alone need no release",
+          "input": {
+            "tags": [
+              "latest",
+              "v1.2",
+              "release-2026-10",
+              "v01.2.3",
+              "1.4.0",
+              "v1.4.0+build.7",
+              "v1.3.9",
+              "v1.4.0-rc.1"
+            ],
+            "commits": [
+              "chore: bump pre-commit hooks",
+              "docs(readme): add the on-call phone list",
+              "Merge branch 'main' into feature/refunds"
+            ]
+          },
+          "expected": {
+            "sorted": [
+              "v1.3.9",
+              "v1.4.0-rc.1",
+              "1.4.0",
+              "v1.4.0+build.7"
+            ],
+            "latest": "v1.4.0+build.7",
+            "bump": null,
+            "next": null,
+            "changelog": {}
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "No tags yet: base v0.0.0; Feat(api)! is breaking; other formats are ignored",
+          "input": {
+            "tags": [],
+            "commits": [
+              "Initial commit",
+              "Feat(api)!: return prices in VND as integers",
+              "feat: add the dispatch worker",
+              "fix typo in README",
+              "fix(api): handle an empty cart"
+            ]
+          },
+          "expected": {
+            "sorted": [],
+            "latest": null,
+            "bump": "major",
+            "next": "v1.0.0",
+            "changelog": {
+              "Breaking changes": [
+                "api: return prices in VND as integers"
+              ],
+              "Features": [
+                "add the dispatch worker"
+              ],
+              "Fixes": [
+                "api: handle an empty cart"
+              ]
+            }
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "The full pre-release ladder, and build metadata keeps input order",
+          "input": {
+            "tags": [
+              "1.0.0",
+              "1.0.0-rc.1",
+              "v1.0.0-beta.11",
+              "1.0.0-beta.2",
+              "1.0.0-beta",
+              "1.0.0-alpha.beta",
+              "1.0.0-alpha.1",
+              "1.0.0-alpha",
+              "v1.0.0+linux",
+              "0.9.12"
+            ],
+            "commits": [
+              "feat(menu): filter by district",
+              "feat(menu)!: drop the old price field\n\nBREAKING-CHANGE: clients must use price_vnd",
+              "fix: menu images on slow networks"
+            ]
+          },
+          "expected": {
+            "sorted": [
+              "0.9.12",
+              "1.0.0-alpha",
+              "1.0.0-alpha.1",
+              "1.0.0-alpha.beta",
+              "1.0.0-beta",
+              "1.0.0-beta.2",
+              "v1.0.0-beta.11",
+              "1.0.0-rc.1",
+              "1.0.0",
+              "v1.0.0+linux"
+            ],
+            "latest": "v1.0.0+linux",
+            "bump": "major",
+            "next": "v2.0.0",
+            "changelog": {
+              "Breaking changes": [
+                "menu: drop the old price field"
+              ],
+              "Features": [
+                "menu: filter by district"
+              ],
+              "Fixes": [
+                "menu images on slow networks"
+              ]
+            }
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

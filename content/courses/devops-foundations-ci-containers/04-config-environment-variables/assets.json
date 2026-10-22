@@ -1,0 +1,10 @@
+{
+  "images": {
+    "build-vs-run-config": {
+      "publicId": "codedev/courses/devops-foundations-ci-containers/04-config-environment-variables/build-vs-run-config",
+      "url": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/q_auto/v1792641251/codedev/courses/devops-foundations-ci-containers/04-config-environment-variables/build-vs-run-config.png?_a=BAMAROWQ0",
+      "width": 1200,
+      "height": 640
+    }
+  }
+}

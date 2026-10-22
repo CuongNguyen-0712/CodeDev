@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="660" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">docker stop api: who receives SIGTERM?</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Docker signals PID 1 only. As PID 1, a process with no SIGTERM handler ignores the signal.</text>
+
+  <!-- top: shell is PID 1 -->
+  <rect x="40" y="106" width="1120" height="250" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="138" font-size="18" font-weight="700" fill="#b91c1c">start.sh runs gunicorn without exec</text>
+  <rect x="64" y="156" width="300" height="44" rx="8" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
+  <text x="78" y="184" font-size="15" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">PID 1  /bin/sh start.sh</text>
+  <rect x="104" y="214" width="300" height="44" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="118" y="242" font-size="15" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">PID 7  gunicorn</text>
+  <line x1="84" y1="200" x2="84" y2="236" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="84" y1="236" x2="104" y2="236" stroke="#94a3b8" stroke-width="2"/>
+
+  <line x1="420" y1="300" x2="1120" y2="300" stroke="#334155" stroke-width="2"/>
+  <text x="420" y="326" font-size="13" fill="#475569">0 s</text>
+  <text x="1090" y="326" font-size="13" fill="#475569">10 s</text>
+  <circle cx="430" cy="300" r="7" fill="#f59e0b"/>
+  <text x="420" y="170" font-size="15" font-weight="700" fill="#b45309">SIGTERM to PID 1</text>
+  <text x="420" y="194" font-size="14" fill="#334155">no handler: ignored, never forwarded</text>
+  <text x="420" y="218" font-size="14" fill="#334155">gunicorn keeps serving orders</text>
+  <circle cx="1110" cy="300" r="7" fill="#dc2626"/>
+  <text x="820" y="170" font-size="15" font-weight="700" fill="#b91c1c">grace period over: SIGKILL</text>
+  <text x="820" y="194" font-size="14" fill="#334155">everything dies at once</text>
+  <text x="820" y="218" font-size="14" fill="#334155">in-flight orders are cut off</text>
+  <text x="820" y="262" font-size="16" font-weight="700" fill="#b91c1c">Exited (137) = 128 + 9</text>
+
+  <!-- bottom: exec -->
+  <rect x="40" y="380" width="1120" height="240" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="64" y="412" font-size="18" font-weight="700" fill="#15803d">start.sh ends with exec gunicorn ...</text>
+  <rect x="64" y="430" width="300" height="44" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="78" y="458" font-size="15" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">PID 1  gunicorn</text>
+  <text x="64" y="500" font-size="13" fill="#14532d">exec replaced the shell: same PID</text>
+
+  <line x1="420" y1="566" x2="1120" y2="566" stroke="#334155" stroke-width="2"/>
+  <text x="420" y="592" font-size="13" fill="#475569">0 s</text>
+  <text x="1090" y="592" font-size="13" fill="#475569">10 s</text>
+  <circle cx="430" cy="566" r="7" fill="#f59e0b"/>
+  <text x="420" y="444" font-size="15" font-weight="700" fill="#15803d">SIGTERM to gunicorn</text>
+  <text x="420" y="468" font-size="14" fill="#334155">stops accepting new connections,</text>
+  <text x="420" y="492" font-size="14" fill="#334155">finishes the requests in progress</text>
+  <circle cx="530" cy="566" r="7" fill="#16a34a"/>
+  <text x="560" y="538" font-size="16" font-weight="700" fill="#15803d">exits at about 1.2 s: Exited (0)</text>
+</svg>

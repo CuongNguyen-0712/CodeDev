@@ -1,0 +1,440 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_devf_211",
+      "name": "layer-cache-and-image-size-quiz",
+      "type": "quiz",
+      "title": "Which layers rebuild, and what really makes an image smaller",
+      "description": "Read a Dockerfile the way the build cache does, then pick the changes that really keep build tools, old files and stale package lists out of the final image.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The api image is built from this Dockerfile (line numbers added), and .dockerignore contains two lines: .git and *.md.\n\n1  FROM python:3.13-slim\n2  WORKDIR /app\n3  RUN apt-get update && apt-get install -y --no-install-recommends libpq5 && rm -rf /var/lib/apt/lists/*\n4  COPY requirements.txt .\n5  RUN pip install --no-cache-dir -r requirements.txt\n6  COPY . .\n7  RUN python -m compileall -q app\n8  CMD [\"python\", \"-m\", \"app\"]\n\nThe image was just built. A developer edits app/routes.py and README.md and runs the same docker build again on the same machine. Which numbered steps execute again instead of coming from the cache? (Step 8 only writes image metadata; leave it out.)",
+          "explanation": "Steps 1 to 5 have the same instruction text as last time, and the only file they copy (requirements.txt in step 4) has the same content, so their cache keys are unchanged and they are reused. README.md matches *.md in .dockerignore, so it is not in the build context at all and cannot change anything. app/routes.py is in the context and step 6 (COPY . .) copies it, so the checksum of the copied files changes and step 6 misses the cache. A miss invalidates every later step, so step 7 runs again as well: steps 6 and 7. Only step 6 forgets that a miss carries down to the following steps. Steps 4 to 7 would be right if requirements.txt had changed, or if the Dockerfile copied everything before pip install. Step 3 is not re-run just because it contains apt-get update: the cache only compares the instruction text and its parent, which is exactly why update and install belong in the same RUN. None is wrong because ignoring README.md does not hide the change to app/routes.py.",
+          "options": [
+            {
+              "text": "Only step 6 (COPY . .)",
+              "correct": false
+            },
+            {
+              "text": "Steps 6 and 7",
+              "correct": true
+            },
+            {
+              "text": "Steps 4 to 7",
+              "correct": false
+            },
+            {
+              "text": "Steps 3 to 7: apt-get update must fetch fresh package lists, so step 3 never comes from the cache",
+              "correct": false
+            },
+            {
+              "text": "None: README.md is in .dockerignore, so the build context did not change",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "The api image is 1.1 GB and the team wants it smaller and its builds more predictable. Which statements are true? (Select all that apply.)",
+          "explanation": "True: in a multi-stage build, only what you COPY --from=build into the final stage ends up there; the compiler and headers installed in the build stage stay behind. True: .dockerignore removes files from the build context, so COPY . . cannot copy them and a change to them never invalidates a layer. True: when apt-get update sits in its own RUN, that layer can be reused from the cache weeks later while a new install line asks for packages from those stale lists; one RUN with update, install and rm -rf /var/lib/apt/lists/* avoids that and keeps the lists out of the image. False: layers only add. A later RUN rm -rf /root/.cache hides the folder in the new layer, but the 300 MB still sit in the earlier layer and are still downloaded with the image; delete files in the same RUN that created them (or use pip --no-cache-dir). False: tags like python:3.13-slim are moved to new images whenever the base is rebuilt (for example with security fixes), so two builds a week apart can start from different bases; pin a digest (FROM python:3.13-slim@sha256:...) when you need the exact same base, and update the pin on purpose.",
+          "options": [
+            {
+              "text": "In a multi-stage build, compilers installed in the build stage are not in the final image unless a COPY --from=build copies them there",
+              "correct": true
+            },
+            {
+              "text": ".dockerignore keeps files out of the build context, so COPY . . cannot copy them and changes to them do not invalidate any layer",
+              "correct": true
+            },
+            {
+              "text": "Running apt-get update and apt-get install in the same RUN stops a cached, outdated apt-get update layer from being reused with a new install line",
+              "correct": true
+            },
+            {
+              "text": "After one RUN downloads 300 MB into /root/.cache, adding RUN rm -rf /root/.cache as the next step makes the image 300 MB smaller",
+              "correct": false
+            },
+            {
+              "text": "The tag python:3.13-slim always points to the same image, so pinning the base image by digest adds nothing",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_devf_212",
+      "name": "fix-docker-layer-cache-plan",
+      "type": "fix_bug",
+      "title": "Fix the build plan that promises cached layers it cannot reuse",
+      "description": "Rice Rocket's CI prints a build plan before every image build: which Dockerfile steps the layer cache will reuse (CACHED) and which ones will run again (BUILD), and how many seconds the build will take. The plan is wrong in three ways: a step that runs again does not make the steps after it run again, a COPY step only looks at the names of the files it copies and not at their content, and files listed in .dockerignore still count as part of the build context. Fix build_report(previous, current, dockerignore, seconds) so that every cache key includes its parent step's key, the content hash of every copied file, and only the files that really reach the build. The runner at the bottom (do not change it) prints the plan as JSON.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "python",
+        "filePath": "build_plan.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "COPY . . before pip install: a code change re-runs pip and every step after it",
+          "input": {
+            "previous": {
+              "dockerfile": [
+                "FROM python:3.13-slim",
+                "WORKDIR /app",
+                "COPY . .",
+                "RUN pip install --no-cache-dir -r requirements.txt",
+                "CMD [\"python\", \"-m\", \"api\"]"
+              ],
+              "files": {
+                "requirements.txt": "r1",
+                "app/main.py": "m1",
+                "app/routes.py": "t1",
+                "README.md": "d1",
+                ".git/HEAD": "g1",
+                "tests/test_routes.py": "x1"
+              }
+            },
+            "current": {
+              "dockerfile": [
+                "FROM python:3.13-slim",
+                "WORKDIR /app",
+                "COPY . .",
+                "RUN pip install --no-cache-dir -r requirements.txt",
+                "CMD [\"python\", \"-m\", \"api\"]"
+              ],
+              "files": {
+                "requirements.txt": "r1",
+                "app/main.py": "m2",
+                "app/routes.py": "t1",
+                "README.md": "d1",
+                ".git/HEAD": "g1",
+                "tests/test_routes.py": "x1"
+              }
+            },
+            "dockerignore": [
+              ".git",
+              "*.md"
+            ],
+            "seconds": [
+              3,
+              1,
+              1,
+              240,
+              1
+            ]
+          },
+          "expected": {
+            "steps": [
+              "CACHED FROM python:3.13-slim",
+              "CACHED WORKDIR /app",
+              "BUILD COPY . .",
+              "BUILD RUN pip install --no-cache-dir -r requirements.txt",
+              "BUILD CMD [\"python\", \"-m\", \"api\"]"
+            ],
+            "rebuilt": 3,
+            "build_seconds": 242
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "requirements.txt copied first: a code change reuses the pip layer",
+          "input": {
+            "previous": {
+              "dockerfile": [
+                "FROM python:3.13-slim",
+                "WORKDIR /app",
+                "COPY requirements.txt .",
+                "RUN pip install --no-cache-dir -r requirements.txt",
+                "COPY . .",
+                "CMD [\"python\", \"-m\", \"api\"]"
+              ],
+              "files": {
+                "requirements.txt": "r1",
+                "app/main.py": "m1",
+                "app/routes.py": "t1",
+                "README.md": "d1",
+                ".git/HEAD": "g1",
+                "tests/test_routes.py": "x1"
+              }
+            },
+            "current": {
+              "dockerfile": [
+                "FROM python:3.13-slim",
+                "WORKDIR /app",
+                "COPY requirements.txt .",
+                "RUN pip install --no-cache-dir -r requirements.txt",
+                "COPY . .",
+                "CMD [\"python\", \"-m\", \"api\"]"
+              ],
+              "files": {
+                "requirements.txt": "r1",
+                "app/main.py": "m1",
+                "app/routes.py": "t2",
+                "README.md": "d1",
+                ".git/HEAD": "g1",
+                "tests/test_routes.py": "x1"
+              }
+            },
+            "dockerignore": [
+              ".git",
+              "*.md",
+              "tests"
+            ],
+            "seconds": [
+              3,
+              1,
+              1,
+              240,
+              1,
+              1
+            ]
+          },
+          "expected": {
+            "steps": [
+              "CACHED FROM python:3.13-slim",
+              "CACHED WORKDIR /app",
+              "CACHED COPY requirements.txt .",
+              "CACHED RUN pip install --no-cache-dir -r requirements.txt",
+              "BUILD COPY . .",
+              "BUILD CMD [\"python\", \"-m\", \"api\"]"
+            ],
+            "rebuilt": 2,
+            "build_seconds": 2
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "README.md and .git change, both in .dockerignore: everything is cached",
+          "input": {
+            "previous": {
+              "dockerfile": [
+                "FROM python:3.13-slim",
+                "WORKDIR /app",
+                "COPY requirements.txt .",
+                "RUN pip install --no-cache-dir -r requirements.txt",
+                "COPY . .",
+                "CMD [\"python\", \"-m\", \"api\"]"
+              ],
+              "files": {
+                "requirements.txt": "r1",
+                "app/main.py": "m1",
+                "app/routes.py": "t1",
+                "README.md": "d1",
+                ".git/HEAD": "g1",
+                "tests/test_routes.py": "x1"
+              }
+            },
+            "current": {
+              "dockerfile": [
+                "FROM python:3.13-slim",
+                "WORKDIR /app",
+                "COPY requirements.txt .",
+                "RUN pip install --no-cache-dir -r requirements.txt",
+                "COPY . .",
+                "CMD [\"python\", \"-m\", \"api\"]"
+              ],
+              "files": {
+                "requirements.txt": "r1",
+                "app/main.py": "m1",
+                "app/routes.py": "t1",
+                "README.md": "d2",
+                ".git/HEAD": "g2",
+                "tests/test_routes.py": "x1"
+              }
+            },
+            "dockerignore": [
+              ".git",
+              "*.md",
+              "tests"
+            ],
+            "seconds": [
+              3,
+              1,
+              1,
+              240,
+              1,
+              1
+            ]
+          },
+          "expected": {
+            "steps": [
+              "CACHED FROM python:3.13-slim",
+              "CACHED WORKDIR /app",
+              "CACHED COPY requirements.txt .",
+              "CACHED RUN pip install --no-cache-dir -r requirements.txt",
+              "CACHED COPY . .",
+              "CACHED CMD [\"python\", \"-m\", \"api\"]"
+            ],
+            "rebuilt": 0,
+            "build_seconds": 0
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A new pin in requirements.txt rebuilds from COPY requirements.txt down, --chown included",
+          "input": {
+            "previous": {
+              "dockerfile": [
+                "FROM python:3.13-slim",
+                "WORKDIR /app",
+                "COPY requirements.txt .",
+                "RUN pip install --no-cache-dir -r requirements.txt",
+                "COPY --chown=app:app . .",
+                "CMD [\"python\", \"-m\", \"api\"]"
+              ],
+              "files": {
+                "requirements.txt": "r1",
+                "app/main.py": "m1",
+                "app/routes.py": "t1",
+                "README.md": "d1",
+                ".git/HEAD": "g1",
+                "tests/test_routes.py": "x1"
+              }
+            },
+            "current": {
+              "dockerfile": [
+                "FROM python:3.13-slim",
+                "WORKDIR /app",
+                "COPY requirements.txt .",
+                "RUN pip install --no-cache-dir -r requirements.txt",
+                "COPY --chown=app:app . .",
+                "CMD [\"python\", \"-m\", \"api\"]"
+              ],
+              "files": {
+                "requirements.txt": "r2",
+                "app/main.py": "m1",
+                "app/routes.py": "t1",
+                "README.md": "d1",
+                ".git/HEAD": "g1",
+                "tests/test_routes.py": "x2"
+              }
+            },
+            "dockerignore": [
+              ".git",
+              "*.md",
+              "tests/"
+            ],
+            "seconds": [
+              3,
+              1,
+              1,
+              255,
+              2,
+              1
+            ]
+          },
+          "expected": {
+            "steps": [
+              "CACHED FROM python:3.13-slim",
+              "CACHED WORKDIR /app",
+              "BUILD COPY requirements.txt .",
+              "BUILD RUN pip install --no-cache-dir -r requirements.txt",
+              "BUILD COPY --chown=app:app . .",
+              "BUILD CMD [\"python\", \"-m\", \"api\"]"
+            ],
+            "rebuilt": 4,
+            "build_seconds": 259
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Only the edited CMD runs again; ignored files and files no COPY picks up reuse every layer",
+          "input": {
+            "previous": {
+              "dockerfile": [
+                "FROM python:3.13-slim",
+                "RUN apt-get update && apt-get install -y --no-install-recommends libpq5 && rm -rf /var/lib/apt/lists/*",
+                "WORKDIR /app",
+                "COPY requirements.txt .",
+                "RUN pip install --no-cache-dir -r requirements.txt",
+                "COPY app/ ./app/",
+                "COPY *.py ./",
+                "CMD [\"python\", \"-m\", \"app\"]"
+              ],
+              "files": {
+                "requirements.txt": "r1",
+                "app/main.py": "m1",
+                "app/routes.py": "t1",
+                "README.md": "d1",
+                ".git/HEAD": "g1",
+                "tests/test_routes.py": "x1",
+                "manage.py": "p1",
+                "scratch.py": "s1",
+                "docs/setup.md": "u1"
+              }
+            },
+            "current": {
+              "dockerfile": [
+                "FROM python:3.13-slim",
+                "RUN apt-get update && apt-get install -y --no-install-recommends libpq5 && rm -rf /var/lib/apt/lists/*",
+                "WORKDIR /app",
+                "COPY requirements.txt .",
+                "RUN pip install --no-cache-dir -r requirements.txt",
+                "COPY app/ ./app/",
+                "COPY *.py ./",
+                "CMD [\"gunicorn\", \"app.main:app\"]"
+              ],
+              "files": {
+                "requirements.txt": "r1",
+                "app/main.py": "m1",
+                "app/routes.py": "t1",
+                "README.md": "d1",
+                ".git/HEAD": "g1",
+                "tests/test_routes.py": "x2",
+                "manage.py": "p1",
+                "scratch.py": "s2",
+                "docs/setup.md": "u2"
+              }
+            },
+            "dockerignore": [
+              ".git",
+              "*.md",
+              "scratch.py"
+            ],
+            "seconds": [
+              3,
+              35,
+              1,
+              1,
+              240,
+              1,
+              1,
+              1
+            ]
+          },
+          "expected": {
+            "steps": [
+              "CACHED FROM python:3.13-slim",
+              "CACHED RUN apt-get update && apt-get install -y --no-install-recommends libpq5 && rm -rf /var/lib/apt/lists/*",
+              "CACHED WORKDIR /app",
+              "CACHED COPY requirements.txt .",
+              "CACHED RUN pip install --no-cache-dir -r requirements.txt",
+              "CACHED COPY app/ ./app/",
+              "CACHED COPY *.py ./",
+              "BUILD CMD [\"gunicorn\", \"app.main:app\"]"
+            ],
+            "rebuilt": 1,
+            "build_seconds": 1
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

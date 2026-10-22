@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="620" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Text sort is not version sort</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Compare MAJOR, MINOR and PATCH as numbers. A pre-release comes before its release.</text>
+
+  <!-- Left: text sort -->
+  <rect x="40" y="108" width="540" height="292" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="140" font-size="17" font-weight="700" fill="#b91c1c">Plain text sort</text>
+  <text x="64" y="166" font-size="14" fill="#7f1d1d" font-family="Consolas, 'Courier New', monospace">git tag | sort | tail -n 1</text>
+
+  <rect x="64" y="184" width="150" height="40" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="139" y="210" font-size="15" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">v1.10.0</text>
+  <rect x="64" y="232" width="150" height="40" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="139" y="258" font-size="15" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">v1.2.3</text>
+  <rect x="64" y="280" width="150" height="40" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="139" y="306" font-size="15" font-weight="700" fill="#b91c1c" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">v1.9.0</text>
+
+  <text x="240" y="210" font-size="13" fill="#7f1d1d">"v1.1" comes first: the character 1 &lt; 2 &lt; 9</text>
+  <text x="240" y="306" font-size="13" font-weight="700" fill="#b91c1c">tail -n 1 picks v1.9.0 - deployed!</text>
+  <text x="64" y="356" font-size="14" fill="#7f1d1d">Text compares one character at a time,</text>
+  <text x="64" y="378" font-size="14" fill="#7f1d1d">so "10" sorts before "9" - two weeks of fixes rolled back.</text>
+
+  <!-- Right: semver -->
+  <rect x="620" y="108" width="540" height="292" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="140" font-size="17" font-weight="700" fill="#15803d">SemVer precedence</text>
+  <text x="644" y="166" font-size="14" fill="#14532d" font-family="Consolas, 'Courier New', monospace">MAJOR . MINOR . PATCH as numbers</text>
+
+  <rect x="644" y="184" width="150" height="40" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="719" y="210" font-size="15" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">v1.2.3</text>
+  <rect x="644" y="232" width="150" height="40" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="719" y="258" font-size="15" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">v1.9.0</text>
+  <rect x="644" y="280" width="150" height="40" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="719" y="306" font-size="15" font-weight="700" fill="#15803d" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">v1.10.0</text>
+
+  <text x="820" y="258" font-size="13" fill="#14532d">MINOR 9 &lt; 10</text>
+  <text x="820" y="306" font-size="13" font-weight="700" fill="#15803d">the latest release</text>
+  <text x="644" y="356" font-size="14" fill="#14532d">1 = 1, then 10 &gt; 9: decided, PATCH is not even read.</text>
+  <text x="644" y="378" font-size="14" fill="#14532d">In bash: sort -V (releases only). In code: tuples.</text>
+
+  <!-- Bottom: pre-release ladder -->
+  <rect x="40" y="424" width="1120" height="172" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="456" font-size="17" font-weight="700" fill="#0f172a">Pre-releases, lowest to highest</text>
+
+  <rect x="64" y="476" width="150" height="44" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="139" y="503" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">2.0.0-alpha</text>
+  <text x="232" y="504" font-size="18" fill="#475569" text-anchor="middle">&lt;</text>
+  <rect x="250" y="476" width="150" height="44" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="325" y="503" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">2.0.0-alpha.1</text>
+  <text x="418" y="504" font-size="18" fill="#475569" text-anchor="middle">&lt;</text>
+  <rect x="436" y="476" width="150" height="44" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="511" y="503" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">2.0.0-beta</text>
+  <text x="604" y="504" font-size="18" fill="#475569" text-anchor="middle">&lt;</text>
+  <rect x="622" y="476" width="150" height="44" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="697" y="503" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">2.0.0-rc.2</text>
+  <text x="790" y="504" font-size="18" fill="#475569" text-anchor="middle">&lt;</text>
+  <rect x="808" y="476" width="150" height="44" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="883" y="503" font-size="14" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">2.0.0-rc.10</text>
+  <text x="976" y="504" font-size="18" fill="#475569" text-anchor="middle">&lt;</text>
+  <rect x="994" y="476" width="150" height="44" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="1069" y="503" font-size="14" font-weight="700" fill="#15803d" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">2.0.0</text>
+
+  <text x="64" y="552" font-size="13" fill="#334155">alpha &lt; alpha.1: when all parts so far are equal, fewer parts is lower</text>
+  <text x="64" y="576" font-size="13" fill="#334155">rc.2 &lt; rc.10: numeric parts compare as numbers</text>
+  <text x="622" y="552" font-size="13" fill="#334155">2.0.0 &gt; every 2.0.0-something: the release comes last</text>
+  <text x="622" y="576" font-size="13" fill="#334155">build metadata (2.0.0+linux) never changes the order</text>
+</svg>

@@ -1,0 +1,1161 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_devf_411",
+      "name": "latency-percentiles-from-raw-samples",
+      "type": "mini_coding",
+      "title": "Find the slow checkouts the average hid",
+      "description": "Write latency_report(slo, samples), the report behind Rice Rocket's latency dashboard. From raw request samples, build one row per endpoint (sorted by name) with the count, the average, nearest-rank p50, p95 and p99, the server error rate and whether the endpoint meets its SLO, plus an all row computed from every sample merged together, not by averaging the endpoint rows. The runner prints the report as JSON.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "latency_report.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Ten /menu samples: nearest-rank p50, p95 and p99 on a small list",
+          "input": {
+            "slo": {
+              "p95_ms": 300,
+              "max_error_rate": 1.0
+            },
+            "samples": [
+              {
+                "endpoint": "/menu",
+                "ms": 52,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 48,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 61,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 45,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 70,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 55,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 49,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 58,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 90,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 47,
+                "status": 200
+              }
+            ]
+          },
+          "expected": {
+            "endpoints": [
+              {
+                "endpoint": "/menu",
+                "count": 10,
+                "avg_ms": "57.5",
+                "p50": 52,
+                "p95": 90,
+                "p99": 90,
+                "error_rate": "0.00",
+                "slo_ok": true
+              }
+            ],
+            "all": {
+              "endpoint": "all",
+              "count": 10,
+              "avg_ms": "57.5",
+              "p50": 52,
+              "p95": 90,
+              "p99": 90,
+              "error_rate": "0.00",
+              "slo_ok": true
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The incident: 2 slow checkouts in 20 fail the SLO, the merged p95 still looks fine",
+          "input": {
+            "slo": {
+              "p95_ms": 300,
+              "max_error_rate": 1.0
+            },
+            "samples": [
+              {
+                "endpoint": "/checkout",
+                "ms": 132,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 48,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 145,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 52,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 128,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 55,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 150,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 47,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 161,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 60,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 139,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 51,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 4100,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 49,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 142,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 58,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 170,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 62,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 155,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 53,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 148,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 50,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 136,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 46,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 190,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 57,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 144,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 54,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 152,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 61,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 158,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 59,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 4300,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 52,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 140,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 48,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 165,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 56,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 149,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 78,
+                "status": 200
+              }
+            ]
+          },
+          "expected": {
+            "endpoints": [
+              {
+                "endpoint": "/checkout",
+                "count": 20,
+                "avg_ms": "555.2",
+                "p50": 149,
+                "p95": 4100,
+                "p99": 4300,
+                "error_rate": "0.00",
+                "slo_ok": false
+              },
+              {
+                "endpoint": "/menu",
+                "count": 20,
+                "avg_ms": "54.8",
+                "p50": 53,
+                "p95": 62,
+                "p99": 78,
+                "error_rate": "0.00",
+                "slo_ok": true
+              }
+            ],
+            "all": {
+              "endpoint": "all",
+              "count": 40,
+              "avg_ms": "305.0",
+              "p50": 78,
+              "p95": 190,
+              "p99": 4300,
+              "error_rate": "0.00",
+              "slo_ok": true
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Average under the SLO, p95 over it: 3 slow requests in 40 on /checkout",
+          "input": {
+            "slo": {
+              "p95_ms": 300,
+              "max_error_rate": 1.0
+            },
+            "samples": [
+              {
+                "endpoint": "/checkout",
+                "ms": 118,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 102,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 135,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 124,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 99,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 141,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 127,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 110,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 1800,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 133,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 121,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 108,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 129,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 116,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 138,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 105,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 126,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 119,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 2100,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 131,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 112,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 123,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 140,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 107,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 128,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 117,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 134,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 111,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 125,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 2400,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 130,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 104,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 122,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 139,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 115,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 120,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 136,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 109,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 126,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 113,
+                "status": 200
+              }
+            ]
+          },
+          "expected": {
+            "endpoints": [
+              {
+                "endpoint": "/checkout",
+                "count": 40,
+                "avg_ms": "269.8",
+                "p50": 123,
+                "p95": 1800,
+                "p99": 2400,
+                "error_rate": "0.00",
+                "slo_ok": false
+              }
+            ],
+            "all": {
+              "endpoint": "all",
+              "count": 40,
+              "avg_ms": "269.8",
+              "p50": 123,
+              "p95": 1800,
+              "p99": 2400,
+              "error_rate": "0.00",
+              "slo_ok": false
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A 500 and a 503 count as errors, a 404 does not; 8% errors fail a fast endpoint",
+          "input": {
+            "slo": {
+              "p95_ms": 300,
+              "max_error_rate": 1.0
+            },
+            "samples": [
+              {
+                "endpoint": "/orders",
+                "ms": 210,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 61,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 190,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 57,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 230,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 66,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 205,
+                "status": 404
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 59,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 198,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 63,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 220,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 58,
+                "status": 404
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 215,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 70,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 240,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 62,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 201,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 55,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 188,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 64,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 226,
+                "status": 500
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 60,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 212,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 67,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 199,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 56,
+                "status": 404
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 235,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 65,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 207,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 61,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 193,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 59,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 218,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 68,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 224,
+                "status": 503
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 57,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 209,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 62,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 231,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 63,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 196,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 60,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 214,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 58,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 228,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 66,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 203,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 64,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 219,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 90,
+                "status": 200
+              }
+            ]
+          },
+          "expected": {
+            "endpoints": [
+              {
+                "endpoint": "/menu",
+                "count": 25,
+                "avg_ms": "62.8",
+                "p50": 62,
+                "p95": 70,
+                "p99": 90,
+                "error_rate": "0.00",
+                "slo_ok": true
+              },
+              {
+                "endpoint": "/orders",
+                "count": 25,
+                "avg_ms": "212.4",
+                "p50": 212,
+                "p95": 235,
+                "p99": 240,
+                "error_rate": "8.00",
+                "slo_ok": false
+              }
+            ],
+            "all": {
+              "endpoint": "all",
+              "count": 50,
+              "avg_ms": "137.6",
+              "p50": 90,
+              "p95": 231,
+              "p99": 240,
+              "error_rate": "4.00",
+              "slo_ok": false
+            }
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Three endpoints in mixed order with a 250 ms SLO, rows sorted by endpoint name",
+          "input": {
+            "slo": {
+              "p95_ms": 250,
+              "max_error_rate": 2.0
+            },
+            "samples": [
+              {
+                "endpoint": "/orders",
+                "ms": 240,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 61,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 150,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 180,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 49,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 162,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 260,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 72,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 171,
+                "status": 500
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 199,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 55,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 149,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 231,
+                "status": 502
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 58,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 240,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 185,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 66,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 158,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 214,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 51,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 166,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 222,
+                "status": 200
+              },
+              {
+                "endpoint": "/menu",
+                "ms": 63,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 153,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 195,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 170,
+                "status": 200
+              },
+              {
+                "endpoint": "/orders",
+                "ms": 205,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 161,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 155,
+                "status": 200
+              },
+              {
+                "endpoint": "/checkout",
+                "ms": 247,
+                "status": 200
+              }
+            ]
+          },
+          "expected": {
+            "endpoints": [
+              {
+                "endpoint": "/checkout",
+                "count": 12,
+                "avg_ms": "173.5",
+                "p50": 161,
+                "p95": 247,
+                "p99": 247,
+                "error_rate": "8.33",
+                "slo_ok": false
+              },
+              {
+                "endpoint": "/menu",
+                "count": 8,
+                "avg_ms": "59.4",
+                "p50": 58,
+                "p95": 72,
+                "p99": 72,
+                "error_rate": "0.00",
+                "slo_ok": true
+              },
+              {
+                "endpoint": "/orders",
+                "count": 10,
+                "avg_ms": "213.1",
+                "p50": 205,
+                "p95": 260,
+                "p99": 260,
+                "error_rate": "10.00",
+                "slo_ok": false
+              }
+            ],
+            "all": {
+              "endpoint": "all",
+              "count": 30,
+              "avg_ms": "156.3",
+              "p50": 162,
+              "p95": 247,
+              "p99": 260,
+              "error_rate": "6.67",
+              "slo_ok": false
+            }
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "One and two samples: every rank still lands on a real sample",
+          "input": {
+            "slo": {
+              "p95_ms": 300,
+              "max_error_rate": 1.0
+            },
+            "samples": [
+              {
+                "endpoint": "/ready",
+                "ms": 9,
+                "status": 200
+              },
+              {
+                "endpoint": "/ready",
+                "ms": 5,
+                "status": 200
+              },
+              {
+                "endpoint": "/health",
+                "ms": 3,
+                "status": 200
+              }
+            ]
+          },
+          "expected": {
+            "endpoints": [
+              {
+                "endpoint": "/health",
+                "count": 1,
+                "avg_ms": "3.0",
+                "p50": 3,
+                "p95": 3,
+                "p99": 3,
+                "error_rate": "0.00",
+                "slo_ok": true
+              },
+              {
+                "endpoint": "/ready",
+                "count": 2,
+                "avg_ms": "7.0",
+                "p50": 5,
+                "p95": 9,
+                "p99": 9,
+                "error_rate": "0.00",
+                "slo_ok": true
+              }
+            ],
+            "all": {
+              "endpoint": "all",
+              "count": 3,
+              "avg_ms": "5.7",
+              "p50": 5,
+              "p95": 9,
+              "p99": 9,
+              "error_rate": "0.00",
+              "slo_ok": true
+            }
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

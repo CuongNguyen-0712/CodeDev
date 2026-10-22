@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="620" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">One pipeline, two exit statuses</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Every command in a pipe has its own exit code. The shell has to pick one for the whole step.</text>
+
+  <!-- the pipeline -->
+  <rect x="40" y="108" width="1120" height="118" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="70" y="128" width="300" height="56" rx="8" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="90" y="162" font-size="18" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">./migrate.sh</text>
+  <text x="290" y="162" font-size="15" font-weight="700" fill="#b91c1c">exit 1</text>
+  <text x="400" y="164" font-size="26" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">|</text>
+  <rect x="440" y="128" width="340" height="56" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="460" y="162" font-size="18" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">tee migrate.log</text>
+  <text x="705" y="162" font-size="15" font-weight="700" fill="#15803d">exit 0</text>
+  <text x="820" y="150" font-size="14" fill="#475569">PIPESTATUS (bash array):</text>
+  <text x="820" y="176" font-size="18" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">1 0</text>
+  <text x="70" y="210" font-size="13" fill="#7f1d1d">ERROR: column "tip_amount" already exists</text>
+
+  <!-- left: default -->
+  <rect x="40" y="250" width="540" height="300" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="284" font-size="19" font-weight="700" fill="#b91c1c">Default bash (no pipefail)</text>
+  <text x="64" y="312" font-size="14" fill="#7f1d1d">status = exit code of the LAST command</text>
+  <rect x="64" y="330" width="200" height="50" rx="8" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
+  <text x="80" y="362" font-size="17" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">$? = 0</text>
+  <text x="64" y="414" font-size="15" fill="#334155">set -e sees success and keeps going</text>
+  <text x="64" y="442" font-size="15" fill="#334155">CI step: green</text>
+  <text x="64" y="470" font-size="15" fill="#334155">deploy.sh runs on a half-migrated database</text>
+  <text x="64" y="520" font-size="15" font-weight="700" fill="#b91c1c">Result: 25 minutes of 500 errors</text>
+
+  <!-- right: pipefail -->
+  <rect x="620" y="250" width="540" height="300" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="284" font-size="19" font-weight="700" fill="#15803d">set -o pipefail</text>
+  <text x="644" y="312" font-size="14" fill="#14532d">status = RIGHTMOST non-zero code, or 0 if all succeed</text>
+  <rect x="644" y="330" width="200" height="50" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="660" y="362" font-size="17" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">$? = 1</text>
+  <text x="644" y="414" font-size="15" fill="#334155">set -e stops the script with exit 1</text>
+  <text x="644" y="442" font-size="15" fill="#334155">CI step: red</text>
+  <text x="644" y="470" font-size="15" fill="#334155">the deploy step never starts</text>
+  <text x="644" y="520" font-size="15" font-weight="700" fill="#15803d">Result: a failed job, no outage</text>
+
+  <text x="40" y="590" font-size="14" fill="#475569">With pipefail, a pipeline whose commands exit 3, 1 and 0 reports 1: the rightmost failure, not the first one.</text>
+</svg>

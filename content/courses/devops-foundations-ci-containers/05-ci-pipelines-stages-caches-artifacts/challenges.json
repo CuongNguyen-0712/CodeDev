@@ -1,0 +1,548 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_devf_311",
+      "name": "ci-needs-if-cache-quiz",
+      "type": "quiz",
+      "title": "needs, if: and caches in a GitHub Actions workflow",
+      "description": "Read two workflow snippets the way the runner does: which jobs run after a failure, and what a cache key really restores and saves.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A push runs this workflow. The step in the test job exits with code 1. Which jobs run?\n\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: pytest\n  build:\n    needs: test\n    runs-on: ubuntu-latest\n    steps:\n      - run: docker build -t api .\n  deploy:\n    needs: build\n    if: always()\n    runs-on: ubuntu-latest\n    steps:\n      - run: ./deploy.sh",
+          "explanation": "build has no if:, so it gets the default if: success(): it only runs when every job in its needs succeeded. test failed, so build is skipped. deploy has if: always(), which replaces that default check: always() is true whatever happened to the jobs it needs (failed, skipped or even cancelled), so deploy runs although nothing was built or tested - the same mistake as in the incident. \"Only test runs\" would be right without the if: always() line. \"build and deploy both run\" ignores that needs + the default success() skip build. A failing job does not cancel the whole run by itself: jobs that do not depend on it keep running (fail-fast only cancels the other jobs of the same matrix). And deploy is not skipped \"because build was skipped\": with always() the status of build no longer matters.",
+          "options": [
+            {
+              "text": "Only test runs; build and deploy are skipped.",
+              "correct": false
+            },
+            {
+              "text": "test fails, build is skipped, and deploy runs.",
+              "correct": true
+            },
+            {
+              "text": "test fails, then build and deploy both run.",
+              "correct": false
+            },
+            {
+              "text": "GitHub cancels the whole run as soon as test fails, so nothing else runs.",
+              "correct": false
+            },
+            {
+              "text": "test fails, build is skipped, and deploy is skipped because build did not run.",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "The test job restores pip's cache like this. Which statements are true? (Select all that apply.)\n\n- uses: actions/cache@v4\n  id: deps\n  with:\n    path: ~/.cache/pip\n    key: deps-${{ runner.os }}-${{ hashFiles('requirements.txt') }}\n    restore-keys: |\n      deps-${{ runner.os }}-\n- run: pip install -r requirements.txt",
+          "explanation": "hashFiles() returns a SHA-256 hash of the file contents, so the key only changes when requirements.txt changes - not on every commit. When it changes, the exact key misses; restore-keys then restores the most recent cache whose key starts with deps-Linux-, pip install downloads only what is new, and the post step saves a new cache under the new exact key. Caches are immutable: a key that already exists is never overwritten, which is why the key must contain a hash of what you depend on. A cache is a best-effort speed-up that GitHub may evict (unused for 7 days, or over the repository's size limit), so it is the wrong way to hand the tested image or wheel to the deploy job - that is what artifacts (or a registry with an immutable tag) are for. Because pip install still runs on every job, a restored cache can only make it faster, never leave stale packages behind; the incident happened because the install step was skipped on a cache hit with a key that never changed.",
+          "options": [
+            {
+              "text": "The key stays the same from commit to commit as long as the contents of requirements.txt do not change.",
+              "correct": true
+            },
+            {
+              "text": "After requirements.txt changes, the exact key misses, an older cache is restored through restore-keys, and the job saves a new cache under the new key.",
+              "correct": true
+            },
+            {
+              "text": "If a cache with the same key already exists, the end of the job overwrites it with the newer files.",
+              "correct": false
+            },
+            {
+              "text": "The cache is a good way to pass the built wheel from the build job to the deploy job, because it is shared by every job of the repository.",
+              "correct": false
+            },
+            {
+              "text": "Because pip install runs on every job, a restored older cache cannot leave the job with outdated packages.",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_devf_312",
+      "name": "plan-ci-job-graph",
+      "type": "mini_coding",
+      "title": "Plan a CI run from the needs graph",
+      "description": "Rice Rocket's workflow got slow and nobody knew which job to speed up. Write plan_run(jobs): check the needs graph (unknown needs and cycles are errors), then compute when every job starts and ends with unlimited runners, skip every job that depends on a failed or skipped job, and report the total wall time and the critical path - the chain of jobs that decided it. The runner reads the jobs from stdin and prints the plan as JSON.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "plan_run.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Example: lint and unit in parallel, then build, then deploy",
+          "input": {
+            "jobs": [
+              {
+                "name": "lint",
+                "needs": [],
+                "minutes": 2,
+                "result": "success"
+              },
+              {
+                "name": "unit",
+                "needs": [],
+                "minutes": 5,
+                "result": "success"
+              },
+              {
+                "name": "build",
+                "needs": [
+                  "lint",
+                  "unit"
+                ],
+                "minutes": 3,
+                "result": "success"
+              },
+              {
+                "name": "deploy",
+                "needs": [
+                  "build"
+                ],
+                "minutes": 2,
+                "result": "success"
+              }
+            ]
+          },
+          "expected": {
+            "jobs": [
+              {
+                "name": "lint",
+                "status": "success",
+                "start": 0,
+                "end": 2
+              },
+              {
+                "name": "unit",
+                "status": "success",
+                "start": 0,
+                "end": 5
+              },
+              {
+                "name": "build",
+                "status": "success",
+                "start": 5,
+                "end": 8
+              },
+              {
+                "name": "deploy",
+                "status": "success",
+                "start": 8,
+                "end": 10
+              }
+            ],
+            "wall_minutes": 10,
+            "critical_path": [
+              "unit",
+              "build",
+              "deploy"
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "An image scan after the build, not the long integration job, decides the wall time",
+          "input": {
+            "jobs": [
+              {
+                "name": "checkout-deps",
+                "needs": [],
+                "minutes": 1,
+                "result": "success"
+              },
+              {
+                "name": "lint",
+                "needs": [
+                  "checkout-deps"
+                ],
+                "minutes": 2,
+                "result": "success"
+              },
+              {
+                "name": "unit",
+                "needs": [
+                  "checkout-deps"
+                ],
+                "minutes": 6,
+                "result": "success"
+              },
+              {
+                "name": "integration",
+                "needs": [
+                  "checkout-deps"
+                ],
+                "minutes": 9,
+                "result": "success"
+              },
+              {
+                "name": "build-image",
+                "needs": [
+                  "lint",
+                  "unit"
+                ],
+                "minutes": 4,
+                "result": "success"
+              },
+              {
+                "name": "scan-image",
+                "needs": [
+                  "build-image"
+                ],
+                "minutes": 3,
+                "result": "success"
+              },
+              {
+                "name": "deploy-staging",
+                "needs": [
+                  "build-image",
+                  "integration"
+                ],
+                "minutes": 2,
+                "result": "success"
+              }
+            ]
+          },
+          "expected": {
+            "jobs": [
+              {
+                "name": "checkout-deps",
+                "status": "success",
+                "start": 0,
+                "end": 1
+              },
+              {
+                "name": "lint",
+                "status": "success",
+                "start": 1,
+                "end": 3
+              },
+              {
+                "name": "unit",
+                "status": "success",
+                "start": 1,
+                "end": 7
+              },
+              {
+                "name": "integration",
+                "status": "success",
+                "start": 1,
+                "end": 10
+              },
+              {
+                "name": "build-image",
+                "status": "success",
+                "start": 7,
+                "end": 11
+              },
+              {
+                "name": "scan-image",
+                "status": "success",
+                "start": 11,
+                "end": 14
+              },
+              {
+                "name": "deploy-staging",
+                "status": "success",
+                "start": 11,
+                "end": 13
+              }
+            ],
+            "wall_minutes": 14,
+            "critical_path": [
+              "checkout-deps",
+              "unit",
+              "build-image",
+              "scan-image"
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A failed test skips build and, through it, deploy",
+          "input": {
+            "jobs": [
+              {
+                "name": "lint",
+                "needs": [],
+                "minutes": 2,
+                "result": "success"
+              },
+              {
+                "name": "unit",
+                "needs": [],
+                "minutes": 5,
+                "result": "failure"
+              },
+              {
+                "name": "build",
+                "needs": [
+                  "lint",
+                  "unit"
+                ],
+                "minutes": 3,
+                "result": "success"
+              },
+              {
+                "name": "deploy",
+                "needs": [
+                  "build"
+                ],
+                "minutes": 2,
+                "result": "success"
+              },
+              {
+                "name": "docs",
+                "needs": [
+                  "lint"
+                ],
+                "minutes": 4,
+                "result": "success"
+              }
+            ]
+          },
+          "expected": {
+            "jobs": [
+              {
+                "name": "lint",
+                "status": "success",
+                "start": 0,
+                "end": 2
+              },
+              {
+                "name": "unit",
+                "status": "failure",
+                "start": 0,
+                "end": 5
+              },
+              {
+                "name": "build",
+                "status": "skipped",
+                "start": null,
+                "end": null
+              },
+              {
+                "name": "deploy",
+                "status": "skipped",
+                "start": null,
+                "end": null
+              },
+              {
+                "name": "docs",
+                "status": "success",
+                "start": 2,
+                "end": 6
+              }
+            ],
+            "wall_minutes": 6,
+            "critical_path": [
+              "lint",
+              "docs"
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A need with a typo is reported before anything is planned",
+          "input": {
+            "jobs": [
+              {
+                "name": "lint",
+                "needs": [],
+                "minutes": 2,
+                "result": "success"
+              },
+              {
+                "name": "test",
+                "needs": [
+                  "lint"
+                ],
+                "minutes": 5,
+                "result": "success"
+              },
+              {
+                "name": "build",
+                "needs": [
+                  "test"
+                ],
+                "minutes": 3,
+                "result": "success"
+              },
+              {
+                "name": "deploy",
+                "needs": [
+                  "build",
+                  "tests"
+                ],
+                "minutes": 2,
+                "result": "success"
+              }
+            ]
+          },
+          "expected": {
+            "error": "job 'deploy' needs unknown job 'tests'"
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Jobs in a cycle and the job waiting on them can never start",
+          "input": {
+            "jobs": [
+              {
+                "name": "lint",
+                "needs": [],
+                "minutes": 2,
+                "result": "success"
+              },
+              {
+                "name": "build",
+                "needs": [
+                  "test"
+                ],
+                "minutes": 3,
+                "result": "success"
+              },
+              {
+                "name": "test",
+                "needs": [
+                  "build",
+                  "lint"
+                ],
+                "minutes": 5,
+                "result": "success"
+              },
+              {
+                "name": "deploy",
+                "needs": [
+                  "build"
+                ],
+                "minutes": 2,
+                "result": "success"
+              },
+              {
+                "name": "docs",
+                "needs": [
+                  "lint"
+                ],
+                "minutes": 1,
+                "result": "success"
+              }
+            ]
+          },
+          "expected": {
+            "error": "cycle: build, deploy, test"
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Jobs listed out of order, ties broken by input order and by needs order",
+          "input": {
+            "jobs": [
+              {
+                "name": "deploy",
+                "needs": [
+                  "build-arm",
+                  "build-amd"
+                ],
+                "minutes": 2,
+                "result": "success"
+              },
+              {
+                "name": "build-amd",
+                "needs": [
+                  "test"
+                ],
+                "minutes": 4,
+                "result": "success"
+              },
+              {
+                "name": "build-arm",
+                "needs": [
+                  "test"
+                ],
+                "minutes": 4,
+                "result": "success"
+              },
+              {
+                "name": "test",
+                "needs": [],
+                "minutes": 3,
+                "result": "success"
+              },
+              {
+                "name": "notify",
+                "needs": [
+                  "test"
+                ],
+                "minutes": 6,
+                "result": "failure"
+              }
+            ]
+          },
+          "expected": {
+            "jobs": [
+              {
+                "name": "deploy",
+                "status": "success",
+                "start": 7,
+                "end": 9
+              },
+              {
+                "name": "build-amd",
+                "status": "success",
+                "start": 3,
+                "end": 7
+              },
+              {
+                "name": "build-arm",
+                "status": "success",
+                "start": 3,
+                "end": 7
+              },
+              {
+                "name": "test",
+                "status": "success",
+                "start": 0,
+                "end": 3
+              },
+              {
+                "name": "notify",
+                "status": "failure",
+                "start": 3,
+                "end": 9
+              }
+            ],
+            "wall_minutes": 9,
+            "critical_path": [
+              "test",
+              "build-arm",
+              "deploy"
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,473 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_devf_331",
+      "name": "rollback-ready-releases-quiz",
+      "type": "quiz",
+      "title": "Can you roll this release back?",
+      "description": "Two decisions from the checkout incident: which image reference lets you redeploy exactly what ran yesterday, and which migration plan keeps the previous version working while both versions share one database.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Rice Rocket's checkout v2.13.4 ran fine yesterday. Today v2.14.0 is broken and you want to redeploy exactly the image bytes that ran yesterday. Which of these image references are guaranteed to give you yesterday's image? (Select all that apply.)",
+          "explanation": "A digest (image@sha256:...) is the hash of the image manifest itself, so it can only ever point to those exact bytes. A version tag such as v2.13.4 is safe when the registry enforces tag immutability (Amazon ECR and other registries can reject a push that would overwrite an existing tag), because then nobody can move it. latest is moved by every push from main, so today it points to v2.14.0 - that is what made the incident's rollback take 40 minutes. A tag named after the git commit is a good convention, but without immutability a re-run of the pipeline (or anyone with push rights) can push different bytes under the same name, so it is not guaranteed. kubectl rollout undo goes back to the previous pod template; if that template also says checkout:latest, it starts the same new image again.",
+          "options": [
+            {
+              "text": "ricerocket/checkout@sha256:9f2c... (the digest recorded by yesterday's deploy)",
+              "correct": true
+            },
+            {
+              "text": "ricerocket/checkout:v2.13.4 in a registry that has tag immutability turned on",
+              "correct": true
+            },
+            {
+              "text": "ricerocket/checkout:latest with imagePullPolicy: Always",
+              "correct": false
+            },
+            {
+              "text": "ricerocket/checkout:3f9a1c2 (the git commit) in a registry where tags can be overwritten",
+              "correct": false
+            },
+            {
+              "text": "Whatever kubectl rollout undo deployment/checkout picks, when the Deployment uses checkout:latest",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "v3.8.0 of the dispatch service stores each rider's vehicle plate in a new column riders.plate_number instead of riders.vehicle_no. During a rolling deploy old (v3.7) and new pods run side by side against one Postgres database, and v3.7 must stay a working rollback target for a few days. Which plan is safe?",
+          "explanation": "Expand and contract: first expand the schema in a way both versions accept (add plate_number, write both columns, backfill old rows), then switch reads to the new column in a later release, and only contract (drop vehicle_no) once no running or rollback-target version reads it. Every step is backward compatible, so you can roll back the code at any point. RENAME COLUMN in the same release breaks every v3.7 pod the moment the migration runs, and makes v3.7 useless as a rollback target - the same failure as the checkout incident in this lesson. Deploying the code first means the new pods query a column that does not exist yet. A blue-green copy of the database splits the data: riders registered or updated in blue after the copy are missing in green. Restoring a backup to roll back throws away every change made since the backup.",
+          "options": [
+            {
+              "text": "One migration in v3.8.0: ALTER TABLE riders RENAME COLUMN vehicle_no TO plate_number, applied right before the new pods start",
+              "correct": false
+            },
+            {
+              "text": "v3.8.0 adds plate_number, writes both columns and backfills old rows; v3.9.0 reads only plate_number; a later release drops vehicle_no",
+              "correct": true
+            },
+            {
+              "text": "Deploy v3.8.0 (reading plate_number) first and run the rename migration once all pods are on v3.8.0",
+              "correct": false
+            },
+            {
+              "text": "Use blue-green: give the green environment a copy of the database with the column renamed, then switch the router",
+              "correct": false
+            },
+            {
+              "text": "Drop vehicle_no in v3.8.0; if a rollback is needed, restore last night's backup first",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_devf_332",
+      "name": "automated-canary-analysis",
+      "type": "mini_coding",
+      "title": "Let the numbers promote or roll back the canary",
+      "description": "Write analyze_canary(config, steps), the gate the deploy tool runs after every canary step instead of a person eyeballing a dashboard. Check the steps in order and stop at the first one that fails: too little canary traffic means HOLD, an error rate too far above the baseline or a p95 too far above the baseline means ROLLBACK, and a release that passes every step is promoted. The runner prints the decision, the weight where the release stopped, the reason with the measured numbers, and the result of every step that was checked.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "canary_gate.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A healthy canary passes 5%, 25% and 50% and is promoted",
+          "input": {
+            "config": {
+              "max_error_rate_delta": 0.5,
+              "max_p95_increase_pct": 20,
+              "min_requests": 200
+            },
+            "steps": [
+              {
+                "weight": 5,
+                "baseline": {
+                  "requests": 19000,
+                  "errors": 76,
+                  "p95_ms": 220
+                },
+                "canary": {
+                  "requests": 1000,
+                  "errors": 5,
+                  "p95_ms": 228
+                }
+              },
+              {
+                "weight": 25,
+                "baseline": {
+                  "requests": 15000,
+                  "errors": 63,
+                  "p95_ms": 225
+                },
+                "canary": {
+                  "requests": 5000,
+                  "errors": 24,
+                  "p95_ms": 240
+                }
+              },
+              {
+                "weight": 50,
+                "baseline": {
+                  "requests": 10000,
+                  "errors": 41,
+                  "p95_ms": 223
+                },
+                "canary": {
+                  "requests": 10000,
+                  "errors": 45,
+                  "p95_ms": 231
+                }
+              }
+            ]
+          },
+          "expected": {
+            "decision": "PROMOTE",
+            "at_weight": null,
+            "reason": "all 3 steps passed",
+            "checked": [
+              {
+                "weight": 5,
+                "result": "pass"
+              },
+              {
+                "weight": 25,
+                "result": "pass"
+              },
+              {
+                "weight": 50,
+                "result": "pass"
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The incident: 2.40% errors on the 10% canary vs 0.40% must roll back at once",
+          "input": {
+            "config": {
+              "max_error_rate_delta": 0.5,
+              "max_p95_increase_pct": 20,
+              "min_requests": 200
+            },
+            "steps": [
+              {
+                "weight": 10,
+                "baseline": {
+                  "requests": 9000,
+                  "errors": 36,
+                  "p95_ms": 220
+                },
+                "canary": {
+                  "requests": 1000,
+                  "errors": 24,
+                  "p95_ms": 230
+                }
+              },
+              {
+                "weight": 50,
+                "baseline": {
+                  "requests": 10000,
+                  "errors": 40,
+                  "p95_ms": 220
+                },
+                "canary": {
+                  "requests": 10000,
+                  "errors": 42,
+                  "p95_ms": 225
+                }
+              }
+            ]
+          },
+          "expected": {
+            "decision": "ROLLBACK",
+            "at_weight": 10,
+            "reason": "error rate 2.40% vs baseline 0.40% (+2.00 pp > 0.50 pp)",
+            "checked": [
+              {
+                "weight": 10,
+                "result": "rollback"
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Only 120 canary requests at 5%: HOLD instead of trusting a lucky sample",
+          "input": {
+            "config": {
+              "max_error_rate_delta": 0.5,
+              "max_p95_increase_pct": 20,
+              "min_requests": 200
+            },
+            "steps": [
+              {
+                "weight": 5,
+                "baseline": {
+                  "requests": 19000,
+                  "errors": 57,
+                  "p95_ms": 210
+                },
+                "canary": {
+                  "requests": 120,
+                  "errors": 0,
+                  "p95_ms": 205
+                }
+              },
+              {
+                "weight": 25,
+                "baseline": {
+                  "requests": 15000,
+                  "errors": 45,
+                  "p95_ms": 212
+                },
+                "canary": {
+                  "requests": 5000,
+                  "errors": 15,
+                  "p95_ms": 215
+                }
+              }
+            ]
+          },
+          "expected": {
+            "decision": "HOLD",
+            "at_weight": 5,
+            "reason": "only 120 canary requests at 5% (need 200)",
+            "checked": [
+              {
+                "weight": 5,
+                "result": "hold"
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A p95 regression at 50% with a normal error rate rolls back on latency",
+          "input": {
+            "config": {
+              "max_error_rate_delta": 0.5,
+              "max_p95_increase_pct": 20,
+              "min_requests": 200
+            },
+            "steps": [
+              {
+                "weight": 5,
+                "baseline": {
+                  "requests": 19000,
+                  "errors": 57,
+                  "p95_ms": 228
+                },
+                "canary": {
+                  "requests": 1000,
+                  "errors": 3,
+                  "p95_ms": 236
+                }
+              },
+              {
+                "weight": 25,
+                "baseline": {
+                  "requests": 15000,
+                  "errors": 45,
+                  "p95_ms": 229
+                },
+                "canary": {
+                  "requests": 5000,
+                  "errors": 16,
+                  "p95_ms": 270
+                }
+              },
+              {
+                "weight": 50,
+                "baseline": {
+                  "requests": 10000,
+                  "errors": 30,
+                  "p95_ms": 230
+                },
+                "canary": {
+                  "requests": 10000,
+                  "errors": 35,
+                  "p95_ms": 410
+                }
+              }
+            ]
+          },
+          "expected": {
+            "decision": "ROLLBACK",
+            "at_weight": 50,
+            "reason": "p95 410 ms is more than 20% above baseline 230 ms",
+            "checked": [
+              {
+                "weight": 5,
+                "result": "pass"
+              },
+              {
+                "weight": 25,
+                "result": "pass"
+              },
+              {
+                "weight": 50,
+                "result": "rollback"
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Fewer errors than baseline in raw count but a higher rate: roll back at 25%",
+          "input": {
+            "config": {
+              "max_error_rate_delta": 0.25,
+              "max_p95_increase_pct": 20,
+              "min_requests": 200
+            },
+            "steps": [
+              {
+                "weight": 5,
+                "baseline": {
+                  "requests": 19000,
+                  "errors": 38,
+                  "p95_ms": 200
+                },
+                "canary": {
+                  "requests": 1000,
+                  "errors": 2,
+                  "p95_ms": 205
+                }
+              },
+              {
+                "weight": 25,
+                "baseline": {
+                  "requests": 15000,
+                  "errors": 30,
+                  "p95_ms": 200
+                },
+                "canary": {
+                  "requests": 5000,
+                  "errors": 25,
+                  "p95_ms": 210
+                }
+              },
+              {
+                "weight": 50,
+                "baseline": {
+                  "requests": 10000,
+                  "errors": 20,
+                  "p95_ms": 200
+                },
+                "canary": {
+                  "requests": 10000,
+                  "errors": 20,
+                  "p95_ms": 205
+                }
+              }
+            ]
+          },
+          "expected": {
+            "decision": "ROLLBACK",
+            "at_weight": 25,
+            "reason": "error rate 0.50% vs baseline 0.20% (+0.30 pp > 0.25 pp)",
+            "checked": [
+              {
+                "weight": 5,
+                "result": "pass"
+              },
+              {
+                "weight": 25,
+                "result": "rollback"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Limits are inclusive at 5%, a bad 25% step stops it although 50% looks fine",
+          "input": {
+            "config": {
+              "max_error_rate_delta": 0.5,
+              "max_p95_increase_pct": 20,
+              "min_requests": 200
+            },
+            "steps": [
+              {
+                "weight": 5,
+                "baseline": {
+                  "requests": 19000,
+                  "errors": 57,
+                  "p95_ms": 250
+                },
+                "canary": {
+                  "requests": 200,
+                  "errors": 0,
+                  "p95_ms": 300
+                }
+              },
+              {
+                "weight": 25,
+                "baseline": {
+                  "requests": 15000,
+                  "errors": 45,
+                  "p95_ms": 230
+                },
+                "canary": {
+                  "requests": 5000,
+                  "errors": 60,
+                  "p95_ms": 240
+                }
+              },
+              {
+                "weight": 50,
+                "baseline": {
+                  "requests": 10000,
+                  "errors": 30,
+                  "p95_ms": 230
+                },
+                "canary": {
+                  "requests": 10000,
+                  "errors": 31,
+                  "p95_ms": 235
+                }
+              }
+            ]
+          },
+          "expected": {
+            "decision": "ROLLBACK",
+            "at_weight": 25,
+            "reason": "error rate 1.20% vs baseline 0.30% (+0.90 pp > 0.50 pp)",
+            "checked": [
+              {
+                "weight": 5,
+                "result": "pass"
+              },
+              {
+                "weight": 25,
+                "result": "rollback"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="640" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">needs turns a workflow into a graph - the longest chain sets the wall time</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Jobs without a path between them run in parallel. Everything after a failed job is skipped.</text>
+
+  <!-- Panel A: graph -->
+  <rect x="40" y="108" width="540" height="292" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="140" font-size="17" font-weight="700" fill="#0f172a">The needs graph</text>
+
+  <rect x="64" y="166" width="120" height="56" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="124" y="190" font-size="16" font-weight="700" fill="#334155" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">lint</text>
+  <text x="124" y="211" font-size="13" fill="#475569" text-anchor="middle">2 min</text>
+
+  <rect x="64" y="262" width="120" height="56" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="124" y="286" font-size="16" font-weight="700" fill="#5b21b6" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">unit</text>
+  <text x="124" y="307" font-size="13" fill="#5b21b6" text-anchor="middle">5 min</text>
+
+  <rect x="250" y="214" width="120" height="56" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="310" y="238" font-size="16" font-weight="700" fill="#5b21b6" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">build</text>
+  <text x="310" y="259" font-size="13" fill="#5b21b6" text-anchor="middle">3 min</text>
+
+  <rect x="436" y="214" width="120" height="56" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="496" y="238" font-size="16" font-weight="700" fill="#5b21b6" text-anchor="middle" font-family="Consolas, 'Courier New', monospace">deploy</text>
+  <text x="496" y="259" font-size="13" fill="#5b21b6" text-anchor="middle">2 min</text>
+
+  <line x1="184" y1="194" x2="248" y2="232" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="184" y1="290" x2="248" y2="254" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="370" y1="242" x2="434" y2="242" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <text x="250" y="296" font-size="12" fill="#334155">uploads the image</text>
+  <text x="250" y="312" font-size="12" fill="#334155">as an artifact</text>
+  <text x="436" y="296" font-size="12" fill="#334155">downloads the same</text>
+  <text x="436" y="312" font-size="12" fill="#334155">artifact, no rebuild</text>
+  <text x="64" y="344" font-size="12" fill="#334155">unit restores its dependency cache:</text>
+  <text x="64" y="362" font-size="12" fill="#334155">key = OS + hash of requirements.txt</text>
+  <text x="64" y="386" font-size="12" font-weight="700" fill="#5b21b6">violet = critical path</text>
+
+  <!-- Panel B: timeline -->
+  <rect x="620" y="108" width="540" height="292" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="644" y="140" font-size="17" font-weight="700" fill="#0f172a">The run, with enough runners</text>
+
+  <text x="644" y="182" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">lint</text>
+  <text x="644" y="222" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">unit</text>
+  <text x="644" y="262" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">build</text>
+  <text x="644" y="302" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">deploy</text>
+
+  <!-- 0..10 min -> x 730..1130, 40 px per minute -->
+  <rect x="730" y="164" width="80" height="26" rx="4" fill="#cbd5e1"/>
+  <text x="820" y="182" font-size="12" fill="#475569">waits 3 min (slack)</text>
+  <rect x="730" y="204" width="200" height="26" rx="4" fill="#7c3aed"/>
+  <rect x="930" y="244" width="120" height="26" rx="4" fill="#7c3aed"/>
+  <rect x="1050" y="284" width="80" height="26" rx="4" fill="#7c3aed"/>
+
+  <line x1="730" y1="326" x2="1130" y2="326" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="730" y1="320" x2="730" y2="332" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="810" y1="320" x2="810" y2="332" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="890" y1="320" x2="890" y2="332" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="970" y1="320" x2="970" y2="332" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="1050" y1="320" x2="1050" y2="332" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="1130" y1="320" x2="1130" y2="332" stroke="#94a3b8" stroke-width="2"/>
+  <text x="730" y="350" font-size="12" fill="#475569" text-anchor="middle">0</text>
+  <text x="810" y="350" font-size="12" fill="#475569" text-anchor="middle">2</text>
+  <text x="890" y="350" font-size="12" fill="#475569" text-anchor="middle">4</text>
+  <text x="970" y="350" font-size="12" fill="#475569" text-anchor="middle">6</text>
+  <text x="1050" y="350" font-size="12" fill="#475569" text-anchor="middle">8</text>
+  <text x="1130" y="350" font-size="12" fill="#475569" text-anchor="middle">10 min</text>
+  <text x="644" y="384" font-size="14" font-weight="700" fill="#5b21b6">wall time 10 min = unit 5 + build 3 + deploy 2</text>
+
+  <!-- Bottom: before / after -->
+  <rect x="40" y="424" width="540" height="184" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="456" font-size="17" font-weight="700" fill="#b91c1c">Before: if: always(), a constant key, a rebuild</text>
+  <text x="64" y="486" font-size="14" fill="#7f1d1d">- deploy waits for test, but not for it to pass</text>
+  <text x="64" y="512" font-size="14" fill="#7f1d1d">- if: always() deploys even after the tests failed</text>
+  <text x="64" y="538" font-size="14" fill="#7f1d1d">- deploy builds the image again: never tested</text>
+  <text x="64" y="564" font-size="14" fill="#7f1d1d">- cache key deps-Linux never changes: stale .venv</text>
+  <text x="64" y="590" font-size="14" font-weight="700" fill="#b91c1c">result: flaky tests and untested releases</text>
+
+  <rect x="620" y="424" width="540" height="184" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="456" font-size="17" font-weight="700" fill="#15803d">After: a graph, a real cache key, one build</text>
+  <text x="644" y="486" font-size="14" fill="#14532d">- build needs lint and unit, deploy needs build</text>
+  <text x="644" y="512" font-size="14" fill="#14532d">- default if: success() skips all after a failure</text>
+  <text x="644" y="538" font-size="14" fill="#14532d">- build once, deploy the artifact that was tested</text>
+  <text x="644" y="564" font-size="14" fill="#14532d">- key includes hashFiles('requirements.txt')</text>
+  <text x="644" y="590" font-size="14" font-weight="700" fill="#15803d">result: what you tested is what you ship</text>
+</svg>

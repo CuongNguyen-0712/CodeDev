@@ -1,0 +1,476 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_devf_111",
+      "name": "exit-codes-signals-pipefail-quiz",
+      "type": "quiz",
+      "title": "Exit codes, signals and pipefail",
+      "description": "Read a short bash script and a container that will not stop the way the shell and the kernel see them: which exit status wins, and what 137 really tells you.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "This script runs with bash 5 in a folder where missing.txt does not exist. What happens?\n\n#!/usr/bin/env bash\nset -e\nfalse | true\necho \"after pipe: $?\"\ngrep -q needle missing.txt\necho \"done\"",
+          "explanation": "Without pipefail, the status of a pipeline is the status of its last command. false | true ends with true, so the status is 0: set -e does not stop the script and echo prints \"after pipe: 0\". grep then cannot open missing.txt: it prints an error on stderr and exits with 2 (grep uses 0 for a match, 1 for no match and 2 for an error). set -e stops the script there, so \"done\" is never printed and the script's exit code is 2. Stopping at false | true would need set -o pipefail. \"after pipe: 1\" would be printed only if the pipeline status were the first command's. Printing \"done\" and exiting 0 ignores set -e. Exiting with 1 confuses grep's \"no match\" status with its error status.",
+          "options": [
+            {
+              "text": "The script stops at false | true with exit code 1 and prints nothing.",
+              "correct": false
+            },
+            {
+              "text": "It prints \"after pipe: 0\", grep prints an error, and the script stops with exit code 2.",
+              "correct": true
+            },
+            {
+              "text": "It prints \"after pipe: 1\", grep prints an error, and the script stops with exit code 2.",
+              "correct": false
+            },
+            {
+              "text": "It prints \"after pipe: 0\", grep prints an error, then \"done\", and the script exits with 0.",
+              "correct": false
+            },
+            {
+              "text": "It prints \"after pipe: 0\" and stops with exit code 1, because grep found no match.",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Rice Rocket's api image has CMD [\"./start.sh\"], and start.sh runs `python manage.py migrate` and then `gunicorn api:app --bind 0.0.0.0:8000` (no exec). Every `docker stop` takes about 10 seconds and docker ps -a shows Exited (137). Which statements are true? (Select all that apply.)",
+          "explanation": "137 is 128 + 9: the main process was killed by signal 9, SIGKILL. docker stop first sends SIGTERM (the image's STOPSIGNAL) to PID 1, waits for the grace period (10 seconds by default, -t / --timeout changes it) and then sends SIGKILL. Here PID 1 is the shell running start.sh: a process that is PID 1 in its namespace ignores signals it has no handler for, and the shell does not pass SIGTERM on to gunicorn, so nothing happens until SIGKILL. exec gunicorn ... replaces the shell with gunicorn, which becomes PID 1, receives SIGTERM itself and shuts down gracefully. 137 does not always mean out of memory: the kernel's OOM killer also uses SIGKILL, so check docker inspect (State.OOMKilled) before blaming memory. kill -9 (SIGKILL) cannot be caught, blocked or trapped, so no trap or cleanup handler runs.",
+          "options": [
+            {
+              "text": "137 is 128 + 9: the container's main process was killed by SIGKILL.",
+              "correct": true
+            },
+            {
+              "text": "docker stop sends SIGTERM, waits for a grace period (10 seconds by default), then sends SIGKILL.",
+              "correct": true
+            },
+            {
+              "text": "Exit code 137 always means that the container ran out of memory.",
+              "correct": false
+            },
+            {
+              "text": "Changing the last line of start.sh to exec gunicorn api:app --bind 0.0.0.0:8000 makes gunicorn PID 1, so it receives SIGTERM itself.",
+              "correct": true
+            },
+            {
+              "text": "kill -9 gives the process a chance to run its trap or signal handlers before it exits.",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_devf_112",
+      "name": "explain-ci-job-exit-codes",
+      "type": "mini_coding",
+      "title": "Explain a CI job's exit codes",
+      "description": "The deploy job went green while the migration failed, and the next deploy died with 137. Write a small tool for the on-call: pipeline_status(codes, pipefail) returns a pipeline's exit status the way bash does (last command, or the rightmost failure with pipefail), meaning(code) explains an exit code (ok, command not found, killed by SIGTERM, error (exit 3) ...), and run_job(steps, pipefail) runs the steps like set -e: it stops at the first failing step, marks the rest as skipped and reports the job result and exit code. The test runner reads the job from stdin and prints the report as JSON.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "exit_report.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: migrate.sh | tee without pipefail looks green",
+          "input": {
+            "pipefail": false,
+            "steps": [
+              {
+                "name": "install",
+                "pipeline": [
+                  0
+                ]
+              },
+              {
+                "name": "migrate",
+                "pipeline": [
+                  1,
+                  0
+                ]
+              },
+              {
+                "name": "smoke-test",
+                "pipeline": [
+                  0
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "steps": [
+              {
+                "name": "install",
+                "status": 0,
+                "meaning": "ok",
+                "commands": [
+                  "ok"
+                ]
+              },
+              {
+                "name": "migrate",
+                "status": 0,
+                "meaning": "ok",
+                "commands": [
+                  "error (exit 1)",
+                  "ok"
+                ]
+              },
+              {
+                "name": "smoke-test",
+                "status": 0,
+                "meaning": "ok",
+                "commands": [
+                  "ok"
+                ]
+              }
+            ],
+            "job": "ok",
+            "exit_code": 0
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Same job with pipefail: the migration failure stops the job",
+          "input": {
+            "pipefail": true,
+            "steps": [
+              {
+                "name": "install",
+                "pipeline": [
+                  0
+                ]
+              },
+              {
+                "name": "migrate",
+                "pipeline": [
+                  1,
+                  0
+                ]
+              },
+              {
+                "name": "smoke-test",
+                "pipeline": [
+                  0
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "steps": [
+              {
+                "name": "install",
+                "status": 0,
+                "meaning": "ok",
+                "commands": [
+                  "ok"
+                ]
+              },
+              {
+                "name": "migrate",
+                "status": 1,
+                "meaning": "error (exit 1)",
+                "commands": [
+                  "error (exit 1)",
+                  "ok"
+                ]
+              },
+              {
+                "name": "smoke-test",
+                "status": null,
+                "meaning": "skipped",
+                "commands": null
+              }
+            ],
+            "job": "failed at migrate (exit 1)",
+            "exit_code": 1
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A deploy killed after the stop timeout exits 137 (SIGKILL)",
+          "input": {
+            "pipefail": true,
+            "steps": [
+              {
+                "name": "build",
+                "pipeline": [
+                  0
+                ]
+              },
+              {
+                "name": "deploy",
+                "pipeline": [
+                  137
+                ]
+              },
+              {
+                "name": "notify",
+                "pipeline": [
+                  0,
+                  0
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "steps": [
+              {
+                "name": "build",
+                "status": 0,
+                "meaning": "ok",
+                "commands": [
+                  "ok"
+                ]
+              },
+              {
+                "name": "deploy",
+                "status": 137,
+                "meaning": "killed by SIGKILL",
+                "commands": [
+                  "killed by SIGKILL"
+                ]
+              },
+              {
+                "name": "notify",
+                "status": null,
+                "meaning": "skipped",
+                "commands": null
+              }
+            ],
+            "job": "failed at deploy (exit 137)",
+            "exit_code": 137
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A typo in a script name: exit 127 in the last command",
+          "input": {
+            "pipefail": false,
+            "steps": [
+              {
+                "name": "setup",
+                "pipeline": [
+                  0
+                ]
+              },
+              {
+                "name": "seed",
+                "pipeline": [
+                  0,
+                  127
+                ]
+              },
+              {
+                "name": "test",
+                "pipeline": [
+                  0
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "steps": [
+              {
+                "name": "setup",
+                "status": 0,
+                "meaning": "ok",
+                "commands": [
+                  "ok"
+                ]
+              },
+              {
+                "name": "seed",
+                "status": 127,
+                "meaning": "command not found",
+                "commands": [
+                  "ok",
+                  "command not found"
+                ]
+              },
+              {
+                "name": "test",
+                "status": null,
+                "meaning": "skipped",
+                "commands": null
+              }
+            ],
+            "job": "failed at seed (exit 127)",
+            "exit_code": 127
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "pipefail takes the rightmost failing command, not the first",
+          "input": {
+            "pipefail": true,
+            "steps": [
+              {
+                "name": "lint",
+                "pipeline": [
+                  0,
+                  0
+                ]
+              },
+              {
+                "name": "test",
+                "pipeline": [
+                  3,
+                  1,
+                  0
+                ]
+              },
+              {
+                "name": "package",
+                "pipeline": [
+                  0
+                ]
+              },
+              {
+                "name": "upload",
+                "pipeline": [
+                  0
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "steps": [
+              {
+                "name": "lint",
+                "status": 0,
+                "meaning": "ok",
+                "commands": [
+                  "ok",
+                  "ok"
+                ]
+              },
+              {
+                "name": "test",
+                "status": 1,
+                "meaning": "error (exit 1)",
+                "commands": [
+                  "error (exit 3)",
+                  "error (exit 1)",
+                  "ok"
+                ]
+              },
+              {
+                "name": "package",
+                "status": null,
+                "meaning": "skipped",
+                "commands": null
+              },
+              {
+                "name": "upload",
+                "status": null,
+                "meaning": "skipped",
+                "commands": null
+              }
+            ],
+            "job": "failed at test (exit 1)",
+            "exit_code": 1
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Signals not in the SIGNALS table, SIGPIPE, exit 255 and 126 in one report",
+          "input": {
+            "pipefail": false,
+            "steps": [
+              {
+                "name": "export",
+                "pipeline": [
+                  141,
+                  0
+                ]
+              },
+              {
+                "name": "report",
+                "pipeline": [
+                  255,
+                  138,
+                  0
+                ]
+              },
+              {
+                "name": "prepare",
+                "pipeline": [
+                  0,
+                  126
+                ]
+              },
+              {
+                "name": "publish",
+                "pipeline": [
+                  0
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "steps": [
+              {
+                "name": "export",
+                "status": 0,
+                "meaning": "ok",
+                "commands": [
+                  "killed by SIGPIPE",
+                  "ok"
+                ]
+              },
+              {
+                "name": "report",
+                "status": 0,
+                "meaning": "ok",
+                "commands": [
+                  "error (exit 255)",
+                  "killed by signal 10",
+                  "ok"
+                ]
+              },
+              {
+                "name": "prepare",
+                "status": 126,
+                "meaning": "found but not executable",
+                "commands": [
+                  "ok",
+                  "found but not executable"
+                ]
+              },
+              {
+                "name": "publish",
+                "status": null,
+                "meaning": "skipped",
+                "commands": null
+              }
+            ],
+            "job": "failed at prepare (exit 126)",
+            "exit_code": 126
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

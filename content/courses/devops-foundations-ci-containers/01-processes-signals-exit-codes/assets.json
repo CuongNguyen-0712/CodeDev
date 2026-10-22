@@ -1,0 +1,16 @@
+{
+  "images": {
+    "docker-stop-pid1": {
+      "publicId": "codedev/courses/devops-foundations-ci-containers/01-processes-signals-exit-codes/docker-stop-pid1",
+      "url": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/q_auto/v1792640767/codedev/courses/devops-foundations-ci-containers/01-processes-signals-exit-codes/docker-stop-pid1.png?_a=BAMAROWQ0",
+      "width": 1200,
+      "height": 660
+    },
+    "pipeline-status": {
+      "publicId": "codedev/courses/devops-foundations-ci-containers/01-processes-signals-exit-codes/pipeline-status",
+      "url": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/q_auto/v1792640769/codedev/courses/devops-foundations-ci-containers/01-processes-signals-exit-codes/pipeline-status.png?_a=BAMAROWQ0",
+      "width": 1200,
+      "height": 620
+    }
+  }
+}

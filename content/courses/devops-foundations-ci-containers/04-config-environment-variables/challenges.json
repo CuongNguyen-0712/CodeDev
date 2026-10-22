@@ -1,0 +1,458 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_devf_221",
+      "name": "validate-env-config-at-startup",
+      "type": "mini_coding",
+      "title": "Check the api's environment at startup",
+      "description": "Rice Rocket's api takes all of its configuration from environment variables: the port, DEBUG, the database and Redis URLs, the log level, the number of workers and the payment API key. Write load_config(schema, env), which checks every variable the schema lists before the app starts: strip spaces, treat empty values as not set, fall back to defaults, parse int, bool, url and enum values strictly (DEBUG=false must be False), and collect every problem instead of stopping at the first. Secrets must never appear in the output: not in the config (shown as ***) and not in error messages. The runner at the bottom prints the result as JSON.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "config_check.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Production: every variable set, spaces stripped, DEBUG=false is False, secrets shown as ***",
+          "input": {
+            "schema": [
+              {
+                "name": "PORT",
+                "type": "int",
+                "default": "8080",
+                "min": 1,
+                "max": 65535
+              },
+              {
+                "name": "DEBUG",
+                "type": "bool",
+                "default": "false"
+              },
+              {
+                "name": "DATABASE_URL",
+                "type": "url",
+                "secret": true
+              },
+              {
+                "name": "REDIS_URL",
+                "type": "url",
+                "default": "redis://redis:6379/0"
+              },
+              {
+                "name": "LOG_LEVEL",
+                "type": "enum",
+                "choices": [
+                  "DEBUG",
+                  "INFO",
+                  "WARNING",
+                  "ERROR"
+                ],
+                "default": "INFO"
+              },
+              {
+                "name": "WORKERS",
+                "type": "int",
+                "default": "2",
+                "min": 1,
+                "max": 16
+              },
+              {
+                "name": "PAYMENT_API_KEY",
+                "type": "str",
+                "secret": true
+              }
+            ],
+            "env": {
+              "PORT": " 8000 ",
+              "DEBUG": "false",
+              "DATABASE_URL": "postgres://api:Pr0d-Rice-2026@db.prod.internal:5432/ricerocket",
+              "REDIS_URL": "redis://cache.prod.internal:6379/0",
+              "LOG_LEVEL": "WARNING",
+              "WORKERS": "8",
+              "PAYMENT_API_KEY": "pk_live_51Hx9Rice",
+              "PATH": "/usr/local/bin:/usr/bin",
+              "HOME": "/root"
+            }
+          },
+          "expected": {
+            "ok": true,
+            "config": {
+              "PORT": 8000,
+              "DEBUG": false,
+              "DATABASE_URL": "***",
+              "REDIS_URL": "redis://cache.prod.internal:6379/0",
+              "LOG_LEVEL": "WARNING",
+              "WORKERS": 8,
+              "PAYMENT_API_KEY": "***"
+            },
+            "defaults_used": [],
+            "errors": []
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Staging: only the secrets are set, an empty DEBUG counts as not set, defaults fill the rest",
+          "input": {
+            "schema": [
+              {
+                "name": "PORT",
+                "type": "int",
+                "default": "8080",
+                "min": 1,
+                "max": 65535
+              },
+              {
+                "name": "DEBUG",
+                "type": "bool",
+                "default": "false"
+              },
+              {
+                "name": "DATABASE_URL",
+                "type": "url",
+                "secret": true
+              },
+              {
+                "name": "REDIS_URL",
+                "type": "url",
+                "default": "redis://redis:6379/0"
+              },
+              {
+                "name": "LOG_LEVEL",
+                "type": "enum",
+                "choices": [
+                  "DEBUG",
+                  "INFO",
+                  "WARNING",
+                  "ERROR"
+                ],
+                "default": "INFO"
+              },
+              {
+                "name": "WORKERS",
+                "type": "int",
+                "default": "2",
+                "min": 1,
+                "max": 16
+              },
+              {
+                "name": "PAYMENT_API_KEY",
+                "type": "str",
+                "secret": true
+              }
+            ],
+            "env": {
+              "DEBUG": "",
+              "DATABASE_URL": "postgres://api:st4ging@db.staging.internal/ricerocket",
+              "PAYMENT_API_KEY": "pk_test_51Hx9Rice"
+            }
+          },
+          "expected": {
+            "ok": true,
+            "config": {
+              "PORT": 8080,
+              "DEBUG": false,
+              "DATABASE_URL": "***",
+              "REDIS_URL": "redis://redis:6379/0",
+              "LOG_LEVEL": "INFO",
+              "WORKERS": 2,
+              "PAYMENT_API_KEY": "***"
+            },
+            "defaults_used": [
+              "PORT",
+              "DEBUG",
+              "REDIS_URL",
+              "LOG_LEVEL",
+              "WORKERS"
+            ],
+            "errors": []
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Five problems are reported together, and the bad secret URL is not echoed",
+          "input": {
+            "schema": [
+              {
+                "name": "PORT",
+                "type": "int",
+                "default": "8080",
+                "min": 1,
+                "max": 65535
+              },
+              {
+                "name": "DEBUG",
+                "type": "bool",
+                "default": "false"
+              },
+              {
+                "name": "DATABASE_URL",
+                "type": "url",
+                "secret": true
+              },
+              {
+                "name": "REDIS_URL",
+                "type": "url",
+                "default": "redis://redis:6379/0"
+              },
+              {
+                "name": "LOG_LEVEL",
+                "type": "enum",
+                "choices": [
+                  "DEBUG",
+                  "INFO",
+                  "WARNING",
+                  "ERROR"
+                ],
+                "default": "INFO"
+              },
+              {
+                "name": "WORKERS",
+                "type": "int",
+                "default": "2",
+                "min": 1,
+                "max": 16
+              },
+              {
+                "name": "PAYMENT_API_KEY",
+                "type": "str",
+                "secret": true
+              }
+            ],
+            "env": {
+              "PORT": "80a",
+              "DEBUG": "flase",
+              "DATABASE_URL": "db.prod.internal:5432/ricerocket",
+              "LOG_LEVEL": "info"
+            }
+          },
+          "expected": {
+            "ok": false,
+            "config": null,
+            "defaults_used": [
+              "REDIS_URL",
+              "WORKERS"
+            ],
+            "errors": [
+              "PORT: not an integer: '80a'",
+              "DEBUG: not a boolean: 'flase'",
+              "DATABASE_URL: not a URL (need scheme://host): (value hidden)",
+              "LOG_LEVEL: must be one of DEBUG, INFO, WARNING, ERROR, got 'info'",
+              "PAYMENT_API_KEY: required but not set"
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Out-of-range numbers, YES as a boolean, a URL without a host and a blank secret",
+          "input": {
+            "schema": [
+              {
+                "name": "PORT",
+                "type": "int",
+                "default": "8080",
+                "min": 1,
+                "max": 65535
+              },
+              {
+                "name": "DEBUG",
+                "type": "bool",
+                "default": "false"
+              },
+              {
+                "name": "DATABASE_URL",
+                "type": "url",
+                "secret": true
+              },
+              {
+                "name": "REDIS_URL",
+                "type": "url",
+                "default": "redis://redis:6379/0"
+              },
+              {
+                "name": "LOG_LEVEL",
+                "type": "enum",
+                "choices": [
+                  "DEBUG",
+                  "INFO",
+                  "WARNING",
+                  "ERROR"
+                ],
+                "default": "INFO"
+              },
+              {
+                "name": "WORKERS",
+                "type": "int",
+                "default": "2",
+                "min": 1,
+                "max": 16
+              },
+              {
+                "name": "PAYMENT_API_KEY",
+                "type": "str",
+                "secret": true
+              }
+            ],
+            "env": {
+              "PORT": "70000",
+              "WORKERS": "0",
+              "DEBUG": "YES",
+              "REDIS_URL": "redis://:6379",
+              "DATABASE_URL": "postgres://api:Pr0d-Rice-2026@db.prod.internal:5432/ricerocket",
+              "PAYMENT_API_KEY": "   "
+            }
+          },
+          "expected": {
+            "ok": false,
+            "config": null,
+            "defaults_used": [
+              "LOG_LEVEL"
+            ],
+            "errors": [
+              "PORT: must be at most 65535, got 70000",
+              "REDIS_URL: not a URL (need scheme://host): 'redis://:6379'",
+              "WORKERS: must be at least 1, got 0",
+              "PAYMENT_API_KEY: required but not set"
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Values int() would accept but the rules do not: 1_000 and +4; On is not a boolean",
+          "input": {
+            "schema": [
+              {
+                "name": "PORT",
+                "type": "int",
+                "default": "8080",
+                "min": 1,
+                "max": 65535
+              },
+              {
+                "name": "DEBUG",
+                "type": "bool",
+                "default": "false"
+              },
+              {
+                "name": "DATABASE_URL",
+                "type": "url",
+                "secret": true
+              },
+              {
+                "name": "REDIS_URL",
+                "type": "url",
+                "default": "redis://redis:6379/0"
+              },
+              {
+                "name": "LOG_LEVEL",
+                "type": "enum",
+                "choices": [
+                  "DEBUG",
+                  "INFO",
+                  "WARNING",
+                  "ERROR"
+                ],
+                "default": "INFO"
+              },
+              {
+                "name": "WORKERS",
+                "type": "int",
+                "default": "2",
+                "min": 1,
+                "max": 16
+              },
+              {
+                "name": "PAYMENT_API_KEY",
+                "type": "str",
+                "secret": true
+              }
+            ],
+            "env": {
+              "PORT": "1_000",
+              "WORKERS": "+4",
+              "DEBUG": "On",
+              "LOG_LEVEL": "ERROR",
+              "DATABASE_URL": "postgres://api:Pr0d-Rice-2026@db.prod.internal:5432/ricerocket",
+              "PAYMENT_API_KEY": "pk_live_51Hx9Rice"
+            }
+          },
+          "expected": {
+            "ok": false,
+            "config": null,
+            "defaults_used": [
+              "REDIS_URL"
+            ],
+            "errors": [
+              "PORT: not an integer: '1_000'",
+              "DEBUG: not a boolean: 'On'",
+              "WORKERS: not an integer: '+4'"
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A secret number out of range stays hidden; negative numbers and 0/1 booleans parse",
+          "input": {
+            "schema": [
+              {
+                "name": "SMTP_PIN",
+                "type": "int",
+                "secret": true,
+                "min": 1000,
+                "max": 9999
+              },
+              {
+                "name": "RETRY_OFFSET",
+                "type": "int",
+                "default": "0",
+                "min": -60,
+                "max": 60
+              },
+              {
+                "name": "MAINTENANCE",
+                "type": "bool",
+                "default": "0"
+              },
+              {
+                "name": "REGION",
+                "type": "enum",
+                "choices": [
+                  "hcm",
+                  "hn",
+                  "dn"
+                ],
+                "default": "hcm"
+              }
+            ],
+            "env": {
+              "SMTP_PIN": "12",
+              "RETRY_OFFSET": "-30",
+              "MAINTENANCE": "1",
+              "REGION": "hn"
+            }
+          },
+          "expected": {
+            "ok": false,
+            "config": null,
+            "defaults_used": [],
+            "errors": [
+              "SMTP_PIN: must be at least 1000, got (value hidden)"
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

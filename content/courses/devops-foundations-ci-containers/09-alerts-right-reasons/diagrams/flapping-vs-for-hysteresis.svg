@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="712" viewBox="0 0 1200 712" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+<rect width="1200" height="712" fill="#ffffff"/>
+<text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Same CPU series, two rules: 7 pages or 1</text>
+<text x="40" y="82" font-size="16" fill="#475569">api-3 CPU from 02:00 to 02:29, one point per minute. Both rules use the threshold CPU &gt; 80%.</text>
+<rect x="30" y="104" width="1140" height="268" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+<text x="52" y="134" font-size="18" font-weight="700" fill="#b91c1c">No for:, resolves as soon as CPU is not above 80%</text>
+<text x="52" y="158" font-size="14" fill="#334155">Every crossing of the red line is a new page, and one dip resolves the alert.</text>
+<rect x="100" y="176" width="870" height="168" fill="#ffffff" stroke="#cbd5e1"/>
+<text x="92" y="297.6" font-size="12" fill="#64748b" text-anchor="end">70%</text>
+<text x="92" y="254.1" font-size="12" fill="#64748b" text-anchor="end">80%</text>
+<text x="92" y="210.7" font-size="12" fill="#64748b" text-anchor="end">90%</text>
+<line x1="100" y1="249.1" x2="970" y2="249.1" stroke="#dc2626" stroke-width="2"/>
+<polyline points="110.0,266.5 139.3,244.8 168.6,253.5 197.9,236.1 227.2,257.8 256.6,240.5 285.9,262.2 315.2,231.8 344.5,249.1 373.8,244.8 403.1,253.5 432.4,227.4 461.7,218.7 491.0,210.1 520.3,197.0 549.7,205.7 579.0,214.4 608.3,223.1 637.6,236.1 666.9,253.5 696.2,240.5 725.5,257.8 754.8,275.2 784.1,288.2 813.4,296.9 842.8,305.6 872.1,283.9 901.4,309.9 930.7,318.6 960.0,323.0" fill="none" stroke="#1e293b" stroke-width="2.5"/>
+<circle cx="110.0" cy="266.5" r="3" fill="#1e293b"/>
+<circle cx="139.3" cy="244.8" r="3" fill="#1e293b"/>
+<circle cx="168.6" cy="253.5" r="3" fill="#1e293b"/>
+<circle cx="197.9" cy="236.1" r="3" fill="#1e293b"/>
+<circle cx="227.2" cy="257.8" r="3" fill="#1e293b"/>
+<circle cx="256.6" cy="240.5" r="3" fill="#1e293b"/>
+<circle cx="285.9" cy="262.2" r="3" fill="#1e293b"/>
+<circle cx="315.2" cy="231.8" r="3" fill="#1e293b"/>
+<circle cx="344.5" cy="249.1" r="3" fill="#1e293b"/>
+<circle cx="373.8" cy="244.8" r="3" fill="#1e293b"/>
+<circle cx="403.1" cy="253.5" r="3" fill="#1e293b"/>
+<circle cx="432.4" cy="227.4" r="3" fill="#1e293b"/>
+<circle cx="461.7" cy="218.7" r="3" fill="#1e293b"/>
+<circle cx="491.0" cy="210.1" r="3" fill="#1e293b"/>
+<circle cx="520.3" cy="197.0" r="3" fill="#1e293b"/>
+<circle cx="549.7" cy="205.7" r="3" fill="#1e293b"/>
+<circle cx="579.0" cy="214.4" r="3" fill="#1e293b"/>
+<circle cx="608.3" cy="223.1" r="3" fill="#1e293b"/>
+<circle cx="637.6" cy="236.1" r="3" fill="#1e293b"/>
+<circle cx="666.9" cy="253.5" r="3" fill="#1e293b"/>
+<circle cx="696.2" cy="240.5" r="3" fill="#1e293b"/>
+<circle cx="725.5" cy="257.8" r="3" fill="#1e293b"/>
+<circle cx="754.8" cy="275.2" r="3" fill="#1e293b"/>
+<circle cx="784.1" cy="288.2" r="3" fill="#1e293b"/>
+<circle cx="813.4" cy="296.9" r="3" fill="#1e293b"/>
+<circle cx="842.8" cy="305.6" r="3" fill="#1e293b"/>
+<circle cx="872.1" cy="283.9" r="3" fill="#1e293b"/>
+<circle cx="901.4" cy="309.9" r="3" fill="#1e293b"/>
+<circle cx="930.7" cy="318.6" r="3" fill="#1e293b"/>
+<circle cx="960.0" cy="323.0" r="3" fill="#1e293b"/>
+<polygon points="132.3,162 146.3,162 139.3,174" fill="#dc2626"/>
+<polygon points="190.9,162 204.9,162 197.9,174" fill="#dc2626"/>
+<polygon points="249.6,162 263.6,162 256.6,174" fill="#dc2626"/>
+<polygon points="308.2,162 322.2,162 315.2,174" fill="#dc2626"/>
+<polygon points="366.8,162 380.8,162 373.8,174" fill="#dc2626"/>
+<polygon points="425.4,162 439.4,162 432.4,174" fill="#dc2626"/>
+<polygon points="689.2,162 703.2,162 696.2,174" fill="#dc2626"/>
+<text x="110.0" y="362" font-size="12" fill="#64748b" text-anchor="middle">02:00</text>
+<text x="403.1" y="362" font-size="12" fill="#64748b" text-anchor="middle">02:10</text>
+<text x="696.2" y="362" font-size="12" fill="#64748b" text-anchor="middle">02:20</text>
+<text x="960.0" y="362" font-size="12" fill="#64748b" text-anchor="middle">02:29</text>
+<text x="1000" y="234" font-size="30" font-weight="700" fill="#b91c1c">7 pages</text>
+<text x="1000" y="260" font-size="13" fill="#7f1d1d">in 30 minutes</text>
+<text x="1000" y="280" font-size="13" fill="#7f1d1d">38 over the night</text>
+<rect x="30" y="388" width="1140" height="268" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+<text x="52" y="418" font-size="18" font-weight="700" fill="#15803d">for: 5m, and resolve only when CPU drops below 70%</text>
+<text x="52" y="442" font-size="14" fill="#334155">Short spikes stay pending (amber) and are dropped. Firing (red band) lasts until the green dashed line.</text>
+<rect x="100" y="460" width="870" height="168" fill="#ffffff" stroke="#cbd5e1"/>
+<text x="92" y="581.6" font-size="12" fill="#64748b" text-anchor="end">70%</text>
+<text x="92" y="538.1" font-size="12" fill="#64748b" text-anchor="end">80%</text>
+<text x="92" y="494.7" font-size="12" fill="#64748b" text-anchor="end">90%</text>
+<rect x="124.7" y="460" width="29.3" height="168" fill="#fde68a" opacity="0.7"/>
+<rect x="183.3" y="460" width="29.3" height="168" fill="#fde68a" opacity="0.7"/>
+<rect x="241.9" y="460" width="29.3" height="168" fill="#fde68a" opacity="0.7"/>
+<rect x="300.5" y="460" width="29.3" height="168" fill="#fde68a" opacity="0.7"/>
+<rect x="359.1" y="460" width="29.3" height="168" fill="#fde68a" opacity="0.7"/>
+<rect x="417.8" y="460" width="146.6" height="168" fill="#fde68a" opacity="0.7"/>
+<rect x="564.3" y="460" width="234.5" height="168" fill="#fecaca" opacity="0.8"/>
+<line x1="100" y1="533.1" x2="970" y2="533.1" stroke="#dc2626" stroke-width="2"/>
+<line x1="100" y1="576.6" x2="970" y2="576.6" stroke="#16a34a" stroke-width="2" stroke-dasharray="7 5"/>
+<polyline points="110.0,550.5 139.3,528.8 168.6,537.5 197.9,520.1 227.2,541.8 256.6,524.5 285.9,546.2 315.2,515.8 344.5,533.1 373.8,528.8 403.1,537.5 432.4,511.4 461.7,502.7 491.0,494.1 520.3,481.0 549.7,489.7 579.0,498.4 608.3,507.1 637.6,520.1 666.9,537.5 696.2,524.5 725.5,541.8 754.8,559.2 784.1,572.2 813.4,580.9 842.8,589.6 872.1,567.9 901.4,593.9 930.7,602.6 960.0,607.0" fill="none" stroke="#1e293b" stroke-width="2.5"/>
+<circle cx="110.0" cy="550.5" r="3" fill="#1e293b"/>
+<circle cx="139.3" cy="528.8" r="3" fill="#1e293b"/>
+<circle cx="168.6" cy="537.5" r="3" fill="#1e293b"/>
+<circle cx="197.9" cy="520.1" r="3" fill="#1e293b"/>
+<circle cx="227.2" cy="541.8" r="3" fill="#1e293b"/>
+<circle cx="256.6" cy="524.5" r="3" fill="#1e293b"/>
+<circle cx="285.9" cy="546.2" r="3" fill="#1e293b"/>
+<circle cx="315.2" cy="515.8" r="3" fill="#1e293b"/>
+<circle cx="344.5" cy="533.1" r="3" fill="#1e293b"/>
+<circle cx="373.8" cy="528.8" r="3" fill="#1e293b"/>
+<circle cx="403.1" cy="537.5" r="3" fill="#1e293b"/>
+<circle cx="432.4" cy="511.4" r="3" fill="#1e293b"/>
+<circle cx="461.7" cy="502.7" r="3" fill="#1e293b"/>
+<circle cx="491.0" cy="494.1" r="3" fill="#1e293b"/>
+<circle cx="520.3" cy="481.0" r="3" fill="#1e293b"/>
+<circle cx="549.7" cy="489.7" r="3" fill="#1e293b"/>
+<circle cx="579.0" cy="498.4" r="3" fill="#1e293b"/>
+<circle cx="608.3" cy="507.1" r="3" fill="#1e293b"/>
+<circle cx="637.6" cy="520.1" r="3" fill="#1e293b"/>
+<circle cx="666.9" cy="537.5" r="3" fill="#1e293b"/>
+<circle cx="696.2" cy="524.5" r="3" fill="#1e293b"/>
+<circle cx="725.5" cy="541.8" r="3" fill="#1e293b"/>
+<circle cx="754.8" cy="559.2" r="3" fill="#1e293b"/>
+<circle cx="784.1" cy="572.2" r="3" fill="#1e293b"/>
+<circle cx="813.4" cy="580.9" r="3" fill="#1e293b"/>
+<circle cx="842.8" cy="589.6" r="3" fill="#1e293b"/>
+<circle cx="872.1" cy="567.9" r="3" fill="#1e293b"/>
+<circle cx="901.4" cy="593.9" r="3" fill="#1e293b"/>
+<circle cx="930.7" cy="602.6" r="3" fill="#1e293b"/>
+<circle cx="960.0" cy="607.0" r="3" fill="#1e293b"/>
+<polygon points="572.0,446 586.0,446 579.0,458" fill="#dc2626"/>
+<polygon points="806.4,446 820.4,446 813.4,458" fill="#16a34a"/>
+<text x="110.0" y="646" font-size="12" fill="#64748b" text-anchor="middle">02:00</text>
+<text x="403.1" y="646" font-size="12" fill="#64748b" text-anchor="middle">02:10</text>
+<text x="696.2" y="646" font-size="12" fill="#64748b" text-anchor="middle">02:20</text>
+<text x="960.0" y="646" font-size="12" fill="#64748b" text-anchor="middle">02:29</text>
+<text x="1000" y="518" font-size="30" font-weight="700" fill="#15803d">1 page</text>
+<text x="1000" y="544" font-size="13" fill="#14532d">fired 02:16</text>
+<text x="1000" y="564" font-size="13" fill="#14532d">resolved 02:24</text>
+<polygon points="52,680 66,680 59,692" fill="#dc2626"/><text x="74" y="691" font-size="13" fill="#334155">page sent</text>
+<polygon points="172,680 186,680 179,692" fill="#16a34a"/><text x="194" y="691" font-size="13" fill="#334155">resolved</text>
+<rect x="290" y="679" width="16" height="14" fill="#fde68a"/><text x="314" y="691" font-size="13" fill="#334155">pending</text>
+<rect x="392" y="679" width="16" height="14" fill="#fecaca"/><text x="416" y="691" font-size="13" fill="#334155">firing</text>
+<line x1="490" y1="686" x2="520" y2="686" stroke="#dc2626" stroke-width="2"/><text x="528" y="691" font-size="13" fill="#334155">threshold 80%</text>
+<line x1="650" y1="686" x2="680" y2="686" stroke="#16a34a" stroke-width="2" stroke-dasharray="7 5"/><text x="688" y="691" font-size="13" fill="#334155">clear below 70%</text>
+</svg>

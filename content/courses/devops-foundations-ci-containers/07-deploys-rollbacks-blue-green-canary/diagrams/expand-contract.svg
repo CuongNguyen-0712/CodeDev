@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="620" fill="#ffffff"/>
+  <text x="40" y="50" font-size="26" font-weight="700" fill="#0f172a">Expand, migrate, contract: rename a column without breaking a rollback</text>
+  <text x="40" y="80" font-size="16" fill="#475569">Old and new code share one database during a deploy. Every step must work for both of them.</text>
+
+  <!-- Bad -->
+  <rect x="40" y="104" width="1120" height="128" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="136" font-size="17" font-weight="700" fill="#b91c1c">One release (the incident)</text>
+  <text x="64" y="166" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">v2.14.0: RENAME COLUMN customer_phone TO phone</text>
+  <text x="64" y="196" font-size="13" fill="#7f1d1d">v2.13 pods still running: column "customer_phone" does not exist - checkout fails.</text>
+  <text x="64" y="218" font-size="13" fill="#7f1d1d">Rolling back the code does not help: the old code needs a column that is gone.</text>
+
+  <!-- Good: three releases -->
+  <text x="40" y="270" font-size="17" font-weight="700" fill="#15803d">Three small releases</text>
+
+  <rect x="40" y="286" width="356" height="236" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="60" y="316" font-size="15" font-weight="700" fill="#15803d">1. Expand (v2.14.0)</text>
+  <text x="60" y="344" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">ADD COLUMN phone</text>
+  <text x="60" y="370" font-size="13" fill="#334155">write both columns</text>
+  <text x="60" y="394" font-size="13" fill="#334155">backfill phone for old rows</text>
+  <text x="60" y="418" font-size="13" fill="#334155">still READ customer_phone</text>
+  <text x="60" y="458" font-size="13" font-weight="700" fill="#15803d">v2.13 works: yes</text>
+  <text x="60" y="482" font-size="13" font-weight="700" fill="#15803d">rollback to v2.13: safe</text>
+
+  <rect x="422" y="286" width="356" height="236" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="442" y="316" font-size="15" font-weight="700" fill="#15803d">2. Migrate (v2.15.0)</text>
+  <text x="442" y="344" font-size="13" fill="#334155">READ phone only</text>
+  <text x="442" y="370" font-size="13" fill="#334155">keep writing both columns</text>
+  <text x="442" y="394" font-size="13" fill="#334155">no schema change</text>
+  <text x="442" y="458" font-size="13" font-weight="700" fill="#15803d">v2.14 works: yes</text>
+  <text x="442" y="482" font-size="13" font-weight="700" fill="#15803d">rollback to v2.14: safe</text>
+
+  <rect x="804" y="286" width="356" height="236" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="824" y="316" font-size="15" font-weight="700" fill="#15803d">3. Contract (v2.16.0)</text>
+  <text x="824" y="344" font-size="13" fill="#334155">stop writing customer_phone</text>
+  <text x="824" y="370" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">DROP COLUMN</text>
+  <text x="824" y="394" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">customer_phone</text>
+  <text x="824" y="458" font-size="13" font-weight="700" fill="#15803d">only once no running or</text>
+  <text x="824" y="482" font-size="13" font-weight="700" fill="#15803d">rollback version reads it</text>
+
+  <line x1="396" y1="404" x2="414" y2="404" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="412,398 422,404 412,410" fill="#16a34a"/>
+  <line x1="778" y1="404" x2="796" y2="404" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="794,398 804,404 794,410" fill="#16a34a"/>
+
+  <text x="40" y="566" font-size="14" fill="#475569">Each release is backward compatible with the one before it, so you can stop or roll back between any two steps.</text>
+  <text x="40" y="592" font-size="14" fill="#475569">Days can pass between steps: contract only when you are sure you will not go back.</text>
+</svg>
