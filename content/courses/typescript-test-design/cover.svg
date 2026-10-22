@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Test design in TypeScript (a property-based test finds a sort bug and shrinks it to a minimal input). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0F1724"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3178C6" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#3178C6" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8CB8EA"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3178C6"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3DBE7B"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="152" width="92" height="92" rx="20" fill="#3178C6"/>
+    <text x="194" y="232" text-anchor="end" font-size="40" font-weight="800" fill="#FFFFFF">TS</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#8CB8EA">TYPESCRIPT · TEST DESIGN</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Test Design</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">in TypeScript</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Boundaries · Properties · Contract tests</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#CBE4FA">
+      <rect x="110" y="660" width="179" height="52" rx="26" fill="#132238" stroke="#3178C6"/>
+      <text x="199.5" y="695" text-anchor="middle">property</text>
+      <rect x="305" y="660" width="150" height="52" rx="26" fill="#132238" stroke="#3178C6"/>
+      <text x="380" y="695" text-anchor="middle">shrink</text>
+      <rect x="471" y="660" width="179" height="52" rx="26" fill="#132238" stroke="#3178C6"/>
+      <text x="560.5" y="695" text-anchor="middle">contract</text>
+      <rect x="666" y="660" width="150" height="52" rx="26" fill="#132238" stroke="#3178C6"/>
+      <text x="741" y="695" text-anchor="middle">mutant</text>
+    </g>
+  </g>
+
+  <!-- Random inputs pass until one breaks the property; shrinking reduces it to [10, 2], which shows sort() compares strings -->
+  <g id="art" font-family="Consolas, Menlo, monospace">
+    <text x="900" y="254" font-size="20" letter-spacing="3" fill="#8CB8EA">PROPERTY CHECK</text>
+    <rect x="900" y="276" width="330" height="300" rx="14" fill="#121B2A" stroke="#28446A" stroke-width="2"/>
+    <path d="M922 316 l7 7 l14 -14" stroke="#3DBE7B" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <text x="958" y="324" font-size="22" fill="#F4F2F8">[3, 1, 2]</text>
+    <path d="M922 372 l7 7 l14 -14" stroke="#3DBE7B" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <text x="958" y="380" font-size="22" fill="#F4F2F8">[]</text>
+    <path d="M922 428 l7 7 l14 -14" stroke="#3DBE7B" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <text x="958" y="436" font-size="22" fill="#F4F2F8">[7, 7, 0]</text>
+    <path d="M924 478 l14 14 M938 478 l-14 14" stroke="#F2555A" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <text x="958" y="492" font-size="22" fill="#F2555A">[42, 105, 7, 3]</text>
+    <text x="922" y="552" font-size="18" fill="#6F6A80">seed 4127 · run 4/100</text>
+    <text x="1280" y="254" font-size="20" letter-spacing="3" fill="#8CB8EA">SHRINK</text>
+    <path d="M1232 486 C1252 486, 1252 304, 1274 304" stroke="#F2555A" stroke-width="3" fill="none" marker-end="url(#arrowRed)"/>
+    <g font-size="22" text-anchor="middle">
+    <rect x="1280" y="276" width="250" height="56" rx="12" fill="#121B2A" stroke="#28446A" stroke-width="2"/>
+    <text x="1405" y="312" fill="#F4F2F8">[105, 7, 3]</text>
+    <rect x="1280" y="376" width="250" height="56" rx="12" fill="#121B2A" stroke="#28446A" stroke-width="2"/>
+    <text x="1405" y="412" fill="#F4F2F8">[105, 7]</text>
+    <rect x="1280" y="476" width="250" height="64" rx="12" fill="#2A2410" stroke="#F2C14E" stroke-width="3"/>
+    <text x="1405" y="516" fill="#F2C14E" font-weight="700">[10, 2]</text>
+    </g>
+    <path d="M1405 334 V370" stroke="#8CB8EA" stroke-width="3" marker-end="url(#arrow)"/>
+    <path d="M1405 434 V470" stroke="#8CB8EA" stroke-width="3" marker-end="url(#arrow)"/>
+    <text x="1405" y="570" font-size="18" fill="#B8B2C8" text-anchor="middle">minimal failing input</text>
+    <text x="900" y="644" font-size="22" fill="#F4F2F8"><tspan fill="#82AAFF">sort</tspan>() compares strings: <tspan fill="#C3E88D">"10"</tspan> &lt; <tspan fill="#C3E88D">"2"</tspan></text>
+  </g>
+</svg>

@@ -1,0 +1,104 @@
+{
+  "publicId": "php-foundations",
+  "title": "Modern PHP 8.4 Foundations: Types, Arrays & Safe Input",
+  "concept": "Write PHP that behaves the same on every request: strict types and comparisons, multibyte strings, arrays as lists and maps, functions with union types, enums and readonly classes, exceptions and validated input.",
+  "description": "Write PHP that behaves the same on every request: strict types and comparisons, multibyte strings, arrays as lists and maps, functions with union types, enums and readonly classes, exceptions and validated input. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792641964/codedev/courses/php-foundations/cover",
+  "level": "beginner",
+  "durationMinutes": 180,
+  "instructor": "CodeDev Engineering Team",
+  "language": "PHP",
+  "category": "PHP Development",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 50,
+  "accessModel": "free",
+  "publishStatus": "draft",
+  "careerRoles": [
+    "student",
+    "backend_developer",
+    "fullstack_developer"
+  ],
+  "skills": {
+    "data_structures": 3,
+    "api_design": 2,
+    "testing": 1
+  },
+  "goals": [
+    "fundamentals",
+    "first_job",
+    "change_career"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Values & Strings",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "strict_types and comparisons: when \"1e1\" == \"10\"",
+          "challenges": "Q(e) + F(e)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Strings: interpolation, sprintf & multibyte text",
+          "challenges": "Q(e) + C(e)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Arrays",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Arrays as lists and maps: + vs array_merge and lost keys",
+          "challenges": "Q(m) + F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "array_map, array_filter, usort & stable sorting",
+          "challenges": "C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Functions & Types",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Functions, named arguments, nullable and union types",
+          "challenges": "Q(e) + C(e)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "match, enums & readonly classes",
+          "challenges": "Q(m) + C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Robust Code",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Exceptions, finally & error handling",
+          "challenges": "F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Validating input: filter_var and JSON_THROW_ON_ERROR",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Mini project: an invoice total with integer money",
+          "challenges": "C(h)"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: C# for backend services (awaiting in a loop vs Task.WhenAll vs throttled with SemaphoreSlim). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#170E1C"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#68217A" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#68217A" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#D9B3E6"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#9B4F96"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3DBE7B"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <path d="M158 148 L202 173 V223 L158 248 L114 223 V173 Z" fill="#68217A" stroke="#9B4F96" stroke-width="3"/>
+    <text x="158" y="212" text-anchor="middle" font-size="40" font-weight="800" fill="#FFFFFF">C#</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#D9B3E6">C# · .NET SERVICES</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Async .NET</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Services</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">async/await · WhenAll · Cancellation · LINQ</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#EBD6F2">
+      <rect x="110" y="660" width="121" height="52" rx="26" fill="#25132C" stroke="#9B4F96"/>
+      <text x="170.5" y="695" text-anchor="middle">Task</text>
+      <rect x="247" y="660" width="164" height="52" rx="26" fill="#25132C" stroke="#9B4F96"/>
+      <text x="329" y="695" text-anchor="middle">WhenAll</text>
+      <rect x="427" y="660" width="308" height="52" rx="26" fill="#25132C" stroke="#9B4F96"/>
+      <text x="581" y="695" text-anchor="middle">CancellationToken</text>
+    </g>
+  </g>
+
+  <!-- Three 300 ms calls: awaited one by one, all at once with Task.WhenAll, and two at a time with SemaphoreSlim -->
+  <g id="art" font-family="Consolas, Menlo, monospace">
+    <text x="900" y="254" font-size="20" letter-spacing="3" fill="#D9B3E6">AWAIT IN A LOOP</text>
+    <g font-size="20" text-anchor="middle" fill="#F4F2F8">
+    <rect x="900" y="270" width="170" height="40" rx="8" fill="#9B4F96" fill-opacity="0.55"/>
+    <text x="985" y="297">GetUser</text>
+    <rect x="1074" y="270" width="170" height="40" rx="8" fill="#9B4F96" fill-opacity="0.55"/>
+    <text x="1159" y="297">GetOrders</text>
+    <rect x="1248" y="270" width="170" height="40" rx="8" fill="#9B4F96" fill-opacity="0.55"/>
+    <text x="1333" y="297">GetStock</text>
+    </g>
+    <text x="1440" y="298" font-size="24" font-weight="700" fill="#F2555A">900 ms</text>
+    <text x="900" y="362" font-size="20" letter-spacing="3" fill="#D9B3E6">TASK.WHENALL</text>
+    <g font-size="20" text-anchor="middle" fill="#F4F2F8">
+    <rect x="900" y="378" width="170" height="40" rx="8" fill="#9B4F96" fill-opacity="0.55"/>
+    <text x="985" y="405">GetUser</text>
+    <rect x="900" y="424" width="170" height="40" rx="8" fill="#9B4F96" fill-opacity="0.55"/>
+    <text x="985" y="451">GetOrders</text>
+    <rect x="900" y="470" width="170" height="40" rx="8" fill="#9B4F96" fill-opacity="0.55"/>
+    <text x="985" y="497">GetStock</text>
+    </g>
+    <text x="1092" y="452" font-size="24" font-weight="700" fill="#3DBE7B">300 ms</text>
+    <text x="900" y="562" font-size="20" letter-spacing="3" fill="#D9B3E6">SEMAPHORESLIM(2)</text>
+    <g font-size="20" text-anchor="middle" fill="#F4F2F8">
+    <rect x="900" y="578" width="170" height="40" rx="8" fill="#9B4F96" fill-opacity="0.55"/>
+    <text x="985" y="605">GetUser</text>
+    <rect x="900" y="624" width="170" height="40" rx="8" fill="#9B4F96" fill-opacity="0.55"/>
+    <text x="985" y="651">GetOrders</text>
+    <rect x="1074" y="578" width="170" height="40" rx="8" fill="#9B4F96" fill-opacity="0.55"/>
+    <text x="1159" y="605">GetStock</text>
+    </g>
+    <text x="1266" y="606" font-size="24" font-weight="700" fill="#F2C14E">600 ms</text>
+    <path d="M900 690 H1422" stroke="#4A2A55" stroke-width="2"/>
+    <path d="M900 684 V696 M1074 684 V696 M1248 684 V696 M1422 684 V696" stroke="#6F6A80" stroke-width="2"/>
+    <g font-size="16" fill="#6F6A80" text-anchor="middle"><text x="900" y="720">0</text><text x="1074" y="720">300</text><text x="1248" y="720">600</text><text x="1422" y="720">900 ms</text></g>
+  </g>
+</svg>

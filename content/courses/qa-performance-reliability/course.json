@@ -1,0 +1,106 @@
+{
+  "publicId": "qa-performance-reliability",
+  "title": "Performance & Reliability Testing: Load, Latency & Chaos",
+  "concept": "Test how a system behaves under load and failure, not only whether it works: workload models, latency percentiles and coordinated omission, throughput and saturation, SLOs and error budgets, retries and timeouts under stress, and chaos experiments with a hypothesis.",
+  "description": "Test how a system behaves under load and failure, not only whether it works: workload models, latency percentiles and coordinated omission, throughput and saturation, SLOs and error budgets, retries and timeouts under stress, and chaos experiments with a hypothesis. 8 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792642663/codedev/courses/qa-performance-reliability/cover",
+  "level": "advanced",
+  "durationMinutes": 220,
+  "instructor": "CodeDev Engineering Team",
+  "language": "Python",
+  "category": "Testing & QA",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "qa_engineer",
+    "devops_engineer",
+    "backend_developer"
+  ],
+  "skills": {
+    "testing": 5,
+    "performance": 5,
+    "system_design": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "performance"
+  ],
+  "prerequisites": [
+    "test-automation-foundations"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Load",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Workload models: open vs closed systems",
+          "challenges": "Q(m) + C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Percentiles, histograms & coordinated omission",
+          "challenges": "Q(h) + C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Throughput, saturation & Little's law",
+          "challenges": "C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Reliability",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "SLOs & error budgets",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Timeouts, retries & retry storms",
+          "challenges": "Q(m) + F(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Circuit breakers under load",
+          "challenges": "C(h)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Chaos",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Designing a chaos experiment",
+          "challenges": "Q(m) + C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Analysing a failed load test",
+          "challenges": "C(h)"
+        }
+      ]
+    }
+  ]
+}

@@ -69,7 +69,7 @@ FROM (VALUES ('react', 4), ('typescript', 3), ('async_programming', 4), ('perfor
 JOIN catalog.skill s ON s.code = v.code;
 DELETE FROM catalog.course_prerequisite WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first');
 INSERT INTO catalog.course_prerequisite (course_id, prerequisite_course_id)
-SELECT (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first'), id FROM catalog.course WHERE public_id = ANY(ARRAY['javascript-async-architecture_2026100901']::text[]);
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first'), id FROM catalog.course WHERE public_id = ANY(ARRAY['javascript-async-architecture_2026100901', 'typescript-foundations']::text[]);
 
 -- learners enrolled before these lessons existed
 INSERT INTO learning.history (user_id, course_id, module_id, lesson_id)

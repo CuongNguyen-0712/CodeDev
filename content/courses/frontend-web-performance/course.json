@@ -1,0 +1,106 @@
+{
+  "publicId": "frontend-web-performance",
+  "title": "Frontend Performance: Core Web Vitals, Rendering & Data Loading",
+  "concept": "Make web apps fast where users feel it: Core Web Vitals and how they are measured, long tasks and scheduling, debounce and throttle, list virtualisation, memoisation, request waterfalls and caching, image and bundle budgets, and regressions caught before release.",
+  "description": "Make web apps fast where users feel it: Core Web Vitals and how they are measured, long tasks and scheduling, debounce and throttle, list virtualisation, memoisation, request waterfalls and caching, image and bundle budgets, and regressions caught before release. 8 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792642669/codedev/courses/frontend-web-performance/cover",
+  "level": "advanced",
+  "durationMinutes": 220,
+  "instructor": "CodeDev Engineering Team",
+  "language": "JavaScript",
+  "category": "Web Performance",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "frontend_developer",
+    "fullstack_developer"
+  ],
+  "skills": {
+    "performance": 5,
+    "javascript": 4,
+    "react": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "performance"
+  ],
+  "prerequisites": [
+    "js-modern-foundations",
+    "web-foundations-html-css-a11y"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Measure",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Core Web Vitals: LCP, INP & CLS",
+          "challenges": "Q(m) + C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Long tasks & yielding to the main thread",
+          "challenges": "C(h)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Render",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Debounce, throttle & input responsiveness",
+          "challenges": "Q(m) + F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Virtualising long lists",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Memoisation that actually helps",
+          "challenges": "Q(m) + F(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Load",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Request waterfalls & parallel loading",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "HTTP caching & stale-while-revalidate",
+          "challenges": "Q(m) + C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Performance budgets in CI",
+          "challenges": "C(h)"
+        }
+      ]
+    }
+  ]
+}

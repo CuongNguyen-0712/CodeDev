@@ -42,7 +42,8 @@
     "build_projects"
   ],
   "prerequisites": [
-    "js-modern-foundations"
+    "js-modern-foundations",
+    "typescript-foundations"
   ],
   "modules": [],
   "outline": [

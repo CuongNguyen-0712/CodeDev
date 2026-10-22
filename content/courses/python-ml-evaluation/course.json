@@ -1,0 +1,111 @@
+{
+  "publicId": "python-ml-evaluation",
+  "title": "Evaluating ML Models: Metrics, Leakage & Drift",
+  "concept": "Know whether a model is actually good before it ships: train, validation and test splits, precision, recall and ROC AUC, calibration, cross-validation, data leakage, class imbalance, A/B tests for models and drift monitoring, all from scratch in Python.",
+  "description": "Know whether a model is actually good before it ships: train, validation and test splits, precision, recall and ROC AUC, calibration, cross-validation, data leakage, class imbalance, A/B tests for models and drift monitoring, all from scratch in Python. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792642657/codedev/courses/python-ml-evaluation/cover",
+  "level": "advanced",
+  "durationMinutes": 220,
+  "instructor": "CodeDev Engineering Team",
+  "language": "Python",
+  "category": "Machine Learning",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "ml_engineer",
+    "data_analyst",
+    "data_engineer"
+  ],
+  "skills": {
+    "machine_learning": 5,
+    "python": 3,
+    "data_analysis": 3
+  },
+  "goals": [
+    "grow_in_role",
+    "interview_prep"
+  ],
+  "prerequisites": [
+    "python-ml-from-scratch"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Metrics",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Confusion matrix, precision & recall",
+          "challenges": "Q(e) + C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "ROC AUC & PR curves from scratch",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Calibration & thresholds",
+          "challenges": "Q(m) + C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Validation",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Splits & cross-validation",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Data leakage: the model that was too good",
+          "challenges": "Q(m) + F(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Class imbalance & stratification",
+          "challenges": "C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Production",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Comparing models: A/B tests & confidence intervals",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Drift: PSI & distribution checks",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "An evaluation report a team can trust",
+          "challenges": "Q(m) + C(h)"
+        }
+      ]
+    }
+  ]
+}

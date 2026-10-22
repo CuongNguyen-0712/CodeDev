@@ -1,0 +1,110 @@
+{
+  "publicId": "csharp-async-services",
+  "title": "C# for Backend Services: async/await, LINQ & Records",
+  "concept": "Write .NET service code that stays fast and correct under load: async and await without deadlocks, Task.WhenAll, cancellation tokens, IAsyncEnumerable, immutable records, LINQ performance, dependency injection and result types.",
+  "description": "Write .NET service code that stays fast and correct under load: async and await without deadlocks, Task.WhenAll, cancellation tokens, IAsyncEnumerable, immutable records, LINQ performance, dependency injection and result types. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792642453/codedev/courses/csharp-async-services/cover",
+  "level": "intermediate",
+  "durationMinutes": 210,
+  "instructor": "CodeDev Engineering Team",
+  "language": "C#",
+  "category": ".NET Development",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 100,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 300
+    },
+    {
+      "priceType": "money",
+      "amount": 149000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "backend_developer",
+    "fullstack_developer"
+  ],
+  "skills": {
+    "async_programming": 5,
+    "api_design": 3,
+    "performance": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "performance"
+  ],
+  "prerequisites": [
+    "csharp-foundations"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Async",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "async/await: what a Task is",
+          "challenges": "Q(e) + C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Task.WhenAll & throttling with SemaphoreSlim",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "CancellationToken & timeouts",
+          "challenges": "Q(m) + F(m)"
+        },
+        {
+          "orderIndex": 4,
+          "title": "IAsyncEnumerable streams",
+          "challenges": "C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Modelling",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Immutable records & with-expressions",
+          "challenges": "Q(m) + C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Result types instead of exceptions for expected failures",
+          "challenges": "C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Performance",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "LINQ pitfalls: multiple enumeration & N+1 lookups",
+          "challenges": "Q(m) + F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Span<T>, StringBuilder & allocations",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Caching with expiry and stampede protection",
+          "challenges": "C(h)"
+        }
+      ]
+    }
+  ]
+}

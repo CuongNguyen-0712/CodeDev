@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Performance and reliability testing (latency percentiles against an SLO and the saturation knee). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0F1724"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3776AB" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#3776AB" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3DBE7B"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3776AB"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3DBE7B"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <circle cx="158" cy="198" r="46" fill="#3776AB"/>
+    <path d="M126 214 A34 34 0 0 1 190 214" fill="none" stroke="#0F1724" stroke-width="7" stroke-linecap="round"/>
+    <path d="M158 208 L180 178" stroke="#FFD43B" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="158" cy="208" r="7" fill="#FFD43B"/>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#3DBE7B">PYTHON · PERFORMANCE QA</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Load, Latency</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">&amp; Chaos</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Percentiles · SLOs · Retries · Chaos</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#CFE0F4">
+      <rect x="110" y="660" width="107" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="163.5" y="695" text-anchor="middle">p99</text>
+      <rect x="233" y="660" width="236" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="351" y="695" text-anchor="middle">Little's law</text>
+      <rect x="485" y="660" width="107" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="538.5" y="695" text-anchor="middle">SLO</text>
+      <rect x="608" y="660" width="136" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="676" y="695" text-anchor="middle">chaos</text>
+    </g>
+  </g>
+
+  <!-- The median looks fine while p99 breaks the SLO; past the saturation knee, latency climbs with every extra request -->
+  <g id="art" font-family="Consolas, Menlo, monospace">
+    <text x="900" y="254" font-size="20" letter-spacing="3" fill="#3DBE7B">LATENCY PERCENTILES</text>
+    <text x="900" y="302" font-size="22" fill="#B8B2C8">p50</text>
+    <rect x="970" y="276" width="19" height="36" rx="8" fill="#3DBE7B" fill-opacity="0.75"/>
+    <text x="1530" y="302" font-size="22" font-weight="700" fill="#3DBE7B" text-anchor="end">42 ms</text>
+    <text x="900" y="350" font-size="22" fill="#B8B2C8">p95</text>
+    <rect x="970" y="324" width="81" height="36" rx="8" fill="#F2C14E" fill-opacity="0.75"/>
+    <text x="1530" y="350" font-size="22" font-weight="700" fill="#F2C14E" text-anchor="end">180 ms</text>
+    <text x="900" y="398" font-size="22" fill="#B8B2C8">p99</text>
+    <rect x="970" y="372" width="428" height="36" rx="8" fill="#F2555A" fill-opacity="0.75"/>
+    <text x="1530" y="398" font-size="22" font-weight="700" fill="#F2555A" text-anchor="end">950 ms</text>
+    <path d="M1105 268 V418" stroke="#F4F2F8" stroke-width="2" stroke-dasharray="6 6"/>
+    <text x="1105" y="440" font-size="18" fill="#F4F2F8" text-anchor="middle">SLO 300 ms</text>
+    <text x="900" y="494" font-size="20" letter-spacing="3" fill="#3DBE7B">THROUGHPUT VS LATENCY</text>
+    <rect x="900" y="510" width="630" height="160" rx="14" fill="#141C2C" stroke="#2E4A70" stroke-width="2"/>
+    <path d="M920 590 H1510" stroke="#F4F2F8" stroke-width="2" stroke-dasharray="6 6" stroke-opacity="0.6"/>
+    <text x="1510" y="580" font-size="16" fill="#B8B2C8" text-anchor="end">SLO</text>
+    <path d="M920 646 C1100 644, 1240 640, 1310 620 S1390 560, 1420 524" stroke="#3776AB" stroke-width="4" fill="none"/>
+    <circle cx="1360" cy="590" r="8" fill="#F2555A"/>
+    <text x="1344" y="566" font-size="20" fill="#F2555A" text-anchor="end">saturation</text>
+    <text x="1510" y="658" font-size="16" fill="#B8B2C8" text-anchor="end">req/s</text>
+  </g>
+</svg>

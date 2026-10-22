@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: TypeScript foundations (a discriminated union whose unhandled case fails to compile). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0F1724"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3178C6" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#3178C6" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8CB8EA"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3178C6"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3DBE7B"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="152" width="92" height="92" rx="20" fill="#3178C6"/>
+    <text x="194" y="232" text-anchor="end" font-size="40" font-weight="800" fill="#FFFFFF">TS</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#8CB8EA">TYPESCRIPT · FOUNDATIONS</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">TypeScript</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Foundations</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Unions · Narrowing · Generics · unknown</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#CBE4FA">
+      <rect x="110" y="660" width="164" height="52" rx="26" fill="#132238" stroke="#3178C6"/>
+      <text x="192" y="695" text-anchor="middle">unknown</text>
+      <rect x="290" y="660" width="136" height="52" rx="26" fill="#132238" stroke="#3178C6"/>
+      <text x="358" y="695" text-anchor="middle">never</text>
+      <rect x="442" y="660" width="207" height="52" rx="26" fill="#132238" stroke="#3178C6"/>
+      <text x="545.5" y="695" text-anchor="middle">Partial&lt;T&gt;</text>
+      <rect x="665" y="660" width="107" height="52" rx="26" fill="#132238" stroke="#3178C6"/>
+      <text x="718.5" y="695" text-anchor="middle">T[]</text>
+    </g>
+  </g>
+
+  <!-- An exhaustive switch over a discriminated union: the missing case is a compile error, not a crash -->
+  <g id="art" font-family="Consolas, Menlo, monospace">
+    <rect x="900" y="236" width="630" height="372" rx="18" fill="#121B2A" stroke="#28446A" stroke-width="2"/>
+    <rect x="900" y="236" width="630" height="44" rx="18" fill="#28446A" fill-opacity="0.45"/>
+    <rect x="900" y="262" width="630" height="18" fill="#28446A" fill-opacity="0.45"/>
+    <circle cx="926" cy="258" r="7" fill="#F2555A" fill-opacity="0.8"/>
+    <circle cx="950" cy="258" r="7" fill="#F2C14E" fill-opacity="0.8"/>
+    <circle cx="974" cy="258" r="7" fill="#3DBE7B" fill-opacity="0.8"/>
+    <text x="1506" y="265" font-size="18" fill="#B8B2C8" text-anchor="end">order.ts</text>
+    <g font-size="22" xml:space="preserve">
+    <text x="928" y="322"><tspan fill="#C792EA">type </tspan><tspan fill="#82AAFF">Order</tspan><tspan fill="#E8E4F2"> =</tspan></text>
+    <text x="928" y="358"><tspan fill="#E8E4F2">  | { kind: </tspan><tspan fill="#C3E88D">"paid"</tspan><tspan fill="#E8E4F2">; total: </tspan><tspan fill="#82AAFF">number</tspan><tspan fill="#E8E4F2"> }</tspan></text>
+    <text x="928" y="394"><tspan fill="#E8E4F2">  | { kind: </tspan><tspan fill="#C3E88D">"refund"</tspan><tspan fill="#E8E4F2">; reason: </tspan><tspan fill="#82AAFF">string</tspan><tspan fill="#E8E4F2"> };</tspan></text>
+    <text x="928" y="448"><tspan fill="#C792EA">switch </tspan><tspan fill="#E8E4F2">(order.kind) {</tspan></text>
+    <text x="928" y="484"><tspan fill="#C792EA">  case </tspan><tspan fill="#C3E88D">"paid"</tspan><tspan fill="#E8E4F2">: </tspan><tspan fill="#C792EA">return </tspan><tspan fill="#E8E4F2">order.total;</tspan></text>
+    <text x="928" y="520"><tspan fill="#C792EA">  default</tspan><tspan fill="#E8E4F2">: </tspan><tspan fill="#C792EA">const </tspan><tspan fill="#E8E4F2">x: </tspan><tspan fill="#82AAFF">never</tspan><tspan fill="#E8E4F2"> = order;</tspan></text>
+    <text x="928" y="556"><tspan fill="#E8E4F2">}</tspan></text>
+    </g>
+    <path d="M1267 530 q4 -6 8 0 t8 0 t8 0 t8 0 t8 0 t8 0 t8 0 t8 0" stroke="#F2555A" stroke-width="2.5" fill="none"/>
+    <rect x="1080" y="566" width="450" height="76" rx="12" fill="#2A1218" stroke="#F2555A" stroke-width="2"/>
+    <text x="1104" y="598" font-size="20" font-weight="700" fill="#F2555A">compile error</text>
+    <text x="1104" y="628" font-size="20" fill="#F4F2F8">"refund" is not assignable to never</text>
+  </g>
+</svg>

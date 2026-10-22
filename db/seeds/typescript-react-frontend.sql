@@ -69,7 +69,7 @@ FROM (VALUES ('react', 5), ('typescript', 5), ('html_css', 3), ('performance', 3
 JOIN catalog.skill s ON s.code = v.code;
 DELETE FROM catalog.course_prerequisite WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-react-frontend');
 INSERT INTO catalog.course_prerequisite (course_id, prerequisite_course_id)
-SELECT (SELECT id FROM catalog.course WHERE public_id = 'typescript-react-frontend'), id FROM catalog.course WHERE public_id = ANY(ARRAY['js-modern-foundations']::text[]);
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'typescript-react-frontend'), id FROM catalog.course WHERE public_id = ANY(ARRAY['js-modern-foundations', 'typescript-foundations']::text[]);
 
 -- learners enrolled before these lessons existed
 INSERT INTO learning.history (user_id, course_id, module_id, lesson_id)

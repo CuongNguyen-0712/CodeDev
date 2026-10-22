@@ -1,0 +1,110 @@
+{
+  "publicId": "kotlin-coroutines-flows",
+  "title": "Kotlin Coroutines & Flow for Mobile Apps",
+  "concept": "Run background work in Kotlin without leaks or frozen screens: suspend functions, structured concurrency, dispatchers, cancellation, exception handling, Flow operators, StateFlow, retries with backoff and offline-first sync logic.",
+  "description": "Run background work in Kotlin without leaks or frozen screens: suspend functions, structured concurrency, dispatchers, cancellation, exception handling, Flow operators, StateFlow, retries with backoff and offline-first sync logic. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792642446/codedev/courses/kotlin-coroutines-flows/cover",
+  "level": "intermediate",
+  "durationMinutes": 210,
+  "instructor": "CodeDev Engineering Team",
+  "language": "Kotlin",
+  "category": "Android Development",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 100,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 300
+    },
+    {
+      "priceType": "money",
+      "amount": 149000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "mobile_developer",
+    "backend_developer"
+  ],
+  "skills": {
+    "async_programming": 5,
+    "concurrency": 4,
+    "testing": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "build_projects"
+  ],
+  "prerequisites": [
+    "kotlin-foundations"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Coroutines",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "suspend functions & runBlocking",
+          "challenges": "Q(e) + C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Structured concurrency: launch, async & coroutineScope",
+          "challenges": "Q(m) + F(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Cancellation & timeouts",
+          "challenges": "C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Failures",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Exceptions in coroutines & SupervisorJob",
+          "challenges": "Q(m) + F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Retries with exponential backoff",
+          "challenges": "C(h)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Flow",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Flow basics: cold streams & operators",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "StateFlow & SharedFlow for UI state",
+          "challenges": "Q(m) + C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "debounce, distinctUntilChanged & search-as-you-type",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 4,
+          "title": "Offline-first sync: merging local and remote changes",
+          "challenges": "C(h)"
+        }
+      ]
+    }
+  ]
+}

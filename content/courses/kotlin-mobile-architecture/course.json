@@ -1,0 +1,110 @@
+{
+  "publicId": "kotlin-mobile-architecture",
+  "title": "Mobile App Architecture in Kotlin: State, Caching & Testable Logic",
+  "concept": "Structure a mobile app so features stay easy to change: unidirectional data flow and reducers, state machines for screens, repositories with cache policies, paging, optimistic updates and rollback, dependency inversion and fast tests for view models.",
+  "description": "Structure a mobile app so features stay easy to change: unidirectional data flow and reducers, state machines for screens, repositories with cache policies, paging, optimistic updates and rollback, dependency inversion and fast tests for view models. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792642449/codedev/courses/kotlin-mobile-architecture/cover",
+  "level": "advanced",
+  "durationMinutes": 220,
+  "instructor": "CodeDev Engineering Team",
+  "language": "Kotlin",
+  "category": "Android Development",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "mobile_developer",
+    "fullstack_developer"
+  ],
+  "skills": {
+    "system_design": 4,
+    "testing": 3,
+    "async_programming": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "build_projects"
+  ],
+  "prerequisites": [
+    "kotlin-coroutines-flows"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "State",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Unidirectional data flow & reducers",
+          "challenges": "Q(m) + C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Screen state machines: loading, error & empty",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "One-off events vs state",
+          "challenges": "Q(m) + F(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Data",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Repositories & cache policies",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Paging with cursors",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Optimistic updates & rollback",
+          "challenges": "Q(m) + C(h)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Quality",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Dependency inversion for testable features",
+          "challenges": "F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Testing view models with fake clocks",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Feature flags & safe rollouts",
+          "challenges": "Q(m) + C(m)"
+        }
+      ]
+    }
+  ]
+}

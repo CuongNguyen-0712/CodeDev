@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: PHP 8.4 for web APIs (a request through router, validation and repository to 201 or problem+json). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#13131F"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#777BB4" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#777BB4" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#B8BBE6"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#777BB4"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3DBE7B"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <ellipse cx="158" cy="198" rx="54" ry="34" fill="#777BB4"/>
+    <text x="158" y="211" text-anchor="middle" font-size="36" font-weight="800" font-style="italic" fill="#13131F">php</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#B8BBE6">PHP 8.4 · WEB APIS</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">PHP for</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Web APIs</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Routing · Validation · PDO · problem+json</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#DADCF4">
+      <rect x="110" y="660" width="107" height="52" rx="26" fill="#1C1D33" stroke="#777BB4"/>
+      <text x="163.5" y="695" text-anchor="middle">PDO</text>
+      <rect x="233" y="660" width="236" height="52" rx="26" fill="#1C1D33" stroke="#777BB4"/>
+      <text x="351" y="695" text-anchor="middle">problem+json</text>
+      <rect x="485" y="660" width="250" height="52" rx="26" fill="#1C1D33" stroke="#777BB4"/>
+      <text x="610" y="695" text-anchor="middle">password_hash</text>
+    </g>
+  </g>
+
+  <!-- A request passes the router, value-object validation and a prepared-statement repository; invalid input ends as problem+json -->
+  <g id="art" font-family="Consolas, Menlo, monospace">
+    <text x="900" y="254" font-size="20" letter-spacing="3" fill="#B8BBE6">REQUEST FLOW</text>
+    <rect x="900" y="272" width="630" height="56" rx="28" fill="#18182A" stroke="#777BB4" stroke-width="2"/>
+    <text x="930" y="309" font-size="24" fill="#F4F2F8" xml:space="preserve"><tspan fill="#C792EA" font-weight="700">POST</tspan> /orders  <tspan fill="#6F6A80">{ "email": "an@", "qty": -2 }</tspan></text>
+    <path d="M1090 330 V354" stroke="#B8BBE6" stroke-width="3" marker-end="url(#arrow)"/>
+    <rect x="900" y="360" width="380" height="64" rx="12" fill="#18182A" stroke="#3A3C66" stroke-width="2"/>
+    <text x="924" y="401" font-size="24" font-weight="700" fill="#82AAFF">Router</text>
+    <text x="1084" y="400" font-size="20" fill="#B8B2C8">404 vs 405</text>
+    <path d="M1090 426 V444" stroke="#B8BBE6" stroke-width="3" marker-end="url(#arrow)"/>
+    <rect x="900" y="450" width="380" height="64" rx="12" fill="#18182A" stroke="#777BB4" stroke-width="2"/>
+    <text x="924" y="491" font-size="24" font-weight="700" fill="#82AAFF">Validate</text>
+    <text x="1084" y="490" font-size="20" fill="#B8B2C8">value objects</text>
+    <path d="M1090 516 V534" stroke="#B8BBE6" stroke-width="3" marker-end="url(#arrow)"/>
+    <rect x="900" y="540" width="380" height="64" rx="12" fill="#18182A" stroke="#3A3C66" stroke-width="2"/>
+    <text x="924" y="581" font-size="24" font-weight="700" fill="#82AAFF">Repository</text>
+    <text x="1084" y="580" font-size="20" fill="#B8B2C8">PDO prepared</text>
+    <path d="M1282 482 C1300 482, 1300 450, 1314 450" stroke="#F2555A" stroke-width="3" fill="none" marker-end="url(#arrowRed)"/>
+    <rect x="1320" y="400" width="210" height="100" rx="14" fill="#2A1218" stroke="#F2555A" stroke-width="2"/>
+    <text x="1344" y="446" font-size="34" font-weight="700" fill="#F2555A">422</text>
+    <text x="1344" y="480" font-size="18" fill="#F4F2F8">problem+json</text>
+    <path d="M1282 572 C1300 572, 1300 580, 1314 580" stroke="#3DBE7B" stroke-width="3" fill="none" marker-end="url(#arrowGreen)"/>
+    <rect x="1320" y="530" width="210" height="100" rx="14" fill="#10281C" stroke="#3DBE7B" stroke-width="2"/>
+    <text x="1344" y="576" font-size="34" font-weight="700" fill="#3DBE7B">201</text>
+    <text x="1344" y="610" font-size="18" fill="#F4F2F8">Created</text>
+  </g>
+</svg>

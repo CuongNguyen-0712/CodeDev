@@ -1,0 +1,109 @@
+{
+  "publicId": "typescript-foundations",
+  "title": "TypeScript Foundations: Types that Catch Bugs Before Users Do",
+  "concept": "Turn runtime crashes into compile errors: type annotations and inference, unions and narrowing, object types and interfaces, arrays and tuples, generics, discriminated unions with exhaustive checks, utility types and safe JSON parsing with unknown.",
+  "description": "Turn runtime crashes into compile errors: type annotations and inference, unions and narrowing, object types and interfaces, arrays and tuples, generics, discriminated unions with exhaustive checks, utility types and safe JSON parsing with unknown. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792641979/codedev/courses/typescript-foundations/cover",
+  "level": "beginner",
+  "durationMinutes": 180,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "Frontend Development",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 50,
+  "accessModel": "free",
+  "publishStatus": "draft",
+  "careerRoles": [
+    "student",
+    "frontend_developer",
+    "fullstack_developer",
+    "mobile_developer",
+    "qa_engineer"
+  ],
+  "skills": {
+    "typescript": 5,
+    "javascript": 3,
+    "data_structures": 1
+  },
+  "goals": [
+    "fundamentals",
+    "first_job",
+    "change_career"
+  ],
+  "prerequisites": [
+    "js-modern-foundations"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Types",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Annotations, inference & strict mode",
+          "challenges": "Q(e) + C(e)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Unions & narrowing: the undefined crash",
+          "challenges": "Q(e) + F(e)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Object types, interfaces & optional properties",
+          "challenges": "C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Collections & Functions",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Arrays, tuples & readonly",
+          "challenges": "Q(m) + F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Functions & generics",
+          "challenges": "C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Modelling",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Discriminated unions & exhaustive switch",
+          "challenges": "Q(m) + C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Utility types: Partial, Pick, Omit & Record",
+          "challenges": "C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Boundaries",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "unknown vs any: parsing JSON safely",
+          "challenges": "F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Mini project: a typed order pipeline",
+          "challenges": "C(h)"
+        }
+      ]
+    }
+  ]
+}

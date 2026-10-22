@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: C# 14 and .NET 10 foundations (a LINQ pipeline with deferred execution). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#170E1C"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#68217A" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#68217A" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#D9B3E6"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#9B4F96"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3DBE7B"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <path d="M158 148 L202 173 V223 L158 248 L114 223 V173 Z" fill="#68217A" stroke="#9B4F96" stroke-width="3"/>
+    <text x="158" y="212" text-anchor="middle" font-size="40" font-weight="800" fill="#FFFFFF">C#</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#D9B3E6">C# 14 · .NET 10</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">C# &amp; .NET</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Foundations</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Types · Nullable refs · Collections · LINQ</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#EBD6F2">
+      <rect x="110" y="660" width="107" height="52" rx="26" fill="#25132C" stroke="#9B4F96"/>
+      <text x="163.5" y="695" text-anchor="middle">var</text>
+      <rect x="233" y="660" width="164" height="52" rx="26" fill="#25132C" stroke="#9B4F96"/>
+      <text x="315" y="695" text-anchor="middle">List&lt;T&gt;</text>
+      <rect x="413" y="660" width="121" height="52" rx="26" fill="#25132C" stroke="#9B4F96"/>
+      <text x="473.5" y="695" text-anchor="middle">LINQ</text>
+      <rect x="550" y="660" width="150" height="52" rx="26" fill="#25132C" stroke="#9B4F96"/>
+      <text x="625" y="695" text-anchor="middle">record</text>
+    </g>
+  </g>
+
+  <!-- Orders flow through Where and Select; nothing runs until ToList enumerates the query -->
+  <g id="art" font-family="Consolas, Menlo, monospace">
+    <text x="900" y="254" font-size="20" letter-spacing="3" fill="#D9B3E6">LINQ PIPELINE</text>
+    <g font-size="24" text-anchor="middle">
+    <rect x="900" y="290" width="96" height="52" rx="10" fill="#1E1224" stroke="#4A2A55" stroke-width="2"/>
+    <text x="948" y="324" fill="#6F6A80">20</text>
+    <rect x="900" y="354" width="96" height="52" rx="10" fill="#9B4F96" fill-opacity="0.35" stroke="#9B4F96" stroke-width="2"/>
+    <text x="948" y="388" fill="#F4F2F8">80</text>
+    <rect x="900" y="418" width="96" height="52" rx="10" fill="#9B4F96" fill-opacity="0.35" stroke="#9B4F96" stroke-width="2"/>
+    <text x="948" y="452" fill="#F4F2F8">55</text>
+    <rect x="900" y="482" width="96" height="52" rx="10" fill="#1E1224" stroke="#4A2A55" stroke-width="2"/>
+    <text x="948" y="516" fill="#6F6A80">10</text>
+    <rect x="900" y="546" width="96" height="52" rx="10" fill="#9B4F96" fill-opacity="0.35" stroke="#9B4F96" stroke-width="2"/>
+    <text x="948" y="580" fill="#F4F2F8">95</text>
+    </g>
+    <path d="M1000 444 H1022" stroke="#D9B3E6" stroke-width="4" marker-end="url(#arrow)"/>
+    <rect x="1030" y="398" width="170" height="92" rx="14" fill="#1E1224" stroke="#9B4F96" stroke-width="3"/>
+    <text x="1115" y="436" font-size="24" font-weight="700" fill="#82AAFF" text-anchor="middle">Where</text>
+    <text x="1115" y="470" font-size="20" fill="#B8B2C8" text-anchor="middle">o.Total &gt; 50</text>
+    <path d="M1204 444 H1226" stroke="#D9B3E6" stroke-width="4" marker-end="url(#arrow)"/>
+    <rect x="1234" y="398" width="140" height="92" rx="14" fill="#1E1224" stroke="#9B4F96" stroke-width="3"/>
+    <text x="1304" y="436" font-size="24" font-weight="700" fill="#82AAFF" text-anchor="middle">Select</text>
+    <text x="1304" y="470" font-size="20" fill="#B8B2C8" text-anchor="middle">o.Name</text>
+    <path d="M1378 444 H1400" stroke="#D9B3E6" stroke-width="4" marker-end="url(#arrow)"/>
+    <g font-size="22" text-anchor="middle" fill="#C3E88D">
+    <rect x="1408" y="354" width="122" height="52" rx="10" fill="#1E1224" stroke="#3DBE7B" stroke-width="2"/>
+    <text x="1469" y="387">"An"</text>
+    <rect x="1408" y="418" width="122" height="52" rx="10" fill="#1E1224" stroke="#3DBE7B" stroke-width="2"/>
+    <text x="1469" y="451">"Binh"</text>
+    <rect x="1408" y="482" width="122" height="52" rx="10" fill="#1E1224" stroke="#3DBE7B" stroke-width="2"/>
+    <text x="1469" y="515">"Chi"</text>
+    </g>
+    <path d="M1030 518 V530 H1374 V518" stroke="#F2C14E" stroke-width="2" stroke-dasharray="6 6" fill="none"/>
+    <text x="1202" y="566" font-size="22" fill="#F2C14E" text-anchor="middle">deferred: runs at .ToList()</text>
+  </g>
+</svg>

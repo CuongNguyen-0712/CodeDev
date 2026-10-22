@@ -1,0 +1,104 @@
+{
+  "publicId": "csharp-foundations",
+  "title": "C# 14 & .NET 10 Foundations: Types, Collections & LINQ",
+  "concept": "Start C# the way .NET teams write it today: value and reference types, nullable reference types, strings and culture-safe parsing, List and Dictionary, LINQ, classes and records, pattern matching and exceptions.",
+  "description": "Start C# the way .NET teams write it today: value and reference types, nullable reference types, strings and culture-safe parsing, List and Dictionary, LINQ, classes and records, pattern matching and exceptions. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792641973/codedev/courses/csharp-foundations/cover",
+  "level": "beginner",
+  "durationMinutes": 180,
+  "instructor": "CodeDev Engineering Team",
+  "language": "C#",
+  "category": "C# Development",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 50,
+  "accessModel": "free",
+  "publishStatus": "draft",
+  "careerRoles": [
+    "student",
+    "backend_developer",
+    "fullstack_developer"
+  ],
+  "skills": {
+    "data_structures": 3,
+    "testing": 1,
+    "api_design": 1
+  },
+  "goals": [
+    "fundamentals",
+    "first_job",
+    "change_career"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Basics",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Types, var & value vs reference",
+          "challenges": "Q(e) + C(e)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Nullable reference types & the NullReferenceException",
+          "challenges": "Q(e) + F(e)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Strings, interpolation & culture-safe parsing",
+          "challenges": "Q(m) + F(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Collections",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "List, Dictionary & HashSet",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "LINQ: Where, Select, GroupBy & deferred execution",
+          "challenges": "Q(m) + F(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Types",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Classes, records & equality",
+          "challenges": "Q(m) + C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Pattern matching & switch expressions",
+          "challenges": "C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Robust Code",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Exceptions, TryParse & guard clauses",
+          "challenges": "F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Mini project: a grade report",
+          "challenges": "C(h)"
+        }
+      ]
+    }
+  ]
+}

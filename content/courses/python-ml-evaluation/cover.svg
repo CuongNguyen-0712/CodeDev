@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Evaluating ML models (a confusion matrix with precision and recall, and a ROC curve). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0F1724"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3776AB" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#3776AB" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#FFD43B"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3776AB"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3DBE7B"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="146" width="62" height="62" rx="16" fill="#3776AB"/>
+    <rect x="142" y="176" width="62" height="62" rx="16" fill="#FFD43B"/>
+    <circle cx="132" cy="166" r="6" fill="#0F1724"/>
+    <circle cx="184" cy="218" r="6" fill="#0F1724"/>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#FFD43B">PYTHON · ML EVALUATION</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Evaluating</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">ML Models</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Metrics · Calibration · Leakage · Drift</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#CFE0F4">
+      <rect x="110" y="660" width="164" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="192" y="695" text-anchor="middle">ROC AUC</text>
+      <rect x="290" y="660" width="93" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="336.5" y="695" text-anchor="middle">F1</text>
+      <rect x="399" y="660" width="150" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="474" y="695" text-anchor="middle">k-fold</text>
+      <rect x="565" y="660" width="107" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="618.5" y="695" text-anchor="middle">PSI</text>
+    </g>
+  </g>
+
+  <!-- Counts from the confusion matrix give precision and recall at one threshold; the ROC curve covers every threshold -->
+  <g id="art" font-family="Consolas, Menlo, monospace">
+    <text x="900" y="254" font-size="20" letter-spacing="3" fill="#FFD43B">CONFUSION MATRIX</text>
+    <g font-size="18" fill="#B8B2C8" text-anchor="middle">
+    <text x="1005" y="294">pred +</text><text x="1145" y="294">pred −</text>
+    <text x="918" y="366">+</text><text x="918" y="486">−</text>
+    </g>
+    <rect x="940" y="306" width="130" height="110" rx="12" fill="#3776AB" fill-opacity="0.6" stroke="#3776AB" stroke-width="2"/>
+    <text x="1005" y="364" font-size="36" font-weight="700" fill="#F4F2F8" text-anchor="middle">42</text>
+    <text x="1005" y="396" font-size="18" fill="#F4F2F8" text-anchor="middle">TP</text>
+    <rect x="1080" y="306" width="130" height="110" rx="12" fill="#F2555A" fill-opacity="0.22" stroke="#F2555A" stroke-width="2"/>
+    <text x="1145" y="364" font-size="36" font-weight="700" fill="#F2555A" text-anchor="middle">8</text>
+    <text x="1145" y="396" font-size="18" fill="#F2555A" text-anchor="middle">FN</text>
+    <rect x="940" y="426" width="130" height="110" rx="12" fill="#F2C14E" fill-opacity="0.22" stroke="#F2C14E" stroke-width="2"/>
+    <text x="1005" y="484" font-size="36" font-weight="700" fill="#F2C14E" text-anchor="middle">12</text>
+    <text x="1005" y="516" font-size="18" fill="#F2C14E" text-anchor="middle">FP</text>
+    <rect x="1080" y="426" width="130" height="110" rx="12" fill="#3776AB" fill-opacity="0.25" stroke="#3776AB" stroke-width="2"/>
+    <text x="1145" y="484" font-size="36" font-weight="700" fill="#F4F2F8" text-anchor="middle">138</text>
+    <text x="1145" y="516" font-size="18" fill="#F4F2F8" text-anchor="middle">TN</text>
+    <text x="940" y="590" font-size="22" fill="#F4F2F8">precision <tspan fill="#FFD43B" font-weight="700">0.78</tspan></text>
+    <text x="940" y="626" font-size="22" fill="#F4F2F8" xml:space="preserve">recall   <tspan fill="#FFD43B" font-weight="700">0.84</tspan></text>
+    <text x="1270" y="254" font-size="20" letter-spacing="3" fill="#FFD43B">ROC</text>
+    <rect x="1270" y="276" width="260" height="260" rx="14" fill="#141C2C" stroke="#2E4A70" stroke-width="2"/>
+    <path d="M1290 516 C1300 380, 1360 306, 1510 296 V516 Z" fill="#FFD43B" fill-opacity="0.14"/>
+    <path d="M1290 516 L1510 296" stroke="#6F6A80" stroke-width="2" stroke-dasharray="8 6"/>
+    <path d="M1290 516 C1300 380, 1360 306, 1510 296" stroke="#FFD43B" stroke-width="4" fill="none"/>
+    <text x="1420" y="476" font-size="24" font-weight="700" fill="#FFD43B" text-anchor="middle">AUC 0.91</text>
+    <text x="1400" y="566" font-size="18" fill="#B8B2C8" text-anchor="middle">false positive rate</text>
+    <text x="1290" y="626" font-size="20" fill="#3DBE7B">stratified 5-fold</text>
+  </g>
+</svg>

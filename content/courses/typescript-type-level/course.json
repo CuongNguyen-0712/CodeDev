@@ -1,0 +1,104 @@
+{
+  "publicId": "typescript-type-level",
+  "title": "Advanced TypeScript: Generics, Conditional & Template Literal Types",
+  "concept": "Design types that make wrong code impossible to write: generic constraints, keyof and mapped types, conditional types with infer, template literal types, branded types, typed event emitters and type-safe API clients.",
+  "description": "Design types that make wrong code impossible to write: generic constraints, keyof and mapped types, conditional types with infer, template literal types, branded types, typed event emitters and type-safe API clients. 8 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792642456/codedev/courses/typescript-type-level/cover",
+  "level": "advanced",
+  "durationMinutes": 220,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "Frontend Development",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "frontend_developer",
+    "fullstack_developer"
+  ],
+  "skills": {
+    "typescript": 5,
+    "api_design": 3
+  },
+  "goals": [
+    "grow_in_role",
+    "interview_prep"
+  ],
+  "prerequisites": [
+    "typescript-foundations"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Generics",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Generic constraints & keyof",
+          "challenges": "Q(m) + C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Mapped types & key remapping",
+          "challenges": "C(h)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Type Logic",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Conditional types & infer",
+          "challenges": "Q(h) + C(h)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Template literal types: typed routes",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Variance & why your callback type is unsound",
+          "challenges": "Q(h) + F(h)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Design",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Branded types for ids and money",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "A typed event emitter",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "A type-safe API client from a route table",
+          "challenges": "C(h)"
+        }
+      ]
+    }
+  ]
+}

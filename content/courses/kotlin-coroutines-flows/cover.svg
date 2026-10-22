@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Kotlin coroutines and Flow (a failing child cancels its siblings; debounce emits only after typing pauses). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#15112A"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#7F52FF" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#7F52FF" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#C3B1FF"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#7F52FF"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3DBE7B"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <path d="M112 152 H204 L158 198 L204 244 H112 Z" fill="#7F52FF"/>
+    <path d="M112 152 H158 L112 198 Z" fill="#C3B1FF" fill-opacity="0.55"/>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#C3B1FF">KOTLIN · COROUTINES</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Coroutines</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">&amp; Flow</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Structured concurrency · Flow · StateFlow</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#E2D9FF">
+      <rect x="110" y="660" width="164" height="52" rx="26" fill="#1E1638" stroke="#7F52FF"/>
+      <text x="192" y="695" text-anchor="middle">suspend</text>
+      <rect x="290" y="660" width="136" height="52" rx="26" fill="#1E1638" stroke="#7F52FF"/>
+      <text x="358" y="695" text-anchor="middle">async</text>
+      <rect x="442" y="660" width="193" height="52" rx="26" fill="#1E1638" stroke="#7F52FF"/>
+      <text x="538.5" y="695" text-anchor="middle">StateFlow</text>
+      <rect x="651" y="660" width="179" height="52" rx="26" fill="#1E1638" stroke="#7F52FF"/>
+      <text x="740.5" y="695" text-anchor="middle">debounce</text>
+    </g>
+  </g>
+
+  <!-- Structured concurrency: one child fails and the scope cancels the rest. Flow: debounce(300) waits for typing to pause -->
+  <g id="art" font-family="Consolas, Menlo, monospace">
+    <text x="900" y="254" font-size="20" letter-spacing="3" fill="#C3B1FF">STRUCTURED CONCURRENCY</text>
+    <rect x="1080" y="272" width="270" height="56" rx="14" fill="#1A1430" stroke="#7F52FF" stroke-width="3"/>
+    <text x="1215" y="308" font-size="22" fill="#F4F2F8" text-anchor="middle">coroutineScope</text>
+    <path d="M1215 330 C1215 356, 1000 350, 1000 374 M1215 330 V374 M1215 330 C1215 356, 1430 350, 1430 374" stroke="#4A3A80" stroke-width="3" fill="none"/>
+    <rect x="900" y="376" width="200" height="56" rx="12" fill="#1A1430" stroke="#6F6A80" stroke-width="2" stroke-dasharray="6 6"/>
+    <text x="1000" y="410" font-size="20" fill="#B8B2C8" text-anchor="middle">async { user }</text>
+    <rect x="1115" y="376" width="200" height="56" rx="12" fill="#2A1218" stroke="#F2555A" stroke-width="3"/>
+    <text x="1215" y="410" font-size="20" fill="#F4F2F8" text-anchor="middle">async { feed }</text>
+    <rect x="1330" y="376" width="200" height="56" rx="12" fill="#1A1430" stroke="#6F6A80" stroke-width="2" stroke-dasharray="6 6"/>
+    <text x="1430" y="410" font-size="20" fill="#B8B2C8" text-anchor="middle">launch { sync }</text>
+    <text x="1000" y="462" font-size="20" fill="#F2C14E" text-anchor="middle">cancelled</text>
+    <text x="1215" y="462" font-size="20" fill="#F2555A" text-anchor="middle">IOException</text>
+    <text x="1430" y="462" font-size="20" fill="#F2C14E" text-anchor="middle">cancelled</text>
+    <text x="900" y="526" font-size="20" letter-spacing="3" fill="#C3B1FF">FLOW · DEBOUNCE(300)</text>
+    <text x="900" y="574" font-size="20" fill="#B8B2C8">keys</text>
+    <text x="900" y="646" font-size="20" fill="#B8B2C8">emits</text>
+    <path d="M990 568 H1530 M990 640 H1530" stroke="#2E2650" stroke-width="2"/>
+    <g font-size="20" text-anchor="middle">
+    <rect x="1000" y="550" width="60" height="36" rx="18" fill="#7F52FF" fill-opacity="0.35" stroke="#7F52FF"/>
+    <text x="1030" y="575" fill="#F4F2F8">k</text>
+    <rect x="1070" y="550" width="60" height="36" rx="18" fill="#7F52FF" fill-opacity="0.35" stroke="#7F52FF"/>
+    <text x="1100" y="575" fill="#F4F2F8">ko</text>
+    <rect x="1140" y="550" width="60" height="36" rx="18" fill="#7F52FF" fill-opacity="0.35" stroke="#7F52FF"/>
+    <text x="1170" y="575" fill="#F4F2F8">kot</text>
+    <rect x="1336" y="550" width="76" height="36" rx="18" fill="#7F52FF" fill-opacity="0.35" stroke="#7F52FF"/>
+    <text x="1374" y="575" fill="#F4F2F8">kotl</text>
+    <path d="M1176 588 L1282 618" stroke="#F2C14E" stroke-width="2" stroke-dasharray="5 5" fill="none" marker-end="url(#arrowAmber)"/>
+    <rect x="1262" y="622" width="60" height="36" rx="18" fill="#3DBE7B" fill-opacity="0.25" stroke="#3DBE7B"/>
+    <text x="1292" y="647" fill="#F4F2F8">kot</text>
+    <path d="M1380 588 L1470 618" stroke="#F2C14E" stroke-width="2" stroke-dasharray="5 5" fill="none" marker-end="url(#arrowAmber)"/>
+    <rect x="1454" y="622" width="76" height="36" rx="18" fill="#3DBE7B" fill-opacity="0.25" stroke="#3DBE7B"/>
+    <text x="1492" y="647" fill="#F4F2F8">kotl</text>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,110 @@
+{
+  "publicId": "sql-window-analytics",
+  "title": "SQL for Analysts: Window Functions, Cohorts & Funnels",
+  "concept": "Answer real product questions in SQL: window functions for ranking and running totals, LAG and LEAD for change over time, cohort retention, conversion funnels, sessionisation, deduplication and the join and NULL traps that skew dashboards.",
+  "description": "Answer real product questions in SQL: window functions for ranking and running totals, LAG and LEAD for change over time, cohort retention, conversion funnels, sessionisation, deduplication and the join and NULL traps that skew dashboards. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792642652/codedev/courses/sql-window-analytics/cover",
+  "level": "intermediate",
+  "durationMinutes": 200,
+  "instructor": "CodeDev Engineering Team",
+  "language": "SQL",
+  "category": "Data Science",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 100,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 300
+    },
+    {
+      "priceType": "money",
+      "amount": 149000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "data_analyst",
+    "data_engineer",
+    "backend_developer"
+  ],
+  "skills": {
+    "sql": 5,
+    "data_analysis": 5
+  },
+  "goals": [
+    "grow_in_role",
+    "interview_prep"
+  ],
+  "prerequisites": [
+    "sql-data-analysis-foundations"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Windows",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "ROW_NUMBER, RANK & top-N per group",
+          "challenges": "Q(e) + C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Running totals & moving averages",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "LAG & LEAD: change over time",
+          "challenges": "Q(m) + C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Product Analytics",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Cohort retention tables",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Conversion funnels",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Sessionising events",
+          "challenges": "C(h)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Data Quality",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Deduplication with windows",
+          "challenges": "Q(m) + F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Fan-out joins & double counting",
+          "challenges": "Q(m) + F(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "NULLs in averages and filters",
+          "challenges": "Q(m) + F(m)"
+        }
+      ]
+    }
+  ]
+}

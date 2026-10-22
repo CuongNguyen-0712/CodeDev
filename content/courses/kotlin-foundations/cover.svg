@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Kotlin foundations (one nullable value through ?., ?: and !!). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#15112A"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#7F52FF" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#7F52FF" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#C3B1FF"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#7F52FF"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3DBE7B"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <path d="M112 152 H204 L158 198 L204 244 H112 Z" fill="#7F52FF"/>
+    <path d="M112 152 H158 L112 198 Z" fill="#C3B1FF" fill-opacity="0.55"/>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#C3B1FF">KOTLIN · FOUNDATIONS</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Modern Kotlin</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Foundations</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Null safety · Data classes · Collections</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#E2D9FF">
+      <rect x="110" y="660" width="93" height="52" rx="26" fill="#1E1638" stroke="#7F52FF"/>
+      <text x="156.5" y="695" text-anchor="middle">?.</text>
+      <rect x="219" y="660" width="93" height="52" rx="26" fill="#1E1638" stroke="#7F52FF"/>
+      <text x="265.5" y="695" text-anchor="middle">?:</text>
+      <rect x="328" y="660" width="207" height="52" rx="26" fill="#1E1638" stroke="#7F52FF"/>
+      <text x="431.5" y="695" text-anchor="middle">data class</text>
+      <rect x="551" y="660" width="121" height="52" rx="26" fill="#1E1638" stroke="#7F52FF"/>
+      <text x="611.5" y="695" text-anchor="middle">when</text>
+    </g>
+  </g>
+
+  <!-- One nullable value: ?. keeps the null, ?: supplies a default, !! crashes at runtime -->
+  <g id="art" font-family="Consolas, Menlo, monospace">
+    <text x="900" y="254" font-size="20" letter-spacing="3" fill="#C3B1FF">NULL SAFETY</text>
+    <rect x="900" y="396" width="222" height="108" rx="16" fill="#1A1430" stroke="#7F52FF" stroke-width="3"/>
+    <text x="1011" y="440" font-size="24" fill="#F4F2F8" text-anchor="middle">city: String?</text>
+    <text x="1011" y="478" font-size="24" fill="#6F6A80" text-anchor="middle">= null</text>
+    <path d="M1124 430 C1160 430, 1160 314, 1190 314" stroke="#F2C14E" stroke-width="4" fill="none" marker-end="url(#arrowAmber)"/>
+    <path d="M1124 450 H1190" stroke="#3DBE7B" stroke-width="4" fill="none" marker-end="url(#arrowGreen)"/>
+    <path d="M1124 470 C1160 470, 1160 586, 1190 586" stroke="#F2555A" stroke-width="4" fill="none" marker-end="url(#arrowRed)"/>
+    <rect x="1200" y="270" width="330" height="88" rx="14" fill="#1A1430" stroke="#F2C14E" stroke-width="2"/>
+    <text x="1224" y="306" font-size="24" fill="#F4F2F8">city?.length</text>
+    <text x="1224" y="340" font-size="22" fill="#F2C14E">null, no crash</text>
+    <rect x="1200" y="406" width="330" height="88" rx="14" fill="#1A1430" stroke="#3DBE7B" stroke-width="2"/>
+    <text x="1224" y="442" font-size="24" fill="#F4F2F8">city <tspan fill="#C792EA">?:</tspan> <tspan fill="#C3E88D">"Hanoi"</tspan></text>
+    <text x="1224" y="476" font-size="22" fill="#3DBE7B">"Hanoi"</text>
+    <rect x="1200" y="542" width="330" height="88" rx="14" fill="#2A1218" stroke="#F2555A" stroke-width="2"/>
+    <text x="1224" y="578" font-size="24" fill="#F4F2F8">city<tspan fill="#F2555A">!!</tspan>.length</text>
+    <text x="1224" y="612" font-size="22" fill="#F2555A">NullPointerException</text>
+  </g>
+</svg>

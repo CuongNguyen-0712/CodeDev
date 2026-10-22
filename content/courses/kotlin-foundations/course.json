@@ -1,0 +1,108 @@
+{
+  "publicId": "kotlin-foundations",
+  "title": "Kotlin Foundations: Null Safety, Data Classes & Collections",
+  "concept": "Learn the Kotlin that Android and backend teams write every day: val and var, null safety without !!, string templates, when and sealed types, data classes, collections and lambdas, extension and scope functions, and errors with Result.",
+  "description": "Learn the Kotlin that Android and backend teams write every day: val and var, null safety without !!, string templates, when and sealed types, data classes, collections and lambdas, extension and scope functions, and errors with Result. 10 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792641969/codedev/courses/kotlin-foundations/cover",
+  "level": "beginner",
+  "durationMinutes": 180,
+  "instructor": "CodeDev Engineering Team",
+  "language": "Kotlin",
+  "category": "Mobile Development",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 50,
+  "accessModel": "free",
+  "publishStatus": "draft",
+  "careerRoles": [
+    "student",
+    "mobile_developer",
+    "backend_developer"
+  ],
+  "skills": {
+    "data_structures": 3,
+    "testing": 1
+  },
+  "goals": [
+    "fundamentals",
+    "first_job",
+    "change_career"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Basics",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "val, var, types & type inference",
+          "challenges": "Q(e) + C(e)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Null safety: ?., ?: and the !! crash",
+          "challenges": "Q(e) + F(e)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Modelling",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "when expressions & sealed interfaces",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Data classes: equality, copy & destructuring",
+          "challenges": "Q(m) + F(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Classes, interfaces & visibility",
+          "challenges": "C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Collections",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Lists, sets & maps: read-only is not immutable",
+          "challenges": "Q(m) + F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "map, filter, groupBy & fold",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Extension functions & scope functions (let, apply, also)",
+          "challenges": "Q(m) + C(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Robust Code",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Exceptions, require & Result",
+          "challenges": "F(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Mini project: a shopping cart summary",
+          "challenges": "C(h)"
+        }
+      ]
+    }
+  ]
+}

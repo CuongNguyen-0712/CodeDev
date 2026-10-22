@@ -1,0 +1,107 @@
+{
+  "publicId": "typescript-test-design",
+  "title": "Test Design in TypeScript: Unit, Property-Based & Contract Tests",
+  "concept": "Write tests that find bugs instead of confirming happy paths: equivalence classes and boundaries, test doubles, deterministic time and randomness, property-based testing with your own generators, contract tests for APIs and mutation testing to measure your tests.",
+  "description": "Write tests that find bugs instead of confirming happy paths: equivalence classes and boundaries, test doubles, deterministic time and randomness, property-based testing with your own generators, contract tests for APIs and mutation testing to measure your tests. 8 lessons, each starting from a real bug or incident, with graded challenges.",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792642461/codedev/courses/typescript-test-design/cover",
+  "level": "intermediate",
+  "durationMinutes": 200,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "Testing & QA",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 100,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 300
+    },
+    {
+      "priceType": "money",
+      "amount": 149000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "qa_engineer",
+    "frontend_developer",
+    "fullstack_developer"
+  ],
+  "skills": {
+    "testing": 5,
+    "typescript": 3,
+    "api_design": 1
+  },
+  "goals": [
+    "grow_in_role",
+    "first_job"
+  ],
+  "prerequisites": [
+    "typescript-foundations",
+    "test-automation-foundations"
+  ],
+  "modules": [],
+  "outline": [
+    {
+      "orderIndex": 1,
+      "title": "Test Design",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Equivalence classes & boundary values",
+          "challenges": "Q(e) + C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Test doubles: stubs, fakes & spies",
+          "challenges": "Q(m) + F(m)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Deterministic tests: fake clocks & seeded randomness",
+          "challenges": "F(m)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Properties",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Property-based testing from scratch",
+          "challenges": "C(h)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Shrinking failing inputs",
+          "challenges": "C(h)"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Contracts & Quality",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "title": "Contract tests for an API schema",
+          "challenges": "C(m)"
+        },
+        {
+          "orderIndex": 2,
+          "title": "Mutation testing: do your tests notice?",
+          "challenges": "Q(m) + C(h)"
+        },
+        {
+          "orderIndex": 3,
+          "title": "Flaky tests: finding and fixing the cause",
+          "challenges": "Q(m) + F(m)"
+        }
+      ]
+    }
+  ]
+}

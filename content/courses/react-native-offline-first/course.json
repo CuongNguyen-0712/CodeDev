@@ -42,7 +42,8 @@
     "build_projects"
   ],
   "prerequisites": [
-    "javascript-async-architecture_2026100901"
+    "javascript-async-architecture_2026100901",
+    "typescript-foundations"
   ],
   "modules": [],
   "outline": [

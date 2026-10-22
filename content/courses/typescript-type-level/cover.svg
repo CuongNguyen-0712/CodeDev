@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Advanced TypeScript (types computed from a route string and from an object's keys). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0F1724"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3178C6" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#3178C6" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8CB8EA"/></marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3178C6"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3DBE7B"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="152" width="92" height="92" rx="20" fill="#3178C6"/>
+    <text x="194" y="232" text-anchor="end" font-size="40" font-weight="800" fill="#FFFFFF">TS</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#8CB8EA">TYPESCRIPT · TYPE-LEVEL</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Advanced</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">TypeScript</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Generics · Conditional · Template literals</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#CBE4FA">
+      <rect x="110" y="660" width="136" height="52" rx="26" fill="#132238" stroke="#3178C6"/>
+      <text x="178" y="695" text-anchor="middle">keyof</text>
+      <rect x="262" y="660" width="136" height="52" rx="26" fill="#132238" stroke="#3178C6"/>
+      <text x="330" y="695" text-anchor="middle">infer</text>
+      <rect x="414" y="660" width="121" height="52" rx="26" fill="#132238" stroke="#3178C6"/>
+      <text x="474.5" y="695" text-anchor="middle">T[K]</text>
+      <rect x="551" y="660" width="150" height="52" rx="26" fill="#132238" stroke="#3178C6"/>
+      <text x="626" y="695" text-anchor="middle">`${K}`</text>
+    </g>
+  </g>
+
+  <!-- Types computed by the compiler: route params from a path string, getter names remapped from an object's keys -->
+  <g id="art" font-family="Consolas, Menlo, monospace">
+    <text x="900" y="254" font-size="20" letter-spacing="3" fill="#8CB8EA">TEMPLATE LITERAL + INFER</text>
+    <rect x="900" y="272" width="630" height="56" rx="12" fill="#121B2A" stroke="#28446A" stroke-width="2"/>
+    <text x="924" y="309" font-size="24" fill="#C3E88D">"/users/:id/posts/:postId"</text>
+    <path d="M940 330 V366" stroke="#F2C14E" stroke-width="3" marker-end="url(#arrowAmber)"/>
+    <text x="962" y="356" font-size="22" fill="#F2C14E">Params&lt;R&gt;</text>
+    <rect x="900" y="372" width="630" height="56" rx="12" fill="#132238" stroke="#3178C6" stroke-width="3"/>
+    <text x="924" y="409" font-size="24" fill="#E8E4F2">{ id: <tspan fill="#82AAFF">string</tspan>; postId: <tspan fill="#82AAFF">string</tspan> }</text>
+    <text x="900" y="494" font-size="20" letter-spacing="3" fill="#8CB8EA">MAPPED TYPE + KEY REMAPPING</text>
+    <rect x="900" y="512" width="630" height="56" rx="12" fill="#121B2A" stroke="#28446A" stroke-width="2"/>
+    <text x="924" y="549" font-size="24" fill="#E8E4F2">{ name: <tspan fill="#82AAFF">string</tspan>; age: <tspan fill="#82AAFF">number</tspan> }</text>
+    <path d="M940 570 V606" stroke="#F2C14E" stroke-width="3" marker-end="url(#arrowAmber)"/>
+    <text x="962" y="596" font-size="22" fill="#F2C14E">Getters&lt;T&gt;</text>
+    <rect x="900" y="612" width="630" height="56" rx="12" fill="#132238" stroke="#3178C6" stroke-width="3"/>
+    <text x="924" y="649" font-size="24" fill="#E8E4F2">{ <tspan fill="#82AAFF">getName</tspan>(): <tspan fill="#82AAFF">string</tspan>; <tspan fill="#82AAFF">getAge</tspan>(): <tspan fill="#82AAFF">number</tspan> }</text>
+  </g>
+</svg>
