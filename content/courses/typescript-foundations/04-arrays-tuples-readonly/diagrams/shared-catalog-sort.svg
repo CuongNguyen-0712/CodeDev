@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+    <marker id="arrRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#dc2626"/></marker>
+    <marker id="arrGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#16a34a"/></marker>
+  </defs>
+  <rect width="1200" height="700" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">One shared array: sort() reorders it for every page</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Arrays are passed by reference. readonly T[] removes every method that changes the array.</text>
+
+  <!-- before -->
+  <text x="40" y="124" font-size="18" font-weight="700" fill="#b91c1c">Before: catalog: Product[]</text>
+  <rect x="40" y="140" width="250" height="56" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="56" y="166" font-size="14" font-weight="700" fill="#b91c1c">home: bestSellers()</text>
+  <text x="56" y="186" font-size="13" fill="#7f1d1d" font-family="Consolas, 'Courier New', monospace">catalog.sort(by sold)</text>
+  <rect x="40" y="214" width="250" height="56" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="56" y="240" font-size="14" font-weight="700" fill="#334155">category page</text>
+  <text x="56" y="260" font-size="13" fill="#475569">expects the load order</text>
+  <rect x="40" y="288" width="250" height="56" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="56" y="314" font-size="14" font-weight="700" fill="#334155">price filter</text>
+  <text x="56" y="334" font-size="13" fill="#475569">expects the load order</text>
+
+  <line x1="290" y1="168" x2="345" y2="218" stroke="#dc2626" stroke-width="2.5" marker-end="url(#arrRed)"/>
+  <line x1="290" y1="242" x2="345" y2="242" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="290" y1="316" x2="345" y2="266" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+
+  <rect x="350" y="150" width="230" height="200" rx="10" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+  <text x="366" y="176" font-size="14" font-weight="700" fill="#c2410c">the one catalog array</text>
+  <text x="366" y="202" font-size="13" fill="#7c2d12" font-family="Consolas, 'Courier New', monospace">0 Cải ngọt      340</text>
+  <text x="366" y="224" font-size="13" fill="#7c2d12" font-family="Consolas, 'Courier New', monospace">1 Trứng gà      260</text>
+  <text x="366" y="246" font-size="13" fill="#7c2d12" font-family="Consolas, 'Courier New', monospace">2 Thịt ba chỉ   210</text>
+  <text x="366" y="268" font-size="13" fill="#7c2d12" font-family="Consolas, 'Courier New', monospace">3 Bưởi Diễn     120</text>
+  <text x="366" y="290" font-size="13" fill="#7c2d12" font-family="Consolas, 'Courier New', monospace">4 Gạo ST25       95</text>
+  <text x="366" y="322" font-size="12" fill="#b91c1c">reordered in place: every page</text>
+  <text x="366" y="338" font-size="12" fill="#b91c1c">now sees sales order</text>
+
+  <!-- default sort strip -->
+  <rect x="40" y="380" width="540" height="130" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="58" y="408" font-size="15" font-weight="700" fill="#b91c1c">and prices.sort() compares strings</text>
+  <text x="58" y="436" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">[65000, 12000, 180000, 125000, 38000].sort()</text>
+  <text x="58" y="462" font-size="13" fill="#7f1d1d" font-family="Consolas, 'Courier New', monospace">"12000" &lt; "125000" &lt; "180000" &lt; "38000" &lt; "65000"</text>
+  <text x="58" y="490" font-size="13" fill="#7f1d1d">so the "highest price" is 65000: max must be 180000</text>
+
+  <!-- after -->
+  <text x="630" y="124" font-size="18" font-weight="700" fill="#15803d">After: catalog: readonly Product[]</text>
+  <rect x="630" y="140" width="530" height="170" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="650" y="168" font-size="15" font-weight="700" fill="#b91c1c">do not exist (error TS2339)</text>
+  <text x="650" y="198" font-size="14" fill="#7f1d1d" font-family="Consolas, 'Courier New', monospace">sort()  reverse()  push()  pop()</text>
+  <text x="650" y="222" font-size="14" fill="#7f1d1d" font-family="Consolas, 'Courier New', monospace">shift()  unshift()  splice()  fill()</text>
+  <text x="650" y="256" font-size="13" fill="#7f1d1d">Property 'sort' does not exist on type 'readonly Product[]'.</text>
+  <text x="650" y="282" font-size="13" fill="#7f1d1d">A readonly array is never assignable to a mutable one (TS4104).</text>
+
+  <rect x="630" y="326" width="530" height="184" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="650" y="354" font-size="15" font-weight="700" fill="#15803d">return a new array (fine)</text>
+  <text x="650" y="384" font-size="14" fill="#166534" font-family="Consolas, 'Courier New', monospace">toSorted(cmp)  toReversed()  toSpliced()  with(i, v)</text>
+  <text x="650" y="408" font-size="14" fill="#166534" font-family="Consolas, 'Courier New', monospace">map  filter  slice  concat  [...catalog]</text>
+  <text x="650" y="442" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">catalog.toSorted((a, b) =&gt; b.sold - a.sold)</text>
+  <text x="650" y="466" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">prices.toSorted((a, b) =&gt; a - b)</text>
+  <text x="650" y="494" font-size="12" fill="#166534">ES2023 copy methods: Node 20+, every current browser</text>
+
+  <rect x="40" y="540" width="1120" height="120" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="64" y="572" font-size="16" font-weight="700" fill="#0f172a">readonly is shallow and compile-time only</text>
+  <text x="64" y="600" font-size="14" fill="#334155">The array cannot be reordered, grown or shrunk through this name; the Product objects inside can still change</text>
+  <text x="64" y="624" font-size="14" fill="#334155">unless their own properties are readonly. Nothing is frozen at runtime: it is a rule the type checker enforces</text>
+  <text x="64" y="648" font-size="14" fill="#334155">for every function that receives the array.</text>
+</svg>

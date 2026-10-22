@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+    <marker id="arrGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#16a34a"/></marker>
+    <marker id="arrRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#dc2626"/></marker>
+  </defs>
+  <rect width="1200" height="700" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">The order pipeline: check at the edge, then let the types carry it</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Each stage uses one lesson of the course; only the first one touches untrusted data</text>
+
+  <!-- stages -->
+  <g font-size="14">
+    <rect x="40" y="110" width="250" height="150" rx="12" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+    <text x="58" y="140" font-size="16" font-weight="700" fill="#334155">event log line</text>
+    <text x="58" y="168" fill="#475569" font-family="Consolas, 'Courier New', monospace">{"type":"paid",</text>
+    <text x="58" y="190" fill="#475569" font-family="Consolas, 'Courier New', monospace"> "order":"CS-24204",</text>
+    <text x="58" y="212" fill="#475569" font-family="Consolas, 'Courier New', monospace"> "amount":170000}</text>
+    <text x="58" y="244" fill="#64748b">string: anything at all</text>
+
+    <line x1="290" y1="185" x2="330" y2="185" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+    <rect x="335" y="110" width="250" height="150" rx="12" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+    <text x="353" y="140" font-size="16" font-weight="700" fill="#1d4ed8">parseEvent</text>
+    <text x="353" y="166" fill="#1e3a8a">unknown, narrowed step by step</text>
+    <text x="353" y="188" fill="#1e3a8a">type predicates isText, isWhole</text>
+    <text x="353" y="210" fill="#1e3a8a">no any, no as</text>
+    <text x="353" y="244" fill="#1d4ed8" font-size="13">lessons 1, 2, 8</text>
+
+    <line x1="585" y1="185" x2="625" y2="185" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+    <rect x="630" y="110" width="250" height="150" rx="12" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+    <text x="648" y="140" font-size="16" font-weight="700" fill="#1d4ed8">apply</text>
+    <text x="648" y="166" fill="#1e3a8a">switch on event.type,</text>
+    <text x="648" y="188" fill="#1e3a8a">checks on state.status,</text>
+    <text x="648" y="210" fill="#1e3a8a">assertNever in the default</text>
+    <text x="648" y="244" fill="#1d4ed8" font-size="13">lessons 3, 6, 7</text>
+
+    <line x1="880" y1="185" x2="920" y2="185" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+    <rect x="925" y="110" width="235" height="150" rx="12" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+    <text x="943" y="140" font-size="16" font-weight="700" fill="#1d4ed8">describe + report</text>
+    <text x="943" y="166" fill="#1e3a8a">switch on state.status,</text>
+    <text x="943" y="188" fill="#1e3a8a">sorted copy of the orders,</text>
+    <text x="943" y="210" fill="#1e3a8a">totals</text>
+    <text x="943" y="244" fill="#1d4ed8" font-size="13">lessons 4, 5, 6</text>
+  </g>
+  <text x="335" y="290" font-size="14" fill="#b91c1c">invalid line: null  -&gt;  "line 3: invalid event"</text>
+  <text x="630" y="314" font-size="14" fill="#b91c1c">impossible transition: a message, the state is kept</text>
+
+  <!-- state machine -->
+  <text x="40" y="370" font-size="18" font-weight="700" fill="#0f172a">OrderState: a discriminated union on status</text>
+  <g font-size="15" font-family="Consolas, 'Courier New', monospace">
+    <rect x="40" y="400" width="170" height="64" rx="10" fill="#f8fafc" stroke="#475569" stroke-width="2"/>
+    <text x="68" y="428" font-weight="700" fill="#334155">placed</text>
+    <text x="68" y="450" font-size="13" fill="#475569">total</text>
+    <rect x="300" y="400" width="170" height="64" rx="10" fill="#f8fafc" stroke="#475569" stroke-width="2"/>
+    <text x="328" y="428" font-weight="700" fill="#334155">paid</text>
+    <text x="328" y="450" font-size="13" fill="#475569">total</text>
+    <rect x="560" y="400" width="200" height="64" rx="10" fill="#f8fafc" stroke="#475569" stroke-width="2"/>
+    <text x="588" y="428" font-weight="700" fill="#334155">shipped</text>
+    <text x="588" y="450" font-size="13" fill="#475569">total, courier</text>
+    <rect x="850" y="400" width="200" height="64" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+    <text x="878" y="428" font-weight="700" fill="#15803d">delivered</text>
+    <text x="878" y="450" font-size="13" fill="#166534">total, courier</text>
+    <rect x="300" y="560" width="300" height="64" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+    <text x="328" y="588" font-weight="700" fill="#b91c1c">cancelled</text>
+    <text x="328" y="610" font-size="13" fill="#7f1d1d">total, refund, reason</text>
+  </g>
+  <g font-size="13" fill="#334155">
+    <line x1="210" y1="432" x2="295" y2="432" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+    <text x="214" y="420">paid = total</text>
+    <line x1="470" y1="432" x2="555" y2="432" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+    <text x="478" y="420">shipped</text>
+    <line x1="760" y1="432" x2="845" y2="432" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+    <text x="766" y="420">delivered</text>
+    <line x1="125" y1="464" x2="330" y2="556" stroke="#dc2626" stroke-width="2" marker-end="url(#arrRed)"/>
+    <text x="100" y="530" fill="#b91c1c">cancelled: refund 0</text>
+    <line x1="385" y1="464" x2="420" y2="556" stroke="#dc2626" stroke-width="2" marker-end="url(#arrRed)"/>
+    <text x="410" y="512" fill="#b91c1c">cancelled: refund = total</text>
+  </g>
+  <rect x="680" y="520" width="480" height="140" rx="10" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+  <text x="700" y="550" font-size="15" font-weight="700" fill="#c2410c">every other arrow is an error message</text>
+  <text x="700" y="578" font-size="13" fill="#7c2d12" font-family="Consolas, 'Courier New', monospace">CS-24204 cannot be shipped when placed</text>
+  <text x="700" y="602" font-size="13" fill="#7c2d12" font-family="Consolas, 'Courier New', monospace">CS-24204 paid 170000, expected 180000</text>
+  <text x="700" y="626" font-size="13" fill="#7c2d12" font-family="Consolas, 'Courier New', monospace">CS-24210 already exists</text>
+  <text x="700" y="650" font-size="13" fill="#7c2d12" font-family="Consolas, 'Courier New', monospace">unknown order CS-24299</text>
+</svg>

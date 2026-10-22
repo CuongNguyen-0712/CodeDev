@@ -1,0 +1,10 @@
+{
+  "images": {
+    "order-pipeline": {
+      "publicId": "codedev/courses/typescript-foundations/09-typed-order-pipeline/order-pipeline",
+      "url": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/q_auto/v1792647283/codedev/courses/typescript-foundations/09-typed-order-pipeline/order-pipeline.png?_a=BAMAROWQ0",
+      "width": 1200,
+      "height": 700
+    }
+  }
+}

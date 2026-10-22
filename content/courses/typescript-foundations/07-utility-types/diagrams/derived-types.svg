@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+  </defs>
+  <rect width="1200" height="700" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">One Product interface, many derived types</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Utility types compute new types from an existing one, so they change when Product changes</text>
+
+  <rect x="40" y="112" width="330" height="236" rx="12" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <g font-family="Consolas, 'Courier New', monospace" font-size="15" fill="#1e3a8a">
+    <text x="60" y="146" font-weight="700" fill="#1d4ed8">interface Product {</text>
+    <text x="80" y="176">readonly sku: string;</text>
+    <text x="80" y="204">name: string;</text>
+    <text x="80" y="232">category: Category;</text>
+    <text x="80" y="260">price: number;</text>
+    <text x="80" y="288">stock: number;</text>
+    <text x="60" y="320" font-weight="700" fill="#1d4ed8">}</text>
+  </g>
+
+  <g font-size="14">
+    <line x1="370" y1="150" x2="440" y2="140" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+    <rect x="445" y="104" width="715" height="72" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+    <text x="465" y="132" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">Partial&lt;Omit&lt;Product, "sku"&gt;&gt;</text>
+    <text x="815" y="132" fill="#166534">the quick-edit patch</text>
+    <text x="465" y="158" fill="#334155" font-family="Consolas, 'Courier New', monospace">{ name?: string; category?: Category; price?: number; stock?: number }</text>
+
+    <line x1="370" y1="190" x2="440" y2="222" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+    <rect x="445" y="188" width="715" height="60" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+    <text x="465" y="214" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">Pick&lt;Product, "name" | "price"&gt;</text>
+    <text x="815" y="214" fill="#475569">a product card</text>
+    <text x="465" y="238" fill="#334155" font-family="Consolas, 'Courier New', monospace">{ name: string; price: number }</text>
+
+    <line x1="370" y1="240" x2="440" y2="292" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+    <rect x="445" y="260" width="715" height="60" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+    <text x="465" y="286" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">Readonly&lt;Product&gt;</text>
+    <text x="815" y="286" fill="#475569">a placed order's copy</text>
+    <text x="465" y="310" fill="#334155">every property readonly</text>
+
+    <line x1="370" y1="300" x2="440" y2="362" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+    <rect x="445" y="332" width="715" height="60" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+    <text x="465" y="358" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">Record&lt;Category, number&gt;</text>
+    <text x="815" y="358" fill="#475569">stock per category</text>
+    <text x="465" y="382" fill="#334155">one key for every category: a missing key is TS2741</text>
+  </g>
+
+  <!-- trap -->
+  <rect x="40" y="420" width="1120" height="250" rx="12" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+  <text x="62" y="452" font-size="18" font-weight="700" fill="#c2410c">The trap: optional also accepts undefined</text>
+  <g font-size="14" font-family="Consolas, 'Courier New', monospace">
+    <text x="62" y="488" fill="#334155">patch = { name: undefined, price: undefined, stock: 25 }</text>
+    <text x="62" y="514" fill="#15803d">// compiles: Partial allows an explicit undefined (without exactOptionalPropertyTypes)</text>
+    <text x="62" y="548" fill="#334155">{ ...product, ...patch }</text>
+    <text x="300" y="548" fill="#b91c1c">= { sku: "MEA-204", name: undefined, category: "meat", price: undefined, stock: 25 }</text>
+    <text x="62" y="574" fill="#7f1d1d" font-family="Inter, 'Segoe UI', Arial, sans-serif">// a spread copies undefined over the real value: "undefined, 2 x undefined = NaN đ"</text>
+  </g>
+  <rect x="62" y="594" width="530" height="58" rx="8" fill="#f0fdf4" stroke="#16a34a"/>
+  <text x="80" y="618" font-size="14" font-weight="700" fill="#15803d">copy only the defined fields</text>
+  <text x="80" y="640" font-size="13" fill="#166534" font-family="Consolas, 'Courier New', monospace">if (patch.price !== undefined) next.price = patch.price;</text>
+  <rect x="612" y="594" width="526" height="58" rx="8" fill="#f0fdf4" stroke="#16a34a"/>
+  <text x="630" y="618" font-size="14" font-weight="700" fill="#15803d">or make tsc reject the undefined</text>
+  <text x="630" y="640" font-size="13" fill="#166534" font-family="Consolas, 'Courier New', monospace">"exactOptionalPropertyTypes": true  (TS2379)</text>
+</svg>

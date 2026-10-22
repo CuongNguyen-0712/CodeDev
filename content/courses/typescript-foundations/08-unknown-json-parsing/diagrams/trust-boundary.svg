@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+    <marker id="arrRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#dc2626"/></marker>
+    <marker id="arrGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#16a34a"/></marker>
+  </defs>
+  <rect width="1200" height="700" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">At the boundary, data has no type until you check it</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The same webhook body, two ways into the typed part of the program</text>
+
+  <!-- outside -->
+  <rect x="40" y="110" width="300" height="200" rx="12" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="60" y="142" font-size="16" font-weight="700" fill="#334155">outside: the farm's webhook</text>
+  <text x="60" y="176" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">{"sku": "EGG-020",</text>
+  <text x="60" y="198" font-size="13" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace"> "qty": "12",</text>
+  <text x="60" y="220" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace"> "warehouse": "HN-LB"}</text>
+  <text x="60" y="256" font-size="13" fill="#475569">any text at all: a string qty,</text>
+  <text x="60" y="276" font-size="13" fill="#475569">a renamed field, half a body</text>
+
+  <line x1="370" y1="100" x2="370" y2="670" stroke="#0f172a" stroke-width="3" stroke-dasharray="10 8"/>
+  <text x="380" y="120" font-size="13" font-weight="700" fill="#0f172a">trust boundary</text>
+
+  <!-- as path -->
+  <line x1="340" y1="170" x2="420" y2="170" stroke="#dc2626" stroke-width="2.5" marker-end="url(#arrRed)"/>
+  <rect x="425" y="130" width="735" height="190" rx="12" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="445" y="162" font-size="16" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">JSON.parse(body) as StockUpdate</text>
+  <text x="445" y="192" font-size="14" fill="#7f1d1d">JSON.parse returns any; as only changes what the checker believes.</text>
+  <text x="445" y="216" font-size="14" fill="#7f1d1d">No code runs: qty is still the string "12", typed as number.</text>
+  <text x="445" y="252" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">48 + "12"  =  "4812"</text>
+  <text x="680" y="252" font-size="14" fill="#7f1d1d">eggs in stock, as text</text>
+  <text x="445" y="284" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">stock.set(undefined, 30)</text>
+  <text x="680" y="284" font-size="14" fill="#7f1d1d">when sku was renamed to product</text>
+
+  <!-- unknown path -->
+  <line x1="340" y1="260" x2="420" y2="420" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrGreen)"/>
+  <rect x="425" y="350" width="735" height="320" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="445" y="382" font-size="16" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">const data: unknown = JSON.parse(body)</text>
+  <text x="445" y="410" font-size="14" fill="#166534">unknown: nothing is allowed until a check narrows it (TS18046 otherwise)</text>
+  <g font-size="14" font-family="Consolas, 'Courier New', monospace">
+    <text x="445" y="446" fill="#334155">try / catch</text>
+    <text x="760" y="446" fill="#166534">valid JSON?          else "not JSON"</text>
+    <text x="445" y="474" fill="#334155">typeof data === "object"</text>
+    <text x="760" y="474" fill="#166534">an object?           else "not an object"</text>
+    <text x="445" y="502" fill="#334155">"sku" in data, typeof</text>
+    <text x="760" y="502" fill="#166534">a non-empty string?  else "bad sku"</text>
+    <text x="445" y="530" fill="#334155">Number.isInteger(data.qty)</text>
+    <text x="760" y="530" fill="#166534">an integer?          else "bad qty"</text>
+    <text x="445" y="558" fill="#334155">=== "HN-LB" || "HN-CG"</text>
+    <text x="760" y="558" fill="#166534">a known warehouse?   else "bad warehouse"</text>
+  </g>
+  <rect x="445" y="580" width="695" height="72" rx="8" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="465" y="608" font-size="15" font-weight="700" fill="#15803d">only now: StockUpdate</text>
+  <text x="465" y="634" font-size="14" fill="#166534">every property was checked, so the type is true - and the reason for a rejection is known</text>
+</svg>

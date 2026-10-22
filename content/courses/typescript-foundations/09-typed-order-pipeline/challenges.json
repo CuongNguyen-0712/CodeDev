@@ -1,0 +1,73 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_tsf_421",
+      "name": "typed-order-pipeline",
+      "type": "mini_coding",
+      "title": "Build a typed order pipeline from an untrusted event log",
+      "description": "Put the whole course together. The Chợ Sớm event log has one JSON event per line - placed, paid, shipped, delivered, cancelled - and nothing in it is trusted. Write parseEvent, which checks a line from unknown into the OrderEvent discriminated union (or null), apply, which moves an order through its states (placed, paid, shipped, delivered, cancelled with a refund) and returns an error message for every impossible transition or wrong payment, and describe, which writes the report line for each state. Use exhaustive switches with assertNever, and no any or as. The test runner replays the log, prints the rejected lines and errors, then every order and the totals.",
+      "difficulty": "hard",
+      "points": 30,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "One order, from placed to delivered",
+          "input": "{\"type\":\"placed\",\"order\":\"CS-24201\",\"items\":[{\"sku\":\"EGG-020\",\"qty\":2,\"price\":38000},{\"sku\":\"VEG-101\",\"qty\":3,\"price\":12000}]}\n{\"type\":\"paid\",\"order\":\"CS-24201\",\"amount\":112000}\n{\"type\":\"shipped\",\"order\":\"CS-24201\",\"courier\":\"C-12\"}\n{\"type\":\"delivered\",\"order\":\"CS-24201\"}\n",
+          "expected": "CS-24201 delivered 112000 by C-12\norders 1, revenue 112000, refunds 0",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Cancelled before and after payment",
+          "input": "{\"type\":\"placed\",\"order\":\"CS-24202\",\"items\":[{\"sku\":\"MEA-204\",\"qty\":1,\"price\":125000}]}\n{\"type\":\"placed\",\"order\":\"CS-24203\",\"items\":[{\"sku\":\"FRT-201\",\"qty\":2,\"price\":65000}]}\n{\"type\":\"paid\",\"order\":\"CS-24203\",\"amount\":130000}\n{\"type\":\"cancelled\",\"order\":\"CS-24202\",\"reason\":\"customer changed their mind\"}\n{\"type\":\"cancelled\",\"order\":\"CS-24203\",\"reason\":\"out of stock\"}\n",
+          "expected": "CS-24202 cancelled (customer changed their mind), refund 0\nCS-24203 cancelled (out of stock), refund 130000\norders 2, revenue 0, refunds 130000",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Events in the wrong order and a wrong amount",
+          "input": "{\"type\":\"placed\",\"order\":\"CS-24204\",\"items\":[{\"sku\":\"DRY-310\",\"qty\":1,\"price\":180000}]}\n{\"type\":\"shipped\",\"order\":\"CS-24204\",\"courier\":\"C-07\"}\n{\"type\":\"paid\",\"order\":\"CS-24204\",\"amount\":170000}\n{\"type\":\"paid\",\"order\":\"CS-24204\",\"amount\":180000}\n{\"type\":\"delivered\",\"order\":\"CS-24204\"}\n{\"type\":\"paid\",\"order\":\"CS-24299\",\"amount\":50000}\n",
+          "expected": "line 2: CS-24204 cannot be shipped when placed\nline 3: CS-24204 paid 170000, expected 180000\nline 5: CS-24204 cannot be delivered when paid\nline 6: unknown order CS-24299\nCS-24204 paid 180000\norders 1, revenue 180000, refunds 0",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Lines that are not valid events",
+          "input": "{\"type\":\"placed\",\"order\":\"CS-24205\",\"items\":[{\"sku\":\"EGG-020\",\"qty\":1,\"price\":38000}]\n[{\"type\":\"delivered\",\"order\":\"CS-24205\"}]\n{\"type\":\"refunded\",\"order\":\"CS-24205\"}\n{\"type\":\"delivered\",\"order\":\"\"}\n{\"type\":\"placed\",\"order\":\"CS-24206\",\"items\":[]}\n{\"type\":\"placed\",\"order\":\"CS-24207\",\"items\":[{\"sku\":\"EGG-020\",\"qty\":0,\"price\":38000}]}\n{\"type\":\"placed\",\"order\":\"CS-24208\",\"items\":[{\"sku\":\"EGG-020\",\"qty\":1,\"price\":\"38000\"}]}\n{\"type\":\"placed\",\"order\":\"CS-24209\",\"items\":[{\"sku\":\"VEG-101\",\"qty\":2,\"price\":12000},{\"sku\":\"\",\"qty\":1,\"price\":5000}]}\n{\"type\":\"paid\",\"order\":\"CS-24205\",\"amount\":1.5}\n{\"type\":\"shipped\",\"order\":\"CS-24205\"}\n{\"type\":\"cancelled\",\"order\":\"CS-24205\",\"reason\":\"\"}\nnull\n{\"type\":\"placed\",\"order\":\"CS-24205\",\"items\":[{\"sku\":\"EGG-020\",\"qty\":1,\"price\":38000,\"note\":\"extra fields are fine\"}],\"channel\":\"app\"}\n{\"type\":\"delivered\",\"order\":\"CS-24205\",\"note\":\"left at the door\"}\n",
+          "expected": "line 1: invalid event\nline 2: invalid event\nline 3: invalid event\nline 4: invalid event\nline 5: invalid event\nline 6: invalid event\nline 7: invalid event\nline 8: invalid event\nline 9: invalid event\nline 10: invalid event\nline 11: invalid event\nline 12: invalid event\nline 14: CS-24205 cannot be delivered when placed\nCS-24205 placed 38000\norders 1, revenue 0, refunds 0",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Placed twice, and events after the end",
+          "input": "{\"type\":\"placed\",\"order\":\"CS-24210\",\"items\":[{\"sku\":\"VEG-102\",\"qty\":4,\"price\":10000}]}\n{\"type\":\"placed\",\"order\":\"CS-24210\",\"items\":[{\"sku\":\"VEG-102\",\"qty\":1,\"price\":10000}]}\n{\"type\":\"paid\",\"order\":\"CS-24210\",\"amount\":40000}\n{\"type\":\"shipped\",\"order\":\"CS-24210\",\"courier\":\"C-15\"}\n{\"type\":\"cancelled\",\"order\":\"CS-24210\",\"reason\":\"too late\"}\n{\"type\":\"delivered\",\"order\":\"CS-24210\"}\n{\"type\":\"shipped\",\"order\":\"CS-24210\",\"courier\":\"C-07\"}\n{\"type\":\"paid\",\"order\":\"CS-24210\",\"amount\":40000}\n",
+          "expected": "line 2: CS-24210 already exists\nline 5: CS-24210 cannot be cancelled when shipped\nline 7: CS-24210 cannot be shipped when delivered\nline 8: CS-24210 cannot be paid when delivered\nCS-24210 delivered 40000 by C-15\norders 1, revenue 40000, refunds 0",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A busy morning",
+          "input": "{\"type\":\"placed\",\"order\":\"CS-24220\",\"items\":[{\"sku\":\"MEA-210\",\"qty\":2,\"price\":100000},{\"sku\":\"VEG-103\",\"qty\":1,\"price\":25000}]}\n{\"type\":\"placed\",\"order\":\"CS-24215\",\"items\":[{\"sku\":\"DAI-001\",\"qty\":3,\"price\":32000}]}\n{\"type\":\"placed\",\"order\":\"CS-24218\",\"items\":[{\"sku\":\"FRT-205\",\"qty\":1,\"price\":45000}]}\n{\"type\":\"paid\",\"order\":\"CS-24215\",\"amount\":96000}\n{\"type\":\"paid\",\"order\":\"CS-24220\",\"amount\":225000}\n{\"type\":\"placed\",\"order\":\"CS-24217\",\"items\":[{\"sku\":\"DRY-311\",\"qty\":1,\"price\":99000}]}\n{\"type\":\"shipped\",\"order\":\"CS-24220\",\"courier\":\"C-12\"}\n{\"type\":\"cancelled\",\"order\":\"CS-24218\",\"reason\":\"wrong address\"}\n{\"type\":\"shipped\",\"order\":\"CS-24215\",\"courier\":\"C-07\"}\n{\"type\":\"cancelled\",\"order\":\"CS-24215\",\"reason\":\"customer not home\"}\n{\"type\":\"paid\",\"order\":\"CS-24217\",\"amount\":99000}\n{\"type\":\"delivered\",\"order\":\"CS-24220\"}\n{\"type\":\"cancelled\",\"order\":\"CS-24217\",\"reason\":\"duplicate order\"}\n{\"type\":\"delivered\",\"order\":\"CS-24216\"}\n",
+          "expected": "line 10: CS-24215 cannot be cancelled when shipped\nline 14: unknown order CS-24216\nCS-24215 shipped 96000 by C-07\nCS-24217 cancelled (duplicate order), refund 99000\nCS-24218 cancelled (wrong address), refund 0\nCS-24220 delivered 225000 by C-12\norders 4, revenue 321000, refunds 99000",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "An empty log",
+          "input": "",
+          "expected": "orders 0, revenue 0, refunds 0",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

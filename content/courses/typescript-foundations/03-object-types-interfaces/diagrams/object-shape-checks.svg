@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+  </defs>
+  <rect width="1200" height="700" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">One interface, five checks on every use of the object</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The shape is written once; tsc compares every read, write and object literal with it</text>
+
+  <!-- interface -->
+  <rect x="40" y="112" width="420" height="540" rx="12" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="62" y="146" font-size="17" font-weight="700" fill="#1d4ed8" font-family="Consolas, 'Courier New', monospace">interface DeliveryOrder {</text>
+  <rect x="78" y="164" width="350" height="34" rx="6" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="92" y="187" font-size="15" fill="#1e3a8a" font-family="Consolas, 'Courier New', monospace">readonly id: string;</text>
+  <text x="330" y="187" font-size="12" fill="#1d4ed8">never reassigned</text>
+  <rect x="78" y="208" width="350" height="34" rx="6" fill="#ffffff" stroke="#3b82f6"/>
+  <text x="92" y="231" font-size="15" fill="#1e3a8a" font-family="Consolas, 'Courier New', monospace">address: Address;</text>
+  <text x="330" y="231" font-size="12" fill="#1d4ed8">always there</text>
+  <rect x="78" y="252" width="350" height="34" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-dasharray="6 4"/>
+  <text x="92" y="275" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">note?: string;</text>
+  <text x="290" y="275" font-size="12" fill="#475569">may be missing</text>
+  <text x="62" y="316" font-size="17" font-weight="700" fill="#1d4ed8" font-family="Consolas, 'Courier New', monospace">}</text>
+  <text x="62" y="352" font-size="17" font-weight="700" fill="#1d4ed8" font-family="Consolas, 'Courier New', monospace">interface Address {</text>
+  <rect x="78" y="370" width="350" height="34" rx="6" fill="#ffffff" stroke="#3b82f6"/>
+  <text x="92" y="393" font-size="15" fill="#1e3a8a" font-family="Consolas, 'Courier New', monospace">street: string;</text>
+  <rect x="78" y="414" width="350" height="34" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-dasharray="6 4"/>
+  <text x="92" y="437" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">building?: string;</text>
+  <rect x="78" y="458" width="350" height="34" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-dasharray="6 4"/>
+  <text x="92" y="481" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">apartment?: string;</text>
+  <text x="92" y="516" font-size="14" fill="#475569" font-family="Consolas, 'Courier New', monospace">// ward, district, city ...</text>
+  <text x="62" y="548" font-size="17" font-weight="700" fill="#1d4ed8" font-family="Consolas, 'Courier New', monospace">}</text>
+  <text x="62" y="590" font-size="13" fill="#1e3a8a">solid border: required   dashed border: optional (?)</text>
+  <text x="62" y="614" font-size="13" fill="#1e3a8a">reading an optional property gives T | undefined</text>
+
+  <!-- checks -->
+  <g font-size="14">
+    <rect x="510" y="112" width="650" height="84" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+    <text x="530" y="140" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">a.apartmnet</text>
+    <text x="760" y="140" font-weight="700" fill="#b91c1c">TS2551 typo in a property name</text>
+    <text x="530" y="168" fill="#7f1d1d">Property 'apartmnet' does not exist on type 'Address'. Did you mean 'apartment'?</text>
+
+    <rect x="510" y="208" width="650" height="84" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+    <text x="530" y="236" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">{ id, address, nte: "..." }</text>
+    <text x="840" y="236" font-weight="700" fill="#b91c1c">TS2561 excess property</text>
+    <text x="530" y="264" fill="#7f1d1d">Object literal may only specify known properties ... Did you mean to write 'note'?</text>
+
+    <rect x="510" y="304" width="650" height="84" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+    <text x="530" y="332" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">order.id = "CS-24052"</text>
+    <text x="840" y="332" font-weight="700" fill="#b91c1c">TS2540 readonly</text>
+    <text x="530" y="360" fill="#7f1d1d">Cannot assign to 'id' because it is a read-only property.</text>
+
+    <rect x="510" y="400" width="650" height="84" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+    <text x="530" y="428" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">order.note.trim()</text>
+    <text x="840" y="428" font-weight="700" fill="#b91c1c">TS18048 optional</text>
+    <text x="530" y="456" fill="#7f1d1d">'order.note' is possibly 'undefined'.</text>
+
+    <rect x="510" y="496" width="650" height="156" rx="10" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+    <text x="530" y="524" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">`Apt ${a.apartment}`</text>
+    <text x="840" y="524" font-weight="700" fill="#c2410c">compiles: no error</text>
+    <text x="530" y="554" fill="#7c2d12">A template string accepts undefined and prints "Apt undefined".</text>
+    <text x="530" y="580" fill="#7c2d12">The type tells you the value may be missing; only your check decides</text>
+    <text x="530" y="602" fill="#7c2d12">what the label shows then:</text>
+    <text x="530" y="632" fill="#15803d" font-family="Consolas, 'Courier New', monospace">if (a.apartment !== undefined) parts.push(`Apt ${a.apartment}`);</text>
+  </g>
+</svg>

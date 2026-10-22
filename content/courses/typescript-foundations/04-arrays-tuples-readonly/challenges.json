@@ -1,0 +1,277 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_tsf_211",
+      "name": "arrays-readonly-quiz",
+      "type": "quiz",
+      "title": "Predict it: sort() and readonly arrays",
+      "description": "Work out what the default sort does to numbers, then pick what a function may do with a readonly array parameter.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this print?\n\nconst prices = [65000, 12000, 180000, 125000, 38000];\nprices.sort();\nconsole.log(prices[0], prices[prices.length - 1]);",
+          "explanation": "Without a compare function, sort converts every element to a string and sorts the strings by UTF-16 code units: \"12000\" < \"125000\" < \"180000\" < \"38000\" < \"65000\", so the array becomes [12000, 125000, 180000, 38000, 65000]. The first element happens to be the smallest, but the last one is 65000, not 180000. TypeScript accepts sort() without arguments on number[] - the compare function is optional - so there is no compile error. Sort numbers with (a, b) => a - b.",
+          "options": [
+            {
+              "text": "12000 180000",
+              "correct": false
+            },
+            {
+              "text": "12000 65000",
+              "correct": true
+            },
+            {
+              "text": "180000 12000",
+              "correct": false
+            },
+            {
+              "text": "Nothing: tsc reports that sort() on a number[] needs a compare function.",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Inside function f(items: readonly Product[]), with interface Product { sku: string; price: number }, which lines compile with tsc --strict? (Select all that apply.)",
+          "explanation": "toSorted returns a new array and leaves items alone, so it exists on readonly arrays. [...items] copies the elements into a new, mutable array, which you may sort. items[0].price = 0 compiles too: readonly Product[] only forbids changing the array (adding, removing, reordering elements); the Product objects inside are still mutable unless their properties are readonly. push and reverse change the array, so they do not exist on readonly Product[] (error TS2339). Assigning items to a Product[] variable would let you mutate it through the new name, so it is error TS4104.",
+          "options": [
+            {
+              "text": "items.push({ sku: \"FRT-202\", price: 70000 });",
+              "correct": false
+            },
+            {
+              "text": "const byPrice = items.toSorted((a, b) => a.price - b.price);",
+              "correct": true
+            },
+            {
+              "text": "const byPrice = [...items].sort((a, b) => a.price - b.price);",
+              "correct": true
+            },
+            {
+              "text": "items[0].price = 0;",
+              "correct": true
+            },
+            {
+              "text": "const copy: Product[] = items;",
+              "correct": false
+            },
+            {
+              "text": "items.reverse();",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_tsf_212",
+      "name": "fix-best-sellers-sort",
+      "type": "fix_bug",
+      "title": "Fix the best-sellers widget that reorders the catalog",
+      "description": "The Chợ Sớm home page shows the best sellers and a price range, computed from the catalog that every category page shares. The widget sorted the catalog in place, so the category pages showed products by sales, and the default sort put 65.000 đ above 180.000 đ. Now that the catalog is a readonly Product[], the starter does not compile. Fix bestSellers (most sold first, ties by sku, at most n products) and priceRange (lowest and highest price as a tuple) without changing the catalog. The test runner reads n and the catalog as JSON and prints the best sellers, the price range and the catalog order.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: top 3 of the morning catalog",
+          "input": {
+            "n": 3,
+            "catalog": [
+              {
+                "sku": "FRT-201",
+                "name": "Bưởi Diễn",
+                "price": 65000,
+                "sold": 120
+              },
+              {
+                "sku": "VEG-101",
+                "name": "Cải ngọt",
+                "price": 12000,
+                "sold": 340
+              },
+              {
+                "sku": "DRY-310",
+                "name": "Gạo ST25 (5 kg)",
+                "price": 180000,
+                "sold": 95
+              },
+              {
+                "sku": "MEA-204",
+                "name": "Thịt ba chỉ",
+                "price": 125000,
+                "sold": 210
+              },
+              {
+                "sku": "EGG-020",
+                "name": "Trứng gà (10)",
+                "price": 38000,
+                "sold": 260
+              }
+            ]
+          },
+          "expected": "1. Cải ngọt (340 sold)\n2. Trứng gà (10) (260 sold)\n3. Thịt ba chỉ (210 sold)\nprice range: 12000 - 180000\ncatalog: FRT-201, VEG-101, DRY-310, MEA-204, EGG-020",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Ties are ordered by sku",
+          "input": {
+            "n": 2,
+            "catalog": [
+              {
+                "sku": "VEG-101",
+                "name": "Cải ngọt",
+                "price": 12000,
+                "sold": 340
+              },
+              {
+                "sku": "FRT-201",
+                "name": "Bưởi Diễn",
+                "price": 65000,
+                "sold": 120
+              },
+              {
+                "sku": "EGG-020",
+                "name": "Trứng gà (10)",
+                "price": 38000,
+                "sold": 340
+              }
+            ]
+          },
+          "expected": "1. Trứng gà (10) (340 sold)\n2. Cải ngọt (340 sold)\nprice range: 12000 - 65000\ncatalog: VEG-101, FRT-201, EGG-020",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Asking for more products than the catalog has",
+          "input": {
+            "n": 10,
+            "catalog": [
+              {
+                "sku": "DRY-310",
+                "name": "Gạo ST25 (5 kg)",
+                "price": 180000,
+                "sold": 95
+              },
+              {
+                "sku": "MEA-204",
+                "name": "Thịt ba chỉ",
+                "price": 125000,
+                "sold": 210
+              },
+              {
+                "sku": "FRT-205",
+                "name": "Thanh long ruột đỏ",
+                "price": 45000,
+                "sold": 150
+              }
+            ]
+          },
+          "expected": "1. Thịt ba chỉ (210 sold)\n2. Thanh long ruột đỏ (150 sold)\n3. Gạo ST25 (5 kg) (95 sold)\nprice range: 45000 - 180000\ncatalog: DRY-310, MEA-204, FRT-205",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Prices with different numbers of digits",
+          "input": {
+            "n": 3,
+            "catalog": [
+              {
+                "sku": "VEG-104",
+                "name": "Hành lá",
+                "price": 9000,
+                "sold": 410
+              },
+              {
+                "sku": "DRY-311",
+                "name": "Nước mắm (500 ml)",
+                "price": 99000,
+                "sold": 75
+              },
+              {
+                "sku": "VEG-102",
+                "name": "Rau muống",
+                "price": 10000,
+                "sold": 410
+              },
+              {
+                "sku": "MEA-210",
+                "name": "Bò thăn (500 g)",
+                "price": 100000,
+                "sold": 130
+              },
+              {
+                "sku": "VEG-103",
+                "name": "Cà chua",
+                "price": 25000,
+                "sold": 410
+              }
+            ]
+          },
+          "expected": "1. Rau muống (410 sold)\n2. Cà chua (410 sold)\n3. Hành lá (410 sold)\nprice range: 9000 - 100000\ncatalog: VEG-104, DRY-311, VEG-102, MEA-210, VEG-103",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A catalog with one product",
+          "input": {
+            "n": 1,
+            "catalog": [
+              {
+                "sku": "EGG-020",
+                "name": "Trứng gà (10)",
+                "price": 38000,
+                "sold": 260
+              }
+            ]
+          },
+          "expected": "1. Trứng gà (10) (260 sold)\nprice range: 38000 - 38000\ncatalog: EGG-020",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "No best sellers asked, the catalog order still matters",
+          "input": {
+            "n": 0,
+            "catalog": [
+              {
+                "sku": "MEA-204",
+                "name": "Thịt ba chỉ",
+                "price": 125000,
+                "sold": 210
+              },
+              {
+                "sku": "FRT-201",
+                "name": "Bưởi Diễn",
+                "price": 65000,
+                "sold": 120
+              },
+              {
+                "sku": "VEG-101",
+                "name": "Cải ngọt",
+                "price": 12000,
+                "sold": 340
+              }
+            ]
+          },
+          "expected": "price range: 12000 - 125000\ncatalog: MEA-204, FRT-201, VEG-101",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

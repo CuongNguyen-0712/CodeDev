@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_fix_tsf_411",
+      "name": "fix-webhook-json-parsing",
+      "type": "fix_bug",
+      "title": "Fix the supplier webhook that trusts its JSON",
+      "description": "Farms post stock deliveries to Chợ Sớm as JSON. The old code cast the parsed body with as StockUpdate, so when one farm started sending \"qty\": \"12\" the stock of eggs became the string \"4812\", and a renamed field created stock for the sku undefined. JSON.parse now returns unknown and the starter does not compile. Fix parseUpdate by checking the data step by step - valid JSON, an object, a non-empty sku, an integer qty, a known warehouse - and return the first reason a body is rejected, without as or any. The test runner reads one body per line, applies the accepted updates and prints the rejections and the stock per warehouse.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The supplier's new format: qty as a string",
+          "input": "{\"sku\":\"EGG-020\",\"qty\":48,\"warehouse\":\"HN-LB\"}\n{\"sku\":\"EGG-020\",\"qty\":\"12\",\"warehouse\":\"HN-LB\"}\n{\"sku\":\"FRT-201\",\"qty\":30,\"warehouse\":\"HN-CG\"}\n",
+          "expected": "line 2 rejected: bad qty\nHN-CG FRT-201: 30\nHN-LB EGG-020: 48\naccepted 2, rejected 1",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A renamed field and a body cut off in the middle",
+          "input": "{\"product\":\"FRT-201\",\"qty\":30,\"warehouse\":\"HN-LB\"}\n{\"sku\":\"VEG-101\",\"qty\":20,\"warehouse\":\"HN-LB\"\n{\"sku\":\"VEG-101\",\"qty\":20,\"warehouse\":\"HN-LB\"}\n",
+          "expected": "line 1 rejected: bad sku\nline 2 rejected: not JSON\nHN-LB VEG-101: 20\naccepted 1, rejected 2",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Returns are negative, and the warehouse is checked",
+          "input": "{\"sku\":\"MEA-204\",\"qty\":15,\"warehouse\":\"HN-CG\"}\n{\"sku\":\"MEA-204\",\"qty\":-3,\"warehouse\":\"HN-CG\"}\n{\"sku\":\"MEA-204\",\"qty\":5,\"warehouse\":\"HCM-Q7\"}\n",
+          "expected": "line 3 rejected: bad warehouse\nHN-CG MEA-204: 12\naccepted 2, rejected 1",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Valid JSON that is not an object",
+          "input": "42\n\"EGG-020\"\nnull\n[{\"sku\":\"EGG-020\",\"qty\":1,\"warehouse\":\"HN-LB\"}]\n{\"sku\":\"EGG-020\",\"qty\":1,\"warehouse\":\"HN-LB\"}\n",
+          "expected": "line 1 rejected: not an object\nline 2 rejected: not an object\nline 3 rejected: not an object\nline 4 rejected: not an object\nHN-LB EGG-020: 1\naccepted 1, rejected 4",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Empty sku, decimals, missing fields and extra fields",
+          "input": "{\"sku\":\"\",\"qty\":5,\"warehouse\":\"HN-LB\"}\n{\"sku\":\"DAI-001\",\"qty\":2.5,\"warehouse\":\"HN-LB\"}\n{\"sku\":\"DAI-001\",\"warehouse\":\"HN-LB\"}\n{\"sku\":\"DAI-001\",\"qty\":4}\n{\"sku\":12,\"qty\":4,\"warehouse\":\"HN-LB\"}\n{\"sku\":\"DAI-001\",\"qty\":4,\"warehouse\":\"HN-LB\",\"note\":\"extra fields are fine\"}\n",
+          "expected": "line 1 rejected: bad sku\nline 2 rejected: bad qty\nline 3 rejected: bad qty\nline 4 rejected: bad warehouse\nline 5 rejected: bad sku\nHN-LB DAI-001: 4\naccepted 1, rejected 5",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A morning of deliveries from three farms",
+          "input": "{\"sku\":\"VEG-102\",\"qty\":120,\"warehouse\":\"HN-LB\"}\n{\"sku\":\"VEG-102\",\"qty\":80,\"warehouse\":\"HN-CG\"}\n{\"sku\":\"FRT-205\",\"qty\":0,\"warehouse\":\"HN-CG\"}\n{\"sku\":\"FRT-205\",\"qty\":null,\"warehouse\":\"HN-CG\"}\n{\"sku\":\"VEG-104\",\"qty\":60,\"warehouse\":\"hn-lb\"}\n{}\nnot json at all\n{\"sku\":\"VEG-102\",\"qty\":-10,\"warehouse\":\"HN-LB\"}\n{\"sku\":\"DRY-310\",\"qty\":25,\"warehouse\":\"HN-LB\"}\n",
+          "expected": "line 4 rejected: bad qty\nline 5 rejected: bad warehouse\nline 6 rejected: bad sku\nline 7 rejected: not JSON\nHN-CG FRT-205: 0\nHN-CG VEG-102: 80\nHN-LB DRY-310: 25\nHN-LB VEG-102: 110\naccepted 5, rejected 4",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

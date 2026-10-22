@@ -1,0 +1,257 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_tsf_321",
+      "name": "quick-edit-patch",
+      "type": "mini_coding",
+      "title": "Apply quick edits with Partial, Omit and Record",
+      "description": "The Chợ Sớm admin quick-edit form sends every field of a product, and the fields the admin did not touch are undefined. Spreading that patch over the product erased names and prices. Write applyPatch, which returns a new product with only the defined fields applied (a price or stock below 0 is ignored, the original product never changes, and ProductPatch = Partial<Omit<Product, \"sku\">> already forbids editing the sku), and stockSummary, which returns a Record<Category, number> with the total stock of every category, 0 included. The test runner reads the products and the edits as JSON, applies them in order and prints the products, what changed and the stock summary.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: untouched fields arrive as undefined",
+          "input": {
+            "products": [
+              {
+                "sku": "MEA-204",
+                "name": "Thịt ba chỉ",
+                "category": "meat",
+                "price": 125000,
+                "stock": 12
+              },
+              {
+                "sku": "VEG-101",
+                "name": "Cải ngọt",
+                "category": "vegetables",
+                "price": 12000,
+                "stock": 40
+              }
+            ],
+            "edits": [
+              {
+                "sku": "MEA-204",
+                "patch": {
+                  "name": null,
+                  "category": null,
+                  "price": null,
+                  "stock": 25
+                }
+              }
+            ]
+          },
+          "expected": "MEA-204 Thịt ba chỉ (meat) 125000 đ, stock 25\nVEG-101 Cải ngọt (vegetables) 12000 đ, stock 40\nchanged 1, originals intact\nstock: vegetables 40, fruit 0, meat 25, dairy 0, dry 0",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Rename, move to another category and change the price",
+          "input": {
+            "products": [
+              {
+                "sku": "FRT-201",
+                "name": "Bưởi",
+                "category": "fruit",
+                "price": 65000,
+                "stock": 30
+              },
+              {
+                "sku": "DRY-310",
+                "name": "Gạo ST25 (5 kg)",
+                "category": "dry",
+                "price": 180000,
+                "stock": 15
+              },
+              {
+                "sku": "VEG-110",
+                "name": "Nấm hương khô",
+                "category": "vegetables",
+                "price": 89000,
+                "stock": 8
+              }
+            ],
+            "edits": [
+              {
+                "sku": "FRT-201",
+                "patch": {
+                  "name": "Bưởi Diễn",
+                  "price": 59000
+                }
+              },
+              {
+                "sku": "VEG-110",
+                "patch": {
+                  "category": "dry"
+                }
+              }
+            ]
+          },
+          "expected": "FRT-201 Bưởi Diễn (fruit) 59000 đ, stock 30\nDRY-310 Gạo ST25 (5 kg) (dry) 180000 đ, stock 15\nVEG-110 Nấm hương khô (dry) 89000 đ, stock 8\nchanged 2, originals intact\nstock: vegetables 0, fruit 30, meat 0, dairy 0, dry 23",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Unknown sku, and a negative price is ignored",
+          "input": {
+            "products": [
+              {
+                "sku": "EGG-020",
+                "name": "Trứng gà (10)",
+                "category": "dairy",
+                "price": 38000,
+                "stock": 60
+              }
+            ],
+            "edits": [
+              {
+                "sku": "EGG-999",
+                "patch": {
+                  "stock": 5
+                }
+              },
+              {
+                "sku": "EGG-020",
+                "patch": {
+                  "price": -38000,
+                  "stock": 48
+                }
+              }
+            ]
+          },
+          "expected": "no product EGG-999\nEGG-020 Trứng gà (10) (dairy) 38000 đ, stock 48\nchanged 1, originals intact\nstock: vegetables 0, fruit 0, meat 0, dairy 48, dry 0",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Several edits to the same product, in order",
+          "input": {
+            "products": [
+              {
+                "sku": "MEA-210",
+                "name": "Bò thăn (500 g)",
+                "category": "meat",
+                "price": 100000,
+                "stock": 10
+              },
+              {
+                "sku": "FRT-205",
+                "name": "Thanh long ruột đỏ",
+                "category": "fruit",
+                "price": 45000,
+                "stock": 22
+              }
+            ],
+            "edits": [
+              {
+                "sku": "MEA-210",
+                "patch": {
+                  "price": 110000,
+                  "stock": null
+                }
+              },
+              {
+                "sku": "MEA-210",
+                "patch": {
+                  "name": "Bò thăn Úc (500 g)",
+                  "stock": -1
+                }
+              },
+              {
+                "sku": "MEA-210",
+                "patch": {
+                  "stock": 6
+                }
+              }
+            ]
+          },
+          "expected": "MEA-210 Bò thăn Úc (500 g) (meat) 110000 đ, stock 6\nFRT-205 Thanh long ruột đỏ (fruit) 45000 đ, stock 22\nchanged 1, originals intact\nstock: vegetables 0, fruit 22, meat 6, dairy 0, dry 0",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "An edit where nothing was touched changes nothing",
+          "input": {
+            "products": [
+              {
+                "sku": "VEG-101",
+                "name": "Cải ngọt",
+                "category": "vegetables",
+                "price": 12000,
+                "stock": 40
+              },
+              {
+                "sku": "VEG-102",
+                "name": "Rau muống",
+                "category": "vegetables",
+                "price": 10000,
+                "stock": 55
+              }
+            ],
+            "edits": [
+              {
+                "sku": "VEG-102",
+                "patch": {
+                  "name": null,
+                  "category": null,
+                  "price": null,
+                  "stock": null
+                }
+              }
+            ]
+          },
+          "expected": "VEG-101 Cải ngọt (vegetables) 12000 đ, stock 40\nVEG-102 Rau muống (vegetables) 10000 đ, stock 55\nchanged 0, originals intact\nstock: vegetables 95, fruit 0, meat 0, dairy 0, dry 0",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Price 0 and stock 0 are real values",
+          "input": {
+            "products": [
+              {
+                "sku": "DRY-311",
+                "name": "Nước mắm (500 ml)",
+                "category": "dry",
+                "price": 99000,
+                "stock": 14
+              },
+              {
+                "sku": "DAI-001",
+                "name": "Sữa chua (4 hộp)",
+                "category": "dairy",
+                "price": 32000,
+                "stock": 9
+              }
+            ],
+            "edits": [
+              {
+                "sku": "DAI-001",
+                "patch": {
+                  "price": 0,
+                  "name": "Sữa chua (quà tặng)"
+                }
+              },
+              {
+                "sku": "DRY-311",
+                "patch": {
+                  "stock": 0
+                }
+              }
+            ]
+          },
+          "expected": "DRY-311 Nước mắm (500 ml) (dry) 99000 đ, stock 0\nDAI-001 Sữa chua (quà tặng) (dairy) 0 đ, stock 9\nchanged 2, originals intact\nstock: vegetables 0, fruit 0, meat 0, dairy 9, dry 0",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

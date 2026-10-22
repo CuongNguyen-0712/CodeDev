@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_tsf_411",
+      "key": "challenges/typescript/chal_fix_tsf_411/starter.ts",
+      "contentType": "application/typescript; charset=utf-8",
+      "originalName": "main.ts",
+      "size": 2067
+    }
+  ]
+}

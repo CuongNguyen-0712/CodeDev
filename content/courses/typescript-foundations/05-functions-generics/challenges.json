@@ -1,0 +1,254 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_tsf_221",
+      "name": "generic-report-helpers",
+      "type": "mini_coding",
+      "title": "Write generic helpers for the weekly report",
+      "description": "The Monday report at Chợ Sớm said the weekly revenue was NaN, because a helper typed with any accepted a misspelled property name. Write three generic helpers that take a callback instead of a property name: countBy (how many items per key, keys in order of first appearance), maxBy (the first item with the highest score, undefined for an empty list) and sumBy (the sum of a value over all items). The test runner uses each helper with orders and with product reviews, so they must be generic; it does not compile until maxBy and sumBy exist. It reads the orders and reviews as JSON and prints the report.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A normal week",
+          "input": {
+            "orders": [
+              {
+                "id": "CS-24101",
+                "status": "paid",
+                "total": 245000
+              },
+              {
+                "id": "CS-24102",
+                "status": "paid",
+                "total": 185000
+              },
+              {
+                "id": "CS-24103",
+                "status": "cancelled",
+                "total": 390000
+              },
+              {
+                "id": "CS-24104",
+                "status": "refunded",
+                "total": 60000
+              },
+              {
+                "id": "CS-24105",
+                "status": "paid",
+                "total": 312000
+              }
+            ],
+            "reviews": [
+              {
+                "sku": "VEG-101",
+                "author": "Lan Anh",
+                "stars": 5
+              },
+              {
+                "sku": "MEA-204",
+                "author": "Quốc Bảo",
+                "stars": 4
+              },
+              {
+                "sku": "FRT-201",
+                "author": "Thu Hà",
+                "stars": 2
+              },
+              {
+                "sku": "EGG-020",
+                "author": "Minh Châu",
+                "stars": 5
+              }
+            ]
+          },
+          "expected": "orders by status: paid 3, cancelled 1, refunded 1\nrevenue: 742000\nbiggest order: CS-24103 (390000)\nreviews by stars: 5* 2, 4* 1, 2* 1\nbest review: VEG-101 by Lan Anh (5*)\naverage stars: 4.0",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Two orders share the biggest total: the first one wins",
+          "input": {
+            "orders": [
+              {
+                "id": "CS-24110",
+                "status": "paid",
+                "total": 120000
+              },
+              {
+                "id": "CS-24111",
+                "status": "paid",
+                "total": 450000
+              },
+              {
+                "id": "CS-24112",
+                "status": "refunded",
+                "total": 450000
+              }
+            ],
+            "reviews": [
+              {
+                "sku": "DRY-310",
+                "author": "Đức Long",
+                "stars": 3
+              }
+            ]
+          },
+          "expected": "orders by status: paid 2, refunded 1\nrevenue: 570000\nbiggest order: CS-24111 (450000)\nreviews by stars: 3* 1\nbest review: DRY-310 by Đức Long (3*)\naverage stars: 3.0",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A week without reviews",
+          "input": {
+            "orders": [
+              {
+                "id": "CS-24120",
+                "status": "paid",
+                "total": 99000
+              }
+            ],
+            "reviews": []
+          },
+          "expected": "orders by status: paid 1\nrevenue: 99000\nbiggest order: CS-24120 (99000)\nreviews by stars: none\nbest review: none\naverage stars: none",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "No orders, and reviews in order of first appearance",
+          "input": {
+            "orders": [],
+            "reviews": [
+              {
+                "sku": "VEG-104",
+                "author": "Thanh Hương",
+                "stars": 4
+              },
+              {
+                "sku": "MEA-210",
+                "author": "Văn Tâm",
+                "stars": 5
+              },
+              {
+                "sku": "VEG-102",
+                "author": "Thị Yến",
+                "stars": 1
+              },
+              {
+                "sku": "DRY-311",
+                "author": "Lan Anh",
+                "stars": 5
+              },
+              {
+                "sku": "VEG-103",
+                "author": "Quốc Bảo",
+                "stars": 4
+              }
+            ]
+          },
+          "expected": "orders by status: none\nrevenue: 0\nbiggest order: none\nreviews by stars: 4* 2, 5* 2, 1* 1\nbest review: MEA-210 by Văn Tâm (5*)\naverage stars: 3.8",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Only a cancelled order: revenue 0",
+          "input": {
+            "orders": [
+              {
+                "id": "CS-24130",
+                "status": "cancelled",
+                "total": 75000
+              }
+            ],
+            "reviews": [
+              {
+                "sku": "FRT-205",
+                "author": "Minh Châu",
+                "stars": 1
+              },
+              {
+                "sku": "FRT-205",
+                "author": "Đức Long",
+                "stars": 2
+              }
+            ]
+          },
+          "expected": "orders by status: cancelled 1\nrevenue: 0\nbiggest order: CS-24130 (75000)\nreviews by stars: 1* 1, 2* 1\nbest review: FRT-205 by Đức Long (2*)\naverage stars: 1.5",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A busy week",
+          "input": {
+            "orders": [
+              {
+                "id": "CS-24140",
+                "status": "refunded",
+                "total": 52000
+              },
+              {
+                "id": "CS-24141",
+                "status": "paid",
+                "total": 188000
+              },
+              {
+                "id": "CS-24142",
+                "status": "paid",
+                "total": 1250000
+              },
+              {
+                "id": "CS-24143",
+                "status": "cancelled",
+                "total": 64000
+              },
+              {
+                "id": "CS-24144",
+                "status": "paid",
+                "total": 43000
+              },
+              {
+                "id": "CS-24145",
+                "status": "paid",
+                "total": 1250000
+              },
+              {
+                "id": "CS-24146",
+                "status": "refunded",
+                "total": 99000
+              }
+            ],
+            "reviews": [
+              {
+                "sku": "MEA-204",
+                "author": "Thu Hà",
+                "stars": 3
+              },
+              {
+                "sku": "VEG-101",
+                "author": "Văn Tâm",
+                "stars": 3
+              },
+              {
+                "sku": "EGG-020",
+                "author": "Thị Yến",
+                "stars": 4
+              }
+            ]
+          },
+          "expected": "orders by status: refunded 2, paid 4, cancelled 1\nrevenue: 2731000\nbiggest order: CS-24142 (1250000)\nreviews by stars: 3* 2, 4* 1\nbest review: EGG-020 by Thị Yến (4*)\naverage stars: 3.3",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

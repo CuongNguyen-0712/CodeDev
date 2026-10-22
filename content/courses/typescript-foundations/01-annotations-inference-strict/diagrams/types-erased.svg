@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+    <marker id="arrRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#dc2626"/></marker>
+    <marker id="arrGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#16a34a"/></marker>
+  </defs>
+  <rect width="1200" height="680" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Types are checked before the code runs, then erased</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The same checkout.ts, two ways to run it: only tsc reads the types</text>
+
+  <!-- source -->
+  <rect x="40" y="120" width="330" height="190" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="60" y="150" font-size="17" font-weight="700" fill="#1d4ed8" font-family="Consolas, 'Courier New', monospace">checkout.ts</text>
+  <text x="60" y="184" font-size="14" fill="#1e3a8a" font-family="Consolas, 'Courier New', monospace">function orderTotal(</text>
+  <text x="76" y="206" font-size="14" fill="#1e3a8a" font-family="Consolas, 'Courier New', monospace">subtotal: number,</text>
+  <text x="76" y="228" font-size="14" fill="#1e3a8a" font-family="Consolas, 'Courier New', monospace">shipping: number</text>
+  <text x="60" y="250" font-size="14" fill="#1e3a8a" font-family="Consolas, 'Courier New', monospace">): number { ... }</text>
+  <text x="60" y="284" font-size="14" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">orderTotal(155000, "30000")</text>
+
+  <!-- path 1: tsc -->
+  <line x1="370" y1="190" x2="470" y2="190" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+  <rect x="475" y="140" width="250" height="100" rx="10" fill="#f8fafc" stroke="#475569" stroke-width="2"/>
+  <text x="495" y="172" font-size="17" font-weight="700" fill="#0f172a">tsc --strict</text>
+  <text x="495" y="198" font-size="14" fill="#475569">reads every annotation,</text>
+  <text x="495" y="220" font-size="14" fill="#475569">checks every call</text>
+
+  <line x1="725" y1="170" x2="800" y2="140" stroke="#dc2626" stroke-width="2.5" marker-end="url(#arrRed)"/>
+  <rect x="805" y="104" width="355" height="86" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="823" y="132" font-size="15" font-weight="700" fill="#b91c1c">error TS2345, nothing is emitted</text>
+  <text x="823" y="156" font-size="13" fill="#7f1d1d">Argument of type 'string' is not assignable</text>
+  <text x="823" y="176" font-size="13" fill="#7f1d1d">to parameter of type 'number'.</text>
+
+  <line x1="725" y1="215" x2="800" y2="250" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrGreen)"/>
+  <rect x="805" y="212" width="355" height="96" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="823" y="240" font-size="15" font-weight="700" fill="#15803d">no errors: checkout.js</text>
+  <text x="823" y="264" font-size="13" fill="#166534" font-family="Consolas, 'Courier New', monospace">function orderTotal(subtotal, shipping)</text>
+  <text x="823" y="288" font-size="13" fill="#166534">same code, annotations removed</text>
+
+  <!-- path 2: node strips -->
+  <line x1="205" y1="310" x2="205" y2="390" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+  <rect x="40" y="395" width="330" height="96" rx="10" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+  <text x="60" y="425" font-size="17" font-weight="700" fill="#c2410c" font-family="Consolas, 'Courier New', monospace">node checkout.ts</text>
+  <text x="60" y="451" font-size="14" fill="#7c2d12">Node 24 strips the types and runs.</text>
+  <text x="60" y="473" font-size="14" fill="#7c2d12">It never checks them.</text>
+  <line x1="370" y1="443" x2="470" y2="443" stroke="#ea580c" stroke-width="2.5" marker-end="url(#arr)"/>
+  <rect x="475" y="400" width="685" height="86" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="495" y="430" font-size="15" font-weight="700" fill="#b91c1c">runtime: the Saturday bug ships</text>
+  <text x="495" y="458" font-size="14" fill="#7f1d1d" font-family="Consolas, 'Courier New', monospace">total: 15500030000    VNPay amount: 1550003000000</text>
+
+  <!-- bottom -->
+  <rect x="40" y="530" width="1120" height="120" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="64" y="562" font-size="16" font-weight="700" fill="#0f172a">What this means for your code</text>
+  <text x="64" y="590" font-size="14" fill="#334155">1. Type errors are found by running tsc (in CI, in the editor), never by running the program.</text>
+  <text x="64" y="614" font-size="14" fill="#334155">2. At runtime there are no types: a form field is still a string. Convert and check it once, at the edge.</text>
+  <text x="64" y="638" font-size="14" fill="#334155">3. Annotate parameters and exported return types; let inference type the rest.</text>
+</svg>

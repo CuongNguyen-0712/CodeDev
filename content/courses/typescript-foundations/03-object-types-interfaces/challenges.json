@@ -1,0 +1,212 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_tsf_131",
+      "name": "delivery-label",
+      "type": "mini_coding",
+      "title": "Print the delivery label from a typed order",
+      "description": "Every bag that leaves the Chợ Sớm packing hub carries a label printed from a DeliveryOrder. Many of its properties are optional: the apartment, floor and building, the second phone number, the cash to collect, the note. Write formatLabel, which returns the label lines (slot and FRAGILE, recipient, street line from the parts that exist, ward line, cash to collect or paid online, trimmed note), and formatVnd, which puts a dot between every group of three digits. Optional properties must never print as \"undefined\", and 0 is a real floor. The test runner reads a JSON array of orders and prints the labels separated by ---.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A flat in a tower, cash on delivery",
+          "input": [
+            {
+              "id": "CS-24051",
+              "slot": "before-8",
+              "recipient": {
+                "name": "Bùi Lan Anh",
+                "phone": "0912 345 678"
+              },
+              "address": {
+                "street": "21 Lê Văn Lương",
+                "ward": "Nhân Chính",
+                "district": "Thanh Xuân",
+                "city": "Hà Nội",
+                "building": "Sky Tower",
+                "floor": 12,
+                "apartment": "1203"
+              },
+              "codAmount": 245000,
+              "note": "Gọi trước khi lên"
+            }
+          ],
+          "expected": "CS-24051 | BEFORE 08:00\nTo: Bùi Lan Anh, 0912 345 678\nApt 1203, Floor 12, Sky Tower, 21 Lê Văn Lương\nNhân Chính, Thanh Xuân, Hà Nội\nCollect: 245.000 đ\nNote: Gọi trước khi lên",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A house, paid online, no optional properties",
+          "input": [
+            {
+              "id": "CS-24052",
+              "slot": "before-10",
+              "recipient": {
+                "name": "Phạm Quốc Bảo",
+                "phone": "0987 111 222"
+              },
+              "address": {
+                "street": "14 ngõ 75 Hồ Tùng Mậu",
+                "ward": "Mai Dịch",
+                "district": "Cầu Giấy",
+                "city": "Hà Nội"
+              }
+            }
+          ],
+          "expected": "CS-24052 | BEFORE 10:00\nTo: Phạm Quốc Bảo, 0987 111 222\n14 ngõ 75 Hồ Tùng Mậu\nMai Dịch, Cầu Giấy, Hà Nội\nPaid online",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Fragile, a second phone and a large amount",
+          "input": [
+            {
+              "id": "CS-24053",
+              "slot": "before-10",
+              "recipient": {
+                "name": "Đỗ Thu Hà",
+                "phone": "0904 555 666",
+                "altPhone": "024 3826 1234"
+              },
+              "address": {
+                "street": "52 Trần Hưng Đạo",
+                "ward": "Hàng Bài",
+                "district": "Hoàn Kiếm",
+                "city": "Hà Nội",
+                "building": "Toà nhà Hà Thành"
+              },
+              "fragile": true,
+              "codAmount": 1250000
+            }
+          ],
+          "expected": "CS-24053 | BEFORE 10:00 | FRAGILE\nTo: Đỗ Thu Hà, 0904 555 666 / 024 3826 1234\nToà nhà Hà Thành, 52 Trần Hưng Đạo\nHàng Bài, Hoàn Kiếm, Hà Nội\nCollect: 1.250.000 đ",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Ground floor is floor 0, and the note is trimmed",
+          "input": [
+            {
+              "id": "CS-24054",
+              "slot": "before-8",
+              "recipient": {
+                "name": "Ngô Minh Châu",
+                "phone": "0936 777 888"
+              },
+              "address": {
+                "street": "8 Nguyễn Chí Thanh",
+                "ward": "Láng Thượng",
+                "district": "Đống Đa",
+                "city": "Hà Nội",
+                "floor": 0,
+                "apartment": "G02"
+              },
+              "codAmount": 89000,
+              "note": "   Để hàng ở bảo vệ  "
+            }
+          ],
+          "expected": "CS-24054 | BEFORE 08:00\nTo: Ngô Minh Châu, 0936 777 888\nApt G02, Ground floor, 8 Nguyễn Chí Thanh\nLáng Thượng, Đống Đa, Hà Nội\nCollect: 89.000 đ\nNote: Để hàng ở bảo vệ",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Empty second phone, blank note and nothing to collect",
+          "input": [
+            {
+              "id": "CS-24055",
+              "slot": "before-8",
+              "recipient": {
+                "name": "Vũ Đức Long",
+                "phone": "0977 222 333",
+                "altPhone": ""
+              },
+              "address": {
+                "street": "3 Phố Huế",
+                "ward": "Ngô Thì Nhậm",
+                "district": "Hai Bà Trưng",
+                "city": "Hà Nội",
+                "floor": 3
+              },
+              "fragile": false,
+              "codAmount": 0,
+              "note": "   "
+            },
+            {
+              "id": "CS-24056",
+              "slot": "before-10",
+              "recipient": {
+                "name": "Trịnh Thị Yến",
+                "phone": "0965 444 555"
+              },
+              "address": {
+                "street": "120 Xuân Thuỷ",
+                "ward": "Dịch Vọng Hậu",
+                "district": "Cầu Giấy",
+                "city": "Hà Nội",
+                "building": "Chung cư 120",
+                "floor": 7
+              },
+              "codAmount": 5000
+            }
+          ],
+          "expected": "CS-24055 | BEFORE 08:00\nTo: Vũ Đức Long, 0977 222 333\nFloor 3, 3 Phố Huế\nNgô Thì Nhậm, Hai Bà Trưng, Hà Nội\nPaid online\n---\nCS-24056 | BEFORE 10:00\nTo: Trịnh Thị Yến, 0965 444 555\nFloor 7, Chung cư 120, 120 Xuân Thuỷ\nDịch Vọng Hậu, Cầu Giấy, Hà Nội\nCollect: 5.000 đ",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Small and very large amounts",
+          "input": [
+            {
+              "id": "CS-24057",
+              "slot": "before-10",
+              "recipient": {
+                "name": "Hồ Văn Tâm",
+                "phone": "0911 000 999"
+              },
+              "address": {
+                "street": "2 Hoa Lư",
+                "ward": "Lê Đại Hành",
+                "district": "Hai Bà Trưng",
+                "city": "Hà Nội"
+              },
+              "codAmount": 999
+            },
+            {
+              "id": "CS-24058",
+              "slot": "before-8",
+              "recipient": {
+                "name": "Lý Thanh Hương",
+                "phone": "0909 123 123",
+                "altPhone": "0909 456 456"
+              },
+              "address": {
+                "street": "1 Tràng Tiền",
+                "ward": "Tràng Tiền",
+                "district": "Hoàn Kiếm",
+                "city": "Hà Nội",
+                "building": "Tràng Tiền Plaza",
+                "floor": 0
+              },
+              "fragile": true,
+              "codAmount": 10000000,
+              "note": "Hàng dễ vỡ, nhẹ tay"
+            }
+          ],
+          "expected": "CS-24057 | BEFORE 10:00\nTo: Hồ Văn Tâm, 0911 000 999\n2 Hoa Lư\nLê Đại Hành, Hai Bà Trưng, Hà Nội\nCollect: 999 đ\n---\nCS-24058 | BEFORE 08:00 | FRAGILE\nTo: Lý Thanh Hương, 0909 123 123 / 0909 456 456\nGround floor, Tràng Tiền Plaza, 1 Tràng Tiền\nTràng Tiền, Hoàn Kiếm, Hà Nội\nCollect: 10.000.000 đ\nNote: Hàng dễ vỡ, nhẹ tay",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

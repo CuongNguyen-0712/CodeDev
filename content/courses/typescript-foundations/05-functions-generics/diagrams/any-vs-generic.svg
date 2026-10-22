@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+  </defs>
+  <rect width="1200" height="700" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">any forgets the type. A type parameter carries it through the call.</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The same helper, typed two ways, called with the same typo</text>
+
+  <!-- any -->
+  <rect x="40" y="110" width="540" height="560" rx="12" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="62" y="144" font-size="18" font-weight="700" fill="#b91c1c">With any</text>
+  <rect x="62" y="160" width="496" height="70" rx="8" fill="#ffffff" stroke="#fca5a5"/>
+  <text x="78" y="188" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">function sumBy(items: any[],</text>
+  <text x="78" y="212" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">               key: string): number</text>
+  <text x="62" y="268" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">sumBy(orders, "totl")</text>
+  <line x1="300" y1="276" x2="300" y2="318" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="62" y="346" font-size="14" fill="#7f1d1d">items: any[] - Order is forgotten at the parameter</text>
+  <text x="62" y="372" font-size="14" fill="#7f1d1d">key: string - every string is accepted</text>
+  <line x1="300" y1="386" x2="300" y2="428" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <rect x="62" y="436" width="496" height="64" rx="8" fill="#fee2e2" stroke="#dc2626"/>
+  <text x="78" y="462" font-size="15" font-weight="700" fill="#b91c1c">compiles</text>
+  <text x="78" y="486" font-size="14" fill="#7f1d1d" font-family="Consolas, 'Courier New', monospace">0 + undefined + undefined = NaN</text>
+  <text x="62" y="540" font-size="14" fill="#7f1d1d">"revenue this week: NaN đ" in the founders' inbox</text>
+  <text x="62" y="580" font-size="13" fill="#7f1d1d">and any spreads: item[key] is any, the sum is any,</text>
+  <text x="62" y="602" font-size="13" fill="#7f1d1d">anything computed from it is unchecked too</text>
+
+  <!-- generic -->
+  <rect x="620" y="110" width="540" height="560" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="642" y="144" font-size="18" font-weight="700" fill="#15803d">With a type parameter</text>
+  <rect x="642" y="160" width="496" height="70" rx="8" fill="#ffffff" stroke="#86efac"/>
+  <text x="658" y="188" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">function sumBy&lt;T&gt;(items: readonly T[],</text>
+  <text x="658" y="212" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">  value: (item: T) =&gt; number): number</text>
+
+  <text x="642" y="268" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">sumBy(orders, (o) =&gt; o.totl)</text>
+  <line x1="880" y1="276" x2="880" y2="318" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="642" y="346" font-size="14" fill="#166534">orders is Order[], so T = Order (inferred)</text>
+  <text x="642" y="372" font-size="14" fill="#166534">so the callback's o is an Order</text>
+  <line x1="880" y1="386" x2="880" y2="428" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <rect x="642" y="436" width="496" height="64" rx="8" fill="#fee2e2" stroke="#dc2626"/>
+  <text x="658" y="462" font-size="15" font-weight="700" fill="#b91c1c">error TS2551</text>
+  <text x="658" y="486" font-size="13" fill="#7f1d1d">Property 'totl' does not exist on type 'Order'. Did you mean 'total'?</text>
+
+  <text x="642" y="540" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">sumBy(reviews, (r) =&gt; r.stars)</text>
+  <text x="642" y="566" font-size="14" fill="#166534">same function, T = Review this time</text>
+  <text x="642" y="602" font-size="13" fill="#166534">one implementation, checked separately at every call:</text>
+  <text x="642" y="624" font-size="13" fill="#166534">the type goes in with the argument and comes out typed</text>
+</svg>

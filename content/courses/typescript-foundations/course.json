@@ -2,10 +2,10 @@
   "publicId": "typescript-foundations",
   "title": "TypeScript Foundations: Types that Catch Bugs Before Users Do",
   "concept": "Turn runtime crashes into compile errors: type annotations and inference, unions and narrowing, object types and interfaces, arrays and tuples, generics, discriminated unions with exhaustive checks, utility types and safe JSON parsing with unknown.",
-  "description": "Turn runtime crashes into compile errors: type annotations and inference, unions and narrowing, object types and interfaces, arrays and tuples, generics, discriminated unions with exhaustive checks, utility types and safe JSON parsing with unknown. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "description": "Turn runtime crashes into compile errors with TypeScript 5.9 in strict mode: type annotations and inference, unions and narrowing, object types and interfaces, readonly arrays and tuples, generics, discriminated unions with exhaustive checks, utility types and safe JSON parsing with unknown - ending with a typed order pipeline. 9 lessons, each starting from a real bug at Chợ Sớm, an online grocery in Hà Nội, with quizzes and TypeScript challenges graded by the real type checker.",
   "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792641979/codedev/courses/typescript-foundations/cover",
   "level": "beginner",
-  "durationMinutes": 180,
+  "durationMinutes": 185,
   "instructor": "CodeDev Engineering Team",
   "language": "TypeScript",
   "category": "Frontend Development",
@@ -34,26 +34,28 @@
   "prerequisites": [
     "js-modern-foundations"
   ],
-  "modules": [],
-  "outline": [
+  "modules": [
     {
       "orderIndex": 1,
       "title": "Types",
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "01-annotations-inference-strict",
           "title": "Annotations, inference & strict mode",
-          "challenges": "Q(e) + C(e)"
+          "sanityId": "lesson-tsf-1-1"
         },
         {
           "orderIndex": 2,
+          "folder": "02-unions-narrowing",
           "title": "Unions & narrowing: the undefined crash",
-          "challenges": "Q(e) + F(e)"
+          "sanityId": "lesson-tsf-1-2"
         },
         {
           "orderIndex": 3,
+          "folder": "03-object-types-interfaces",
           "title": "Object types, interfaces & optional properties",
-          "challenges": "C(m)"
+          "sanityId": "lesson-tsf-1-3"
         }
       ]
     },
@@ -63,13 +65,15 @@
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "04-arrays-tuples-readonly",
           "title": "Arrays, tuples & readonly",
-          "challenges": "Q(m) + F(m)"
+          "sanityId": "lesson-tsf-2-1"
         },
         {
           "orderIndex": 2,
+          "folder": "05-functions-generics",
           "title": "Functions & generics",
-          "challenges": "C(m)"
+          "sanityId": "lesson-tsf-2-2"
         }
       ]
     },
@@ -79,13 +83,15 @@
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "06-discriminated-unions",
           "title": "Discriminated unions & exhaustive switch",
-          "challenges": "Q(m) + C(m)"
+          "sanityId": "lesson-tsf-3-1"
         },
         {
           "orderIndex": 2,
+          "folder": "07-utility-types",
           "title": "Utility types: Partial, Pick, Omit & Record",
-          "challenges": "C(m)"
+          "sanityId": "lesson-tsf-3-2"
         }
       ]
     },
@@ -95,13 +101,15 @@
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "08-unknown-json-parsing",
           "title": "unknown vs any: parsing JSON safely",
-          "challenges": "F(m)"
+          "sanityId": "lesson-tsf-4-1"
         },
         {
           "orderIndex": 2,
+          "folder": "09-typed-order-pipeline",
           "title": "Mini project: a typed order pipeline",
-          "challenges": "C(h)"
+          "sanityId": "lesson-tsf-4-2"
         }
       ]
     }

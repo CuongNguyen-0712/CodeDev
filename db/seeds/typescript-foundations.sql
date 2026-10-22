@@ -19,7 +19,7 @@ BEGIN
 END $$;
 
 INSERT INTO catalog.course (public_id, title, concept, description, image, level, duration, instructor, cost, point_price, reward, language_id, category_id, access_model, publish_status, is_hidden, is_deleted)
-VALUES ('typescript-foundations', 'TypeScript Foundations: Types that Catch Bugs Before Users Do', 'Turn runtime crashes into compile errors: type annotations and inference, unions and narrowing, object types and interfaces, arrays and tuples, generics, discriminated unions with exhaustive checks, utility types and safe JSON parsing with unknown.', 'Turn runtime crashes into compile errors: type annotations and inference, unions and narrowing, object types and interfaces, arrays and tuples, generics, discriminated unions with exhaustive checks, utility types and safe JSON parsing with unknown. 9 lessons, each starting from a real bug or incident, with graded challenges.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792641979/codedev/courses/typescript-foundations/cover', 'beginner'::level_enum, 180, 'CodeDev Engineering Team', 0, 0, 50,
+VALUES ('typescript-foundations', 'TypeScript Foundations: Types that Catch Bugs Before Users Do', 'Turn runtime crashes into compile errors: type annotations and inference, unions and narrowing, object types and interfaces, arrays and tuples, generics, discriminated unions with exhaustive checks, utility types and safe JSON parsing with unknown.', 'Turn runtime crashes into compile errors with TypeScript 5.9 in strict mode: type annotations and inference, unions and narrowing, object types and interfaces, readonly arrays and tuples, generics, discriminated unions with exhaustive checks, utility types and safe JSON parsing with unknown - ending with a typed order pipeline. 9 lessons, each starting from a real bug at Chợ Sớm, an online grocery in Hà Nội, with quizzes and TypeScript challenges graded by the real type checker.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792641979/codedev/courses/typescript-foundations/cover', 'beginner'::level_enum, 185, 'CodeDev Engineering Team', 0, 0, 50,
         (SELECT id FROM catalog.language WHERE name = 'TypeScript'),
         (SELECT id FROM catalog.category WHERE name = 'Frontend Development'),
         'free', 'draft', true, false)
@@ -56,6 +56,501 @@ JOIN catalog.skill s ON s.code = v.code;
 DELETE FROM catalog.course_prerequisite WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations');
 INSERT INTO catalog.course_prerequisite (course_id, prerequisite_course_id)
 SELECT (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations'), id FROM catalog.course WHERE public_id = ANY(ARRAY['js-modern-foundations']::text[]);
+
+-- module 1: Types
+UPDATE course.module SET title = 'Types', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations'), 'Types', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 1 AND is_deleted = false);
+
+-- lesson 1.1: Annotations, inference & strict mode (Sanity lesson-tsf-1-1)
+UPDATE course.lesson SET title = 'Annotations, inference & strict mode', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-tsf-1-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), 'Annotations, inference & strict mode', 'sanity', 'lesson-tsf-1-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-tsf-1-1' AND is_deleted = false);
+
+-- challenge chal_quiz_tsf_111 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_tsf_111', (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-tsf-1-1' AND is_deleted = false LIMIT 1), 'annotations-inference-quiz', 'Predict it: what does tsc --strict accept?', 'Decide what the type checker says about a number plus a string, then pick the declarations that compile under strict mode.', 'open', 'easy'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_tsf_111'), 'What does tsc --strict say about these two lines, and what is total when the program runs?
+
+let shipping = "30000";
+const total = 155000 + shipping;', 'single_choice'::question_type, '+ with a string operand is string concatenation in JavaScript, and TypeScript allows it: shipping is inferred as string, so total is inferred as string, with the value "15500030000". There is no error on these lines. The error appears where total is used as a number - passing it to a function whose parameter is annotated number, or assigning it to a variable annotated number. TypeScript never converts values: types are erased before the code runs. JavaScript does not throw a TypeError for number + string either.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_tsf_111') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('error TS2365: Operator ''+'' cannot be applied to types ''number'' and ''string''.', false),
+        ('No error: total is inferred as string, and its value is "15500030000".', true),
+        ('No error: TypeScript converts shipping to a number, so total is 185000.', false),
+        ('No error when compiling, but the second line throws a TypeError at runtime.', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_tsf_111'), 'Which of these snippets compile with tsc --strict? (Select all that apply.)', 'multiple_choice'::question_type, 'const zone = "hanoi" has the literal type "hanoi", which is assignable to string. fee(2) returns a number because the return type is inferred from weightKg * 5000. const only stops line from being reassigned; its properties keep their inferred types (qty: number) and can change. let count = 0 infers number, so assigning "3" is error TS2322. A parameter without an annotation is implicitly any, which strict mode (noImplicitAny) reports as error TS7006. prices is inferred as number[], so push("free") is error TS2345.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_tsf_111') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('let count = 0;
+count = "3";', false),
+        ('const zone = "hanoi";
+let city: string = zone;', true),
+        ('function fee(weightKg) { return weightKg * 5000; }', false),
+        ('function fee(weightKg: number) { return weightKg * 5000; }
+const f: number = fee(2);', true),
+        ('const prices = [15000, 125000];
+prices.push("free");', false),
+        ('const line = { sku: "VEG-101", qty: 2 };
+line.qty = 3;', true)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_tsf_112 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_tsf_112', (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-tsf-1-1' AND is_deleted = false LIMIT 1), 'checkout-form-total', 'Compute the checkout total from form strings', 'Every field of the Chợ Sớm checkout form arrives as a string, and shoppers type amounts with dots between the thousands ("155.000"). Annotate and write toVnd, which turns a field into a number of đồng (spaces ignored, empty means 0, digits or groups of three separated by dots, anything else is NaN), and orderTotal, which takes the voucher off the subtotal (never more than the subtotal) and waives shipping when the subtotal is 300.000 đ or more. The starter does not compile under --strict until both functions have type annotations. The test runner reads the form as JSON and prints the total, or the first invalid field.', 'open', 'easy'::difficulty_question, 'mini_coding', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_112'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_112');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_112'), 'Plain digits, empty voucher', '{"subtotal":"155000","shipping":"30000","voucher":""}', '"total: 185000"', 3, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_112'), 'Dots between the thousands', '{"subtotal":"155.000","shipping":"30.000","voucher":"20.000"}', '"total: 165000"', 3, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_112'), 'A comma is not a thousands separator', '{"subtotal":"155.000","shipping":"30,000","voucher":""}', '"invalid shipping: \"30,000\""', 3, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_112'), 'Free shipping is decided before the voucher', '{"subtotal":"310.000","shipping":"30.000","voucher":"20.000"}', '"total: 290000"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_112'), 'Voucher larger than the subtotal', '{"subtotal":"50.000","shipping":"30.000","voucher":"80.000"}', '"total: 30000"', 2, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_112'), 'Spaces, millions and a missing voucher field', '{"subtotal":" 1.250.000 ","shipping":"0"}', '"total: 1250000"', 2, false, true, 6),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_112'), 'Just below free shipping', '{"subtotal":"299.999","shipping":"30.000","voucher":"0"}', '"total: 329999"', 2, false, true, 7),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_112'), 'A decimal voucher is invalid', '{"subtotal":"155.000","shipping":"30.000","voucher":"1.5"}', '"invalid voucher: \"1.5\""', 2, false, true, 8),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_112'), 'Negative amounts and broken groups are invalid', '{"subtotal":"-5000","shipping":"30.00","voucher":""}', '"invalid subtotal: \"-5000\""', 2, false, true, 9),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_112'), 'Groups of three only', '{"subtotal":"155.000","shipping":"30.00","voucher":""}', '"invalid shipping: \"30.00\""', 2, false, true, 10);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_tsf_112_starter', 's3', 'challenges/typescript/chal_coding_tsf_112/starter.ts', 'raw', 'application/typescript', 1831, 'main.ts')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_112'), 'typescript', 'main.ts', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_tsf_112_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 1.2: Unions & narrowing: the undefined crash (Sanity lesson-tsf-1-2)
+UPDATE course.lesson SET title = 'Unions & narrowing: the undefined crash', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-tsf-1-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), 'Unions & narrowing: the undefined crash', 'sanity', 'lesson-tsf-1-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-tsf-1-2' AND is_deleted = false);
+
+-- challenge chal_quiz_tsf_121 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_tsf_121', (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-tsf-1-2' AND is_deleted = false LIMIT 1), 'unions-narrowing-quiz', 'Predict it: undefined, 0 and narrowing', 'Find the falsy-zero trap in a template string, then pick the ways to read a value that might be undefined that both compile under --strict and never throw.', 'open', 'easy'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_tsf_121'), 'What does label(0) return?
+
+function label(eta: number | undefined): string {
+  return `arriving in ${eta || "a few"} minutes`;
+}', 'single_choice'::question_type, '|| returns its right side whenever the left side is falsy, and 0 is falsy just like undefined, null, "" and NaN. So eta || "a few" is "a few" for eta = 0, and the courier who is already at the door is shown as arriving in a few minutes. The code compiles: eta || "a few" has the type number | string, which a template string accepts. Use eta ?? "a few" (only null and undefined fall through) or test eta === undefined explicitly.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_tsf_121') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('"arriving in 0 minutes"', false),
+        ('"arriving in a few minutes"', true),
+        ('"arriving in undefined minutes"', false),
+        ('Nothing: error TS18048, ''eta'' is possibly ''undefined''.', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_tsf_121'), 'const courier = couriers.find((c) => c.id === id); gives courier the type Courier | undefined. Which lines compile with tsc --strict AND never throw at runtime? (Select all that apply.)', 'multiple_choice'::question_type, 'courier?.name ?? "unassigned" stops at undefined and supplies a fallback. if (courier) and an early return on courier === undefined both narrow courier to Courier for the code that reads .name. courier.name is error TS18048 (''courier'' is possibly ''undefined''). courier!.name compiles because ! tells the checker to trust you, and throws the exact TypeError of the incident when find returns undefined. courier !== null does not remove undefined from the type (find never returns null), so courier.name inside it is still error TS18048.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_tsf_121') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('console.log(courier.name);', false),
+        ('console.log(courier?.name ?? "unassigned");', true),
+        ('console.log(courier!.name);', false),
+        ('if (courier) { console.log(courier.name); }', true),
+        ('if (courier !== null) { console.log(courier.name); }', false),
+        ('if (courier === undefined) return;
+console.log(courier.name);', true)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_fix_tsf_122 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_fix_tsf_122', (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-tsf-1-2' AND is_deleted = false LIMIT 1), 'fix-tracking-undefined-courier', 'Fix the tracking page that crashes on a missing courier', 'The Chợ Sớm tracking page crashed with "Cannot read properties of undefined (reading ''name'')" for every order whose courier had left the company. In TypeScript the same code does not even compile: couriers.find returns Courier | undefined. Fix trackingLine by narrowing (no ! operator): an order without a courier is waiting for one, a courier who is not in the list is not available, an ETA of null means the courier is on the way and an ETA of 0 means the courier is at the door. The test runner reads the couriers and the orders as JSON and prints one line per order.', 'open', 'easy'::difficulty_question, 'fix_bug', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_122'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_122');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_122'), 'Two orders with their couriers', '{"couriers":[{"id":"C-07","name":"Trần Văn Hùng","phone":"0903 112 233"},{"id":"C-12","name":"Lê Thị Mai","phone":"0912 445 566"}],"orders":[{"id":"CS-24017","courierId":"C-12","etaMinutes":25},{"id":"CS-24019","courierId":"C-07","etaMinutes":8}]}', '"CS-24017: Lê Thị Mai (0912 445 566) arrives in 25 min\nCS-24019: Trần Văn Hùng (0903 112 233) arrives in 8 min"', 3, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_122'), 'The incident: a courier who left on Monday', '{"couriers":[{"id":"C-07","name":"Trần Văn Hùng","phone":"0903 112 233"}],"orders":[{"id":"CS-24018","courierId":"C-03","etaMinutes":40},{"id":"CS-24019","courierId":"C-07","etaMinutes":8}]}', '"CS-24018: courier C-03 is not available, call 1900 6868\nCS-24019: Trần Văn Hùng (0903 112 233) arrives in 8 min"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_122'), 'Not assigned yet, no position yet', '{"couriers":[{"id":"C-12","name":"Lê Thị Mai","phone":"0912 445 566"}],"orders":[{"id":"CS-24020","courierId":null,"etaMinutes":null},{"id":"CS-24021","courierId":"C-12","etaMinutes":null}]}', '"CS-24020: waiting for a courier\nCS-24021: Lê Thị Mai (0912 445 566) is on the way"', 3, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_122'), 'An ETA of 0 means the courier is at the door', '{"couriers":[{"id":"C-12","name":"Lê Thị Mai","phone":"0912 445 566"}],"orders":[{"id":"CS-24022","courierId":"C-12","etaMinutes":0},{"id":"CS-24023","courierId":"C-12","etaMinutes":1}]}', '"CS-24022: Lê Thị Mai (0912 445 566) is at your door\nCS-24023: Lê Thị Mai (0912 445 566) arrives in 1 min"', 4, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_122'), 'Every case at 06:30, before and after the assignment run', '{"couriers":[{"id":"C-07","name":"Trần Văn Hùng","phone":"0903 112 233"},{"id":"C-15","name":"Nguyễn Thị Hoa","phone":"0988 776 655"}],"orders":[{"id":"CS-24030","courierId":null,"etaMinutes":null},{"id":"CS-24031","courierId":"C-15","etaMinutes":0},{"id":"CS-24032","courierId":"C-03","etaMinutes":null},{"id":"CS-24033","courierId":"C-07","etaMinutes":null},{"id":"CS-24034","courierId":"C-15","etaMinutes":33},{"id":"CS-24035","courierId":null,"etaMinutes":10}]}', '"CS-24030: waiting for a courier\nCS-24031: Nguyễn Thị Hoa (0988 776 655) is at your door\nCS-24032: courier C-03 is not available, call 1900 6868\nCS-24033: Trần Văn Hùng (0903 112 233) is on the way\nCS-24034: Nguyễn Thị Hoa (0988 776 655) arrives in 33 min\nCS-24035: waiting for a courier"', 4, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_122'), 'No couriers at all yet', '{"couriers":[],"orders":[{"id":"CS-24040","courierId":"C-07","etaMinutes":15},{"id":"CS-24041","courierId":null,"etaMinutes":null}]}', '"CS-24040: courier C-07 is not available, call 1900 6868\nCS-24041: waiting for a courier"', 2, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_tsf_122_starter', 's3', 'challenges/typescript/chal_fix_tsf_122/starter.ts', 'raw', 'application/typescript', 1859, 'main.ts')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_122'), 'typescript', 'main.ts', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_tsf_122_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 1.3: Object types, interfaces & optional properties (Sanity lesson-tsf-1-3)
+UPDATE course.lesson SET title = 'Object types, interfaces & optional properties', order_index = 3, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-tsf-1-3' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), 'Object types, interfaces & optional properties', 'sanity', 'lesson-tsf-1-3', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-tsf-1-3' AND is_deleted = false);
+
+-- challenge chal_coding_tsf_131 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_tsf_131', (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-tsf-1-3' AND is_deleted = false LIMIT 1), 'delivery-label', 'Print the delivery label from a typed order', 'Every bag that leaves the Chợ Sớm packing hub carries a label printed from a DeliveryOrder. Many of its properties are optional: the apartment, floor and building, the second phone number, the cash to collect, the note. Write formatLabel, which returns the label lines (slot and FRAGILE, recipient, street line from the parts that exist, ward line, cash to collect or paid online, trimmed note), and formatVnd, which puts a dot between every group of three digits. Optional properties must never print as "undefined", and 0 is a real floor. The test runner reads a JSON array of orders and prints the labels separated by ---.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_131'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_131');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_131'), 'A flat in a tower, cash on delivery', '[{"id":"CS-24051","slot":"before-8","recipient":{"name":"Bùi Lan Anh","phone":"0912 345 678"},"address":{"street":"21 Lê Văn Lương","ward":"Nhân Chính","district":"Thanh Xuân","city":"Hà Nội","building":"Sky Tower","floor":12,"apartment":"1203"},"codAmount":245000,"note":"Gọi trước khi lên"}]', '"CS-24051 | BEFORE 08:00\nTo: Bùi Lan Anh, 0912 345 678\nApt 1203, Floor 12, Sky Tower, 21 Lê Văn Lương\nNhân Chính, Thanh Xuân, Hà Nội\nCollect: 245.000 đ\nNote: Gọi trước khi lên"', 3, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_131'), 'A house, paid online, no optional properties', '[{"id":"CS-24052","slot":"before-10","recipient":{"name":"Phạm Quốc Bảo","phone":"0987 111 222"},"address":{"street":"14 ngõ 75 Hồ Tùng Mậu","ward":"Mai Dịch","district":"Cầu Giấy","city":"Hà Nội"}}]', '"CS-24052 | BEFORE 10:00\nTo: Phạm Quốc Bảo, 0987 111 222\n14 ngõ 75 Hồ Tùng Mậu\nMai Dịch, Cầu Giấy, Hà Nội\nPaid online"', 3, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_131'), 'Fragile, a second phone and a large amount', '[{"id":"CS-24053","slot":"before-10","recipient":{"name":"Đỗ Thu Hà","phone":"0904 555 666","altPhone":"024 3826 1234"},"address":{"street":"52 Trần Hưng Đạo","ward":"Hàng Bài","district":"Hoàn Kiếm","city":"Hà Nội","building":"Toà nhà Hà Thành"},"fragile":true,"codAmount":1250000}]', '"CS-24053 | BEFORE 10:00 | FRAGILE\nTo: Đỗ Thu Hà, 0904 555 666 / 024 3826 1234\nToà nhà Hà Thành, 52 Trần Hưng Đạo\nHàng Bài, Hoàn Kiếm, Hà Nội\nCollect: 1.250.000 đ"', 3, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_131'), 'Ground floor is floor 0, and the note is trimmed', '[{"id":"CS-24054","slot":"before-8","recipient":{"name":"Ngô Minh Châu","phone":"0936 777 888"},"address":{"street":"8 Nguyễn Chí Thanh","ward":"Láng Thượng","district":"Đống Đa","city":"Hà Nội","floor":0,"apartment":"G02"},"codAmount":89000,"note":"   Để hàng ở bảo vệ  "}]', '"CS-24054 | BEFORE 08:00\nTo: Ngô Minh Châu, 0936 777 888\nApt G02, Ground floor, 8 Nguyễn Chí Thanh\nLáng Thượng, Đống Đa, Hà Nội\nCollect: 89.000 đ\nNote: Để hàng ở bảo vệ"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_131'), 'Empty second phone, blank note and nothing to collect', '[{"id":"CS-24055","slot":"before-8","recipient":{"name":"Vũ Đức Long","phone":"0977 222 333","altPhone":""},"address":{"street":"3 Phố Huế","ward":"Ngô Thì Nhậm","district":"Hai Bà Trưng","city":"Hà Nội","floor":3},"fragile":false,"codAmount":0,"note":"   "},{"id":"CS-24056","slot":"before-10","recipient":{"name":"Trịnh Thị Yến","phone":"0965 444 555"},"address":{"street":"120 Xuân Thuỷ","ward":"Dịch Vọng Hậu","district":"Cầu Giấy","city":"Hà Nội","building":"Chung cư 120","floor":7},"codAmount":5000}]', '"CS-24055 | BEFORE 08:00\nTo: Vũ Đức Long, 0977 222 333\nFloor 3, 3 Phố Huế\nNgô Thì Nhậm, Hai Bà Trưng, Hà Nội\nPaid online\n---\nCS-24056 | BEFORE 10:00\nTo: Trịnh Thị Yến, 0965 444 555\nFloor 7, Chung cư 120, 120 Xuân Thuỷ\nDịch Vọng Hậu, Cầu Giấy, Hà Nội\nCollect: 5.000 đ"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_131'), 'Small and very large amounts', '[{"id":"CS-24057","slot":"before-10","recipient":{"name":"Hồ Văn Tâm","phone":"0911 000 999"},"address":{"street":"2 Hoa Lư","ward":"Lê Đại Hành","district":"Hai Bà Trưng","city":"Hà Nội"},"codAmount":999},{"id":"CS-24058","slot":"before-8","recipient":{"name":"Lý Thanh Hương","phone":"0909 123 123","altPhone":"0909 456 456"},"address":{"street":"1 Tràng Tiền","ward":"Tràng Tiền","district":"Hoàn Kiếm","city":"Hà Nội","building":"Tràng Tiền Plaza","floor":0},"fragile":true,"codAmount":10000000,"note":"Hàng dễ vỡ, nhẹ tay"}]', '"CS-24057 | BEFORE 10:00\nTo: Hồ Văn Tâm, 0911 000 999\n2 Hoa Lư\nLê Đại Hành, Hai Bà Trưng, Hà Nội\nCollect: 999 đ\n---\nCS-24058 | BEFORE 08:00 | FRAGILE\nTo: Lý Thanh Hương, 0909 123 123 / 0909 456 456\nGround floor, Tràng Tiền Plaza, 1 Tràng Tiền\nTràng Tiền, Hoàn Kiếm, Hà Nội\nCollect: 10.000.000 đ\nNote: Hàng dễ vỡ, nhẹ tay"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_tsf_131_starter', 's3', 'challenges/typescript/chal_coding_tsf_131/starter.ts', 'raw', 'application/typescript', 2142, 'main.ts')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_131'), 'typescript', 'main.ts', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_tsf_131_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 2: Collections & Functions
+UPDATE course.module SET title = 'Collections & Functions', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations'), 'Collections & Functions', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 2 AND is_deleted = false);
+
+-- lesson 2.1: Arrays, tuples & readonly (Sanity lesson-tsf-2-1)
+UPDATE course.lesson SET title = 'Arrays, tuples & readonly', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-tsf-2-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Arrays, tuples & readonly', 'sanity', 'lesson-tsf-2-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-tsf-2-1' AND is_deleted = false);
+
+-- challenge chal_quiz_tsf_211 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_tsf_211', (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-tsf-2-1' AND is_deleted = false LIMIT 1), 'arrays-readonly-quiz', 'Predict it: sort() and readonly arrays', 'Work out what the default sort does to numbers, then pick what a function may do with a readonly array parameter.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_tsf_211'), 'What does this print?
+
+const prices = [65000, 12000, 180000, 125000, 38000];
+prices.sort();
+console.log(prices[0], prices[prices.length - 1]);', 'single_choice'::question_type, 'Without a compare function, sort converts every element to a string and sorts the strings by UTF-16 code units: "12000" < "125000" < "180000" < "38000" < "65000", so the array becomes [12000, 125000, 180000, 38000, 65000]. The first element happens to be the smallest, but the last one is 65000, not 180000. TypeScript accepts sort() without arguments on number[] - the compare function is optional - so there is no compile error. Sort numbers with (a, b) => a - b.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_tsf_211') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('12000 180000', false),
+        ('12000 65000', true),
+        ('180000 12000', false),
+        ('Nothing: tsc reports that sort() on a number[] needs a compare function.', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_tsf_211'), 'Inside function f(items: readonly Product[]), with interface Product { sku: string; price: number }, which lines compile with tsc --strict? (Select all that apply.)', 'multiple_choice'::question_type, 'toSorted returns a new array and leaves items alone, so it exists on readonly arrays. [...items] copies the elements into a new, mutable array, which you may sort. items[0].price = 0 compiles too: readonly Product[] only forbids changing the array (adding, removing, reordering elements); the Product objects inside are still mutable unless their properties are readonly. push and reverse change the array, so they do not exist on readonly Product[] (error TS2339). Assigning items to a Product[] variable would let you mutate it through the new name, so it is error TS4104.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_tsf_211') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('items.push({ sku: "FRT-202", price: 70000 });', false),
+        ('const byPrice = items.toSorted((a, b) => a.price - b.price);', true),
+        ('const byPrice = [...items].sort((a, b) => a.price - b.price);', true),
+        ('items[0].price = 0;', true),
+        ('const copy: Product[] = items;', false),
+        ('items.reverse();', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_fix_tsf_212 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_fix_tsf_212', (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-tsf-2-1' AND is_deleted = false LIMIT 1), 'fix-best-sellers-sort', 'Fix the best-sellers widget that reorders the catalog', 'The Chợ Sớm home page shows the best sellers and a price range, computed from the catalog that every category page shares. The widget sorted the catalog in place, so the category pages showed products by sales, and the default sort put 65.000 đ above 180.000 đ. Now that the catalog is a readonly Product[], the starter does not compile. Fix bestSellers (most sold first, ties by sku, at most n products) and priceRange (lowest and highest price as a tuple) without changing the catalog. The test runner reads n and the catalog as JSON and prints the best sellers, the price range and the catalog order.', 'open', 'medium'::difficulty_question, 'fix_bug', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_212'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_212');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_212'), 'The incident: top 3 of the morning catalog', '{"n":3,"catalog":[{"sku":"FRT-201","name":"Bưởi Diễn","price":65000,"sold":120},{"sku":"VEG-101","name":"Cải ngọt","price":12000,"sold":340},{"sku":"DRY-310","name":"Gạo ST25 (5 kg)","price":180000,"sold":95},{"sku":"MEA-204","name":"Thịt ba chỉ","price":125000,"sold":210},{"sku":"EGG-020","name":"Trứng gà (10)","price":38000,"sold":260}]}', '"1. Cải ngọt (340 sold)\n2. Trứng gà (10) (260 sold)\n3. Thịt ba chỉ (210 sold)\nprice range: 12000 - 180000\ncatalog: FRT-201, VEG-101, DRY-310, MEA-204, EGG-020"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_212'), 'Ties are ordered by sku', '{"n":2,"catalog":[{"sku":"VEG-101","name":"Cải ngọt","price":12000,"sold":340},{"sku":"FRT-201","name":"Bưởi Diễn","price":65000,"sold":120},{"sku":"EGG-020","name":"Trứng gà (10)","price":38000,"sold":340}]}', '"1. Trứng gà (10) (340 sold)\n2. Cải ngọt (340 sold)\nprice range: 12000 - 65000\ncatalog: VEG-101, FRT-201, EGG-020"', 3, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_212'), 'Asking for more products than the catalog has', '{"n":10,"catalog":[{"sku":"DRY-310","name":"Gạo ST25 (5 kg)","price":180000,"sold":95},{"sku":"MEA-204","name":"Thịt ba chỉ","price":125000,"sold":210},{"sku":"FRT-205","name":"Thanh long ruột đỏ","price":45000,"sold":150}]}', '"1. Thịt ba chỉ (210 sold)\n2. Thanh long ruột đỏ (150 sold)\n3. Gạo ST25 (5 kg) (95 sold)\nprice range: 45000 - 180000\ncatalog: DRY-310, MEA-204, FRT-205"', 3, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_212'), 'Prices with different numbers of digits', '{"n":3,"catalog":[{"sku":"VEG-104","name":"Hành lá","price":9000,"sold":410},{"sku":"DRY-311","name":"Nước mắm (500 ml)","price":99000,"sold":75},{"sku":"VEG-102","name":"Rau muống","price":10000,"sold":410},{"sku":"MEA-210","name":"Bò thăn (500 g)","price":100000,"sold":130},{"sku":"VEG-103","name":"Cà chua","price":25000,"sold":410}]}', '"1. Rau muống (410 sold)\n2. Cà chua (410 sold)\n3. Hành lá (410 sold)\nprice range: 9000 - 100000\ncatalog: VEG-104, DRY-311, VEG-102, MEA-210, VEG-103"', 4, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_212'), 'A catalog with one product', '{"n":1,"catalog":[{"sku":"EGG-020","name":"Trứng gà (10)","price":38000,"sold":260}]}', '"1. Trứng gà (10) (260 sold)\nprice range: 38000 - 38000\ncatalog: EGG-020"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_212'), 'No best sellers asked, the catalog order still matters', '{"n":0,"catalog":[{"sku":"MEA-204","name":"Thịt ba chỉ","price":125000,"sold":210},{"sku":"FRT-201","name":"Bưởi Diễn","price":65000,"sold":120},{"sku":"VEG-101","name":"Cải ngọt","price":12000,"sold":340}]}', '"price range: 12000 - 125000\ncatalog: MEA-204, FRT-201, VEG-101"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_tsf_212_starter', 's3', 'challenges/typescript/chal_fix_tsf_212/starter.ts', 'raw', 'application/typescript', 1805, 'main.ts')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_212'), 'typescript', 'main.ts', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_tsf_212_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 2.2: Functions & generics (Sanity lesson-tsf-2-2)
+UPDATE course.lesson SET title = 'Functions & generics', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-tsf-2-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Functions & generics', 'sanity', 'lesson-tsf-2-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-tsf-2-2' AND is_deleted = false);
+
+-- challenge chal_coding_tsf_221 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_tsf_221', (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-tsf-2-2' AND is_deleted = false LIMIT 1), 'generic-report-helpers', 'Write generic helpers for the weekly report', 'The Monday report at Chợ Sớm said the weekly revenue was NaN, because a helper typed with any accepted a misspelled property name. Write three generic helpers that take a callback instead of a property name: countBy (how many items per key, keys in order of first appearance), maxBy (the first item with the highest score, undefined for an empty list) and sumBy (the sum of a value over all items). The test runner uses each helper with orders and with product reviews, so they must be generic; it does not compile until maxBy and sumBy exist. It reads the orders and reviews as JSON and prints the report.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_221'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_221');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_221'), 'A normal week', '{"orders":[{"id":"CS-24101","status":"paid","total":245000},{"id":"CS-24102","status":"paid","total":185000},{"id":"CS-24103","status":"cancelled","total":390000},{"id":"CS-24104","status":"refunded","total":60000},{"id":"CS-24105","status":"paid","total":312000}],"reviews":[{"sku":"VEG-101","author":"Lan Anh","stars":5},{"sku":"MEA-204","author":"Quốc Bảo","stars":4},{"sku":"FRT-201","author":"Thu Hà","stars":2},{"sku":"EGG-020","author":"Minh Châu","stars":5}]}', '"orders by status: paid 3, cancelled 1, refunded 1\nrevenue: 742000\nbiggest order: CS-24103 (390000)\nreviews by stars: 5* 2, 4* 1, 2* 1\nbest review: VEG-101 by Lan Anh (5*)\naverage stars: 4.0"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_221'), 'Two orders share the biggest total: the first one wins', '{"orders":[{"id":"CS-24110","status":"paid","total":120000},{"id":"CS-24111","status":"paid","total":450000},{"id":"CS-24112","status":"refunded","total":450000}],"reviews":[{"sku":"DRY-310","author":"Đức Long","stars":3}]}', '"orders by status: paid 2, refunded 1\nrevenue: 570000\nbiggest order: CS-24111 (450000)\nreviews by stars: 3* 1\nbest review: DRY-310 by Đức Long (3*)\naverage stars: 3.0"', 3, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_221'), 'A week without reviews', '{"orders":[{"id":"CS-24120","status":"paid","total":99000}],"reviews":[]}', '"orders by status: paid 1\nrevenue: 99000\nbiggest order: CS-24120 (99000)\nreviews by stars: none\nbest review: none\naverage stars: none"', 3, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_221'), 'No orders, and reviews in order of first appearance', '{"orders":[],"reviews":[{"sku":"VEG-104","author":"Thanh Hương","stars":4},{"sku":"MEA-210","author":"Văn Tâm","stars":5},{"sku":"VEG-102","author":"Thị Yến","stars":1},{"sku":"DRY-311","author":"Lan Anh","stars":5},{"sku":"VEG-103","author":"Quốc Bảo","stars":4}]}', '"orders by status: none\nrevenue: 0\nbiggest order: none\nreviews by stars: 4* 2, 5* 2, 1* 1\nbest review: MEA-210 by Văn Tâm (5*)\naverage stars: 3.8"', 4, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_221'), 'Only a cancelled order: revenue 0', '{"orders":[{"id":"CS-24130","status":"cancelled","total":75000}],"reviews":[{"sku":"FRT-205","author":"Minh Châu","stars":1},{"sku":"FRT-205","author":"Đức Long","stars":2}]}', '"orders by status: cancelled 1\nrevenue: 0\nbiggest order: CS-24130 (75000)\nreviews by stars: 1* 1, 2* 1\nbest review: FRT-205 by Đức Long (2*)\naverage stars: 1.5"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_221'), 'A busy week', '{"orders":[{"id":"CS-24140","status":"refunded","total":52000},{"id":"CS-24141","status":"paid","total":188000},{"id":"CS-24142","status":"paid","total":1250000},{"id":"CS-24143","status":"cancelled","total":64000},{"id":"CS-24144","status":"paid","total":43000},{"id":"CS-24145","status":"paid","total":1250000},{"id":"CS-24146","status":"refunded","total":99000}],"reviews":[{"sku":"MEA-204","author":"Thu Hà","stars":3},{"sku":"VEG-101","author":"Văn Tâm","stars":3},{"sku":"EGG-020","author":"Thị Yến","stars":4}]}', '"orders by status: refunded 2, paid 4, cancelled 1\nrevenue: 2731000\nbiggest order: CS-24142 (1250000)\nreviews by stars: 3* 2, 4* 1\nbest review: EGG-020 by Thị Yến (4*)\naverage stars: 3.3"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_tsf_221_starter', 's3', 'challenges/typescript/chal_coding_tsf_221/starter.ts', 'raw', 'application/typescript', 2355, 'main.ts')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_221'), 'typescript', 'main.ts', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_tsf_221_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 3: Modelling
+UPDATE course.module SET title = 'Modelling', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations'), 'Modelling', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 3 AND is_deleted = false);
+
+-- lesson 3.1: Discriminated unions & exhaustive switch (Sanity lesson-tsf-3-1)
+UPDATE course.lesson SET title = 'Discriminated unions & exhaustive switch', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-tsf-3-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Discriminated unions & exhaustive switch', 'sanity', 'lesson-tsf-3-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-tsf-3-1' AND is_deleted = false);
+
+-- challenge chal_quiz_tsf_311 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_tsf_311', (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-tsf-3-1' AND is_deleted = false LIMIT 1), 'discriminated-unions-quiz', 'Predict it: a new member in the union', 'Decide what tsc says when a union gains a member that a switch does not handle, then pick the patterns that turn every forgotten case into a compile error.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_tsf_311'), 'Payment is a union of { method: "card"; ... }, { method: "cod"; ... } and { method: "bank"; ... }. processingFee(p: Payment): number is a switch on p.method with a case for each of the three, each ending in return, and no default. Someone adds { method: "momo"; amount: number; phone: string } to the union and changes nothing else. What happens?', 'single_choice'::question_type, 'With three cases for three members, the switch was exhaustive, so TypeScript knew the end of the function could not be reached. After momo is added, a payment with method "momo" falls out of the switch and the function would return undefined - which the return type number does not allow, so tsc reports error TS2366 at the return type annotation. This only works because the function has a return type annotation and no default; a default that returns 0 would compile and silently charge no fee. There is no runtime error in JavaScript either: the missing case returns undefined, and amount - undefined is NaN.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_tsf_311') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('Nothing at compile time; for MoMo payments the function returns undefined.', false),
+        ('error TS2366: Function lacks ending return statement and return type does not include ''undefined''.', true),
+        ('Nothing: a switch without a default is never checked for missing cases.', false),
+        ('A TypeError at runtime: switch has no case for "momo".', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_tsf_311'), 'Which of these make adding a fifth payment method a compile error in code that does not handle it yet? (Select all that apply.)', 'multiple_choice'::question_type, 'default: return assertNever(p) with assertNever(value: never) only compiles while every member has its own case: an unhandled member reaches the default with its own type, which is not assignable to never. A Record<Payment["method"], number> must have a key for every method, so a missing "momo" key is error TS2741. A switch whose cases all return, in a function with a return type that does not include undefined, gives TS2366 when a member is missing. default: return 0 and a final else both handle the new member silently - exactly how the NaN receipts (or worse, zero fees) slip through. Casting p.method to string throws the union away, so the checker can no longer tell whether all cases are covered.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_tsf_311') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('default: return assertNever(p); with function assertNever(value: never): never', true),
+        ('default: return 0;', false),
+        ('const FEE_RATE: Record<Payment["method"], number> = { card: 0.02, cod: 0, bank: 0 };', true),
+        ('if (p.method === "card") { ... } else if (p.method === "cod") { ... } else { return 0; }', false),
+        ('A switch where every case returns, in a function annotated : number, with no default', true),
+        ('switch (p.method as string) { ... default: throw new Error("unknown"); }', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_tsf_312 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_tsf_312', (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-tsf-3-1' AND is_deleted = false LIMIT 1), 'payment-settlement', 'Settle the day''s payments with exhaustive switches', 'Chợ Sớm takes four payment methods - card, cash on delivery, bank transfer and MoMo - modelled as a discriminated union on the method property. Write fee (card 2%, or 3% in installments; cash 15.000 đ when collected; bank 0; MoMo 1.5% but at least 1.000 đ), describe (with the MoMo phone masked) and isSettled (uncollected cash is pending), each as a switch on p.method that ends in assertNever, so that a fifth method would be a compile error. The test runner reads the payments as JSON and prints one settlement line per payment and the totals.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_312'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_312');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_312'), 'One payment of each method', '[{"method":"card","amount":245000,"last4":"4242","installments":1},{"method":"cod","amount":185000,"collected":true},{"method":"bank","amount":1250000,"reference":"VCB-883104"},{"method":"momo","amount":185000,"phone":"0912345678"}]', '"card ****4242: 245000 - fee 4900 = 240100\ncash on delivery: 185000 - fee 15000 = 170000\nbank transfer VCB-883104: 1250000 - fee 0 = 1250000\nMoMo 091****678: 185000 - fee 2775 = 182225\nsettled 1842325, fees 22675, pending 0"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_312'), 'Installments and the MoMo minimum fee', '[{"method":"card","amount":1250000,"last4":"0005","installments":3},{"method":"momo","amount":50000,"phone":"0987654321"}]', '"card ****0005 in 3 installments: 1250000 - fee 37500 = 1212500\nMoMo 098****321: 50000 - fee 1000 = 49000\nsettled 1261500, fees 38500, pending 0"', 3, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_312'), 'Cash the courier did not collect is pending', '[{"method":"cod","amount":92000,"collected":false},{"method":"cod","amount":140000,"collected":true}]', '"cash on delivery (not collected): 92000 pending\ncash on delivery: 140000 - fee 15000 = 125000\nsettled 125000, fees 15000, pending 1"', 3, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_312'), 'No payments today', '[]', '"settled 0, fees 0, pending 0"', 2, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_312'), 'Rounding to the nearest đồng', '[{"method":"card","amount":99999,"last4":"1881","installments":1},{"method":"momo","amount":66667,"phone":"0903112233"},{"method":"momo","amount":70001,"phone":"0333444555"},{"method":"card","amount":33300,"last4":"7700","installments":2}]', '"card ****1881: 99999 - fee 2000 = 97999\nMoMo 090****233: 66667 - fee 1000 = 65667\nMoMo 033****555: 70001 - fee 1050 = 68951\ncard ****7700 in 2 installments: 33300 - fee 999 = 32301\nsettled 264918, fees 5049, pending 0"', 4, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_312'), 'A busy Saturday', '[{"method":"momo","amount":412000,"phone":"0977222333"},{"method":"cod","amount":64000,"collected":false},{"method":"bank","amount":2400000,"reference":"TCB-55120"},{"method":"card","amount":188000,"last4":"9012","installments":1},{"method":"cod","amount":99000,"collected":true},{"method":"card","amount":5600000,"last4":"3456","installments":6},{"method":"momo","amount":20000,"phone":"0369888777"}]', '"MoMo 097****333: 412000 - fee 6180 = 405820\ncash on delivery (not collected): 64000 pending\nbank transfer TCB-55120: 2400000 - fee 0 = 2400000\ncard ****9012: 188000 - fee 3760 = 184240\ncash on delivery: 99000 - fee 15000 = 84000\ncard ****3456 in 6 installments: 5600000 - fee 168000 = 5432000\nMoMo 036****777: 20000 - fee 1000 = 19000\nsettled 8525060, fees 193940, pending 1"', 4, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_tsf_312_starter', 's3', 'challenges/typescript/chal_coding_tsf_312/starter.ts', 'raw', 'application/typescript', 2337, 'main.ts')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_312'), 'typescript', 'main.ts', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_tsf_312_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 3.2: Utility types: Partial, Pick, Omit & Record (Sanity lesson-tsf-3-2)
+UPDATE course.lesson SET title = 'Utility types: Partial, Pick, Omit & Record', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-tsf-3-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Utility types: Partial, Pick, Omit & Record', 'sanity', 'lesson-tsf-3-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-tsf-3-2' AND is_deleted = false);
+
+-- challenge chal_coding_tsf_321 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_tsf_321', (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-tsf-3-2' AND is_deleted = false LIMIT 1), 'quick-edit-patch', 'Apply quick edits with Partial, Omit and Record', 'The Chợ Sớm admin quick-edit form sends every field of a product, and the fields the admin did not touch are undefined. Spreading that patch over the product erased names and prices. Write applyPatch, which returns a new product with only the defined fields applied (a price or stock below 0 is ignored, the original product never changes, and ProductPatch = Partial<Omit<Product, "sku">> already forbids editing the sku), and stockSummary, which returns a Record<Category, number> with the total stock of every category, 0 included. The test runner reads the products and the edits as JSON, applies them in order and prints the products, what changed and the stock summary.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_321'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_321');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_321'), 'The incident: untouched fields arrive as undefined', '{"products":[{"sku":"MEA-204","name":"Thịt ba chỉ","category":"meat","price":125000,"stock":12},{"sku":"VEG-101","name":"Cải ngọt","category":"vegetables","price":12000,"stock":40}],"edits":[{"sku":"MEA-204","patch":{"name":null,"category":null,"price":null,"stock":25}}]}', '"MEA-204 Thịt ba chỉ (meat) 125000 đ, stock 25\nVEG-101 Cải ngọt (vegetables) 12000 đ, stock 40\nchanged 1, originals intact\nstock: vegetables 40, fruit 0, meat 25, dairy 0, dry 0"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_321'), 'Rename, move to another category and change the price', '{"products":[{"sku":"FRT-201","name":"Bưởi","category":"fruit","price":65000,"stock":30},{"sku":"DRY-310","name":"Gạo ST25 (5 kg)","category":"dry","price":180000,"stock":15},{"sku":"VEG-110","name":"Nấm hương khô","category":"vegetables","price":89000,"stock":8}],"edits":[{"sku":"FRT-201","patch":{"name":"Bưởi Diễn","price":59000}},{"sku":"VEG-110","patch":{"category":"dry"}}]}', '"FRT-201 Bưởi Diễn (fruit) 59000 đ, stock 30\nDRY-310 Gạo ST25 (5 kg) (dry) 180000 đ, stock 15\nVEG-110 Nấm hương khô (dry) 89000 đ, stock 8\nchanged 2, originals intact\nstock: vegetables 0, fruit 30, meat 0, dairy 0, dry 23"', 3, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_321'), 'Unknown sku, and a negative price is ignored', '{"products":[{"sku":"EGG-020","name":"Trứng gà (10)","category":"dairy","price":38000,"stock":60}],"edits":[{"sku":"EGG-999","patch":{"stock":5}},{"sku":"EGG-020","patch":{"price":-38000,"stock":48}}]}', '"no product EGG-999\nEGG-020 Trứng gà (10) (dairy) 38000 đ, stock 48\nchanged 1, originals intact\nstock: vegetables 0, fruit 0, meat 0, dairy 48, dry 0"', 3, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_321'), 'Several edits to the same product, in order', '{"products":[{"sku":"MEA-210","name":"Bò thăn (500 g)","category":"meat","price":100000,"stock":10},{"sku":"FRT-205","name":"Thanh long ruột đỏ","category":"fruit","price":45000,"stock":22}],"edits":[{"sku":"MEA-210","patch":{"price":110000,"stock":null}},{"sku":"MEA-210","patch":{"name":"Bò thăn Úc (500 g)","stock":-1}},{"sku":"MEA-210","patch":{"stock":6}}]}', '"MEA-210 Bò thăn Úc (500 g) (meat) 110000 đ, stock 6\nFRT-205 Thanh long ruột đỏ (fruit) 45000 đ, stock 22\nchanged 1, originals intact\nstock: vegetables 0, fruit 22, meat 6, dairy 0, dry 0"', 4, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_321'), 'An edit where nothing was touched changes nothing', '{"products":[{"sku":"VEG-101","name":"Cải ngọt","category":"vegetables","price":12000,"stock":40},{"sku":"VEG-102","name":"Rau muống","category":"vegetables","price":10000,"stock":55}],"edits":[{"sku":"VEG-102","patch":{"name":null,"category":null,"price":null,"stock":null}}]}', '"VEG-101 Cải ngọt (vegetables) 12000 đ, stock 40\nVEG-102 Rau muống (vegetables) 10000 đ, stock 55\nchanged 0, originals intact\nstock: vegetables 95, fruit 0, meat 0, dairy 0, dry 0"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_321'), 'Price 0 and stock 0 are real values', '{"products":[{"sku":"DRY-311","name":"Nước mắm (500 ml)","category":"dry","price":99000,"stock":14},{"sku":"DAI-001","name":"Sữa chua (4 hộp)","category":"dairy","price":32000,"stock":9}],"edits":[{"sku":"DAI-001","patch":{"price":0,"name":"Sữa chua (quà tặng)"}},{"sku":"DRY-311","patch":{"stock":0}}]}', '"DRY-311 Nước mắm (500 ml) (dry) 99000 đ, stock 0\nDAI-001 Sữa chua (quà tặng) (dairy) 0 đ, stock 9\nchanged 2, originals intact\nstock: vegetables 0, fruit 0, meat 0, dairy 9, dry 0"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_tsf_321_starter', 's3', 'challenges/typescript/chal_coding_tsf_321/starter.ts', 'raw', 'application/typescript', 2938, 'main.ts')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_321'), 'typescript', 'main.ts', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_tsf_321_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 4: Boundaries
+UPDATE course.module SET title = 'Boundaries', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations'), 'Boundaries', 4
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 4 AND is_deleted = false);
+
+-- lesson 4.1: unknown vs any: parsing JSON safely (Sanity lesson-tsf-4-1)
+UPDATE course.lesson SET title = 'unknown vs any: parsing JSON safely', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-tsf-4-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), 'unknown vs any: parsing JSON safely', 'sanity', 'lesson-tsf-4-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-tsf-4-1' AND is_deleted = false);
+
+-- challenge chal_fix_tsf_411 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_fix_tsf_411', (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-tsf-4-1' AND is_deleted = false LIMIT 1), 'fix-webhook-json-parsing', 'Fix the supplier webhook that trusts its JSON', 'Farms post stock deliveries to Chợ Sớm as JSON. The old code cast the parsed body with as StockUpdate, so when one farm started sending "qty": "12" the stock of eggs became the string "4812", and a renamed field created stock for the sku undefined. JSON.parse now returns unknown and the starter does not compile. Fix parseUpdate by checking the data step by step - valid JSON, an object, a non-empty sku, an integer qty, a known warehouse - and return the first reason a body is rejected, without as or any. The test runner reads one body per line, applies the accepted updates and prints the rejections and the stock per warehouse.', 'open', 'medium'::difficulty_question, 'fix_bug', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_411'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_411');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_411'), 'The supplier''s new format: qty as a string', '"{\"sku\":\"EGG-020\",\"qty\":48,\"warehouse\":\"HN-LB\"}\n{\"sku\":\"EGG-020\",\"qty\":\"12\",\"warehouse\":\"HN-LB\"}\n{\"sku\":\"FRT-201\",\"qty\":30,\"warehouse\":\"HN-CG\"}\n"', '"line 2 rejected: bad qty\nHN-CG FRT-201: 30\nHN-LB EGG-020: 48\naccepted 2, rejected 1"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_411'), 'A renamed field and a body cut off in the middle', '"{\"product\":\"FRT-201\",\"qty\":30,\"warehouse\":\"HN-LB\"}\n{\"sku\":\"VEG-101\",\"qty\":20,\"warehouse\":\"HN-LB\"\n{\"sku\":\"VEG-101\",\"qty\":20,\"warehouse\":\"HN-LB\"}\n"', '"line 1 rejected: bad sku\nline 2 rejected: not JSON\nHN-LB VEG-101: 20\naccepted 1, rejected 2"', 3, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_411'), 'Returns are negative, and the warehouse is checked', '"{\"sku\":\"MEA-204\",\"qty\":15,\"warehouse\":\"HN-CG\"}\n{\"sku\":\"MEA-204\",\"qty\":-3,\"warehouse\":\"HN-CG\"}\n{\"sku\":\"MEA-204\",\"qty\":5,\"warehouse\":\"HCM-Q7\"}\n"', '"line 3 rejected: bad warehouse\nHN-CG MEA-204: 12\naccepted 2, rejected 1"', 3, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_411'), 'Valid JSON that is not an object', '"42\n\"EGG-020\"\nnull\n[{\"sku\":\"EGG-020\",\"qty\":1,\"warehouse\":\"HN-LB\"}]\n{\"sku\":\"EGG-020\",\"qty\":1,\"warehouse\":\"HN-LB\"}\n"', '"line 1 rejected: not an object\nline 2 rejected: not an object\nline 3 rejected: not an object\nline 4 rejected: not an object\nHN-LB EGG-020: 1\naccepted 1, rejected 4"', 4, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_411'), 'Empty sku, decimals, missing fields and extra fields', '"{\"sku\":\"\",\"qty\":5,\"warehouse\":\"HN-LB\"}\n{\"sku\":\"DAI-001\",\"qty\":2.5,\"warehouse\":\"HN-LB\"}\n{\"sku\":\"DAI-001\",\"warehouse\":\"HN-LB\"}\n{\"sku\":\"DAI-001\",\"qty\":4}\n{\"sku\":12,\"qty\":4,\"warehouse\":\"HN-LB\"}\n{\"sku\":\"DAI-001\",\"qty\":4,\"warehouse\":\"HN-LB\",\"note\":\"extra fields are fine\"}\n"', '"line 1 rejected: bad sku\nline 2 rejected: bad qty\nline 3 rejected: bad qty\nline 4 rejected: bad warehouse\nline 5 rejected: bad sku\nHN-LB DAI-001: 4\naccepted 1, rejected 5"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_411'), 'A morning of deliveries from three farms', '"{\"sku\":\"VEG-102\",\"qty\":120,\"warehouse\":\"HN-LB\"}\n{\"sku\":\"VEG-102\",\"qty\":80,\"warehouse\":\"HN-CG\"}\n{\"sku\":\"FRT-205\",\"qty\":0,\"warehouse\":\"HN-CG\"}\n{\"sku\":\"FRT-205\",\"qty\":null,\"warehouse\":\"HN-CG\"}\n{\"sku\":\"VEG-104\",\"qty\":60,\"warehouse\":\"hn-lb\"}\n{}\nnot json at all\n{\"sku\":\"VEG-102\",\"qty\":-10,\"warehouse\":\"HN-LB\"}\n{\"sku\":\"DRY-310\",\"qty\":25,\"warehouse\":\"HN-LB\"}\n"', '"line 4 rejected: bad qty\nline 5 rejected: bad warehouse\nline 6 rejected: bad sku\nline 7 rejected: not JSON\nHN-CG FRT-205: 0\nHN-CG VEG-102: 80\nHN-LB DRY-310: 25\nHN-LB VEG-102: 110\naccepted 5, rejected 4"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_tsf_411_starter', 's3', 'challenges/typescript/chal_fix_tsf_411/starter.ts', 'raw', 'application/typescript', 2067, 'main.ts')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_tsf_411'), 'typescript', 'main.ts', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_tsf_411_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 4.2: Mini project: a typed order pipeline (Sanity lesson-tsf-4-2)
+UPDATE course.lesson SET title = 'Mini project: a typed order pipeline', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-tsf-4-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), 'Mini project: a typed order pipeline', 'sanity', 'lesson-tsf-4-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-tsf-4-2' AND is_deleted = false);
+
+-- challenge chal_coding_tsf_421 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_tsf_421', (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-tsf-4-2' AND is_deleted = false LIMIT 1), 'typed-order-pipeline', 'Build a typed order pipeline from an untrusted event log', 'Put the whole course together. The Chợ Sớm event log has one JSON event per line - placed, paid, shipped, delivered, cancelled - and nothing in it is trusted. Write parseEvent, which checks a line from unknown into the OrderEvent discriminated union (or null), apply, which moves an order through its states (placed, paid, shipped, delivered, cancelled with a refund) and returns an error message for every impossible transition or wrong payment, and describe, which writes the report line for each state. Use exhaustive switches with assertNever, and no any or as. The test runner replays the log, prints the rejected lines and errors, then every order and the totals.', 'open', 'hard'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_421'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_421');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_421'), 'One order, from placed to delivered', '"{\"type\":\"placed\",\"order\":\"CS-24201\",\"items\":[{\"sku\":\"EGG-020\",\"qty\":2,\"price\":38000},{\"sku\":\"VEG-101\",\"qty\":3,\"price\":12000}]}\n{\"type\":\"paid\",\"order\":\"CS-24201\",\"amount\":112000}\n{\"type\":\"shipped\",\"order\":\"CS-24201\",\"courier\":\"C-12\"}\n{\"type\":\"delivered\",\"order\":\"CS-24201\"}\n"', '"CS-24201 delivered 112000 by C-12\norders 1, revenue 112000, refunds 0"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_421'), 'Cancelled before and after payment', '"{\"type\":\"placed\",\"order\":\"CS-24202\",\"items\":[{\"sku\":\"MEA-204\",\"qty\":1,\"price\":125000}]}\n{\"type\":\"placed\",\"order\":\"CS-24203\",\"items\":[{\"sku\":\"FRT-201\",\"qty\":2,\"price\":65000}]}\n{\"type\":\"paid\",\"order\":\"CS-24203\",\"amount\":130000}\n{\"type\":\"cancelled\",\"order\":\"CS-24202\",\"reason\":\"customer changed their mind\"}\n{\"type\":\"cancelled\",\"order\":\"CS-24203\",\"reason\":\"out of stock\"}\n"', '"CS-24202 cancelled (customer changed their mind), refund 0\nCS-24203 cancelled (out of stock), refund 130000\norders 2, revenue 0, refunds 130000"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_421'), 'Events in the wrong order and a wrong amount', '"{\"type\":\"placed\",\"order\":\"CS-24204\",\"items\":[{\"sku\":\"DRY-310\",\"qty\":1,\"price\":180000}]}\n{\"type\":\"shipped\",\"order\":\"CS-24204\",\"courier\":\"C-07\"}\n{\"type\":\"paid\",\"order\":\"CS-24204\",\"amount\":170000}\n{\"type\":\"paid\",\"order\":\"CS-24204\",\"amount\":180000}\n{\"type\":\"delivered\",\"order\":\"CS-24204\"}\n{\"type\":\"paid\",\"order\":\"CS-24299\",\"amount\":50000}\n"', '"line 2: CS-24204 cannot be shipped when placed\nline 3: CS-24204 paid 170000, expected 180000\nline 5: CS-24204 cannot be delivered when paid\nline 6: unknown order CS-24299\nCS-24204 paid 180000\norders 1, revenue 180000, refunds 0"', 4, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_421'), 'Lines that are not valid events', '"{\"type\":\"placed\",\"order\":\"CS-24205\",\"items\":[{\"sku\":\"EGG-020\",\"qty\":1,\"price\":38000}]\n[{\"type\":\"delivered\",\"order\":\"CS-24205\"}]\n{\"type\":\"refunded\",\"order\":\"CS-24205\"}\n{\"type\":\"delivered\",\"order\":\"\"}\n{\"type\":\"placed\",\"order\":\"CS-24206\",\"items\":[]}\n{\"type\":\"placed\",\"order\":\"CS-24207\",\"items\":[{\"sku\":\"EGG-020\",\"qty\":0,\"price\":38000}]}\n{\"type\":\"placed\",\"order\":\"CS-24208\",\"items\":[{\"sku\":\"EGG-020\",\"qty\":1,\"price\":\"38000\"}]}\n{\"type\":\"placed\",\"order\":\"CS-24209\",\"items\":[{\"sku\":\"VEG-101\",\"qty\":2,\"price\":12000},{\"sku\":\"\",\"qty\":1,\"price\":5000}]}\n{\"type\":\"paid\",\"order\":\"CS-24205\",\"amount\":1.5}\n{\"type\":\"shipped\",\"order\":\"CS-24205\"}\n{\"type\":\"cancelled\",\"order\":\"CS-24205\",\"reason\":\"\"}\nnull\n{\"type\":\"placed\",\"order\":\"CS-24205\",\"items\":[{\"sku\":\"EGG-020\",\"qty\":1,\"price\":38000,\"note\":\"extra fields are fine\"}],\"channel\":\"app\"}\n{\"type\":\"delivered\",\"order\":\"CS-24205\",\"note\":\"left at the door\"}\n"', '"line 1: invalid event\nline 2: invalid event\nline 3: invalid event\nline 4: invalid event\nline 5: invalid event\nline 6: invalid event\nline 7: invalid event\nline 8: invalid event\nline 9: invalid event\nline 10: invalid event\nline 11: invalid event\nline 12: invalid event\nline 14: CS-24205 cannot be delivered when placed\nCS-24205 placed 38000\norders 1, revenue 0, refunds 0"', 5, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_421'), 'Placed twice, and events after the end', '"{\"type\":\"placed\",\"order\":\"CS-24210\",\"items\":[{\"sku\":\"VEG-102\",\"qty\":4,\"price\":10000}]}\n{\"type\":\"placed\",\"order\":\"CS-24210\",\"items\":[{\"sku\":\"VEG-102\",\"qty\":1,\"price\":10000}]}\n{\"type\":\"paid\",\"order\":\"CS-24210\",\"amount\":40000}\n{\"type\":\"shipped\",\"order\":\"CS-24210\",\"courier\":\"C-15\"}\n{\"type\":\"cancelled\",\"order\":\"CS-24210\",\"reason\":\"too late\"}\n{\"type\":\"delivered\",\"order\":\"CS-24210\"}\n{\"type\":\"shipped\",\"order\":\"CS-24210\",\"courier\":\"C-07\"}\n{\"type\":\"paid\",\"order\":\"CS-24210\",\"amount\":40000}\n"', '"line 2: CS-24210 already exists\nline 5: CS-24210 cannot be cancelled when shipped\nline 7: CS-24210 cannot be shipped when delivered\nline 8: CS-24210 cannot be paid when delivered\nCS-24210 delivered 40000 by C-15\norders 1, revenue 40000, refunds 0"', 4, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_421'), 'A busy morning', '"{\"type\":\"placed\",\"order\":\"CS-24220\",\"items\":[{\"sku\":\"MEA-210\",\"qty\":2,\"price\":100000},{\"sku\":\"VEG-103\",\"qty\":1,\"price\":25000}]}\n{\"type\":\"placed\",\"order\":\"CS-24215\",\"items\":[{\"sku\":\"DAI-001\",\"qty\":3,\"price\":32000}]}\n{\"type\":\"placed\",\"order\":\"CS-24218\",\"items\":[{\"sku\":\"FRT-205\",\"qty\":1,\"price\":45000}]}\n{\"type\":\"paid\",\"order\":\"CS-24215\",\"amount\":96000}\n{\"type\":\"paid\",\"order\":\"CS-24220\",\"amount\":225000}\n{\"type\":\"placed\",\"order\":\"CS-24217\",\"items\":[{\"sku\":\"DRY-311\",\"qty\":1,\"price\":99000}]}\n{\"type\":\"shipped\",\"order\":\"CS-24220\",\"courier\":\"C-12\"}\n{\"type\":\"cancelled\",\"order\":\"CS-24218\",\"reason\":\"wrong address\"}\n{\"type\":\"shipped\",\"order\":\"CS-24215\",\"courier\":\"C-07\"}\n{\"type\":\"cancelled\",\"order\":\"CS-24215\",\"reason\":\"customer not home\"}\n{\"type\":\"paid\",\"order\":\"CS-24217\",\"amount\":99000}\n{\"type\":\"delivered\",\"order\":\"CS-24220\"}\n{\"type\":\"cancelled\",\"order\":\"CS-24217\",\"reason\":\"duplicate order\"}\n{\"type\":\"delivered\",\"order\":\"CS-24216\"}\n"', '"line 10: CS-24215 cannot be cancelled when shipped\nline 14: unknown order CS-24216\nCS-24215 shipped 96000 by C-07\nCS-24217 cancelled (duplicate order), refund 99000\nCS-24218 cancelled (wrong address), refund 0\nCS-24220 delivered 225000 by C-12\norders 4, revenue 321000, refunds 99000"', 5, false, true, 6),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_421'), 'An empty log', '""', '"orders 0, revenue 0, refunds 0"', 2, false, true, 7);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_tsf_421_starter', 's3', 'challenges/typescript/chal_coding_tsf_421/starter.ts', 'raw', 'application/typescript', 4258, 'main.ts')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_tsf_421'), 'typescript', 'main.ts', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_tsf_421_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
 
 -- learners enrolled before these lessons existed
 INSERT INTO learning.history (user_id, course_id, module_id, lesson_id)

@@ -1,0 +1,239 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_tsf_311",
+      "name": "discriminated-unions-quiz",
+      "type": "quiz",
+      "title": "Predict it: a new member in the union",
+      "description": "Decide what tsc says when a union gains a member that a switch does not handle, then pick the patterns that turn every forgotten case into a compile error.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Payment is a union of { method: \"card\"; ... }, { method: \"cod\"; ... } and { method: \"bank\"; ... }. processingFee(p: Payment): number is a switch on p.method with a case for each of the three, each ending in return, and no default. Someone adds { method: \"momo\"; amount: number; phone: string } to the union and changes nothing else. What happens?",
+          "explanation": "With three cases for three members, the switch was exhaustive, so TypeScript knew the end of the function could not be reached. After momo is added, a payment with method \"momo\" falls out of the switch and the function would return undefined - which the return type number does not allow, so tsc reports error TS2366 at the return type annotation. This only works because the function has a return type annotation and no default; a default that returns 0 would compile and silently charge no fee. There is no runtime error in JavaScript either: the missing case returns undefined, and amount - undefined is NaN.",
+          "options": [
+            {
+              "text": "Nothing at compile time; for MoMo payments the function returns undefined.",
+              "correct": false
+            },
+            {
+              "text": "error TS2366: Function lacks ending return statement and return type does not include 'undefined'.",
+              "correct": true
+            },
+            {
+              "text": "Nothing: a switch without a default is never checked for missing cases.",
+              "correct": false
+            },
+            {
+              "text": "A TypeError at runtime: switch has no case for \"momo\".",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which of these make adding a fifth payment method a compile error in code that does not handle it yet? (Select all that apply.)",
+          "explanation": "default: return assertNever(p) with assertNever(value: never) only compiles while every member has its own case: an unhandled member reaches the default with its own type, which is not assignable to never. A Record<Payment[\"method\"], number> must have a key for every method, so a missing \"momo\" key is error TS2741. A switch whose cases all return, in a function with a return type that does not include undefined, gives TS2366 when a member is missing. default: return 0 and a final else both handle the new member silently - exactly how the NaN receipts (or worse, zero fees) slip through. Casting p.method to string throws the union away, so the checker can no longer tell whether all cases are covered.",
+          "options": [
+            {
+              "text": "default: return assertNever(p); with function assertNever(value: never): never",
+              "correct": true
+            },
+            {
+              "text": "default: return 0;",
+              "correct": false
+            },
+            {
+              "text": "const FEE_RATE: Record<Payment[\"method\"], number> = { card: 0.02, cod: 0, bank: 0 };",
+              "correct": true
+            },
+            {
+              "text": "if (p.method === \"card\") { ... } else if (p.method === \"cod\") { ... } else { return 0; }",
+              "correct": false
+            },
+            {
+              "text": "A switch where every case returns, in a function annotated : number, with no default",
+              "correct": true
+            },
+            {
+              "text": "switch (p.method as string) { ... default: throw new Error(\"unknown\"); }",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_tsf_312",
+      "name": "payment-settlement",
+      "type": "mini_coding",
+      "title": "Settle the day's payments with exhaustive switches",
+      "description": "Chợ Sớm takes four payment methods - card, cash on delivery, bank transfer and MoMo - modelled as a discriminated union on the method property. Write fee (card 2%, or 3% in installments; cash 15.000 đ when collected; bank 0; MoMo 1.5% but at least 1.000 đ), describe (with the MoMo phone masked) and isSettled (uncollected cash is pending), each as a switch on p.method that ends in assertNever, so that a fifth method would be a compile error. The test runner reads the payments as JSON and prints one settlement line per payment and the totals.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "One payment of each method",
+          "input": [
+            {
+              "method": "card",
+              "amount": 245000,
+              "last4": "4242",
+              "installments": 1
+            },
+            {
+              "method": "cod",
+              "amount": 185000,
+              "collected": true
+            },
+            {
+              "method": "bank",
+              "amount": 1250000,
+              "reference": "VCB-883104"
+            },
+            {
+              "method": "momo",
+              "amount": 185000,
+              "phone": "0912345678"
+            }
+          ],
+          "expected": "card ****4242: 245000 - fee 4900 = 240100\ncash on delivery: 185000 - fee 15000 = 170000\nbank transfer VCB-883104: 1250000 - fee 0 = 1250000\nMoMo 091****678: 185000 - fee 2775 = 182225\nsettled 1842325, fees 22675, pending 0",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Installments and the MoMo minimum fee",
+          "input": [
+            {
+              "method": "card",
+              "amount": 1250000,
+              "last4": "0005",
+              "installments": 3
+            },
+            {
+              "method": "momo",
+              "amount": 50000,
+              "phone": "0987654321"
+            }
+          ],
+          "expected": "card ****0005 in 3 installments: 1250000 - fee 37500 = 1212500\nMoMo 098****321: 50000 - fee 1000 = 49000\nsettled 1261500, fees 38500, pending 0",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Cash the courier did not collect is pending",
+          "input": [
+            {
+              "method": "cod",
+              "amount": 92000,
+              "collected": false
+            },
+            {
+              "method": "cod",
+              "amount": 140000,
+              "collected": true
+            }
+          ],
+          "expected": "cash on delivery (not collected): 92000 pending\ncash on delivery: 140000 - fee 15000 = 125000\nsettled 125000, fees 15000, pending 1",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "No payments today",
+          "input": [],
+          "expected": "settled 0, fees 0, pending 0",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Rounding to the nearest đồng",
+          "input": [
+            {
+              "method": "card",
+              "amount": 99999,
+              "last4": "1881",
+              "installments": 1
+            },
+            {
+              "method": "momo",
+              "amount": 66667,
+              "phone": "0903112233"
+            },
+            {
+              "method": "momo",
+              "amount": 70001,
+              "phone": "0333444555"
+            },
+            {
+              "method": "card",
+              "amount": 33300,
+              "last4": "7700",
+              "installments": 2
+            }
+          ],
+          "expected": "card ****1881: 99999 - fee 2000 = 97999\nMoMo 090****233: 66667 - fee 1000 = 65667\nMoMo 033****555: 70001 - fee 1050 = 68951\ncard ****7700 in 2 installments: 33300 - fee 999 = 32301\nsettled 264918, fees 5049, pending 0",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A busy Saturday",
+          "input": [
+            {
+              "method": "momo",
+              "amount": 412000,
+              "phone": "0977222333"
+            },
+            {
+              "method": "cod",
+              "amount": 64000,
+              "collected": false
+            },
+            {
+              "method": "bank",
+              "amount": 2400000,
+              "reference": "TCB-55120"
+            },
+            {
+              "method": "card",
+              "amount": 188000,
+              "last4": "9012",
+              "installments": 1
+            },
+            {
+              "method": "cod",
+              "amount": 99000,
+              "collected": true
+            },
+            {
+              "method": "card",
+              "amount": 5600000,
+              "last4": "3456",
+              "installments": 6
+            },
+            {
+              "method": "momo",
+              "amount": 20000,
+              "phone": "0369888777"
+            }
+          ],
+          "expected": "MoMo 097****333: 412000 - fee 6180 = 405820\ncash on delivery (not collected): 64000 pending\nbank transfer TCB-55120: 2400000 - fee 0 = 2400000\ncard ****9012: 188000 - fee 3760 = 184240\ncash on delivery: 99000 - fee 15000 = 84000\ncard ****3456 in 6 installments: 5600000 - fee 168000 = 5432000\nMoMo 036****777: 20000 - fee 1000 = 19000\nsettled 8525060, fees 193940, pending 1",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

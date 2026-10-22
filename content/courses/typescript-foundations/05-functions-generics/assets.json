@@ -1,0 +1,10 @@
+{
+  "images": {
+    "any-vs-generic": {
+      "publicId": "codedev/courses/typescript-foundations/05-functions-generics/any-vs-generic",
+      "url": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/q_auto/v1792647269/codedev/courses/typescript-foundations/05-functions-generics/any-vs-generic.png?_a=BAMAROWQ0",
+      "width": 1200,
+      "height": 700
+    }
+  }
+}

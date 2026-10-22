@@ -1,0 +1,200 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_tsf_111",
+      "name": "annotations-inference-quiz",
+      "type": "quiz",
+      "title": "Predict it: what does tsc --strict accept?",
+      "description": "Decide what the type checker says about a number plus a string, then pick the declarations that compile under strict mode.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does tsc --strict say about these two lines, and what is total when the program runs?\n\nlet shipping = \"30000\";\nconst total = 155000 + shipping;",
+          "explanation": "+ with a string operand is string concatenation in JavaScript, and TypeScript allows it: shipping is inferred as string, so total is inferred as string, with the value \"15500030000\". There is no error on these lines. The error appears where total is used as a number - passing it to a function whose parameter is annotated number, or assigning it to a variable annotated number. TypeScript never converts values: types are erased before the code runs. JavaScript does not throw a TypeError for number + string either.",
+          "options": [
+            {
+              "text": "error TS2365: Operator '+' cannot be applied to types 'number' and 'string'.",
+              "correct": false
+            },
+            {
+              "text": "No error: total is inferred as string, and its value is \"15500030000\".",
+              "correct": true
+            },
+            {
+              "text": "No error: TypeScript converts shipping to a number, so total is 185000.",
+              "correct": false
+            },
+            {
+              "text": "No error when compiling, but the second line throws a TypeError at runtime.",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which of these snippets compile with tsc --strict? (Select all that apply.)",
+          "explanation": "const zone = \"hanoi\" has the literal type \"hanoi\", which is assignable to string. fee(2) returns a number because the return type is inferred from weightKg * 5000. const only stops line from being reassigned; its properties keep their inferred types (qty: number) and can change. let count = 0 infers number, so assigning \"3\" is error TS2322. A parameter without an annotation is implicitly any, which strict mode (noImplicitAny) reports as error TS7006. prices is inferred as number[], so push(\"free\") is error TS2345.",
+          "options": [
+            {
+              "text": "let count = 0;\ncount = \"3\";",
+              "correct": false
+            },
+            {
+              "text": "const zone = \"hanoi\";\nlet city: string = zone;",
+              "correct": true
+            },
+            {
+              "text": "function fee(weightKg) { return weightKg * 5000; }",
+              "correct": false
+            },
+            {
+              "text": "function fee(weightKg: number) { return weightKg * 5000; }\nconst f: number = fee(2);",
+              "correct": true
+            },
+            {
+              "text": "const prices = [15000, 125000];\nprices.push(\"free\");",
+              "correct": false
+            },
+            {
+              "text": "const line = { sku: \"VEG-101\", qty: 2 };\nline.qty = 3;",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_tsf_112",
+      "name": "checkout-form-total",
+      "type": "mini_coding",
+      "title": "Compute the checkout total from form strings",
+      "description": "Every field of the Chợ Sớm checkout form arrives as a string, and shoppers type amounts with dots between the thousands (\"155.000\"). Annotate and write toVnd, which turns a field into a number of đồng (spaces ignored, empty means 0, digits or groups of three separated by dots, anything else is NaN), and orderTotal, which takes the voucher off the subtotal (never more than the subtotal) and waives shipping when the subtotal is 300.000 đ or more. The starter does not compile under --strict until both functions have type annotations. The test runner reads the form as JSON and prints the total, or the first invalid field.",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Plain digits, empty voucher",
+          "input": {
+            "subtotal": "155000",
+            "shipping": "30000",
+            "voucher": ""
+          },
+          "expected": "total: 185000",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Dots between the thousands",
+          "input": {
+            "subtotal": "155.000",
+            "shipping": "30.000",
+            "voucher": "20.000"
+          },
+          "expected": "total: 165000",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A comma is not a thousands separator",
+          "input": {
+            "subtotal": "155.000",
+            "shipping": "30,000",
+            "voucher": ""
+          },
+          "expected": "invalid shipping: \"30,000\"",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Free shipping is decided before the voucher",
+          "input": {
+            "subtotal": "310.000",
+            "shipping": "30.000",
+            "voucher": "20.000"
+          },
+          "expected": "total: 290000",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Voucher larger than the subtotal",
+          "input": {
+            "subtotal": "50.000",
+            "shipping": "30.000",
+            "voucher": "80.000"
+          },
+          "expected": "total: 30000",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Spaces, millions and a missing voucher field",
+          "input": {
+            "subtotal": " 1.250.000 ",
+            "shipping": "0"
+          },
+          "expected": "total: 1250000",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Just below free shipping",
+          "input": {
+            "subtotal": "299.999",
+            "shipping": "30.000",
+            "voucher": "0"
+          },
+          "expected": "total: 329999",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "A decimal voucher is invalid",
+          "input": {
+            "subtotal": "155.000",
+            "shipping": "30.000",
+            "voucher": "1.5"
+          },
+          "expected": "invalid voucher: \"1.5\"",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Negative amounts and broken groups are invalid",
+          "input": {
+            "subtotal": "-5000",
+            "shipping": "30.00",
+            "voucher": ""
+          },
+          "expected": "invalid subtotal: \"-5000\"",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Groups of three only",
+          "input": {
+            "subtotal": "155.000",
+            "shipping": "30.00",
+            "voucher": ""
+          },
+          "expected": "invalid shipping: \"30.00\"",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

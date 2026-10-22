@@ -1,0 +1,277 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_tsf_121",
+      "name": "unions-narrowing-quiz",
+      "type": "quiz",
+      "title": "Predict it: undefined, 0 and narrowing",
+      "description": "Find the falsy-zero trap in a template string, then pick the ways to read a value that might be undefined that both compile under --strict and never throw.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does label(0) return?\n\nfunction label(eta: number | undefined): string {\n  return `arriving in ${eta || \"a few\"} minutes`;\n}",
+          "explanation": "|| returns its right side whenever the left side is falsy, and 0 is falsy just like undefined, null, \"\" and NaN. So eta || \"a few\" is \"a few\" for eta = 0, and the courier who is already at the door is shown as arriving in a few minutes. The code compiles: eta || \"a few\" has the type number | string, which a template string accepts. Use eta ?? \"a few\" (only null and undefined fall through) or test eta === undefined explicitly.",
+          "options": [
+            {
+              "text": "\"arriving in 0 minutes\"",
+              "correct": false
+            },
+            {
+              "text": "\"arriving in a few minutes\"",
+              "correct": true
+            },
+            {
+              "text": "\"arriving in undefined minutes\"",
+              "correct": false
+            },
+            {
+              "text": "Nothing: error TS18048, 'eta' is possibly 'undefined'.",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "const courier = couriers.find((c) => c.id === id); gives courier the type Courier | undefined. Which lines compile with tsc --strict AND never throw at runtime? (Select all that apply.)",
+          "explanation": "courier?.name ?? \"unassigned\" stops at undefined and supplies a fallback. if (courier) and an early return on courier === undefined both narrow courier to Courier for the code that reads .name. courier.name is error TS18048 ('courier' is possibly 'undefined'). courier!.name compiles because ! tells the checker to trust you, and throws the exact TypeError of the incident when find returns undefined. courier !== null does not remove undefined from the type (find never returns null), so courier.name inside it is still error TS18048.",
+          "options": [
+            {
+              "text": "console.log(courier.name);",
+              "correct": false
+            },
+            {
+              "text": "console.log(courier?.name ?? \"unassigned\");",
+              "correct": true
+            },
+            {
+              "text": "console.log(courier!.name);",
+              "correct": false
+            },
+            {
+              "text": "if (courier) { console.log(courier.name); }",
+              "correct": true
+            },
+            {
+              "text": "if (courier !== null) { console.log(courier.name); }",
+              "correct": false
+            },
+            {
+              "text": "if (courier === undefined) return;\nconsole.log(courier.name);",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_tsf_122",
+      "name": "fix-tracking-undefined-courier",
+      "type": "fix_bug",
+      "title": "Fix the tracking page that crashes on a missing courier",
+      "description": "The Chợ Sớm tracking page crashed with \"Cannot read properties of undefined (reading 'name')\" for every order whose courier had left the company. In TypeScript the same code does not even compile: couriers.find returns Courier | undefined. Fix trackingLine by narrowing (no ! operator): an order without a courier is waiting for one, a courier who is not in the list is not available, an ETA of null means the courier is on the way and an ETA of 0 means the courier is at the door. The test runner reads the couriers and the orders as JSON and prints one line per order.",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Two orders with their couriers",
+          "input": {
+            "couriers": [
+              {
+                "id": "C-07",
+                "name": "Trần Văn Hùng",
+                "phone": "0903 112 233"
+              },
+              {
+                "id": "C-12",
+                "name": "Lê Thị Mai",
+                "phone": "0912 445 566"
+              }
+            ],
+            "orders": [
+              {
+                "id": "CS-24017",
+                "courierId": "C-12",
+                "etaMinutes": 25
+              },
+              {
+                "id": "CS-24019",
+                "courierId": "C-07",
+                "etaMinutes": 8
+              }
+            ]
+          },
+          "expected": "CS-24017: Lê Thị Mai (0912 445 566) arrives in 25 min\nCS-24019: Trần Văn Hùng (0903 112 233) arrives in 8 min",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "The incident: a courier who left on Monday",
+          "input": {
+            "couriers": [
+              {
+                "id": "C-07",
+                "name": "Trần Văn Hùng",
+                "phone": "0903 112 233"
+              }
+            ],
+            "orders": [
+              {
+                "id": "CS-24018",
+                "courierId": "C-03",
+                "etaMinutes": 40
+              },
+              {
+                "id": "CS-24019",
+                "courierId": "C-07",
+                "etaMinutes": 8
+              }
+            ]
+          },
+          "expected": "CS-24018: courier C-03 is not available, call 1900 6868\nCS-24019: Trần Văn Hùng (0903 112 233) arrives in 8 min",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Not assigned yet, no position yet",
+          "input": {
+            "couriers": [
+              {
+                "id": "C-12",
+                "name": "Lê Thị Mai",
+                "phone": "0912 445 566"
+              }
+            ],
+            "orders": [
+              {
+                "id": "CS-24020",
+                "courierId": null,
+                "etaMinutes": null
+              },
+              {
+                "id": "CS-24021",
+                "courierId": "C-12",
+                "etaMinutes": null
+              }
+            ]
+          },
+          "expected": "CS-24020: waiting for a courier\nCS-24021: Lê Thị Mai (0912 445 566) is on the way",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "An ETA of 0 means the courier is at the door",
+          "input": {
+            "couriers": [
+              {
+                "id": "C-12",
+                "name": "Lê Thị Mai",
+                "phone": "0912 445 566"
+              }
+            ],
+            "orders": [
+              {
+                "id": "CS-24022",
+                "courierId": "C-12",
+                "etaMinutes": 0
+              },
+              {
+                "id": "CS-24023",
+                "courierId": "C-12",
+                "etaMinutes": 1
+              }
+            ]
+          },
+          "expected": "CS-24022: Lê Thị Mai (0912 445 566) is at your door\nCS-24023: Lê Thị Mai (0912 445 566) arrives in 1 min",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Every case at 06:30, before and after the assignment run",
+          "input": {
+            "couriers": [
+              {
+                "id": "C-07",
+                "name": "Trần Văn Hùng",
+                "phone": "0903 112 233"
+              },
+              {
+                "id": "C-15",
+                "name": "Nguyễn Thị Hoa",
+                "phone": "0988 776 655"
+              }
+            ],
+            "orders": [
+              {
+                "id": "CS-24030",
+                "courierId": null,
+                "etaMinutes": null
+              },
+              {
+                "id": "CS-24031",
+                "courierId": "C-15",
+                "etaMinutes": 0
+              },
+              {
+                "id": "CS-24032",
+                "courierId": "C-03",
+                "etaMinutes": null
+              },
+              {
+                "id": "CS-24033",
+                "courierId": "C-07",
+                "etaMinutes": null
+              },
+              {
+                "id": "CS-24034",
+                "courierId": "C-15",
+                "etaMinutes": 33
+              },
+              {
+                "id": "CS-24035",
+                "courierId": null,
+                "etaMinutes": 10
+              }
+            ]
+          },
+          "expected": "CS-24030: waiting for a courier\nCS-24031: Nguyễn Thị Hoa (0988 776 655) is at your door\nCS-24032: courier C-03 is not available, call 1900 6868\nCS-24033: Trần Văn Hùng (0903 112 233) is on the way\nCS-24034: Nguyễn Thị Hoa (0988 776 655) arrives in 33 min\nCS-24035: waiting for a courier",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "No couriers at all yet",
+          "input": {
+            "couriers": [],
+            "orders": [
+              {
+                "id": "CS-24040",
+                "courierId": "C-07",
+                "etaMinutes": 15
+              },
+              {
+                "id": "CS-24041",
+                "courierId": null,
+                "etaMinutes": null
+              }
+            ]
+          },
+          "expected": "CS-24040: courier C-07 is not available, call 1900 6868\nCS-24041: waiting for a courier",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}
