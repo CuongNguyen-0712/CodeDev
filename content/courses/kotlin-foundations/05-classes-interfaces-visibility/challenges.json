@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_ktf_231",
+      "name": "wallet-and-payment-methods",
+      "type": "mini_coding",
+      "title": "Write the wallet and the payment methods behind one interface",
+      "description": "The Cho Xanh checkout charges a PaymentMethod and knows nothing else. Implement Wallet (top-ups and payments with a private setter on the balance) and the three payment methods, cash on delivery, the wallet and a card with a limit, so that every rule lives inside the class that owns the money: no zero or negative amounts, no top-up above 10,000,000 or balance above 20,000,000, no payment above the balance or the card limit, and no cash order above 2,000,000. The test runner reads top-up, pay and balance commands and prints the result of each.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "kotlin",
+        "filePath": "main.kt",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Everyday payments with all three methods",
+          "input": "wallet 200000 card 1000000\npay wallet 120000\npay cash 85000\npay card 300000\nbalance\n",
+          "expected": "pay wallet 120000: ok\npay cash 85000: ok\npay card 300000: ok\nwallet 80000 VND, card limit 700000 VND",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Declined when the money is not there",
+          "input": "wallet 50000 card 100000\npay wallet 80000\npay card 150000\npay cash 2500000\nbalance\n",
+          "expected": "pay wallet 80000: declined\npay card 150000: declined\npay cash 2500000: declined\nwallet 50000 VND, card limit 100000 VND",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Top-ups and their limits",
+          "input": "wallet 0 card 0\ntopup 5000000\ntopup 12000000\ntopup 10000000\ntopup 6000000\ntopup 5000000\nbalance\n",
+          "expected": "topup 5000000: ok\ntopup 12000000: rejected\ntopup 10000000: ok\ntopup 6000000: rejected\ntopup 5000000: ok\nwallet 20000000 VND, card limit 0 VND",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Zero and negative amounts change nothing",
+          "input": "wallet 100000 card 100000\npay wallet -50000\npay card 0\npay cash -1\ntopup -20000\ntopup 0\nbalance\n",
+          "expected": "pay wallet -50000: declined\npay card 0: declined\npay cash -1: declined\ntopup -20000: rejected\ntopup 0: rejected\nwallet 100000 VND, card limit 100000 VND",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Paying exactly the balance, the card limit and the cash limit",
+          "input": "wallet 245000 card 300000\npay wallet 245000\npay card 300000\npay card 1\npay wallet 1\npay cash 2000000\nbalance\n",
+          "expected": "pay wallet 245000: ok\npay card 300000: ok\npay card 1: declined\npay wallet 1: declined\npay cash 2000000: ok\nwallet 0 VND, card limit 0 VND",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A long day of orders and top-ups",
+          "input": "wallet 30000 card 500000\npay wallet 45000\ntopup 100000\npay wallet 45000\npay card 260000\npay card 260000\npay cash 1999999\ntopup 19900000\ntopup 9000000\npay wallet 9085000\nbalance\n",
+          "expected": "pay wallet 45000: declined\ntopup 100000: ok\npay wallet 45000: ok\npay card 260000: ok\npay card 260000: declined\npay cash 1999999: ok\ntopup 19900000: rejected\ntopup 9000000: ok\npay wallet 9085000: ok\nwallet 0 VND, card limit 240000 VND",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

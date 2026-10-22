@@ -1,0 +1,133 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ktf_221",
+      "name": "data-class-equality-copy-quiz",
+      "type": "quiz",
+      "title": "Predict it: what a data class compares and what copy() shares",
+      "description": "Find out which properties take part in equals and toString, then decide what a copy of an order shares with the original.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this print?\n\ndata class CartLine(val sku: String, val qty: Int) {\n    var note: String = \"\"\n}\n\nval a = CartLine(\"RAU-01\", 2)\na.note = \"fresh please\"\nval b = CartLine(\"RAU-01\", 2)\nprintln(a == b)\nprintln(a)",
+          "explanation": "A data class generates equals, hashCode, toString, copy and the componentN functions from the properties in the PRIMARY CONSTRUCTOR only. note is declared in the class body, so it is ignored by all of them: a and b have the same sku and qty, so a == b is true, and toString prints CartLine(sku=RAU-01, qty=2) without the note. This is sometimes useful (a cache field that should not affect equality), but usually it is a bug waiting to happen: two lines with different notes are 'equal' and one of them can be dropped by a Set or a distinct().",
+          "options": [
+            {
+              "text": "true, then CartLine(sku=RAU-01, qty=2)",
+              "correct": true
+            },
+            {
+              "text": "false, then CartLine(sku=RAU-01, qty=2, note=fresh please)",
+              "correct": false
+            },
+            {
+              "text": "true, then CartLine(sku=RAU-01, qty=2, note=fresh please)",
+              "correct": false
+            },
+            {
+              "text": "false, then CartLine(sku=RAU-01, qty=2)",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "After these lines, which statements are true? (Select all that apply.)\n\ndata class Order(val id: String, val items: MutableList<String>)\n\nval first = Order(\"CX-1\", mutableListOf(\"Rau muong\"))\nval second = first.copy(id = \"CX-2\")\nsecond.items += \"Trung ga ta\"",
+          "explanation": "copy() is shallow: it creates a new Order but copies the REFERENCE to the list, so first.items and second.items are the same MutableList (=== is true), and adding to second.items changes first.items too. first == second is false because the ids differ. Destructuring follows the constructor order, so val (id, items) = second gives id = \"CX-2\". Two separately built orders with the same id and equal lists are equal: data class equals compares properties with ==, and lists compare their contents. hashCode() is only guaranteed to be equal for EQUAL objects; first and second are not equal (different ids), so nothing guarantees that their hash codes match.",
+          "options": [
+            {
+              "text": "first.items is now [Rau muong, Trung ga ta]",
+              "correct": true
+            },
+            {
+              "text": "first == second is true",
+              "correct": false
+            },
+            {
+              "text": "first.items === second.items is true",
+              "correct": true
+            },
+            {
+              "text": "val (id, items) = second gives id = \"CX-2\"",
+              "correct": true
+            },
+            {
+              "text": "Order(\"CX-1\", mutableListOf(\"Rau muong\")) == Order(\"CX-1\", mutableListOf(\"Rau muong\")) is true",
+              "correct": true
+            },
+            {
+              "text": "first.hashCode() == second.hashCode() is guaranteed, because copy() keeps the hash code",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_ktf_222",
+      "name": "fix-cart-merge-and-share",
+      "type": "fix_bug",
+      "title": "Fix the cart that duplicates products and shares a friend's edits",
+      "description": "In the Cho Xanh app, tapping + twice on the same product gives two lines of 1, because every tap loads a new Product object from the API and Product is a plain class. And 'Share my cart' gives a friend a copy that is not really a copy: when the friend removes or adds something, your cart changes too. Fix the model and share so that equal products merge into one line and a shared cart is independent of the original in both directions. The test runner reads add, share, remove and show commands and prints the carts.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "kotlin",
+        "filePath": "main.kt",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Two taps on the same product make one line of 2",
+          "input": "add Lan RAU-01 15000 Rau muong\nadd Lan RAU-01 15000 Rau muong\nadd Lan TRUNG-10 30000 Trung ga ta\nshow Lan\n",
+          "expected": "Lan: 2 x Rau muong (30000 VND), 1 x Trung ga ta (30000 VND) | total 60000 VND",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A friend's removal stays in the friend's cart",
+          "input": "add Lan RAU-01 15000 Rau muong\nadd Lan TRUNG-10 30000 Trung ga ta\nshare Lan Minh\nremove Minh TRUNG-10\nshow Lan\nshow Minh\n",
+          "expected": "Lan: 1 x Rau muong (15000 VND), 1 x Trung ga ta (30000 VND) | total 45000 VND\nMinh: 1 x Rau muong (15000 VND) | total 15000 VND",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Your additions after sharing stay in your cart",
+          "input": "add Lan GAO-05 240000 Gao ST25 tui 5kg\nshare Lan Minh\nadd Lan SUA-01 32000 Sua tuoi TH 1l\nshow Lan\nshow Minh\n",
+          "expected": "Lan: 1 x Gao ST25 tui 5kg (240000 VND), 1 x Sua tuoi TH 1l (32000 VND) | total 272000 VND\nMinh: 1 x Gao ST25 tui 5kg (240000 VND) | total 240000 VND",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A friend empties the shared cart",
+          "input": "add Lan RAU-01 15000 Rau muong\nshare Lan Minh\nremove Minh RAU-01\nshow Minh\nshow Lan\n",
+          "expected": "Minh: empty\nLan: 1 x Rau muong (15000 VND) | total 15000 VND",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A cart shared twice, then edited at the end of the chain",
+          "input": "add Lan RAU-01 15000 Rau muong\nadd Lan THIT-07 185000 Thit bo Uc\nshare Lan Minh\nshare Minh Ha\nadd Ha RAU-01 15000 Rau muong\nremove Ha THIT-07\nshow Lan\nshow Minh\nshow Ha\n",
+          "expected": "Lan: 1 x Rau muong (15000 VND), 1 x Thit bo Uc (185000 VND) | total 200000 VND\nMinh: 1 x Rau muong (15000 VND), 1 x Thit bo Uc (185000 VND) | total 200000 VND\nHa: 2 x Rau muong (30000 VND) | total 30000 VND",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Interleaved taps on two products",
+          "input": "add Tuan BANH-MI 25000 Banh mi pate\nadd Tuan CAFE-02 29000 Ca phe sua da\nadd Tuan BANH-MI 25000 Banh mi pate\nadd Tuan CAFE-02 29000 Ca phe sua da\nadd Tuan BANH-MI 25000 Banh mi pate\nshow Tuan\n",
+          "expected": "Tuan: 3 x Banh mi pate (75000 VND), 2 x Ca phe sua da (58000 VND) | total 133000 VND",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

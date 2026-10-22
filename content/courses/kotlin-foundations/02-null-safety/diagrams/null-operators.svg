@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Five ways to read a String? - and the one that crashes</text>
+  <text x="40" y="82" font-size="16" fill="#475569">val ward: String? is either a text such as "Hang Bac" or null. Each row shows what the expression gives in both cases.</text>
+
+  <!-- header -->
+  <rect x="40" y="104" width="1120" height="44" rx="8" fill="#f1f5f9"/>
+  <g font-size="15" font-weight="700" fill="#334155">
+    <text x="60" y="132">Expression</text>
+    <text x="520" y="132">ward = "Hang Bac"</text>
+    <text x="800" y="132">ward = null</text>
+  </g>
+
+  <g font-size="16" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">
+    <!-- row 1 -->
+    <text x="60" y="190">ward?.length</text>
+    <text x="520" y="190">8</text>
+    <text x="800" y="190" fill="#475569">null (the call is skipped)</text>
+    <!-- row 2 -->
+    <text x="60" y="262">ward?.length ?: 0</text>
+    <text x="520" y="262">8</text>
+    <text x="800" y="262" fill="#16a34a">0 (the fallback)</text>
+    <!-- row 3 -->
+    <text x="60" y="334">val w = ward ?: return "add an address"</text>
+    <text x="520" y="334">w is a String</text>
+    <text x="800" y="334" fill="#16a34a">leaves the function</text>
+    <!-- row 4 -->
+    <text x="60" y="406">if (ward != null) ward.length</text>
+    <text x="520" y="406">8 (smart cast)</text>
+    <text x="800" y="406" fill="#475569">the branch is skipped</text>
+    <!-- row 5 -->
+    <text x="60" y="478">listOfNotNull(street, ward, district)</text>
+    <text x="520" y="478">keeps "Hang Bac"</text>
+    <text x="800" y="478" fill="#475569">drops the null</text>
+  </g>
+  <g stroke="#e2e8f0" stroke-width="2">
+    <path d="M40 220 H1160"/>
+    <path d="M40 292 H1160"/>
+    <path d="M40 364 H1160"/>
+    <path d="M40 436 H1160"/>
+    <path d="M40 508 H1160"/>
+  </g>
+
+  <!-- the crash row -->
+  <rect x="40" y="520" width="1120" height="56" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="60" y="555" font-size="16" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">ward!!.length</text>
+  <text x="520" y="555" font-size="16" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">8</text>
+  <text x="800" y="555" font-size="16" font-weight="700" font-family="Consolas, 'Courier New', monospace" fill="#dc2626">NullPointerException</text>
+  <text x="1140" y="555" font-size="14" fill="#dc2626" text-anchor="end">crash</text>
+</svg>

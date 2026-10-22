@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">What == compares, and what copy() copies</text>
+  <text x="40" y="82" font-size="16" fill="#475569">A data class compares its constructor properties. copy() builds a new object, but the properties still point where they pointed.</text>
+
+  <!-- left: equality -->
+  <text x="40" y="126" font-size="18" font-weight="700" fill="#334155">1. Two products loaded from the API</text>
+  <rect x="40" y="144" width="250" height="96" rx="10" fill="#f8fafc" stroke="#334155" stroke-width="2"/>
+  <text x="58" y="172" font-size="14" font-weight="700" fill="#334155">object #1</text>
+  <text x="58" y="198" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">sku = "RAU-01"</text>
+  <text x="58" y="222" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">price = 15000</text>
+  <rect x="320" y="144" width="250" height="96" rx="10" fill="#f8fafc" stroke="#334155" stroke-width="2"/>
+  <text x="338" y="172" font-size="14" font-weight="700" fill="#334155">object #2</text>
+  <text x="338" y="198" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">sku = "RAU-01"</text>
+  <text x="338" y="222" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">price = 15000</text>
+
+  <rect x="40" y="262" width="250" height="118" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="58" y="290" font-size="15" font-weight="700" fill="#991b1b">class Product</text>
+  <text x="58" y="316" font-size="14" fill="#334155">== asks: same object?</text>
+  <text x="58" y="342" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#dc2626">#1 == #2 is false</text>
+  <text x="58" y="366" font-size="14" fill="#334155">cart: 1 x Rau muong, twice</text>
+  <rect x="320" y="262" width="250" height="118" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="338" y="290" font-size="15" font-weight="700" fill="#166534">data class Product</text>
+  <text x="338" y="316" font-size="14" fill="#334155">== asks: same properties?</text>
+  <text x="338" y="342" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#16a34a">#1 == #2 is true</text>
+  <text x="338" y="366" font-size="14" fill="#334155">cart: 2 x Rau muong</text>
+  <text x="40" y="414" font-size="14" fill="#475569">=== always asks "same object?", for every class.</text>
+  <text x="40" y="438" font-size="14" fill="#475569">Only constructor properties count: a var in the</text>
+  <text x="40" y="460" font-size="14" fill="#475569">class body is ignored by equals, hashCode and toString.</text>
+
+  <!-- divider -->
+  <path d="M610 110 V560" stroke="#e2e8f0" stroke-width="2"/>
+
+  <!-- right: shallow copy -->
+  <text x="640" y="126" font-size="18" font-weight="700" fill="#334155">2. val friends = cart.copy(owner = "Minh")</text>
+  <rect x="640" y="150" width="230" height="86" rx="10" fill="#f8fafc" stroke="#334155" stroke-width="2"/>
+  <text x="658" y="178" font-size="14" font-weight="700" fill="#334155">Cart (mine)</text>
+  <text x="658" y="204" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">owner = "Lan"</text>
+  <text x="658" y="224" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">lines = </text>
+  <rect x="930" y="150" width="230" height="86" rx="10" fill="#f8fafc" stroke="#334155" stroke-width="2"/>
+  <text x="948" y="178" font-size="14" font-weight="700" fill="#334155">Cart (friend's copy)</text>
+  <text x="948" y="204" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">owner = "Minh"</text>
+  <text x="948" y="224" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">lines = </text>
+  <rect x="770" y="290" width="270" height="92" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="788" y="318" font-size="14" font-weight="700" fill="#991b1b">one MutableList&lt;CartLine&gt;</text>
+  <text x="788" y="344" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">1 x Rau muong</text>
+  <text x="788" y="366" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">1 x Trung ga ta</text>
+  <g stroke="#dc2626" stroke-width="2" fill="none" marker-end="url(#arrow)">
+    <path d="M730 220 C760 250 790 260 820 288"/>
+    <path d="M1020 220 C1010 250 1000 262 990 288"/>
+  </g>
+  <text x="640" y="414" font-size="14" fill="#475569">Minh removes Trung ga ta from the copy: it disappears from Lan's</text>
+  <text x="640" y="436" font-size="14" fill="#475569">cart too, because there is only one list.</text>
+  <rect x="640" y="460" width="520" height="86" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="658" y="488" font-size="14" font-weight="700" fill="#166534">Fix: copy what can change, or make it unable to change</text>
+  <text x="658" y="512" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">cart.copy(owner = "Minh", lines = cart.lines.toMutableList())</text>
+  <text x="658" y="534" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">data class Cart(val owner: String, val lines: List&lt;CartLine&gt;)</text>
+</svg>

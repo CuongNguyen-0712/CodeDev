@@ -1,0 +1,133 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ktf_331",
+      "name": "scope-functions-quiz",
+      "type": "quiz",
+      "title": "Predict it: let, apply, also and ?: run",
+      "description": "Trace a ?.let { } ?: fallback whose lambda returns null, then pick the scope-function and extension statements that are true.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "sendPush returns an error message, or null when the push was sent. What does this print?\n\nfun sendPush(token: String, text: String): String? {\n    println(\"push\")\n    return null\n}\n\nval token: String? = \"tok-1\"\ntoken?.let { sendPush(it, \"Order on its way\") } ?: println(\"sms\")",
+          "explanation": "token is not null, so let runs the lambda: sendPush prints push and returns null. let returns whatever its lambda returns, so the whole expression token?.let { ... } is null, and the elvis operator runs its right side: sms is printed too. The elvis does not know WHY the left side is null: a null token and a lambda that returned null look the same. That is how customers received a push and an SMS for the same order. An if (token != null) ... else ... has no such ambiguity.",
+          "options": [
+            {
+              "text": "push",
+              "correct": false
+            },
+            {
+              "text": "push, then sms",
+              "correct": true
+            },
+            {
+              "text": "sms",
+              "correct": false
+            },
+            {
+              "text": "Nothing: sendPush returned null, so nothing was sent",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which of these statements are true? (Select all that apply.)",
+          "explanation": "apply runs the block with the object as this and returns the object itself, so n is the configured Notification. let returns the lambda's result: \"cho xanh\".let { it.uppercase() } is \"CHO XANH\". also passes the object as it and returns the object, so the list (now [1, 2], because += changed it inside the block) is assigned to y. \"abc\".also { it.length } returns \"abc\", not 3: also ignores the lambda's result. An extension function is resolved statically and only sees the public API of its receiver; it cannot read private members. An extension on a nullable receiver (String?) can be called on a null value: inside it, this is null, so s.orDash() returns \"-\".",
+          "options": [
+            {
+              "text": "val n = Notification().apply { title = \"Hi\" } makes n the Notification object",
+              "correct": true
+            },
+            {
+              "text": "val x = \"cho xanh\".let { it.uppercase() } makes x \"CHO XANH\"",
+              "correct": true
+            },
+            {
+              "text": "val y = mutableListOf(1).also { it += 2 } makes y [1, 2]",
+              "correct": true
+            },
+            {
+              "text": "val z = \"abc\".also { it.length } makes z 3",
+              "correct": false
+            },
+            {
+              "text": "An extension function on a class can read that class's private properties",
+              "correct": false
+            },
+            {
+              "text": "With fun String?.orDash() = this ?: \"-\" and val s: String? = null, s.orDash() returns \"-\"",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_ktf_332",
+      "name": "notification-extensions",
+      "type": "mini_coding",
+      "title": "Write the notification text with extension functions",
+      "description": "The Cho Xanh 'order on its way' notification needs money with thousands separators, names in title case, a masked driver phone number and a dash for missing values. Write the extension functions Long.vnd(), String.titleCase(), String.maskPhone() and String?.orDash(), then build Order.notificationText() from them. Negative amounts (refunds), short phone numbers, extra spaces in names and notes that are only spaces must all come out right. The test runner reads order and refund lines and prints one text per line.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "kotlin",
+        "filePath": "main.kt",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A complete order",
+          "input": "order|CX-1042|nguyen van an|1250000|tuan|0912345678|leave at the door\n",
+          "expected": "Hi Nguyen Van An, order CX-1042 (1,250,000 VND) is on its way. Driver: Tuan (091****678). Note: leave at the door",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "No driver yet and no note",
+          "input": "order|CX-1043|Le Thi Mai|245000|-|-|-\n",
+          "expected": "Hi Le Thi Mai, order CX-1043 (245,000 VND) is on its way. Driver: - (-). Note: -",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Refunds and a small amount",
+          "input": "refund|CX-1042|-300000\nrefund|CX-1044|-30000\norder|CX-1045|minh|999|lan|0987654321|-\n",
+          "expected": "Refund for CX-1042: -300,000 VND\nRefund for CX-1044: -30,000 VND\nHi Minh, order CX-1045 (999 VND) is on its way. Driver: Lan (098****321). Note: -",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Messy names and a note of only spaces",
+          "input": "order|CX-1046|  TRAN   thi   HA |85000|  pham  QUANG |0987654321|   \n",
+          "expected": "Hi Tran Thi Ha, order CX-1046 (85,000 VND) is on its way. Driver: Pham Quang (098****321). Note: -",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A short phone number and zero amounts",
+          "input": "order|CX-1047|binh|0|son|12345|ring twice\nrefund|CX-1047|0\n",
+          "expected": "Hi Binh, order CX-1047 (0 VND) is on its way. Driver: Son (*****). Note: ring twice\nRefund for CX-1047: 0 VND",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Large and boundary amounts",
+          "input": "order|CX-1048|cong ty an phat|2250000000|hung|0901234567|invoice please\nrefund|CX-1048|-1000\nrefund|CX-1049|-999\norder|CX-1050|ha|100000|vy|0911222333|-\n",
+          "expected": "Hi Cong Ty An Phat, order CX-1048 (2,250,000,000 VND) is on its way. Driver: Hung (090****567). Note: invoice please\nRefund for CX-1048: -1,000 VND\nRefund for CX-1049: -999 VND\nHi Ha, order CX-1050 (100,000 VND) is on its way. Driver: Vy (091****333). Note: -",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

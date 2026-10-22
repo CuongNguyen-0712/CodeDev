@@ -1,0 +1,73 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_ktf_321",
+      "name": "daily-sales-report",
+      "type": "mini_coding",
+      "title": "Write the daily sales report with collection operations",
+      "description": "The Cho Xanh order export logs every status change, so an order delivered in the morning and refunded in the afternoon appears twice. Write summarize so that only the last line of each order counts, revenue includes delivered orders only, stores and categories are ranked by revenue (ties alphabetical), and the top order and average basket are computed from delivered orders, with null when nothing was delivered. Use associateBy, filter, groupBy, groupingBy, sumOf and sortedWith instead of index loops. The test runner reads the export and prints the report.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "kotlin",
+        "filePath": "main.kt",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A simple day with one cancelled order",
+          "input": "CX-1001 kim-ma meat 245000 delivered\nCX-1002 kim-ma vegetables 60000 delivered\nCX-1003 cau-giay dairy 120000 delivered\nCX-1004 cau-giay meat 185000 cancelled\n",
+          "expected": "orders: 4 (delivered 3, refunded 0, cancelled 1)\nrevenue: 425000 VND\nstore kim-ma: 305000 VND\nstore cau-giay: 120000 VND\ncategory meat: 245000 VND\ncategory dairy: 120000 VND\ncategory vegetables: 60000 VND\ntop order: CX-1001 kim-ma 245000 VND\naverage basket: 141666 VND",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Delivered in the morning, refunded in the afternoon",
+          "input": "CX-2001 kim-ma meat 300000 delivered\nCX-2002 long-bien rice 240000 delivered\nCX-2001 kim-ma meat 300000 refunded\n",
+          "expected": "orders: 2 (delivered 1, refunded 1, cancelled 0)\nrevenue: 240000 VND\nstore long-bien: 240000 VND\ncategory rice: 240000 VND\ntop order: CX-2002 long-bien 240000 VND\naverage basket: 240000 VND",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Equal revenue: alphabetical stores and the alphabetically first top order",
+          "input": "CX-3002 tay-ho fruit 150000 delivered\nCX-3001 ba-dinh fruit 150000 delivered\nCX-3003 dong-da dairy 90000 delivered\n",
+          "expected": "orders: 3 (delivered 3, refunded 0, cancelled 0)\nrevenue: 390000 VND\nstore ba-dinh: 150000 VND\nstore tay-ho: 150000 VND\nstore dong-da: 90000 VND\ncategory fruit: 300000 VND\ncategory dairy: 90000 VND\ntop order: CX-3001 ba-dinh 150000 VND\naverage basket: 130000 VND",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Nothing delivered",
+          "input": "CX-4001 kim-ma meat 185000 cancelled\nCX-4002 tay-ho fruit 70000 delivered\nCX-4002 tay-ho fruit 70000 refunded\n",
+          "expected": "orders: 2 (delivered 0, refunded 1, cancelled 1)\nrevenue: 0 VND\ntop order: none\naverage basket: n/a",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Status changes back and forth: the last line wins",
+          "input": "CX-5001 cau-giay rice 480000 cancelled\nCX-5002 ba-dinh meat 210000 delivered\nCX-5001 cau-giay rice 480000 delivered\nCX-5002 ba-dinh meat 210000 refunded\nCX-5003 ba-dinh dairy 64000 delivered\nCX-5002 ba-dinh meat 210000 delivered\n",
+          "expected": "orders: 3 (delivered 3, refunded 0, cancelled 0)\nrevenue: 754000 VND\nstore cau-giay: 480000 VND\nstore ba-dinh: 274000 VND\ncategory rice: 480000 VND\ncategory meat: 210000 VND\ncategory dairy: 64000 VND\ntop order: CX-5001 cau-giay 480000 VND\naverage basket: 251333 VND",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "An empty export",
+          "input": "\n",
+          "expected": "orders: 0 (delivered 0, refunded 0, cancelled 0)\nrevenue: 0 VND\ntop order: none\naverage basket: n/a",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A busy day across five stores",
+          "input": "CX-7001 kim-ma meat 245000 delivered\nCX-7002 tay-ho vegetables 45000 delivered\nCX-7003 cau-giay dairy 128000 delivered\nCX-7004 long-bien rice 240000 delivered\nCX-7005 kim-ma fruit 99000 delivered\nCX-7006 dong-da meat 370000 delivered\nCX-7007 tay-ho dairy 64000 cancelled\nCX-7003 cau-giay dairy 128000 refunded\nCX-7008 long-bien vegetables 104000 delivered\nCX-7009 dong-da fruit 1000 delivered\n",
+          "expected": "orders: 9 (delivered 7, refunded 1, cancelled 1)\nrevenue: 1104000 VND\nstore dong-da: 371000 VND\nstore kim-ma: 344000 VND\nstore long-bien: 344000 VND\nstore tay-ho: 45000 VND\ncategory meat: 615000 VND\ncategory rice: 240000 VND\ncategory vegetables: 149000 VND\ncategory fruit: 100000 VND\ntop order: CX-7006 dong-da 370000 VND\naverage basket: 157714 VND",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

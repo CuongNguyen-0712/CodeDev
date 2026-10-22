@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#dc2626"/>
+    </marker>
+  </defs>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">The backend adds READY_FOR_PICKUP. Who notices?</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Same new value, two kinds of when. One swallows it at run time, the other stops the build until someone decides.</text>
+
+  <!-- left panel -->
+  <rect x="40" y="110" width="540" height="420" rx="12" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="62" y="144" font-size="17" font-weight="700" fill="#991b1b">String status + else</text>
+  <g font-size="15" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">
+    <text x="62" y="186">when (status) {</text>
+    <text x="98" y="216">"PLACED" -&gt; "Placed"</text>
+    <text x="98" y="246">"PICKING" -&gt; "Picking ..."</text>
+    <text x="98" y="276">"OUT_FOR_DELIVERY" -&gt; "On the way"</text>
+    <text x="98" y="306">"DELIVERED" -&gt; "Delivered"</text>
+    <text x="98" y="336" font-weight="700" fill="#dc2626">else -&gt; "Unknown"</text>
+    <text x="62" y="366">}</text>
+  </g>
+  <rect x="330" y="160" width="230" height="40" rx="8" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
+  <text x="345" y="186" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#dc2626">"READY_FOR_PICKUP"</text>
+  <path d="M520 200 L520 318 Q520 332 506 332 L264 332" stroke="#dc2626" stroke-width="2" fill="none" marker-end="url(#arrowRed)"/>
+  <text x="62" y="410" font-size="15" fill="#334155">Compiles. Ships. Runs without an error.</text>
+  <text x="62" y="436" font-size="15" fill="#334155">The new status falls into else, and 12% of</text>
+  <text x="62" y="462" font-size="15" fill="#334155">orders show a grey "Unknown" badge.</text>
+  <text x="62" y="500" font-size="15" font-weight="700" fill="#991b1b">Found by: customers calling support</text>
+
+  <!-- right panel -->
+  <rect x="620" y="110" width="540" height="420" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="642" y="144" font-size="17" font-weight="700" fill="#166534">sealed interface + when without else</text>
+  <g font-size="15" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">
+    <text x="642" y="186">when (s) {</text>
+    <text x="678" y="216">Placed -&gt; "Placed"</text>
+    <text x="678" y="246">Picking -&gt; "Picking ..."</text>
+    <text x="678" y="276">is OutForDelivery -&gt; ...</text>
+    <text x="678" y="306">is Delivered -&gt; ...</text>
+    <text x="678" y="336" fill="#64748b">// no else</text>
+    <text x="642" y="366">}</text>
+  </g>
+  <rect x="642" y="384" width="496" height="64" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="658" y="410" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#b91c1c">error: 'when' expression must be exhaustive.</text>
+  <text x="658" y="432" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#b91c1c">Add the 'is ReadyForPickup' branch or an 'else' branch.</text>
+  <text x="642" y="472" font-size="15" fill="#334155">Every when over OrderStatus stops compiling</text>
+  <text x="642" y="494" font-size="15" fill="#334155">until the new case has a branch.</text>
+  <text x="642" y="518" font-size="15" font-weight="700" fill="#166534">Found by: the compiler, before the release</text>
+
+  <text x="40" y="568" font-size="14" fill="#475569">Parsing still needs a fallback for values the app does not know yet (old app versions stay installed): map them to an explicit Unknown case.</text>
+</svg>

@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">One unreadable line, three possible imports</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The file has 1,800 lines. Line 2 says GAO-05;18.500. What happens to it, and to the 1,799 others?</text>
+
+  <!-- column 1 -->
+  <rect x="40" y="110" width="350" height="440" rx="12" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="60" y="144" font-size="18" font-weight="700" fill="#991b1b">Swallow and default</text>
+  <g font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">
+    <text x="60" y="180">try { text.toLong() }</text>
+    <text x="60" y="200">catch (e: Exception) { 0 }</text>
+  </g>
+  <g font-size="14" fill="#334155">
+    <text x="60" y="248">Line 2 becomes a valid-looking 0.</text>
+    <text x="60" y="272">The import reports success.</text>
+    <text x="60" y="320" font-weight="700" fill="#dc2626">GAO-05 sells for 0 VND.</text>
+    <text x="60" y="344">Nobody knows until customers</text>
+    <text x="60" y="366">find out first.</text>
+  </g>
+  <text x="60" y="520" font-size="15" font-weight="700" fill="#991b1b">Worst: wrong data, no signal</text>
+
+  <!-- column 2 -->
+  <rect x="425" y="110" width="350" height="440" rx="12" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+  <text x="445" y="144" font-size="18" font-weight="700" fill="#9a3412">Let it throw</text>
+  <g font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">
+    <text x="445" y="180">text.toLong()</text>
+    <text x="445" y="200">// NumberFormatException</text>
+  </g>
+  <g font-size="14" fill="#334155">
+    <text x="445" y="248">The job stops at line 2.</text>
+    <text x="445" y="272">Line 1 was applied, 1,798 were not:</text>
+    <text x="445" y="296">the catalog is half updated.</text>
+    <text x="445" y="344">At least the error is loud,</text>
+    <text x="445" y="366">with the input in the message.</text>
+  </g>
+  <text x="445" y="520" font-size="15" font-weight="700" fill="#9a3412">Safe-ish: loud, but all or something</text>
+
+  <!-- column 3 -->
+  <rect x="810" y="110" width="350" height="440" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="830" y="144" font-size="18" font-weight="700" fill="#166534">Validate, then decide</text>
+  <g font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">
+    <text x="830" y="180">parseLine(...): Result&lt;Update&gt;</text>
+    <text x="830" y="200">require(...) { "reason" }</text>
+  </g>
+  <g font-size="14" fill="#334155">
+    <text x="830" y="248">Every line is parsed first.</text>
+    <text x="830" y="272">Line 2: rejected (invalid price</text>
+    <text x="830" y="294">"18.500"), old price kept.</text>
+    <text x="830" y="342">Few rejections: apply the rest</text>
+    <text x="830" y="364">and report each rejected line.</text>
+    <text x="830" y="412">Most lines rejected: the file is</text>
+    <text x="830" y="434">broken, apply nothing.</text>
+  </g>
+  <text x="830" y="520" font-size="15" font-weight="700" fill="#166534">Each line: applied or explained</text>
+</svg>

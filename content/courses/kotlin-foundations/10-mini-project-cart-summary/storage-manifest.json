@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_ktf_421",
+      "key": "challenges/kotlin/chal_coding_ktf_421/starter.kt",
+      "contentType": "text/x-kotlin; charset=utf-8",
+      "originalName": "main.kt",
+      "size": 4755
+    }
+  ]
+}

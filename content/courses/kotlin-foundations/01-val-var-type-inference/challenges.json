@@ -1,0 +1,133 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ktf_111",
+      "name": "templates-types-quiz",
+      "type": "quiz",
+      "title": "Predict it: string templates, inferred types and integer arithmetic",
+      "description": "Read a push-notification template the way the compiler does, then decide which lines about Kotlin's number types are true.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this print?\n\ndata class CartItem(val name: String, val qty: Int)\n\nval item = CartItem(\"Rau muong\", 2)\nprintln(\"$item.qty x ${item.name}\")",
+          "explanation": "A template without braces takes only the longest identifier after the $: $item. The text .qty that follows is plain text, not a property access. item is a data class, so its toString() is CartItem(name=Rau muong, qty=2), and the line becomes CartItem(name=Rau muong, qty=2).qty x Rau muong. ${item.name} has braces, so the whole expression item.name is evaluated. To print 2 x Rau muong, write ${item.qty}. It compiles: item is a valid reference, and nothing about .qty is checked because it is just text.",
+          "options": [
+            {
+              "text": "2 x Rau muong",
+              "correct": false
+            },
+            {
+              "text": "CartItem(name=Rau muong, qty=2).qty x Rau muong",
+              "correct": true
+            },
+            {
+              "text": "item.qty x Rau muong",
+              "correct": false
+            },
+            {
+              "text": "It does not compile: a template needs braces around item.qty",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which of these statements are true? (Select all that apply.)",
+          "explanation": "An integer literal that does not fit in an Int is a Long, so 3_000_000_000 is inferred as Long without an L. 7 / 2 divides two Ints, which truncates to 3. A val cannot be reassigned, but the list it refers to is still a MutableList, so cart.add(\"ca\") compiles and changes the list. val total: Long = qty * 15_000 does not compile: qty * 15_000 is an Int, and Kotlin never widens an Int to a Long for you (\"Initializer type mismatch: expected 'Long', actual 'Int'\"); write qty.toLong() * 15_000. 10 / 0.0 is a Double division and gives Infinity; only integer division by zero throws ArithmeticException. Int.MAX_VALUE + 1 does not throw either: Int arithmetic wraps around silently to -2147483648.",
+          "options": [
+            {
+              "text": "val big = 3_000_000_000 compiles, and big is a Long",
+              "correct": true
+            },
+            {
+              "text": "val qty = 3 followed by val total: Long = qty * 15_000 compiles",
+              "correct": false
+            },
+            {
+              "text": "println(7 / 2) prints 3",
+              "correct": true
+            },
+            {
+              "text": "val cart = mutableListOf(\"rau\") followed by cart.add(\"ca\") compiles",
+              "correct": true
+            },
+            {
+              "text": "println(10 / 0.0) throws ArithmeticException",
+              "correct": false
+            },
+            {
+              "text": "println(Int.MAX_VALUE + 1) throws an exception because the result overflows",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_ktf_112",
+      "name": "checkout-summary",
+      "type": "mini_coding",
+      "title": "Write the checkout summary with the free-shipping bar",
+      "description": "The Cho Xanh checkout screen shows each cart line, the subtotal, the delivery fee and how far the customer is from free shipping. Write lineTotal, shippingFee and freeShippingProgress so that wholesale orders do not overflow, an empty cart pays nothing, a cart of exactly 300,000 VND ships free, and the progress bar shows a real percentage instead of 0. The test runner reads one cart line per line and prints the summary.",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "kotlin",
+        "filePath": "main.kt",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A normal cart below the free-shipping threshold",
+          "input": "RAU-01 2 15000 Rau muong\nTHIT-07 1 185000 Thit bo Uc\nTRUNG-10 1 30000 Trung ga ta\n",
+          "expected": "2 x Rau muong: 30000 VND\n1 x Thit bo Uc: 185000 VND\n1 x Trung ga ta: 30000 VND\nitems: 4\nsubtotal: 245000 VND\nshipping: 15000 VND\nfree shipping: 81.7% (55000 VND to go)\ntotal: 260000 VND",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Exactly 300,000 VND ships free",
+          "input": "RAU-01 4 15000 Rau muong\nGAO-05 1 240000 Gao ST25 tui 5kg\n",
+          "expected": "4 x Rau muong: 60000 VND\n1 x Gao ST25 tui 5kg: 240000 VND\nitems: 5\nsubtotal: 300000 VND\nshipping: 0 VND\nfree shipping: unlocked\ntotal: 300000 VND",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A restaurant's wholesale order larger than Int.MAX_VALUE",
+          "input": "BO-A5 500 4500000 Bo Wagyu A5\n",
+          "expected": "500 x Bo Wagyu A5: 2250000000 VND\nitems: 500\nsubtotal: 2250000000 VND\nshipping: 0 VND\nfree shipping: unlocked\ntotal: 2250000000 VND",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "An empty cart pays no shipping",
+          "input": "\n",
+          "expected": "items: 0\nsubtotal: 0 VND\nshipping: 0 VND\nfree shipping: 0.0% (300000 VND to go)\ntotal: 0 VND",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "One small item: the bar is at 8.3%",
+          "input": "BANH-MI 1 25000 Banh mi pate\n",
+          "expected": "1 x Banh mi pate: 25000 VND\nitems: 1\nsubtotal: 25000 VND\nshipping: 15000 VND\nfree shipping: 8.3% (275000 VND to go)\ntotal: 40000 VND",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Several wholesale lines, one of them over Int.MAX_VALUE",
+          "input": "GAO-50 40 1200000 Gao ST25 bao 50kg\nCA-HOI 1200 1850000 Ca hoi Na Uy nguyen con\nNUOC-MAM 100 85000 Nuoc mam Phu Quoc\n",
+          "expected": "40 x Gao ST25 bao 50kg: 48000000 VND\n1200 x Ca hoi Na Uy nguyen con: 2220000000 VND\n100 x Nuoc mam Phu Quoc: 8500000 VND\nitems: 1340\nsubtotal: 2276500000 VND\nshipping: 0 VND\nfree shipping: unlocked\ntotal: 2276500000 VND",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

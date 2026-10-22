@@ -1,0 +1,73 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_ktf_211",
+      "name": "order-tracking-timeline",
+      "type": "mini_coding",
+      "title": "Write the order tracking timeline with exhaustive when",
+      "description": "The Cho Xanh app shows one line per order event and the order's current status. The events are a sealed interface: Placed, Paid, Picking, OutForDelivery, Delivered, Refunded and Cancelled. Write describe and status with when expressions that cover every event type without an else branch: cash payments read differently from card and wallet payments, a delivery may or may not name who received it, and refunds never change the status. The test runner reads one event per line and prints the timeline and the status.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "kotlin",
+        "filePath": "main.kt",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A card order from placed to delivered",
+          "input": "placed 245000\npaid card 245000\npicking\nout_for_delivery Tuan\ndelivered\n",
+          "expected": "Order placed: 245000 VND\nPaid 245000 VND by card\nPicking your groceries\nTuan is on the way\nDelivered\nStatus: Delivered",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A cash order on its way",
+          "input": "placed 180000\npaid cash 180000\npicking\nout_for_delivery Nguyen Van Hung\n",
+          "expected": "Order placed: 180000 VND\nCash on delivery: 180000 VND\nPicking your groceries\nNguyen Van Hung is on the way\nStatus: On the way",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A refund while picking does not change the status",
+          "input": "placed 300000\npaid wallet 300000\npicking\nrefunded 30000 out of stock: Trung ga ta\n",
+          "expected": "Order placed: 300000 VND\nPaid 300000 VND by wallet\nPicking your groceries\nRefunded 30000 VND (out of stock: Trung ga ta)\nStatus: Picking",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Delivered to the guard, then a refund",
+          "input": "placed 520000\npaid card 520000\npicking\nout_for_delivery Le Thi Mai\ndelivered the guard\nrefunded 45000 damaged: Sua tuoi TH 1l\n",
+          "expected": "Order placed: 520000 VND\nPaid 520000 VND by card\nPicking your groceries\nLe Thi Mai is on the way\nDelivered to the guard\nRefunded 45000 VND (damaged: Sua tuoi TH 1l)\nStatus: Delivered",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Cancelled by the store with a full refund",
+          "input": "placed 95000\npaid card 95000\ncancelled store\nrefunded 95000 order cancelled\n",
+          "expected": "Order placed: 95000 VND\nPaid 95000 VND by card\nCancelled by Cho Xanh\nRefunded 95000 VND (order cancelled)\nStatus: Cancelled",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Cash chosen, nothing else yet",
+          "input": "placed 120000\npaid cash 120000\n",
+          "expected": "Order placed: 120000 VND\nCash on delivery: 120000 VND\nStatus: Confirmed, pay on delivery",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "No events yet",
+          "input": "\n",
+          "expected": "Status: No updates yet",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

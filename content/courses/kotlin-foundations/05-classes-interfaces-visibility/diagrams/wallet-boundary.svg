@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#16a34a"/>
+    </marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#dc2626"/>
+    </marker>
+  </defs>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Rules live inside the class; callers see an interface</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The balance can only change through the wallet's own functions, and the checkout only knows PaymentMethod.</text>
+
+  <!-- left: encapsulation -->
+  <text x="40" y="124" font-size="18" font-weight="700" fill="#334155">1. Who may change the balance?</text>
+  <rect x="300" y="150" width="270" height="250" rx="12" fill="#f8fafc" stroke="#334155" stroke-width="2"/>
+  <text x="320" y="180" font-size="16" font-weight="700" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">class Wallet</text>
+  <rect x="316" y="196" width="238" height="60" rx="8" fill="#fef9c3" stroke="#ca8a04" stroke-width="1.5"/>
+  <text x="330" y="220" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">var balance</text>
+  <text x="330" y="242" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#a16207">private set</text>
+  <rect x="316" y="270" width="238" height="54" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="330" y="294" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">fun pay(amount)</text>
+  <text x="330" y="314" font-size="12" fill="#166534">checks amount &gt; 0, &lt;= balance</text>
+  <rect x="316" y="334" width="238" height="54" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="330" y="358" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">fun topUp(amount)</text>
+  <text x="330" y="378" font-size="12" fill="#166534">checks the top-up and balance caps</text>
+
+  <rect x="40" y="170" width="210" height="64" rx="10" fill="#ffffff" stroke="#334155" stroke-width="2"/>
+  <text x="56" y="196" font-size="14" font-weight="700" fill="#334155">Checkout screen</text>
+  <text x="56" y="218" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">wallet.pay(total)</text>
+  <path d="M250 214 C280 240 290 280 314 296" stroke="#16a34a" stroke-width="2" fill="none" marker-end="url(#arrowGreen)"/>
+
+  <rect x="40" y="290" width="210" height="64" rx="10" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
+  <text x="56" y="316" font-size="14" font-weight="700" fill="#334155">Voucher screen</text>
+  <text x="56" y="338" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#dc2626">wallet.balance -= 50000</text>
+  <path d="M250 312 C272 290 280 260 300 248" stroke="#dc2626" stroke-width="2" stroke-dasharray="6 5" fill="none" marker-end="url(#arrowRed)"/>
+  <text x="40" y="384" font-size="13" fill="#b91c1c">error: cannot access 'balance':</text>
+  <text x="40" y="402" font-size="13" fill="#b91c1c">it is private in 'Wallet'.</text>
+  <text x="40" y="444" font-size="14" fill="#475569">Reading wallet.balance is still public.</text>
+  <text x="40" y="466" font-size="14" fill="#475569">Writing it is only possible inside Wallet,</text>
+  <text x="40" y="488" font-size="14" fill="#475569">where every change goes through a check.</text>
+
+  <!-- divider -->
+  <path d="M610 110 V560" stroke="#e2e8f0" stroke-width="2"/>
+
+  <!-- right: interface -->
+  <text x="640" y="124" font-size="18" font-weight="700" fill="#334155">2. What does the checkout depend on?</text>
+  <rect x="760" y="150" width="280" height="56" rx="10" fill="#ffffff" stroke="#334155" stroke-width="2"/>
+  <text x="780" y="184" font-size="15" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">checkout(method, total)</text>
+  <path d="M900 206 V240" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="720" y="244" width="360" height="86" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="740" y="272" font-size="15" font-weight="700" font-family="Consolas, 'Courier New', monospace" fill="#1e3a8a">interface PaymentMethod</text>
+  <text x="740" y="296" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">val label: String</text>
+  <text x="740" y="318" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">fun charge(amount: Long): Boolean</text>
+  <g stroke="#94a3b8" stroke-width="2" fill="none" marker-end="url(#arrow)">
+    <path d="M730 400 C730 370 800 360 820 334"/>
+    <path d="M900 400 V334"/>
+    <path d="M1070 400 C1070 370 1000 360 980 334"/>
+  </g>
+  <rect x="640" y="402" width="170" height="92" rx="10" fill="#f8fafc" stroke="#334155" stroke-width="2"/>
+  <text x="656" y="428" font-size="14" font-weight="700" fill="#334155">CashOnDelivery</text>
+  <text x="656" y="452" font-size="12" fill="#475569">up to 2,000,000</text>
+  <text x="656" y="472" font-size="12" fill="#475569">per order</text>
+  <rect x="820" y="402" width="160" height="92" rx="10" fill="#f8fafc" stroke="#334155" stroke-width="2"/>
+  <text x="836" y="428" font-size="14" font-weight="700" fill="#334155">WalletPayment</text>
+  <text x="836" y="452" font-size="12" fill="#475569">calls wallet.pay</text>
+  <rect x="990" y="402" width="170" height="92" rx="10" fill="#f8fafc" stroke="#334155" stroke-width="2"/>
+  <text x="1006" y="428" font-size="14" font-weight="700" fill="#334155">CardPayment</text>
+  <text x="1006" y="452" font-size="12" fill="#475569">limitLeft,</text>
+  <text x="1006" y="472" font-size="12" fill="#475569">private set</text>
+  <text x="640" y="530" font-size="14" fill="#475569">A new method (QR bank transfer) is one more class. checkout()</text>
+  <text x="640" y="552" font-size="14" fill="#475569">does not change, and cannot skip the method's own rules.</text>
+</svg>

@@ -1,0 +1,133 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ktf_121",
+      "name": "null-safety-quiz",
+      "type": "quiz",
+      "title": "Predict it: ?., ?: and !!",
+      "description": "Work out what a safe call and an elvis operator give when the precedence is not what it looks like, then pick the lines that cannot crash.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A profile has no ward. What does this print?\n\nval ward: String? = null\nprintln(\"Ward: \" + ward?.length ?: 0)",
+          "explanation": "+ binds tighter than ?:, so the line is (\"Ward: \" + ward?.length) ?: 0. ward?.length is null, and String.plus accepts any value, including null, which it turns into the text \"null\": the left side is \"Ward: null\". That string is not null, so the elvis operator keeps it and the 0 is never used (the compiler even warns that the elvis is useless). \"Ward: 0\" needs parentheses: \"Ward: \" + (ward?.length ?: 0). There is no exception: ?. never throws, and nothing here uses !!.",
+          "options": [
+            {
+              "text": "Ward: 0",
+              "correct": false
+            },
+            {
+              "text": "Ward: null",
+              "correct": true
+            },
+            {
+              "text": "0",
+              "correct": false
+            },
+            {
+              "text": "It throws a NullPointerException",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Given val phone: String? = null, which of these lines compile AND run without throwing an exception? (Select all that apply.)",
+          "explanation": "phone?.length is a safe call: it gives null and println prints null. Inside if (phone != null) the compiler smart-casts phone to String, so phone.length compiles; the condition is false and nothing runs. \"12a\".toIntOrNull() returns null instead of throwing, and the elvis turns it into -1. phone.length does not compile at all: only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver. phone!!.length compiles, which is exactly the problem: !! throws a NullPointerException when phone is null. A map lookup with [] returns null for a missing key, so !! after it throws as well; getValue would throw NoSuchElementException instead.",
+          "options": [
+            {
+              "text": "println(phone?.length)",
+              "correct": true
+            },
+            {
+              "text": "println(phone.length)",
+              "correct": false
+            },
+            {
+              "text": "println(phone!!.length)",
+              "correct": false
+            },
+            {
+              "text": "if (phone != null) println(phone.length)",
+              "correct": true
+            },
+            {
+              "text": "println(\"12a\".toIntOrNull() ?: -1)",
+              "correct": true
+            },
+            {
+              "text": "println(mapOf(\"Hoan Kiem\" to 15000)[\"Gia Lam\"]!!)",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_ktf_122",
+      "name": "fix-cart-header-crash",
+      "type": "fix_bug",
+      "title": "Fix the cart header that crashes on incomplete profiles",
+      "description": "The Cho Xanh cart screen greets the customer, shows the delivery address and the delivery fee of the district. Release 4.13 builds that header with !! everywhere and crashes for customers who signed up with Zalo (no display name), have no address yet, or have an address without a street or ward. Fix greeting, deliverTo and deliveryFee without !!: fall back to \"Hi there\", skip missing address parts, ask for an address when there is none, and show \"n/a\" when no fee is known. The test runner reads one profile per line and prints one header per profile.",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "kotlin",
+        "filePath": "main.kt",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Complete profiles work before and after the fix",
+          "input": "CX-U01|Lan|Hoan Kiem|Hang Bac|12 Hang Bac\nCX-U03|Pham Quang Huy|Cau Giay|Dich Vong|88 Tran Thai Tong\n",
+          "expected": "CX-U01: Hi Lan | Deliver to: 12 Hang Bac, Hang Bac, Hoan Kiem | Fee: 15000 VND\nCX-U03: Hi Pham Quang Huy | Deliver to: 88 Tran Thai Tong, Dich Vong, Cau Giay | Fee: 20000 VND",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A Zalo sign-up with no name and no address",
+          "input": "CX-U01|Lan|Hoan Kiem|Hang Bac|12 Hang Bac\nCX-U02|-|-|-|-\n",
+          "expected": "CX-U01: Hi Lan | Deliver to: 12 Hang Bac, Hang Bac, Hoan Kiem | Fee: 15000 VND\nCX-U02: Hi there | Deliver to: add an address | Fee: n/a",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "An address without a street",
+          "input": "CX-U04|Minh|Dong Da|Lang Thuong|-\n",
+          "expected": "CX-U04: Hi Minh | Deliver to: Lang Thuong, Dong Da | Fee: 20000 VND",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Display names that are only spaces or have spaces around them",
+          "input": "CX-U05|   |Ba Dinh|Kim Ma|25 Kim Ma\nCX-U06|  Thu Ha  |Long Bien|Bo De|-\n",
+          "expected": "CX-U05: Hi there | Deliver to: 25 Kim Ma, Kim Ma, Ba Dinh | Fee: 15000 VND\nCX-U06: Hi Thu Ha | Deliver to: Bo De, Long Bien | Fee: 25000 VND",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A district outside the delivery zones has no fee",
+          "input": "CX-U07|Quan|Gia Lam|Trau Quy|3 Ngo Xuan Quang\n",
+          "expected": "CX-U07: Hi Quan | Deliver to: 3 Ngo Xuan Quang, Trau Quy, Gia Lam | Fee: n/a",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A mixed batch: only the district, no ward, no name with an address",
+          "input": "CX-U08|Ngoc|Cau Giay|-|-\nCX-U09|Tuan|Hoan Kiem|-|5 Trang Tien\nCX-U10|-|Dong Da|O Cho Dua|120 Xa Dan\nCX-U11|Mai|-|Kim Ma|25 Kim Ma\n",
+          "expected": "CX-U08: Hi Ngoc | Deliver to: Cau Giay | Fee: 20000 VND\nCX-U09: Hi Tuan | Deliver to: 5 Trang Tien, Hoan Kiem | Fee: 15000 VND\nCX-U10: Hi there | Deliver to: 120 Xa Dan, O Cho Dua, Dong Da | Fee: 20000 VND\nCX-U11: Hi Mai | Deliver to: add an address | Fee: n/a",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

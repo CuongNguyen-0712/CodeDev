@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Kotlin does exactly the arithmetic you wrote</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The types come from the operands, not from the variable that receives the result. Nothing here throws or warns.</text>
+
+  <!-- column headers -->
+  <g font-size="15" font-weight="700" fill="#334155">
+    <text x="40" y="122">What the release wrote</text>
+    <text x="440" y="122">What actually happens</text>
+    <text x="830" y="122">The fix</text>
+  </g>
+
+  <!-- row 1: overflow -->
+  <rect x="40" y="136" width="360" height="120" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="60" y="168" font-size="15" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">qty * unitPrice</text>
+  <text x="60" y="196" font-size="14" fill="#475569">Int x Int, so the result is an Int</text>
+  <text x="60" y="222" font-size="14" fill="#475569">500 x 4,500,000 = 2,250,000,000</text>
+  <text x="60" y="244" font-size="14" fill="#475569">Int.MAX_VALUE is 2,147,483,647</text>
+  <path d="M400 196 H432" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="440" y="136" width="360" height="120" rx="10" fill="#f8fafc" stroke="#334155" stroke-width="2"/>
+  <text x="460" y="168" font-size="14" fill="#475569">The extra bits are dropped (wrap-around):</text>
+  <text x="460" y="204" font-size="22" font-weight="700" font-family="Consolas, 'Courier New', monospace" fill="#dc2626">-2044967296</text>
+  <text x="460" y="236" font-size="14" fill="#475569">a negative wholesale line total</text>
+  <path d="M800 196 H822" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="830" y="136" width="330" height="120" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="850" y="168" font-size="15" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">qty.toLong() * unitPrice</text>
+  <text x="850" y="196" font-size="14" fill="#475569">Long x Int, so the result is a Long</text>
+  <text x="850" y="230" font-size="20" font-weight="700" font-family="Consolas, 'Courier New', monospace" fill="#16a34a">2250000000</text>
+
+  <!-- row 2: integer division -->
+  <rect x="40" y="276" width="360" height="120" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="60" y="308" font-size="15" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">subtotal / 300_000 * 100</text>
+  <text x="60" y="336" font-size="14" fill="#475569">Int / Int, so the division truncates</text>
+  <text x="60" y="362" font-size="14" fill="#475569">245,000 / 300,000 = 0.8166...</text>
+  <text x="60" y="384" font-size="14" fill="#475569">evaluated left to right</text>
+  <path d="M400 336 H432" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="440" y="276" width="360" height="120" rx="10" fill="#f8fafc" stroke="#334155" stroke-width="2"/>
+  <text x="460" y="308" font-size="14" fill="#475569">245000 / 300000 is 0, then 0 x 100:</text>
+  <text x="460" y="344" font-size="22" font-weight="700" font-family="Consolas, 'Courier New', monospace" fill="#dc2626">0</text>
+  <text x="460" y="376" font-size="14" fill="#475569">the free-shipping bar never moves</text>
+  <path d="M800 336 H822" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="830" y="276" width="330" height="120" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="850" y="308" font-size="15" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">subtotal.toDouble() / 300_000</text>
+  <text x="850" y="330" font-size="15" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">* 100</text>
+  <text x="850" y="370" font-size="20" font-weight="700" font-family="Consolas, 'Courier New', monospace" fill="#16a34a">81.66666666666667</text>
+
+  <!-- row 3: template -->
+  <rect x="40" y="416" width="360" height="120" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="60" y="448" font-size="15" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">"order $order.id is on its way"</text>
+  <text x="60" y="476" font-size="14" fill="#475569">$ without braces takes one name:</text>
+  <text x="60" y="500" font-size="14" fill="#475569">$order, then the text ".id"</text>
+  <path d="M400 476 H432" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="440" y="416" width="360" height="120" rx="10" fill="#f8fafc" stroke="#334155" stroke-width="2"/>
+  <text x="460" y="448" font-size="14" fill="#475569">order.toString() followed by ".id":</text>
+  <text x="460" y="484" font-size="15" font-weight="700" font-family="Consolas, 'Courier New', monospace" fill="#dc2626">Order(id=CX-1042,</text>
+  <text x="460" y="506" font-size="15" font-weight="700" font-family="Consolas, 'Courier New', monospace" fill="#dc2626">customer=Lan).id</text>
+  <path d="M800 476 H822" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="830" y="416" width="330" height="120" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="850" y="448" font-size="15" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">"order ${order.id} is ..."</text>
+  <text x="850" y="476" font-size="14" fill="#475569">braces evaluate the whole expression</text>
+  <text x="850" y="510" font-size="20" font-weight="700" font-family="Consolas, 'Courier New', monospace" fill="#16a34a">CX-1042</text>
+
+  <text x="40" y="572" font-size="14" fill="#475569">Rule of thumb: convert before you multiply or divide (toLong(), toDouble()), and use ${...} for anything longer than a single name.</text>
+</svg>

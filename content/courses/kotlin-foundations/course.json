@@ -5,7 +5,7 @@
   "description": "Learn the Kotlin that Android and backend teams write every day: val and var, null safety without !!, string templates, when and sealed types, data classes, collections and lambdas, extension and scope functions, and errors with Result. 10 lessons, each starting from a real bug or incident, with graded challenges.",
   "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792641969/codedev/courses/kotlin-foundations/cover",
   "level": "beginner",
-  "durationMinutes": 180,
+  "durationMinutes": 198,
   "instructor": "CodeDev Engineering Team",
   "language": "Kotlin",
   "category": "Mobile Development",
@@ -28,21 +28,22 @@
     "first_job",
     "change_career"
   ],
-  "modules": [],
-  "outline": [
+  "modules": [
     {
       "orderIndex": 1,
       "title": "Basics",
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "01-val-var-type-inference",
           "title": "val, var, types & type inference",
-          "challenges": "Q(e) + C(e)"
+          "sanityId": "lesson-ktf-1-1"
         },
         {
           "orderIndex": 2,
+          "folder": "02-null-safety",
           "title": "Null safety: ?., ?: and the !! crash",
-          "challenges": "Q(e) + F(e)"
+          "sanityId": "lesson-ktf-1-2"
         }
       ]
     },
@@ -52,18 +53,21 @@
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "03-when-sealed-interfaces",
           "title": "when expressions & sealed interfaces",
-          "challenges": "C(m)"
+          "sanityId": "lesson-ktf-2-1"
         },
         {
           "orderIndex": 2,
+          "folder": "04-data-classes",
           "title": "Data classes: equality, copy & destructuring",
-          "challenges": "Q(m) + F(m)"
+          "sanityId": "lesson-ktf-2-2"
         },
         {
           "orderIndex": 3,
+          "folder": "05-classes-interfaces-visibility",
           "title": "Classes, interfaces & visibility",
-          "challenges": "C(m)"
+          "sanityId": "lesson-ktf-2-3"
         }
       ]
     },
@@ -73,18 +77,21 @@
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "06-read-only-collections",
           "title": "Lists, sets & maps: read-only is not immutable",
-          "challenges": "Q(m) + F(m)"
+          "sanityId": "lesson-ktf-3-1"
         },
         {
           "orderIndex": 2,
+          "folder": "07-collection-operations",
           "title": "map, filter, groupBy & fold",
-          "challenges": "C(m)"
+          "sanityId": "lesson-ktf-3-2"
         },
         {
           "orderIndex": 3,
+          "folder": "08-extension-scope-functions",
           "title": "Extension functions & scope functions (let, apply, also)",
-          "challenges": "Q(m) + C(m)"
+          "sanityId": "lesson-ktf-3-3"
         }
       ]
     },
@@ -94,13 +101,15 @@
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "09-exceptions-require-result",
           "title": "Exceptions, require & Result",
-          "challenges": "F(m)"
+          "sanityId": "lesson-ktf-4-1"
         },
         {
           "orderIndex": 2,
+          "folder": "10-mini-project-cart-summary",
           "title": "Mini project: a shopping cart summary",
-          "challenges": "C(h)"
+          "sanityId": "lesson-ktf-4-2"
         }
       ]
     }

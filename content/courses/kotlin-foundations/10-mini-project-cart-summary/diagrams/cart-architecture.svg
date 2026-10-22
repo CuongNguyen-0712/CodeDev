@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">The cart, piece by piece, and the lesson behind each piece</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Commands come in on the left; every rule lives in one place; the checkout is a list of lines built from read-only data.</text>
+
+  <!-- commands -->
+  <rect x="40" y="130" width="200" height="300" rx="12" fill="#f8fafc" stroke="#334155" stroke-width="2"/>
+  <text x="58" y="160" font-size="15" font-weight="700" fill="#334155">Commands</text>
+  <g font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">
+    <text x="58" y="196">add RAU-01 2</text>
+    <text x="58" y="224">add SUA-99 1</text>
+    <text x="58" y="252">remove RAU-01</text>
+    <text x="58" y="280">voucher TET10</text>
+    <text x="58" y="308">checkout</text>
+  </g>
+  <text x="58" y="352" font-size="13" fill="#475569">Each command returns</text>
+  <text x="58" y="372" font-size="13" fill="#475569">a message: accepted,</text>
+  <text x="58" y="392" font-size="13" fill="#475569">or rejected with a reason</text>
+  <text x="58" y="412" font-size="12" font-weight="700" fill="#2563eb">lessons 2, 9</text>
+  <path d="M240 280 H286" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- cart -->
+  <rect x="290" y="110" width="440" height="440" rx="14" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="310" y="142" font-size="17" font-weight="700" font-family="Consolas, 'Courier New', monospace" fill="#1e3a8a">class Cart(catalog)</text>
+
+  <rect x="310" y="160" width="400" height="74" rx="10" fill="#ffffff" stroke="#334155" stroke-width="1.5"/>
+  <text x="326" y="186" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">catalog: Map&lt;String, Product&gt;</text>
+  <text x="326" y="208" font-size="13" fill="#475569">data class Product, a map lookup that may give null</text>
+  <text x="326" y="226" font-size="12" font-weight="700" fill="#2563eb">lessons 2, 4, 6</text>
+
+  <rect x="310" y="246" width="400" height="74" rx="10" fill="#ffffff" stroke="#334155" stroke-width="1.5"/>
+  <text x="326" y="272" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">private lines, private voucher</text>
+  <text x="326" y="294" font-size="13" fill="#475569">only add, remove and applyVoucher change them</text>
+  <text x="326" y="312" font-size="12" font-weight="700" fill="#2563eb">lessons 5, 6</text>
+
+  <rect x="310" y="332" width="400" height="88" rx="10" fill="#ffffff" stroke="#334155" stroke-width="1.5"/>
+  <text x="326" y="358" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">sealed interface Voucher</text>
+  <text x="326" y="380" font-size="13" fill="#475569">PercentOff | AmountOff | FreeShipping,</text>
+  <text x="326" y="398" font-size="13" fill="#475569">one when without else per decision</text>
+  <text x="326" y="414" font-size="12" font-weight="700" fill="#2563eb">lesson 3</text>
+
+  <rect x="310" y="432" width="400" height="100" rx="10" fill="#ffffff" stroke="#334155" stroke-width="1.5"/>
+  <text x="326" y="458" font-size="14" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">checkout(): List&lt;String&gt;</text>
+  <text x="326" y="480" font-size="13" fill="#475569">sumOf over the lines, Long money,</text>
+  <text x="326" y="498" font-size="13" fill="#475569">buildList of output lines, no mutation</text>
+  <text x="326" y="520" font-size="12" font-weight="700" fill="#2563eb">lessons 1, 7</text>
+  <path d="M730 482 H776" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- output -->
+  <rect x="780" y="300" width="380" height="250" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="798" y="330" font-size="15" font-weight="700" fill="#166534">Checkout summary</text>
+  <g font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">
+    <text x="798" y="364">2 x Rau muong: 30,000 VND</text>
+    <text x="798" y="388">1 x Thit bo Uc: 185,000 VND</text>
+    <text x="798" y="412">subtotal: 215,000 VND</text>
+    <text x="798" y="436">discount TET10: -21,500 VND</text>
+    <text x="798" y="460">shipping: 15,000 VND</text>
+    <text x="798" y="484">total: 208,500 VND</text>
+  </g>
+  <text x="798" y="526" font-size="12" font-weight="700" fill="#2563eb">Long.vnd() extension: lessons 1, 8</text>
+
+  <!-- rules box -->
+  <rect x="780" y="110" width="380" height="170" rx="12" fill="#fef9c3" stroke="#ca8a04" stroke-width="2"/>
+  <text x="798" y="140" font-size="15" font-weight="700" fill="#854d0e">Rules that tests check</text>
+  <g font-size="13" fill="#334155">
+    <text x="798" y="168">Quantity already in the cart counts against stock</text>
+    <text x="798" y="192">An unknown voucher keeps the saved one</text>
+    <text x="798" y="216">Percent discounts are capped</text>
+    <text x="798" y="240">Shipping uses the subtotal before the discount</text>
+    <text x="798" y="264">An empty cart says "cart is empty"</text>
+  </g>
+</svg>

@@ -1,0 +1,133 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ktf_311",
+      "name": "read-only-collections-quiz",
+      "type": "quiz",
+      "title": "Predict it: read-only views, copies and collection surprises",
+      "description": "Work out what a read-only reference sees after the list behind it changes, then sort true from false among common collection operations.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this print?\n\nval stock = mutableListOf(\"Rau muong\", \"Trung ga ta\")\nval visible: List<String> = stock\nstock += \"Sua tuoi\"\nprintln(visible.size)",
+          "explanation": "List<String> is a read-only INTERFACE: code that holds visible cannot add or remove through it. But visible and stock are two references to the same ArrayList, and stock can still change it. After stock += \"Sua tuoi\", the one list has 3 elements, and visible.size is 3. There is no copy anywhere: assigning a MutableList to a List variable only narrows what you may call. It compiles (a MutableList is a List), and nothing throws: no code tries to modify the list through visible.",
+          "options": [
+            {
+              "text": "2",
+              "correct": false
+            },
+            {
+              "text": "3",
+              "correct": true
+            },
+            {
+              "text": "It does not compile: visible is read-only",
+              "correct": false
+            },
+            {
+              "text": "It throws UnsupportedOperationException",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which of these statements are true? (Select all that apply.)",
+          "explanation": "A Set keeps each element once, so setOf(\"CX-1\", \"CX-2\", \"CX-1\") has size 2. list.toList() creates a new list with the same elements: later changes to the original are not visible in the copy (the elements themselves are shared, which is fine when they are immutable). (listOf(1, 2) as MutableList<Int>).add(3) compiles, because the cast is only checked against the JVM type, which is a java.util list; the list behind listOf cannot grow, so add throws UnsupportedOperationException at run time. A missing key gives null, not 0: mapOf(\"RAU-01\" to 15000)[\"RAU-02\"] is null, and getOrDefault or ?: decide the fallback. val b = a + 3 creates a new list; a is still [1, 2]. Removing from a MutableList while a for loop iterates over it throws ConcurrentModificationException; use removeAll { ... } or build a new list with filter.",
+          "options": [
+            {
+              "text": "setOf(\"CX-1\", \"CX-2\", \"CX-1\").size is 2",
+              "correct": true
+            },
+            {
+              "text": "val copy = list.toList() is not affected when list changes later",
+              "correct": true
+            },
+            {
+              "text": "(listOf(1, 2) as MutableList<Int>).add(3) compiles, then throws UnsupportedOperationException",
+              "correct": true
+            },
+            {
+              "text": "mapOf(\"RAU-01\" to 15000)[\"RAU-02\"] is 0",
+              "correct": false
+            },
+            {
+              "text": "val a = listOf(1, 2); val b = a + 3 changes a to [1, 2, 3]",
+              "correct": false
+            },
+            {
+              "text": "for (x in m) if (x % 2 == 0) m.remove(x) safely removes the even numbers of a MutableList m",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_ktf_312",
+      "name": "fix-cart-undo-and-redraw",
+      "type": "fix_bug",
+      "title": "Fix the cart screen that stops redrawing and the undo that empties the cart",
+      "description": "The Cho Xanh cart screen redraws only when the cart it reads from the store differs from the last cart it drew, and the store keeps snapshots for Undo. Since release 4.16 the screen stops redrawing after the first item and Undo wipes the whole cart: the store hands out its own MutableList as a read-only List, and saves that same list as every snapshot. Fix CartStore so that every change redraws the screen, Undo goes back exactly one change, and nothing the store hands out can change later. The test runner reads add, remove and undo commands and prints each redraw, the final cart and the undo steps left.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "kotlin",
+        "filePath": "main.kt",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Every add redraws the screen",
+          "input": "add Rau muong\nadd Trung ga ta\nadd Sua tuoi TH 1l\n",
+          "expected": "render: [Rau muong]\nrender: [Rau muong, Trung ga ta]\nrender: [Rau muong, Trung ga ta, Sua tuoi TH 1l]\nfinal: [Rau muong, Trung ga ta, Sua tuoi TH 1l]\nundo steps left: 3",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Undo goes back one step",
+          "input": "add Rau muong\nadd Trung ga ta\nundo\n",
+          "expected": "render: [Rau muong]\nrender: [Rau muong, Trung ga ta]\nrender: [Rau muong]\nfinal: [Rau muong]\nundo steps left: 1",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Remove redraws, undo brings the item back",
+          "input": "add Gao ST25 tui 5kg\nadd Nuoc mam Phu Quoc\nremove Gao ST25 tui 5kg\nundo\n",
+          "expected": "render: [Gao ST25 tui 5kg]\nrender: [Gao ST25 tui 5kg, Nuoc mam Phu Quoc]\nrender: [Nuoc mam Phu Quoc]\nrender: [Gao ST25 tui 5kg, Nuoc mam Phu Quoc]\nfinal: [Gao ST25 tui 5kg, Nuoc mam Phu Quoc]\nundo steps left: 2",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Removing an item that is not in the cart changes nothing",
+          "input": "add Rau muong\nremove Thit bo Uc\nadd Banh mi pate\n",
+          "expected": "render: [Rau muong]\nrender: [Rau muong, Banh mi pate]\nfinal: [Rau muong, Banh mi pate]\nundo steps left: 2",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Undo back to an empty cart, then one undo too many",
+          "input": "add Rau muong\nadd Trung ga ta\nundo\nundo\nundo\n",
+          "expected": "render: [Rau muong]\nrender: [Rau muong, Trung ga ta]\nrender: [Rau muong]\nrender: []\nfinal: []\nundo steps left: 0",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A long session with duplicates, removes and undos",
+          "input": "add Rau muong\nadd Rau muong\nadd Ca phe sua da\nremove Rau muong\nadd Banh mi pate\nundo\nundo\nremove Ca phe sua da\nadd Trung ga ta\nundo\n",
+          "expected": "render: [Rau muong]\nrender: [Rau muong, Rau muong]\nrender: [Rau muong, Rau muong, Ca phe sua da]\nrender: [Rau muong, Ca phe sua da]\nrender: [Rau muong, Ca phe sua da, Banh mi pate]\nrender: [Rau muong, Ca phe sua da]\nrender: [Rau muong, Rau muong, Ca phe sua da]\nrender: [Rau muong, Rau muong]\nrender: [Rau muong, Rau muong, Trung ga ta]\nrender: [Rau muong, Rau muong]\nfinal: [Rau muong, Rau muong]\nundo steps left: 4",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

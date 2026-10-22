@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_fix_ktf_411",
+      "name": "fix-price-import",
+      "type": "fix_bug",
+      "title": "Fix the price import that turned unreadable prices into 0 VND",
+      "description": "The Cho Xanh supplier import reads SKU;PRICE lines and 'never fails': an unreadable price such as 18.500 becomes 0, broken lines vanish silently and unknown SKUs are added to the catalog. Fix it so that every line is either applied or rejected with a clear reason and its line number, invalid lines change nothing, and a file where more than half of the lines are rejected is not applied at all. The test runner starts from a fixed catalog, prints the import report and the catalog afterwards.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "kotlin",
+        "filePath": "main.kt",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A clean file is applied",
+          "input": "RAU-01;14000\nTRUNG-10;32000\nGAO-05;235000\n",
+          "expected": "line 1: RAU-01 15000 -> 14000\nline 2: TRUNG-10 30000 -> 32000\nline 3: GAO-05 240000 -> 235000\napplied 3 of 3 lines\ncatalog: GAO-05=235000, NUOC-MAM=85000, RAU-01=14000, SUA-01=32000, THIT-07=185000, TRUNG-10=32000",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "The 18.500 line is rejected, the rest applied",
+          "input": "RAU-01;14000\nSUA-01;18.500\nTHIT-07;189000\n",
+          "expected": "line 1: RAU-01 15000 -> 14000\nline 2: rejected (invalid price \"18.500\")\nline 3: THIT-07 185000 -> 189000\napplied 2 of 3 lines\ncatalog: GAO-05=240000, NUOC-MAM=85000, RAU-01=14000, SUA-01=32000, THIT-07=189000, TRUNG-10=30000",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Unknown SKU and missing price: exactly half rejected is still applied",
+          "input": "RAU-01;14000\nRAU-99;20000\nGAO-05\nTRUNG-10;31000\n",
+          "expected": "line 1: RAU-01 15000 -> 14000\nline 2: rejected (unknown sku RAU-99)\nline 3: rejected (missing price)\nline 4: TRUNG-10 30000 -> 31000\napplied 2 of 4 lines\ncatalog: GAO-05=240000, NUOC-MAM=85000, RAU-01=14000, SUA-01=32000, THIT-07=185000, TRUNG-10=31000",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A mostly broken file is not applied at all",
+          "input": "RAU-01;14000\nSUA-01;\nTHIT-07;1.85e5\nNUOC-MAM;0\n",
+          "expected": "line 2: rejected (missing price)\nline 3: rejected (invalid price \"1.85e5\")\nline 4: rejected (price out of range: 0)\nimport aborted: 3 of 4 lines rejected\ncatalog: GAO-05=240000, NUOC-MAM=85000, RAU-01=15000, SUA-01=32000, THIT-07=185000, TRUNG-10=30000",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Spaces, signs and the price range",
+          "input": " RAU-01 ; 14000 \nTRUNG-10;-5000\nGAO-05;+235000\nSUA-01;150000000\nTHIT-07;100000000\nNUOC-MAM;1\n",
+          "expected": "line 1: RAU-01 15000 -> 14000\nline 2: rejected (invalid price \"-5000\")\nline 3: rejected (invalid price \"+235000\")\nline 4: rejected (price out of range: 150000000)\nline 5: THIT-07 185000 -> 100000000\nline 6: NUOC-MAM 85000 -> 1\napplied 3 of 6 lines\ncatalog: GAO-05=240000, NUOC-MAM=1, RAU-01=14000, SUA-01=32000, THIT-07=100000000, TRUNG-10=30000",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "The same SKU twice in one file",
+          "input": "RAU-01;14000\nRAU-01;13500\nGAO-05;abc\n",
+          "expected": "line 1: RAU-01 15000 -> 14000\nline 2: RAU-01 14000 -> 13500\nline 3: rejected (invalid price \"abc\")\napplied 2 of 3 lines\ncatalog: GAO-05=240000, NUOC-MAM=85000, RAU-01=13500, SUA-01=32000, THIT-07=185000, TRUNG-10=30000",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

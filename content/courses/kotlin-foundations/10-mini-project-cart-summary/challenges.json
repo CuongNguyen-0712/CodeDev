@@ -1,0 +1,73 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_ktf_421",
+      "name": "cart-checkout-summary",
+      "type": "mini_coding",
+      "title": "Mini project: build the cart and its checkout summary",
+      "description": "Put the whole course together in the Cho Xanh cart: products from a catalog with stock, add and remove with clear rejections, one saved voucher modelled as a sealed interface (percent off with a cap, amount off with a minimum, free shipping), and a checkout summary with money formatted by an extension function. Quantities already in the cart count against the stock, an unknown voucher keeps the saved one, shipping depends on the subtotal before the discount, and an empty cart says so. The test runner reads the catalog and the commands and prints every result.",
+      "difficulty": "hard",
+      "points": 40,
+      "coding": {
+        "language": "kotlin",
+        "filePath": "main.kt",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A normal cart with the TET10 voucher",
+          "input": "product RAU-01 15000 120 Rau muong\nproduct THIT-07 185000 20 Thit bo Uc\nproduct TRUNG-10 30000 30 Trung ga ta\nproduct GAO-05 240000 15 Gao ST25 tui 5kg\nproduct SUA-01 32000 48 Sua tuoi TH 1l\nproduct BO-A5 4500000 600 Bo Wagyu A5\nadd RAU-01 2\nadd THIT-07 1\nvoucher TET10\ncheckout\n",
+          "expected": "added 2 x Rau muong\nadded 1 x Thit bo Uc\nvoucher TET10 saved\n2 x Rau muong: 30,000 VND\n1 x Thit bo Uc: 185,000 VND\nsubtotal: 215,000 VND\ndiscount TET10: -21,500 VND\nshipping: 15,000 VND\ntotal: 208,500 VND",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Rejected quantities, products and vouchers",
+          "input": "product RAU-01 15000 120 Rau muong\nproduct THIT-07 185000 20 Thit bo Uc\nproduct TRUNG-10 30000 30 Trung ga ta\nproduct GAO-05 240000 15 Gao ST25 tui 5kg\nproduct SUA-01 32000 48 Sua tuoi TH 1l\nproduct BO-A5 4500000 600 Bo Wagyu A5\nadd SUA-99 1\nadd TRUNG-10 0\nadd TRUNG-10 20\nadd TRUNG-10 15\nvoucher XYZ\ncheckout\n",
+          "expected": "rejected: unknown product SUA-99\nrejected: quantity must be at least 1\nadded 20 x Trung ga ta\nrejected: only 30 x Trung ga ta in stock\nrejected: unknown voucher XYZ\n20 x Trung ga ta: 600,000 VND\nsubtotal: 600,000 VND\nshipping: 0 VND\ntotal: 600,000 VND",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A voucher below its minimum subtotal",
+          "input": "product RAU-01 15000 120 Rau muong\nproduct THIT-07 185000 20 Thit bo Uc\nproduct TRUNG-10 30000 30 Trung ga ta\nproduct GAO-05 240000 15 Gao ST25 tui 5kg\nproduct SUA-01 32000 48 Sua tuoi TH 1l\nproduct BO-A5 4500000 600 Bo Wagyu A5\nadd GAO-05 1\nvoucher GIAM30K\ncheckout\n",
+          "expected": "added 1 x Gao ST25 tui 5kg\nvoucher GIAM30K saved\n1 x Gao ST25 tui 5kg: 240,000 VND\nsubtotal: 240,000 VND\nvoucher GIAM30K not applied (minimum 300,000 VND)\nshipping: 15,000 VND\ntotal: 255,000 VND",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A capped percentage and a replaced voucher",
+          "input": "product RAU-01 15000 120 Rau muong\nproduct THIT-07 185000 20 Thit bo Uc\nproduct TRUNG-10 30000 30 Trung ga ta\nproduct GAO-05 240000 15 Gao ST25 tui 5kg\nproduct SUA-01 32000 48 Sua tuoi TH 1l\nproduct BO-A5 4500000 600 Bo Wagyu A5\nadd BO-A5 2\nvoucher TET10\nvoucher BIG20\ncheckout\n",
+          "expected": "added 2 x Bo Wagyu A5\nvoucher TET10 saved\nvoucher BIG20 saved (replaces TET10)\n2 x Bo Wagyu A5: 9,000,000 VND\nsubtotal: 9,000,000 VND\ndiscount BIG20: -100,000 VND\nshipping: 0 VND\ntotal: 8,900,000 VND",
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Free shipping voucher after removing lines",
+          "input": "product RAU-01 15000 120 Rau muong\nproduct THIT-07 185000 20 Thit bo Uc\nproduct TRUNG-10 30000 30 Trung ga ta\nproduct GAO-05 240000 15 Gao ST25 tui 5kg\nproduct SUA-01 32000 48 Sua tuoi TH 1l\nproduct BO-A5 4500000 600 Bo Wagyu A5\nadd RAU-01 3\nadd SUA-01 2\nremove RAU-01\nremove THIT-07\nvoucher FREESHIP\ncheckout\n",
+          "expected": "added 3 x Rau muong\nadded 2 x Sua tuoi TH 1l\nremoved Rau muong\nrejected: THIT-07 is not in the cart\nvoucher FREESHIP saved\n2 x Sua tuoi TH 1l: 64,000 VND\nsubtotal: 64,000 VND\nshipping: 0 VND (FREESHIP)\ntotal: 64,000 VND",
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "An unknown voucher keeps the saved one; shipping uses the subtotal",
+          "input": "product RAU-01 15000 120 Rau muong\nproduct THIT-07 185000 20 Thit bo Uc\nproduct TRUNG-10 30000 30 Trung ga ta\nproduct GAO-05 240000 15 Gao ST25 tui 5kg\nproduct SUA-01 32000 48 Sua tuoi TH 1l\nproduct BO-A5 4500000 600 Bo Wagyu A5\nadd RAU-01 4\nadd GAO-05 1\nvoucher GIAM30K\nvoucher NOPE\ncheckout\n",
+          "expected": "added 4 x Rau muong\nadded 1 x Gao ST25 tui 5kg\nvoucher GIAM30K saved\nrejected: unknown voucher NOPE\n4 x Rau muong: 60,000 VND\n1 x Gao ST25 tui 5kg: 240,000 VND\nsubtotal: 300,000 VND\ndiscount GIAM30K: -30,000 VND\nshipping: 0 VND\ntotal: 270,000 VND",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "An empty cart, before and after",
+          "input": "product RAU-01 15000 120 Rau muong\nproduct THIT-07 185000 20 Thit bo Uc\nproduct TRUNG-10 30000 30 Trung ga ta\nproduct GAO-05 240000 15 Gao ST25 tui 5kg\nproduct SUA-01 32000 48 Sua tuoi TH 1l\nproduct BO-A5 4500000 600 Bo Wagyu A5\ncheckout\nadd RAU-01 1\nremove RAU-01\ncheckout\n",
+          "expected": "cart is empty\nadded 1 x Rau muong\nremoved Rau muong\ncart is empty",
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

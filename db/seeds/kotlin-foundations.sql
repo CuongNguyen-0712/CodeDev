@@ -19,7 +19,7 @@ BEGIN
 END $$;
 
 INSERT INTO catalog.course (public_id, title, concept, description, image, level, duration, instructor, cost, point_price, reward, language_id, category_id, access_model, publish_status, is_hidden, is_deleted)
-VALUES ('kotlin-foundations', 'Kotlin Foundations: Null Safety, Data Classes & Collections', 'Learn the Kotlin that Android and backend teams write every day: val and var, null safety without !!, string templates, when and sealed types, data classes, collections and lambdas, extension and scope functions, and errors with Result.', 'Learn the Kotlin that Android and backend teams write every day: val and var, null safety without !!, string templates, when and sealed types, data classes, collections and lambdas, extension and scope functions, and errors with Result. 10 lessons, each starting from a real bug or incident, with graded challenges.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792641969/codedev/courses/kotlin-foundations/cover', 'beginner'::level_enum, 180, 'CodeDev Engineering Team', 0, 0, 50,
+VALUES ('kotlin-foundations', 'Kotlin Foundations: Null Safety, Data Classes & Collections', 'Learn the Kotlin that Android and backend teams write every day: val and var, null safety without !!, string templates, when and sealed types, data classes, collections and lambdas, extension and scope functions, and errors with Result.', 'Learn the Kotlin that Android and backend teams write every day: val and var, null safety without !!, string templates, when and sealed types, data classes, collections and lambdas, extension and scope functions, and errors with Result. 10 lessons, each starting from a real bug or incident, with graded challenges.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792641969/codedev/courses/kotlin-foundations/cover', 'beginner'::level_enum, 198, 'CodeDev Engineering Team', 0, 0, 50,
         (SELECT id FROM catalog.language WHERE name = 'Kotlin'),
         (SELECT id FROM catalog.category WHERE name = 'Mobile Development'),
         'free', 'draft', true, false)
@@ -53,6 +53,590 @@ INSERT INTO catalog.course_skill (course_id, skill_id, weight)
 SELECT (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations'), s.id, v.weight
 FROM (VALUES ('data_structures', 3), ('testing', 1)) AS v(code, weight)
 JOIN catalog.skill s ON s.code = v.code;
+
+-- module 1: Basics
+UPDATE course.module SET title = 'Basics', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations'), 'Basics', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 1 AND is_deleted = false);
+
+-- lesson 1.1: val, var, types & type inference (Sanity lesson-ktf-1-1)
+UPDATE course.lesson SET title = 'val, var, types & type inference', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-1-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), 'val, var, types & type inference', 'sanity', 'lesson-ktf-1-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-ktf-1-1' AND is_deleted = false);
+
+-- challenge chal_quiz_ktf_111 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_ktf_111', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-1-1' AND is_deleted = false LIMIT 1), 'templates-types-quiz', 'Predict it: string templates, inferred types and integer arithmetic', 'Read a push-notification template the way the compiler does, then decide which lines about Kotlin''s number types are true.', 'open', 'easy'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ktf_111'), 'What does this print?
+
+data class CartItem(val name: String, val qty: Int)
+
+val item = CartItem("Rau muong", 2)
+println("$item.qty x ${item.name}")', 'single_choice'::question_type, 'A template without braces takes only the longest identifier after the $: $item. The text .qty that follows is plain text, not a property access. item is a data class, so its toString() is CartItem(name=Rau muong, qty=2), and the line becomes CartItem(name=Rau muong, qty=2).qty x Rau muong. ${item.name} has braces, so the whole expression item.name is evaluated. To print 2 x Rau muong, write ${item.qty}. It compiles: item is a valid reference, and nothing about .qty is checked because it is just text.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ktf_111') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('2 x Rau muong', false),
+        ('CartItem(name=Rau muong, qty=2).qty x Rau muong', true),
+        ('item.qty x Rau muong', false),
+        ('It does not compile: a template needs braces around item.qty', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ktf_111'), 'Which of these statements are true? (Select all that apply.)', 'multiple_choice'::question_type, 'An integer literal that does not fit in an Int is a Long, so 3_000_000_000 is inferred as Long without an L. 7 / 2 divides two Ints, which truncates to 3. A val cannot be reassigned, but the list it refers to is still a MutableList, so cart.add("ca") compiles and changes the list. val total: Long = qty * 15_000 does not compile: qty * 15_000 is an Int, and Kotlin never widens an Int to a Long for you ("Initializer type mismatch: expected ''Long'', actual ''Int''"); write qty.toLong() * 15_000. 10 / 0.0 is a Double division and gives Infinity; only integer division by zero throws ArithmeticException. Int.MAX_VALUE + 1 does not throw either: Int arithmetic wraps around silently to -2147483648.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ktf_111') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('val big = 3_000_000_000 compiles, and big is a Long', true),
+        ('val qty = 3 followed by val total: Long = qty * 15_000 compiles', false),
+        ('println(7 / 2) prints 3', true),
+        ('val cart = mutableListOf("rau") followed by cart.add("ca") compiles', true),
+        ('println(10 / 0.0) throws ArithmeticException', false),
+        ('println(Int.MAX_VALUE + 1) throws an exception because the result overflows', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_ktf_112 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_ktf_112', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-1-1' AND is_deleted = false LIMIT 1), 'checkout-summary', 'Write the checkout summary with the free-shipping bar', 'The Cho Xanh checkout screen shows each cart line, the subtotal, the delivery fee and how far the customer is from free shipping. Write lineTotal, shippingFee and freeShippingProgress so that wholesale orders do not overflow, an empty cart pays nothing, a cart of exactly 300,000 VND ships free, and the progress bar shows a real percentage instead of 0. The test runner reads one cart line per line and prints the summary.', 'open', 'easy'::difficulty_question, 'mini_coding', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_112'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_112');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_112'), 'A normal cart below the free-shipping threshold', '"RAU-01 2 15000 Rau muong\nTHIT-07 1 185000 Thit bo Uc\nTRUNG-10 1 30000 Trung ga ta\n"', '"2 x Rau muong: 30000 VND\n1 x Thit bo Uc: 185000 VND\n1 x Trung ga ta: 30000 VND\nitems: 4\nsubtotal: 245000 VND\nshipping: 15000 VND\nfree shipping: 81.7% (55000 VND to go)\ntotal: 260000 VND"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_112'), 'Exactly 300,000 VND ships free', '"RAU-01 4 15000 Rau muong\nGAO-05 1 240000 Gao ST25 tui 5kg\n"', '"4 x Rau muong: 60000 VND\n1 x Gao ST25 tui 5kg: 240000 VND\nitems: 5\nsubtotal: 300000 VND\nshipping: 0 VND\nfree shipping: unlocked\ntotal: 300000 VND"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_112'), 'A restaurant''s wholesale order larger than Int.MAX_VALUE', '"BO-A5 500 4500000 Bo Wagyu A5\n"', '"500 x Bo Wagyu A5: 2250000000 VND\nitems: 500\nsubtotal: 2250000000 VND\nshipping: 0 VND\nfree shipping: unlocked\ntotal: 2250000000 VND"', 3, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_112'), 'An empty cart pays no shipping', '"\n"', '"items: 0\nsubtotal: 0 VND\nshipping: 0 VND\nfree shipping: 0.0% (300000 VND to go)\ntotal: 0 VND"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_112'), 'One small item: the bar is at 8.3%', '"BANH-MI 1 25000 Banh mi pate\n"', '"1 x Banh mi pate: 25000 VND\nitems: 1\nsubtotal: 25000 VND\nshipping: 15000 VND\nfree shipping: 8.3% (275000 VND to go)\ntotal: 40000 VND"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_112'), 'Several wholesale lines, one of them over Int.MAX_VALUE', '"GAO-50 40 1200000 Gao ST25 bao 50kg\nCA-HOI 1200 1850000 Ca hoi Na Uy nguyen con\nNUOC-MAM 100 85000 Nuoc mam Phu Quoc\n"', '"40 x Gao ST25 bao 50kg: 48000000 VND\n1200 x Ca hoi Na Uy nguyen con: 2220000000 VND\n100 x Nuoc mam Phu Quoc: 8500000 VND\nitems: 1340\nsubtotal: 2276500000 VND\nshipping: 0 VND\nfree shipping: unlocked\ntotal: 2276500000 VND"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_ktf_112_starter', 's3', 'challenges/kotlin/chal_coding_ktf_112/starter.kt', 'raw', 'text/x-kotlin', 3445, 'main.kt')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_112'), 'kotlin', 'main.kt', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_ktf_112_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 1.2: Null safety: ?., ?: and the !! crash (Sanity lesson-ktf-1-2)
+UPDATE course.lesson SET title = 'Null safety: ?., ?: and the !! crash', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-1-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), 'Null safety: ?., ?: and the !! crash', 'sanity', 'lesson-ktf-1-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-ktf-1-2' AND is_deleted = false);
+
+-- challenge chal_quiz_ktf_121 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_ktf_121', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-1-2' AND is_deleted = false LIMIT 1), 'null-safety-quiz', 'Predict it: ?., ?: and !!', 'Work out what a safe call and an elvis operator give when the precedence is not what it looks like, then pick the lines that cannot crash.', 'open', 'easy'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ktf_121'), 'A profile has no ward. What does this print?
+
+val ward: String? = null
+println("Ward: " + ward?.length ?: 0)', 'single_choice'::question_type, '+ binds tighter than ?:, so the line is ("Ward: " + ward?.length) ?: 0. ward?.length is null, and String.plus accepts any value, including null, which it turns into the text "null": the left side is "Ward: null". That string is not null, so the elvis operator keeps it and the 0 is never used (the compiler even warns that the elvis is useless). "Ward: 0" needs parentheses: "Ward: " + (ward?.length ?: 0). There is no exception: ?. never throws, and nothing here uses !!.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ktf_121') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('Ward: 0', false),
+        ('Ward: null', true),
+        ('0', false),
+        ('It throws a NullPointerException', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ktf_121'), 'Given val phone: String? = null, which of these lines compile AND run without throwing an exception? (Select all that apply.)', 'multiple_choice'::question_type, 'phone?.length is a safe call: it gives null and println prints null. Inside if (phone != null) the compiler smart-casts phone to String, so phone.length compiles; the condition is false and nothing runs. "12a".toIntOrNull() returns null instead of throwing, and the elvis turns it into -1. phone.length does not compile at all: only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver. phone!!.length compiles, which is exactly the problem: !! throws a NullPointerException when phone is null. A map lookup with [] returns null for a missing key, so !! after it throws as well; getValue would throw NoSuchElementException instead.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ktf_121') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('println(phone?.length)', true),
+        ('println(phone.length)', false),
+        ('println(phone!!.length)', false),
+        ('if (phone != null) println(phone.length)', true),
+        ('println("12a".toIntOrNull() ?: -1)', true),
+        ('println(mapOf("Hoan Kiem" to 15000)["Gia Lam"]!!)', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_fix_ktf_122 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_fix_ktf_122', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-1-2' AND is_deleted = false LIMIT 1), 'fix-cart-header-crash', 'Fix the cart header that crashes on incomplete profiles', 'The Cho Xanh cart screen greets the customer, shows the delivery address and the delivery fee of the district. Release 4.13 builds that header with !! everywhere and crashes for customers who signed up with Zalo (no display name), have no address yet, or have an address without a street or ward. Fix greeting, deliverTo and deliveryFee without !!: fall back to "Hi there", skip missing address parts, ask for an address when there is none, and show "n/a" when no fee is known. The test runner reads one profile per line and prints one header per profile.', 'open', 'easy'::difficulty_question, 'fix_bug', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_122'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_122');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_122'), 'Complete profiles work before and after the fix', '"CX-U01|Lan|Hoan Kiem|Hang Bac|12 Hang Bac\nCX-U03|Pham Quang Huy|Cau Giay|Dich Vong|88 Tran Thai Tong\n"', '"CX-U01: Hi Lan | Deliver to: 12 Hang Bac, Hang Bac, Hoan Kiem | Fee: 15000 VND\nCX-U03: Hi Pham Quang Huy | Deliver to: 88 Tran Thai Tong, Dich Vong, Cau Giay | Fee: 20000 VND"', 3, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_122'), 'A Zalo sign-up with no name and no address', '"CX-U01|Lan|Hoan Kiem|Hang Bac|12 Hang Bac\nCX-U02|-|-|-|-\n"', '"CX-U01: Hi Lan | Deliver to: 12 Hang Bac, Hang Bac, Hoan Kiem | Fee: 15000 VND\nCX-U02: Hi there | Deliver to: add an address | Fee: n/a"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_122'), 'An address without a street', '"CX-U04|Minh|Dong Da|Lang Thuong|-\n"', '"CX-U04: Hi Minh | Deliver to: Lang Thuong, Dong Da | Fee: 20000 VND"', 3, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_122'), 'Display names that are only spaces or have spaces around them', '"CX-U05|   |Ba Dinh|Kim Ma|25 Kim Ma\nCX-U06|  Thu Ha  |Long Bien|Bo De|-\n"', '"CX-U05: Hi there | Deliver to: 25 Kim Ma, Kim Ma, Ba Dinh | Fee: 15000 VND\nCX-U06: Hi Thu Ha | Deliver to: Bo De, Long Bien | Fee: 25000 VND"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_122'), 'A district outside the delivery zones has no fee', '"CX-U07|Quan|Gia Lam|Trau Quy|3 Ngo Xuan Quang\n"', '"CX-U07: Hi Quan | Deliver to: 3 Ngo Xuan Quang, Trau Quy, Gia Lam | Fee: n/a"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_122'), 'A mixed batch: only the district, no ward, no name with an address', '"CX-U08|Ngoc|Cau Giay|-|-\nCX-U09|Tuan|Hoan Kiem|-|5 Trang Tien\nCX-U10|-|Dong Da|O Cho Dua|120 Xa Dan\nCX-U11|Mai|-|Kim Ma|25 Kim Ma\n"', '"CX-U08: Hi Ngoc | Deliver to: Cau Giay | Fee: 20000 VND\nCX-U09: Hi Tuan | Deliver to: 5 Trang Tien, Hoan Kiem | Fee: 15000 VND\nCX-U10: Hi there | Deliver to: 120 Xa Dan, O Cho Dua, Dong Da | Fee: 20000 VND\nCX-U11: Hi Mai | Deliver to: add an address | Fee: n/a"', 4, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_ktf_122_starter', 's3', 'challenges/kotlin/chal_fix_ktf_122/starter.kt', 'raw', 'text/x-kotlin', 2595, 'main.kt')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_122'), 'kotlin', 'main.kt', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_ktf_122_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 2: Modelling
+UPDATE course.module SET title = 'Modelling', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations'), 'Modelling', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 2 AND is_deleted = false);
+
+-- lesson 2.1: when expressions & sealed interfaces (Sanity lesson-ktf-2-1)
+UPDATE course.lesson SET title = 'when expressions & sealed interfaces', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-2-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), 'when expressions & sealed interfaces', 'sanity', 'lesson-ktf-2-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-ktf-2-1' AND is_deleted = false);
+
+-- challenge chal_coding_ktf_211 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_ktf_211', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-2-1' AND is_deleted = false LIMIT 1), 'order-tracking-timeline', 'Write the order tracking timeline with exhaustive when', 'The Cho Xanh app shows one line per order event and the order''s current status. The events are a sealed interface: Placed, Paid, Picking, OutForDelivery, Delivered, Refunded and Cancelled. Write describe and status with when expressions that cover every event type without an else branch: cash payments read differently from card and wallet payments, a delivery may or may not name who received it, and refunds never change the status. The test runner reads one event per line and prints the timeline and the status.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_211'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_211');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_211'), 'A card order from placed to delivered', '"placed 245000\npaid card 245000\npicking\nout_for_delivery Tuan\ndelivered\n"', '"Order placed: 245000 VND\nPaid 245000 VND by card\nPicking your groceries\nTuan is on the way\nDelivered\nStatus: Delivered"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_211'), 'A cash order on its way', '"placed 180000\npaid cash 180000\npicking\nout_for_delivery Nguyen Van Hung\n"', '"Order placed: 180000 VND\nCash on delivery: 180000 VND\nPicking your groceries\nNguyen Van Hung is on the way\nStatus: On the way"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_211'), 'A refund while picking does not change the status', '"placed 300000\npaid wallet 300000\npicking\nrefunded 30000 out of stock: Trung ga ta\n"', '"Order placed: 300000 VND\nPaid 300000 VND by wallet\nPicking your groceries\nRefunded 30000 VND (out of stock: Trung ga ta)\nStatus: Picking"', 4, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_211'), 'Delivered to the guard, then a refund', '"placed 520000\npaid card 520000\npicking\nout_for_delivery Le Thi Mai\ndelivered the guard\nrefunded 45000 damaged: Sua tuoi TH 1l\n"', '"Order placed: 520000 VND\nPaid 520000 VND by card\nPicking your groceries\nLe Thi Mai is on the way\nDelivered to the guard\nRefunded 45000 VND (damaged: Sua tuoi TH 1l)\nStatus: Delivered"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_211'), 'Cancelled by the store with a full refund', '"placed 95000\npaid card 95000\ncancelled store\nrefunded 95000 order cancelled\n"', '"Order placed: 95000 VND\nPaid 95000 VND by card\nCancelled by Cho Xanh\nRefunded 95000 VND (order cancelled)\nStatus: Cancelled"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_211'), 'Cash chosen, nothing else yet', '"placed 120000\npaid cash 120000\n"', '"Order placed: 120000 VND\nCash on delivery: 120000 VND\nStatus: Confirmed, pay on delivery"', 3, false, true, 6),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_211'), 'No events yet', '"\n"', '"Status: No updates yet"', 3, false, true, 7);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_ktf_211_starter', 's3', 'challenges/kotlin/chal_coding_ktf_211/starter.kt', 'raw', 'text/x-kotlin', 3742, 'main.kt')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_211'), 'kotlin', 'main.kt', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_ktf_211_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 2.2: Data classes: equality, copy & destructuring (Sanity lesson-ktf-2-2)
+UPDATE course.lesson SET title = 'Data classes: equality, copy & destructuring', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-2-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Data classes: equality, copy & destructuring', 'sanity', 'lesson-ktf-2-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-ktf-2-2' AND is_deleted = false);
+
+-- challenge chal_quiz_ktf_221 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_ktf_221', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-2-2' AND is_deleted = false LIMIT 1), 'data-class-equality-copy-quiz', 'Predict it: what a data class compares and what copy() shares', 'Find out which properties take part in equals and toString, then decide what a copy of an order shares with the original.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ktf_221'), 'What does this print?
+
+data class CartLine(val sku: String, val qty: Int) {
+    var note: String = ""
+}
+
+val a = CartLine("RAU-01", 2)
+a.note = "fresh please"
+val b = CartLine("RAU-01", 2)
+println(a == b)
+println(a)', 'single_choice'::question_type, 'A data class generates equals, hashCode, toString, copy and the componentN functions from the properties in the PRIMARY CONSTRUCTOR only. note is declared in the class body, so it is ignored by all of them: a and b have the same sku and qty, so a == b is true, and toString prints CartLine(sku=RAU-01, qty=2) without the note. This is sometimes useful (a cache field that should not affect equality), but usually it is a bug waiting to happen: two lines with different notes are ''equal'' and one of them can be dropped by a Set or a distinct().', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ktf_221') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('true, then CartLine(sku=RAU-01, qty=2)', true),
+        ('false, then CartLine(sku=RAU-01, qty=2, note=fresh please)', false),
+        ('true, then CartLine(sku=RAU-01, qty=2, note=fresh please)', false),
+        ('false, then CartLine(sku=RAU-01, qty=2)', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ktf_221'), 'After these lines, which statements are true? (Select all that apply.)
+
+data class Order(val id: String, val items: MutableList<String>)
+
+val first = Order("CX-1", mutableListOf("Rau muong"))
+val second = first.copy(id = "CX-2")
+second.items += "Trung ga ta"', 'multiple_choice'::question_type, 'copy() is shallow: it creates a new Order but copies the REFERENCE to the list, so first.items and second.items are the same MutableList (=== is true), and adding to second.items changes first.items too. first == second is false because the ids differ. Destructuring follows the constructor order, so val (id, items) = second gives id = "CX-2". Two separately built orders with the same id and equal lists are equal: data class equals compares properties with ==, and lists compare their contents. hashCode() is only guaranteed to be equal for EQUAL objects; first and second are not equal (different ids), so nothing guarantees that their hash codes match.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ktf_221') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('first.items is now [Rau muong, Trung ga ta]', true),
+        ('first == second is true', false),
+        ('first.items === second.items is true', true),
+        ('val (id, items) = second gives id = "CX-2"', true),
+        ('Order("CX-1", mutableListOf("Rau muong")) == Order("CX-1", mutableListOf("Rau muong")) is true', true),
+        ('first.hashCode() == second.hashCode() is guaranteed, because copy() keeps the hash code', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_fix_ktf_222 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_fix_ktf_222', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-2-2' AND is_deleted = false LIMIT 1), 'fix-cart-merge-and-share', 'Fix the cart that duplicates products and shares a friend''s edits', 'In the Cho Xanh app, tapping + twice on the same product gives two lines of 1, because every tap loads a new Product object from the API and Product is a plain class. And ''Share my cart'' gives a friend a copy that is not really a copy: when the friend removes or adds something, your cart changes too. Fix the model and share so that equal products merge into one line and a shared cart is independent of the original in both directions. The test runner reads add, share, remove and show commands and prints the carts.', 'open', 'medium'::difficulty_question, 'fix_bug', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_222'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_222');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_222'), 'Two taps on the same product make one line of 2', '"add Lan RAU-01 15000 Rau muong\nadd Lan RAU-01 15000 Rau muong\nadd Lan TRUNG-10 30000 Trung ga ta\nshow Lan\n"', '"Lan: 2 x Rau muong (30000 VND), 1 x Trung ga ta (30000 VND) | total 60000 VND"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_222'), 'A friend''s removal stays in the friend''s cart', '"add Lan RAU-01 15000 Rau muong\nadd Lan TRUNG-10 30000 Trung ga ta\nshare Lan Minh\nremove Minh TRUNG-10\nshow Lan\nshow Minh\n"', '"Lan: 1 x Rau muong (15000 VND), 1 x Trung ga ta (30000 VND) | total 45000 VND\nMinh: 1 x Rau muong (15000 VND) | total 15000 VND"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_222'), 'Your additions after sharing stay in your cart', '"add Lan GAO-05 240000 Gao ST25 tui 5kg\nshare Lan Minh\nadd Lan SUA-01 32000 Sua tuoi TH 1l\nshow Lan\nshow Minh\n"', '"Lan: 1 x Gao ST25 tui 5kg (240000 VND), 1 x Sua tuoi TH 1l (32000 VND) | total 272000 VND\nMinh: 1 x Gao ST25 tui 5kg (240000 VND) | total 240000 VND"', 3, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_222'), 'A friend empties the shared cart', '"add Lan RAU-01 15000 Rau muong\nshare Lan Minh\nremove Minh RAU-01\nshow Minh\nshow Lan\n"', '"Minh: empty\nLan: 1 x Rau muong (15000 VND) | total 15000 VND"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_222'), 'A cart shared twice, then edited at the end of the chain', '"add Lan RAU-01 15000 Rau muong\nadd Lan THIT-07 185000 Thit bo Uc\nshare Lan Minh\nshare Minh Ha\nadd Ha RAU-01 15000 Rau muong\nremove Ha THIT-07\nshow Lan\nshow Minh\nshow Ha\n"', '"Lan: 1 x Rau muong (15000 VND), 1 x Thit bo Uc (185000 VND) | total 200000 VND\nMinh: 1 x Rau muong (15000 VND), 1 x Thit bo Uc (185000 VND) | total 200000 VND\nHa: 2 x Rau muong (30000 VND) | total 30000 VND"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_222'), 'Interleaved taps on two products', '"add Tuan BANH-MI 25000 Banh mi pate\nadd Tuan CAFE-02 29000 Ca phe sua da\nadd Tuan BANH-MI 25000 Banh mi pate\nadd Tuan CAFE-02 29000 Ca phe sua da\nadd Tuan BANH-MI 25000 Banh mi pate\nshow Tuan\n"', '"Tuan: 3 x Banh mi pate (75000 VND), 2 x Ca phe sua da (58000 VND) | total 133000 VND"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_ktf_222_starter', 's3', 'challenges/kotlin/chal_fix_ktf_222/starter.kt', 'raw', 'text/x-kotlin', 2740, 'main.kt')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_222'), 'kotlin', 'main.kt', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_ktf_222_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 2.3: Classes, interfaces & visibility (Sanity lesson-ktf-2-3)
+UPDATE course.lesson SET title = 'Classes, interfaces & visibility', order_index = 3, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-2-3' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Classes, interfaces & visibility', 'sanity', 'lesson-ktf-2-3', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-ktf-2-3' AND is_deleted = false);
+
+-- challenge chal_coding_ktf_231 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_ktf_231', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-2-3' AND is_deleted = false LIMIT 1), 'wallet-and-payment-methods', 'Write the wallet and the payment methods behind one interface', 'The Cho Xanh checkout charges a PaymentMethod and knows nothing else. Implement Wallet (top-ups and payments with a private setter on the balance) and the three payment methods, cash on delivery, the wallet and a card with a limit, so that every rule lives inside the class that owns the money: no zero or negative amounts, no top-up above 10,000,000 or balance above 20,000,000, no payment above the balance or the card limit, and no cash order above 2,000,000. The test runner reads top-up, pay and balance commands and prints the result of each.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_231'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_231');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_231'), 'Everyday payments with all three methods', '"wallet 200000 card 1000000\npay wallet 120000\npay cash 85000\npay card 300000\nbalance\n"', '"pay wallet 120000: ok\npay cash 85000: ok\npay card 300000: ok\nwallet 80000 VND, card limit 700000 VND"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_231'), 'Declined when the money is not there', '"wallet 50000 card 100000\npay wallet 80000\npay card 150000\npay cash 2500000\nbalance\n"', '"pay wallet 80000: declined\npay card 150000: declined\npay cash 2500000: declined\nwallet 50000 VND, card limit 100000 VND"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_231'), 'Top-ups and their limits', '"wallet 0 card 0\ntopup 5000000\ntopup 12000000\ntopup 10000000\ntopup 6000000\ntopup 5000000\nbalance\n"', '"topup 5000000: ok\ntopup 12000000: rejected\ntopup 10000000: ok\ntopup 6000000: rejected\ntopup 5000000: ok\nwallet 20000000 VND, card limit 0 VND"', 4, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_231'), 'Zero and negative amounts change nothing', '"wallet 100000 card 100000\npay wallet -50000\npay card 0\npay cash -1\ntopup -20000\ntopup 0\nbalance\n"', '"pay wallet -50000: declined\npay card 0: declined\npay cash -1: declined\ntopup -20000: rejected\ntopup 0: rejected\nwallet 100000 VND, card limit 100000 VND"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_231'), 'Paying exactly the balance, the card limit and the cash limit', '"wallet 245000 card 300000\npay wallet 245000\npay card 300000\npay card 1\npay wallet 1\npay cash 2000000\nbalance\n"', '"pay wallet 245000: ok\npay card 300000: ok\npay card 1: declined\npay wallet 1: declined\npay cash 2000000: ok\nwallet 0 VND, card limit 0 VND"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_231'), 'A long day of orders and top-ups', '"wallet 30000 card 500000\npay wallet 45000\ntopup 100000\npay wallet 45000\npay card 260000\npay card 260000\npay cash 1999999\ntopup 19900000\ntopup 9000000\npay wallet 9085000\nbalance\n"', '"pay wallet 45000: declined\ntopup 100000: ok\npay wallet 45000: ok\npay card 260000: ok\npay card 260000: declined\npay cash 1999999: ok\ntopup 19900000: rejected\ntopup 9000000: ok\npay wallet 9085000: ok\nwallet 0 VND, card limit 240000 VND"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_ktf_231_starter', 's3', 'challenges/kotlin/chal_coding_ktf_231/starter.kt', 'raw', 'text/x-kotlin', 3234, 'main.kt')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_231'), 'kotlin', 'main.kt', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_ktf_231_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 3: Collections
+UPDATE course.module SET title = 'Collections', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations'), 'Collections', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 3 AND is_deleted = false);
+
+-- lesson 3.1: Lists, sets & maps: read-only is not immutable (Sanity lesson-ktf-3-1)
+UPDATE course.lesson SET title = 'Lists, sets & maps: read-only is not immutable', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-3-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Lists, sets & maps: read-only is not immutable', 'sanity', 'lesson-ktf-3-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-ktf-3-1' AND is_deleted = false);
+
+-- challenge chal_quiz_ktf_311 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_ktf_311', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-3-1' AND is_deleted = false LIMIT 1), 'read-only-collections-quiz', 'Predict it: read-only views, copies and collection surprises', 'Work out what a read-only reference sees after the list behind it changes, then sort true from false among common collection operations.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ktf_311'), 'What does this print?
+
+val stock = mutableListOf("Rau muong", "Trung ga ta")
+val visible: List<String> = stock
+stock += "Sua tuoi"
+println(visible.size)', 'single_choice'::question_type, 'List<String> is a read-only INTERFACE: code that holds visible cannot add or remove through it. But visible and stock are two references to the same ArrayList, and stock can still change it. After stock += "Sua tuoi", the one list has 3 elements, and visible.size is 3. There is no copy anywhere: assigning a MutableList to a List variable only narrows what you may call. It compiles (a MutableList is a List), and nothing throws: no code tries to modify the list through visible.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ktf_311') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('2', false),
+        ('3', true),
+        ('It does not compile: visible is read-only', false),
+        ('It throws UnsupportedOperationException', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ktf_311'), 'Which of these statements are true? (Select all that apply.)', 'multiple_choice'::question_type, 'A Set keeps each element once, so setOf("CX-1", "CX-2", "CX-1") has size 2. list.toList() creates a new list with the same elements: later changes to the original are not visible in the copy (the elements themselves are shared, which is fine when they are immutable). (listOf(1, 2) as MutableList<Int>).add(3) compiles, because the cast is only checked against the JVM type, which is a java.util list; the list behind listOf cannot grow, so add throws UnsupportedOperationException at run time. A missing key gives null, not 0: mapOf("RAU-01" to 15000)["RAU-02"] is null, and getOrDefault or ?: decide the fallback. val b = a + 3 creates a new list; a is still [1, 2]. Removing from a MutableList while a for loop iterates over it throws ConcurrentModificationException; use removeAll { ... } or build a new list with filter.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ktf_311') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('setOf("CX-1", "CX-2", "CX-1").size is 2', true),
+        ('val copy = list.toList() is not affected when list changes later', true),
+        ('(listOf(1, 2) as MutableList<Int>).add(3) compiles, then throws UnsupportedOperationException', true),
+        ('mapOf("RAU-01" to 15000)["RAU-02"] is 0', false),
+        ('val a = listOf(1, 2); val b = a + 3 changes a to [1, 2, 3]', false),
+        ('for (x in m) if (x % 2 == 0) m.remove(x) safely removes the even numbers of a MutableList m', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_fix_ktf_312 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_fix_ktf_312', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-3-1' AND is_deleted = false LIMIT 1), 'fix-cart-undo-and-redraw', 'Fix the cart screen that stops redrawing and the undo that empties the cart', 'The Cho Xanh cart screen redraws only when the cart it reads from the store differs from the last cart it drew, and the store keeps snapshots for Undo. Since release 4.16 the screen stops redrawing after the first item and Undo wipes the whole cart: the store hands out its own MutableList as a read-only List, and saves that same list as every snapshot. Fix CartStore so that every change redraws the screen, Undo goes back exactly one change, and nothing the store hands out can change later. The test runner reads add, remove and undo commands and prints each redraw, the final cart and the undo steps left.', 'open', 'medium'::difficulty_question, 'fix_bug', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_312'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_312');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_312'), 'Every add redraws the screen', '"add Rau muong\nadd Trung ga ta\nadd Sua tuoi TH 1l\n"', '"render: [Rau muong]\nrender: [Rau muong, Trung ga ta]\nrender: [Rau muong, Trung ga ta, Sua tuoi TH 1l]\nfinal: [Rau muong, Trung ga ta, Sua tuoi TH 1l]\nundo steps left: 3"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_312'), 'Undo goes back one step', '"add Rau muong\nadd Trung ga ta\nundo\n"', '"render: [Rau muong]\nrender: [Rau muong, Trung ga ta]\nrender: [Rau muong]\nfinal: [Rau muong]\nundo steps left: 1"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_312'), 'Remove redraws, undo brings the item back', '"add Gao ST25 tui 5kg\nadd Nuoc mam Phu Quoc\nremove Gao ST25 tui 5kg\nundo\n"', '"render: [Gao ST25 tui 5kg]\nrender: [Gao ST25 tui 5kg, Nuoc mam Phu Quoc]\nrender: [Nuoc mam Phu Quoc]\nrender: [Gao ST25 tui 5kg, Nuoc mam Phu Quoc]\nfinal: [Gao ST25 tui 5kg, Nuoc mam Phu Quoc]\nundo steps left: 2"', 3, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_312'), 'Removing an item that is not in the cart changes nothing', '"add Rau muong\nremove Thit bo Uc\nadd Banh mi pate\n"', '"render: [Rau muong]\nrender: [Rau muong, Banh mi pate]\nfinal: [Rau muong, Banh mi pate]\nundo steps left: 2"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_312'), 'Undo back to an empty cart, then one undo too many', '"add Rau muong\nadd Trung ga ta\nundo\nundo\nundo\n"', '"render: [Rau muong]\nrender: [Rau muong, Trung ga ta]\nrender: [Rau muong]\nrender: []\nfinal: []\nundo steps left: 0"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_312'), 'A long session with duplicates, removes and undos', '"add Rau muong\nadd Rau muong\nadd Ca phe sua da\nremove Rau muong\nadd Banh mi pate\nundo\nundo\nremove Ca phe sua da\nadd Trung ga ta\nundo\n"', '"render: [Rau muong]\nrender: [Rau muong, Rau muong]\nrender: [Rau muong, Rau muong, Ca phe sua da]\nrender: [Rau muong, Ca phe sua da]\nrender: [Rau muong, Ca phe sua da, Banh mi pate]\nrender: [Rau muong, Ca phe sua da]\nrender: [Rau muong, Rau muong, Ca phe sua da]\nrender: [Rau muong, Rau muong]\nrender: [Rau muong, Rau muong, Trung ga ta]\nrender: [Rau muong, Rau muong]\nfinal: [Rau muong, Rau muong]\nundo steps left: 4"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_ktf_312_starter', 's3', 'challenges/kotlin/chal_fix_ktf_312/starter.kt', 'raw', 'text/x-kotlin', 2339, 'main.kt')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_312'), 'kotlin', 'main.kt', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_ktf_312_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 3.2: map, filter, groupBy & fold (Sanity lesson-ktf-3-2)
+UPDATE course.lesson SET title = 'map, filter, groupBy & fold', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-3-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), 'map, filter, groupBy & fold', 'sanity', 'lesson-ktf-3-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-ktf-3-2' AND is_deleted = false);
+
+-- challenge chal_coding_ktf_321 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_ktf_321', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-3-2' AND is_deleted = false LIMIT 1), 'daily-sales-report', 'Write the daily sales report with collection operations', 'The Cho Xanh order export logs every status change, so an order delivered in the morning and refunded in the afternoon appears twice. Write summarize so that only the last line of each order counts, revenue includes delivered orders only, stores and categories are ranked by revenue (ties alphabetical), and the top order and average basket are computed from delivered orders, with null when nothing was delivered. Use associateBy, filter, groupBy, groupingBy, sumOf and sortedWith instead of index loops. The test runner reads the export and prints the report.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_321'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_321');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_321'), 'A simple day with one cancelled order', '"CX-1001 kim-ma meat 245000 delivered\nCX-1002 kim-ma vegetables 60000 delivered\nCX-1003 cau-giay dairy 120000 delivered\nCX-1004 cau-giay meat 185000 cancelled\n"', '"orders: 4 (delivered 3, refunded 0, cancelled 1)\nrevenue: 425000 VND\nstore kim-ma: 305000 VND\nstore cau-giay: 120000 VND\ncategory meat: 245000 VND\ncategory dairy: 120000 VND\ncategory vegetables: 60000 VND\ntop order: CX-1001 kim-ma 245000 VND\naverage basket: 141666 VND"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_321'), 'Delivered in the morning, refunded in the afternoon', '"CX-2001 kim-ma meat 300000 delivered\nCX-2002 long-bien rice 240000 delivered\nCX-2001 kim-ma meat 300000 refunded\n"', '"orders: 2 (delivered 1, refunded 1, cancelled 0)\nrevenue: 240000 VND\nstore long-bien: 240000 VND\ncategory rice: 240000 VND\ntop order: CX-2002 long-bien 240000 VND\naverage basket: 240000 VND"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_321'), 'Equal revenue: alphabetical stores and the alphabetically first top order', '"CX-3002 tay-ho fruit 150000 delivered\nCX-3001 ba-dinh fruit 150000 delivered\nCX-3003 dong-da dairy 90000 delivered\n"', '"orders: 3 (delivered 3, refunded 0, cancelled 0)\nrevenue: 390000 VND\nstore ba-dinh: 150000 VND\nstore tay-ho: 150000 VND\nstore dong-da: 90000 VND\ncategory fruit: 300000 VND\ncategory dairy: 90000 VND\ntop order: CX-3001 ba-dinh 150000 VND\naverage basket: 130000 VND"', 4, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_321'), 'Nothing delivered', '"CX-4001 kim-ma meat 185000 cancelled\nCX-4002 tay-ho fruit 70000 delivered\nCX-4002 tay-ho fruit 70000 refunded\n"', '"orders: 2 (delivered 0, refunded 1, cancelled 1)\nrevenue: 0 VND\ntop order: none\naverage basket: n/a"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_321'), 'Status changes back and forth: the last line wins', '"CX-5001 cau-giay rice 480000 cancelled\nCX-5002 ba-dinh meat 210000 delivered\nCX-5001 cau-giay rice 480000 delivered\nCX-5002 ba-dinh meat 210000 refunded\nCX-5003 ba-dinh dairy 64000 delivered\nCX-5002 ba-dinh meat 210000 delivered\n"', '"orders: 3 (delivered 3, refunded 0, cancelled 0)\nrevenue: 754000 VND\nstore cau-giay: 480000 VND\nstore ba-dinh: 274000 VND\ncategory rice: 480000 VND\ncategory meat: 210000 VND\ncategory dairy: 64000 VND\ntop order: CX-5001 cau-giay 480000 VND\naverage basket: 251333 VND"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_321'), 'An empty export', '"\n"', '"orders: 0 (delivered 0, refunded 0, cancelled 0)\nrevenue: 0 VND\ntop order: none\naverage basket: n/a"', 3, false, true, 6),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_321'), 'A busy day across five stores', '"CX-7001 kim-ma meat 245000 delivered\nCX-7002 tay-ho vegetables 45000 delivered\nCX-7003 cau-giay dairy 128000 delivered\nCX-7004 long-bien rice 240000 delivered\nCX-7005 kim-ma fruit 99000 delivered\nCX-7006 dong-da meat 370000 delivered\nCX-7007 tay-ho dairy 64000 cancelled\nCX-7003 cau-giay dairy 128000 refunded\nCX-7008 long-bien vegetables 104000 delivered\nCX-7009 dong-da fruit 1000 delivered\n"', '"orders: 9 (delivered 7, refunded 1, cancelled 1)\nrevenue: 1104000 VND\nstore dong-da: 371000 VND\nstore kim-ma: 344000 VND\nstore long-bien: 344000 VND\nstore tay-ho: 45000 VND\ncategory meat: 615000 VND\ncategory rice: 240000 VND\ncategory vegetables: 149000 VND\ncategory fruit: 100000 VND\ntop order: CX-7006 dong-da 370000 VND\naverage basket: 157714 VND"', 3, false, true, 7);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_ktf_321_starter', 's3', 'challenges/kotlin/chal_coding_ktf_321/starter.kt', 'raw', 'text/x-kotlin', 2787, 'main.kt')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_321'), 'kotlin', 'main.kt', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_ktf_321_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 3.3: Extension functions & scope functions (let, apply, also) (Sanity lesson-ktf-3-3)
+UPDATE course.lesson SET title = 'Extension functions & scope functions (let, apply, also)', order_index = 3, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-3-3' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Extension functions & scope functions (let, apply, also)', 'sanity', 'lesson-ktf-3-3', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-ktf-3-3' AND is_deleted = false);
+
+-- challenge chal_quiz_ktf_331 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_ktf_331', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-3-3' AND is_deleted = false LIMIT 1), 'scope-functions-quiz', 'Predict it: let, apply, also and ?: run', 'Trace a ?.let { } ?: fallback whose lambda returns null, then pick the scope-function and extension statements that are true.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ktf_331'), 'sendPush returns an error message, or null when the push was sent. What does this print?
+
+fun sendPush(token: String, text: String): String? {
+    println("push")
+    return null
+}
+
+val token: String? = "tok-1"
+token?.let { sendPush(it, "Order on its way") } ?: println("sms")', 'single_choice'::question_type, 'token is not null, so let runs the lambda: sendPush prints push and returns null. let returns whatever its lambda returns, so the whole expression token?.let { ... } is null, and the elvis operator runs its right side: sms is printed too. The elvis does not know WHY the left side is null: a null token and a lambda that returned null look the same. That is how customers received a push and an SMS for the same order. An if (token != null) ... else ... has no such ambiguity.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ktf_331') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('push', false),
+        ('push, then sms', true),
+        ('sms', false),
+        ('Nothing: sendPush returned null, so nothing was sent', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ktf_331'), 'Which of these statements are true? (Select all that apply.)', 'multiple_choice'::question_type, 'apply runs the block with the object as this and returns the object itself, so n is the configured Notification. let returns the lambda''s result: "cho xanh".let { it.uppercase() } is "CHO XANH". also passes the object as it and returns the object, so the list (now [1, 2], because += changed it inside the block) is assigned to y. "abc".also { it.length } returns "abc", not 3: also ignores the lambda''s result. An extension function is resolved statically and only sees the public API of its receiver; it cannot read private members. An extension on a nullable receiver (String?) can be called on a null value: inside it, this is null, so s.orDash() returns "-".', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ktf_331') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('val n = Notification().apply { title = "Hi" } makes n the Notification object', true),
+        ('val x = "cho xanh".let { it.uppercase() } makes x "CHO XANH"', true),
+        ('val y = mutableListOf(1).also { it += 2 } makes y [1, 2]', true),
+        ('val z = "abc".also { it.length } makes z 3', false),
+        ('An extension function on a class can read that class''s private properties', false),
+        ('With fun String?.orDash() = this ?: "-" and val s: String? = null, s.orDash() returns "-"', true)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_ktf_332 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_ktf_332', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-3-3' AND is_deleted = false LIMIT 1), 'notification-extensions', 'Write the notification text with extension functions', 'The Cho Xanh ''order on its way'' notification needs money with thousands separators, names in title case, a masked driver phone number and a dash for missing values. Write the extension functions Long.vnd(), String.titleCase(), String.maskPhone() and String?.orDash(), then build Order.notificationText() from them. Negative amounts (refunds), short phone numbers, extra spaces in names and notes that are only spaces must all come out right. The test runner reads order and refund lines and prints one text per line.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_332'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_332');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_332'), 'A complete order', '"order|CX-1042|nguyen van an|1250000|tuan|0912345678|leave at the door\n"', '"Hi Nguyen Van An, order CX-1042 (1,250,000 VND) is on its way. Driver: Tuan (091****678). Note: leave at the door"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_332'), 'No driver yet and no note', '"order|CX-1043|Le Thi Mai|245000|-|-|-\n"', '"Hi Le Thi Mai, order CX-1043 (245,000 VND) is on its way. Driver: - (-). Note: -"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_332'), 'Refunds and a small amount', '"refund|CX-1042|-300000\nrefund|CX-1044|-30000\norder|CX-1045|minh|999|lan|0987654321|-\n"', '"Refund for CX-1042: -300,000 VND\nRefund for CX-1044: -30,000 VND\nHi Minh, order CX-1045 (999 VND) is on its way. Driver: Lan (098****321). Note: -"', 4, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_332'), 'Messy names and a note of only spaces', '"order|CX-1046|  TRAN   thi   HA |85000|  pham  QUANG |0987654321|   \n"', '"Hi Tran Thi Ha, order CX-1046 (85,000 VND) is on its way. Driver: Pham Quang (098****321). Note: -"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_332'), 'A short phone number and zero amounts', '"order|CX-1047|binh|0|son|12345|ring twice\nrefund|CX-1047|0\n"', '"Hi Binh, order CX-1047 (0 VND) is on its way. Driver: Son (*****). Note: ring twice\nRefund for CX-1047: 0 VND"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_332'), 'Large and boundary amounts', '"order|CX-1048|cong ty an phat|2250000000|hung|0901234567|invoice please\nrefund|CX-1048|-1000\nrefund|CX-1049|-999\norder|CX-1050|ha|100000|vy|0911222333|-\n"', '"Hi Cong Ty An Phat, order CX-1048 (2,250,000,000 VND) is on its way. Driver: Hung (090****567). Note: invoice please\nRefund for CX-1048: -1,000 VND\nRefund for CX-1049: -999 VND\nHi Ha, order CX-1050 (100,000 VND) is on its way. Driver: Vy (091****333). Note: -"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_ktf_332_starter', 's3', 'challenges/kotlin/chal_coding_ktf_332/starter.kt', 'raw', 'text/x-kotlin', 2643, 'main.kt')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_332'), 'kotlin', 'main.kt', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_ktf_332_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 4: Robust Code
+UPDATE course.module SET title = 'Robust Code', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations'), 'Robust Code', 4
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 4 AND is_deleted = false);
+
+-- lesson 4.1: Exceptions, require & Result (Sanity lesson-ktf-4-1)
+UPDATE course.lesson SET title = 'Exceptions, require & Result', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-4-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), 'Exceptions, require & Result', 'sanity', 'lesson-ktf-4-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-ktf-4-1' AND is_deleted = false);
+
+-- challenge chal_fix_ktf_411 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_fix_ktf_411', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-4-1' AND is_deleted = false LIMIT 1), 'fix-price-import', 'Fix the price import that turned unreadable prices into 0 VND', 'The Cho Xanh supplier import reads SKU;PRICE lines and ''never fails'': an unreadable price such as 18.500 becomes 0, broken lines vanish silently and unknown SKUs are added to the catalog. Fix it so that every line is either applied or rejected with a clear reason and its line number, invalid lines change nothing, and a file where more than half of the lines are rejected is not applied at all. The test runner starts from a fixed catalog, prints the import report and the catalog afterwards.', 'open', 'medium'::difficulty_question, 'fix_bug', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_411'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_411');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_411'), 'A clean file is applied', '"RAU-01;14000\nTRUNG-10;32000\nGAO-05;235000\n"', '"line 1: RAU-01 15000 -> 14000\nline 2: TRUNG-10 30000 -> 32000\nline 3: GAO-05 240000 -> 235000\napplied 3 of 3 lines\ncatalog: GAO-05=235000, NUOC-MAM=85000, RAU-01=14000, SUA-01=32000, THIT-07=185000, TRUNG-10=32000"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_411'), 'The 18.500 line is rejected, the rest applied', '"RAU-01;14000\nSUA-01;18.500\nTHIT-07;189000\n"', '"line 1: RAU-01 15000 -> 14000\nline 2: rejected (invalid price \"18.500\")\nline 3: THIT-07 185000 -> 189000\napplied 2 of 3 lines\ncatalog: GAO-05=240000, NUOC-MAM=85000, RAU-01=14000, SUA-01=32000, THIT-07=189000, TRUNG-10=30000"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_411'), 'Unknown SKU and missing price: exactly half rejected is still applied', '"RAU-01;14000\nRAU-99;20000\nGAO-05\nTRUNG-10;31000\n"', '"line 1: RAU-01 15000 -> 14000\nline 2: rejected (unknown sku RAU-99)\nline 3: rejected (missing price)\nline 4: TRUNG-10 30000 -> 31000\napplied 2 of 4 lines\ncatalog: GAO-05=240000, NUOC-MAM=85000, RAU-01=14000, SUA-01=32000, THIT-07=185000, TRUNG-10=31000"', 3, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_411'), 'A mostly broken file is not applied at all', '"RAU-01;14000\nSUA-01;\nTHIT-07;1.85e5\nNUOC-MAM;0\n"', '"line 2: rejected (missing price)\nline 3: rejected (invalid price \"1.85e5\")\nline 4: rejected (price out of range: 0)\nimport aborted: 3 of 4 lines rejected\ncatalog: GAO-05=240000, NUOC-MAM=85000, RAU-01=15000, SUA-01=32000, THIT-07=185000, TRUNG-10=30000"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_411'), 'Spaces, signs and the price range', '" RAU-01 ; 14000 \nTRUNG-10;-5000\nGAO-05;+235000\nSUA-01;150000000\nTHIT-07;100000000\nNUOC-MAM;1\n"', '"line 1: RAU-01 15000 -> 14000\nline 2: rejected (invalid price \"-5000\")\nline 3: rejected (invalid price \"+235000\")\nline 4: rejected (price out of range: 150000000)\nline 5: THIT-07 185000 -> 100000000\nline 6: NUOC-MAM 85000 -> 1\napplied 3 of 6 lines\ncatalog: GAO-05=240000, NUOC-MAM=1, RAU-01=14000, SUA-01=32000, THIT-07=100000000, TRUNG-10=30000"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_411'), 'The same SKU twice in one file', '"RAU-01;14000\nRAU-01;13500\nGAO-05;abc\n"', '"line 1: RAU-01 15000 -> 14000\nline 2: RAU-01 14000 -> 13500\nline 3: rejected (invalid price \"abc\")\napplied 2 of 3 lines\ncatalog: GAO-05=240000, NUOC-MAM=85000, RAU-01=13500, SUA-01=32000, THIT-07=185000, TRUNG-10=30000"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_ktf_411_starter', 's3', 'challenges/kotlin/chal_fix_ktf_411/starter.kt', 'raw', 'text/x-kotlin', 2911, 'main.kt')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_ktf_411'), 'kotlin', 'main.kt', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_ktf_411_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 4.2: Mini project: a shopping cart summary (Sanity lesson-ktf-4-2)
+UPDATE course.lesson SET title = 'Mini project: a shopping cart summary', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-4-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), 'Mini project: a shopping cart summary', 'sanity', 'lesson-ktf-4-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-ktf-4-2' AND is_deleted = false);
+
+-- challenge chal_coding_ktf_421 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_ktf_421', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-ktf-4-2' AND is_deleted = false LIMIT 1), 'cart-checkout-summary', 'Mini project: build the cart and its checkout summary', 'Put the whole course together in the Cho Xanh cart: products from a catalog with stock, add and remove with clear rejections, one saved voucher modelled as a sealed interface (percent off with a cap, amount off with a minimum, free shipping), and a checkout summary with money formatted by an extension function. Quantities already in the cart count against the stock, an unknown voucher keeps the saved one, shipping depends on the subtotal before the discount, and an empty cart says so. The test runner reads the catalog and the commands and prints every result.', 'open', 'hard'::difficulty_question, 'mini_coding', 40, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_421'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_421');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_421'), 'A normal cart with the TET10 voucher', '"product RAU-01 15000 120 Rau muong\nproduct THIT-07 185000 20 Thit bo Uc\nproduct TRUNG-10 30000 30 Trung ga ta\nproduct GAO-05 240000 15 Gao ST25 tui 5kg\nproduct SUA-01 32000 48 Sua tuoi TH 1l\nproduct BO-A5 4500000 600 Bo Wagyu A5\nadd RAU-01 2\nadd THIT-07 1\nvoucher TET10\ncheckout\n"', '"added 2 x Rau muong\nadded 1 x Thit bo Uc\nvoucher TET10 saved\n2 x Rau muong: 30,000 VND\n1 x Thit bo Uc: 185,000 VND\nsubtotal: 215,000 VND\ndiscount TET10: -21,500 VND\nshipping: 15,000 VND\ntotal: 208,500 VND"', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_421'), 'Rejected quantities, products and vouchers', '"product RAU-01 15000 120 Rau muong\nproduct THIT-07 185000 20 Thit bo Uc\nproduct TRUNG-10 30000 30 Trung ga ta\nproduct GAO-05 240000 15 Gao ST25 tui 5kg\nproduct SUA-01 32000 48 Sua tuoi TH 1l\nproduct BO-A5 4500000 600 Bo Wagyu A5\nadd SUA-99 1\nadd TRUNG-10 0\nadd TRUNG-10 20\nadd TRUNG-10 15\nvoucher XYZ\ncheckout\n"', '"rejected: unknown product SUA-99\nrejected: quantity must be at least 1\nadded 20 x Trung ga ta\nrejected: only 30 x Trung ga ta in stock\nrejected: unknown voucher XYZ\n20 x Trung ga ta: 600,000 VND\nsubtotal: 600,000 VND\nshipping: 0 VND\ntotal: 600,000 VND"', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_421'), 'A voucher below its minimum subtotal', '"product RAU-01 15000 120 Rau muong\nproduct THIT-07 185000 20 Thit bo Uc\nproduct TRUNG-10 30000 30 Trung ga ta\nproduct GAO-05 240000 15 Gao ST25 tui 5kg\nproduct SUA-01 32000 48 Sua tuoi TH 1l\nproduct BO-A5 4500000 600 Bo Wagyu A5\nadd GAO-05 1\nvoucher GIAM30K\ncheckout\n"', '"added 1 x Gao ST25 tui 5kg\nvoucher GIAM30K saved\n1 x Gao ST25 tui 5kg: 240,000 VND\nsubtotal: 240,000 VND\nvoucher GIAM30K not applied (minimum 300,000 VND)\nshipping: 15,000 VND\ntotal: 255,000 VND"', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_421'), 'A capped percentage and a replaced voucher', '"product RAU-01 15000 120 Rau muong\nproduct THIT-07 185000 20 Thit bo Uc\nproduct TRUNG-10 30000 30 Trung ga ta\nproduct GAO-05 240000 15 Gao ST25 tui 5kg\nproduct SUA-01 32000 48 Sua tuoi TH 1l\nproduct BO-A5 4500000 600 Bo Wagyu A5\nadd BO-A5 2\nvoucher TET10\nvoucher BIG20\ncheckout\n"', '"added 2 x Bo Wagyu A5\nvoucher TET10 saved\nvoucher BIG20 saved (replaces TET10)\n2 x Bo Wagyu A5: 9,000,000 VND\nsubtotal: 9,000,000 VND\ndiscount BIG20: -100,000 VND\nshipping: 0 VND\ntotal: 8,900,000 VND"', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_421'), 'Free shipping voucher after removing lines', '"product RAU-01 15000 120 Rau muong\nproduct THIT-07 185000 20 Thit bo Uc\nproduct TRUNG-10 30000 30 Trung ga ta\nproduct GAO-05 240000 15 Gao ST25 tui 5kg\nproduct SUA-01 32000 48 Sua tuoi TH 1l\nproduct BO-A5 4500000 600 Bo Wagyu A5\nadd RAU-01 3\nadd SUA-01 2\nremove RAU-01\nremove THIT-07\nvoucher FREESHIP\ncheckout\n"', '"added 3 x Rau muong\nadded 2 x Sua tuoi TH 1l\nremoved Rau muong\nrejected: THIT-07 is not in the cart\nvoucher FREESHIP saved\n2 x Sua tuoi TH 1l: 64,000 VND\nsubtotal: 64,000 VND\nshipping: 0 VND (FREESHIP)\ntotal: 64,000 VND"', 6, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_421'), 'An unknown voucher keeps the saved one; shipping uses the subtotal', '"product RAU-01 15000 120 Rau muong\nproduct THIT-07 185000 20 Thit bo Uc\nproduct TRUNG-10 30000 30 Trung ga ta\nproduct GAO-05 240000 15 Gao ST25 tui 5kg\nproduct SUA-01 32000 48 Sua tuoi TH 1l\nproduct BO-A5 4500000 600 Bo Wagyu A5\nadd RAU-01 4\nadd GAO-05 1\nvoucher GIAM30K\nvoucher NOPE\ncheckout\n"', '"added 4 x Rau muong\nadded 1 x Gao ST25 tui 5kg\nvoucher GIAM30K saved\nrejected: unknown voucher NOPE\n4 x Rau muong: 60,000 VND\n1 x Gao ST25 tui 5kg: 240,000 VND\nsubtotal: 300,000 VND\ndiscount GIAM30K: -30,000 VND\nshipping: 0 VND\ntotal: 270,000 VND"', 5, false, true, 6),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_421'), 'An empty cart, before and after', '"product RAU-01 15000 120 Rau muong\nproduct THIT-07 185000 20 Thit bo Uc\nproduct TRUNG-10 30000 30 Trung ga ta\nproduct GAO-05 240000 15 Gao ST25 tui 5kg\nproduct SUA-01 32000 48 Sua tuoi TH 1l\nproduct BO-A5 4500000 600 Bo Wagyu A5\ncheckout\nadd RAU-01 1\nremove RAU-01\ncheckout\n"', '"cart is empty\nadded 1 x Rau muong\nremoved Rau muong\ncart is empty"', 5, false, true, 7);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_ktf_421_starter', 's3', 'challenges/kotlin/chal_coding_ktf_421/starter.kt', 'raw', 'text/x-kotlin', 4755, 'main.kt')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ktf_421'), 'kotlin', 'main.kt', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_ktf_421_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
 
 -- learners enrolled before these lessons existed
 INSERT INTO learning.history (user_id, course_id, module_id, lesson_id)

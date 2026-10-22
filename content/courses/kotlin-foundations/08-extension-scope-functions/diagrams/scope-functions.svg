@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Scope functions: two questions decide which one</text>
+  <text x="40" y="82" font-size="16" fill="#475569">How does the block see the object (it or this)? And what does the call return (the block's result or the object)?</text>
+
+  <rect x="40" y="104" width="1120" height="42" rx="8" fill="#f1f5f9"/>
+  <g font-size="15" font-weight="700" fill="#334155">
+    <text x="60" y="131">Function</text>
+    <text x="250" y="131">Object in the block</text>
+    <text x="470" y="131">Returns</text>
+    <text x="700" y="131">Typical use at Cho Xanh</text>
+  </g>
+  <g font-size="15" fill="#0f172a">
+    <text x="60" y="180" font-family="Consolas, 'Courier New', monospace" font-weight="700">x.let { }</text>
+    <text x="250" y="180">it</text>
+    <text x="470" y="180" fill="#2563eb">the block's result</text>
+    <text x="700" y="180" font-family="Consolas, 'Courier New', monospace" font-size="14">code?.let { it.trim() }</text>
+
+    <text x="60" y="228" font-family="Consolas, 'Courier New', monospace" font-weight="700">x.run { }</text>
+    <text x="250" y="228">this</text>
+    <text x="470" y="228" fill="#2563eb">the block's result</text>
+    <text x="700" y="228" font-family="Consolas, 'Courier New', monospace" font-size="14">n.run { "$channel/$title" }</text>
+
+    <text x="60" y="276" font-family="Consolas, 'Courier New', monospace" font-weight="700">with(x) { }</text>
+    <text x="250" y="276">this</text>
+    <text x="470" y="276" fill="#2563eb">the block's result</text>
+    <text x="700" y="276" font-family="Consolas, 'Courier New', monospace" font-size="14">with(order) { "$id: $total" }</text>
+
+    <text x="60" y="324" font-family="Consolas, 'Courier New', monospace" font-weight="700">x.apply { }</text>
+    <text x="250" y="324">this</text>
+    <text x="470" y="324" fill="#16a34a">x itself</text>
+    <text x="700" y="324" font-family="Consolas, 'Courier New', monospace" font-size="14">Notification().apply { title = ... }</text>
+
+    <text x="60" y="372" font-family="Consolas, 'Courier New', monospace" font-weight="700">x.also { }</text>
+    <text x="250" y="372">it</text>
+    <text x="470" y="372" fill="#16a34a">x itself</text>
+    <text x="700" y="372" font-family="Consolas, 'Courier New', monospace" font-size="14">n.also { log("sending ${it.title}") }</text>
+  </g>
+  <g stroke="#e2e8f0" stroke-width="2">
+    <path d="M40 200 H1160"/>
+    <path d="M40 248 H1160"/>
+    <path d="M40 296 H1160"/>
+    <path d="M40 344 H1160"/>
+    <path d="M40 392 H1160"/>
+  </g>
+
+  <rect x="40" y="416" width="1120" height="150" rx="12" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="62" y="448" font-size="17" font-weight="700" fill="#991b1b">The trap: let returns its block's result, and ?: cannot tell why the left side is null</text>
+  <text x="62" y="484" font-size="15" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">token?.let { sendPush(it, text) } ?: sendSms(phone, text)</text>
+  <g font-size="14" fill="#334155">
+    <text x="62" y="518">token == null</text>
+    <text x="370" y="518">-&gt; let is skipped, null -&gt; SMS</text>
+    <text x="790" y="518" fill="#16a34a">intended</text>
+    <text x="62" y="546">token != null, sendPush returns null</text>
+    <text x="370" y="546">-&gt; push sent, let gives null -&gt; SMS too</text>
+    <text x="790" y="546" font-weight="700" fill="#dc2626">two messages for one order</text>
+  </g>
+</svg>

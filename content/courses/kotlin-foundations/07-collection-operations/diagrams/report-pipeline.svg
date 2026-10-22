@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">The report as a pipeline: each step says what it does</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Every operation returns a new collection. Read top to bottom: the question each step answers is in its name.</text>
+
+  <g font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">
+    <!-- stage 1 -->
+    <rect x="40" y="110" width="250" height="196" rx="10" fill="#f8fafc" stroke="#334155" stroke-width="2"/>
+    <text x="56" y="136" font-size="14" font-weight="700" font-family="Inter, 'Segoe UI', Arial, sans-serif" fill="#334155">export: 3 lines</text>
+    <text x="56" y="168">CX-2001 kim-ma</text>
+    <text x="56" y="186">300000 delivered</text>
+    <text x="56" y="218">CX-2002 long-bien</text>
+    <text x="56" y="236">240000 delivered</text>
+    <text x="56" y="268" fill="#dc2626">CX-2001 kim-ma</text>
+    <text x="56" y="286" fill="#dc2626">300000 refunded</text>
+
+    <!-- stage 2 -->
+    <rect x="330" y="110" width="250" height="196" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+    <text x="346" y="136" font-size="14" font-weight="700" font-family="Inter, 'Segoe UI', Arial, sans-serif" fill="#1e3a8a">associateBy { it.id }</text>
+    <text x="346" y="158" font-size="12" font-family="Inter, 'Segoe UI', Arial, sans-serif" fill="#475569">one entry per id, the last line wins</text>
+    <text x="346" y="194">CX-2001 kim-ma</text>
+    <text x="346" y="212" fill="#dc2626">300000 refunded</text>
+    <text x="346" y="244">CX-2002 long-bien</text>
+    <text x="346" y="262">240000 delivered</text>
+
+    <!-- stage 3 -->
+    <rect x="620" y="110" width="250" height="196" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+    <text x="636" y="136" font-size="14" font-weight="700" font-family="Inter, 'Segoe UI', Arial, sans-serif" fill="#1e3a8a">filter { delivered }</text>
+    <text x="636" y="158" font-size="12" font-family="Inter, 'Segoe UI', Arial, sans-serif" fill="#475569">keeps the elements that match</text>
+    <text x="636" y="194">CX-2002 long-bien</text>
+    <text x="636" y="212">240000 delivered</text>
+
+    <!-- stage 4 -->
+    <rect x="910" y="110" width="250" height="196" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+    <text x="926" y="136" font-size="14" font-weight="700" font-family="Inter, 'Segoe UI', Arial, sans-serif" fill="#1e3a8a">groupBy { it.store }</text>
+    <text x="926" y="158" font-size="12" font-family="Inter, 'Segoe UI', Arial, sans-serif" fill="#475569">Map: key to the list of its elements</text>
+    <text x="926" y="194">long-bien -&gt; [CX-2002]</text>
+    <text x="926" y="240" font-size="14" font-weight="700" font-family="Inter, 'Segoe UI', Arial, sans-serif" fill="#1e3a8a">mapValues { sumOf }</text>
+    <text x="926" y="272">long-bien -&gt; 240000</text>
+  </g>
+  <g stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrow)">
+    <path d="M290 208 H326"/>
+    <path d="M580 208 H616"/>
+    <path d="M870 208 H906"/>
+  </g>
+
+  <!-- old loop -->
+  <rect x="40" y="340" width="540" height="200" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="58" y="370" font-size="16" font-weight="700" fill="#991b1b">The old loop: one pass, every concern mixed</text>
+  <g font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#0f172a">
+    <text x="58" y="402">for (line in export) {</text>
+    <text x="82" y="424">if (line.status == "delivered") {</text>
+    <text x="106" y="446">total += line.amount</text>
+    <text x="106" y="468">byStore[line.store] = ... + line.amount</text>
+    <text x="82" y="490">}</text>
+    <text x="58" y="512">}</text>
+  </g>
+  <text x="380" y="402" font-size="13" fill="#991b1b">counts CX-2001's</text>
+  <text x="380" y="422" font-size="13" fill="#991b1b">morning line</text>
+  <text x="380" y="512" font-size="16" font-weight="700" fill="#dc2626">revenue: 540000</text>
+
+  <rect x="620" y="340" width="540" height="200" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="638" y="370" font-size="16" font-weight="700" fill="#166534">The pipeline: one decision per step</text>
+  <g font-size="14" fill="#334155">
+    <text x="638" y="402">1. Which line describes the order now? associateBy</text>
+    <text x="638" y="428">2. Which orders earn money? filter</text>
+    <text x="638" y="454">3. Per store? groupBy + sumOf</text>
+    <text x="638" y="480">4. In which order? sortedWith(compareBy...)</text>
+  </g>
+  <text x="638" y="518" font-size="16" font-weight="700" fill="#16a34a">revenue: 240000</text>
+</svg>
