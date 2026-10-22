@@ -1,0 +1,129 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_gof_231",
+      "name": "interfaces-method-sets-quiz",
+      "type": "quiz",
+      "title": "Predict it: Stringer, method sets and type assertions",
+      "description": "Decide what fmt prints for a value and a pointer, then which interface operations compile, succeed or panic.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this program print?\n\ntype Parcel struct{ ID string }\n\nfunc (p *Parcel) String() string { return \"parcel \" + p.ID }\n\nfunc main() {\n\tp := Parcel{\"SP-2001\"}\n\tfmt.Println(p)\n\tfmt.Println(&p)\n}",
+          "explanation": "fmt.Println takes its arguments as any and checks at run time whether each one satisfies fmt.Stringer. String has a pointer receiver, so only *Parcel has that method: the Parcel value p does not satisfy Stringer, and fmt prints its fields, {SP-2001}. &p is a *Parcel, which does satisfy Stringer, so the second line is parcel SP-2001. There is no compile error: Println accepts any value, and the check happens inside fmt. You only get a compile error when you assign the value to a variable of type fmt.Stringer yourself, for example var _ fmt.Stringer = Parcel{}.",
+          "options": [
+            {
+              "text": "parcel SP-2001, then parcel SP-2001",
+              "correct": false
+            },
+            {
+              "text": "{SP-2001}, then parcel SP-2001",
+              "correct": true
+            },
+            {
+              "text": "parcel SP-2001, then &{SP-2001}",
+              "correct": false
+            },
+            {
+              "text": "It does not compile: Parcel does not implement fmt.Stringer",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Notifier is interface { Notify(phone, msg string) error }, SMS has the method func (s *SMS) Notify(phone, msg string) error, and v is a variable of type any that holds a Parcel value (Parcel has a value-receiver String method). Which statements are true? (Select all that apply.)",
+          "explanation": "Go interfaces are satisfied implicitly: a type that has every method of the interface satisfies it, with no implements keyword. Notify has a pointer receiver, so only *SMS satisfies Notifier; var n Notifier = SMS{} fails with \"SMS does not implement Notifier (method Notify has pointer receiver)\" - write &SMS{}. A type assertion without ok panics when the dynamic type is different: v.(int) panics with \"interface conversion: interface {} is main.Parcel, not int\". The two-value form s, ok := v.(fmt.Stringer) never panics; here ok is true, because Parcel's String has a value receiver. Calling a method on a nil interface value does not return zero values: there is no concrete value and no method to call, so it panics with a nil pointer dereference.",
+          "options": [
+            {
+              "text": "A type satisfies an interface as soon as it has all of the interface's methods; there is no implements keyword",
+              "correct": true
+            },
+            {
+              "text": "var n Notifier = SMS{} compiles",
+              "correct": false
+            },
+            {
+              "text": "n := v.(int) panics, because v holds a Parcel",
+              "correct": true
+            },
+            {
+              "text": "s, ok := v.(fmt.Stringer) never panics; ok tells you whether v holds a Stringer",
+              "correct": true
+            },
+            {
+              "text": "var n Notifier; n.Notify(\"0901234567\", \"hi\") returns a nil error, because n is nil",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_gof_232",
+      "name": "delivery-fee-rules",
+      "type": "mini_coding",
+      "title": "Build the delivery fee from small rule types",
+      "description": "Saigon Parcel's delivery fee is the sum of fee rules: a flat fee, a fee per started kilogram, surcharges for far districts, and caps that limit another rule. Every rule is a small type that satisfies the FeeRule interface: it computes its part of the fee for a parcel and describes itself on the printed quote. Write Fee and String for Flat, PerKg, District and Capped, and Quote, which adds up every rule. Capped must work with any other rule, including another Capped. The test runner builds the rules as values from the input, prints the rule list and then a quote for every parcel.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "go",
+        "filePath": "main.go",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A flat fee plus a fee per started kilogram",
+          "input": "rule flat 15000\nrule perkg 5000\nparcel SP-4001 2300 q3\nparcel SP-4002 1000 q1\n",
+          "expected": "rules:\n- flat 15000 VND\n- 5000 VND per started kg\nSP-4001 2300g q3\n  flat 15000 VND: 15000\n  5000 VND per started kg: 15000\n  total: 30000 VND\nSP-4002 1000g q1\n  flat 15000 VND: 15000\n  5000 VND per started kg: 5000\n  total: 20000 VND",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A district surcharge applies only in its district",
+          "input": "rule flat 12000\nrule district thu-duc 10000\nparcel SP-4101 800 thu-duc\nparcel SP-4102 800 q1\nparcel SP-4103 15000 thu-duc\n",
+          "expected": "rules:\n- flat 12000 VND\n- +10000 VND in thu-duc\nSP-4101 800g thu-duc\n  flat 12000 VND: 12000\n  +10000 VND in thu-duc: 10000\n  total: 22000 VND\nSP-4102 800g q1\n  flat 12000 VND: 12000\n  +10000 VND in thu-duc: 0\n  total: 12000 VND\nSP-4103 15000g thu-duc\n  flat 12000 VND: 12000\n  +10000 VND in thu-duc: 10000\n  total: 22000 VND",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A capped per-kg fee never goes above the cap",
+          "input": "rule capped 40000 perkg 8000\nparcel SP-4201 3500 q3\nparcel SP-4202 7200 binh-thanh\nparcel SP-4203 5000 go-vap\n",
+          "expected": "rules:\n- at most 40000 VND of (8000 VND per started kg)\nSP-4201 3500g q3\n  at most 40000 VND of (8000 VND per started kg): 32000\n  total: 32000 VND\nSP-4202 7200g binh-thanh\n  at most 40000 VND of (8000 VND per started kg): 40000\n  total: 40000 VND\nSP-4203 5000g go-vap\n  at most 40000 VND of (8000 VND per started kg): 40000\n  total: 40000 VND",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Started kilograms at the boundaries: 1 g, 999 g, 1000 g, 1001 g, 2000 g",
+          "input": "rule perkg 6000\nparcel SP-4301 1 q1\nparcel SP-4302 999 q1\nparcel SP-4303 1000 q1\nparcel SP-4304 1001 q1\nparcel SP-4305 2000 q1\n",
+          "expected": "rules:\n- 6000 VND per started kg\nSP-4301 1g q1\n  6000 VND per started kg: 6000\n  total: 6000 VND\nSP-4302 999g q1\n  6000 VND per started kg: 6000\n  total: 6000 VND\nSP-4303 1000g q1\n  6000 VND per started kg: 6000\n  total: 6000 VND\nSP-4304 1001g q1\n  6000 VND per started kg: 12000\n  total: 12000 VND\nSP-4305 2000g q1\n  6000 VND per started kg: 12000\n  total: 12000 VND",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Capped wraps any rule: a capped cap and a capped district surcharge",
+          "input": "rule capped 50000 capped 30000 perkg 9000\nrule capped 5000 district go-vap 8000\nparcel SP-4401 9000 go-vap\nparcel SP-4402 2100 q3\n",
+          "expected": "rules:\n- at most 50000 VND of (at most 30000 VND of (9000 VND per started kg))\n- at most 5000 VND of (+8000 VND in go-vap)\nSP-4401 9000g go-vap\n  at most 50000 VND of (at most 30000 VND of (9000 VND per started kg)): 30000\n  at most 5000 VND of (+8000 VND in go-vap): 5000\n  total: 35000 VND\nSP-4402 2100g q3\n  at most 50000 VND of (at most 30000 VND of (9000 VND per started kg)): 27000\n  at most 5000 VND of (+8000 VND in go-vap): 0\n  total: 27000 VND",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "The full price list on four parcels",
+          "input": "rule flat 15000\nrule perkg 4000\nrule district thu-duc 10000\nrule district go-vap 7000\nrule capped 25000 perkg 3000\nparcel SP-4501 450 q1\nparcel SP-4502 4200 thu-duc\nparcel SP-4503 12500 go-vap\nparcel SP-4504 3000 binh-thanh\n",
+          "expected": "rules:\n- flat 15000 VND\n- 4000 VND per started kg\n- +10000 VND in thu-duc\n- +7000 VND in go-vap\n- at most 25000 VND of (3000 VND per started kg)\nSP-4501 450g q1\n  flat 15000 VND: 15000\n  4000 VND per started kg: 4000\n  +10000 VND in thu-duc: 0\n  +7000 VND in go-vap: 0\n  at most 25000 VND of (3000 VND per started kg): 3000\n  total: 22000 VND\nSP-4502 4200g thu-duc\n  flat 15000 VND: 15000\n  4000 VND per started kg: 20000\n  +10000 VND in thu-duc: 10000\n  +7000 VND in go-vap: 0\n  at most 25000 VND of (3000 VND per started kg): 15000\n  total: 60000 VND\nSP-4503 12500g go-vap\n  flat 15000 VND: 15000\n  4000 VND per started kg: 52000\n  +10000 VND in thu-duc: 0\n  +7000 VND in go-vap: 7000\n  at most 25000 VND of (3000 VND per started kg): 25000\n  total: 99000 VND\nSP-4504 3000g binh-thanh\n  flat 15000 VND: 15000\n  4000 VND per started kg: 12000\n  +10000 VND in thu-duc: 0\n  +7000 VND in go-vap: 0\n  at most 25000 VND of (3000 VND per started kg): 9000\n  total: 36000 VND",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

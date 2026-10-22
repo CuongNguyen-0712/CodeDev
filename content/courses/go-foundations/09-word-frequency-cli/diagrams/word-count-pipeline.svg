@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker>
+  </defs>
+  <rect width="1200" height="640" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">wordfreq: from feedback lines to a report that is the same on every run</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Each step is a small function you can test on its own.</text>
+
+  <!-- Step boxes -->
+  <rect x="40" y="110" width="250" height="200" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="60" y="142" font-size="16" font-weight="700" fill="#334155">1. Read lines</text>
+  <text x="60" y="168" font-size="13" fill="#14532d" font-family="Consolas, 'Courier New', monospace">bufio.Scanner</text>
+  <text x="60" y="192" font-size="13" fill="#475569">one message per line</text>
+  <text x="60" y="222" font-size="13" fill="#b91c1c">a line over 64 KiB stops it:</text>
+  <text x="60" y="242" font-size="13" fill="#b91c1c">check sc.Err()</text>
+  <text x="60" y="272" font-size="13" fill="#15803d">sc.Buffer(buf, 1 MiB)</text>
+  <text x="60" y="292" font-size="13" fill="#15803d">raises the limit</text>
+
+  <rect x="330" y="110" width="250" height="200" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="350" y="142" font-size="16" font-weight="700" fill="#334155">2. Split into words</text>
+  <text x="350" y="168" font-size="13" fill="#14532d" font-family="Consolas, 'Courier New', monospace">strings.ToLower</text>
+  <text x="350" y="188" font-size="13" fill="#14532d" font-family="Consolas, 'Courier New', monospace">strings.FieldsFunc</text>
+  <text x="350" y="216" font-size="13" fill="#475569">a word = letters and digits</text>
+  <text x="350" y="244" font-size="13" fill="#334155">"Giao trễ!" becomes</text>
+  <text x="350" y="266" font-size="13" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">[giao trễ]</text>
+
+  <rect x="620" y="110" width="250" height="200" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="640" y="142" font-size="16" font-weight="700" fill="#334155">3. Count</text>
+  <text x="640" y="168" font-size="13" fill="#14532d" font-family="Consolas, 'Courier New', monospace">counts[w]++</text>
+  <text x="640" y="192" font-size="13" fill="#475569">map[string]int</text>
+  <text x="640" y="222" font-size="13" fill="#b91c1c">ranging over a map gives</text>
+  <text x="640" y="242" font-size="13" fill="#b91c1c">a different order each run</text>
+
+  <rect x="910" y="110" width="250" height="200" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="930" y="142" font-size="16" font-weight="700" fill="#334155">4. Sort and cut</text>
+  <text x="930" y="168" font-size="13" fill="#14532d" font-family="Consolas, 'Courier New', monospace">slices.SortFunc</text>
+  <text x="930" y="192" font-size="13" fill="#475569">count high to low,</text>
+  <text x="930" y="212" font-size="13" fill="#475569">then word A to Z</text>
+  <text x="930" y="242" font-size="13" fill="#14532d" font-family="Consolas, 'Courier New', monospace">list[:min(n, len)]</text>
+
+  <path d="M292 210 L326 210" stroke="#3b82f6" stroke-width="3" marker-end="url(#arrow)"/>
+  <path d="M582 210 L616 210" stroke="#3b82f6" stroke-width="3" marker-end="url(#arrow)"/>
+  <path d="M872 210 L906 210" stroke="#3b82f6" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <!-- Before / after -->
+  <rect x="40" y="336" width="540" height="270" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="368" font-size="17" font-weight="700" fill="#b91c1c">Version 1: strings.Split(line, " ")</text>
+  <text x="64" y="398" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">"Giao"  "giao"</text>
+  <text x="300" y="398" font-size="13" fill="#7f1d1d">two different words</text>
+  <text x="64" y="428" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">"trễ," "trễ." "trễ!"</text>
+  <text x="300" y="428" font-size="13" fill="#7f1d1d">three more words</text>
+  <text x="64" y="458" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">""</text>
+  <text x="300" y="458" font-size="13" fill="#7f1d1d">counted for double spaces</text>
+  <text x="64" y="488" font-size="14" fill="#334155">random order</text>
+  <text x="300" y="488" font-size="13" fill="#7f1d1d">report changes every run</text>
+  <text x="64" y="518" font-size="14" fill="#334155">no sc.Err() check</text>
+  <text x="300" y="518" font-size="13" fill="#7f1d1d">stops early, says nothing</text>
+  <text x="64" y="572" font-size="14" font-weight="700" fill="#b91c1c">"trễ" (late) never reached the top list</text>
+
+  <rect x="620" y="336" width="540" height="270" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="368" font-size="17" font-weight="700" fill="#15803d">wordfreq -n 5 &lt; feedback.txt</text>
+  <text x="644" y="404" font-size="15" fill="#14532d" font-family="Consolas, 'Courier New', monospace">giao</text>
+  <text x="860" y="404" font-size="15" font-weight="700" fill="#14532d" font-family="Consolas, 'Courier New', monospace">4</text>
+  <text x="644" y="434" font-size="15" fill="#14532d" font-family="Consolas, 'Courier New', monospace">hàng</text>
+  <text x="860" y="434" font-size="15" font-weight="700" fill="#14532d" font-family="Consolas, 'Courier New', monospace">3</text>
+  <text x="644" y="464" font-size="15" fill="#14532d" font-family="Consolas, 'Courier New', monospace">shipper</text>
+  <text x="860" y="464" font-size="15" font-weight="700" fill="#14532d" font-family="Consolas, 'Courier New', monospace">3</text>
+  <text x="644" y="494" font-size="15" fill="#14532d" font-family="Consolas, 'Courier New', monospace">trễ</text>
+  <text x="860" y="494" font-size="15" font-weight="700" fill="#14532d" font-family="Consolas, 'Courier New', monospace">3</text>
+  <text x="644" y="524" font-size="15" fill="#14532d" font-family="Consolas, 'Courier New', monospace">gọi</text>
+  <text x="860" y="524" font-size="15" font-weight="700" fill="#14532d" font-family="Consolas, 'Courier New', monospace">2</text>
+  <text x="920" y="434" font-size="13" fill="#475569">hàng, shipper, trễ: a tie,</text>
+  <text x="920" y="454" font-size="13" fill="#475569">so in word order</text>
+  <text x="644" y="572" font-size="14" font-weight="700" fill="#15803d">Same input, same output, every run</text>
+</svg>

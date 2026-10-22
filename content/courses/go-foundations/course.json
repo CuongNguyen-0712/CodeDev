@@ -2,10 +2,10 @@
   "publicId": "go-foundations",
   "title": "Go Fundamentals: Types, Errors, Slices & Maps",
   "concept": "Learn Go the way it is used for services and tooling: zero values, slices and the append aliasing bug, maps and structs, interfaces, errors as values, generics and go test.",
-  "description": "Learn Go the way it is used for services and tooling: zero values, slices and the append aliasing bug, maps and structs, interfaces, errors as values, generics and go test. 8 lessons, each starting from a real bug or incident, with beginner-friendly challenges.",
+  "description": "Learn Go the way it is used for services and tooling at a delivery company: zero values and shadowing, slices and the append aliasing bug, maps and structs, pointers and method receivers, interfaces, errors as values with wrapping, generics, packages and go test - ending with a word-frequency CLI. 9 lessons, each starting from a real bug or incident at Saigon Parcel, with quizzes and Go coding challenges.",
   "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594583/codedev/courses/go-foundations/cover",
   "level": "beginner",
-  "durationMinutes": 160,
+  "durationMinutes": 183,
   "instructor": "CodeDev Engineering Team",
   "language": "Go",
   "category": "Go Development",
@@ -28,21 +28,22 @@
     "fundamentals",
     "first_job"
   ],
-  "modules": [],
-  "outline": [
+  "modules": [
     {
       "orderIndex": 1,
       "title": "Basics",
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "01-variables-zero-values",
           "title": "Variables, types & zero values",
-          "challenges": "Q(e) + C(e)"
+          "sanityId": "lesson-gof-1-1"
         },
         {
           "orderIndex": 2,
+          "folder": "02-slices-append-aliasing",
           "title": "Slices: the append aliasing bug",
-          "challenges": "Q(m) + F(m)"
+          "sanityId": "lesson-gof-1-2"
         }
       ]
     },
@@ -52,13 +53,21 @@
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "03-maps-structs",
           "title": "Maps & structs",
-          "challenges": "C(e)"
+          "sanityId": "lesson-gof-2-1"
         },
         {
           "orderIndex": 2,
+          "folder": "04-pointers-methods",
+          "title": "Pointers & methods: value vs pointer receivers",
+          "sanityId": "lesson-gof-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "05-interfaces",
           "title": "Methods & interfaces",
-          "challenges": "Q(e) + C(m)"
+          "sanityId": "lesson-gof-2-3"
         }
       ]
     },
@@ -68,13 +77,15 @@
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Errors as values: wrapping & errors.Is",
-          "challenges": "F(m)"
+          "folder": "06-errors-wrapping",
+          "title": "Errors as values: wrapping, errors.Is & errors.As",
+          "sanityId": "lesson-gof-3-1"
         },
         {
           "orderIndex": 2,
+          "folder": "07-generics",
           "title": "Generics basics",
-          "challenges": "C(m)"
+          "sanityId": "lesson-gof-3-2"
         }
       ]
     },
@@ -84,13 +95,15 @@
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "08-packages-go-test",
           "title": "Packages & go test",
-          "challenges": "Q(e)"
+          "sanityId": "lesson-gof-4-1"
         },
         {
           "orderIndex": 2,
+          "folder": "09-word-frequency-cli",
           "title": "Mini project: a word-frequency CLI",
-          "challenges": "C(m)"
+          "sanityId": "lesson-gof-4-2"
         }
       ]
     }

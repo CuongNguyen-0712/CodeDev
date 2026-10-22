@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="640" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Copy-pasted helpers drift apart; one generic function cannot</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The quote page said 0 VND because cheapestFee was copied before shortestKm was fixed.</text>
+
+  <!-- Left: copies -->
+  <rect x="40" y="108" width="540" height="330" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="140" font-size="18" font-weight="700" fill="#b91c1c">Before: one copy per type</text>
+  <text x="64" y="164" font-size="13" fill="#7f1d1d">every fix has to be made again in every copy</text>
+
+  <rect x="64" y="180" width="492" height="72" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="206" font-size="15" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">shortestKm(km []float64)</text>
+  <text x="80" y="230" font-size="13" fill="#15803d">fixed in March: starts from km[0], handles empty</text>
+
+  <rect x="64" y="264" width="492" height="72" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="290" font-size="15" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">cheapestFee(fees []int64)</text>
+  <text x="80" y="314" font-size="13" fill="#b91c1c">copied in January: starts from 0, so the result is 0</text>
+
+  <rect x="64" y="348" width="492" height="72" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="80" y="374" font-size="15" font-weight="700" fill="#b91c1c">Quote page: cheapest option 0 VND</text>
+  <text x="80" y="398" font-size="13" fill="#7f1d1d">fees 32,000 / 18,000 / 25,000 VND: no fee is below 0</text>
+
+  <!-- Right: generic -->
+  <rect x="620" y="108" width="540" height="330" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="140" font-size="18" font-weight="700" fill="#15803d">After: one function, many types</text>
+  <text x="644" y="168" font-size="14" font-weight="700" fill="#14532d" font-family="Consolas, 'Courier New', monospace">func Min[T cmp.Ordered](xs []T) (T, bool)</text>
+  <text x="644" y="190" font-size="13" fill="#14532d">the compiler makes a version for each T you call it with</text>
+
+  <rect x="644" y="204" width="492" height="220" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="232" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">Min([]float64{7.4, 3.2, 5.9})</text>
+  <text x="1120" y="232" font-size="14" font-weight="700" fill="#15803d" text-anchor="end" font-family="Consolas, 'Courier New', monospace">3.2 true</text>
+  <text x="660" y="268" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">Min([]int64{32000, 18000})</text>
+  <text x="1120" y="268" font-size="14" font-weight="700" fill="#15803d" text-anchor="end" font-family="Consolas, 'Courier New', monospace">18000 true</text>
+  <text x="660" y="304" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">Min([]VND{32000, 18000})</text>
+  <text x="1120" y="304" font-size="14" font-weight="700" fill="#15803d" text-anchor="end" font-family="Consolas, 'Courier New', monospace">18000 true</text>
+  <text x="660" y="340" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">Min([]string{"q3", "go-vap"})</text>
+  <text x="1120" y="340" font-size="14" font-weight="700" fill="#15803d" text-anchor="end" font-family="Consolas, 'Courier New', monospace">go-vap true</text>
+  <text x="660" y="376" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">Min[int64](nil)</text>
+  <text x="1120" y="376" font-size="14" font-weight="700" fill="#b45309" text-anchor="end" font-family="Consolas, 'Courier New', monospace">0 false</text>
+  <text x="660" y="408" font-size="13" fill="#475569">T is inferred from the argument; with nil, write it yourself</text>
+
+  <!-- Bottom: constraints -->
+  <rect x="40" y="462" width="1120" height="150" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="494" font-size="16" font-weight="700" fill="#334155">A constraint says which types T may be, and so which operators the body may use</text>
+  <text x="64" y="524" font-size="14" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">any</text>
+  <text x="350" y="524" font-size="14" fill="#334155">every type; only what all types support (assign, pass, return)</text>
+  <text x="64" y="550" font-size="14" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">comparable</text>
+  <text x="350" y="550" font-size="14" fill="#334155">== and !=, so T can be a map key</text>
+  <text x="64" y="576" font-size="14" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">cmp.Ordered</text>
+  <text x="350" y="576" font-size="14" fill="#334155">&lt; &lt;= &gt; &gt;= on integers, floats and strings, named types included</text>
+  <text x="64" y="602" font-size="14" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">~int | ~int64 | ~float64</text>
+  <text x="350" y="602" font-size="14" fill="#334155">your own union; ~ also admits named types such as type VND int64</text>
+</svg>

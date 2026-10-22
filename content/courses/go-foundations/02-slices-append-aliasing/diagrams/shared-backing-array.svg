@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+    <marker id="arrRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#dc2626"/></marker>
+  </defs>
+  <rect width="1200" height="720" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Three slices, one backing array: append writes in place while len &lt; cap</text>
+  <text x="40" y="82" font-size="16" fill="#475569">prefix := make([]string, 0, 16) holding 2 stops, then an := append(prefix, 2 stops) and bich := append(prefix, 1 stop)</text>
+
+  <!-- slice headers -->
+  <rect x="40" y="112" width="300" height="70" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="56" y="140" font-size="16" font-weight="700" fill="#334155" font-family="Consolas, 'Courier New', monospace">prefix</text>
+  <text x="56" y="166" font-size="14" fill="#475569">ptr  |  len 2  |  cap 16</text>
+
+  <rect x="450" y="112" width="300" height="70" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="466" y="140" font-size="16" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">an</text>
+  <text x="466" y="166" font-size="14" fill="#7f1d1d">ptr  |  len 4  |  cap 16</text>
+
+  <rect x="860" y="112" width="300" height="70" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="876" y="140" font-size="16" font-weight="700" fill="#1d4ed8" font-family="Consolas, 'Courier New', monospace">bich</text>
+  <text x="876" y="166" font-size="14" fill="#1e3a8a">ptr  |  len 3  |  cap 16</text>
+
+  <!-- arrows to slot 0 -->
+  <line x1="190" y1="182" x2="100" y2="264" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="600" y1="182" x2="120" y2="264" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="1010" y1="182" x2="140" y2="264" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="560" y="236" font-size="14" fill="#475569">all three ptr fields hold the same address</text>
+
+  <!-- backing array -->
+  <text x="960" y="258" font-size="14" font-weight="700" fill="#334155">backing array (16 slots)</text>
+  <rect x="40" y="268" width="180" height="64" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/>
+  <text x="56" y="306" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">depot-q7</text>
+  <rect x="220" y="268" width="180" height="64" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/>
+  <text x="236" y="306" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">hub-q4</text>
+  <rect x="400" y="268" width="250" height="64" fill="#fee2e2" stroke="#dc2626" stroke-width="3"/>
+  <text x="414" y="294" font-size="13" fill="#b91c1c">was SP-2001@q1 (an)</text>
+  <text x="414" y="318" font-size="15" font-weight="700" fill="#1d4ed8" font-family="Consolas, 'Courier New', monospace">SP-2101@thu-duc</text>
+  <rect x="650" y="268" width="200" height="64" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="664" y="306" font-size="15" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">SP-2002@q3</text>
+  <rect x="850" y="268" width="110" height="64" fill="#ffffff" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="5 4"/>
+  <rect x="960" y="268" width="200" height="64" fill="#ffffff" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="980" y="306" font-size="14" fill="#94a3b8">... slots 5 to 15</text>
+  <text x="96" y="352" font-size="13" fill="#64748b">0</text>
+  <text x="276" y="352" font-size="13" fill="#64748b">1</text>
+  <text x="490" y="352" font-size="13" fill="#64748b">2</text>
+  <text x="716" y="352" font-size="13" fill="#64748b">3</text>
+  <text x="866" y="352" font-size="13" fill="#64748b">4</text>
+
+  <!-- len brackets -->
+  <line x1="40" y1="372" x2="400" y2="372" stroke="#94a3b8" stroke-width="4"/>
+  <text x="44" y="394" font-size="13" fill="#475569">prefix sees slots 0-1</text>
+  <line x1="40" y1="408" x2="850" y2="408" stroke="#ef4444" stroke-width="4"/>
+  <text x="44" y="430" font-size="13" fill="#b91c1c">an sees slots 0-3</text>
+  <line x1="40" y1="444" x2="650" y2="444" stroke="#3b82f6" stroke-width="4"/>
+  <text x="44" y="466" font-size="13" fill="#1d4ed8">bich sees slots 0-2</text>
+
+  <!-- step notes -->
+  <text x="40" y="502" font-size="14" fill="#334155">1. an := append(prefix, 2 stops): len 2 &lt; cap 16, so it writes slots 2-3 in place, no copy</text>
+  
+  <text x="40" y="528" font-size="14" fill="#b91c1c">2. bich := append(prefix, 1 stop): prefix still has len 2, so it writes slot 2 AGAIN - an's first stop is now bich's stop</text>
+  
+
+  <!-- bottom -->
+  <rect x="40" y="580" width="1120" height="110" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="64" y="612" font-size="16" font-weight="700" fill="#15803d">The fix: give every route its own array</text>
+  <text x="64" y="642" font-size="15" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">slices.Concat(prefix, stops)</text>
+  <text x="420" y="642" font-size="14" fill="#334155">always allocates; also slices.Clone(prefix) before append</text>
+  <text x="64" y="670" font-size="15" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">prefix[:n:n]</text>
+  <text x="420" y="670" font-size="14" fill="#334155">a full slice expression sets cap = len, so the next append must copy</text>
+</svg>

@@ -1,0 +1,129 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_gof_411",
+      "name": "packages-go-test-quiz",
+      "type": "quiz",
+      "title": "Check it: exported names, internal packages and t.Fatalf",
+      "description": "Decide which names another package can use, and predict how much of a failing table test go test reports.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "The module saigonparcel.vn/trackd has a package in internal/phone with these declarations:\n\nvar ErrInvalid = errors.New(\"invalid phone number\")\nfunc Normalize(raw string) (string, error) { ... }\nfunc onlyDigits(s string) string { ... }\ntype Number struct {\n\tCountry string\n\tdigits  string\n}\n\nWhich of these compile? (Select all that apply.)",
+          "explanation": "A name is exported, and so usable from other packages, exactly when it starts with an upper-case letter. phone.Normalize and phone.ErrInvalid are exported, and cmd/notifier is inside the same module root that contains internal/, so it may import the package. onlyDigits starts with a lower-case letter: from another package the compiler says \"undefined: phone.onlyDigits\". The same rule applies to struct fields: n.Country is visible, n.digits is not. And internal/ is enforced by the go command: only code inside the tree rooted at the parent of internal (here the trackd module) may import it, so a different module gets \"use of internal package saigonparcel.vn/trackd/internal/phone not allowed\".",
+          "options": [
+            {
+              "text": "In trackd/cmd/notifier: n, err := phone.Normalize(raw)",
+              "correct": true
+            },
+            {
+              "text": "In trackd/cmd/notifier: if errors.Is(err, phone.ErrInvalid) { ... }",
+              "correct": true
+            },
+            {
+              "text": "In trackd/cmd/notifier: d := phone.onlyDigits(raw)",
+              "correct": false
+            },
+            {
+              "text": "In trackd/cmd/notifier, with n of type phone.Number: fmt.Println(n.digits)",
+              "correct": false
+            },
+            {
+              "text": "In another module, saigonparcel.vn/billing, that requires trackd: import \"saigonparcel.vn/trackd/internal/phone\"",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "TestNormalizeLoop loops over a table of 4 cases WITHOUT t.Run:\n\nfor _, tc := range tests {\n\tgot, err := Normalize(tc.raw)\n\tif err != nil {\n\t\tt.Fatalf(\"Normalize(%q): %v\", tc.raw, err)\n\t}\n\tif got != tc.want {\n\t\tt.Errorf(\"Normalize(%q) = %q, want %q\", tc.raw, got, tc.want)\n\t}\n}\n\nNormalize returns an error for case 2 and for case 3; cases 1 and 4 are correct. What does go test report for TestNormalizeLoop?",
+          "explanation": "t.Fatalf records the failure and stops the test function that is running - here TestNormalizeLoop itself, because there are no subtests. The loop never reaches cases 3 and 4, so go test prints one message, for case 2, and FAIL. Case 3 is just as broken but stays hidden until case 2 is fixed. t.Errorf would have recorded the failure and continued. Wrapping the body in t.Run(tc.name, func(t *testing.T) { ... }) gives every case its own subtest: t.Fatalf then stops only that subtest, and go test reports both failing cases (and, with -v, a PASS line for each passing one). That is why table-driven tests use t.Run.",
+          "options": [
+            {
+              "text": "Two failures, for case 2 and case 3, then FAIL",
+              "correct": false
+            },
+            {
+              "text": "One failure, for case 2, then FAIL: the test stops at the first t.Fatalf",
+              "correct": true
+            },
+            {
+              "text": "One failure, for case 3: t.Fatalf only reports the last failure",
+              "correct": false
+            },
+            {
+              "text": "Nothing: t.Fatalf inside a loop is a compile error",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_gof_412",
+      "name": "fix-normalize-phone",
+      "type": "fix_bug",
+      "title": "Fix normalizePhone until every row of the table passes",
+      "description": "After the weekend incident, normalizePhone accepts +84 numbers again. Customer support has since sent more rows for the test table, and several still fail: numbers written 84 90 123 4567 without the plus are rejected, numbers with letters typed into them are accepted, and a landline number gets an SMS that can never arrive. Fix normalizePhone so it follows the SMS gateway's rules written at the top of the file: only digits, spaces, dots, dashes and one leading plus are allowed; the number is 0, 84 or +84 followed by 9 digits; the 9 digits start with 3, 5, 7, 8 or 9; the result is +84 and the 9 digits. The test runner works like a table-driven test: it reads RAW|WANT rows and prints ok or FAIL for each.",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "go",
+        "filePath": "main.go",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Local and international forms, with spaces",
+          "input": "0901234567|+84901234567\n84 90 123 4567|+84901234567\n+84 912 345 678|+84912345678\n",
+          "expected": "ok   \"0901234567\"\nok   \"84 90 123 4567\"\nok   \"+84 912 345 678\"\nPASS",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Dots and dashes are separators too",
+          "input": "090.123.4567|+84901234567\n0912-345-678|+84912345678\n+84-38-765-4321|+84387654321\n84.90.123.4567|+84901234567\n",
+          "expected": "ok   \"090.123.4567\"\nok   \"0912-345-678\"\nok   \"+84-38-765-4321\"\nok   \"84.90.123.4567\"\nPASS",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Letters, brackets and slashes are not numbers",
+          "input": "0901abc234567|invalid\n(090) 123 4567|invalid\n090/123/4567|invalid\n0912 345 678|+84912345678\n",
+          "expected": "ok   \"0901abc234567\"\nok   \"(090) 123 4567\"\nok   \"090/123/4567\"\nok   \"0912 345 678\"\nPASS",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Only mobile prefixes 3, 5, 7, 8 and 9",
+          "input": "0201234567|invalid\n+84201234567|invalid\n0701234567|+84701234567\n0581234567|+84581234567\n0301234567|+84301234567\n0601234567|invalid\n",
+          "expected": "ok   \"0201234567\"\nok   \"+84201234567\"\nok   \"0701234567\"\nok   \"0581234567\"\nok   \"0301234567\"\nok   \"0601234567\"\nPASS",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Wrong lengths and a + in the wrong place",
+          "input": "090123456|invalid\n09012345678|invalid\n8490123456|invalid\n849012345678|invalid\n+840901234567|invalid\n090+1234567|invalid\n+|invalid\n|invalid\n",
+          "expected": "ok   \"090123456\"\nok   \"09012345678\"\nok   \"8490123456\"\nok   \"849012345678\"\nok   \"+840901234567\"\nok   \"090+1234567\"\nok   \"+\"\nok   \"\"\nPASS",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A batch from the customer form",
+          "input": "0987 654 321|+84987654321\n84987654321|+84987654321\n0987654321 |+84987654321\nO987654321|invalid\n0987654321x|invalid\n+84.987.654.321|+84987654321\n",
+          "expected": "ok   \"0987 654 321\"\nok   \"84987654321\"\nok   \"0987654321 \"\nok   \"O987654321\"\nok   \"0987654321x\"\nok   \"+84.987.654.321\"\nPASS",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

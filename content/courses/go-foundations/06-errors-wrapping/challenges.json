@@ -1,0 +1,129 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_gof_311",
+      "name": "errors-wrapping-quiz",
+      "type": "quiz",
+      "title": "Predict it: %v, %w, errors.Is and errors.As",
+      "description": "Decide what a wrapped error prints and matches, then which ways of inspecting an error look through the wrappers.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this program print?\n\nvar ErrNotFound = errors.New(\"parcel not found\")\n\nfunc main() {\n\terr := fmt.Errorf(\"lookup SP-9999: %v\", ErrNotFound)\n\tfmt.Println(err)\n\tfmt.Println(errors.Is(err, ErrNotFound))\n}",
+          "explanation": "%v formats ErrNotFound as text, so the message is lookup SP-9999: parcel not found - exactly the same text that %w would give. But %v only copies the text into a new error: the new error does not keep ErrNotFound inside it, so errors.Is finds nothing to unwrap and returns false. With %w, fmt.Errorf returns an error that wraps ErrNotFound, and errors.Is(err, ErrNotFound) is true. Two errors with the same message are not the same error; errors.Is compares error values, not strings.",
+          "options": [
+            {
+              "text": "lookup SP-9999: parcel not found, then true",
+              "correct": false
+            },
+            {
+              "text": "lookup SP-9999: parcel not found, then false",
+              "correct": true
+            },
+            {
+              "text": "lookup SP-9999: &errors.errorString{s:\"parcel not found\"}, then false",
+              "correct": false
+            },
+            {
+              "text": "It does not compile: %v cannot format an error",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "ErrNotFound is a sentinel error made with errors.New, and *ValidationError is an error type (its Error method has a pointer receiver). Which statements are true? (Select all that apply.)",
+          "explanation": "errors.Is follows the whole chain of %w wrappers, so an ErrNotFound wrapped twice is still found. == compares the outermost error only: fmt.Errorf(\"lookup: %w\", ErrNotFound) is a new *fmt.wrapError value, not ErrNotFound. A type assertion, like ==, only looks at the outermost error, so err.(*ValidationError) fails on a wrapped one; errors.As(err, &ve) walks the chain (and the errors inside errors.Join) and sets ve to the first *ValidationError it finds. Returning a nil *ValidationError from a function whose result type is error gives an error interface that holds a type and a nil pointer, and that interface is not nil: err == nil is false. Return a literal nil instead.",
+          "options": [
+            {
+              "text": "errors.Is(fmt.Errorf(\"GET: %w\", fmt.Errorf(\"lookup: %w\", ErrNotFound)), ErrNotFound) is true",
+              "correct": true
+            },
+            {
+              "text": "After err := fmt.Errorf(\"lookup: %w\", ErrNotFound), err == ErrNotFound is true",
+              "correct": false
+            },
+            {
+              "text": "A type assertion err.(*ValidationError) succeeds when the *ValidationError was wrapped with %w",
+              "correct": false
+            },
+            {
+              "text": "With var ve *ValidationError, errors.As(err, &ve) finds a *ValidationError through %w wrappers and inside errors.Join",
+              "correct": true
+            },
+            {
+              "text": "A function with result type error that returns a *ValidationError variable holding nil returns an error that is == nil",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_gof_312",
+      "name": "fix-trackd-status-codes",
+      "type": "fix_bug",
+      "title": "Fix trackd's error handling so every request gets the right status code",
+      "description": "trackd, Saigon Parcel's tracking API, turns the error a request ends with into an HTTP status code: 400 for an invalid request (a *ValidationError anywhere in the chain), 404 for an unknown parcel (ErrNotFound), 409 for rescheduling a parcel that is already delivered (ErrConflict), 500 for anything else. After a refactor it answers 500 for almost everything: for parcels that exist, for unknown parcels and for invalid ids. Fix how the errors are returned, wrapped and compared so every request gets its status code. Keep the error message texts. The test runner sends get and reschedule requests and prints the status code and the result or the error for each one.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "go",
+        "filePath": "main.go",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Parcels that exist answer 200",
+          "input": "get SP-2001\nget SP-2002\n",
+          "expected": "get SP-2001: 200 SP-2001 out_for_delivery\nget SP-2002: 200 SP-2002 delivered",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "An unknown parcel answers 404",
+          "input": "get SP-9999\nget SP-2003\n",
+          "expected": "get SP-9999: 404 lookup SP-9999: parcel not found\nget SP-2003: 200 SP-2003 at_hub",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Invalid ids answer 400",
+          "input": "get 2001\nget SP-20011\n",
+          "expected": "get 2001: 400 lookup 2001: id: must start with SP-\nget SP-20011: 400 lookup SP-20011: id: must be SP- and 4 digits",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Reschedule: 200 for a parcel at the hub, 409 for a delivered one",
+          "input": "reschedule SP-2003 sat\nget SP-2003\nreschedule SP-2002 mon\n",
+          "expected": "reschedule SP-2003 sat: 200 SP-2003 at_hub, day sat\nget SP-2003: 200 SP-2003 at_hub, day sat\nreschedule SP-2002 mon: 409 reschedule SP-2002: parcel already delivered",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Reschedule errors from every layer: unknown parcel, bad day, bad id",
+          "input": "reschedule SP-9999 mon\nreschedule SP-2001 sunday\nreschedule SP-01 mon\n",
+          "expected": "reschedule SP-9999 mon: 404 reschedule: lookup SP-9999: parcel not found\nreschedule SP-2001 sunday: 400 reschedule SP-2001: day: must be one of mon tue wed thu fri sat\nreschedule SP-01 mon: 400 reschedule: lookup SP-01: id: must be SP- and 4 digits",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A mixed sequence of requests",
+          "input": "get SP-2002\nreschedule SP-2001 fri\nget SP-2001\nget sp-2001\nreschedule SP-2002 sat\nget SP-7777\n",
+          "expected": "get SP-2002: 200 SP-2002 delivered\nreschedule SP-2001 fri: 200 SP-2001 out_for_delivery, day fri\nget SP-2001: 200 SP-2001 out_for_delivery, day fri\nget sp-2001: 400 lookup sp-2001: id: must start with SP-\nreschedule SP-2002 sat: 409 reschedule SP-2002: parcel already delivered\nget SP-7777: 404 lookup SP-7777: parcel not found",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

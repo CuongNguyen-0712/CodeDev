@@ -1,0 +1,59 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_gof_321",
+      "name": "generic-report-helpers",
+      "type": "mini_coding",
+      "title": "Replace the copy-pasted report helpers with GroupBy, SumBy and SortedKeys",
+      "description": "The reports team has a groupParcelsByDistrict, a groupDriversByShift, a sumCOD, a sumWeight and a sumStops, all copy-pasted and all slightly different. Write three generic functions instead: GroupBy groups items by a key function and keeps the input order inside each group, SumBy adds up a numeric value of every item (int, int64 or float64, and named types based on them), and SortedKeys returns the keys of a map in ascending order (string order, so q10 comes before q2). The test runner uses the same three functions on parcels (by district, summing COD in VND and weight in kg) and on drivers (by shift, summing stops).",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "go",
+        "filePath": "main.go",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Parcels by district and drivers by shift",
+          "input": "parcel SP-2001 q1 350000 1.5\nparcel SP-2002 q3 120000 0.5\nparcel SP-2003 q1 120000 1.5\ndriver an morning 12\ndriver bich morning 9\ndriver ha evening 7\n",
+          "expected": "district q1: SP-2001 SP-2003 (470000 VND, 3.0 kg)\ndistrict q3: SP-2002 (120000 VND, 0.5 kg)\nshift evening: ha (7 stops)\nshift morning: an bich (21 stops)",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Only parcels: three districts, the groups keep input order",
+          "input": "parcel SP-2101 thu-duc 0 2.5\nparcel SP-2102 binh-thanh 89000 0.75\nparcel SP-2103 go-vap 45000 3\nparcel SP-2104 thu-duc 1200000 12.5\nparcel SP-2105 binh-thanh 15000 0.25\nparcel SP-2106 thu-duc 30000 1\n",
+          "expected": "district binh-thanh: SP-2102 SP-2105 (104000 VND, 1.0 kg)\ndistrict go-vap: SP-2103 (45000 VND, 3.0 kg)\ndistrict thu-duc: SP-2101 SP-2104 SP-2106 (1230000 VND, 16.0 kg)",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Only drivers: three shifts",
+          "input": "driver dung night 4\ndriver chau afternoon 15\ndriver an morning 11\ndriver bich afternoon 13\ndriver ha night 6\n",
+          "expected": "shift afternoon: chau bich (28 stops)\nshift morning: an (11 stops)\nshift night: dung ha (10 stops)",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A single parcel is a group of one",
+          "input": "parcel SP-2201 q3 75000 0.5\n",
+          "expected": "district q3: SP-2201 (75000 VND, 0.5 kg)",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Mixed records, large amounts, and q10 sorts before q2",
+          "input": "driver an morning 10\nparcel SP-2301 q1 18500000 25.5\nparcel SP-2302 q10 2750000 4.5\nparcel SP-2303 q1 19990000 30\ndriver bich morning 8\nparcel SP-2304 q2 990000 2\ndriver chau morning 0\nparcel SP-2305 q1 0 0.5\n",
+          "expected": "district q1: SP-2301 SP-2303 SP-2305 (38490000 VND, 56.0 kg)\ndistrict q10: SP-2302 (2750000 VND, 4.5 kg)\ndistrict q2: SP-2304 (990000 VND, 2.0 kg)\nshift morning: an bich chau (18 stops)",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

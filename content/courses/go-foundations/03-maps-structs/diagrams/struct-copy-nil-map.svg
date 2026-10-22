@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+    <marker id="arrRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#dc2626"/></marker>
+  </defs>
+  <rect width="1200" height="640" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">s := stats[d] copies the struct, but not the map inside it</text>
+  <text x="40" y="82" font-size="16" fill="#475569">record(d, status) reads a DistrictStats, then runs s.ByStatus[status]++ on the copy</text>
+
+  <!-- Row 1: q1 -->
+  <rect x="40" y="108" width="1120" height="200" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="64" y="140" font-size="17" font-weight="700" fill="#15803d">d = "q1": the district already exists</text>
+
+  <rect x="64" y="160" width="300" height="70" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="186" font-size="14" font-weight="700" fill="#334155">in the map: stats["q1"]</text>
+  <text x="80" y="212" font-size="14" fill="#475569">Name "q1" | ByStatus: ptr</text>
+
+  <rect x="64" y="236" width="300" height="60" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="80" y="260" font-size="14" font-weight="700" fill="#334155">the copy s</text>
+  <text x="80" y="284" font-size="14" fill="#475569">Name "q1" | ByStatus: same ptr</text>
+
+  <rect x="560" y="176" width="300" height="100" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="580" y="204" font-size="14" font-weight="700" fill="#15803d">one inner map</text>
+  <text x="580" y="232" font-size="14" fill="#334155">delivered: 1</text>
+  <text x="580" y="256" font-size="13" fill="#14532d">written through the copy, seen by both</text>
+
+  <line x1="364" y1="205" x2="556" y2="215" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="364" y1="270" x2="556" y2="245" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="890" y="214" font-size="14" fill="#15803d">works, by luck of sharing:</text>
+  <text x="890" y="238" font-size="14" fill="#15803d">a map value is a reference</text>
+
+  <!-- Row 2: thu-duc -->
+  <rect x="40" y="326" width="1120" height="150" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="358" font-size="17" font-weight="700" fill="#b91c1c">d = "thu-duc": a new district, s = DistrictStats{Name: d}</text>
+
+  <rect x="64" y="378" width="300" height="70" rx="6" fill="#ffffff" stroke="#f87171" stroke-width="2"/>
+  <text x="80" y="404" font-size="14" font-weight="700" fill="#334155">the new s (and its copy in the map)</text>
+  <text x="80" y="430" font-size="14" fill="#475569">Name "thu-duc" | ByStatus: nil</text>
+
+  <rect x="560" y="382" width="300" height="62" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="580" y="410" font-size="14" font-weight="700" fill="#b91c1c">no map at all (zero value)</text>
+  <text x="580" y="432" font-size="13" fill="#7f1d1d">reading gives 0, writing panics</text>
+  <line x1="364" y1="413" x2="556" y2="413" stroke="#dc2626" stroke-width="2" marker-end="url(#arrRed)"/>
+  <text x="890" y="408" font-size="14" font-weight="700" fill="#b91c1c">panic: assignment to</text>
+  <text x="890" y="432" font-size="14" font-weight="700" fill="#b91c1c">entry in nil map</text>
+
+  <!-- Bottom: rules -->
+  <rect x="40" y="494" width="1120" height="122" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="524" font-size="16" font-weight="700" fill="#334155">The rules behind it</text>
+  <text x="64" y="552" font-size="14" fill="#334155">1. m[k] returns a COPY of a struct value: changing s.Parcels does not change the map until you write stats[d] = s.</text>
+  <text x="64" y="578" font-size="14" fill="#334155">2. Fields that are maps, slices or pointers are copied as references: the copy and the original share what they point to.</text>
+  <text x="64" y="604" font-size="14" fill="#334155">3. The zero value of a map field is nil: make the map in a constructor, or use one flat map[Key]int instead.</text>
+</svg>

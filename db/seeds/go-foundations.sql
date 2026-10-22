@@ -19,7 +19,7 @@ BEGIN
 END $$;
 
 INSERT INTO catalog.course (public_id, title, concept, description, image, level, duration, instructor, cost, point_price, reward, language_id, category_id, access_model, publish_status, is_hidden, is_deleted)
-VALUES ('go-foundations', 'Go Fundamentals: Types, Errors, Slices & Maps', 'Learn Go the way it is used for services and tooling: zero values, slices and the append aliasing bug, maps and structs, interfaces, errors as values, generics and go test.', 'Learn Go the way it is used for services and tooling: zero values, slices and the append aliasing bug, maps and structs, interfaces, errors as values, generics and go test. 8 lessons, each starting from a real bug or incident, with beginner-friendly challenges.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594583/codedev/courses/go-foundations/cover', 'beginner'::level_enum, 160, 'CodeDev Engineering Team', 0, 0, 50,
+VALUES ('go-foundations', 'Go Fundamentals: Types, Errors, Slices & Maps', 'Learn Go the way it is used for services and tooling: zero values, slices and the append aliasing bug, maps and structs, interfaces, errors as values, generics and go test.', 'Learn Go the way it is used for services and tooling at a delivery company: zero values and shadowing, slices and the append aliasing bug, maps and structs, pointers and method receivers, interfaces, errors as values with wrapping, generics, packages and go test - ending with a word-frequency CLI. 9 lessons, each starting from a real bug or incident at Saigon Parcel, with quizzes and Go coding challenges.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594583/codedev/courses/go-foundations/cover', 'beginner'::level_enum, 183, 'CodeDev Engineering Team', 0, 0, 50,
         (SELECT id FROM catalog.language WHERE name = 'Go'),
         (SELECT id FROM catalog.category WHERE name = 'Go Development'),
         'free', 'draft', true, false)
@@ -53,6 +53,608 @@ INSERT INTO catalog.course_skill (course_id, skill_id, weight)
 SELECT (SELECT id FROM catalog.course WHERE public_id = 'go-foundations'), s.id, v.weight
 FROM (VALUES ('data_structures', 2), ('testing', 2), ('api_design', 1)) AS v(code, weight)
 JOIN catalog.skill s ON s.code = v.code;
+
+-- module 1: Basics
+UPDATE course.module SET title = 'Basics', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'go-foundations'), 'Basics', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 1 AND is_deleted = false);
+
+-- lesson 1.1: Variables, types & zero values (Sanity lesson-gof-1-1)
+UPDATE course.lesson SET title = 'Variables, types & zero values', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-1-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), 'Variables, types & zero values', 'sanity', 'lesson-gof-1-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-gof-1-1' AND is_deleted = false);
+
+-- challenge chal_quiz_gof_111 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_gof_111', (SELECT id FROM catalog.course WHERE public_id = 'go-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-1-1' AND is_deleted = false LIMIT 1), 'zero-values-shadowing-quiz', 'Predict it: shadowing, zero values and integer division', 'Run a shadowed counter in your head, then decide which zero values and divisions behave the way their authors expected.', 'open', 'easy'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_111'), 'The delivery counter below was written in a hurry. What does it print?
+
+count := 0
+for _, s := range []string{"delivered", "failed", "delivered"} {
+	if s == "delivered" {
+		count := count + 1
+		fmt.Print(count, " ")
+	}
+}
+fmt.Println(count)', 'single_choice'::question_type, 'count := count + 1 inside the if declares a NEW variable named count in the if block. On the right-hand side, count still means the outer variable (the new one only exists after the statement), so the inner count is 0 + 1 = 1 both times, and it disappears at the closing brace. The outer count is never assigned, so the last line prints 0: the output is 1 1 0. It compiles because the inner count is used by fmt.Print. "1 2 2" is what count = count + 1 (or count++) would print. "1 2 0" would need the inner variable to survive between iterations, but each pass through the block starts a fresh scope.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_111') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('1 2 2', false),
+        ('1 1 0', true),
+        ('1 2 0', false),
+        ('It does not compile: count is declared twice', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_111'), 'Parcel is a struct with a string field ID. Which of these statements are true? (Select all that apply.)', 'multiple_choice'::question_type, 'Reading a missing key from a map gives the value type''s zero value, and that works even on a nil map: var stock map[string]int; stock["SP-1021"] is 0 (only WRITING to a nil map panics). 3 / 4 * 100 is integer arithmetic from left to right: 3 / 4 is 0, so the result is 0. Dividing an int by a variable that is 0 compiles and panics at run time with "integer divide by zero" (10 / 0 with a constant 0 is rejected by the compiler instead). A nil *Parcel has no Parcel to read, so p.ID panics with "invalid memory address or nil pointer dereference" - it does not give the zero string. And Go never converts between numeric types for you: cash / n with an int64 and an int is the compile error "invalid operation: cash / n (mismatched types int64 and int)"; write cash / int64(n).', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_111') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('var stock map[string]int, then fmt.Println(stock["SP-1021"]) prints 0', true),
+        ('var p *Parcel, then fmt.Println(p.ID) prints an empty line', false),
+        ('fmt.Println(3 / 4 * 100) prints 0', true),
+        ('var cash int64 = 439000; n := 3; fmt.Println(cash / n) prints 146333', false),
+        ('zero := 0; fmt.Println(10 / zero) compiles, then panics at run time with "integer divide by zero"', true)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_gof_112 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_gof_112', (SELECT id FROM catalog.course WHERE public_id = 'go-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-1-1' AND is_deleted = false LIMIT 1), 'driver-cod-summary', 'Write the driver''s end-of-day COD summary', 'Every evening a Saigon Parcel driver hands in the cash collected on delivery (COD). Write summarize and successRate for the end-of-day report: count the parcels and the delivered ones, add up the cash of delivered parcels only, find the delivered parcel with the largest COD, and compute the success rate as a percentage. Watch the zero values: a parcel paid online has COD 0, a day can have no deliveries, and a day can have no parcels at all. The test runner reads one parcel per line and prints the report.', 'open', 'easy'::difficulty_question, 'mini_coding', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_112'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_112');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_112'), 'Two of three parcels delivered', '"SP-2001 350000 delivered\nSP-2002 120000 failed\nSP-2003 89000 delivered\n"', '"parcels: 3\ndelivered: 2 (66.7%)\ncash: 439000 VND\nlargest: SP-2001 350000 VND"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_112'), 'Failed and returned parcels bring no cash; a tie keeps the first parcel', '"SP-2101 150000 delivered\nSP-2102 90000 returned\nSP-2103 150000 delivered\nSP-2104 500000 failed\n"', '"parcels: 4\ndelivered: 2 (50.0%)\ncash: 300000 VND\nlargest: SP-2101 150000 VND"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_112'), 'Nothing delivered: the rate is 0.0% and there is no largest parcel', '"SP-2201 200000 failed\nSP-2202 75000 returned\n"', '"parcels: 2\ndelivered: 0 (0.0%)\ncash: 0 VND\nlargest: none"', 3, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_112'), 'Every delivered parcel was paid online (COD 0)', '"SP-2301 0 delivered\nSP-2302 0 delivered\nSP-2303 45000 failed\n"', '"parcels: 3\ndelivered: 2 (66.7%)\ncash: 0 VND\nlargest: SP-2301 0 VND"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_112'), 'No parcels at all: no rate to report', '"\n"', '"parcels: 0\ndelivered: 0 (n/a)\ncash: 0 VND\nlargest: none"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_112'), 'A busy day with large amounts', '"SP-2401 18500000 delivered\nSP-2402 2750000 delivered\nSP-2403 990000 delivered\nSP-2404 19990000 delivered\nSP-2405 15000 failed\nSP-2406 0 delivered\n"', '"parcels: 6\ndelivered: 5 (83.3%)\ncash: 42230000 VND\nlargest: SP-2404 19990000 VND"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_gof_112_starter', 's3', 'challenges/go/chal_coding_gof_112/starter.go', 'raw', 'text/x-go', 2894, 'main.go')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_112'), 'go', 'main.go', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_gof_112_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 1.2: Slices: the append aliasing bug (Sanity lesson-gof-1-2)
+UPDATE course.lesson SET title = 'Slices: the append aliasing bug', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-1-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), 'Slices: the append aliasing bug', 'sanity', 'lesson-gof-1-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-gof-1-2' AND is_deleted = false);
+
+-- challenge chal_quiz_gof_121 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_gof_121', (SELECT id FROM catalog.course WHERE public_id = 'go-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-1-2' AND is_deleted = false LIMIT 1), 'append-aliasing-quiz', 'Predict it: two appends to one slice', 'Work out where append puts its elements, then pick the ways to extend a shared prefix without touching its backing array.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_121'), 'What does this program print?
+
+s := make([]int, 3, 10)
+a := append(s, 1)
+b := append(s, 2)
+fmt.Println(a[3], b[3], len(s))', 'single_choice'::question_type, 's has length 3 and capacity 10, so both appends fit in place: append(s, 1) writes 1 into slot 3 of s''s backing array and returns a header with length 4, and append(s, 2) - s still has length 3 - writes 2 into the same slot 3. a and b point to the same array, so a[3] and b[3] are both 2. s itself was never reassigned, so len(s) is still 3. "1 2 3" is what you would get if each append copied, which only happens when the capacity is exhausted. There is no panic: a and b have length 4, so index 3 is in range.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_121') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('1 2 3', false),
+        ('2 2 3', true),
+        ('1 2 5', false),
+        ('It panics: index out of range [3] with length 3', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_121'), 'prefix holds [depot-q7 hub-q4] with len 2 and cap 8, built with make and append like the planner''s. Which snippets leave r == [depot-q7 hub-q4 x] WITHOUT writing anything into prefix''s backing array? (Select all that apply.)', 'multiple_choice'::question_type, 'slices.Clone gives r its own array, so the append writes there. The full slice expression prefix[:len(prefix):len(prefix)] has capacity 2 == length, so the append has no room and must copy to a new array. append([]string(nil), prefix...) appends to a nil slice, which always allocates: it is the classic pre-generics way to clone. prefix[:] and r := prefix are just copies of the header: same pointer, capacity 8, so the append writes x into slot 2 of prefix''s array - the incident''s bug. var r []string; copy(r, prefix) copies min(len(r), len(prefix)) = 0 elements, because copy never grows its destination; prefix is safe, but r ends up as [x], not [depot-q7 hub-q4 x].', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_121') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('r := slices.Clone(prefix); r = append(r, "x")', true),
+        ('r := prefix[:]; r = append(r, "x")', false),
+        ('r := prefix[:len(prefix):len(prefix)]; r = append(r, "x")', true),
+        ('r := append([]string(nil), prefix...); r = append(r, "x")', true),
+        ('var r []string; copy(r, prefix); r = append(r, "x")', false),
+        ('r := prefix; r = append(r, "x")', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_fix_gof_122 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_fix_gof_122', (SELECT id FROM catalog.course WHERE public_id = 'go-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-1-2' AND is_deleted = false LIMIT 1), 'fix-route-planner-aliasing', 'Fix the route planner that mixes up drivers'' stops', 'Every Saigon Parcel route starts with the same prefix (the depot and the sorting hub) followed by the driver''s own stops, and a cancelled stop gives the driver a new route while the planned route is kept for the evening report. Drivers get each other''s stops, and after a cancellation the planned route shows the wrong stops too. Fix buildRoutes and withoutStop so that every route has its own stops, cancelling removes only that stop from the current route, and neither the prefix nor the planned routes ever change. The test runner reads the prefix, the drivers and the cancellations, then prints the current routes, the planned routes and the prefix.', 'open', 'medium'::difficulty_question, 'fix_bug', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_122'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_122');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_122'), 'One driver: nothing to overwrite', '"prefix depot-q7 hub-q4\ndriver an SP-2001@q1 SP-2002@q3\n"', '"route an: depot-q7 > hub-q4 > SP-2001@q1 > SP-2002@q3\nplanned an: depot-q7 > hub-q4 > SP-2001@q1 > SP-2002@q3\nprefix: depot-q7 > hub-q4"', 3, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_122'), 'Two drivers keep their own stops (the Monday incident)', '"prefix depot-q7 hub-q4\ndriver an SP-2001@q1 SP-2002@q3\ndriver bich SP-2101@thu-duc\n"', '"route an: depot-q7 > hub-q4 > SP-2001@q1 > SP-2002@q3\nroute bich: depot-q7 > hub-q4 > SP-2101@thu-duc\nplanned an: depot-q7 > hub-q4 > SP-2001@q1 > SP-2002@q3\nplanned bich: depot-q7 > hub-q4 > SP-2101@thu-duc\nprefix: depot-q7 > hub-q4"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_122'), 'Cancelling a stop leaves the planned route unchanged', '"prefix depot-q7 hub-q4\ndriver an SP-2001@q1 SP-2002@q3 SP-2003@q1\ndriver bich SP-2101@thu-duc\ncancel an SP-2002@q3\n"', '"route an: depot-q7 > hub-q4 > SP-2001@q1 > SP-2003@q1\nroute bich: depot-q7 > hub-q4 > SP-2101@thu-duc\nplanned an: depot-q7 > hub-q4 > SP-2001@q1 > SP-2002@q3 > SP-2003@q1\nplanned bich: depot-q7 > hub-q4 > SP-2101@thu-duc\nprefix: depot-q7 > hub-q4"', 4, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_122'), 'Three drivers with different numbers of stops', '"prefix depot-q7 hub-q4\ndriver an SP-2001@q1\ndriver bich SP-2101@thu-duc SP-2102@thu-duc SP-2103@binh-thanh\ndriver chau SP-2201@go-vap SP-2202@go-vap\n"', '"route an: depot-q7 > hub-q4 > SP-2001@q1\nroute bich: depot-q7 > hub-q4 > SP-2101@thu-duc > SP-2102@thu-duc > SP-2103@binh-thanh\nroute chau: depot-q7 > hub-q4 > SP-2201@go-vap > SP-2202@go-vap\nplanned an: depot-q7 > hub-q4 > SP-2001@q1\nplanned bich: depot-q7 > hub-q4 > SP-2101@thu-duc > SP-2102@thu-duc > SP-2103@binh-thanh\nplanned chau: depot-q7 > hub-q4 > SP-2201@go-vap > SP-2202@go-vap\nprefix: depot-q7 > hub-q4"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_122'), 'Several cancellations, one of a stop that is not on the route', '"prefix depot-q7 hub-q4\ndriver dung SP-2301@binh-thanh SP-2302@q1\ndriver ha SP-2401@q3 SP-2402@q3 SP-2403@go-vap\ncancel ha SP-2401@q3\ncancel ha SP-9999@q1\ncancel dung SP-2302@q1\ncancel ha SP-2403@go-vap\n"', '"route dung: depot-q7 > hub-q4 > SP-2301@binh-thanh\nroute ha: depot-q7 > hub-q4 > SP-2402@q3\nplanned dung: depot-q7 > hub-q4 > SP-2301@binh-thanh > SP-2302@q1\nplanned ha: depot-q7 > hub-q4 > SP-2401@q3 > SP-2402@q3 > SP-2403@go-vap\nprefix: depot-q7 > hub-q4"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_122'), 'A one-stop prefix, a driver with no stops and a cancelled last stop', '"prefix depot-thu-duc\ndriver an\ndriver bich SP-2101@thu-duc\ndriver chau SP-2201@go-vap\ncancel bich SP-2101@thu-duc\n"', '"route an: depot-thu-duc\nroute bich: depot-thu-duc\nroute chau: depot-thu-duc > SP-2201@go-vap\nplanned an: depot-thu-duc\nplanned bich: depot-thu-duc > SP-2101@thu-duc\nplanned chau: depot-thu-duc > SP-2201@go-vap\nprefix: depot-thu-duc"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_gof_122_starter', 's3', 'challenges/go/chal_fix_gof_122/starter.go', 'raw', 'text/x-go', 2983, 'main.go')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_122'), 'go', 'main.go', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_gof_122_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 2: Types
+UPDATE course.module SET title = 'Types', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'go-foundations'), 'Types', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 2 AND is_deleted = false);
+
+-- lesson 2.1: Maps & structs (Sanity lesson-gof-2-1)
+UPDATE course.lesson SET title = 'Maps & structs', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-2-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Maps & structs', 'sanity', 'lesson-gof-2-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-gof-2-1' AND is_deleted = false);
+
+-- challenge chal_quiz_gof_211 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_gof_211', (SELECT id FROM catalog.course WHERE public_id = 'go-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-2-1' AND is_deleted = false LIMIT 1), 'maps-structs-quiz', 'Predict it: nil maps and structs inside maps', 'Decide where a nil map stops working, then pick the ways to count parcels in a map that compile and do not panic.', 'open', 'easy'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_211'), 'Stats is struct{ Delivered int }. What happens when this runs?
+
+var byDistrict map[string]Stats
+fmt.Println(len(byDistrict), byDistrict["q1"].Delivered)
+byDistrict["q1"] = Stats{Delivered: 1}
+fmt.Println("saved")', 'single_choice'::question_type, 'byDistrict is declared but never made, so it is a nil map. Reading a nil map is allowed: len is 0 and a missing key gives the zero Stats, so the first line prints 0 0. Writing to a nil map is not: the assignment panics with "assignment to entry in nil map", and "saved" is never printed. It compiles fine - the compiler does not track whether a map was made. Create the map with make(map[string]Stats) or a literal map[string]Stats{} before the first write.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_211') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('It prints 0 0, then saved', false),
+        ('It prints 0 0, then panics: assignment to entry in nil map', true),
+        ('It panics on the first Println, because the map is nil', false),
+        ('It does not compile: the map must be made before it is used', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_211'), 'Stats is struct{ Delivered int } and Key is struct{ District, Status string }. Which snippets compile, run without a panic and leave a count of 1 for q1? (Select all that apply.)', 'multiple_choice'::question_type, 'counts["q1"]++ reads the zero value 0 for the missing key, adds 1 and stores it: the standard counting idiom. map[string]*Stats{"q1": {}} stores a pointer to a new Stats (inside a map literal, &Stats{} may be written as {}), so p["q1"].Delivered++ changes the struct the pointer points to. A struct key such as Key{"q1", "delivered"} works because structs whose fields are comparable can be compared with ==, so they can be map keys - often simpler than a map of maps. stats["q1"].Delivered++ on a map[string]Stats does not compile (the compiler says: cannot assign to struct field stats["q1"].Delivered in map): m[k] gives a copy that cannot be assigned. And q["q1"].Delivered++ on an empty map[string]*Stats reads a nil pointer for the missing key and panics with "invalid memory address or nil pointer dereference".', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_211') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('counts := map[string]int{}; counts["q1"]++', true),
+        ('stats := map[string]Stats{"q1": {}}; stats["q1"].Delivered++', false),
+        ('p := map[string]*Stats{"q1": {}}; p["q1"].Delivered++', true),
+        ('q := map[string]*Stats{}; q["q1"].Delivered++', false),
+        ('k := map[Key]int{}; k[Key{"q1", "delivered"}]++', true)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_gof_212 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_gof_212', (SELECT id FROM catalog.course WHERE public_id = 'go-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-2-1' AND is_deleted = false LIMIT 1), 'district-delivery-report', 'Build the daily district report from tracking events', 'The tracking service records an event every time a parcel changes status, so one parcel has several events during the day (out for delivery, failed, out again, delivered ...). Write report and busiest for the evening district report: keep only the last event of every parcel, count the parcels per district by their last status, return the districts sorted by name, and find the district with the most parcels (the first by name on a tie). Map iteration order is random, so the order must come from your code. The test runner reads the events and prints one line per district and the busiest district.', 'open', 'easy'::difficulty_question, 'mini_coding', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_212'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_212');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_212'), 'The example: the last event of each parcel counts', '"SP-3001 q1 out\nSP-3002 q3 out\nSP-3001 q1 delivered\nSP-3002 q3 failed\nSP-3002 q3 returned\n"', '"q1: parcels 1, delivered 1, failed 0, returned 0\nq3: parcels 1, delivered 0, failed 0, returned 1\nbusiest: q1, parcels 1"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_212'), 'Districts sorted by name; a parcel still out counts only as a parcel', '"SP-3101 thu-duc out\nSP-3102 binh-thanh out\nSP-3103 q1 out\nSP-3104 q1 out\nSP-3101 thu-duc delivered\nSP-3103 q1 delivered\nSP-3105 go-vap delivered\nSP-3104 q1 failed\n"', '"binh-thanh: parcels 1, delivered 0, failed 0, returned 0\ngo-vap: parcels 1, delivered 1, failed 0, returned 0\nq1: parcels 2, delivered 1, failed 1, returned 0\nthu-duc: parcels 1, delivered 1, failed 0, returned 0\nbusiest: q1, parcels 2"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_212'), 'A tie for busiest goes to the first district by name', '"SP-3201 q3 delivered\nSP-3202 q3 delivered\nSP-3203 go-vap failed\nSP-3204 go-vap delivered\nSP-3205 q1 returned\n"', '"go-vap: parcels 2, delivered 1, failed 1, returned 0\nq1: parcels 1, delivered 0, failed 0, returned 1\nq3: parcels 2, delivered 2, failed 0, returned 0\nbusiest: go-vap, parcels 2"', 3, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_212'), 'No events at all', '"\n"', '"no parcels"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_212'), 'A parcel that failed, went out again and was delivered', '"SP-3301 binh-thanh out\nSP-3301 binh-thanh failed\nSP-3301 binh-thanh out\nSP-3301 binh-thanh delivered\nSP-3302 binh-thanh out\nSP-3302 binh-thanh failed\nSP-3303 q1 out\n"', '"binh-thanh: parcels 2, delivered 1, failed 1, returned 0\nq1: parcels 1, delivered 0, failed 0, returned 0\nbusiest: binh-thanh, parcels 2"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_212'), 'Interleaved events across three districts', '"SP-3401 q3 out\nSP-3402 thu-duc out\nSP-3403 thu-duc out\nSP-3404 q3 out\nSP-3402 thu-duc delivered\nSP-3401 q3 failed\nSP-3403 thu-duc failed\nSP-3405 thu-duc out\nSP-3401 q3 returned\nSP-3404 q3 delivered\nSP-3403 thu-duc returned\nSP-3406 q1 delivered\n"', '"q1: parcels 1, delivered 1, failed 0, returned 0\nq3: parcels 2, delivered 1, failed 0, returned 1\nthu-duc: parcels 3, delivered 1, failed 0, returned 1\nbusiest: thu-duc, parcels 3"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_gof_212_starter', 's3', 'challenges/go/chal_coding_gof_212/starter.go', 'raw', 'text/x-go', 2658, 'main.go')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_212'), 'go', 'main.go', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_gof_212_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 2.2: Pointers & methods: value vs pointer receivers (Sanity lesson-gof-2-2)
+UPDATE course.lesson SET title = 'Pointers & methods: value vs pointer receivers', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-2-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Pointers & methods: value vs pointer receivers', 'sanity', 'lesson-gof-2-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-gof-2-2' AND is_deleted = false);
+
+-- challenge chal_fix_gof_221 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_fix_gof_221', (SELECT id FROM catalog.course WHERE public_id = 'go-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-2-2' AND is_deleted = false LIMIT 1), 'fix-driver-shift-ledger', 'Fix the driver shift ledger that forgets everything', 'The shift ledger tracks what each Saigon Parcel driver carries, delivers and fails during a shift, and how much cash they collect. Since the ledger was rewritten with methods, nothing sticks: a parcel that was just picked up is "not carried" when the driver delivers it, every counter stays at 0, and the end of the shift changes nothing. Fix the Driver methods and the Fleet so that every change is kept on the driver in the fleet. At the end of the shift every parcel still on a bike counts as failed. The test runner reads driver, pickup, deliver, fail and end commands and prints one line per driver.', 'open', 'medium'::difficulty_question, 'fix_bug', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_221'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_221');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_221'), 'Pickups, a delivery and a failed delivery are all kept', '"driver an\npickup an SP-3001\npickup an SP-3002\ndeliver an SP-3001 250000\nfail an SP-3002\n"', '"an: delivered 1, failed 1, cash 250000 VND, carrying []"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_221'), 'Two drivers keep separate ledgers; an undelivered parcel stays on the bike', '"driver an\ndriver bich\npickup an SP-3001\npickup bich SP-3003\npickup bich SP-3004\ndeliver bich SP-3004 120000\ndeliver an SP-3001 90000\n"', '"an: delivered 1, failed 0, cash 90000 VND, carrying []\nbich: delivered 1, failed 0, cash 120000 VND, carrying [SP-3003]"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_221'), 'Errors for a parcel that is not on the bike and for an unknown driver', '"driver chau\npickup chau SP-3010\ndeliver chau SP-3011 50000\ndeliver dung SP-3010 50000\ndeliver chau SP-3010 50000\ndeliver chau SP-3010 50000\n"', '"error: chau is not carrying SP-3011\nerror: no driver dung\nerror: chau is not carrying SP-3010\nchau: delivered 1, failed 0, cash 50000 VND, carrying []"', 3, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_221'), 'End of shift: every parcel still on a bike counts as failed', '"driver an\ndriver ha\npickup an SP-3020\npickup an SP-3021\npickup an SP-3022\npickup ha SP-3023\ndeliver an SP-3021 300000\nend\n"', '"an: delivered 1, failed 2, cash 300000 VND, carrying []\nha: delivered 0, failed 1, cash 0 VND, carrying []"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_221'), 'Removing parcels from the middle keeps the others in pickup order', '"driver bich\npickup bich SP-3030\npickup bich SP-3031\npickup bich SP-3032\npickup bich SP-3033\nfail bich SP-3031\ndeliver bich SP-3033 45000\n"', '"bich: delivered 1, failed 1, cash 45000 VND, carrying [SP-3030 SP-3032]"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_221'), 'After the end of shift the bike is empty and new pickups still work', '"driver an\npickup an SP-3040\nend\npickup an SP-3041\ndeliver an SP-3041 0\nfail an SP-3040\n"', '"error: an is not carrying SP-3040\nan: delivered 1, failed 1, cash 0 VND, carrying []"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_gof_221_starter', 's3', 'challenges/go/chal_fix_gof_221/starter.go', 'raw', 'text/x-go', 3862, 'main.go')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_221'), 'go', 'main.go', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_gof_221_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 2.3: Methods & interfaces (Sanity lesson-gof-2-3)
+UPDATE course.lesson SET title = 'Methods & interfaces', order_index = 3, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-2-3' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Methods & interfaces', 'sanity', 'lesson-gof-2-3', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-gof-2-3' AND is_deleted = false);
+
+-- challenge chal_quiz_gof_231 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_gof_231', (SELECT id FROM catalog.course WHERE public_id = 'go-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-2-3' AND is_deleted = false LIMIT 1), 'interfaces-method-sets-quiz', 'Predict it: Stringer, method sets and type assertions', 'Decide what fmt prints for a value and a pointer, then which interface operations compile, succeed or panic.', 'open', 'easy'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_231'), 'What does this program print?
+
+type Parcel struct{ ID string }
+
+func (p *Parcel) String() string { return "parcel " + p.ID }
+
+func main() {
+	p := Parcel{"SP-2001"}
+	fmt.Println(p)
+	fmt.Println(&p)
+}', 'single_choice'::question_type, 'fmt.Println takes its arguments as any and checks at run time whether each one satisfies fmt.Stringer. String has a pointer receiver, so only *Parcel has that method: the Parcel value p does not satisfy Stringer, and fmt prints its fields, {SP-2001}. &p is a *Parcel, which does satisfy Stringer, so the second line is parcel SP-2001. There is no compile error: Println accepts any value, and the check happens inside fmt. You only get a compile error when you assign the value to a variable of type fmt.Stringer yourself, for example var _ fmt.Stringer = Parcel{}.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_231') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('parcel SP-2001, then parcel SP-2001', false),
+        ('{SP-2001}, then parcel SP-2001', true),
+        ('parcel SP-2001, then &{SP-2001}', false),
+        ('It does not compile: Parcel does not implement fmt.Stringer', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_231'), 'Notifier is interface { Notify(phone, msg string) error }, SMS has the method func (s *SMS) Notify(phone, msg string) error, and v is a variable of type any that holds a Parcel value (Parcel has a value-receiver String method). Which statements are true? (Select all that apply.)', 'multiple_choice'::question_type, 'Go interfaces are satisfied implicitly: a type that has every method of the interface satisfies it, with no implements keyword. Notify has a pointer receiver, so only *SMS satisfies Notifier; var n Notifier = SMS{} fails with "SMS does not implement Notifier (method Notify has pointer receiver)" - write &SMS{}. A type assertion without ok panics when the dynamic type is different: v.(int) panics with "interface conversion: interface {} is main.Parcel, not int". The two-value form s, ok := v.(fmt.Stringer) never panics; here ok is true, because Parcel''s String has a value receiver. Calling a method on a nil interface value does not return zero values: there is no concrete value and no method to call, so it panics with a nil pointer dereference.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_231') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('A type satisfies an interface as soon as it has all of the interface''s methods; there is no implements keyword', true),
+        ('var n Notifier = SMS{} compiles', false),
+        ('n := v.(int) panics, because v holds a Parcel', true),
+        ('s, ok := v.(fmt.Stringer) never panics; ok tells you whether v holds a Stringer', true),
+        ('var n Notifier; n.Notify("0901234567", "hi") returns a nil error, because n is nil', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_gof_232 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_gof_232', (SELECT id FROM catalog.course WHERE public_id = 'go-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-2-3' AND is_deleted = false LIMIT 1), 'delivery-fee-rules', 'Build the delivery fee from small rule types', 'Saigon Parcel''s delivery fee is the sum of fee rules: a flat fee, a fee per started kilogram, surcharges for far districts, and caps that limit another rule. Every rule is a small type that satisfies the FeeRule interface: it computes its part of the fee for a parcel and describes itself on the printed quote. Write Fee and String for Flat, PerKg, District and Capped, and Quote, which adds up every rule. Capped must work with any other rule, including another Capped. The test runner builds the rules as values from the input, prints the rule list and then a quote for every parcel.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_232'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_232');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_232'), 'A flat fee plus a fee per started kilogram', '"rule flat 15000\nrule perkg 5000\nparcel SP-4001 2300 q3\nparcel SP-4002 1000 q1\n"', '"rules:\n- flat 15000 VND\n- 5000 VND per started kg\nSP-4001 2300g q3\n  flat 15000 VND: 15000\n  5000 VND per started kg: 15000\n  total: 30000 VND\nSP-4002 1000g q1\n  flat 15000 VND: 15000\n  5000 VND per started kg: 5000\n  total: 20000 VND"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_232'), 'A district surcharge applies only in its district', '"rule flat 12000\nrule district thu-duc 10000\nparcel SP-4101 800 thu-duc\nparcel SP-4102 800 q1\nparcel SP-4103 15000 thu-duc\n"', '"rules:\n- flat 12000 VND\n- +10000 VND in thu-duc\nSP-4101 800g thu-duc\n  flat 12000 VND: 12000\n  +10000 VND in thu-duc: 10000\n  total: 22000 VND\nSP-4102 800g q1\n  flat 12000 VND: 12000\n  +10000 VND in thu-duc: 0\n  total: 12000 VND\nSP-4103 15000g thu-duc\n  flat 12000 VND: 12000\n  +10000 VND in thu-duc: 10000\n  total: 22000 VND"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_232'), 'A capped per-kg fee never goes above the cap', '"rule capped 40000 perkg 8000\nparcel SP-4201 3500 q3\nparcel SP-4202 7200 binh-thanh\nparcel SP-4203 5000 go-vap\n"', '"rules:\n- at most 40000 VND of (8000 VND per started kg)\nSP-4201 3500g q3\n  at most 40000 VND of (8000 VND per started kg): 32000\n  total: 32000 VND\nSP-4202 7200g binh-thanh\n  at most 40000 VND of (8000 VND per started kg): 40000\n  total: 40000 VND\nSP-4203 5000g go-vap\n  at most 40000 VND of (8000 VND per started kg): 40000\n  total: 40000 VND"', 3, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_232'), 'Started kilograms at the boundaries: 1 g, 999 g, 1000 g, 1001 g, 2000 g', '"rule perkg 6000\nparcel SP-4301 1 q1\nparcel SP-4302 999 q1\nparcel SP-4303 1000 q1\nparcel SP-4304 1001 q1\nparcel SP-4305 2000 q1\n"', '"rules:\n- 6000 VND per started kg\nSP-4301 1g q1\n  6000 VND per started kg: 6000\n  total: 6000 VND\nSP-4302 999g q1\n  6000 VND per started kg: 6000\n  total: 6000 VND\nSP-4303 1000g q1\n  6000 VND per started kg: 6000\n  total: 6000 VND\nSP-4304 1001g q1\n  6000 VND per started kg: 12000\n  total: 12000 VND\nSP-4305 2000g q1\n  6000 VND per started kg: 12000\n  total: 12000 VND"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_232'), 'Capped wraps any rule: a capped cap and a capped district surcharge', '"rule capped 50000 capped 30000 perkg 9000\nrule capped 5000 district go-vap 8000\nparcel SP-4401 9000 go-vap\nparcel SP-4402 2100 q3\n"', '"rules:\n- at most 50000 VND of (at most 30000 VND of (9000 VND per started kg))\n- at most 5000 VND of (+8000 VND in go-vap)\nSP-4401 9000g go-vap\n  at most 50000 VND of (at most 30000 VND of (9000 VND per started kg)): 30000\n  at most 5000 VND of (+8000 VND in go-vap): 5000\n  total: 35000 VND\nSP-4402 2100g q3\n  at most 50000 VND of (at most 30000 VND of (9000 VND per started kg)): 27000\n  at most 5000 VND of (+8000 VND in go-vap): 0\n  total: 27000 VND"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_232'), 'The full price list on four parcels', '"rule flat 15000\nrule perkg 4000\nrule district thu-duc 10000\nrule district go-vap 7000\nrule capped 25000 perkg 3000\nparcel SP-4501 450 q1\nparcel SP-4502 4200 thu-duc\nparcel SP-4503 12500 go-vap\nparcel SP-4504 3000 binh-thanh\n"', '"rules:\n- flat 15000 VND\n- 4000 VND per started kg\n- +10000 VND in thu-duc\n- +7000 VND in go-vap\n- at most 25000 VND of (3000 VND per started kg)\nSP-4501 450g q1\n  flat 15000 VND: 15000\n  4000 VND per started kg: 4000\n  +10000 VND in thu-duc: 0\n  +7000 VND in go-vap: 0\n  at most 25000 VND of (3000 VND per started kg): 3000\n  total: 22000 VND\nSP-4502 4200g thu-duc\n  flat 15000 VND: 15000\n  4000 VND per started kg: 20000\n  +10000 VND in thu-duc: 10000\n  +7000 VND in go-vap: 0\n  at most 25000 VND of (3000 VND per started kg): 15000\n  total: 60000 VND\nSP-4503 12500g go-vap\n  flat 15000 VND: 15000\n  4000 VND per started kg: 52000\n  +10000 VND in thu-duc: 0\n  +7000 VND in go-vap: 7000\n  at most 25000 VND of (3000 VND per started kg): 25000\n  total: 99000 VND\nSP-4504 3000g binh-thanh\n  flat 15000 VND: 15000\n  4000 VND per started kg: 12000\n  +10000 VND in thu-duc: 0\n  +7000 VND in go-vap: 0\n  at most 25000 VND of (3000 VND per started kg): 9000\n  total: 36000 VND"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_gof_232_starter', 's3', 'challenges/go/chal_coding_gof_232/starter.go', 'raw', 'text/x-go', 4609, 'main.go')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_232'), 'go', 'main.go', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_gof_232_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 3: Robust Code
+UPDATE course.module SET title = 'Robust Code', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'go-foundations'), 'Robust Code', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 3 AND is_deleted = false);
+
+-- lesson 3.1: Errors as values: wrapping, errors.Is & errors.As (Sanity lesson-gof-3-1)
+UPDATE course.lesson SET title = 'Errors as values: wrapping, errors.Is & errors.As', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-3-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Errors as values: wrapping, errors.Is & errors.As', 'sanity', 'lesson-gof-3-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-gof-3-1' AND is_deleted = false);
+
+-- challenge chal_quiz_gof_311 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_gof_311', (SELECT id FROM catalog.course WHERE public_id = 'go-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-3-1' AND is_deleted = false LIMIT 1), 'errors-wrapping-quiz', 'Predict it: %v, %w, errors.Is and errors.As', 'Decide what a wrapped error prints and matches, then which ways of inspecting an error look through the wrappers.', 'open', 'easy'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_311'), 'What does this program print?
+
+var ErrNotFound = errors.New("parcel not found")
+
+func main() {
+	err := fmt.Errorf("lookup SP-9999: %v", ErrNotFound)
+	fmt.Println(err)
+	fmt.Println(errors.Is(err, ErrNotFound))
+}', 'single_choice'::question_type, '%v formats ErrNotFound as text, so the message is lookup SP-9999: parcel not found - exactly the same text that %w would give. But %v only copies the text into a new error: the new error does not keep ErrNotFound inside it, so errors.Is finds nothing to unwrap and returns false. With %w, fmt.Errorf returns an error that wraps ErrNotFound, and errors.Is(err, ErrNotFound) is true. Two errors with the same message are not the same error; errors.Is compares error values, not strings.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_311') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('lookup SP-9999: parcel not found, then true', false),
+        ('lookup SP-9999: parcel not found, then false', true),
+        ('lookup SP-9999: &errors.errorString{s:"parcel not found"}, then false', false),
+        ('It does not compile: %v cannot format an error', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_311'), 'ErrNotFound is a sentinel error made with errors.New, and *ValidationError is an error type (its Error method has a pointer receiver). Which statements are true? (Select all that apply.)', 'multiple_choice'::question_type, 'errors.Is follows the whole chain of %w wrappers, so an ErrNotFound wrapped twice is still found. == compares the outermost error only: fmt.Errorf("lookup: %w", ErrNotFound) is a new *fmt.wrapError value, not ErrNotFound. A type assertion, like ==, only looks at the outermost error, so err.(*ValidationError) fails on a wrapped one; errors.As(err, &ve) walks the chain (and the errors inside errors.Join) and sets ve to the first *ValidationError it finds. Returning a nil *ValidationError from a function whose result type is error gives an error interface that holds a type and a nil pointer, and that interface is not nil: err == nil is false. Return a literal nil instead.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_311') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('errors.Is(fmt.Errorf("GET: %w", fmt.Errorf("lookup: %w", ErrNotFound)), ErrNotFound) is true', true),
+        ('After err := fmt.Errorf("lookup: %w", ErrNotFound), err == ErrNotFound is true', false),
+        ('A type assertion err.(*ValidationError) succeeds when the *ValidationError was wrapped with %w', false),
+        ('With var ve *ValidationError, errors.As(err, &ve) finds a *ValidationError through %w wrappers and inside errors.Join', true),
+        ('A function with result type error that returns a *ValidationError variable holding nil returns an error that is == nil', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_fix_gof_312 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_fix_gof_312', (SELECT id FROM catalog.course WHERE public_id = 'go-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-3-1' AND is_deleted = false LIMIT 1), 'fix-trackd-status-codes', 'Fix trackd''s error handling so every request gets the right status code', 'trackd, Saigon Parcel''s tracking API, turns the error a request ends with into an HTTP status code: 400 for an invalid request (a *ValidationError anywhere in the chain), 404 for an unknown parcel (ErrNotFound), 409 for rescheduling a parcel that is already delivered (ErrConflict), 500 for anything else. After a refactor it answers 500 for almost everything: for parcels that exist, for unknown parcels and for invalid ids. Fix how the errors are returned, wrapped and compared so every request gets its status code. Keep the error message texts. The test runner sends get and reschedule requests and prints the status code and the result or the error for each one.', 'open', 'medium'::difficulty_question, 'fix_bug', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_312'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_312');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_312'), 'Parcels that exist answer 200', '"get SP-2001\nget SP-2002\n"', '"get SP-2001: 200 SP-2001 out_for_delivery\nget SP-2002: 200 SP-2002 delivered"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_312'), 'An unknown parcel answers 404', '"get SP-9999\nget SP-2003\n"', '"get SP-9999: 404 lookup SP-9999: parcel not found\nget SP-2003: 200 SP-2003 at_hub"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_312'), 'Invalid ids answer 400', '"get 2001\nget SP-20011\n"', '"get 2001: 400 lookup 2001: id: must start with SP-\nget SP-20011: 400 lookup SP-20011: id: must be SP- and 4 digits"', 3, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_312'), 'Reschedule: 200 for a parcel at the hub, 409 for a delivered one', '"reschedule SP-2003 sat\nget SP-2003\nreschedule SP-2002 mon\n"', '"reschedule SP-2003 sat: 200 SP-2003 at_hub, day sat\nget SP-2003: 200 SP-2003 at_hub, day sat\nreschedule SP-2002 mon: 409 reschedule SP-2002: parcel already delivered"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_312'), 'Reschedule errors from every layer: unknown parcel, bad day, bad id', '"reschedule SP-9999 mon\nreschedule SP-2001 sunday\nreschedule SP-01 mon\n"', '"reschedule SP-9999 mon: 404 reschedule: lookup SP-9999: parcel not found\nreschedule SP-2001 sunday: 400 reschedule SP-2001: day: must be one of mon tue wed thu fri sat\nreschedule SP-01 mon: 400 reschedule: lookup SP-01: id: must be SP- and 4 digits"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_312'), 'A mixed sequence of requests', '"get SP-2002\nreschedule SP-2001 fri\nget SP-2001\nget sp-2001\nreschedule SP-2002 sat\nget SP-7777\n"', '"get SP-2002: 200 SP-2002 delivered\nreschedule SP-2001 fri: 200 SP-2001 out_for_delivery, day fri\nget SP-2001: 200 SP-2001 out_for_delivery, day fri\nget sp-2001: 400 lookup sp-2001: id: must start with SP-\nreschedule SP-2002 sat: 409 reschedule SP-2002: parcel already delivered\nget SP-7777: 404 lookup SP-7777: parcel not found"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_gof_312_starter', 's3', 'challenges/go/chal_fix_gof_312/starter.go', 'raw', 'text/x-go', 4476, 'main.go')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_312'), 'go', 'main.go', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_gof_312_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 3.2: Generics basics (Sanity lesson-gof-3-2)
+UPDATE course.lesson SET title = 'Generics basics', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-3-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Generics basics', 'sanity', 'lesson-gof-3-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-gof-3-2' AND is_deleted = false);
+
+-- challenge chal_coding_gof_321 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_gof_321', (SELECT id FROM catalog.course WHERE public_id = 'go-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-3-2' AND is_deleted = false LIMIT 1), 'generic-report-helpers', 'Replace the copy-pasted report helpers with GroupBy, SumBy and SortedKeys', 'The reports team has a groupParcelsByDistrict, a groupDriversByShift, a sumCOD, a sumWeight and a sumStops, all copy-pasted and all slightly different. Write three generic functions instead: GroupBy groups items by a key function and keeps the input order inside each group, SumBy adds up a numeric value of every item (int, int64 or float64, and named types based on them), and SortedKeys returns the keys of a map in ascending order (string order, so q10 comes before q2). The test runner uses the same three functions on parcels (by district, summing COD in VND and weight in kg) and on drivers (by shift, summing stops).', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_321'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_321');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_321'), 'Parcels by district and drivers by shift', '"parcel SP-2001 q1 350000 1.5\nparcel SP-2002 q3 120000 0.5\nparcel SP-2003 q1 120000 1.5\ndriver an morning 12\ndriver bich morning 9\ndriver ha evening 7\n"', '"district q1: SP-2001 SP-2003 (470000 VND, 3.0 kg)\ndistrict q3: SP-2002 (120000 VND, 0.5 kg)\nshift evening: ha (7 stops)\nshift morning: an bich (21 stops)"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_321'), 'Only parcels: three districts, the groups keep input order', '"parcel SP-2101 thu-duc 0 2.5\nparcel SP-2102 binh-thanh 89000 0.75\nparcel SP-2103 go-vap 45000 3\nparcel SP-2104 thu-duc 1200000 12.5\nparcel SP-2105 binh-thanh 15000 0.25\nparcel SP-2106 thu-duc 30000 1\n"', '"district binh-thanh: SP-2102 SP-2105 (104000 VND, 1.0 kg)\ndistrict go-vap: SP-2103 (45000 VND, 3.0 kg)\ndistrict thu-duc: SP-2101 SP-2104 SP-2106 (1230000 VND, 16.0 kg)"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_321'), 'Only drivers: three shifts', '"driver dung night 4\ndriver chau afternoon 15\ndriver an morning 11\ndriver bich afternoon 13\ndriver ha night 6\n"', '"shift afternoon: chau bich (28 stops)\nshift morning: an (11 stops)\nshift night: dung ha (10 stops)"', 4, false, true, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_321'), 'A single parcel is a group of one', '"parcel SP-2201 q3 75000 0.5\n"', '"district q3: SP-2201 (75000 VND, 0.5 kg)"', 4, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_321'), 'Mixed records, large amounts, and q10 sorts before q2', '"driver an morning 10\nparcel SP-2301 q1 18500000 25.5\nparcel SP-2302 q10 2750000 4.5\nparcel SP-2303 q1 19990000 30\ndriver bich morning 8\nparcel SP-2304 q2 990000 2\ndriver chau morning 0\nparcel SP-2305 q1 0 0.5\n"', '"district q1: SP-2301 SP-2303 SP-2305 (38490000 VND, 56.0 kg)\ndistrict q10: SP-2302 (2750000 VND, 4.5 kg)\ndistrict q2: SP-2304 (990000 VND, 2.0 kg)\nshift morning: an bich chau (18 stops)"', 4, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_gof_321_starter', 's3', 'challenges/go/chal_coding_gof_321/starter.go', 'raw', 'text/x-go', 3720, 'main.go')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_321'), 'go', 'main.go', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_gof_321_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 4: Putting It Together
+UPDATE course.module SET title = 'Putting It Together', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'go-foundations'), 'Putting It Together', 4
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 4 AND is_deleted = false);
+
+-- lesson 4.1: Packages & go test (Sanity lesson-gof-4-1)
+UPDATE course.lesson SET title = 'Packages & go test', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-4-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), 'Packages & go test', 'sanity', 'lesson-gof-4-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-gof-4-1' AND is_deleted = false);
+
+-- challenge chal_quiz_gof_411 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_gof_411', (SELECT id FROM catalog.course WHERE public_id = 'go-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-4-1' AND is_deleted = false LIMIT 1), 'packages-go-test-quiz', 'Check it: exported names, internal packages and t.Fatalf', 'Decide which names another package can use, and predict how much of a failing table test go test reports.', 'open', 'easy'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_411'), 'The module saigonparcel.vn/trackd has a package in internal/phone with these declarations:
+
+var ErrInvalid = errors.New("invalid phone number")
+func Normalize(raw string) (string, error) { ... }
+func onlyDigits(s string) string { ... }
+type Number struct {
+	Country string
+	digits  string
+}
+
+Which of these compile? (Select all that apply.)', 'multiple_choice'::question_type, 'A name is exported, and so usable from other packages, exactly when it starts with an upper-case letter. phone.Normalize and phone.ErrInvalid are exported, and cmd/notifier is inside the same module root that contains internal/, so it may import the package. onlyDigits starts with a lower-case letter: from another package the compiler says "undefined: phone.onlyDigits". The same rule applies to struct fields: n.Country is visible, n.digits is not. And internal/ is enforced by the go command: only code inside the tree rooted at the parent of internal (here the trackd module) may import it, so a different module gets "use of internal package saigonparcel.vn/trackd/internal/phone not allowed".', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_411') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('In trackd/cmd/notifier: n, err := phone.Normalize(raw)', true),
+        ('In trackd/cmd/notifier: if errors.Is(err, phone.ErrInvalid) { ... }', true),
+        ('In trackd/cmd/notifier: d := phone.onlyDigits(raw)', false),
+        ('In trackd/cmd/notifier, with n of type phone.Number: fmt.Println(n.digits)', false),
+        ('In another module, saigonparcel.vn/billing, that requires trackd: import "saigonparcel.vn/trackd/internal/phone"', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_411'), 'TestNormalizeLoop loops over a table of 4 cases WITHOUT t.Run:
+
+for _, tc := range tests {
+	got, err := Normalize(tc.raw)
+	if err != nil {
+		t.Fatalf("Normalize(%q): %v", tc.raw, err)
+	}
+	if got != tc.want {
+		t.Errorf("Normalize(%q) = %q, want %q", tc.raw, got, tc.want)
+	}
+}
+
+Normalize returns an error for case 2 and for case 3; cases 1 and 4 are correct. What does go test report for TestNormalizeLoop?', 'single_choice'::question_type, 't.Fatalf records the failure and stops the test function that is running - here TestNormalizeLoop itself, because there are no subtests. The loop never reaches cases 3 and 4, so go test prints one message, for case 2, and FAIL. Case 3 is just as broken but stays hidden until case 2 is fixed. t.Errorf would have recorded the failure and continued. Wrapping the body in t.Run(tc.name, func(t *testing.T) { ... }) gives every case its own subtest: t.Fatalf then stops only that subtest, and go test reports both failing cases (and, with -v, a PASS line for each passing one). That is why table-driven tests use t.Run.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_gof_411') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('Two failures, for case 2 and case 3, then FAIL', false),
+        ('One failure, for case 2, then FAIL: the test stops at the first t.Fatalf', true),
+        ('One failure, for case 3: t.Fatalf only reports the last failure', false),
+        ('Nothing: t.Fatalf inside a loop is a compile error', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_fix_gof_412 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_fix_gof_412', (SELECT id FROM catalog.course WHERE public_id = 'go-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-4-1' AND is_deleted = false LIMIT 1), 'fix-normalize-phone', 'Fix normalizePhone until every row of the table passes', 'After the weekend incident, normalizePhone accepts +84 numbers again. Customer support has since sent more rows for the test table, and several still fail: numbers written 84 90 123 4567 without the plus are rejected, numbers with letters typed into them are accepted, and a landline number gets an SMS that can never arrive. Fix normalizePhone so it follows the SMS gateway''s rules written at the top of the file: only digits, spaces, dots, dashes and one leading plus are allowed; the number is 0, 84 or +84 followed by 9 digits; the 9 digits start with 3, 5, 7, 8 or 9; the result is +84 and the 9 digits. The test runner works like a table-driven test: it reads RAW|WANT rows and prints ok or FAIL for each.', 'open', 'easy'::difficulty_question, 'fix_bug', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_412'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_412');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_412'), 'Local and international forms, with spaces', '"0901234567|+84901234567\n84 90 123 4567|+84901234567\n+84 912 345 678|+84912345678\n"', '"ok   \"0901234567\"\nok   \"84 90 123 4567\"\nok   \"+84 912 345 678\"\nPASS"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_412'), 'Dots and dashes are separators too', '"090.123.4567|+84901234567\n0912-345-678|+84912345678\n+84-38-765-4321|+84387654321\n84.90.123.4567|+84901234567\n"', '"ok   \"090.123.4567\"\nok   \"0912-345-678\"\nok   \"+84-38-765-4321\"\nok   \"84.90.123.4567\"\nPASS"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_412'), 'Letters, brackets and slashes are not numbers', '"0901abc234567|invalid\n(090) 123 4567|invalid\n090/123/4567|invalid\n0912 345 678|+84912345678\n"', '"ok   \"0901abc234567\"\nok   \"(090) 123 4567\"\nok   \"090/123/4567\"\nok   \"0912 345 678\"\nPASS"', 3, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_412'), 'Only mobile prefixes 3, 5, 7, 8 and 9', '"0201234567|invalid\n+84201234567|invalid\n0701234567|+84701234567\n0581234567|+84581234567\n0301234567|+84301234567\n0601234567|invalid\n"', '"ok   \"0201234567\"\nok   \"+84201234567\"\nok   \"0701234567\"\nok   \"0581234567\"\nok   \"0301234567\"\nok   \"0601234567\"\nPASS"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_412'), 'Wrong lengths and a + in the wrong place', '"090123456|invalid\n09012345678|invalid\n8490123456|invalid\n849012345678|invalid\n+840901234567|invalid\n090+1234567|invalid\n+|invalid\n|invalid\n"', '"ok   \"090123456\"\nok   \"09012345678\"\nok   \"8490123456\"\nok   \"849012345678\"\nok   \"+840901234567\"\nok   \"090+1234567\"\nok   \"+\"\nok   \"\"\nPASS"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_412'), 'A batch from the customer form', '"0987 654 321|+84987654321\n84987654321|+84987654321\n0987654321 |+84987654321\nO987654321|invalid\n0987654321x|invalid\n+84.987.654.321|+84987654321\n"', '"ok   \"0987 654 321\"\nok   \"84987654321\"\nok   \"0987654321 \"\nok   \"O987654321\"\nok   \"0987654321x\"\nok   \"+84.987.654.321\"\nPASS"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_gof_412_starter', 's3', 'challenges/go/chal_fix_gof_412/starter.go', 'raw', 'text/x-go', 3174, 'main.go')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_gof_412'), 'go', 'main.go', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_gof_412_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 4.2: Mini project: a word-frequency CLI (Sanity lesson-gof-4-2)
+UPDATE course.lesson SET title = 'Mini project: a word-frequency CLI', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-4-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), 'Mini project: a word-frequency CLI', 'sanity', 'lesson-gof-4-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-gof-4-2' AND is_deleted = false);
+
+-- challenge chal_coding_gof_421 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_gof_421', (SELECT id FROM catalog.course WHERE public_id = 'go-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'go-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-gof-4-2' AND is_deleted = false LIMIT 1), 'feedback-phrase-report', 'Extend the report: the most frequent two-word phrases', 'Most Vietnamese words have two syllables - giao hàng, thân thiện, đóng gói - so the single-word report mixes up hàng in giao hàng with hàng in mặt hàng. Customer care wants the most frequent phrases instead: pairs of neighbouring words. Write phrases, which splits one feedback message into lower-case words (runs of letters and digits) and returns every pair of neighbouring words, without crossing a clause break (. , ; : ! ?), and top, which returns the N most frequent phrases, highest count first and ties in ascending string order. The test runner reads N on the first line and one message per line after it, and prints the top phrases and a totals line.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_421'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_421');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_421'), 'The example: one phrase in every message', '"2\nGiao hàng nhanh. Giao hàng tốt!\ngiao hàng trễ\n"', '"giao hàng 3\nhàng nhanh 1\nphrases 6, unique 4"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_421'), 'Commas and full stops end a phrase; ties in string order', '"3\nGiao hàng trễ 2 ngày, shipper không gọi!\nShipper không gọi trước. Giao hàng trễ.\ngiao hàng trễ, hàng bị móp\n"', '"giao hàng 3\nhàng trễ 3\nkhông gọi 2\nphrases 15, unique 9"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_421'), 'Upper case, colons, semicolons, a dash and quotes', '"4\nĐóng gói ẩu: hàng bị móp!\nĐÓNG GÓI ẨU; hộp bị rách\nĐóng gói cẩn thận - shipper thân thiện\n\"Đóng gói\" ẩu?\n"', '"đóng gói 4\ngói ẩu 3\nbị móp 1\nbị rách 1\nphrases 16, unique 11"', 3, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_421'), 'N larger than the number of phrases, one-word and empty messages', '"10\nTốt\n\nCảm ơn\nok!\ncảm ơn, cảm ơn\n"', '"cảm ơn 3\nphrases 3, unique 1"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_421'), 'Parcel ids and numbers are words too', '"3\nMã SP-2001 giao trễ 3 ngày\nmã SP-2002 giao nhanh\nMã đơn 2003: chưa nhận được\n"', '"mã sp 2\n2001 giao 1\n2002 giao 1\nphrases 14, unique 13"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_421'), 'A week of real feedback', '"5\nShipper thân thiện, giao hàng nhanh.\nGiao hàng chậm quá! Gọi tổng đài không ai nghe.\nHàng bị móp, đóng gói ẩu. Giao hàng chậm.\nshipper thân thiện nhưng giao hàng chậm\nGọi tổng đài 3 lần không ai nghe; giao hàng chậm 2 ngày.\nĐóng gói ẩu, hộp bị rách - hàng bị móp\nCảm ơn shipper thân thiện!\n"', '"giao hàng 5\nhàng chậm 4\nshipper thân 3\nthân thiện 3\nai nghe 2\nphrases 46, unique 27"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_gof_421_starter', 's3', 'challenges/go/chal_coding_gof_421/starter.go', 'raw', 'text/x-go', 2674, 'main.go')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_gof_421'), 'go', 'main.go', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_gof_421_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
 
 -- learners enrolled before these lessons existed
 INSERT INTO learning.history (user_id, course_id, module_id, lesson_id)

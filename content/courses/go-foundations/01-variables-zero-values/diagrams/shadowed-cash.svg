@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="620" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">One character, two variables: := inside a block shadows the outer cash</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Three delivered parcels: SP-1021 350000, SP-1023 89000, SP-1024 0 (paid online). Expected cash: 439000 VND.</text>
+
+  <!-- Left: the bug -->
+  <rect x="40" y="108" width="540" height="350" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="140" font-size="17" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">cash, err := addVND(cash, p.COD)</text>
+  <text x="64" y="164" font-size="13" fill="#7f1d1d">declares a NEW cash and err in the if block</text>
+
+  <rect x="64" y="180" width="492" height="46" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="209" font-size="15" font-weight="700" fill="#334155">main: cash = 0, never assigned again</text>
+
+  <rect x="84" y="236" width="452" height="150" rx="6" fill="#ffffff" stroke="#f87171" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="100" y="260" font-size="14" font-weight="700" fill="#b91c1c">if block (a fresh scope on every pass)</text>
+  <text x="100" y="290" font-size="14" fill="#334155">pass 1: inner cash = 0 + 350000 = 350000</text>
+  <text x="100" y="316" font-size="14" fill="#334155">pass 2: inner cash = 0 + 89000 = 89000</text>
+  <text x="100" y="342" font-size="14" fill="#334155">pass 3: inner cash = 0 + 0 = 0</text>
+  <text x="100" y="368" font-size="13" fill="#7f1d1d">each inner cash is thrown away at the closing brace</text>
+
+  <rect x="64" y="398" width="492" height="44" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="80" y="426" font-size="15" font-weight="700" fill="#b91c1c">Report: cash to hand in: 0 VND</text>
+
+  <!-- Right: the fix -->
+  <rect x="620" y="108" width="540" height="350" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="140" font-size="17" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">var err error</text>
+  <text x="644" y="164" font-size="17" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">cash, err = addVND(cash, p.COD)</text>
+
+  <rect x="644" y="180" width="492" height="46" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="209" font-size="15" font-weight="700" fill="#334155">main: one cash, updated on every pass</text>
+
+  <rect x="664" y="236" width="452" height="150" rx="6" fill="#ffffff" stroke="#4ade80" stroke-width="2"/>
+  <text x="680" y="260" font-size="14" font-weight="700" fill="#15803d">= assigns the variables that already exist</text>
+  <text x="680" y="290" font-size="14" fill="#334155">pass 1: cash = 0 + 350000 = 350000</text>
+  <text x="680" y="316" font-size="14" fill="#334155">pass 2: cash = 350000 + 89000 = 439000</text>
+  <text x="680" y="342" font-size="14" fill="#334155">pass 3: cash = 439000 + 0 = 439000</text>
+  <text x="680" y="368" font-size="13" fill="#14532d">only err is declared in the block, with var</text>
+
+  <rect x="644" y="398" width="492" height="44" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="660" y="426" font-size="15" font-weight="700" fill="#15803d">Report: cash to hand in: 439000 VND</text>
+
+  <!-- Bottom: the rule -->
+  <rect x="40" y="482" width="1120" height="110" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="514" font-size="16" font-weight="700" fill="#334155">The rule</text>
+  <text x="64" y="544" font-size="15" font-weight="700" fill="#b45309" font-family="Consolas, 'Courier New', monospace">a, b := f()</text>
+  <text x="300" y="544" font-size="14" fill="#334155">declares every name that is not yet declared IN THIS BLOCK; outer names are shadowed</text>
+  <text x="64" y="574" font-size="15" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">a, b = f()</text>
+  <text x="300" y="574" font-size="14" fill="#334155">assigns existing variables; the compiler rejects it if a name does not exist</text>
+</svg>

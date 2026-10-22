@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="660" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">One module, one package per directory, and who may use what</text>
+  <text x="40" y="82" font-size="16" fill="#475569">A capital letter exports a name; internal/ limits which code may import a package at all.</text>
+
+  <!-- Left: tree -->
+  <rect x="40" y="108" width="520" height="330" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="140" font-size="17" font-weight="700" fill="#334155">The trackd repository</text>
+  <text x="64" y="176" font-size="15" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">go.mod</text>
+  <text x="250" y="176" font-size="13" fill="#475569">module saigonparcel.vn/trackd</text>
+  <text x="64" y="214" font-size="15" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">cmd/notifier/</text>
+  <text x="88" y="240" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">main.go</text>
+  <text x="250" y="240" font-size="13" fill="#475569">package main: a program</text>
+  <text x="64" y="278" font-size="15" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">internal/phone/</text>
+  <text x="88" y="304" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">phone.go</text>
+  <text x="250" y="304" font-size="13" fill="#475569">package phone</text>
+  <text x="88" y="330" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">phone_test.go</text>
+  <text x="250" y="330" font-size="13" fill="#475569">package phone, built only by go test</text>
+  <rect x="64" y="352" width="472" height="66" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="378" font-size="13" fill="#334155">import path = module path + directory:</text>
+  <text x="80" y="402" font-size="13" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">saigonparcel.vn/trackd/internal/phone</text>
+
+  <!-- Right: visibility -->
+  <rect x="600" y="108" width="560" height="330" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="624" y="140" font-size="17" font-weight="700" fill="#334155">Using package phone from ...</text>
+
+  <rect x="624" y="156" width="512" height="128" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="640" y="180" font-size="14" font-weight="700" fill="#15803d">cmd/notifier (same module)</text>
+  <text x="640" y="206" font-size="14" fill="#14532d" font-family="Consolas, 'Courier New', monospace">phone.Normalize, phone.ErrInvalid</text>
+  <text x="1120" y="206" font-size="13" font-weight="700" fill="#15803d" text-anchor="end">ok</text>
+  <text x="640" y="232" font-size="14" fill="#7f1d1d" font-family="Consolas, 'Courier New', monospace">phone.onlyDigits, n.digits</text>
+  <text x="1120" y="232" font-size="13" font-weight="700" fill="#b91c1c" text-anchor="end">undefined</text>
+  <text x="640" y="262" font-size="13" fill="#475569">lower-case names stay inside package phone</text>
+
+  <rect x="624" y="296" width="512" height="56" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="640" y="320" font-size="14" font-weight="700" fill="#15803d">phone_test.go (same package)</text>
+  <text x="640" y="342" font-size="13" fill="#14532d">sees every name, exported or not</text>
+
+  <rect x="624" y="364" width="512" height="56" rx="6" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="640" y="388" font-size="14" font-weight="700" fill="#b91c1c">another module (saigonparcel.vn/billing)</text>
+  <text x="640" y="410" font-size="13" fill="#7f1d1d">use of internal package ... not allowed</text>
+
+  <!-- Bottom: go test -->
+  <rect x="40" y="462" width="1120" height="170" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="64" y="494" font-size="16" font-weight="700" fill="#1d4ed8">go test ./...  -  for every package in the module</text>
+  <rect x="64" y="512" width="250" height="96" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="540" font-size="14" font-weight="700" fill="#334155">1. Build</text>
+  <text x="80" y="564" font-size="13" fill="#475569">the package together with</text>
+  <text x="80" y="584" font-size="13" fill="#475569">its _test.go files; run vet checks</text>
+  <rect x="340" y="512" width="250" height="96" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="356" y="540" font-size="14" font-weight="700" fill="#334155">2. Run every TestXxx</text>
+  <text x="356" y="564" font-size="13" fill="#475569">func TestXxx(t *testing.T)</text>
+  <text x="356" y="584" font-size="13" fill="#475569">t.Run gives each table row a name</text>
+  <rect x="616" y="512" width="250" height="96" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="632" y="540" font-size="14" font-weight="700" fill="#334155">3. Record failures</text>
+  <text x="632" y="564" font-size="13" fill="#475569">t.Errorf: fail, keep going</text>
+  <text x="632" y="584" font-size="13" fill="#475569">t.Fatalf: fail, stop this (sub)test</text>
+  <rect x="892" y="512" width="244" height="96" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="908" y="540" font-size="14" font-weight="700" fill="#334155">4. Report</text>
+  <text x="908" y="564" font-size="13" fill="#15803d" font-family="Consolas, 'Courier New', monospace">ok   .../phone</text>
+  <text x="908" y="584" font-size="13" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">FAIL .../phone</text>
+  <path d="M316 560 L336 560" stroke="#3b82f6" stroke-width="2"/>
+  <path d="M592 560 L612 560" stroke="#3b82f6" stroke-width="2"/>
+  <path d="M868 560 L888 560" stroke="#3b82f6" stroke-width="2"/>
+</svg>

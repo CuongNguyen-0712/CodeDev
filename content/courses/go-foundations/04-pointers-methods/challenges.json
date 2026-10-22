@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_fix_gof_221",
+      "name": "fix-driver-shift-ledger",
+      "type": "fix_bug",
+      "title": "Fix the driver shift ledger that forgets everything",
+      "description": "The shift ledger tracks what each Saigon Parcel driver carries, delivers and fails during a shift, and how much cash they collect. Since the ledger was rewritten with methods, nothing sticks: a parcel that was just picked up is \"not carried\" when the driver delivers it, every counter stays at 0, and the end of the shift changes nothing. Fix the Driver methods and the Fleet so that every change is kept on the driver in the fleet. At the end of the shift every parcel still on a bike counts as failed. The test runner reads driver, pickup, deliver, fail and end commands and prints one line per driver.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "go",
+        "filePath": "main.go",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Pickups, a delivery and a failed delivery are all kept",
+          "input": "driver an\npickup an SP-3001\npickup an SP-3002\ndeliver an SP-3001 250000\nfail an SP-3002\n",
+          "expected": "an: delivered 1, failed 1, cash 250000 VND, carrying []",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Two drivers keep separate ledgers; an undelivered parcel stays on the bike",
+          "input": "driver an\ndriver bich\npickup an SP-3001\npickup bich SP-3003\npickup bich SP-3004\ndeliver bich SP-3004 120000\ndeliver an SP-3001 90000\n",
+          "expected": "an: delivered 1, failed 0, cash 90000 VND, carrying []\nbich: delivered 1, failed 0, cash 120000 VND, carrying [SP-3003]",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Errors for a parcel that is not on the bike and for an unknown driver",
+          "input": "driver chau\npickup chau SP-3010\ndeliver chau SP-3011 50000\ndeliver dung SP-3010 50000\ndeliver chau SP-3010 50000\ndeliver chau SP-3010 50000\n",
+          "expected": "error: chau is not carrying SP-3011\nerror: no driver dung\nerror: chau is not carrying SP-3010\nchau: delivered 1, failed 0, cash 50000 VND, carrying []",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "End of shift: every parcel still on a bike counts as failed",
+          "input": "driver an\ndriver ha\npickup an SP-3020\npickup an SP-3021\npickup an SP-3022\npickup ha SP-3023\ndeliver an SP-3021 300000\nend\n",
+          "expected": "an: delivered 1, failed 2, cash 300000 VND, carrying []\nha: delivered 0, failed 1, cash 0 VND, carrying []",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Removing parcels from the middle keeps the others in pickup order",
+          "input": "driver bich\npickup bich SP-3030\npickup bich SP-3031\npickup bich SP-3032\npickup bich SP-3033\nfail bich SP-3031\ndeliver bich SP-3033 45000\n",
+          "expected": "bich: delivered 1, failed 1, cash 45000 VND, carrying [SP-3030 SP-3032]",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "After the end of shift the bike is empty and new pickups still work",
+          "input": "driver an\npickup an SP-3040\nend\npickup an SP-3041\ndeliver an SP-3041 0\nfail an SP-3040\n",
+          "expected": "error: an is not carrying SP-3040\nan: delivered 1, failed 1, cash 0 VND, carrying []",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

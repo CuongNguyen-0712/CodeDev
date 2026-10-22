@@ -1,0 +1,102 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_gof_211",
+      "name": "maps-structs-quiz",
+      "type": "quiz",
+      "title": "Predict it: nil maps and structs inside maps",
+      "description": "Decide where a nil map stops working, then pick the ways to count parcels in a map that compile and do not panic.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Stats is struct{ Delivered int }. What happens when this runs?\n\nvar byDistrict map[string]Stats\nfmt.Println(len(byDistrict), byDistrict[\"q1\"].Delivered)\nbyDistrict[\"q1\"] = Stats{Delivered: 1}\nfmt.Println(\"saved\")",
+          "explanation": "byDistrict is declared but never made, so it is a nil map. Reading a nil map is allowed: len is 0 and a missing key gives the zero Stats, so the first line prints 0 0. Writing to a nil map is not: the assignment panics with \"assignment to entry in nil map\", and \"saved\" is never printed. It compiles fine - the compiler does not track whether a map was made. Create the map with make(map[string]Stats) or a literal map[string]Stats{} before the first write.",
+          "options": [
+            { "text": "It prints 0 0, then saved", "correct": false },
+            { "text": "It prints 0 0, then panics: assignment to entry in nil map", "correct": true },
+            { "text": "It panics on the first Println, because the map is nil", "correct": false },
+            { "text": "It does not compile: the map must be made before it is used", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Stats is struct{ Delivered int } and Key is struct{ District, Status string }. Which snippets compile, run without a panic and leave a count of 1 for q1? (Select all that apply.)",
+          "explanation": "counts[\"q1\"]++ reads the zero value 0 for the missing key, adds 1 and stores it: the standard counting idiom. map[string]*Stats{\"q1\": {}} stores a pointer to a new Stats (inside a map literal, &Stats{} may be written as {}), so p[\"q1\"].Delivered++ changes the struct the pointer points to. A struct key such as Key{\"q1\", \"delivered\"} works because structs whose fields are comparable can be compared with ==, so they can be map keys - often simpler than a map of maps. stats[\"q1\"].Delivered++ on a map[string]Stats does not compile (the compiler says: cannot assign to struct field stats[\"q1\"].Delivered in map): m[k] gives a copy that cannot be assigned. And q[\"q1\"].Delivered++ on an empty map[string]*Stats reads a nil pointer for the missing key and panics with \"invalid memory address or nil pointer dereference\".",
+          "options": [
+            { "text": "counts := map[string]int{}; counts[\"q1\"]++", "correct": true },
+            { "text": "stats := map[string]Stats{\"q1\": {}}; stats[\"q1\"].Delivered++", "correct": false },
+            { "text": "p := map[string]*Stats{\"q1\": {}}; p[\"q1\"].Delivered++", "correct": true },
+            { "text": "q := map[string]*Stats{}; q[\"q1\"].Delivered++", "correct": false },
+            { "text": "k := map[Key]int{}; k[Key{\"q1\", \"delivered\"}]++", "correct": true }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_gof_212",
+      "name": "district-delivery-report",
+      "type": "mini_coding",
+      "title": "Build the daily district report from tracking events",
+      "description": "The tracking service records an event every time a parcel changes status, so one parcel has several events during the day (out for delivery, failed, out again, delivered ...). Write report and busiest for the evening district report: keep only the last event of every parcel, count the parcels per district by their last status, return the districts sorted by name, and find the district with the most parcels (the first by name on a tie). Map iteration order is random, so the order must come from your code. The test runner reads the events and prints one line per district and the busiest district.",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "go",
+        "filePath": "main.go",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The example: the last event of each parcel counts",
+          "input": "SP-3001 q1 out\nSP-3002 q3 out\nSP-3001 q1 delivered\nSP-3002 q3 failed\nSP-3002 q3 returned\n",
+          "expected": "q1: parcels 1, delivered 1, failed 0, returned 0\nq3: parcels 1, delivered 0, failed 0, returned 1\nbusiest: q1, parcels 1",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Districts sorted by name; a parcel still out counts only as a parcel",
+          "input": "SP-3101 thu-duc out\nSP-3102 binh-thanh out\nSP-3103 q1 out\nSP-3104 q1 out\nSP-3101 thu-duc delivered\nSP-3103 q1 delivered\nSP-3105 go-vap delivered\nSP-3104 q1 failed\n",
+          "expected": "binh-thanh: parcels 1, delivered 0, failed 0, returned 0\ngo-vap: parcels 1, delivered 1, failed 0, returned 0\nq1: parcels 2, delivered 1, failed 1, returned 0\nthu-duc: parcels 1, delivered 1, failed 0, returned 0\nbusiest: q1, parcels 2",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A tie for busiest goes to the first district by name",
+          "input": "SP-3201 q3 delivered\nSP-3202 q3 delivered\nSP-3203 go-vap failed\nSP-3204 go-vap delivered\nSP-3205 q1 returned\n",
+          "expected": "go-vap: parcels 2, delivered 1, failed 1, returned 0\nq1: parcels 1, delivered 0, failed 0, returned 1\nq3: parcels 2, delivered 2, failed 0, returned 0\nbusiest: go-vap, parcels 2",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "No events at all",
+          "input": "\n",
+          "expected": "no parcels",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A parcel that failed, went out again and was delivered",
+          "input": "SP-3301 binh-thanh out\nSP-3301 binh-thanh failed\nSP-3301 binh-thanh out\nSP-3301 binh-thanh delivered\nSP-3302 binh-thanh out\nSP-3302 binh-thanh failed\nSP-3303 q1 out\n",
+          "expected": "binh-thanh: parcels 2, delivered 1, failed 1, returned 0\nq1: parcels 1, delivered 0, failed 0, returned 0\nbusiest: binh-thanh, parcels 2",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Interleaved events across three districts",
+          "input": "SP-3401 q3 out\nSP-3402 thu-duc out\nSP-3403 thu-duc out\nSP-3404 q3 out\nSP-3402 thu-duc delivered\nSP-3401 q3 failed\nSP-3403 thu-duc failed\nSP-3405 thu-duc out\nSP-3401 q3 returned\nSP-3404 q3 delivered\nSP-3403 thu-duc returned\nSP-3406 q1 delivered\n",
+          "expected": "q1: parcels 1, delivered 1, failed 0, returned 0\nq3: parcels 2, delivered 1, failed 0, returned 1\nthu-duc: parcels 3, delivered 1, failed 0, returned 1\nbusiest: thu-duc, parcels 3",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

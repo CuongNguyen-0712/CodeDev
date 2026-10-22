@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_gof_421",
+      "name": "feedback-phrase-report",
+      "type": "mini_coding",
+      "title": "Extend the report: the most frequent two-word phrases",
+      "description": "Most Vietnamese words have two syllables - giao hàng, thân thiện, đóng gói - so the single-word report mixes up hàng in giao hàng with hàng in mặt hàng. Customer care wants the most frequent phrases instead: pairs of neighbouring words. Write phrases, which splits one feedback message into lower-case words (runs of letters and digits) and returns every pair of neighbouring words, without crossing a clause break (. , ; : ! ?), and top, which returns the N most frequent phrases, highest count first and ties in ascending string order. The test runner reads N on the first line and one message per line after it, and prints the top phrases and a totals line.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "go",
+        "filePath": "main.go",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The example: one phrase in every message",
+          "input": "2\nGiao hàng nhanh. Giao hàng tốt!\ngiao hàng trễ\n",
+          "expected": "giao hàng 3\nhàng nhanh 1\nphrases 6, unique 4",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Commas and full stops end a phrase; ties in string order",
+          "input": "3\nGiao hàng trễ 2 ngày, shipper không gọi!\nShipper không gọi trước. Giao hàng trễ.\ngiao hàng trễ, hàng bị móp\n",
+          "expected": "giao hàng 3\nhàng trễ 3\nkhông gọi 2\nphrases 15, unique 9",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Upper case, colons, semicolons, a dash and quotes",
+          "input": "4\nĐóng gói ẩu: hàng bị móp!\nĐÓNG GÓI ẨU; hộp bị rách\nĐóng gói cẩn thận - shipper thân thiện\n\"Đóng gói\" ẩu?\n",
+          "expected": "đóng gói 4\ngói ẩu 3\nbị móp 1\nbị rách 1\nphrases 16, unique 11",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "N larger than the number of phrases, one-word and empty messages",
+          "input": "10\nTốt\n\nCảm ơn\nok!\ncảm ơn, cảm ơn\n",
+          "expected": "cảm ơn 3\nphrases 3, unique 1",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Parcel ids and numbers are words too",
+          "input": "3\nMã SP-2001 giao trễ 3 ngày\nmã SP-2002 giao nhanh\nMã đơn 2003: chưa nhận được\n",
+          "expected": "mã sp 2\n2001 giao 1\n2002 giao 1\nphrases 14, unique 13",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A week of real feedback",
+          "input": "5\nShipper thân thiện, giao hàng nhanh.\nGiao hàng chậm quá! Gọi tổng đài không ai nghe.\nHàng bị móp, đóng gói ẩu. Giao hàng chậm.\nshipper thân thiện nhưng giao hàng chậm\nGọi tổng đài 3 lần không ai nghe; giao hàng chậm 2 ngày.\nĐóng gói ẩu, hộp bị rách - hàng bị móp\nCảm ơn shipper thân thiện!\n",
+          "expected": "giao hàng 5\nhàng chậm 4\nshipper thân 3\nthân thiện 3\nai nghe 2\nphrases 46, unique 27",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

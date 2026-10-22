@@ -1,0 +1,103 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_gof_121",
+      "name": "append-aliasing-quiz",
+      "type": "quiz",
+      "title": "Predict it: two appends to one slice",
+      "description": "Work out where append puts its elements, then pick the ways to extend a shared prefix without touching its backing array.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this program print?\n\ns := make([]int, 3, 10)\na := append(s, 1)\nb := append(s, 2)\nfmt.Println(a[3], b[3], len(s))",
+          "explanation": "s has length 3 and capacity 10, so both appends fit in place: append(s, 1) writes 1 into slot 3 of s's backing array and returns a header with length 4, and append(s, 2) - s still has length 3 - writes 2 into the same slot 3. a and b point to the same array, so a[3] and b[3] are both 2. s itself was never reassigned, so len(s) is still 3. \"1 2 3\" is what you would get if each append copied, which only happens when the capacity is exhausted. There is no panic: a and b have length 4, so index 3 is in range.",
+          "options": [
+            { "text": "1 2 3", "correct": false },
+            { "text": "2 2 3", "correct": true },
+            { "text": "1 2 5", "correct": false },
+            { "text": "It panics: index out of range [3] with length 3", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "prefix holds [depot-q7 hub-q4] with len 2 and cap 8, built with make and append like the planner's. Which snippets leave r == [depot-q7 hub-q4 x] WITHOUT writing anything into prefix's backing array? (Select all that apply.)",
+          "explanation": "slices.Clone gives r its own array, so the append writes there. The full slice expression prefix[:len(prefix):len(prefix)] has capacity 2 == length, so the append has no room and must copy to a new array. append([]string(nil), prefix...) appends to a nil slice, which always allocates: it is the classic pre-generics way to clone. prefix[:] and r := prefix are just copies of the header: same pointer, capacity 8, so the append writes x into slot 2 of prefix's array - the incident's bug. var r []string; copy(r, prefix) copies min(len(r), len(prefix)) = 0 elements, because copy never grows its destination; prefix is safe, but r ends up as [x], not [depot-q7 hub-q4 x].",
+          "options": [
+            { "text": "r := slices.Clone(prefix); r = append(r, \"x\")", "correct": true },
+            { "text": "r := prefix[:]; r = append(r, \"x\")", "correct": false },
+            { "text": "r := prefix[:len(prefix):len(prefix)]; r = append(r, \"x\")", "correct": true },
+            { "text": "r := append([]string(nil), prefix...); r = append(r, \"x\")", "correct": true },
+            { "text": "var r []string; copy(r, prefix); r = append(r, \"x\")", "correct": false },
+            { "text": "r := prefix; r = append(r, \"x\")", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_gof_122",
+      "name": "fix-route-planner-aliasing",
+      "type": "fix_bug",
+      "title": "Fix the route planner that mixes up drivers' stops",
+      "description": "Every Saigon Parcel route starts with the same prefix (the depot and the sorting hub) followed by the driver's own stops, and a cancelled stop gives the driver a new route while the planned route is kept for the evening report. Drivers get each other's stops, and after a cancellation the planned route shows the wrong stops too. Fix buildRoutes and withoutStop so that every route has its own stops, cancelling removes only that stop from the current route, and neither the prefix nor the planned routes ever change. The test runner reads the prefix, the drivers and the cancellations, then prints the current routes, the planned routes and the prefix.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "go",
+        "filePath": "main.go",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "One driver: nothing to overwrite",
+          "input": "prefix depot-q7 hub-q4\ndriver an SP-2001@q1 SP-2002@q3\n",
+          "expected": "route an: depot-q7 > hub-q4 > SP-2001@q1 > SP-2002@q3\nplanned an: depot-q7 > hub-q4 > SP-2001@q1 > SP-2002@q3\nprefix: depot-q7 > hub-q4",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Two drivers keep their own stops (the Monday incident)",
+          "input": "prefix depot-q7 hub-q4\ndriver an SP-2001@q1 SP-2002@q3\ndriver bich SP-2101@thu-duc\n",
+          "expected": "route an: depot-q7 > hub-q4 > SP-2001@q1 > SP-2002@q3\nroute bich: depot-q7 > hub-q4 > SP-2101@thu-duc\nplanned an: depot-q7 > hub-q4 > SP-2001@q1 > SP-2002@q3\nplanned bich: depot-q7 > hub-q4 > SP-2101@thu-duc\nprefix: depot-q7 > hub-q4",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Cancelling a stop leaves the planned route unchanged",
+          "input": "prefix depot-q7 hub-q4\ndriver an SP-2001@q1 SP-2002@q3 SP-2003@q1\ndriver bich SP-2101@thu-duc\ncancel an SP-2002@q3\n",
+          "expected": "route an: depot-q7 > hub-q4 > SP-2001@q1 > SP-2003@q1\nroute bich: depot-q7 > hub-q4 > SP-2101@thu-duc\nplanned an: depot-q7 > hub-q4 > SP-2001@q1 > SP-2002@q3 > SP-2003@q1\nplanned bich: depot-q7 > hub-q4 > SP-2101@thu-duc\nprefix: depot-q7 > hub-q4",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Three drivers with different numbers of stops",
+          "input": "prefix depot-q7 hub-q4\ndriver an SP-2001@q1\ndriver bich SP-2101@thu-duc SP-2102@thu-duc SP-2103@binh-thanh\ndriver chau SP-2201@go-vap SP-2202@go-vap\n",
+          "expected": "route an: depot-q7 > hub-q4 > SP-2001@q1\nroute bich: depot-q7 > hub-q4 > SP-2101@thu-duc > SP-2102@thu-duc > SP-2103@binh-thanh\nroute chau: depot-q7 > hub-q4 > SP-2201@go-vap > SP-2202@go-vap\nplanned an: depot-q7 > hub-q4 > SP-2001@q1\nplanned bich: depot-q7 > hub-q4 > SP-2101@thu-duc > SP-2102@thu-duc > SP-2103@binh-thanh\nplanned chau: depot-q7 > hub-q4 > SP-2201@go-vap > SP-2202@go-vap\nprefix: depot-q7 > hub-q4",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Several cancellations, one of a stop that is not on the route",
+          "input": "prefix depot-q7 hub-q4\ndriver dung SP-2301@binh-thanh SP-2302@q1\ndriver ha SP-2401@q3 SP-2402@q3 SP-2403@go-vap\ncancel ha SP-2401@q3\ncancel ha SP-9999@q1\ncancel dung SP-2302@q1\ncancel ha SP-2403@go-vap\n",
+          "expected": "route dung: depot-q7 > hub-q4 > SP-2301@binh-thanh\nroute ha: depot-q7 > hub-q4 > SP-2402@q3\nplanned dung: depot-q7 > hub-q4 > SP-2301@binh-thanh > SP-2302@q1\nplanned ha: depot-q7 > hub-q4 > SP-2401@q3 > SP-2402@q3 > SP-2403@go-vap\nprefix: depot-q7 > hub-q4",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A one-stop prefix, a driver with no stops and a cancelled last stop",
+          "input": "prefix depot-thu-duc\ndriver an\ndriver bich SP-2101@thu-duc\ndriver chau SP-2201@go-vap\ncancel bich SP-2101@thu-duc\n",
+          "expected": "route an: depot-thu-duc\nroute bich: depot-thu-duc\nroute chau: depot-thu-duc > SP-2201@go-vap\nplanned an: depot-thu-duc\nplanned bich: depot-thu-duc > SP-2101@thu-duc\nplanned chau: depot-thu-duc > SP-2201@go-vap\nprefix: depot-thu-duc",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

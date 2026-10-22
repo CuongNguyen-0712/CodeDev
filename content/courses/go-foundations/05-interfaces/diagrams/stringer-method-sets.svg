@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="640" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">How fmt.Println(p) decides what to print</text>
+  <text x="40" y="82" font-size="16" fill="#475569">fmt receives p as any and asks at run time: does this value satisfy fmt.Stringer?</text>
+
+  <!-- Left: pointer receiver -->
+  <rect x="40" y="108" width="540" height="310" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="140" font-size="16" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">func (p *Parcel) String() string</text>
+  <text x="64" y="164" font-size="13" fill="#7f1d1d">pointer receiver: only *Parcel has the method</text>
+
+  <rect x="64" y="180" width="492" height="56" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="204" font-size="15" font-weight="700" fill="#334155">1. The argument is a Parcel value</text>
+  <text x="80" y="225" font-size="13" fill="#475569">for _, p := range parcels gives Parcel, not *Parcel</text>
+
+  <rect x="64" y="246" width="492" height="56" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="270" font-size="15" font-weight="700" fill="#334155">2. Method set of Parcel: no String</text>
+  <text x="80" y="291" font-size="13" fill="#475569">so the value does not satisfy fmt.Stringer</text>
+
+  <rect x="64" y="312" width="492" height="86" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="80" y="338" font-size="15" font-weight="700" fill="#b91c1c">3. fmt prints the fields:</text>
+  <text x="80" y="366" font-size="15" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">your {SP-2001 q3 1200} is out...</text>
+  <text x="80" y="388" font-size="13" fill="#7f1d1d">no error, no warning - it reaches the customer</text>
+
+  <!-- Right: value receiver -->
+  <rect x="620" y="108" width="540" height="310" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="140" font-size="16" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">func (p Parcel) String() string</text>
+  <text x="644" y="164" font-size="13" fill="#14532d">value receiver: Parcel and *Parcel both have it</text>
+
+  <rect x="644" y="180" width="492" height="56" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="204" font-size="15" font-weight="700" fill="#334155">1. The argument is a Parcel value</text>
+  <text x="660" y="225" font-size="13" fill="#475569">the same loop, the same call</text>
+
+  <rect x="644" y="246" width="492" height="56" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="270" font-size="15" font-weight="700" fill="#334155">2. Method set of Parcel: String</text>
+  <text x="660" y="291" font-size="13" fill="#475569">the value satisfies fmt.Stringer</text>
+
+  <rect x="644" y="312" width="492" height="86" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="660" y="338" font-size="15" font-weight="700" fill="#15803d">3. fmt calls p.String():</text>
+  <text x="660" y="366" font-size="15" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">your parcel SP-2001 (q3) is out...</text>
+  <text x="660" y="388" font-size="13" fill="#14532d">var _ fmt.Stringer = Parcel{} keeps it that way</text>
+
+  <!-- Bottom: method sets -->
+  <rect x="40" y="442" width="1120" height="166" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="474" font-size="16" font-weight="700" fill="#334155">Method sets: which methods a type has, as far as interfaces are concerned</text>
+  <text x="64" y="510" font-size="15" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">T</text>
+  <text x="200" y="510" font-size="14" fill="#334155">only the methods with a value receiver (func (p T) ...)</text>
+  <text x="64" y="542" font-size="15" font-weight="700" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">*T</text>
+  <text x="200" y="542" font-size="14" fill="#334155">value-receiver AND pointer-receiver methods (func (p *T) ...)</text>
+  <text x="64" y="578" font-size="14" fill="#b45309">Calling p.String() directly still works on a variable: Go takes &amp;p for you. Interfaces get no such help.</text>
+</svg>

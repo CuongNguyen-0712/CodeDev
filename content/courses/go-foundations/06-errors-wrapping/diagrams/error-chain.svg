@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="660" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">%w builds a chain, %v only copies the text</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Both errors print "lookup SP-9999: parcel not found". Only one of them still contains ErrNotFound.</text>
+
+  <!-- Left: %w chain -->
+  <rect x="40" y="108" width="540" height="330" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="64" y="140" font-size="16" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">fmt.Errorf("lookup %s: %w", id, err)</text>
+
+  <rect x="64" y="160" width="492" height="56" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="184" font-size="14" font-weight="700" fill="#334155">handler: "GET /parcels/SP-9999: ..."</text>
+  <text x="80" y="205" font-size="12" fill="#475569">*fmt.wrapError - Unwrap() returns the error below</text>
+  <line x1="120" y1="216" x2="120" y2="240" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="113,234 120,246 127,234" fill="#16a34a"/>
+
+  <rect x="64" y="246" width="492" height="56" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="80" y="270" font-size="14" font-weight="700" fill="#334155">service: "lookup SP-9999: ..."</text>
+  <text x="80" y="291" font-size="12" fill="#475569">*fmt.wrapError - Unwrap() returns the error below</text>
+  <line x1="120" y1="302" x2="120" y2="326" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="113,320 120,332 127,320" fill="#16a34a"/>
+
+  <rect x="64" y="332" width="492" height="50" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="80" y="363" font-size="14" font-weight="700" fill="#15803d">store: ErrNotFound "parcel not found"</text>
+
+  <text x="64" y="414" font-size="14" font-weight="700" fill="#15803d">errors.Is(err, ErrNotFound) walks down: true, 404</text>
+
+  <!-- Right: %v copy -->
+  <rect x="620" y="108" width="540" height="330" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="644" y="140" font-size="16" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">fmt.Errorf("lookup %s: %v", id, err)</text>
+
+  <rect x="644" y="160" width="492" height="56" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="660" y="184" font-size="14" font-weight="700" fill="#334155">service: "lookup SP-9999: parcel not found"</text>
+  <text x="660" y="205" font-size="12" fill="#475569">*errors.errorString - just text, no Unwrap method</text>
+
+  <rect x="644" y="246" width="492" height="56" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="660" y="270" font-size="14" font-weight="700" fill="#94a3b8">ErrNotFound</text>
+  <text x="660" y="291" font-size="12" fill="#94a3b8">only its message was copied; the value is gone</text>
+
+  <rect x="644" y="332" width="492" height="50" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="660" y="363" font-size="14" font-weight="700" fill="#b91c1c">err == ErrNotFound: false, errors.Is: false</text>
+
+  <text x="644" y="414" font-size="14" font-weight="700" fill="#b91c1c">statusCode falls through to the default: 500</text>
+
+  <!-- Bottom: how to inspect -->
+  <rect x="40" y="462" width="1120" height="170" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="494" font-size="16" font-weight="700" fill="#334155">Inspecting an error</text>
+  <text x="64" y="528" font-size="14" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">err == ErrNotFound</text>
+  <text x="430" y="528" font-size="14" fill="#334155">outermost error only - breaks as soon as someone wraps</text>
+  <text x="64" y="558" font-size="14" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">err.(*ValidationError)</text>
+  <text x="430" y="558" font-size="14" fill="#334155">outermost error only</text>
+  <text x="64" y="588" font-size="14" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">errors.Is(err, ErrNotFound)</text>
+  <text x="430" y="588" font-size="14" fill="#334155">the whole %w chain (and errors.Join): is this value in it?</text>
+  <text x="64" y="618" font-size="14" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">errors.As(err, &amp;verr)</text>
+  <text x="430" y="618" font-size="14" fill="#334155">the whole chain: is there an error of this type? It sets verr.</text>
+</svg>

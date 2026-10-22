@@ -1,0 +1,102 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_gof_111",
+      "name": "zero-values-shadowing-quiz",
+      "type": "quiz",
+      "title": "Predict it: shadowing, zero values and integer division",
+      "description": "Run a shadowed counter in your head, then decide which zero values and divisions behave the way their authors expected.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The delivery counter below was written in a hurry. What does it print?\n\ncount := 0\nfor _, s := range []string{\"delivered\", \"failed\", \"delivered\"} {\n\tif s == \"delivered\" {\n\t\tcount := count + 1\n\t\tfmt.Print(count, \" \")\n\t}\n}\nfmt.Println(count)",
+          "explanation": "count := count + 1 inside the if declares a NEW variable named count in the if block. On the right-hand side, count still means the outer variable (the new one only exists after the statement), so the inner count is 0 + 1 = 1 both times, and it disappears at the closing brace. The outer count is never assigned, so the last line prints 0: the output is 1 1 0. It compiles because the inner count is used by fmt.Print. \"1 2 2\" is what count = count + 1 (or count++) would print. \"1 2 0\" would need the inner variable to survive between iterations, but each pass through the block starts a fresh scope.",
+          "options": [
+            { "text": "1 2 2", "correct": false },
+            { "text": "1 1 0", "correct": true },
+            { "text": "1 2 0", "correct": false },
+            { "text": "It does not compile: count is declared twice", "correct": false }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Parcel is a struct with a string field ID. Which of these statements are true? (Select all that apply.)",
+          "explanation": "Reading a missing key from a map gives the value type's zero value, and that works even on a nil map: var stock map[string]int; stock[\"SP-1021\"] is 0 (only WRITING to a nil map panics). 3 / 4 * 100 is integer arithmetic from left to right: 3 / 4 is 0, so the result is 0. Dividing an int by a variable that is 0 compiles and panics at run time with \"integer divide by zero\" (10 / 0 with a constant 0 is rejected by the compiler instead). A nil *Parcel has no Parcel to read, so p.ID panics with \"invalid memory address or nil pointer dereference\" - it does not give the zero string. And Go never converts between numeric types for you: cash / n with an int64 and an int is the compile error \"invalid operation: cash / n (mismatched types int64 and int)\"; write cash / int64(n).",
+          "options": [
+            { "text": "var stock map[string]int, then fmt.Println(stock[\"SP-1021\"]) prints 0", "correct": true },
+            { "text": "var p *Parcel, then fmt.Println(p.ID) prints an empty line", "correct": false },
+            { "text": "fmt.Println(3 / 4 * 100) prints 0", "correct": true },
+            { "text": "var cash int64 = 439000; n := 3; fmt.Println(cash / n) prints 146333", "correct": false },
+            { "text": "zero := 0; fmt.Println(10 / zero) compiles, then panics at run time with \"integer divide by zero\"", "correct": true }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_gof_112",
+      "name": "driver-cod-summary",
+      "type": "mini_coding",
+      "title": "Write the driver's end-of-day COD summary",
+      "description": "Every evening a Saigon Parcel driver hands in the cash collected on delivery (COD). Write summarize and successRate for the end-of-day report: count the parcels and the delivered ones, add up the cash of delivered parcels only, find the delivered parcel with the largest COD, and compute the success rate as a percentage. Watch the zero values: a parcel paid online has COD 0, a day can have no deliveries, and a day can have no parcels at all. The test runner reads one parcel per line and prints the report.",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "go",
+        "filePath": "main.go",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Two of three parcels delivered",
+          "input": "SP-2001 350000 delivered\nSP-2002 120000 failed\nSP-2003 89000 delivered\n",
+          "expected": "parcels: 3\ndelivered: 2 (66.7%)\ncash: 439000 VND\nlargest: SP-2001 350000 VND",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Failed and returned parcels bring no cash; a tie keeps the first parcel",
+          "input": "SP-2101 150000 delivered\nSP-2102 90000 returned\nSP-2103 150000 delivered\nSP-2104 500000 failed\n",
+          "expected": "parcels: 4\ndelivered: 2 (50.0%)\ncash: 300000 VND\nlargest: SP-2101 150000 VND",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Nothing delivered: the rate is 0.0% and there is no largest parcel",
+          "input": "SP-2201 200000 failed\nSP-2202 75000 returned\n",
+          "expected": "parcels: 2\ndelivered: 0 (0.0%)\ncash: 0 VND\nlargest: none",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Every delivered parcel was paid online (COD 0)",
+          "input": "SP-2301 0 delivered\nSP-2302 0 delivered\nSP-2303 45000 failed\n",
+          "expected": "parcels: 3\ndelivered: 2 (66.7%)\ncash: 0 VND\nlargest: SP-2301 0 VND",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "No parcels at all: no rate to report",
+          "input": "\n",
+          "expected": "parcels: 0\ndelivered: 0 (n/a)\ncash: 0 VND\nlargest: none",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A busy day with large amounts",
+          "input": "SP-2401 18500000 delivered\nSP-2402 2750000 delivered\nSP-2403 990000 delivered\nSP-2404 19990000 delivered\nSP-2405 15000 failed\nSP-2406 0 delivered\n",
+          "expected": "parcels: 6\ndelivered: 5 (83.3%)\ncash: 42230000 VND\nlargest: SP-2404 19990000 VND",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}
