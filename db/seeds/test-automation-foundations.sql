@@ -280,7 +280,7 @@ INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qaf_212'), 'javascript', 'createSpy.js', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_qaf_212_starter'))
 ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
 INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
-VALUES ('ast_chal_coding_qaf_212_harness', 's3', 'challenges/javascript/chal_coding_qaf_212/harness.js', 'raw', 'application/javascript', 8791, 'harness.js')
+VALUES ('ast_chal_coding_qaf_212_harness', 's3', 'challenges/javascript/chal_coding_qaf_212/harness.js', 'raw', 'application/javascript', 8605, 'harness.js')
 ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
 INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qaf_212'), 'javascript', 'harness.js', 'harness', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_qaf_212_harness'))

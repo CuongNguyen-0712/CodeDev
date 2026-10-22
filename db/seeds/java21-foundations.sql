@@ -200,7 +200,7 @@ VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_java
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_javaf_131'), 'Mixed batch with blank lines, extra spaces and an unknown method', '"  express   1   DN \n\nPICKUP 3 HCM\nstandard 5 HUE\nBike 1 HN\n\n"', '"EXPRESS 1kg DN: 60000\nPICKUP 3kg HCM: 0\nSTANDARD 5kg HUE: 60000\nerror: unknown method Bike\norders: 3, errors: 1, total: 120000"', 5, false, true, 5),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_javaf_131'), 'Heavier parcels across regions', '"EXPRESS 20 HUE\nSTANDARD 12 CT\npickup 7 HUE\nexpress 1 HN\nStandard 4 HN\n"', '"EXPRESS 20kg HUE: 250000\nSTANDARD 12kg CT: 95000\nPICKUP 7kg HUE: 0\nEXPRESS 1kg HN: 45000\nSTANDARD 4kg HN: 40000\norders: 5, errors: 0, total: 430000"', 5, false, true, 6);
 INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
-VALUES ('ast_chal_coding_javaf_131_starter', 's3', 'challenges/java/chal_coding_javaf_131/starter.java', 'raw', 'text/x-java', 3728, 'Main.java')
+VALUES ('ast_chal_coding_javaf_131_starter', 's3', 'challenges/java/chal_coding_javaf_131/starter.java', 'raw', 'text/x-java', 3643, 'Main.java')
 ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
 INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_javaf_131'), 'java', 'Main.java', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_javaf_131_starter'))
