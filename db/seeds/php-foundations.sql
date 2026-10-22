@@ -19,7 +19,7 @@ BEGIN
 END $$;
 
 INSERT INTO catalog.course (public_id, title, concept, description, image, level, duration, instructor, cost, point_price, reward, language_id, category_id, access_model, publish_status, is_hidden, is_deleted)
-VALUES ('php-foundations', 'Modern PHP 8.4 Foundations: Types, Arrays & Safe Input', 'Write PHP that behaves the same on every request: strict types and comparisons, multibyte strings, arrays as lists and maps, functions with union types, enums and readonly classes, exceptions and validated input.', 'Write PHP that behaves the same on every request: strict types and comparisons, multibyte strings, arrays as lists and maps, functions with union types, enums and readonly classes, exceptions and validated input. 9 lessons, each starting from a real bug or incident, with graded challenges.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792641964/codedev/courses/php-foundations/cover', 'beginner'::level_enum, 180, 'CodeDev Engineering Team', 0, 0, 50,
+VALUES ('php-foundations', 'Modern PHP 8.4 Foundations: Types, Arrays & Safe Input', 'Write PHP that behaves the same on every request: strict types and comparisons, multibyte strings, arrays as lists and maps, functions with union types, enums and readonly classes, exceptions and validated input.', 'Write PHP that behaves the same on every request: strict types and comparisons, multibyte strings, arrays as lists and maps, functions with union types, enums and readonly classes, exceptions and validated input. 9 lessons, each starting from a real bug or incident, with graded challenges.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792641964/codedev/courses/php-foundations/cover', 'beginner'::level_enum, 168, 'CodeDev Engineering Team', 0, 0, 50,
         (SELECT id FROM catalog.language WHERE name = 'PHP'),
         (SELECT id FROM catalog.category WHERE name = 'PHP Development'),
         'free', 'draft', true, false)
@@ -53,6 +53,546 @@ INSERT INTO catalog.course_skill (course_id, skill_id, weight)
 SELECT (SELECT id FROM catalog.course WHERE public_id = 'php-foundations'), s.id, v.weight
 FROM (VALUES ('data_structures', 3), ('api_design', 2), ('testing', 1)) AS v(code, weight)
 JOIN catalog.skill s ON s.code = v.code;
+
+-- module 1: Values & Strings
+UPDATE course.module SET title = 'Values & Strings', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'php-foundations'), 'Values & Strings', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 1 AND is_deleted = false);
+
+-- lesson 1.1: strict_types and comparisons: when "1e1" == "10" (Sanity lesson-phpf-1-1)
+UPDATE course.lesson SET title = 'strict_types and comparisons: when "1e1" == "10"', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-1-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), 'strict_types and comparisons: when "1e1" == "10"', 'sanity', 'lesson-phpf-1-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-phpf-1-1' AND is_deleted = false);
+
+-- challenge chal_quiz_phpf_111 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_phpf_111', (SELECT id FROM catalog.course WHERE public_id = 'php-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-1-1' AND is_deleted = false LIMIT 1), 'loose-comparison-strict-types-quiz', 'Predict it: loose comparisons and strict_types', 'Work out what PHP''s == and the loose array functions decide, then pick what declare(strict_types=1) does and does not change.', 'open', 'easy'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_phpf_111'), 'What does this print?
+
+$codes = [''073311'', ''73311'', ''500100''];
+var_dump(
+    array_search(''73311'', $codes),
+    in_array(''500100.0'', $codes),
+    array_search(''500100'', $codes, true),
+);', 'single_choice'::question_type, 'array_search and in_array compare with == unless the third argument is true. ''73311'' == ''073311'' is true because both are numeric strings and are compared as the numbers 73311 and 73311, so the loose search stops at the FIRST match: index 0, the scratch card, not index 1. ''500100.0'' == ''500100'' is true for the same reason (500100.0 and 500100 are equal numbers), so in_array returns true. The strict search compares with ===, which needs the same type and the same characters: ''500100'' is exactly the string at index 2. ''int(1) bool(false) int(2)'' is what you would get if all three were strict.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_phpf_111') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('int(1) bool(false) int(2)', false),
+        ('int(0) bool(true) int(2)', true),
+        ('int(1) bool(true) int(2)', false),
+        ('int(0) bool(true) bool(false)', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_phpf_111'), 'A file starts with declare(strict_types=1); and defines function applyVoucher(int $total, int $value): int. Which statements are true for code in THIS file? (Select all that apply.)', 'multiple_choice'::question_type, 'strict_types changes how scalar values are passed to typed parameters and returned from typed functions, for calls made from the file that declares it. applyVoucher(350000, ''200000'') is then a TypeError instead of a silent conversion, and the same holds for PHP''s own functions: strlen(500100) throws ''strlen(): Argument #1 ($string) must be of type string, int given''. The one conversion strict mode still allows is int to float, so vat(8) for a float parameter works and receives 8.0. strict_types does not touch operators at all: ''500100'' == ''500100.0'' is still true; only === or a strict flag fixes comparisons. And it is the CALLING file''s mode that counts: a file without the declaration can still call applyVoucher(''350000'', ''200000'') and get the old coercion.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_phpf_111') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('applyVoucher(350000, ''200000'') throws a TypeError', true),
+        ('''500100'' == ''500100.0'' becomes false', false),
+        ('A function vat(float $rate) can still be called as vat(8)', true),
+        ('strlen(500100) throws a TypeError instead of returning 6', true),
+        ('Calls to applyVoucher from other files that do not declare strict_types become strict too', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_fix_phpf_112 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_fix_phpf_112', (SELECT id FROM catalog.course WHERE public_id = 'php-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-1-1' AND is_deleted = false LIMIT 1), 'fix-voucher-redemption', 'Fix the voucher check that accepts "500100.0"', 'Hồ Gươm Books prints numeric voucher codes, and two campaigns run at once: 5-digit newspaper vouchers and 6-digit scratch cards, so 73311 and 073311 are different vouchers. The checkout accepts "500100.0" as voucher 500100, gives one customer another customer''s voucher, and tells a third that an unused voucher was already used. Fix findVoucher and isUsed so a voucher is found only by its exact code and each voucher can be redeemed once. The test runner reads the vouchers and the codes customers type, and prints the result of every redemption.', 'open', 'easy'::difficulty_question, 'fix_bug', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_112'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_112');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_112'), 'An exact code works once', '"voucher 500100 200000\nvoucher 073311 50000\nredeem 500100\nredeem 500100\nredeem 073311\n"', '"500100: ok, voucher 500100 -200000 VND\n500100: already used\n073311: ok, voucher 073311 -50000 VND"', 3, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_112'), '500100.0, 5.001e5 and 0500100 are not voucher 500100', '"voucher 500100 200000\nredeem 500100.0\nredeem 5.001e5\nredeem 0500100\nredeem 500100\n"', '"500100.0: unknown voucher\n5.001e5: unknown voucher\n0500100: unknown voucher\n500100: ok, voucher 500100 -200000 VND"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_112'), '73311 and 073311 are two vouchers', '"voucher 073311 50000\nvoucher 73311 30000\nredeem 73311\nredeem 073311\nredeem 73311\n"', '"73311: ok, voucher 73311 -30000 VND\n073311: ok, voucher 073311 -50000 VND\n73311: already used"', 4, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_112'), 'The scratch card is redeemed first, then the newspaper voucher', '"voucher 073311 50000\nvoucher 73311 30000\nredeem 073311\nredeem 73311\n"', '"073311: ok, voucher 073311 -50000 VND\n73311: ok, voucher 73311 -30000 VND"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_112'), 'Signs, exponents and decimals do not match a code', '"voucher 01000 100000\nvoucher 1000 20000\nredeem +1000\nredeem 1e3\nredeem 1000.00\nredeem 1000\nredeem 01000\nredeem 1000\n"', '"+1000: unknown voucher\n1e3: unknown voucher\n1000.00: unknown voucher\n1000: ok, voucher 1000 -20000 VND\n01000: ok, voucher 01000 -100000 VND\n1000: already used"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_112'), 'A busy evening with unknown codes', '"voucher 120045 150000\nvoucher 120046 150000\nvoucher 99012 25000\nredeem 120046\nredeem 12004.5e1\nredeem 99012\nredeem 120045\nredeem 120046\nredeem 099012\nredeem 777777\n"', '"120046: ok, voucher 120046 -150000 VND\n12004.5e1: unknown voucher\n99012: ok, voucher 99012 -25000 VND\n120045: ok, voucher 120045 -150000 VND\n120046: already used\n099012: unknown voucher\n777777: unknown voucher"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_phpf_112_starter', 's3', 'challenges/php/chal_fix_phpf_112/starter.php', 'raw', 'text/x-php', 2498, 'main.php')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_112'), 'php', 'main.php', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_phpf_112_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 1.2: Strings: interpolation, sprintf & multibyte text (Sanity lesson-phpf-1-2)
+UPDATE course.lesson SET title = 'Strings: interpolation, sprintf & multibyte text', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-1-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), 'Strings: interpolation, sprintf & multibyte text', 'sanity', 'lesson-phpf-1-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-phpf-1-2' AND is_deleted = false);
+
+-- challenge chal_quiz_phpf_121 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_phpf_121', (SELECT id FROM catalog.course WHERE public_id = 'php-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-1-2' AND is_deleted = false LIMIT 1), 'multibyte-strings-interpolation-quiz', 'Predict it: bytes, characters and interpolation', 'Count the bytes and characters of a Vietnamese title, then pick the lines that interpolate an array correctly.', 'open', 'easy'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_phpf_121'), 'The source file is saved as UTF-8. What does this print?
+
+$t = ''Số đỏ'';
+echo strlen($t), '' '', mb_strlen($t), '' '', strtoupper($t);', 'single_choice'::question_type, 'PHP strings are bytes. In UTF-8, S and the space take 1 byte each, đ takes 2 bytes, and ố and ỏ take 3 bytes each: 1 + 3 + 1 + 2 + 3 = 10, so strlen is 10. mb_strlen counts characters (code points) of UTF-8 text: 5. Since PHP 8.2, strtoupper only changes the ASCII letters a-z and is never affected by the locale; S is already upper case and ố, đ, ỏ are not ASCII, so the title comes back unchanged: Số đỏ. mb_strtoupper would give SỐ ĐỎ.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_phpf_121') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('5 5 SỐ ĐỎ', false),
+        ('10 5 Số đỏ', true),
+        ('10 5 SỐ ĐỎ', false),
+        ('8 5 Số đỏ', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_phpf_121'), '$b = [''title'' => ''Số đỏ'', ''qty'' => 2]; Which lines print exactly Số đỏ x2 ? (Select all that apply.)', 'multiple_choice'::question_type, 'Inside double quotes, the curly syntax {$b[''title'']} takes any variable expression with normal, quoted keys - it is the form to use. The simple syntax $b[title] also works for one level of array access, but only with an UNQUOTED key; "$b[''title'']" with quotes is a parse error (unexpected string content). sprintf with %s and %d formats the values without any interpolation. Single-quoted strings never interpolate: ''{$b["title"]} x{$b["qty"]}'' prints the braces, the dollar signs and the text literally.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_phpf_121') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('echo "{$b[''title'']} x{$b[''qty'']}";', true),
+        ('echo "$b[title] x$b[qty]";', true),
+        ('echo "$b[''title''] x$b[''qty'']";', false),
+        ('echo sprintf(''%s x%d'', $b[''title''], $b[''qty'']);', true),
+        ('echo ''{$b["title"]} x{$b["qty"]}'';', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_phpf_122 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_phpf_122', (SELECT id FROM catalog.course WHERE public_id = 'php-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-1-2' AND is_deleted = false LIMIT 1), 'picking-list-line', 'Print the warehouse picking list with Vietnamese titles', 'The picking list of Hồ Gươm Books is printed on a 40-column thermal printer: an upper-case title in 20 characters, the quantity in 3 and the line total in 13, with dots as thousands separators and the ₫ sign. Write fit, vnd and pickLine so that long titles are cut with an ellipsis and every column lines up, for Vietnamese titles as well as English ones. The test runner reads TITLE|QTY|PRICE lines and prints one line per book and a total line.', 'open', 'easy'::difficulty_question, 'mini_coding', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_122'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_122');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_122'), 'The order from the incident', '"Truyện Kiều|2|89000\nDế Mèn phiêu lưu ký thời hiện đại|1|52000\nĐắc nhân tâm|3|108000\nClean Code|1|420000\n"', '"TRUYỆN KIỀU            2     178.000 ₫\nDẾ MÈN PHIÊU LƯU KÝ…   1      52.000 ₫\nĐẮC NHÂN TÂM           3     324.000 ₫\nCLEAN CODE             1     420.000 ₫\nTỔNG CỘNG              7     974.000 ₫"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_122'), 'English titles only', '"Refactoring|1|560000\nThe Pragmatic Programmer|2|495000\n"', '"REFACTORING            1     560.000 ₫\nTHE PRAGMATIC PROGR…   2     990.000 ₫\nTỔNG CỘNG              3   1.550.000 ₫"', 3, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_122'), 'A title of exactly 20 characters is not cut, 21 characters is', '"Người lái đò sông Đà|1|75000\nNhững người khốn khổ.|1|180000\n"', '"NGƯỜI LÁI ĐÒ SÔNG ĐÀ   1      75.000 ₫\nNHỮNG NGƯỜI KHỐN KH…   1     180.000 ₫\nTỔNG CỘNG              2     255.000 ₫"', 4, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_122'), 'Large quantities and amounts in the millions', '"Sách giáo khoa Toán 6|120|23000\nTừ điển Anh - Việt|15|385000\n"', '"SÁCH GIÁO KHOA TOÁN… 120   2.760.000 ₫\nTỪ ĐIỂN ANH - VIỆT    15   5.775.000 ₫\nTỔNG CỘNG            135   8.535.000 ₫"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_122'), 'Lower-case Vietnamese letters are upper-cased, spaces around fields are ignored', '"  ông già và biển cả | 2 | 64000\nđường xưa mây trắng|1|245000\n"', '"ÔNG GIÀ VÀ BIỂN CẢ     2     128.000 ₫\nĐƯỜNG XƯA MÂY TRẮNG    1     245.000 ₫\nTỔNG CỘNG              3     373.000 ₫"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_122'), 'A free gift book', '"Sổ tay đọc sách|1|0\n"', '"SỔ TAY ĐỌC SÁCH        1           0 ₫\nTỔNG CỘNG              1           0 ₫"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_phpf_122_starter', 's3', 'challenges/php/chal_coding_phpf_122/starter.php', 'raw', 'text/x-php', 2069, 'main.php')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_122'), 'php', 'main.php', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_phpf_122_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 2: Arrays
+UPDATE course.module SET title = 'Arrays', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'php-foundations'), 'Arrays', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 2 AND is_deleted = false);
+
+-- lesson 2.1: Arrays as lists and maps: + vs array_merge and lost keys (Sanity lesson-phpf-2-1)
+UPDATE course.lesson SET title = 'Arrays as lists and maps: + vs array_merge and lost keys', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-2-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Arrays as lists and maps: + vs array_merge and lost keys', 'sanity', 'lesson-phpf-2-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-phpf-2-1' AND is_deleted = false);
+
+-- challenge chal_quiz_phpf_211 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_phpf_211', (SELECT id FROM catalog.course WHERE public_id = 'php-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-2-1' AND is_deleted = false LIMIT 1), 'arrays-lists-maps-quiz', 'Predict it: + versus array_merge, keys and holes', 'Work out what + and array_merge do with integer keys, then decide how PHP stores and copies array keys.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_phpf_211'), 'What does this print?
+
+$a = [''a'', ''b''];
+$b = [''c'', ''d'', ''e''];
+echo implode('','', $a + $b), '' | '', implode('','', array_merge($a, $b));', 'single_choice'::question_type, 'Both arrays are lists, so $a has the keys 0 and 1 and $b has the keys 0, 1 and 2. The + operator is a union BY KEY: it keeps every key of the left array and only adds the keys the left array does not have yet, here key 2 => ''e''. So $a + $b is [''a'', ''b'', ''e''], not an append. array_merge renumbers integer keys and appends, which gives the five elements a,b,c,d,e. To append one list to another, use array_merge or [...$a, ...$b]; to fill in missing keys of a map (like defaults), use +.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_phpf_211') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('a,b,c,d,e | a,b,c,d,e', false),
+        ('a,b,e | a,b,c,d,e', true),
+        ('c,d,e | a,b,c,d,e', false),
+        ('a,b | a,b,c,d,e', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_phpf_211'), '$cart = [''1021'' => 2, ''HG-TOTE'' => 1, ''0042'' => 1]; Which statements are true? (Select all that apply.)', 'multiple_choice'::question_type, 'A string key that is a canonical decimal integer is stored as an int, so the first key of $cart is int(1021). ''0042'' has a leading zero, so it stays the string ''0042'': isset($cart[''0042'']) is true, but $cart[42] looks for a different key and is not set. Arrays are values in PHP: $copy = $cart copies the array (lazily, on the first write), so changing $copy never changes $cart. unset removes one element and does NOT renumber: after unset($list[1]) the list [''a'', ''b'', ''c''] has the keys 0 and 2, count is 2 and $list[1] is undefined - a for loop from 0 to count() - 1 would read the missing key 1 and never reach ''c''. [1 => ''a'', 2 => ''b''] is not a list, because a list''s keys must be 0, 1, 2 ... in order.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_phpf_211') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('The first key of $cart is the int 1021, not the string ''1021''', true),
+        ('isset($cart[42]) is true', false),
+        ('$copy = $cart; $copy[''1021''] = 5; also changes $cart[''1021''] to 5', false),
+        ('After $list = [''a'', ''b'', ''c'']; unset($list[1]); count($list) is 2 and $list[1] is undefined', true),
+        ('array_is_list([1 => ''a'', 2 => ''b'']) is true', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_fix_phpf_212 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_fix_phpf_212', (SELECT id FROM catalog.course WHERE public_id = 'php-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-2-1' AND is_deleted = false LIMIT 1), 'fix-cart-merge-at-login', 'Fix the cart merge that loses books at login', 'When a customer of Hồ Gươm Books logs in, the cart they filled as a guest is merged into their saved cart. Since the last release, merged carts lose books, gain gift wrapping nobody asked for, and show an empty line while the last book disappears. Fix mergeCarts and cartLines so that SKUs stay SKUs, quantities of the same SKU are added (at most 10 copies), lines with quantity 0 are hidden and the lines come back as a proper list. The test runner reads both carts and prints the merged cart.', 'open', 'medium'::difficulty_question, 'fix_bug', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_212'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_212');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_212'), 'The incident: a book in both carts and a new book from the guest cart', '"saved 1021 1\nsaved 2050 1\nguest 1021 2\nguest 1022 1\n"', '"1021 x 3\n2050 x 1\n1022 x 1\nlines: 3, copies: 5"', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_212'), 'Text SKUs and numeric SKUs in one cart', '"saved HG-TOTE 1\nsaved 1021 1\nguest HG-TOTE 1\nguest 3307 2\n"', '"HG-TOTE x 2\n1021 x 1\n3307 x 2\nlines: 3, copies: 5"', 3, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_212'), 'A saved line with quantity 0 is hidden', '"saved 1021 0\nsaved 2050 1\nsaved 1022 2\nguest 3307 1\n"', '"2050 x 1\n1022 x 2\n3307 x 1\nlines: 3, copies: 4"', 4, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_212'), 'At most 10 copies of one title', '"saved 1021 8\nguest 1021 5\nguest 2050 3\n"', '"1021 x 10\n2050 x 3\nlines: 2, copies: 13"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_212'), 'An empty saved cart', '"guest 1 1\nguest 2 1\nguest 1021 1\n"', '"1 x 1\n2 x 1\n1021 x 1\nlines: 3, copies: 3"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_212'), 'Several zero lines, SKUs with leading zeros and small ids', '"saved 0042 1\nsaved 2 0\nsaved 1021 0\nsaved 42 2\nguest 0042 1\nguest 1 1\nguest 2050 0\nguest 7 3\n"', '"0042 x 2\n42 x 2\n1 x 1\n7 x 3\nlines: 4, copies: 8"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_phpf_212_starter', 's3', 'challenges/php/chal_fix_phpf_212/starter.php', 'raw', 'text/x-php', 2629, 'main.php')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_212'), 'php', 'main.php', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_phpf_212_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 2.2: array_map, array_filter, usort & stable sorting (Sanity lesson-phpf-2-2)
+UPDATE course.lesson SET title = 'array_map, array_filter, usort & stable sorting', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-2-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), 'array_map, array_filter, usort & stable sorting', 'sanity', 'lesson-phpf-2-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-phpf-2-2' AND is_deleted = false);
+
+-- challenge chal_coding_phpf_221 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_phpf_221', (SELECT id FROM catalog.course WHERE public_id = 'php-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-2-2' AND is_deleted = false LIMIT 1), 'bestseller-widget', 'Build the bestseller list the mobile app can read', 'The "Bán chạy" widget of the Hồ Gươm Books app shows the best-selling books that are in stock. The old code sent the app a JSON object instead of an array, filled the list with fewer books than asked, and swapped books with equal sales on every refresh. Write bestsellers: keep the books in stock, sort them by sales with a tie-break on id, take the first N and number them, and return a real list. The test runner decodes the request from JSON and prints your result as JSON.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_221'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_221');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_221'), 'The example from the starter', '{"limit":2,"books":[{"id":9,"title":"Clean Code","sold":120,"stock":2},{"id":3,"title":"Truyện Kiều","sold":340,"stock":0},{"id":7,"title":"Số đỏ","sold":120,"stock":4}]}', '[{"rank":1,"id":7,"title":"Số đỏ","sold":120},{"rank":2,"id":9,"title":"Clean Code","sold":120}]', 4, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_221'), 'The incident: an out-of-stock bestseller and two books with equal sales', '{"limit":3,"books":[{"id":7,"title":"Số đỏ","sold":120,"stock":4},{"id":3,"title":"Truyện Kiều","sold":340,"stock":0},{"id":9,"title":"Clean Code","sold":120,"stock":2},{"id":5,"title":"Đắc nhân tâm","sold":515,"stock":11}]}', '[{"rank":1,"id":5,"title":"Đắc nhân tâm","sold":515},{"rank":2,"id":7,"title":"Số đỏ","sold":120},{"rank":3,"id":9,"title":"Clean Code","sold":120}]', 5, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_221'), 'The same rows in another order give the same list', '{"limit":3,"books":[{"id":9,"title":"Clean Code","sold":120,"stock":2},{"id":5,"title":"Đắc nhân tâm","sold":515,"stock":11},{"id":7,"title":"Số đỏ","sold":120,"stock":4},{"id":3,"title":"Truyện Kiều","sold":340,"stock":0}]}', '[{"rank":1,"id":5,"title":"Đắc nhân tâm","sold":515},{"rank":2,"id":7,"title":"Số đỏ","sold":120},{"rank":3,"id":9,"title":"Clean Code","sold":120}]', 5, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_221'), 'Out-of-stock books at the top do not use up the limit', '{"limit":4,"books":[{"id":12,"title":"Dế Mèn phiêu lưu ký","sold":88,"stock":6},{"id":4,"title":"Nhà giả kim","sold":410,"stock":0},{"id":15,"title":"Refactoring","sold":95,"stock":1},{"id":2,"title":"Tuổi trẻ đáng giá bao nhiêu","sold":410,"stock":3},{"id":21,"title":"Sapiens","sold":230,"stock":0},{"id":8,"title":"Người lái đò sông Đà","sold":95,"stock":9},{"id":11,"title":"The Pragmatic Programmer","sold":230,"stock":5},{"id":30,"title":"Atomic Habits","sold":61,"stock":14}]}', '[{"rank":1,"id":2,"title":"Tuổi trẻ đáng giá bao nhiêu","sold":410},{"rank":2,"id":11,"title":"The Pragmatic Programmer","sold":230},{"rank":3,"id":8,"title":"Người lái đò sông Đà","sold":95},{"rank":4,"id":15,"title":"Refactoring","sold":95}]', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_221'), 'The limit is larger than the number of books in stock', '{"limit":10,"books":[{"id":40,"title":"Lược sử thời gian","sold":57,"stock":2},{"id":41,"title":"Mắt biếc","sold":57,"stock":0},{"id":42,"title":"Cho tôi xin một vé đi tuổi thơ","sold":160,"stock":7}]}', '[{"rank":1,"id":42,"title":"Cho tôi xin một vé đi tuổi thơ","sold":160},{"rank":2,"id":40,"title":"Lược sử thời gian","sold":57}]', 5, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_221'), 'Limit 0 gives an empty list', '{"limit":0,"books":[{"id":7,"title":"Số đỏ","sold":120,"stock":4},{"id":3,"title":"Truyện Kiều","sold":340,"stock":0},{"id":9,"title":"Clean Code","sold":120,"stock":2},{"id":5,"title":"Đắc nhân tâm","sold":515,"stock":11}]}', '[]', 5, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_phpf_221_starter', 's3', 'challenges/php/chal_coding_phpf_221/starter.php', 'raw', 'text/x-php', 1826, 'main.php')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_221'), 'php', 'main.php', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_phpf_221_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 3: Functions & Types
+UPDATE course.module SET title = 'Functions & Types', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'php-foundations'), 'Functions & Types', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 3 AND is_deleted = false);
+
+-- lesson 3.1: Functions, named arguments, nullable and union types (Sanity lesson-phpf-3-1)
+UPDATE course.lesson SET title = 'Functions, named arguments, nullable and union types', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-3-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Functions, named arguments, nullable and union types', 'sanity', 'lesson-phpf-3-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-phpf-3-1' AND is_deleted = false);
+
+-- challenge chal_quiz_phpf_311 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_phpf_311', (SELECT id FROM catalog.course WHERE public_id = 'php-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-3-1' AND is_deleted = false LIMIT 1), 'named-arguments-nullable-quiz', 'Predict it: named arguments, defaults and nullable types', 'Call a function with a named argument, then pick the rules for nullable types, named arguments and void.', 'open', 'easy'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_phpf_311'), 'What does this print?
+
+function label(string $title, int $qty = 1, bool $gift = false): string
+{
+    return "$qty x $title" . ($gift ? '' (gift)'' : '''');
+}
+echo label(''Số đỏ'', gift: true);', 'single_choice'::question_type, 'Named arguments (PHP 8.0) pass a value by parameter name, so gift: true goes to $gift and $qty, which was skipped, keeps its default of 1. The result is "1 x Số đỏ (gift)". Skipping optional parameters is exactly what named arguments are for, so there is no error. Positionally, label(''Số đỏ'', true) would be a TypeError under strict_types (true is not an int), and in coercive mode it would quietly pass 1 as $qty.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_phpf_311') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('1 x Số đỏ (gift)', true),
+        ('An Error: $qty cannot be skipped', false),
+        ('true x Số đỏ', false),
+        ('1 x Số đỏ', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_phpf_311'), 'Which statements are true in PHP 8.4? (Select all that apply.)', 'multiple_choice'::question_type, 'A parameter like int $x = null used to become nullable implicitly; PHP 8.4 deprecates that, and the fix is to say it: ?int $x = null (or int|null $x = null). ?int is exactly the union type int|null. A positional argument after a named one is a compile error ("Cannot use positional argument after named argument"): named arguments come last. An unknown name is an Error at run time: "Unknown named parameter $quantity", which is why renaming a parameter is a breaking change once callers use names. A void function returns no value at all: return null; is a compile error, return; is the way to leave early.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_phpf_311') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('function f(int $x = null) is deprecated; write ?int $x = null', true),
+        ('?int means the same as int|null', true),
+        ('label(qty: 2, ''Số đỏ'') is allowed', false),
+        ('label(''Số đỏ'', quantity: 2) throws an Error: Unknown named parameter $quantity', true),
+        ('A function declared : void may end with return null;', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_phpf_312 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_phpf_312', (SELECT id FROM catalog.course WHERE public_id = 'php-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-3-1' AND is_deleted = false LIMIT 1), 'shipping-fee-function', 'Write the delivery fee function with named parameters', 'Write shippingFee for Hồ Gươm Books: a fee by zone, a surcharge for every started 500 g above 1 kg, express at 1.5 times the delivery part, free standard delivery when a campaign threshold is reached, and insurance and cash-on-delivery surcharges that are always charged. $freeFrom is nullable: null means no campaign, 0 means free delivery for everyone. The test runner calls your function with named arguments from JSON, so missing keys use your defaults.', 'open', 'easy'::difficulty_question, 'mini_coding', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_312'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_312');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_312'), 'Standard delivery in Hà Nội with the defaults', '{"grams":800,"zone":"HN","orderTotal":120000}', '"20000"', 3, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_312'), 'The starter example: express, 1,600 g', '{"grams":1600,"zone":"HN","orderTotal":250000,"express":true}', '"45000"', 3, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_312'), 'Insured parcel to Hồ Chí Minh City, no campaign', '{"grams":800,"zone":"HCM","orderTotal":350000,"insured":true}', '"45000"', 3, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_312'), 'Campaign reached: no delivery part, the COD surcharge stays', '{"grams":2600,"zone":"Đà Nẵng","orderTotal":520000,"freeFrom":500000,"cod":true}', '"10000"', 3, true, false, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_312'), 'freeFrom 0 is a campaign for every order', '{"grams":1001,"zone":"HCM","orderTotal":45000,"freeFrom":0}', '"0"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_312'), 'Express never ships free, surcharges are not multiplied', '{"grams":3000,"zone":"Cần Thơ","orderTotal":900000,"express":true,"insured":true,"cod":true,"freeFrom":300000}', '"107500"', 3, false, true, 6),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_312'), 'Exactly 1,500 g and exactly the campaign threshold minus one', '{"grams":1500,"zone":"HN","orderTotal":499999,"freeFrom":500000}', '"25000"', 2, false, true, 7);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_phpf_312_starter', 's3', 'challenges/php/chal_coding_phpf_312/starter.php', 'raw', 'text/x-php', 1591, 'main.php')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_312'), 'php', 'main.php', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_phpf_312_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 3.2: match, enums & readonly classes (Sanity lesson-phpf-3-2)
+UPDATE course.lesson SET title = 'match, enums & readonly classes', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-3-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), 'match, enums & readonly classes', 'sanity', 'lesson-phpf-3-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-phpf-3-2' AND is_deleted = false);
+
+-- challenge chal_quiz_phpf_321 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_phpf_321', (SELECT id FROM catalog.course WHERE public_id = 'php-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-3-2' AND is_deleted = false LIMIT 1), 'match-enums-readonly-quiz', 'Predict it: switch, match, enums and readonly', 'Compare switch and match on the same value, then pick the rules for backed enums, readonly properties and match without a default.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_phpf_321'), 'What does this print?
+
+$code = ''0'';
+switch ($code) {
+    case false: echo ''A'';
+    case ''0'': echo ''B''; break;
+    default: echo ''C'';
+}
+echo '' '';
+echo match ($code) { false => ''A'', ''0'' => ''B'', default => ''C'' };', 'single_choice'::question_type, 'switch compares with ==, and ''0'' == false is true (the string ''0'' is falsy), so the first case matches and prints A. That case has no break, so execution falls through into the next case and prints B, then stops at break: AB. match compares with === and has no fall-through: ''0'' === false is false, ''0'' === ''0'' is true, so it returns B. The whole output is "AB B".', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_phpf_321') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('B B', false),
+        ('AB B', true),
+        ('A B', false),
+        ('AB C', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_phpf_321'), 'enum OrderStatus: string { case Paid = ''paid''; case Shipped = ''shipped''; } and final readonly class Shipment { public function __construct(public string $orderId, public OrderStatus $status) {} }. Which statements are true? (Select all that apply.)', 'multiple_choice'::question_type, 'from() accepts only an exact backing value and throws a ValueError otherwise ("Shipped" is not a valid backing value for enum OrderStatus); tryFrom() returns null instead, which is the version for input you expect to be invalid sometimes. Every enum case is a single object, so OrderStatus::Paid === OrderStatus::from(''paid'') is true and enum values compare safely with ===. A readonly property can be initialised once, from inside the class, and never changed again - not even by a method of the same class: "Cannot modify readonly property Shipment::$status"; to change a status, create a new object. And match without a matching arm and without default throws an UnhandledMatchError instead of returning null.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_phpf_321') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('OrderStatus::from(''Shipped'') throws a ValueError', true),
+        ('OrderStatus::tryFrom(''Shipped'') returns null', true),
+        ('OrderStatus::Paid === OrderStatus::from(''paid'') is true', true),
+        ('A method of Shipment may assign $this->status = OrderStatus::Shipped', false),
+        ('match ($status) { ''paid'' => 1 } returns null when $status is ''returned''', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_phpf_322 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_phpf_322', (SELECT id FROM catalog.course WHERE public_id = 'php-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-3-2' AND is_deleted = false LIMIT 1), 'order-status-enum', 'Model order statuses with a backed enum and match', 'The warehouse app of Hồ Gươm Books reports order statuses as strings, and a switch with a missing break and a catch-all default sent customers the wrong emails. Complete the backed enum OrderStatus: its six cases, a Vietnamese label for each, and canMoveTo, which allows only the moves of the order life cycle. The test runner turns every event into an enum with tryFrom, applies the moves your enum allows and prints what happened to each order.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_322'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_322');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_322'), 'A normal order from payment to delivery', '"HG-24117 paid\nHG-24117 shipped\nHG-24117 delivered\n"', '"HG-24117: pending -> paid\nHG-24117: paid -> shipped\nHG-24117: shipped -> delivered\nHG-24117 delivered (Đã giao)"', 3, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_322'), 'Statuses from the old warehouse app are rejected', '"HG-24120 paid\nHG-24120 Shipped\nHG-24120 dispatched\nHG-24120 shipped\n"', '"HG-24120: pending -> paid\nHG-24120: unknown status ''Shipped''\nHG-24120: unknown status ''dispatched''\nHG-24120: paid -> shipped\nHG-24120 shipped (Đang giao)"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_322'), 'Moves that skip a step or go back are rejected', '"HG-24121 shipped\nHG-24121 paid\nHG-24121 returned\nHG-24121 shipped\nHG-24121 returned\n"', '"HG-24121: cannot go from pending to shipped\nHG-24121: pending -> paid\nHG-24121: cannot go from paid to returned\nHG-24121: paid -> shipped\nHG-24121: shipped -> returned\nHG-24121 returned (Đã trả hàng)"', 4, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_322'), 'Several orders, a return after delivery and a cancellation', '"HG-30001 paid\nHG-30002 cancelled\nHG-30001 shipped\nHG-30002 paid\nHG-30001 delivered\nHG-30001 returned\nHG-30001 shipped\n"', '"HG-30001: pending -> paid\nHG-30002: pending -> cancelled\nHG-30001: paid -> shipped\nHG-30002: cannot go from cancelled to paid\nHG-30001: shipped -> delivered\nHG-30001: delivered -> returned\nHG-30001: cannot go from returned to shipped\nHG-30001 returned (Đã trả hàng)\nHG-30002 cancelled (Đã hủy)"', 4, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_322'), 'The same status twice is not a move', '"HG-31000 paid\nHG-31000 paid\nHG-31000 cancelled\nHG-31000 cancelled\n"', '"HG-31000: pending -> paid\nHG-31000: cannot go from paid to paid\nHG-31000: paid -> cancelled\nHG-31000: cannot go from cancelled to cancelled\nHG-31000 cancelled (Đã hủy)"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_322'), 'Only unknown or impossible events: no order is listed', '"HG-32000 delivered\nHG-32000 Paid\nHG-32001 canceled\n"', '"HG-32000: cannot go from pending to delivered\nHG-32000: unknown status ''Paid''\nHG-32001: unknown status ''canceled''"', 2, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_phpf_322_starter', 's3', 'challenges/php/chal_coding_phpf_322/starter.php', 'raw', 'text/x-php', 2374, 'main.php')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_322'), 'php', 'main.php', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_phpf_322_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 4: Robust Code
+UPDATE course.module SET title = 'Robust Code', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'php-foundations'), 'Robust Code', 4
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 4 AND is_deleted = false);
+
+-- lesson 4.1: Exceptions, finally & error handling (Sanity lesson-phpf-4-1)
+UPDATE course.lesson SET title = 'Exceptions, finally & error handling', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-4-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), 'Exceptions, finally & error handling', 'sanity', 'lesson-phpf-4-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-phpf-4-1' AND is_deleted = false);
+
+-- challenge chal_fix_phpf_411 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_fix_phpf_411', (SELECT id FROM catalog.course WHERE public_id = 'php-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-4-1' AND is_deleted = false LIMIT 1), 'fix-stock-reservation-rollback', 'Fix the stock reservation that keeps half an order', 'Hồ Gươm Books reserves stock for every line of an order, all or nothing. A rejected order kept the copies it had reserved before the failing line, and an order with a deleted book threw an exception that stopped the whole night batch. Fix placeOrder: release what the order reserved when a line fails, reject orders for unknown books and bad quantities as well as for missing stock, and let every other error through. The test runner reads the stock and the orders and prints the result of every order and the stock left.', 'open', 'medium'::difficulty_question, 'fix_bug', 20, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_411'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_411');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_411'), 'Orders that fit are reserved', '"stock truyen-kieu 5\nstock so-do 3\nstock clean-code 2\norder HG-1 truyen-kieu:2 so-do:1\norder HG-2 clean-code:2\n"', '"HG-1: ok\nHG-2: ok\nstock truyen-kieu: 3\nstock so-do: 2\nstock clean-code: 0"', 3, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_411'), 'A rejected order releases the lines it reserved (the incident)', '"stock truyen-kieu 5\nstock so-do 3\nstock clean-code 2\norder HG-1 truyen-kieu:2 so-do:5\norder HG-2 truyen-kieu:5\n"', '"HG-1: rejected: only 3 left of so-do\nHG-2: ok\nstock truyen-kieu: 0\nstock so-do: 3\nstock clean-code: 2"', 4, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_411'), 'An unknown book rejects the order and the batch goes on', '"stock truyen-kieu 5\nstock so-do 3\nstock clean-code 2\norder HG-1 clean-code:1 nha-gia-kim:1\norder HG-2 clean-code:2\n"', '"HG-1: rejected: unknown book nha-gia-kim\nHG-2: ok\nstock truyen-kieu: 5\nstock so-do: 3\nstock clean-code: 0"', 4, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_411'), 'A quantity of 0 is rejected after two reserved lines', '"stock truyen-kieu 5\nstock so-do 3\nstock clean-code 2\norder HG-7 so-do:1 truyen-kieu:2 clean-code:0\norder HG-8 so-do:3 truyen-kieu:5\n"', '"HG-7: rejected: bad quantity 0 for clean-code\nHG-8: ok\nstock truyen-kieu: 0\nstock so-do: 0\nstock clean-code: 2"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_411'), 'The same book twice in one order', '"stock truyen-kieu 5\nstock so-do 3\nstock clean-code 2\norder HG-9 so-do:2 so-do:2\norder HG-10 so-do:2 so-do:1\n"', '"HG-9: rejected: only 1 left of so-do\nHG-10: ok\nstock truyen-kieu: 5\nstock so-do: 0\nstock clean-code: 2"', 3, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_411'), 'A long night batch', '"stock truyen-kieu 5\nstock so-do 3\nstock clean-code 2\nstock sapiens 1\norder N-1 sapiens:1\norder N-2 sapiens:1 so-do:1\norder N-3 truyen-kieu:4 so-do:4\norder N-4 truyen-kieu:4 clean-code:1 so-do:3\norder N-5 truyen-kieu:1 refactoring:1\norder N-6 truyen-kieu:1 clean-code:1\n"', '"N-1: ok\nN-2: rejected: only 0 left of sapiens\nN-3: rejected: only 3 left of so-do\nN-4: ok\nN-5: rejected: unknown book refactoring\nN-6: ok\nstock truyen-kieu: 0\nstock so-do: 0\nstock clean-code: 0\nstock sapiens: 0"', 3, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_fix_phpf_411_starter', 's3', 'challenges/php/chal_fix_phpf_411/starter.php', 'raw', 'text/x-php', 3119, 'main.php')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_phpf_411'), 'php', 'main.php', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_fix_phpf_411_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 4.2: Validating input: filter_var and JSON_THROW_ON_ERROR (Sanity lesson-phpf-4-2)
+UPDATE course.lesson SET title = 'Validating input: filter_var and JSON_THROW_ON_ERROR', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-4-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), 'Validating input: filter_var and JSON_THROW_ON_ERROR', 'sanity', 'lesson-phpf-4-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-phpf-4-2' AND is_deleted = false);
+
+-- challenge chal_coding_phpf_421 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_phpf_421', (SELECT id FROM catalog.course WHERE public_id = 'php-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-4-2' AND is_deleted = false LIMIT 1), 'validate-order-payload', 'Validate the order JSON from the mobile app', 'Orders reach Hồ Gươm Books as JSON from the mobile app. A request cut off by a bad connection became an empty order, a quantity of "1 cuốn" silently dropped a book, and giftWrap: "false" gift-wrapped a parcel. Write validateOrder: decode with JSON_THROW_ON_ERROR, check that the body is an object, validate the email with filter_var and the phone with a regular expression, require a non-empty list of items with a sku and an integer quantity from 1 to 10, and accept giftWrap only as a real boolean. Return every problem, in order. The test runner prints ok or the list of problems.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_421'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_421');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_421'), 'A valid order', '"{\"email\":\"lan@example.vn\",\"phone\":\"0912345678\",\"items\":[{\"sku\":\"so-do\",\"qty\":2},{\"sku\":\"truyen-kieu\",\"qty\":1}]}"', '"ok"', 3, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_421'), 'The starter example: a phone number sent as a JSON number and no items', '"{\"email\": \"lan@example.vn\", \"phone\": 912345678, \"items\": []}"', '"invalid: phone must be 10 digits starting with 0; items must be a non-empty list"', 3, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_421'), 'A request cut off by a bad connection', '"{\"email\": \"lan@example.vn\", \"phone\": \"0912345678\", \"items\": [{\"sku\": \"so-do\", \"qty\": 2}, {\"sku\": \"truy"', '"invalid: malformed JSON"', 4, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_421'), 'A JSON list instead of an object', '"[{\"sku\":\"so-do\",\"qty\":1}]"', '"invalid: order must be an object"', 3, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_421'), 'Quantities that are not integers from 1 to 10, and broken items', '"{\"email\":\"lan@example.vn\",\"phone\":\"0912345678\",\"items\":[{\"sku\":\"so-do\",\"qty\":\"2\"},{\"sku\":\"\",\"qty\":2.0},{\"qty\":true},\"so-do\",{\"sku\":\"sapiens\",\"qty\":0},{\"sku\":\"refactoring\",\"qty\":11}]}"', '"invalid: item 1: qty must be a whole number from 1 to 10; item 2: sku is missing; item 2: qty must be a whole number from 1 to 10; item 3: sku is missing; item 3: qty must be a whole number from 1 to 10; item 4 must be an object; item 5: qty must be a whole number from 1 to 10; item 6: qty must be a whole number from 1 to 10"', 4, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_421'), 'A display name in the email and giftWrap sent as a string', '"{\"email\":\"Lan <lan@example.vn>\",\"phone\":\"+84912345678\",\"items\":[{\"sku\":\"so-do\",\"qty\":1}],\"giftWrap\":\"false\"}"', '"invalid: email is not valid; phone must be 10 digits starting with 0; giftWrap must be true or false"', 4, false, true, 6),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_421'), 'An email with a leading space and an item without a sku', '"{\"email\":\" lan@example.vn\",\"phone\":\"0912345678\",\"items\":[{\"qty\":3}]}"', '"invalid: email is not valid; item 1: sku is missing"', 2, false, true, 7),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_421'), 'A gift order with ten copies', '"{\"email\":\"tuan.tran@hoguom.vn\",\"phone\":\"0389001122\",\"items\":[{\"sku\":\"sach-giao-khoa-toan-6\",\"qty\":10}],\"giftWrap\":true}"', '"ok"', 2, false, true, 8);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_phpf_421_starter', 's3', 'challenges/php/chal_coding_phpf_421/starter.php', 'raw', 'text/x-php', 1867, 'main.php')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_421'), 'php', 'main.php', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_phpf_421_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 4.3: Mini project: an invoice total with integer money (Sanity lesson-phpf-4-3)
+UPDATE course.lesson SET title = 'Mini project: an invoice total with integer money', order_index = 3, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-4-3' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), 'Mini project: an invoice total with integer money', 'sanity', 'lesson-phpf-4-3', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-phpf-4-3' AND is_deleted = false);
+
+-- challenge chal_coding_phpf_431 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_phpf_431', (SELECT id FROM catalog.course WHERE public_id = 'php-foundations'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'php-foundations') AND order_index = 4 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-phpf-4-3' AND is_deleted = false LIMIT 1), 'invoice-integer-money', 'Mini project: build the invoice with integer money', 'Hồ Gươm Books sells e-books abroad in USD, and its invoices and card charges disagreed by a few cents because prices went through floats. Build the invoice with integer cents: parse prices and percentages from strings without any float, apply an order discount and the VAT of each line in basis points, round every line half up to a whole cent, format amounts with two decimals, and reject malformed amounts and percents with a clear error. The test runner reads the items and the discount and prints your invoice.', 'open', 'hard'::difficulty_question, 'mini_coding', 40, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_431'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_431');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_431'), 'The order from the incident', '"item 1 19.99 10 Clean Code (ebook)\nitem 3 4.35 10 Atomic Habits (ebook)\nitem 1 0.57 10 Bookmark\n"', '"Clean Code (ebook): 1 x 19.99 = 19.99\nAtomic Habits (ebook): 3 x 4.35 = 13.05\nBookmark: 1 x 0.57 = 0.57\nsubtotal: 33.61\nVAT: 3.37\ntotal: 36.98"', 5, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_431'), 'Prices with one decimal or none, and 0% VAT', '"item 2 19.9 5 Truyện Kiều (paperback)\nitem 1 20 0 Gift card\n"', '"Truyện Kiều (paperback): 2 x 19.90 = 39.80\nGift card: 1 x 20.00 = 20.00\nsubtotal: 59.80\nVAT: 1.99\ntotal: 61.79"', 5, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_431'), 'A 12.5% discount on every line, before VAT', '"discount 12.5\nitem 1 19.99 10 Clean Code (ebook)\nitem 2 7.45 5 Số đỏ (paperback)\n"', '"Clean Code (ebook): 1 x 19.99 = 19.99\nSố đỏ (paperback): 2 x 7.45 = 14.90\nsubtotal: 34.89\ndiscount 12.5%: -4.36\nVAT: 2.40\ntotal: 32.93"', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_431'), 'Rounding per line: three lines of 0.05', '"item 1 0.05 10 Postcard A\nitem 1 0.05 10 Postcard B\nitem 1 0.05 10 Postcard C\n"', '"Postcard A: 1 x 0.05 = 0.05\nPostcard B: 1 x 0.05 = 0.05\nPostcard C: 1 x 0.05 = 0.05\nsubtotal: 0.15\nVAT: 0.03\ntotal: 0.18"', 5, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_431'), 'Exact halves round up, and totals above 1000.00', '"item 1 10.05 10 Refactoring (ebook)\nitem 40 89.99 8 Từ điển Anh - Việt\ndiscount 2.5\n"', '"Refactoring (ebook): 1 x 10.05 = 10.05\nTừ điển Anh - Việt: 40 x 89.99 = 3599.60\nsubtotal: 3609.65\ndiscount 2.5%: -90.24\nVAT: 281.75\ntotal: 3801.16"', 5, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_431'), 'An amount with three decimals is rejected', '"item 1 19.99 10 Clean Code (ebook)\nitem 1 19.999 10 Refactoring (ebook)\n"', '"error: bad amount ''19.999''"', 5, false, true, 6),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_431'), 'A bad discount is reported before a bad price', '"item 1 1e3 10 Sapiens\ndiscount 8,5\n"', '"error: bad percent ''8,5''"', 5, false, true, 7),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_431'), 'A discount above 100% is a bad percent', '"discount 120\nitem 1 5.00 10 Bookmark\n"', '"error: bad percent ''120''"', 4, false, true, 8);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_phpf_431_starter', 's3', 'challenges/php/chal_coding_phpf_431/starter.php', 'raw', 'text/x-php', 2874, 'main.php')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_phpf_431'), 'php', 'main.php', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_phpf_431_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
 
 -- learners enrolled before these lessons existed
 INSERT INTO learning.history (user_id, course_id, module_id, lesson_id)

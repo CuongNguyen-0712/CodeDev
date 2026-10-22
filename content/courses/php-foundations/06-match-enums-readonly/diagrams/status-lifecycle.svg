@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="680" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">An order's life cycle as an enum: six cases, and only these moves</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Strings from the warehouse app become OrderStatus at the boundary; everything after that works with enum cases.</text>
+
+  <g font-size="15" font-weight="700" text-anchor="middle">
+    <rect x="40" y="140" width="160" height="56" rx="28" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/><text x="120" y="164" fill="#334155">Pending</text>
+    <rect x="290" y="140" width="160" height="56" rx="28" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/><text x="370" y="164" fill="#5b21b6">Paid</text>
+    <rect x="540" y="140" width="160" height="56" rx="28" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/><text x="620" y="164" fill="#5b21b6">Shipped</text>
+    <rect x="790" y="140" width="160" height="56" rx="28" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/><text x="870" y="164" fill="#15803d">Delivered</text>
+    <rect x="790" y="270" width="160" height="56" rx="28" fill="#fef3c7" stroke="#d97706" stroke-width="2"/><text x="870" y="294" fill="#92400e">Returned</text>
+    <rect x="290" y="270" width="160" height="56" rx="28" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/><text x="370" y="294" fill="#b91c1c">Cancelled</text>
+  </g>
+  <g font-size="12" text-anchor="middle" font-family="Consolas, 'Courier New', monospace" fill="#64748b">
+    <text x="120" y="184">'pending'</text><text x="370" y="184">'paid'</text><text x="620" y="184">'shipped'</text>
+    <text x="870" y="184">'delivered'</text><text x="870" y="314">'returned'</text><text x="370" y="314">'cancelled'</text>
+  </g>
+  <g stroke="#475569" stroke-width="2.5" fill="none" marker-end="url(#arrow)">
+    <line x1="202" y1="168" x2="286" y2="168"/>
+    <line x1="452" y1="168" x2="536" y2="168"/>
+    <line x1="702" y1="168" x2="786" y2="168"/>
+    <line x1="870" y1="198" x2="870" y2="266"/>
+    <path d="M 680 198 Q 720 290 786 298"/>
+    <path d="M 120 198 Q 140 296 286 298"/>
+    <line x1="370" y1="198" x2="370" y2="266"/>
+  </g>
+  <text x="980" y="300" font-size="13" fill="#475569">Returned and Cancelled</text>
+  <text x="980" y="320" font-size="13" fill="#475569">are final: no move out.</text>
+  <text x="40" y="364" font-size="14" fill="#475569">Staying in the same status is not a move. A value like 'Shipped' or 'dispatched' is not a status at all: tryFrom() returns null, from() throws a ValueError.</text>
+
+  <rect x="40" y="392" width="540" height="262" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="426" font-size="17" font-weight="700" fill="#b91c1c">switch ($status)</text>
+  <g font-size="14" fill="#334155">
+    <text x="64" y="462">compares with ==  ('0' == false is true)</text>
+    <text x="64" y="492">falls through to the next case without break:</text>
+    <text x="64" y="514">'shipped' also sent the 'delivered' email</text>
+    <text x="64" y="544">default catches everything else, typos included:</text>
+    <text x="64" y="566">'Delivered' and 'returned' got 'cancelled' emails</text>
+    <text x="64" y="596">is a statement: assigns or calls in each case</text>
+    <text x="64" y="626">a new status compiles and silently hits default</text>
+  </g>
+  <rect x="620" y="392" width="540" height="262" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="426" font-size="17" font-weight="700" fill="#15803d">match ($this)</text>
+  <g font-size="14" fill="#334155">
+    <text x="644" y="462">compares with ===</text>
+    <text x="644" y="492">one arm runs, never more; arms can share a result:</text>
+    <text x="644" y="514" font-family="Consolas, 'Courier New', monospace">self::Returned, self::Cancelled =&gt; false</text>
+    <text x="644" y="544">no matching arm and no default:</text>
+    <text x="644" y="566">UnhandledMatchError instead of a silent default</text>
+    <text x="644" y="596">is an expression: return match (...) { ... };</text>
+    <text x="644" y="626">list every enum case and leave out default</text>
+  </g>
+</svg>

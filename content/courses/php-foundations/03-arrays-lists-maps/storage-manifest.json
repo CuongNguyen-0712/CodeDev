@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_phpf_212",
+      "key": "challenges/php/chal_fix_phpf_212/starter.php",
+      "contentType": "text/x-php; charset=utf-8",
+      "originalName": "main.php",
+      "size": 2629
+    }
+  ]
+}

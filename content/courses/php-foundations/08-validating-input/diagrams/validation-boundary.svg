@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="700" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Validate once, at the boundary: parse, check the shape, check every field</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Everything behind the boundary receives typed, valid data. Everything rejected gets every reason at once.</text>
+
+  <g font-size="14">
+    <rect x="40" y="114" width="190" height="150" rx="10" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/>
+    <text x="58" y="142" font-weight="700" fill="#334155">Request body</text>
+    <text x="58" y="170" fill="#475569">a string of bytes,</text>
+    <text x="58" y="190" fill="#475569">maybe cut off,</text>
+    <text x="58" y="210" fill="#475569">maybe from an old</text>
+    <text x="58" y="230" fill="#475569">app version</text>
+
+    <rect x="270" y="114" width="230" height="150" rx="10" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+    <text x="288" y="142" font-weight="700" fill="#5b21b6">1. Parse</text>
+    <text x="288" y="170" fill="#334155" font-family="Consolas, 'Courier New', monospace" font-size="13">json_decode($body, true,</text>
+    <text x="288" y="190" fill="#334155" font-family="Consolas, 'Courier New', monospace" font-size="13">  32, JSON_THROW_ON_ERROR)</text>
+    <text x="288" y="222" fill="#5b21b6">bad JSON throws</text>
+    <text x="288" y="242" fill="#5b21b6">JsonException, never null</text>
+
+    <rect x="540" y="114" width="230" height="150" rx="10" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+    <text x="558" y="142" font-weight="700" fill="#5b21b6">2. Check the shape</text>
+    <text x="558" y="170" fill="#334155" font-family="Consolas, 'Courier New', monospace" font-size="13">is_array($data)</text>
+    <text x="558" y="190" fill="#334155" font-family="Consolas, 'Courier New', monospace" font-size="13">!array_is_list($data)</text>
+    <text x="558" y="222" fill="#5b21b6">an object, not a list,</text>
+    <text x="558" y="242" fill="#5b21b6">a string or null</text>
+
+    <rect x="810" y="114" width="350" height="150" rx="10" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+    <text x="828" y="142" font-weight="700" fill="#5b21b6">3. Check every field, collect problems</text>
+    <text x="828" y="170" fill="#334155" font-family="Consolas, 'Courier New', monospace" font-size="13">is_int($qty) &amp;&amp; 1 &lt;= $qty &lt;= 10</text>
+    <text x="828" y="192" fill="#334155" font-family="Consolas, 'Courier New', monospace" font-size="13">is_string($phone) &amp;&amp; preg_match(...)</text>
+    <text x="828" y="214" fill="#334155" font-family="Consolas, 'Courier New', monospace" font-size="13">filter_var($email, FILTER_VALIDATE_EMAIL)</text>
+    <text x="828" y="236" fill="#334155" font-family="Consolas, 'Courier New', monospace" font-size="13">is_bool($giftWrap)</text>
+  </g>
+  <g stroke="#475569" stroke-width="2.5" fill="none" marker-end="url(#arrow)">
+    <line x1="232" y1="189" x2="266" y2="189"/>
+    <line x1="502" y1="189" x2="536" y2="189"/>
+    <line x1="772" y1="189" x2="806" y2="189"/>
+    <path d="M 985 266 L 985 300 L 760 300 L 760 322"/>
+    <path d="M 985 300 L 1080 300 L 1080 322"/>
+    <path d="M 385 266 L 385 322"/>
+    <path d="M 655 266 L 655 296 L 520 296 L 520 322"/>
+  </g>
+  <rect x="270" y="326" width="540" height="64" rx="10" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="290" y="352" font-size="15" font-weight="700" fill="#b91c1c">422 with every problem</text>
+  <text x="290" y="374" font-size="13" fill="#7f1d1d">"item 2: qty must be a whole number from 1 to 10", "giftWrap must be true or false"</text>
+  <rect x="860" y="326" width="300" height="64" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="880" y="352" font-size="15" font-weight="700" fill="#15803d">A typed order</text>
+  <text x="880" y="374" font-size="13" fill="#14532d">ints are ints, bools are bools</text>
+
+  <rect x="40" y="420" width="540" height="252" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="454" font-size="17" font-weight="700" fill="#334155">Decoded JSON: values already have types</text>
+  <g font-size="14" fill="#334155">
+    <text x="64" y="488">Check the type, then the range or format:</text>
+    <text x="64" y="512" font-family="Consolas, 'Courier New', monospace" font-size="13" fill="#15803d">"qty": 2 accepted</text><text x="250" y="512" font-family="Consolas, 'Courier New', monospace" font-size="13" fill="#b91c1c">"2", 2.0, true rejected</text>
+    <text x="64" y="544">A phone or postcode must arrive as a string:</text>
+    <text x="64" y="568" font-family="Consolas, 'Courier New', monospace" font-size="13">"phone": 912345678 lost its leading zero</text>
+    <text x="64" y="600">Never cast to fix a type: (bool) "false" is true,</text>
+    <text x="64" y="622">(int) "1 cuốn" is 1. Reject and say why.</text>
+    <text x="64" y="652" fill="#475569">{} and [] both decode to an empty PHP array.</text>
+  </g>
+
+  <rect x="620" y="420" width="540" height="252" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="644" y="454" font-size="17" font-weight="700" fill="#334155">Form fields: strings, so use filter_var</text>
+  <g font-size="14" fill="#334155">
+    <text x="644" y="488" font-family="Consolas, 'Courier New', monospace" font-size="13">FILTER_VALIDATE_INT + min_range/max_range</text>
+    <text x="644" y="510">returns the int or false: '0' gives 0, so test === false</text>
+    <text x="644" y="540" font-family="Consolas, 'Courier New', monospace" font-size="13">FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE</text>
+    <text x="644" y="562">'on', 'yes', '1' true; 'off', 'no', '0', '' false; else null</text>
+    <text x="644" y="592" font-family="Consolas, 'Courier New', monospace" font-size="13">FILTER_VALIDATE_EMAIL</text>
+    <text x="644" y="614">a plain address, no spaces, no display name</text>
+    <text x="644" y="644" fill="#475569">It trims ' 3 ' to 3 and rejects '012': codes need a regex.</text>
+  </g>
+</svg>

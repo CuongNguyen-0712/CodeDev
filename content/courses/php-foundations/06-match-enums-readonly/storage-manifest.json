@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_phpf_322",
+      "key": "challenges/php/chal_coding_phpf_322/starter.php",
+      "contentType": "text/x-php; charset=utf-8",
+      "originalName": "main.php",
+      "size": 2374
+    }
+  ]
+}

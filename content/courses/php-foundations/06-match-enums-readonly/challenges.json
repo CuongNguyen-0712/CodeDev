@@ -1,0 +1,129 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_phpf_321",
+      "name": "match-enums-readonly-quiz",
+      "type": "quiz",
+      "title": "Predict it: switch, match, enums and readonly",
+      "description": "Compare switch and match on the same value, then pick the rules for backed enums, readonly properties and match without a default.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this print?\n\n$code = '0';\nswitch ($code) {\n    case false: echo 'A';\n    case '0': echo 'B'; break;\n    default: echo 'C';\n}\necho ' ';\necho match ($code) { false => 'A', '0' => 'B', default => 'C' };",
+          "explanation": "switch compares with ==, and '0' == false is true (the string '0' is falsy), so the first case matches and prints A. That case has no break, so execution falls through into the next case and prints B, then stops at break: AB. match compares with === and has no fall-through: '0' === false is false, '0' === '0' is true, so it returns B. The whole output is \"AB B\".",
+          "options": [
+            {
+              "text": "B B",
+              "correct": false
+            },
+            {
+              "text": "AB B",
+              "correct": true
+            },
+            {
+              "text": "A B",
+              "correct": false
+            },
+            {
+              "text": "AB C",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "enum OrderStatus: string { case Paid = 'paid'; case Shipped = 'shipped'; } and final readonly class Shipment { public function __construct(public string $orderId, public OrderStatus $status) {} }. Which statements are true? (Select all that apply.)",
+          "explanation": "from() accepts only an exact backing value and throws a ValueError otherwise (\"Shipped\" is not a valid backing value for enum OrderStatus); tryFrom() returns null instead, which is the version for input you expect to be invalid sometimes. Every enum case is a single object, so OrderStatus::Paid === OrderStatus::from('paid') is true and enum values compare safely with ===. A readonly property can be initialised once, from inside the class, and never changed again - not even by a method of the same class: \"Cannot modify readonly property Shipment::$status\"; to change a status, create a new object. And match without a matching arm and without default throws an UnhandledMatchError instead of returning null.",
+          "options": [
+            {
+              "text": "OrderStatus::from('Shipped') throws a ValueError",
+              "correct": true
+            },
+            {
+              "text": "OrderStatus::tryFrom('Shipped') returns null",
+              "correct": true
+            },
+            {
+              "text": "OrderStatus::Paid === OrderStatus::from('paid') is true",
+              "correct": true
+            },
+            {
+              "text": "A method of Shipment may assign $this->status = OrderStatus::Shipped",
+              "correct": false
+            },
+            {
+              "text": "match ($status) { 'paid' => 1 } returns null when $status is 'returned'",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_phpf_322",
+      "name": "order-status-enum",
+      "type": "mini_coding",
+      "title": "Model order statuses with a backed enum and match",
+      "description": "The warehouse app of Hồ Gươm Books reports order statuses as strings, and a switch with a missing break and a catch-all default sent customers the wrong emails. Complete the backed enum OrderStatus: its six cases, a Vietnamese label for each, and canMoveTo, which allows only the moves of the order life cycle. The test runner turns every event into an enum with tryFrom, applies the moves your enum allows and prints what happened to each order.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "php",
+        "filePath": "main.php",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A normal order from payment to delivery",
+          "input": "HG-24117 paid\nHG-24117 shipped\nHG-24117 delivered\n",
+          "expected": "HG-24117: pending -> paid\nHG-24117: paid -> shipped\nHG-24117: shipped -> delivered\nHG-24117 delivered (Đã giao)",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Statuses from the old warehouse app are rejected",
+          "input": "HG-24120 paid\nHG-24120 Shipped\nHG-24120 dispatched\nHG-24120 shipped\n",
+          "expected": "HG-24120: pending -> paid\nHG-24120: unknown status 'Shipped'\nHG-24120: unknown status 'dispatched'\nHG-24120: paid -> shipped\nHG-24120 shipped (Đang giao)",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Moves that skip a step or go back are rejected",
+          "input": "HG-24121 shipped\nHG-24121 paid\nHG-24121 returned\nHG-24121 shipped\nHG-24121 returned\n",
+          "expected": "HG-24121: cannot go from pending to shipped\nHG-24121: pending -> paid\nHG-24121: cannot go from paid to returned\nHG-24121: paid -> shipped\nHG-24121: shipped -> returned\nHG-24121 returned (Đã trả hàng)",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Several orders, a return after delivery and a cancellation",
+          "input": "HG-30001 paid\nHG-30002 cancelled\nHG-30001 shipped\nHG-30002 paid\nHG-30001 delivered\nHG-30001 returned\nHG-30001 shipped\n",
+          "expected": "HG-30001: pending -> paid\nHG-30002: pending -> cancelled\nHG-30001: paid -> shipped\nHG-30002: cannot go from cancelled to paid\nHG-30001: shipped -> delivered\nHG-30001: delivered -> returned\nHG-30001: cannot go from returned to shipped\nHG-30001 returned (Đã trả hàng)\nHG-30002 cancelled (Đã hủy)",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "The same status twice is not a move",
+          "input": "HG-31000 paid\nHG-31000 paid\nHG-31000 cancelled\nHG-31000 cancelled\n",
+          "expected": "HG-31000: pending -> paid\nHG-31000: cannot go from paid to paid\nHG-31000: paid -> cancelled\nHG-31000: cannot go from cancelled to cancelled\nHG-31000 cancelled (Đã hủy)",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Only unknown or impossible events: no order is listed",
+          "input": "HG-32000 delivered\nHG-32000 Paid\nHG-32001 canceled\n",
+          "expected": "HG-32000: cannot go from pending to delivered\nHG-32000: unknown status 'Paid'\nHG-32001: unknown status 'canceled'",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

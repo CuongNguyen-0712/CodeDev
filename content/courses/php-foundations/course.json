@@ -5,7 +5,7 @@
   "description": "Write PHP that behaves the same on every request: strict types and comparisons, multibyte strings, arrays as lists and maps, functions with union types, enums and readonly classes, exceptions and validated input. 9 lessons, each starting from a real bug or incident, with graded challenges.",
   "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792641964/codedev/courses/php-foundations/cover",
   "level": "beginner",
-  "durationMinutes": 180,
+  "durationMinutes": 168,
   "instructor": "CodeDev Engineering Team",
   "language": "PHP",
   "category": "PHP Development",
@@ -29,21 +29,22 @@
     "first_job",
     "change_career"
   ],
-  "modules": [],
-  "outline": [
+  "modules": [
     {
       "orderIndex": 1,
       "title": "Values & Strings",
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "01-strict-types-comparisons",
           "title": "strict_types and comparisons: when \"1e1\" == \"10\"",
-          "challenges": "Q(e) + F(e)"
+          "sanityId": "lesson-phpf-1-1"
         },
         {
           "orderIndex": 2,
+          "folder": "02-strings-multibyte",
           "title": "Strings: interpolation, sprintf & multibyte text",
-          "challenges": "Q(e) + C(e)"
+          "sanityId": "lesson-phpf-1-2"
         }
       ]
     },
@@ -53,13 +54,15 @@
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "03-arrays-lists-maps",
           "title": "Arrays as lists and maps: + vs array_merge and lost keys",
-          "challenges": "Q(m) + F(m)"
+          "sanityId": "lesson-phpf-2-1"
         },
         {
           "orderIndex": 2,
+          "folder": "04-map-filter-sort",
           "title": "array_map, array_filter, usort & stable sorting",
-          "challenges": "C(m)"
+          "sanityId": "lesson-phpf-2-2"
         }
       ]
     },
@@ -69,13 +72,15 @@
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "05-functions-types",
           "title": "Functions, named arguments, nullable and union types",
-          "challenges": "Q(e) + C(e)"
+          "sanityId": "lesson-phpf-3-1"
         },
         {
           "orderIndex": 2,
+          "folder": "06-match-enums-readonly",
           "title": "match, enums & readonly classes",
-          "challenges": "Q(m) + C(m)"
+          "sanityId": "lesson-phpf-3-2"
         }
       ]
     },
@@ -85,18 +90,21 @@
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "07-exceptions-finally",
           "title": "Exceptions, finally & error handling",
-          "challenges": "F(m)"
+          "sanityId": "lesson-phpf-4-1"
         },
         {
           "orderIndex": 2,
+          "folder": "08-validating-input",
           "title": "Validating input: filter_var and JSON_THROW_ON_ERROR",
-          "challenges": "C(m)"
+          "sanityId": "lesson-phpf-4-2"
         },
         {
           "orderIndex": 3,
+          "folder": "09-invoice-integer-money",
           "title": "Mini project: an invoice total with integer money",
-          "challenges": "C(h)"
+          "sanityId": "lesson-phpf-4-3"
         }
       ]
     }

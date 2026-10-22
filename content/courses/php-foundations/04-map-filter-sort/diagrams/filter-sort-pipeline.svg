@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="700" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Keys through the pipeline: which functions keep them, which renumber</text>
+  <text x="40" y="82" font-size="16" fill="#475569">json_encode writes a JSON array only for a list (keys 0, 1, 2 ...). Any other keys give a JSON object.</text>
+
+  <g font-family="Consolas, 'Courier New', monospace" font-size="14" fill="#334155">
+    <rect x="40" y="110" width="250" height="210" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+    <text x="58" y="138" font-size="15" font-weight="700">$books</text>
+    <text x="58" y="170">0 =&gt; #7 Số đỏ 120</text>
+    <text x="58" y="196">1 =&gt; #3 Kiều 340 (0)</text>
+    <text x="58" y="222">2 =&gt; #9 Clean 120</text>
+    <text x="58" y="248">3 =&gt; #5 Đắc 515</text>
+    <text x="58" y="290" font-size="12" fill="#64748b">(0) = out of stock</text>
+
+    <rect x="320" y="110" width="250" height="210" rx="10" fill="#fff7ed" stroke="#f97316" stroke-width="2"/>
+    <text x="338" y="138" font-size="15" font-weight="700" fill="#c2410c">array_filter</text>
+    <text x="338" y="170">0 =&gt; #7 Số đỏ 120</text>
+    <text x="338" y="196">2 =&gt; #9 Clean 120</text>
+    <text x="338" y="222">3 =&gt; #5 Đắc 515</text>
+    <text x="338" y="262" font-size="12" fill="#9a3412">keeps the keys: 0, 2, 3</text>
+    <text x="338" y="282" font-size="12" fill="#9a3412">json_encode: {"0":...,"2":...}</text>
+
+    <rect x="600" y="110" width="270" height="210" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+    <text x="618" y="138" font-size="15" font-weight="700" fill="#15803d">usort (stable)</text>
+    <text x="618" y="170">0 =&gt; #5 Đắc 515</text>
+    <text x="618" y="196">1 =&gt; #7 Số đỏ 120</text>
+    <text x="618" y="222">2 =&gt; #9 Clean 120</text>
+    <text x="618" y="262" font-size="12" fill="#14532d">renumbers: a list again</text>
+    <text x="618" y="282" font-size="12" fill="#14532d">ties: #7 before #9 by id</text>
+
+    <rect x="900" y="110" width="260" height="210" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+    <text x="918" y="138" font-size="15" font-weight="700" fill="#15803d">array_slice(0, 3)</text>
+    <text x="918" y="170">0, 1, 2</text>
+    <text x="918" y="210" font-size="12" fill="#14532d">renumbers integer keys,</text>
+    <text x="918" y="230" font-size="12" fill="#14532d">unless preserve_keys is true</text>
+    <text x="918" y="270" font-size="12" fill="#14532d">json_encode: [{...},{...}]</text>
+  </g>
+  <g stroke="#64748b" stroke-width="2" fill="#64748b">
+    <line x1="292" y1="215" x2="312" y2="215"/><polygon points="318,215 309,210 309,220"/>
+    <line x1="572" y1="215" x2="592" y2="215"/><polygon points="598,215 589,210 589,220"/>
+    <line x1="872" y1="215" x2="892" y2="215"/><polygon points="898,215 889,210 889,220"/>
+  </g>
+
+  <rect x="40" y="350" width="540" height="320" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="384" font-size="17" font-weight="700" fill="#334155">Keep the keys</text>
+  <g font-size="14" fill="#334155">
+    <text x="64" y="418"><tspan font-weight="700" font-family="Consolas, 'Courier New', monospace">array_filter, array_map</tspan> (one array)</text>
+    <text x="64" y="448"><tspan font-weight="700" font-family="Consolas, 'Courier New', monospace">uasort, uksort, asort, arsort, ksort</tspan></text>
+    <text x="64" y="478"><tspan font-weight="700" font-family="Consolas, 'Courier New', monospace">array_slice(..., true)</tspan></text>
+  </g>
+  <text x="64" y="530" font-size="17" font-weight="700" fill="#334155">Return a list</text>
+  <g font-size="14" fill="#334155">
+    <text x="64" y="564"><tspan font-weight="700" font-family="Consolas, 'Courier New', monospace">usort, sort, rsort, array_values</tspan></text>
+    <text x="64" y="594"><tspan font-weight="700" font-family="Consolas, 'Courier New', monospace">array_slice, array_merge, array_column($a, $v)</tspan></text>
+    <text x="64" y="624"><tspan font-weight="700" font-family="Consolas, 'Courier New', monospace">array_map</tspan> with two or more arrays</text>
+  </g>
+
+  <rect x="620" y="350" width="540" height="320" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="644" y="384" font-size="17" font-weight="700" fill="#334155">A comparator returns an int</text>
+  <g font-family="Consolas, 'Courier New', monospace" font-size="14">
+    <text x="644" y="420" fill="#b91c1c">fn($a, $b) =&gt; $a['sold'] &lt; $b['sold']</text>
+    <text x="644" y="472" fill="#15803d">fn($a, $b) =&gt; $b['sold'] &lt;=&gt; $a['sold']</text>
+    <text x="644" y="548" fill="#15803d">fn($a, $b) =&gt; [$b['sold'], $a['id']]</text>
+    <text x="680" y="570" fill="#15803d">&lt;=&gt; [$a['sold'], $b['id']]</text>
+  </g>
+  <g font-size="13">
+    <text x="644" y="442" fill="#7f1d1d">bool: deprecated since PHP 8.0; PHP calls it twice to guess</text>
+    <text x="644" y="494" fill="#14532d">negative, 0 or positive: most sold first</text>
+    <text x="644" y="514" fill="#14532d">ties keep their input order (stable since PHP 8.0)</text>
+    <text x="644" y="592" fill="#14532d">arrays compare element by element: sold desc,</text>
+    <text x="644" y="612" fill="#14532d">then id asc - the same order on every request</text>
+  </g>
+  <text x="644" y="650" font-size="13" fill="#475569">Swap $a and $b on one side to sort that field descending.</text>
+</svg>

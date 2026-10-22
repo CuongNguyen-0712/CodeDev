@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="700" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Three ways to combine two carts keyed by product id</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Saved cart [1021 => 1, 2050 => 1] and guest cart [1021 => 2, 1022 => 1]. Ids 1 and 2 are gift wrapping and a tote bag.</text>
+
+  <g font-family="Consolas, 'Courier New', monospace">
+    <!-- inputs -->
+    <rect x="40" y="108" width="260" height="130" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+    <text x="60" y="138" font-size="16" font-weight="700" fill="#334155">$saved</text>
+    <text x="60" y="172" font-size="15" fill="#334155">1021 =&gt; 1  Truyện Kiều</text>
+    <text x="60" y="200" font-size="15" fill="#334155">2050 =&gt; 1  Clean Code</text>
+    <rect x="40" y="254" width="260" height="130" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+    <text x="60" y="284" font-size="16" font-weight="700" fill="#334155">$guest</text>
+    <text x="60" y="318" font-size="15" fill="#334155">1021 =&gt; 2  Truyện Kiều</text>
+    <text x="60" y="346" font-size="15" fill="#334155">1022 =&gt; 1  Số đỏ</text>
+
+    <!-- array_merge -->
+    <rect x="340" y="108" width="260" height="276" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+    <text x="360" y="138" font-size="15" font-weight="700" fill="#b91c1c">array_merge($saved,</text>
+    <text x="360" y="158" font-size="15" font-weight="700" fill="#b91c1c">$guest)</text>
+    <text x="360" y="196" font-size="15" fill="#334155">0 =&gt; 1   (no product)</text>
+    <text x="360" y="224" font-size="15" fill="#334155">1 =&gt; 1   Gift wrapping</text>
+    <text x="360" y="252" font-size="15" fill="#334155">2 =&gt; 2   Tote bag</text>
+    <text x="360" y="280" font-size="15" fill="#334155">3 =&gt; 1   (no product)</text>
+  </g>
+  <text x="360" y="320" font-size="14" fill="#7f1d1d">Integer keys are renumbered:</text>
+  <text x="360" y="340" font-size="14" fill="#7f1d1d">every product id is gone.</text>
+
+  <g font-family="Consolas, 'Courier New', monospace">
+    <!-- + -->
+    <rect x="640" y="108" width="250" height="276" rx="10" fill="#fff7ed" stroke="#f97316" stroke-width="2"/>
+    <text x="660" y="138" font-size="15" font-weight="700" fill="#c2410c">$saved + $guest</text>
+    <text x="660" y="196" font-size="15" fill="#334155">1021 =&gt; 1</text>
+    <text x="660" y="224" font-size="15" fill="#334155">2050 =&gt; 1</text>
+    <text x="660" y="252" font-size="15" fill="#334155">1022 =&gt; 1</text>
+  </g>
+  <text x="660" y="320" font-size="14" fill="#9a3412">Keys kept, but for 1021 the</text>
+  <text x="660" y="340" font-size="14" fill="#9a3412">left value wins: 2 copies lost.</text>
+
+  <g font-family="Consolas, 'Courier New', monospace">
+    <!-- loop -->
+    <rect x="930" y="108" width="230" height="276" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+    <text x="950" y="138" font-size="15" font-weight="700" fill="#15803d">foreach + ??</text>
+    <text x="950" y="196" font-size="15" fill="#334155">1021 =&gt; 3</text>
+    <text x="950" y="224" font-size="15" fill="#334155">2050 =&gt; 1</text>
+    <text x="950" y="252" font-size="15" fill="#334155">1022 =&gt; 1</text>
+  </g>
+  <text x="950" y="320" font-size="14" fill="#14532d">Keys kept, quantities</text>
+  <text x="950" y="340" font-size="14" fill="#14532d">of the same id added.</text>
+
+  <rect x="40" y="410" width="1120" height="262" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="444" font-size="17" font-weight="700" fill="#334155">What each operation does with keys</text>
+  <g font-size="15" fill="#334155">
+    <text x="64" y="480"><tspan font-weight="700" font-family="Consolas, 'Courier New', monospace">array_merge($a, $b)</tspan>   appends: integer keys are renumbered 0, 1, 2 ...; for a string key in both, $b wins.</text>
+    <text x="64" y="512"><tspan font-weight="700" font-family="Consolas, 'Courier New', monospace">[...$a, ...$b]</tspan>   the same as array_merge (string keys allowed since PHP 8.1).</text>
+    <text x="64" y="544"><tspan font-weight="700" font-family="Consolas, 'Courier New', monospace">$a + $b</tspan>   union by key, nothing renumbered; for a key in both, $a wins ($b only fills gaps).</text>
+    <text x="64" y="576"><tspan font-weight="700" font-family="Consolas, 'Courier New', monospace">array_replace($a, $b)</tspan>   by key, nothing renumbered; for a key in both, $b wins.</text>
+  </g>
+  <text x="64" y="616" font-size="14" fill="#475569">Lists (keys 0, 1, 2 ...) are combined with array_merge or spread. Maps with meaningful keys - ids, SKUs, settings -</text>
+  <text x="64" y="638" font-size="14" fill="#475569">are combined with +, array_replace or a loop. None of them adds quantities: that is always your own loop.</text>
+</svg>

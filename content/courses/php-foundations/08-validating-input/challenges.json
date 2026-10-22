@@ -1,0 +1,80 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_phpf_421",
+      "name": "validate-order-payload",
+      "type": "mini_coding",
+      "title": "Validate the order JSON from the mobile app",
+      "description": "Orders reach Hồ Gươm Books as JSON from the mobile app. A request cut off by a bad connection became an empty order, a quantity of \"1 cuốn\" silently dropped a book, and giftWrap: \"false\" gift-wrapped a parcel. Write validateOrder: decode with JSON_THROW_ON_ERROR, check that the body is an object, validate the email with filter_var and the phone with a regular expression, require a non-empty list of items with a sku and an integer quantity from 1 to 10, and accept giftWrap only as a real boolean. Return every problem, in order. The test runner prints ok or the list of problems.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "php",
+        "filePath": "main.php",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A valid order",
+          "input": "{\"email\":\"lan@example.vn\",\"phone\":\"0912345678\",\"items\":[{\"sku\":\"so-do\",\"qty\":2},{\"sku\":\"truyen-kieu\",\"qty\":1}]}",
+          "expected": "ok",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "The starter example: a phone number sent as a JSON number and no items",
+          "input": "{\"email\": \"lan@example.vn\", \"phone\": 912345678, \"items\": []}",
+          "expected": "invalid: phone must be 10 digits starting with 0; items must be a non-empty list",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A request cut off by a bad connection",
+          "input": "{\"email\": \"lan@example.vn\", \"phone\": \"0912345678\", \"items\": [{\"sku\": \"so-do\", \"qty\": 2}, {\"sku\": \"truy",
+          "expected": "invalid: malformed JSON",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A JSON list instead of an object",
+          "input": "[{\"sku\":\"so-do\",\"qty\":1}]",
+          "expected": "invalid: order must be an object",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Quantities that are not integers from 1 to 10, and broken items",
+          "input": "{\"email\":\"lan@example.vn\",\"phone\":\"0912345678\",\"items\":[{\"sku\":\"so-do\",\"qty\":\"2\"},{\"sku\":\"\",\"qty\":2.0},{\"qty\":true},\"so-do\",{\"sku\":\"sapiens\",\"qty\":0},{\"sku\":\"refactoring\",\"qty\":11}]}",
+          "expected": "invalid: item 1: qty must be a whole number from 1 to 10; item 2: sku is missing; item 2: qty must be a whole number from 1 to 10; item 3: sku is missing; item 3: qty must be a whole number from 1 to 10; item 4 must be an object; item 5: qty must be a whole number from 1 to 10; item 6: qty must be a whole number from 1 to 10",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A display name in the email and giftWrap sent as a string",
+          "input": "{\"email\":\"Lan <lan@example.vn>\",\"phone\":\"+84912345678\",\"items\":[{\"sku\":\"so-do\",\"qty\":1}],\"giftWrap\":\"false\"}",
+          "expected": "invalid: email is not valid; phone must be 10 digits starting with 0; giftWrap must be true or false",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "An email with a leading space and an item without a sku",
+          "input": "{\"email\":\" lan@example.vn\",\"phone\":\"0912345678\",\"items\":[{\"qty\":3}]}",
+          "expected": "invalid: email is not valid; item 1: sku is missing",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "A gift order with ten copies",
+          "input": "{\"email\":\"tuan.tran@hoguom.vn\",\"phone\":\"0389001122\",\"items\":[{\"sku\":\"sach-giao-khoa-toan-6\",\"qty\":10}],\"giftWrap\":true}",
+          "expected": "ok",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

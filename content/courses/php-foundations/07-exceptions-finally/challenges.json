@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_fix_phpf_411",
+      "name": "fix-stock-reservation-rollback",
+      "type": "fix_bug",
+      "title": "Fix the stock reservation that keeps half an order",
+      "description": "Hồ Gươm Books reserves stock for every line of an order, all or nothing. A rejected order kept the copies it had reserved before the failing line, and an order with a deleted book threw an exception that stopped the whole night batch. Fix placeOrder: release what the order reserved when a line fails, reject orders for unknown books and bad quantities as well as for missing stock, and let every other error through. The test runner reads the stock and the orders and prints the result of every order and the stock left.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "php",
+        "filePath": "main.php",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Orders that fit are reserved",
+          "input": "stock truyen-kieu 5\nstock so-do 3\nstock clean-code 2\norder HG-1 truyen-kieu:2 so-do:1\norder HG-2 clean-code:2\n",
+          "expected": "HG-1: ok\nHG-2: ok\nstock truyen-kieu: 3\nstock so-do: 2\nstock clean-code: 0",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A rejected order releases the lines it reserved (the incident)",
+          "input": "stock truyen-kieu 5\nstock so-do 3\nstock clean-code 2\norder HG-1 truyen-kieu:2 so-do:5\norder HG-2 truyen-kieu:5\n",
+          "expected": "HG-1: rejected: only 3 left of so-do\nHG-2: ok\nstock truyen-kieu: 0\nstock so-do: 3\nstock clean-code: 2",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "An unknown book rejects the order and the batch goes on",
+          "input": "stock truyen-kieu 5\nstock so-do 3\nstock clean-code 2\norder HG-1 clean-code:1 nha-gia-kim:1\norder HG-2 clean-code:2\n",
+          "expected": "HG-1: rejected: unknown book nha-gia-kim\nHG-2: ok\nstock truyen-kieu: 5\nstock so-do: 3\nstock clean-code: 0",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A quantity of 0 is rejected after two reserved lines",
+          "input": "stock truyen-kieu 5\nstock so-do 3\nstock clean-code 2\norder HG-7 so-do:1 truyen-kieu:2 clean-code:0\norder HG-8 so-do:3 truyen-kieu:5\n",
+          "expected": "HG-7: rejected: bad quantity 0 for clean-code\nHG-8: ok\nstock truyen-kieu: 0\nstock so-do: 0\nstock clean-code: 2",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "The same book twice in one order",
+          "input": "stock truyen-kieu 5\nstock so-do 3\nstock clean-code 2\norder HG-9 so-do:2 so-do:2\norder HG-10 so-do:2 so-do:1\n",
+          "expected": "HG-9: rejected: only 1 left of so-do\nHG-10: ok\nstock truyen-kieu: 5\nstock so-do: 0\nstock clean-code: 2",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A long night batch",
+          "input": "stock truyen-kieu 5\nstock so-do 3\nstock clean-code 2\nstock sapiens 1\norder N-1 sapiens:1\norder N-2 sapiens:1 so-do:1\norder N-3 truyen-kieu:4 so-do:4\norder N-4 truyen-kieu:4 clean-code:1 so-do:3\norder N-5 truyen-kieu:1 refactoring:1\norder N-6 truyen-kieu:1 clean-code:1\n",
+          "expected": "N-1: ok\nN-2: rejected: only 0 left of sapiens\nN-3: rejected: only 3 left of so-do\nN-4: ok\nN-5: rejected: unknown book refactoring\nN-6: ok\nstock truyen-kieu: 0\nstock so-do: 0\nstock clean-code: 0\nstock sapiens: 0",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

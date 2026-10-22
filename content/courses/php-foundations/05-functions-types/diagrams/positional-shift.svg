@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="660" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">A new parameter in the middle moves every positional argument after it</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The call in checkout.php did not change. The function did, and the 5th argument now means something else.</text>
+
+  <g font-family="Consolas, 'Courier New', monospace" font-size="15">
+    <text x="40" y="132" font-weight="700" fill="#334155">shippingFee(800, 'HCM', 350000, false, true)</text>
+  </g>
+  <g font-size="13" fill="#475569">
+    <text x="40" y="156">written for v1: a prepaid, insured parcel</text>
+  </g>
+
+  <!-- v1 row -->
+  <text x="40" y="206" font-size="15" font-weight="700" fill="#15803d">v1</text>
+  <g font-family="Consolas, 'Courier New', monospace" font-size="14" fill="#334155">
+    <rect x="90" y="182" width="130" height="40" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/><text x="104" y="207">$grams 800</text>
+    <rect x="230" y="182" width="130" height="40" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/><text x="244" y="207">$zone HCM</text>
+    <rect x="370" y="182" width="170" height="40" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/><text x="384" y="207">$orderTotal ...</text>
+    <rect x="550" y="182" width="170" height="40" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/><text x="564" y="207">$express false</text>
+    <rect x="730" y="182" width="170" height="40" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/><text x="744" y="207">$insured true</text>
+    <rect x="910" y="182" width="170" height="40" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5 4"/><text x="924" y="207">$freeFrom 0</text>
+  </g>
+
+  <!-- v2 row -->
+  <text x="40" y="276" font-size="15" font-weight="700" fill="#b91c1c">v2</text>
+  <g font-family="Consolas, 'Courier New', monospace" font-size="14" fill="#334155">
+    <rect x="90" y="252" width="130" height="40" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/><text x="104" y="277">$grams 800</text>
+    <rect x="230" y="252" width="130" height="40" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/><text x="244" y="277">$zone HCM</text>
+    <rect x="370" y="252" width="170" height="40" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/><text x="384" y="277">$orderTotal ...</text>
+    <rect x="550" y="252" width="170" height="40" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/><text x="564" y="277">$express false</text>
+    <rect x="730" y="252" width="170" height="40" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/><text x="744" y="277">$cod true</text>
+    <rect x="910" y="252" width="170" height="40" rx="6" fill="#fff7ed" stroke="#f97316" stroke-width="2"/><text x="924" y="277">$insured false</text>
+  </g>
+  <text x="730" y="316" font-size="13" fill="#7f1d1d">The parcel is charged +10,000 COD and is no longer insured. No error:</text>
+  <text x="730" y="336" font-size="13" fill="#7f1d1d">both parameters are bool, so strict types cannot help.</text>
+
+  <!-- fixes -->
+  <rect x="40" y="370" width="540" height="262" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="64" y="404" font-size="17" font-weight="700" fill="#15803d">Name the arguments a reader cannot guess</text>
+  <g font-family="Consolas, 'Courier New', monospace" font-size="14" fill="#334155">
+    <text x="64" y="442">shippingFee(800, 'HCM', 350000,</text>
+    <text x="100" y="464">insured: true)</text>
+  </g>
+  <g font-size="14" fill="#14532d">
+    <text x="64" y="500">Names bind to parameters, not positions: adding,</text>
+    <text x="64" y="522">moving or reordering optional parameters is safe.</text>
+    <text x="64" y="556">New optional parameters still go LAST, for callers</text>
+    <text x="64" y="578">that pass everything by position.</text>
+    <text x="64" y="612">A parameter's name is now part of its public API.</text>
+  </g>
+
+  <rect x="620" y="370" width="540" height="262" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="644" y="404" font-size="17" font-weight="700" fill="#334155">Let the type say what "none" is</text>
+  <g font-family="Consolas, 'Courier New', monospace" font-size="14">
+    <text x="644" y="442" fill="#b91c1c">int $freeFrom = 0</text>
+    <text x="644" y="508" fill="#15803d">?int $freeFrom = null</text>
+  </g>
+  <g font-size="14">
+    <text x="644" y="464" fill="#7f1d1d">0 was meant as "no campaign", but every order</text>
+    <text x="644" y="484" fill="#7f1d1d">total is &gt;= 0: free shipping for everyone.</text>
+    <text x="644" y="530" fill="#14532d">null = no campaign, 0 = free for every order.</text>
+    <text x="644" y="552" fill="#14532d">Check it with $freeFrom !== null.</text>
+  </g>
+  <text x="644" y="596" font-size="13" fill="#475569">?int is int|null. Since PHP 8.4, int $x = null (implicitly</text>
+  <text x="644" y="616" font-size="13" fill="#475569">nullable) is deprecated: write the ? explicitly.</text>
+</svg>

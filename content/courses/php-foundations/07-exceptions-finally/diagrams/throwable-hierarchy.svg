@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="700" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">What a catch block catches: the Throwable family</text>
+  <text x="40" y="82" font-size="16" fill="#475569">catch (X $e) catches X and everything below it. Exception and Error are separate branches.</text>
+
+  <g font-family="Consolas, 'Courier New', monospace" font-size="14" font-weight="700" text-anchor="middle">
+    <rect x="500" y="104" width="200" height="40" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/><text x="600" y="129" fill="#334155">Throwable</text>
+
+    <rect x="200" y="184" width="200" height="40" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/><text x="300" y="209" fill="#5b21b6">Exception</text>
+    <rect x="800" y="184" width="200" height="40" rx="8" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/><text x="900" y="209" fill="#b91c1c">Error</text>
+
+    <rect x="40" y="264" width="200" height="40" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="2"/><text x="140" y="289" fill="#5b21b6">RuntimeException</text>
+    <rect x="300" y="264" width="200" height="40" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="2"/><text x="400" y="289" fill="#5b21b6">LogicException</text>
+
+    <rect x="40" y="344" width="200" height="40" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/><text x="140" y="369" fill="#15803d">OutOfStock (yours)</text>
+    <rect x="40" y="400" width="200" height="40" rx="8" fill="#ffffff" stroke="#8b5cf6" stroke-width="2"/><text x="140" y="425" fill="#5b21b6">JsonException</text>
+    <rect x="300" y="344" width="230" height="40" rx="8" fill="#ffffff" stroke="#8b5cf6" stroke-width="2"/><text x="415" y="369" fill="#5b21b6">InvalidArgumentException</text>
+    <rect x="300" y="400" width="230" height="40" rx="8" fill="#ffffff" stroke="#8b5cf6" stroke-width="2"/><text x="415" y="425" fill="#5b21b6">DomainException</text>
+
+    <rect x="640" y="264" width="160" height="40" rx="8" fill="#fff1f2" stroke="#f87171" stroke-width="2"/><text x="720" y="289" fill="#b91c1c">TypeError</text>
+    <rect x="820" y="264" width="160" height="40" rx="8" fill="#fff1f2" stroke="#f87171" stroke-width="2"/><text x="900" y="289" fill="#b91c1c">ValueError</text>
+    <rect x="1000" y="264" width="170" height="40" rx="8" fill="#fff1f2" stroke="#f87171" stroke-width="2"/><text x="1085" y="289" fill="#b91c1c">ArithmeticError</text>
+    <rect x="620" y="344" width="200" height="40" rx="8" fill="#ffffff" stroke="#f87171" stroke-width="2"/><text x="720" y="369" fill="#b91c1c">ArgumentCountError</text>
+    <rect x="980" y="344" width="190" height="40" rx="8" fill="#ffffff" stroke="#f87171" stroke-width="2"/><text x="1075" y="369" fill="#b91c1c">DivisionByZeroError</text>
+    <rect x="820" y="400" width="200" height="40" rx="8" fill="#ffffff" stroke="#f87171" stroke-width="2"/><text x="920" y="425" fill="#b91c1c">UnhandledMatchError</text>
+  </g>
+  <g stroke="#94a3b8" stroke-width="2" fill="none">
+    <path d="M 600 144 L 600 164 L 300 164 L 300 184"/>
+    <path d="M 600 164 L 900 164 L 900 184"/>
+    <path d="M 300 224 L 300 244 L 140 244 L 140 264"/>
+    <path d="M 300 244 L 400 244 L 400 264"/>
+    <path d="M 140 304 L 140 344"/>
+    <path d="M 200 204 L 22 204 L 22 420 L 40 420"/>
+    <path d="M 400 304 L 400 344"/>
+    <path d="M 290 324 L 290 420 L 300 420"/>
+    <path d="M 900 224 L 900 244 L 720 244 L 720 264"/>
+    <path d="M 900 244 L 900 264"/>
+    <path d="M 900 244 L 1085 244 L 1085 264"/>
+    <path d="M 720 304 L 720 344"/>
+    <path d="M 1085 304 L 1085 344"/>
+    <path d="M 810 420 L 800 420 L 800 244"/>
+  </g>
+  <g font-size="13" fill="#475569">
+    <text x="40" y="470">Exceptions: conditions a program expects and handles -</text>
+    <text x="40" y="490">no stock, bad input, a timeout.</text>
+    <text x="640" y="470">Errors: mostly bugs - a wrong type, a missing argument,</text>
+    <text x="640" y="490">a match without an arm. Fix the code, do not catch them.</text>
+  </g>
+
+  <rect x="40" y="516" width="1120" height="160" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="548" font-size="17" font-weight="700" fill="#334155">Catch what you can handle, as narrowly as you can</text>
+  <g font-size="14" fill="#334155">
+    <text x="64" y="580"><tspan font-weight="700" font-family="Consolas, 'Courier New', monospace">catch (OutOfStock|InvalidArgumentException $e)</tspan>  the two reasons an order can be rejected</text>
+    <text x="64" y="608"><tspan font-weight="700" font-family="Consolas, 'Courier New', monospace">catch (Exception $e)</tspan>  misses TypeError and every other Error, and swallows exceptions you never meant to handle</text>
+    <text x="64" y="636"><tspan font-weight="700" font-family="Consolas, 'Courier New', monospace">catch (Throwable $e)</tspan>  only at the very top: log it, show an error page, then stop or move to the next job</text>
+    <text x="64" y="662">PHP warnings (file_get_contents on a missing file) are not exceptions at all: check the return value, or throw yourself.</text>
+  </g>
+</svg>

@@ -1,0 +1,129 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_phpf_121",
+      "name": "multibyte-strings-interpolation-quiz",
+      "type": "quiz",
+      "title": "Predict it: bytes, characters and interpolation",
+      "description": "Count the bytes and characters of a Vietnamese title, then pick the lines that interpolate an array correctly.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The source file is saved as UTF-8. What does this print?\n\n$t = 'Số đỏ';\necho strlen($t), ' ', mb_strlen($t), ' ', strtoupper($t);",
+          "explanation": "PHP strings are bytes. In UTF-8, S and the space take 1 byte each, đ takes 2 bytes, and ố and ỏ take 3 bytes each: 1 + 3 + 1 + 2 + 3 = 10, so strlen is 10. mb_strlen counts characters (code points) of UTF-8 text: 5. Since PHP 8.2, strtoupper only changes the ASCII letters a-z and is never affected by the locale; S is already upper case and ố, đ, ỏ are not ASCII, so the title comes back unchanged: Số đỏ. mb_strtoupper would give SỐ ĐỎ.",
+          "options": [
+            {
+              "text": "5 5 SỐ ĐỎ",
+              "correct": false
+            },
+            {
+              "text": "10 5 Số đỏ",
+              "correct": true
+            },
+            {
+              "text": "10 5 SỐ ĐỎ",
+              "correct": false
+            },
+            {
+              "text": "8 5 Số đỏ",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "$b = ['title' => 'Số đỏ', 'qty' => 2]; Which lines print exactly Số đỏ x2 ? (Select all that apply.)",
+          "explanation": "Inside double quotes, the curly syntax {$b['title']} takes any variable expression with normal, quoted keys - it is the form to use. The simple syntax $b[title] also works for one level of array access, but only with an UNQUOTED key; \"$b['title']\" with quotes is a parse error (unexpected string content). sprintf with %s and %d formats the values without any interpolation. Single-quoted strings never interpolate: '{$b[\"title\"]} x{$b[\"qty\"]}' prints the braces, the dollar signs and the text literally.",
+          "options": [
+            {
+              "text": "echo \"{$b['title']} x{$b['qty']}\";",
+              "correct": true
+            },
+            {
+              "text": "echo \"$b[title] x$b[qty]\";",
+              "correct": true
+            },
+            {
+              "text": "echo \"$b['title'] x$b['qty']\";",
+              "correct": false
+            },
+            {
+              "text": "echo sprintf('%s x%d', $b['title'], $b['qty']);",
+              "correct": true
+            },
+            {
+              "text": "echo '{$b[\"title\"]} x{$b[\"qty\"]}';",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_phpf_122",
+      "name": "picking-list-line",
+      "type": "mini_coding",
+      "title": "Print the warehouse picking list with Vietnamese titles",
+      "description": "The picking list of Hồ Gươm Books is printed on a 40-column thermal printer: an upper-case title in 20 characters, the quantity in 3 and the line total in 13, with dots as thousands separators and the ₫ sign. Write fit, vnd and pickLine so that long titles are cut with an ellipsis and every column lines up, for Vietnamese titles as well as English ones. The test runner reads TITLE|QTY|PRICE lines and prints one line per book and a total line.",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "php",
+        "filePath": "main.php",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The order from the incident",
+          "input": "Truyện Kiều|2|89000\nDế Mèn phiêu lưu ký thời hiện đại|1|52000\nĐắc nhân tâm|3|108000\nClean Code|1|420000\n",
+          "expected": "TRUYỆN KIỀU            2     178.000 ₫\nDẾ MÈN PHIÊU LƯU KÝ…   1      52.000 ₫\nĐẮC NHÂN TÂM           3     324.000 ₫\nCLEAN CODE             1     420.000 ₫\nTỔNG CỘNG              7     974.000 ₫",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "English titles only",
+          "input": "Refactoring|1|560000\nThe Pragmatic Programmer|2|495000\n",
+          "expected": "REFACTORING            1     560.000 ₫\nTHE PRAGMATIC PROGR…   2     990.000 ₫\nTỔNG CỘNG              3   1.550.000 ₫",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A title of exactly 20 characters is not cut, 21 characters is",
+          "input": "Người lái đò sông Đà|1|75000\nNhững người khốn khổ.|1|180000\n",
+          "expected": "NGƯỜI LÁI ĐÒ SÔNG ĐÀ   1      75.000 ₫\nNHỮNG NGƯỜI KHỐN KH…   1     180.000 ₫\nTỔNG CỘNG              2     255.000 ₫",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Large quantities and amounts in the millions",
+          "input": "Sách giáo khoa Toán 6|120|23000\nTừ điển Anh - Việt|15|385000\n",
+          "expected": "SÁCH GIÁO KHOA TOÁN… 120   2.760.000 ₫\nTỪ ĐIỂN ANH - VIỆT    15   5.775.000 ₫\nTỔNG CỘNG            135   8.535.000 ₫",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Lower-case Vietnamese letters are upper-cased, spaces around fields are ignored",
+          "input": "  ông già và biển cả | 2 | 64000\nđường xưa mây trắng|1|245000\n",
+          "expected": "ÔNG GIÀ VÀ BIỂN CẢ     2     128.000 ₫\nĐƯỜNG XƯA MÂY TRẮNG    1     245.000 ₫\nTỔNG CỘNG              3     373.000 ₫",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A free gift book",
+          "input": "Sổ tay đọc sách|1|0\n",
+          "expected": "SỔ TAY ĐỌC SÁCH        1           0 ₫\nTỔNG CỘNG              1           0 ₫",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="660" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">== converts before it compares, === never does</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The printed voucher code '500100' compared with what customers typed at checkout.</text>
+
+  <!-- Left: loose -->
+  <rect x="40" y="108" width="540" height="300" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="142" font-size="18" font-weight="700" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">$v['code'] == $entered</text>
+  <g font-size="15" font-family="Consolas, 'Courier New', monospace" fill="#334155">
+    <text x="64" y="186">'500100' == '500100'</text><text x="400" y="186" font-weight="700" fill="#15803d">true</text>
+    <text x="64" y="222">'500100' == '500100.0'</text><text x="400" y="222" font-weight="700" fill="#b91c1c">true</text>
+    <text x="64" y="258">'500100' == '5.001e5'</text><text x="400" y="258" font-weight="700" fill="#b91c1c">true</text>
+    <text x="64" y="294">'500100' == ' 500100'</text><text x="400" y="294" font-weight="700" fill="#b91c1c">true</text>
+    <text x="64" y="330">'073311' == '73311'</text><text x="400" y="330" font-weight="700" fill="#b91c1c">true</text>
+  </g>
+  <text x="64" y="378" font-size="14" fill="#7f1d1d">Both sides are numeric strings, so PHP compares them as numbers.</text>
+
+  <!-- Right: strict -->
+  <rect x="620" y="108" width="540" height="300" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="644" y="142" font-size="18" font-weight="700" fill="#15803d" font-family="Consolas, 'Courier New', monospace">$v['code'] === $entered</text>
+  <g font-size="15" font-family="Consolas, 'Courier New', monospace" fill="#334155">
+    <text x="644" y="186">'500100' === '500100'</text><text x="990" y="186" font-weight="700" fill="#15803d">true</text>
+    <text x="644" y="222">'500100' === '500100.0'</text><text x="990" y="222" font-weight="700" fill="#15803d">false</text>
+    <text x="644" y="258">'500100' === '5.001e5'</text><text x="990" y="258" font-weight="700" fill="#15803d">false</text>
+    <text x="644" y="294">'500100' === ' 500100'</text><text x="990" y="294" font-weight="700" fill="#15803d">false</text>
+    <text x="644" y="330">'073311' === '73311'</text><text x="990" y="330" font-weight="700" fill="#15803d">false</text>
+  </g>
+  <text x="644" y="378" font-size="14" fill="#14532d">Same type and the same characters, or false. No conversion.</text>
+
+  <!-- Bottom: the rules -->
+  <rect x="40" y="432" width="1120" height="200" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="64" y="466" font-size="17" font-weight="700" fill="#334155">How == compares two values in PHP 8</text>
+  <text x="64" y="500" font-size="15" fill="#334155"><tspan font-weight="700">1.</tspan> Two numeric strings, or a number and a numeric string: compared as numbers ('1e1' == '10' is true).</text>
+  <text x="64" y="530" font-size="15" fill="#334155"><tspan font-weight="700">2.</tspan> A number and a non-numeric string: the number becomes a string ('abc' == 0 is false since PHP 8.0).</text>
+  <text x="64" y="560" font-size="15" fill="#334155"><tspan font-weight="700">3.</tspan> null or a bool on one side: both become bool (null == false, '0' == false and '' == null are true).</text>
+  <text x="64" y="590" font-size="15" fill="#334155"><tspan font-weight="700">4.</tspan> Two non-numeric strings: compared byte by byte ('abc' == 'ABC' is false).</text>
+  <text x="64" y="618" font-size="14" fill="#475569">in_array, array_search, array_keys with a search value, and switch all use == unless you ask for strict.</text>
+</svg>

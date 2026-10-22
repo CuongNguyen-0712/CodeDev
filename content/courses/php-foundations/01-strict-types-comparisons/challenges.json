@@ -1,0 +1,129 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_phpf_111",
+      "name": "loose-comparison-strict-types-quiz",
+      "type": "quiz",
+      "title": "Predict it: loose comparisons and strict_types",
+      "description": "Work out what PHP's == and the loose array functions decide, then pick what declare(strict_types=1) does and does not change.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this print?\n\n$codes = ['073311', '73311', '500100'];\nvar_dump(\n    array_search('73311', $codes),\n    in_array('500100.0', $codes),\n    array_search('500100', $codes, true),\n);",
+          "explanation": "array_search and in_array compare with == unless the third argument is true. '73311' == '073311' is true because both are numeric strings and are compared as the numbers 73311 and 73311, so the loose search stops at the FIRST match: index 0, the scratch card, not index 1. '500100.0' == '500100' is true for the same reason (500100.0 and 500100 are equal numbers), so in_array returns true. The strict search compares with ===, which needs the same type and the same characters: '500100' is exactly the string at index 2. 'int(1) bool(false) int(2)' is what you would get if all three were strict.",
+          "options": [
+            {
+              "text": "int(1) bool(false) int(2)",
+              "correct": false
+            },
+            {
+              "text": "int(0) bool(true) int(2)",
+              "correct": true
+            },
+            {
+              "text": "int(1) bool(true) int(2)",
+              "correct": false
+            },
+            {
+              "text": "int(0) bool(true) bool(false)",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "A file starts with declare(strict_types=1); and defines function applyVoucher(int $total, int $value): int. Which statements are true for code in THIS file? (Select all that apply.)",
+          "explanation": "strict_types changes how scalar values are passed to typed parameters and returned from typed functions, for calls made from the file that declares it. applyVoucher(350000, '200000') is then a TypeError instead of a silent conversion, and the same holds for PHP's own functions: strlen(500100) throws 'strlen(): Argument #1 ($string) must be of type string, int given'. The one conversion strict mode still allows is int to float, so vat(8) for a float parameter works and receives 8.0. strict_types does not touch operators at all: '500100' == '500100.0' is still true; only === or a strict flag fixes comparisons. And it is the CALLING file's mode that counts: a file without the declaration can still call applyVoucher('350000', '200000') and get the old coercion.",
+          "options": [
+            {
+              "text": "applyVoucher(350000, '200000') throws a TypeError",
+              "correct": true
+            },
+            {
+              "text": "'500100' == '500100.0' becomes false",
+              "correct": false
+            },
+            {
+              "text": "A function vat(float $rate) can still be called as vat(8)",
+              "correct": true
+            },
+            {
+              "text": "strlen(500100) throws a TypeError instead of returning 6",
+              "correct": true
+            },
+            {
+              "text": "Calls to applyVoucher from other files that do not declare strict_types become strict too",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_phpf_112",
+      "name": "fix-voucher-redemption",
+      "type": "fix_bug",
+      "title": "Fix the voucher check that accepts \"500100.0\"",
+      "description": "Hồ Gươm Books prints numeric voucher codes, and two campaigns run at once: 5-digit newspaper vouchers and 6-digit scratch cards, so 73311 and 073311 are different vouchers. The checkout accepts \"500100.0\" as voucher 500100, gives one customer another customer's voucher, and tells a third that an unused voucher was already used. Fix findVoucher and isUsed so a voucher is found only by its exact code and each voucher can be redeemed once. The test runner reads the vouchers and the codes customers type, and prints the result of every redemption.",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "php",
+        "filePath": "main.php",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "An exact code works once",
+          "input": "voucher 500100 200000\nvoucher 073311 50000\nredeem 500100\nredeem 500100\nredeem 073311\n",
+          "expected": "500100: ok, voucher 500100 -200000 VND\n500100: already used\n073311: ok, voucher 073311 -50000 VND",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "500100.0, 5.001e5 and 0500100 are not voucher 500100",
+          "input": "voucher 500100 200000\nredeem 500100.0\nredeem 5.001e5\nredeem 0500100\nredeem 500100\n",
+          "expected": "500100.0: unknown voucher\n5.001e5: unknown voucher\n0500100: unknown voucher\n500100: ok, voucher 500100 -200000 VND",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "73311 and 073311 are two vouchers",
+          "input": "voucher 073311 50000\nvoucher 73311 30000\nredeem 73311\nredeem 073311\nredeem 73311\n",
+          "expected": "73311: ok, voucher 73311 -30000 VND\n073311: ok, voucher 073311 -50000 VND\n73311: already used",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "The scratch card is redeemed first, then the newspaper voucher",
+          "input": "voucher 073311 50000\nvoucher 73311 30000\nredeem 073311\nredeem 73311\n",
+          "expected": "073311: ok, voucher 073311 -50000 VND\n73311: ok, voucher 73311 -30000 VND",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Signs, exponents and decimals do not match a code",
+          "input": "voucher 01000 100000\nvoucher 1000 20000\nredeem +1000\nredeem 1e3\nredeem 1000.00\nredeem 1000\nredeem 01000\nredeem 1000\n",
+          "expected": "+1000: unknown voucher\n1e3: unknown voucher\n1000.00: unknown voucher\n1000: ok, voucher 1000 -20000 VND\n01000: ok, voucher 01000 -100000 VND\n1000: already used",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A busy evening with unknown codes",
+          "input": "voucher 120045 150000\nvoucher 120046 150000\nvoucher 99012 25000\nredeem 120046\nredeem 12004.5e1\nredeem 99012\nredeem 120045\nredeem 120046\nredeem 099012\nredeem 777777\n",
+          "expected": "120046: ok, voucher 120046 -150000 VND\n12004.5e1: unknown voucher\n99012: ok, voucher 99012 -25000 VND\n120045: ok, voucher 120045 -150000 VND\n120046: already used\n099012: unknown voucher\n777777: unknown voucher",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

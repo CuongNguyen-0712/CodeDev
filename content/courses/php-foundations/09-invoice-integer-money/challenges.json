@@ -1,0 +1,80 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_phpf_431",
+      "name": "invoice-integer-money",
+      "type": "mini_coding",
+      "title": "Mini project: build the invoice with integer money",
+      "description": "Hồ Gươm Books sells e-books abroad in USD, and its invoices and card charges disagreed by a few cents because prices went through floats. Build the invoice with integer cents: parse prices and percentages from strings without any float, apply an order discount and the VAT of each line in basis points, round every line half up to a whole cent, format amounts with two decimals, and reject malformed amounts and percents with a clear error. The test runner reads the items and the discount and prints your invoice.",
+      "difficulty": "hard",
+      "points": 40,
+      "coding": {
+        "language": "php",
+        "filePath": "main.php",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The order from the incident",
+          "input": "item 1 19.99 10 Clean Code (ebook)\nitem 3 4.35 10 Atomic Habits (ebook)\nitem 1 0.57 10 Bookmark\n",
+          "expected": "Clean Code (ebook): 1 x 19.99 = 19.99\nAtomic Habits (ebook): 3 x 4.35 = 13.05\nBookmark: 1 x 0.57 = 0.57\nsubtotal: 33.61\nVAT: 3.37\ntotal: 36.98",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Prices with one decimal or none, and 0% VAT",
+          "input": "item 2 19.9 5 Truyện Kiều (paperback)\nitem 1 20 0 Gift card\n",
+          "expected": "Truyện Kiều (paperback): 2 x 19.90 = 39.80\nGift card: 1 x 20.00 = 20.00\nsubtotal: 59.80\nVAT: 1.99\ntotal: 61.79",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A 12.5% discount on every line, before VAT",
+          "input": "discount 12.5\nitem 1 19.99 10 Clean Code (ebook)\nitem 2 7.45 5 Số đỏ (paperback)\n",
+          "expected": "Clean Code (ebook): 1 x 19.99 = 19.99\nSố đỏ (paperback): 2 x 7.45 = 14.90\nsubtotal: 34.89\ndiscount 12.5%: -4.36\nVAT: 2.40\ntotal: 32.93",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Rounding per line: three lines of 0.05",
+          "input": "item 1 0.05 10 Postcard A\nitem 1 0.05 10 Postcard B\nitem 1 0.05 10 Postcard C\n",
+          "expected": "Postcard A: 1 x 0.05 = 0.05\nPostcard B: 1 x 0.05 = 0.05\nPostcard C: 1 x 0.05 = 0.05\nsubtotal: 0.15\nVAT: 0.03\ntotal: 0.18",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Exact halves round up, and totals above 1000.00",
+          "input": "item 1 10.05 10 Refactoring (ebook)\nitem 40 89.99 8 Từ điển Anh - Việt\ndiscount 2.5\n",
+          "expected": "Refactoring (ebook): 1 x 10.05 = 10.05\nTừ điển Anh - Việt: 40 x 89.99 = 3599.60\nsubtotal: 3609.65\ndiscount 2.5%: -90.24\nVAT: 281.75\ntotal: 3801.16",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "An amount with three decimals is rejected",
+          "input": "item 1 19.99 10 Clean Code (ebook)\nitem 1 19.999 10 Refactoring (ebook)\n",
+          "expected": "error: bad amount '19.999'",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A bad discount is reported before a bad price",
+          "input": "item 1 1e3 10 Sapiens\ndiscount 8,5\n",
+          "expected": "error: bad percent '8,5'",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A discount above 100% is a bad percent",
+          "input": "discount 120\nitem 1 5.00 10 Bookmark\n",
+          "expected": "error: bad percent '120'",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

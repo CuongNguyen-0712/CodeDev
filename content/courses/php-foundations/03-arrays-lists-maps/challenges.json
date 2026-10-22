@@ -1,0 +1,129 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_phpf_211",
+      "name": "arrays-lists-maps-quiz",
+      "type": "quiz",
+      "title": "Predict it: + versus array_merge, keys and holes",
+      "description": "Work out what + and array_merge do with integer keys, then decide how PHP stores and copies array keys.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this print?\n\n$a = ['a', 'b'];\n$b = ['c', 'd', 'e'];\necho implode(',', $a + $b), ' | ', implode(',', array_merge($a, $b));",
+          "explanation": "Both arrays are lists, so $a has the keys 0 and 1 and $b has the keys 0, 1 and 2. The + operator is a union BY KEY: it keeps every key of the left array and only adds the keys the left array does not have yet, here key 2 => 'e'. So $a + $b is ['a', 'b', 'e'], not an append. array_merge renumbers integer keys and appends, which gives the five elements a,b,c,d,e. To append one list to another, use array_merge or [...$a, ...$b]; to fill in missing keys of a map (like defaults), use +.",
+          "options": [
+            {
+              "text": "a,b,c,d,e | a,b,c,d,e",
+              "correct": false
+            },
+            {
+              "text": "a,b,e | a,b,c,d,e",
+              "correct": true
+            },
+            {
+              "text": "c,d,e | a,b,c,d,e",
+              "correct": false
+            },
+            {
+              "text": "a,b | a,b,c,d,e",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "$cart = ['1021' => 2, 'HG-TOTE' => 1, '0042' => 1]; Which statements are true? (Select all that apply.)",
+          "explanation": "A string key that is a canonical decimal integer is stored as an int, so the first key of $cart is int(1021). '0042' has a leading zero, so it stays the string '0042': isset($cart['0042']) is true, but $cart[42] looks for a different key and is not set. Arrays are values in PHP: $copy = $cart copies the array (lazily, on the first write), so changing $copy never changes $cart. unset removes one element and does NOT renumber: after unset($list[1]) the list ['a', 'b', 'c'] has the keys 0 and 2, count is 2 and $list[1] is undefined - a for loop from 0 to count() - 1 would read the missing key 1 and never reach 'c'. [1 => 'a', 2 => 'b'] is not a list, because a list's keys must be 0, 1, 2 ... in order.",
+          "options": [
+            {
+              "text": "The first key of $cart is the int 1021, not the string '1021'",
+              "correct": true
+            },
+            {
+              "text": "isset($cart[42]) is true",
+              "correct": false
+            },
+            {
+              "text": "$copy = $cart; $copy['1021'] = 5; also changes $cart['1021'] to 5",
+              "correct": false
+            },
+            {
+              "text": "After $list = ['a', 'b', 'c']; unset($list[1]); count($list) is 2 and $list[1] is undefined",
+              "correct": true
+            },
+            {
+              "text": "array_is_list([1 => 'a', 2 => 'b']) is true",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_phpf_212",
+      "name": "fix-cart-merge-at-login",
+      "type": "fix_bug",
+      "title": "Fix the cart merge that loses books at login",
+      "description": "When a customer of Hồ Gươm Books logs in, the cart they filled as a guest is merged into their saved cart. Since the last release, merged carts lose books, gain gift wrapping nobody asked for, and show an empty line while the last book disappears. Fix mergeCarts and cartLines so that SKUs stay SKUs, quantities of the same SKU are added (at most 10 copies), lines with quantity 0 are hidden and the lines come back as a proper list. The test runner reads both carts and prints the merged cart.",
+      "difficulty": "medium",
+      "points": 20,
+      "coding": {
+        "language": "php",
+        "filePath": "main.php",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: a book in both carts and a new book from the guest cart",
+          "input": "saved 1021 1\nsaved 2050 1\nguest 1021 2\nguest 1022 1\n",
+          "expected": "1021 x 3\n2050 x 1\n1022 x 1\nlines: 3, copies: 5",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Text SKUs and numeric SKUs in one cart",
+          "input": "saved HG-TOTE 1\nsaved 1021 1\nguest HG-TOTE 1\nguest 3307 2\n",
+          "expected": "HG-TOTE x 2\n1021 x 1\n3307 x 2\nlines: 3, copies: 5",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A saved line with quantity 0 is hidden",
+          "input": "saved 1021 0\nsaved 2050 1\nsaved 1022 2\nguest 3307 1\n",
+          "expected": "2050 x 1\n1022 x 2\n3307 x 1\nlines: 3, copies: 4",
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "At most 10 copies of one title",
+          "input": "saved 1021 8\nguest 1021 5\nguest 2050 3\n",
+          "expected": "1021 x 10\n2050 x 3\nlines: 2, copies: 13",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "An empty saved cart",
+          "input": "guest 1 1\nguest 2 1\nguest 1021 1\n",
+          "expected": "1 x 1\n2 x 1\n1021 x 1\nlines: 3, copies: 3",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Several zero lines, SKUs with leading zeros and small ids",
+          "input": "saved 0042 1\nsaved 2 0\nsaved 1021 0\nsaved 42 2\nguest 0042 1\nguest 1 1\nguest 2050 0\nguest 7 3\n",
+          "expected": "0042 x 2\n42 x 2\n1 x 1\n7 x 3\nlines: 4, copies: 8",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

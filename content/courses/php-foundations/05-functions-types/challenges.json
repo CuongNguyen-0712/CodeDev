@@ -1,0 +1,174 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_phpf_311",
+      "name": "named-arguments-nullable-quiz",
+      "type": "quiz",
+      "title": "Predict it: named arguments, defaults and nullable types",
+      "description": "Call a function with a named argument, then pick the rules for nullable types, named arguments and void.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "What does this print?\n\nfunction label(string $title, int $qty = 1, bool $gift = false): string\n{\n    return \"$qty x $title\" . ($gift ? ' (gift)' : '');\n}\necho label('Số đỏ', gift: true);",
+          "explanation": "Named arguments (PHP 8.0) pass a value by parameter name, so gift: true goes to $gift and $qty, which was skipped, keeps its default of 1. The result is \"1 x Số đỏ (gift)\". Skipping optional parameters is exactly what named arguments are for, so there is no error. Positionally, label('Số đỏ', true) would be a TypeError under strict_types (true is not an int), and in coercive mode it would quietly pass 1 as $qty.",
+          "options": [
+            {
+              "text": "1 x Số đỏ (gift)",
+              "correct": true
+            },
+            {
+              "text": "An Error: $qty cannot be skipped",
+              "correct": false
+            },
+            {
+              "text": "true x Số đỏ",
+              "correct": false
+            },
+            {
+              "text": "1 x Số đỏ",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "multiple_choice",
+          "points": 5,
+          "question": "Which statements are true in PHP 8.4? (Select all that apply.)",
+          "explanation": "A parameter like int $x = null used to become nullable implicitly; PHP 8.4 deprecates that, and the fix is to say it: ?int $x = null (or int|null $x = null). ?int is exactly the union type int|null. A positional argument after a named one is a compile error (\"Cannot use positional argument after named argument\"): named arguments come last. An unknown name is an Error at run time: \"Unknown named parameter $quantity\", which is why renaming a parameter is a breaking change once callers use names. A void function returns no value at all: return null; is a compile error, return; is the way to leave early.",
+          "options": [
+            {
+              "text": "function f(int $x = null) is deprecated; write ?int $x = null",
+              "correct": true
+            },
+            {
+              "text": "?int means the same as int|null",
+              "correct": true
+            },
+            {
+              "text": "label(qty: 2, 'Số đỏ') is allowed",
+              "correct": false
+            },
+            {
+              "text": "label('Số đỏ', quantity: 2) throws an Error: Unknown named parameter $quantity",
+              "correct": true
+            },
+            {
+              "text": "A function declared : void may end with return null;",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_phpf_312",
+      "name": "shipping-fee-function",
+      "type": "mini_coding",
+      "title": "Write the delivery fee function with named parameters",
+      "description": "Write shippingFee for Hồ Gươm Books: a fee by zone, a surcharge for every started 500 g above 1 kg, express at 1.5 times the delivery part, free standard delivery when a campaign threshold is reached, and insurance and cash-on-delivery surcharges that are always charged. $freeFrom is nullable: null means no campaign, 0 means free delivery for everyone. The test runner calls your function with named arguments from JSON, so missing keys use your defaults.",
+      "difficulty": "easy",
+      "points": 20,
+      "coding": {
+        "language": "php",
+        "filePath": "main.php",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Standard delivery in Hà Nội with the defaults",
+          "input": {
+            "grams": 800,
+            "zone": "HN",
+            "orderTotal": 120000
+          },
+          "expected": "20000",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "The starter example: express, 1,600 g",
+          "input": {
+            "grams": 1600,
+            "zone": "HN",
+            "orderTotal": 250000,
+            "express": true
+          },
+          "expected": "45000",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Insured parcel to Hồ Chí Minh City, no campaign",
+          "input": {
+            "grams": 800,
+            "zone": "HCM",
+            "orderTotal": 350000,
+            "insured": true
+          },
+          "expected": "45000",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Campaign reached: no delivery part, the COD surcharge stays",
+          "input": {
+            "grams": 2600,
+            "zone": "Đà Nẵng",
+            "orderTotal": 520000,
+            "freeFrom": 500000,
+            "cod": true
+          },
+          "expected": "10000",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "freeFrom 0 is a campaign for every order",
+          "input": {
+            "grams": 1001,
+            "zone": "HCM",
+            "orderTotal": 45000,
+            "freeFrom": 0
+          },
+          "expected": "0",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Express never ships free, surcharges are not multiplied",
+          "input": {
+            "grams": 3000,
+            "zone": "Cần Thơ",
+            "orderTotal": 900000,
+            "express": true,
+            "insured": true,
+            "cod": true,
+            "freeFrom": 300000
+          },
+          "expected": "107500",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Exactly 1,500 g and exactly the campaign threshold minus one",
+          "input": {
+            "grams": 1500,
+            "zone": "HN",
+            "orderTotal": 499999,
+            "freeFrom": 500000
+          },
+          "expected": "25000",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,335 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_phpf_221",
+      "name": "bestseller-widget",
+      "type": "mini_coding",
+      "title": "Build the bestseller list the mobile app can read",
+      "description": "The \"Bán chạy\" widget of the Hồ Gươm Books app shows the best-selling books that are in stock. The old code sent the app a JSON object instead of an array, filled the list with fewer books than asked, and swapped books with equal sales on every refresh. Write bestsellers: keep the books in stock, sort them by sales with a tie-break on id, take the first N and number them, and return a real list. The test runner decodes the request from JSON and prints your result as JSON.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "php",
+        "filePath": "main.php",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The example from the starter",
+          "input": {
+            "limit": 2,
+            "books": [
+              {
+                "id": 9,
+                "title": "Clean Code",
+                "sold": 120,
+                "stock": 2
+              },
+              {
+                "id": 3,
+                "title": "Truyện Kiều",
+                "sold": 340,
+                "stock": 0
+              },
+              {
+                "id": 7,
+                "title": "Số đỏ",
+                "sold": 120,
+                "stock": 4
+              }
+            ]
+          },
+          "expected": [
+            {
+              "rank": 1,
+              "id": 7,
+              "title": "Số đỏ",
+              "sold": 120
+            },
+            {
+              "rank": 2,
+              "id": 9,
+              "title": "Clean Code",
+              "sold": 120
+            }
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "The incident: an out-of-stock bestseller and two books with equal sales",
+          "input": {
+            "limit": 3,
+            "books": [
+              {
+                "id": 7,
+                "title": "Số đỏ",
+                "sold": 120,
+                "stock": 4
+              },
+              {
+                "id": 3,
+                "title": "Truyện Kiều",
+                "sold": 340,
+                "stock": 0
+              },
+              {
+                "id": 9,
+                "title": "Clean Code",
+                "sold": 120,
+                "stock": 2
+              },
+              {
+                "id": 5,
+                "title": "Đắc nhân tâm",
+                "sold": 515,
+                "stock": 11
+              }
+            ]
+          },
+          "expected": [
+            {
+              "rank": 1,
+              "id": 5,
+              "title": "Đắc nhân tâm",
+              "sold": 515
+            },
+            {
+              "rank": 2,
+              "id": 7,
+              "title": "Số đỏ",
+              "sold": 120
+            },
+            {
+              "rank": 3,
+              "id": 9,
+              "title": "Clean Code",
+              "sold": 120
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The same rows in another order give the same list",
+          "input": {
+            "limit": 3,
+            "books": [
+              {
+                "id": 9,
+                "title": "Clean Code",
+                "sold": 120,
+                "stock": 2
+              },
+              {
+                "id": 5,
+                "title": "Đắc nhân tâm",
+                "sold": 515,
+                "stock": 11
+              },
+              {
+                "id": 7,
+                "title": "Số đỏ",
+                "sold": 120,
+                "stock": 4
+              },
+              {
+                "id": 3,
+                "title": "Truyện Kiều",
+                "sold": 340,
+                "stock": 0
+              }
+            ]
+          },
+          "expected": [
+            {
+              "rank": 1,
+              "id": 5,
+              "title": "Đắc nhân tâm",
+              "sold": 515
+            },
+            {
+              "rank": 2,
+              "id": 7,
+              "title": "Số đỏ",
+              "sold": 120
+            },
+            {
+              "rank": 3,
+              "id": 9,
+              "title": "Clean Code",
+              "sold": 120
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Out-of-stock books at the top do not use up the limit",
+          "input": {
+            "limit": 4,
+            "books": [
+              {
+                "id": 12,
+                "title": "Dế Mèn phiêu lưu ký",
+                "sold": 88,
+                "stock": 6
+              },
+              {
+                "id": 4,
+                "title": "Nhà giả kim",
+                "sold": 410,
+                "stock": 0
+              },
+              {
+                "id": 15,
+                "title": "Refactoring",
+                "sold": 95,
+                "stock": 1
+              },
+              {
+                "id": 2,
+                "title": "Tuổi trẻ đáng giá bao nhiêu",
+                "sold": 410,
+                "stock": 3
+              },
+              {
+                "id": 21,
+                "title": "Sapiens",
+                "sold": 230,
+                "stock": 0
+              },
+              {
+                "id": 8,
+                "title": "Người lái đò sông Đà",
+                "sold": 95,
+                "stock": 9
+              },
+              {
+                "id": 11,
+                "title": "The Pragmatic Programmer",
+                "sold": 230,
+                "stock": 5
+              },
+              {
+                "id": 30,
+                "title": "Atomic Habits",
+                "sold": 61,
+                "stock": 14
+              }
+            ]
+          },
+          "expected": [
+            {
+              "rank": 1,
+              "id": 2,
+              "title": "Tuổi trẻ đáng giá bao nhiêu",
+              "sold": 410
+            },
+            {
+              "rank": 2,
+              "id": 11,
+              "title": "The Pragmatic Programmer",
+              "sold": 230
+            },
+            {
+              "rank": 3,
+              "id": 8,
+              "title": "Người lái đò sông Đà",
+              "sold": 95
+            },
+            {
+              "rank": 4,
+              "id": 15,
+              "title": "Refactoring",
+              "sold": 95
+            }
+          ],
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "The limit is larger than the number of books in stock",
+          "input": {
+            "limit": 10,
+            "books": [
+              {
+                "id": 40,
+                "title": "Lược sử thời gian",
+                "sold": 57,
+                "stock": 2
+              },
+              {
+                "id": 41,
+                "title": "Mắt biếc",
+                "sold": 57,
+                "stock": 0
+              },
+              {
+                "id": 42,
+                "title": "Cho tôi xin một vé đi tuổi thơ",
+                "sold": 160,
+                "stock": 7
+              }
+            ]
+          },
+          "expected": [
+            {
+              "rank": 1,
+              "id": 42,
+              "title": "Cho tôi xin một vé đi tuổi thơ",
+              "sold": 160
+            },
+            {
+              "rank": 2,
+              "id": 40,
+              "title": "Lược sử thời gian",
+              "sold": 57
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Limit 0 gives an empty list",
+          "input": {
+            "limit": 0,
+            "books": [
+              {
+                "id": 7,
+                "title": "Số đỏ",
+                "sold": 120,
+                "stock": 4
+              },
+              {
+                "id": 3,
+                "title": "Truyện Kiều",
+                "sold": 340,
+                "stock": 0
+              },
+              {
+                "id": 9,
+                "title": "Clean Code",
+                "sold": 120,
+                "stock": 2
+              },
+              {
+                "id": 5,
+                "title": "Đắc nhân tâm",
+                "sold": 515,
+                "stock": 11
+              }
+            ]
+          },
+          "expected": [],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}
