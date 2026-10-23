@@ -5,6 +5,7 @@ query modules in this folder (`*.db.js`, `roadmap.js`) via `lib/db.js`.
 
 | Folder / file | Contents |
 |---|---|
+| `schema.sql` | Baseline for a new database: full schema + reference data at `20261023_002` (replaces the migrations up to `20261019_001`, still in git history) |
 | `migrations/` | Ordered SQL migrations. **The only way to change the schema.** |
 | `functions/` | One file per SQL function (generated) |
 | `procedures/` | One file per stored procedure (generated; none at the moment) |
@@ -54,7 +55,9 @@ set) or an OAuth provider picture (no asset).
 |---|---|
 | `sign_up(7)` | `user.db.js` → `signUp` |
 | `log_in(1)` | `user.db.js` → `login` |
-| `auth_with_provider(7)` | `user.db.js` → `signUpWithProvider` |
+| `sign_in_with_provider(9)` | `user.db.js` → `signInWithProvider`: OAuth sign-in decision (`login` / `created` / `linked` / `link_required` / `blocked`), see `docs/auth.md` |
+| `link_provider_account(4)` | `user.db.js` → `linkProviderAccount`: explicit link after a password sign-in (`CD409` when the provider account belongs to another user) |
+| `auth_with_provider(7)` | no longer called (links by email without checking verification); kept for the app version running during the deploy of migration `20261023_001`, drop it afterwards |
 | `create_session(6)` | no longer called: sessions and refresh tokens are written by `session.db.js` (see `docs/auth.md`); kept for compatibility |
 | `learning_progress(2)` | `user.db.js` → `getLearningProgress` (entitlement check, then `learning_progress_content`) |
 | `register_course(2)` | `course.db.js` → `postRegister` (grants the `free` entitlement of a free course; premium needs one) |
@@ -121,6 +124,20 @@ listed in `pg_constraint` by 18 only).
 A database migrated by hand before the runner existed is marked with
 `node db/tools/migrate.mjs --baseline <last applied version>` (both databases were baselined on
 2026-10-17: production at `20261015_002`, local at `20261016_001`).
+
+New database (another machine, CI): load the baseline, then run the newer migrations and the seeds.
+`schema.sql` carries its `schema_migrations` rows, so the runner skips what it already contains:
+
+```bash
+createdb codedev
+psql -d codedev -v ON_ERROR_STOP=1 -f db/schema.sql
+npm run db:migrate
+```
+
+Migrations applied on local and production were squashed into `schema.sql` on 2026-10-23; the
+runner ignores recorded versions without a file. Squash again the same way (pg_dump of the
+migrated local database, schema + reference tables) only once every migration it replaces has
+reached production.
 
 Identity columns: `storage.assets`, `community.comment`, `learning.favorite` use
 `GENERATED ALWAYS AS IDENTITY` — never insert an explicit `id`. `identity.sessions`,

@@ -70,4 +70,14 @@ export const userClient = {
         const res = await apiClient.delete('/user/sessions', { data: { others: true } });
         return res.data;
     },
+
+    getSignInMethods: async () => {
+        const res = await apiClient.get('/user/accounts');
+        return res.data || { password: false, providers: [] };
+    },
+
+    disconnectProvider: async (provider) => {
+        const res = await apiClient.delete(`/user/accounts/${provider}`);
+        return res.data;
+    },
 };

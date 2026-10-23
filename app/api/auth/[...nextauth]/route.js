@@ -8,9 +8,17 @@ import { ApiError } from "@/lib/error/apiError";
 import { RateLimiter, rateLimiters, failureGuards } from "@/lib/rateLimit";
 import { AUTH } from "@/lib/authConfig";
 import { encodeAuthJwt, decodeAuthJwt, tokenAccessExpiresAt, tokenSessionId } from "@/lib/authJwt";
-import { setRefreshCookie, clearRefreshCookie } from "@/lib/authCookies";
+import {
+    setRefreshCookie, clearRefreshCookie, setLinkCookie, readLinkCookie, clearLinkCookie,
+    readLinkIntentCookie, clearLinkIntentCookie,
+} from "@/lib/authCookies";
 import { auditAuth } from "@/lib/authAudit";
+import { invalidateUserCache } from "@/lib/cacheKeys";
+import { readAuthToken } from "@/lib/session";
+import { verifiedProviderEmail } from "@/lib/oauthEmail";
+import { splitDisplayName, usernameBase } from "@/lib/username";
 
+import { accountLinkService } from "@/services/accountLink.service";
 import { authService } from "@/services/auth.service";
 
 import { SESSION_ERROR, isFatalSessionError } from "@/constants/auth";
@@ -43,6 +51,169 @@ function readHeader(req, name) {
     const h = req?.headers;
     if (!h) return null;
     return typeof h.get === "function" ? h.get(name) : h[name];
+}
+
+const authError = (code) => `/auth/error?error=${code}`;
+const settingsResult = (query) => `/settings?${query}#settings-signin`;
+
+// 23505: a concurrent link inserted the same account; a second pass sees who owns it (CD409).
+const linkWithRetry = (args) =>
+    authService.linkProviderAccount(args).catch((err) => (err?.code === "23505" ? authService.linkProviderAccount(args) : Promise.reject(err)));
+
+/**
+ * "Connect" from Settings (plan 10.4): links the provider account to the user in the intent
+ * cookie and redirects back to Settings. Returning a URL means next-auth writes no new session,
+ * so the current one (cookies, `sid`, other tabs) stays exactly as it was.
+ */
+async function connectFromSettings({ intent, account, profile, meta }) {
+    await clearLinkIntentCookie();
+    const provider = account.provider;
+
+    let active = null;
+    try {
+        active = await authService.getSessionStatus(intent.sessionId);
+    } catch {
+        return settingsResult(`linkError=Callback&provider=${provider}`);
+    }
+    if (!active || active.userId !== intent.userId) return settingsResult(`linkError=LinkExpired&provider=${provider}`);
+
+    // Ownership is proven by the OAuth round trip itself; the email is only shown and audited.
+    const providerEmail = await verifiedProviderEmail({ provider, account, profile }).catch(() => null);
+
+    try {
+        // One account per provider (accounts_user_provider_uq): a second one is refused.
+        const { providers } = await accountLinkService.listMethods(intent.userId);
+        if (providers.some((p) => p.provider === provider)) return settingsResult(`linkError=AlreadyConnected&provider=${provider}`);
+
+        await linkWithRetry({ userId: intent.userId, provider, providerAccountId: account.providerAccountId, providerEmail });
+    } catch (err) {
+        if (err?.code === "CD409") return settingsResult(`linkError=OAuthAccountInUse&provider=${provider}`);
+        console.error("[auth] Connecting from Settings failed:", err);
+        return settingsResult(`linkError=Callback&provider=${provider}`);
+    }
+
+    auditAuth("account.linked", { userId: intent.userId, sessionId: intent.sessionId, ip: meta.ip, provider, reason: "settings" });
+    await invalidateUserCache(intent.userId);
+    await accountLinkService.notify({ userId: intent.userId, provider, action: "connected", ip: meta.ip });
+    return settingsResult(`linked=${provider}`);
+}
+
+/**
+ * OAuth sign-in decision (docs/email-verification-plan.md 10.3). Returns true with the signed-in
+ * user stored on `user.codedev` (next-auth hands the same object to the jwt callback when there
+ * is no adapter), or a URL to redirect to.
+ */
+async function providerSignIn({ user, account, profile }) {
+    const provider = account.provider;
+    const meta = await requestMeta();
+
+    // Connect only when the browser still carries the session that pressed "Connect"; a stale
+    // intent (signed out, another account since) is dropped and this is an ordinary sign-in.
+    const intent = await readLinkIntentCookie();
+    if (intent) {
+        const current = await readAuthToken();
+        if (intent.provider === provider && current?.id === intent.userId && String(tokenSessionId(current)) === intent.sessionId) {
+            return connectFromSettings({ intent, account, profile, meta });
+        }
+        await clearLinkIntentCookie();
+    }
+
+    let email;
+    try {
+        email = await verifiedProviderEmail({ provider, account, profile });
+    } catch (err) {
+        console.error(`[auth] ${provider} email lookup failed:`, err?.message);
+        return authError("OAuthCallback");
+    }
+    if (!email) {
+        auditAuth("login.failed", { ip: meta.ip, provider, reason: "email_unverified" });
+        return authError("OAuthEmailUnverified");
+    }
+
+    const fallbackName = provider === "github" ? profile?.login : email.split("@")[0];
+    const names = provider === "google" && profile?.given_name
+        ? { surname: profile.family_name || profile.given_name, name: profile.given_name }
+        : splitDisplayName(profile?.name, fallbackName);
+
+    try {
+        const { result, user: dbUser } = await authService.signInWithProvider({
+            username: usernameBase(fallbackName),
+            email,
+            image: user.image || null,
+            accountProvider: provider,
+            providerAccountId: account.providerAccountId,
+            surname: names.surname,
+            name: names.name,
+            userAgent: meta.userAgent,
+            ip: meta.ip,
+        });
+
+        if (result === "blocked") {
+            auditAuth("login.failed", { userId: dbUser.id, ip: meta.ip, provider, reason: "blocked" });
+            return authError("AccessDenied");
+        }
+
+        if (result === "link_required") {
+            await setLinkCookie({
+                provider,
+                providerAccountId: account.providerAccountId,
+                providerEmail: email,
+                targetUserId: dbUser.id,
+                targetUsername: dbUser.username,
+                targetEmail: dbUser.email,
+            });
+            auditAuth("account.link_required", { userId: dbUser.id, ip: meta.ip, provider });
+            return "/auth/link";
+        }
+
+        if (result === "linked") {
+            auditAuth("account.linked", { userId: dbUser.id, ip: meta.ip, provider, reason: "verified_email" });
+            await accountLinkService.notify({ userId: dbUser.id, provider, action: "connected", ip: meta.ip });
+        }
+        auditAuth("login.succeeded", { userId: dbUser.id, sessionId: dbUser.session.sessionId, ip: meta.ip, provider });
+
+        user.codedev = dbUser;
+        return true;
+    } catch (err) {
+        console.error(`[auth] ${provider} sign-in failed:`, err);
+        return authError("Callback");
+    }
+}
+
+/**
+ * Password sign-in from /auth/link (credential `link: "1"`): attaches the pending provider
+ * account to the user who just proved the password. Returns true or an error URL.
+ */
+async function linkPendingProvider(user) {
+    const link = await readLinkCookie();
+    await clearLinkCookie();
+
+    let failure = null;
+    if (!link || link.targetUserId !== user.id) {
+        failure = "LinkExpired";
+    } else {
+        try {
+            await linkWithRetry({
+                userId: user.id,
+                provider: link.provider,
+                providerAccountId: link.providerAccountId,
+                providerEmail: link.providerEmail,
+            });
+            auditAuth("account.linked", { userId: user.id, sessionId: user.session?.sessionId, provider: link.provider, reason: "password" });
+            // The link also verified the email: drop a cached /api/user/me that still says otherwise.
+            await invalidateUserCache(user.id);
+            await accountLinkService.notify({ userId: user.id, provider: link.provider, action: "connected" });
+            return true;
+        } catch (err) {
+            failure = err?.code === "CD409" ? "OAuthAccountInUse" : "Callback";
+            if (failure === "Callback") console.error("[auth] Linking after password sign-in failed:", err);
+        }
+    }
+
+    // authorize already opened a session the browser will never receive: end it.
+    await authService.logout({ userId: user.id, sessionId: user.session.sessionId }).catch(() => { });
+    // Absolute: signIn("credentials", { redirect: false }) parses this with new URL() and no base.
+    return new URL(authError(failure), process.env.NEXTAUTH_URL).toString();
 }
 
 // Claims of a freshly signed-in session. The refresh token itself goes to its cookie only.
@@ -105,6 +276,8 @@ export const authOptions = {
             credentials: {
                 username: {},
                 password: {},
+                // "1" from /auth/link: also attach the pending provider account (signIn callback).
+                link: {},
             },
             // Thrown messages are shown to the user (signIn(...).error), so keep them safe.
             async authorize(credentials, req) {
@@ -113,6 +286,13 @@ export const authOptions = {
 
                 if (!username || !password) {
                     throw new Error("Enter your username and password.");
+                }
+
+                // Linking from /auth/link: refuse before any session exists when the request expired
+                // or names another account (signIn re-checks the user id after the password).
+                if (credentials?.link === "1") {
+                    const link = await readLinkCookie();
+                    if (!link || link.targetUsername !== username) throw new Error("LinkExpired");
                 }
 
                 const ip = RateLimiter.getClientIp(req);
@@ -160,41 +340,18 @@ export const authOptions = {
     ],
 
     callbacks: {
-        async jwt({ token, user, account, profile }) {
+        // Decides who signs in; jwt only turns the result into a session.
+        async signIn({ user, account, profile, credentials }) {
+            if (account?.provider === "credentials") {
+                return credentials?.link === "1" ? linkPendingProvider(user) : true;
+            }
+            return providerSignIn({ user, account, profile });
+        },
+
+        async jwt({ token, user, account }) {
             // ---- Sign in: the session was committed to PostgreSQL by authService.createSession.
             if (account && user) {
-                if (account.provider === "credentials") {
-                    return startSession(token, user);
-                }
-
-                const email =
-                    user.email ||
-                    profile?.email ||
-                    profile?.emails?.[0]?.value;
-
-                if (!email) {
-                    // Surfaces as /auth/error?error=Callback
-                    throw new Error("The provider did not share an email address.");
-                }
-
-                try {
-                    const meta = await requestMeta();
-                    const response = await authService.signUpWithProvider({
-                        username: user.username || user.name,
-                        email,
-                        image: user.image || null,
-                        accountProvider: account.provider,
-                        providerAccountId: account.providerAccountId,
-                        userAgent: meta.userAgent,
-                        ip: meta.ip,
-                    });
-
-                    auditAuth("login.succeeded", { userId: response.id, sessionId: response.session.sessionId, ip: meta.ip, provider: account.provider });
-                    return startSession(token, response);
-                } catch (err) {
-                    console.error(`[auth] ${account.provider} sign-in failed:`, err);
-                    throw new Error("Authentication failed, try again");
-                }
+                return startSession(token, account.provider === "credentials" ? user : user.codedev);
             }
 
             // ---- Existing session (GET/POST /api/auth/session)

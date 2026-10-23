@@ -3,6 +3,7 @@ import Navbar from '@/components/ui/navbar';
 import Dashboard from '@/components/ui/dashboard';
 import Feedback from '@/components/ui/feedback';
 import Footer from '@/components/ui/footer';
+import VerifyEmailBanner from '@/components/auth/verifyEmailBanner';
 
 import { SidebarInset, SidebarProvider } from '@/components/shadcn/sidebar';
 
@@ -30,6 +31,7 @@ function LayoutContent({ children }) {
 
             <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
                 <Navbar />
+                <VerifyEmailBanner />
 
                 {/* The page scroller: hooks/useInfiniteScroll observes it by id. */}
                 <section

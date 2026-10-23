@@ -5,6 +5,7 @@ import { publishToUser } from "@/lib/pusher";
 import { events, progressReasons } from "@/lib/realtime";
 import { getCheckoutProvider } from "@/services/payments";
 import { sha256Hex } from "@/services/payments/signature";
+import { emailVerificationService } from "@/services/emailVerification.service";
 
 /**
  * Buying (money) and redeeming (points) courses. Prices always come from commerce.offer inside
@@ -45,6 +46,7 @@ function mapOrder(row) {
 
 export const commerceService = {
     redeem: async ({ userId, courseId, idempotencyKey }) => {
+        await emailVerificationService.assertVerified(userId);
         const { rows } = await commerceDb.redeem({ userId, courseId, idempotencyKey });
         const row = rows[0];
         if (!row) throw new Error("Redeem returned no result");
@@ -62,6 +64,7 @@ export const commerceService = {
 
     /** Creates (or reuses) a pending order and its provider checkout. Never grants access. */
     checkout: async ({ userId, courseId, idempotencyKey }) => {
+        await emailVerificationService.assertVerified(userId);
         const provider = getCheckoutProvider();
         if (!provider) {
             throw new ApiError("Online payment is not available yet.", 503, { code: "PAYMENTS_DISABLED", expose: true });

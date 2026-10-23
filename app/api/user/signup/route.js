@@ -6,6 +6,7 @@ import { SignUpSchema } from "@/lib/definition";
 import { validate } from "@/lib/validate";
 
 import { userService } from "@/services/user.service";
+import { emailVerificationService } from "@/services/emailVerification.service";
 
 export async function POST(req) {
     const limit = await rateLimiters.signup.limitRequest(req);
@@ -35,12 +36,16 @@ export async function POST(req) {
             password,
         });
 
+        const userId = response?.id ?? response?.public_id ?? null;
+        const verificationSent = userId ? await emailVerificationService.request(userId) : false;
+
         return NextResponse.json({
             success: true,
             message: "Account created successfully",
             data: {
-                id: response?.id ?? response?.public_id ?? null,
+                id: userId,
                 username: response?.username ?? username.trim(),
+                verificationSent,
             },
         }, { status: 201, headers: limit.headers });
     }

@@ -19,5 +19,6 @@ AS $function$
     LEFT JOIN identity.user_roles ur ON ur.user_id = u.id
     LEFT JOIN identity.roles r ON r.id = ur.role_id
     WHERE u.username = _username
+      AND u.status = 'active'
     LIMIT 1;
 $function$;

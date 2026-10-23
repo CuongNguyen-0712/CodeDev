@@ -119,4 +119,6 @@ Set in the Vercel project (Production scope), with values distinct from developm
 `APP_ENV=production`, `STORAGE_PROVIDER=s3`, `AWS_ENDPOINT_URL_S3`, `AWS_ACCESS_KEY_ID`,
 `AWS_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_PRIVATE_BUCKET`, `DATABASE_URL`, `REDIS_URL` /
 `REDIS_TOKEN`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `REFRESH_TOKEN_HASH_SECRET`,
-`REFRESH_TOKEN_RECOVERY_KEY`, `AUTH_JWT_ISSUER`, `AUTH_JWT_AUDIENCE`. Never set `MINIO_*` there.
+`REFRESH_TOKEN_RECOVERY_KEY`, `AUTH_JWT_ISSUER`, `AUTH_JWT_AUDIENCE`, `EMAIL_USER`, `EMAIL_PASS`
+(Gmail + App Password; `SMTP_*` only for another mail server, see [auth.md](auth.md)). Never set
+`MINIO_*` or `SMTP_HOST` there unless the mail server really changes.

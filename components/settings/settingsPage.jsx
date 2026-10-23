@@ -16,9 +16,11 @@ const AVATAR_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 import { updateUserProfileAction } from "@/actions/user.actions";
 import { callWithAuthRetry } from "@/lib/actionResult";
+import { authClient } from "@/clients/auth.client";
 
 import { ErrorReload } from "@/components/ui/error";
 import SessionsSection from "@/components/settings/sessionsSection";
+import SignInMethodsSection from "@/components/settings/signInMethodsSection";
 import PreferencesSection from "@/components/settings/preferencesSection";
 import PrivacySection from "@/components/settings/privacySection";
 import { InputGroup, TextAreaGroup } from "@/components/ui/input";
@@ -384,7 +386,7 @@ function AccountSection({ data, onSaved }) {
         data,
         fields: ACCOUNT_FIELDS,
         onSaved,
-        successMessage: 'Your email address has been updated.',
+        successMessage: 'Email updated. Check the new address to verify it.',
     });
 
     return (
@@ -416,7 +418,10 @@ function AccountSection({ data, onSaved }) {
                     {data?.email_verified ? (
                         <Badge variant="success"><LuCircleCheck aria-hidden="true" />Verified</Badge>
                     ) : (
-                        <Badge variant="warning"><LuCircleAlert aria-hidden="true" />Not verified</Badge>
+                        <>
+                            <Badge variant="warning"><LuCircleAlert aria-hidden="true" />Not verified</Badge>
+                            <ResendVerificationButton />
+                        </>
                     )}
                 </div>
             </FieldGroup>
@@ -430,6 +435,29 @@ function AccountSection({ data, onSaved }) {
                 onReset={form.reset}
             />
         </form>
+    );
+}
+
+function ResendVerificationButton() {
+    const { showAlert: alert } = useApp();
+    const [state, setState] = useState("idle");
+
+    const handleClick = async () => {
+        setState("sending");
+        try {
+            await authClient.resendVerification();
+            setState("sent");
+            alert(200, "Verification email sent. Check your inbox.");
+        } catch (error) {
+            setState("idle");
+            alert(500, error?.message || "Could not send the verification email.");
+        }
+    };
+
+    return (
+        <Button type="button" size="sm" variant="link" className="h-auto p-0" onClick={handleClick} disabled={state !== "idle"}>
+            {state === "sent" ? "Email sent" : state === "sending" ? "Sending..." : "Send verification email"}
+        </Button>
     );
 }
 
@@ -546,6 +574,14 @@ export default function SettingsPage() {
                         description="Who can see your profile, your courses and your place on the leaderboard."
                     >
                         <PrivacySection />
+                    </SettingsSection>
+
+                    <SettingsSection
+                        id="settings-signin"
+                        title="Sign-in methods"
+                        description="Ways you can sign in to this account. Keep at least one."
+                    >
+                        <SignInMethodsSection />
                     </SettingsSection>
 
                     <SettingsSection

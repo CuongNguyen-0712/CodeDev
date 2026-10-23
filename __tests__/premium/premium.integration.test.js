@@ -37,7 +37,8 @@ async function makeUser(name, points = 0) {
     const id = generateSonyflake();
     const publicId = `${TAG}_${name}`;
     await sql(
-        `INSERT INTO identity.users (id, public_id, username, email) VALUES ($1, $2, $3, $4)`,
+        // Verified: purchases require a verified email (services/emailVerification.service.js).
+        `INSERT INTO identity.users (id, public_id, username, email, email_verified) VALUES ($1, $2, $3, $4, true)`,
         [id, publicId, `${TAG}_${name}`, `${TAG}_${name}@test.invalid`]
     );
     await sql(`INSERT INTO profile.info (user_id, surname, name) VALUES ($1, 'Test', $2)`, [id, name.slice(0, 30)]);
@@ -152,6 +153,13 @@ describe.skipIf(!hasDb)("onboarding + premium courses (PostgreSQL)", () => {
             );
             await client.query(`DELETE FROM commerce.payment WHERE order_id IN (SELECT id FROM commerce.orders WHERE user_id = ANY($1::bigint[]))`, [userIds]);
             await client.query(`DELETE FROM commerce.orders WHERE user_id = ANY($1::bigint[])`, [userIds]);
+            // Users first whose ids are no ledger actor_id: deleting an actor sets actor_id NULL, an
+            // UPDATE the append-only trigger rejects; once their subjects are gone no row is left to update.
+            await client.query(
+                `DELETE FROM identity.users u WHERE u.id = ANY($1::bigint[])
+                   AND NOT EXISTS (SELECT 1 FROM profile.point_transaction t WHERE t.actor_id = u.id)`,
+                [userIds]
+            );
             await client.query(`DELETE FROM identity.users WHERE id = ANY($1::bigint[])`, [userIds]);
             await client.query(`DELETE FROM catalog.course WHERE id = ANY($1::bigint[])`, [courseIds]);
             await client.query("COMMIT");

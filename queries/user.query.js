@@ -101,6 +101,15 @@ export const userQueries = {
         };
     },
 
+    signInMethods(status) {
+        return {
+            queryKey: userKeys.signInMethods(),
+            queryFn: () => userClient.getSignInMethods(),
+            enabled: status === 'authenticated',
+            ...QUERY_TIMES.personal,
+        };
+    },
+
     learningProgress(status, courseId) {
         return {
             queryKey: userKeys.learningProgress(courseId),

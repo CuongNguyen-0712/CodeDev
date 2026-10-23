@@ -115,7 +115,7 @@ export const sessionDb = {
             const sessionRes = await client.query(
                 `SELECT ${SESSION_COLUMNS}, now() AS db_now
                  FROM identity.sessions s
-                 JOIN identity.users u ON u.id = s.user_id
+                 JOIN identity.users u ON u.id = s.user_id AND u.status = 'active'
                  WHERE s.id = $1
                  FOR UPDATE OF s;`,
                 [found.session_id]
@@ -245,10 +245,11 @@ export const sessionDb = {
         const res = await sql(
             `SELECT ${SESSION_COLUMNS}
              FROM identity.sessions s
-             JOIN identity.users u ON u.id = s.user_id
+             JOIN identity.users u ON u.id = s.user_id AND u.status = 'active'
              WHERE s.id = $1;`,
             [sessionId]
         );
+        // A blocked / inactive user's sessions read as missing, i.e. not active.
         return res.rows[0] || null;
     },
 
@@ -278,32 +279,33 @@ export const sessionDb = {
      * Revokes sessions of one user (all of them, a list, or all except one), their refresh
      * tokens, and enqueues the cache invalidation — one transaction.
      */
-    revokeSessions: async ({ userPublicId, sessionIds = null, exceptSessionId = null, reason }) => {
-        return withTransaction(async (client) => {
-            const res = await client.query(
-                `UPDATE identity.sessions s
-                 SET revoked_at = now(), is_revoked = TRUE, revoke_reason = $4, updated_at = now()
-                 WHERE s.user_id = (SELECT id FROM identity.users WHERE public_id = $1)
-                   AND s.revoked_at IS NULL
-                   AND ($2::bigint[] IS NULL OR s.id = ANY($2::bigint[]))
-                   AND ($3::bigint IS NULL OR s.id <> $3::bigint)
-                 RETURNING s.id::text AS session_id;`,
-                [userPublicId, sessionIds, exceptSessionId, reason]
-            );
-            const revoked = res.rows.map((row) => row.session_id);
-            if (revoked.length === 0) return { sessionIds: [], outboxId: null };
+    revokeSessions: async (args) => withTransaction((client) => sessionDb.revokeSessionsTx(client, args)),
 
-            await client.query(
-                `UPDATE identity.refresh_tokens
-                 SET revoked_at = now(), recovery_sealed = NULL, recovery_key_hash = NULL, recovery_expires_at = NULL
-                 WHERE session_id = ANY($1::bigint[]) AND revoked_at IS NULL;`,
-                [revoked]
-            );
+    /** revokeSessions inside the caller's transaction (e.g. a link confirmed by email). */
+    revokeSessionsTx: async (client, { userPublicId, sessionIds = null, exceptSessionId = null, reason }) => {
+        const res = await client.query(
+            `UPDATE identity.sessions s
+             SET revoked_at = now(), is_revoked = TRUE, revoke_reason = $4, updated_at = now()
+             WHERE s.user_id = (SELECT id FROM identity.users WHERE public_id = $1)
+               AND s.revoked_at IS NULL
+               AND ($2::bigint[] IS NULL OR s.id = ANY($2::bigint[]))
+               AND ($3::bigint IS NULL OR s.id <> $3::bigint)
+             RETURNING s.id::text AS session_id;`,
+            [userPublicId, sessionIds, exceptSessionId, reason]
+        );
+        const revoked = res.rows.map((row) => row.session_id);
+        if (revoked.length === 0) return { sessionIds: [], outboxId: null };
 
-            const outboxId = await enqueueOutbox(client, "session.revoked", { sessionIds: revoked, userId: userPublicId, reason });
+        await client.query(
+            `UPDATE identity.refresh_tokens
+             SET revoked_at = now(), recovery_sealed = NULL, recovery_key_hash = NULL, recovery_expires_at = NULL
+             WHERE session_id = ANY($1::bigint[]) AND revoked_at IS NULL;`,
+            [revoked]
+        );
 
-            return { sessionIds: revoked, outboxId };
-        });
+        const outboxId = await enqueueOutbox(client, "session.revoked", { sessionIds: revoked, userId: userPublicId, reason });
+
+        return { sessionIds: revoked, outboxId };
     },
 
     // ---------------------------------------------------------------- outbox

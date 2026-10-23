@@ -71,14 +71,14 @@ Client: `hooks/usePusherChannel.js` (đếm tham chiếu kênh, tự refetch khi
 ### 2.4 Dọn dẹp
 - [x] Xóa `components/home/manage.jsx` (không còn được import; logout ở đây chưa thu hồi session phía server).
 - [ ] Gom các route kiểu `app/api/get/*`, `app/api/post/*` về REST theo tài nguyên (`/api/teams`, `/api/friends`…), dùng chung `requireAuthSession` + `errorResponse`.
-- [ ] `app/api/post/sendEmail` đang là stub (trả 501).
+- [x] Xóa stub `app/api/post/sendEmail`; gửi mail qua `lib/mail.js` (xem `docs/auth.md`).
 
 ---
 
 ## 3. Tính năng sản phẩm (1–2 tháng)
 
 ### 3.1 Tài khoản
-- **Xác minh email & quên mật khẩu**: đã có `@react-email/components`; dùng Resend gửi mail, token một lần lưu Redis (TTL 15 phút) + rate limit theo email.
+- **Xác minh email & quên mật khẩu**: plan chi tiết ở [email-verification-plan.md](email-verification-plan.md) (token lưu PostgreSQL, gửi qua SMTP: Gmail trước, Resend khi có domain).
 - **Thông báo đăng nhập mới** qua email khi có session từ thiết bị lạ.
 - **2FA (TOTP)** cho tài khoản dùng mật khẩu.
 

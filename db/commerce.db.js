@@ -1,8 +1,8 @@
 import { sql } from "@/lib/db";
 
 /**
- * Orders, payments, points ledger and entitlements. Writes go through the SQL functions of
- * migration 20261017_004 (one statement = one transaction). Every read is scoped to the user of
+ * Orders, payments, points ledger and entitlements. Writes go through the commerce SQL
+ * functions in db/functions (one statement = one transaction). Every read is scoped to the user of
  * the session (`u.public_id = $1`), so ids from the client can never reach another user's data.
  */
 export const commerceDb = {

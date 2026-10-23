@@ -7,7 +7,7 @@ import { SignUpSchema, SignUpStep1Schema, SignUpStep2Schema } from "@/lib/defini
 import { validate } from "@/lib/validate"
 import { useApp } from "@/contexts/appContext"
 import { authClient } from "@/clients/auth.client"
-import { cn } from "@/lib/utils"
+import { cn, maskEmail } from "@/lib/utils"
 
 import AuthAlert from "./authAlert"
 import { InputGroup } from "../ui/input"
@@ -103,7 +103,9 @@ export default function Signup({ active, changeForm }) {
 
         signUpMutation.mutate(formData, {
             onSuccess: (response) => {
-                alert(201, response?.message || "Account created successfully! Please sign in.")
+                alert(201, response?.data?.verificationSent
+                    ? `Account created. We sent a verification link to ${maskEmail(formData.email)}. Sign in to continue.`
+                    : "Account created. Sign in to continue.")
                 setFormData(defaultState)
                 setStep(0)
                 changeForm()

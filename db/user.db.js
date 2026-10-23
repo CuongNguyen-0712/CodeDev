@@ -1,4 +1,5 @@
 import { sql } from "@/lib/db";
+import { withTransaction } from "@/lib/dbTransaction";
 import { escapeLike } from "@/lib/listFilters";
 
 // Sessions and refresh tokens live in db/session.db.js.
@@ -28,16 +29,80 @@ export const userDb = {
         return await sql(query, params);
     },
 
-    signUpWithProvider: async (data) => {
-        const { id, public_id, username, email, image, accountProvider, providerAccountId } = data;
+    // Returns the decision in `result` ('login' | 'created' | 'linked' | 'link_required' | 'blocked').
+    signInWithProvider: async (data) => {
+        const { id, public_id, username, email, image, accountProvider, providerAccountId, surname, name } = data;
 
         const params = [];
 
-        params.push(id, public_id, username, email, image, accountProvider, providerAccountId);
+        params.push(id, public_id, username, email, image, accountProvider, providerAccountId, surname, name);
 
-        const query = `SELECT * FROM auth_with_provider($1, $2, $3, $4, $5, $6, $7)`
+        const query = `SELECT * FROM sign_in_with_provider($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 
         return await sql(query, params);
+    },
+
+    isEmailVerified: async ({ userId }) => {
+        const res = await sql(`SELECT email_verified FROM identity.users WHERE public_id = $1;`, [userId]);
+        return res.rows[0]?.email_verified === true;
+    },
+
+    // Throws SQLSTATE CD409 when the provider account belongs to another user.
+    linkProviderAccount: async ({ userId, provider, providerAccountId, providerEmail }) => {
+        return await sql(
+            `SELECT link_provider_account($1, $2, $3, $4)`,
+            [userId, provider, providerAccountId, providerEmail]
+        );
+    },
+
+    /** Sign-in methods for Settings: password (only when a hash exists) and linked providers. */
+    listSignInMethods: async ({ userId }) => {
+        const res = await sql(
+            `SELECT a.provider::text AS provider, a.provider_email, a.created_at, a.password_hash IS NOT NULL AS has_password
+             FROM identity.accounts a
+             JOIN identity.users u ON u.id = a.user_id
+             WHERE u.public_id = $1
+             ORDER BY a.created_at;`,
+            [userId]
+        );
+        return res.rows;
+    },
+
+    /**
+     * Removes a linked GitHub / Google account unless it is the last way to sign in (the user row
+     * is locked so two concurrent removals cannot both pass the check).
+     * @returns {Promise<"removed" | "not_linked" | "last_method">}
+     */
+    unlinkProvider: async ({ userId, provider }) => {
+        return withTransaction(async (client) => {
+            const userRes = await client.query(`SELECT id FROM identity.users WHERE public_id = $1 FOR UPDATE;`, [userId]);
+            const id = userRes.rows[0]?.id;
+            if (!id) return "not_linked";
+
+            const res = await client.query(
+                `SELECT provider::text AS provider, password_hash IS NOT NULL AS has_password
+                 FROM identity.accounts WHERE user_id = $1;`,
+                [id]
+            );
+            if (!res.rows.some((a) => a.provider === provider)) return "not_linked";
+            const others = res.rows.filter((a) => a.provider !== provider && (a.provider !== "credentials" || a.has_password));
+            if (others.length === 0) return "last_method";
+
+            await client.query(`DELETE FROM identity.accounts WHERE user_id = $1 AND provider = $2::provider_enum;`, [id, provider]);
+            return "removed";
+        });
+    },
+
+    /** Address and first name for account notices; null for a missing or inactive user. */
+    getMailRecipient: async ({ userId }) => {
+        const res = await sql(
+            `SELECT u.email, i.name
+             FROM identity.users u
+             LEFT JOIN profile.info i ON i.user_id = u.id
+             WHERE u.public_id = $1 AND u.status = 'active';`,
+            [userId]
+        );
+        return res.rows[0] || null;
     },
 
     getPermissions: async (data) => {
@@ -365,7 +430,7 @@ export const userDb = {
             emailCTE = `
             WITH updated_user AS (
                 UPDATE identity.users
-                SET email = $${params.length}, updated_at = now()
+                SET email = $${params.length}, email_verified = false, updated_at = now()
                 WHERE public_id = $1 AND email IS DISTINCT FROM $${params.length}
                 RETURNING id
             )`;

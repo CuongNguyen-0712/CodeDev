@@ -1,4 +1,5 @@
 import { sessionDb } from "@/db/session.db";
+import { emailTokenDb } from "@/db/emailToken.db";
 import { redis } from "@/lib/cache";
 import { cacheKeys } from "@/lib/cacheKeys";
 import { AUTH } from "@/lib/authConfig";
@@ -22,6 +23,22 @@ const CLEANUP_INTERVAL_MS = 10 * 60_000;
 const MAX_BACKOFF_SEC = 300;
 
 const handlers = {
+    // Imported lazily: emailVerification.service imports this module to process its event.
+    "email.verify_requested": async (payload) => {
+        const { emailVerificationService } = await import("@/services/emailVerification.service");
+        await emailVerificationService.send(payload.userId);
+    },
+
+    "email.link_requested": async (payload) => {
+        const { accountLinkService } = await import("@/services/accountLink.service");
+        await accountLinkService.sendLinkEmail(payload);
+    },
+
+    "email.account_notice": async (payload) => {
+        const { accountLinkService } = await import("@/services/accountLink.service");
+        await accountLinkService.sendNotice(payload);
+    },
+
     "session.revoked": async (payload, { attempts }) => {
         for (const sessionId of payload.sessionIds || []) {
             // Overwrite (not delete) so a reader that fetched "active" just before the revoke
@@ -79,7 +96,8 @@ export async function processAuthOutbox({ ids = null, limit = 50 } = {}) {
 
 export async function cleanupAuthState() {
     try {
-        return await sessionDb.cleanup();
+        const state = await sessionDb.cleanup();
+        return { ...state, emailTokensDeleted: await emailTokenDb.cleanup() };
     } catch (error) {
         console.error("[auth-outbox] cleanup failed:", error?.message);
         return null;

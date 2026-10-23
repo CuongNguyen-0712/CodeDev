@@ -22,6 +22,43 @@ export const authClient = {
         return response ?? { ok: true, redirecting: true };
     },
 
+    // Pending GitHub / Google link waiting for a password sign-in (/auth/link).
+    getPendingLink: async () => {
+        return await apiClient.get('/auth/link');
+    },
+
+    cancelPendingLink: async () => {
+        return await apiClient.delete('/auth/link');
+    },
+
+    loginAndLink: async ({ username, password }) => {
+        return await signIn('credentials', { username, password, link: '1', redirect: false });
+    },
+
+    // "Don't know this password?": mail the account owner a confirmation link instead.
+    emailPendingLink: async () => {
+        return await apiClient.post('/auth/link/email');
+    },
+
+    confirmLink: async (token) => {
+        return await apiClient.post('/auth/link/confirm', { token });
+    },
+
+    // Settings > Sign-in methods > Connect: remember who is connecting, then leave for the provider.
+    connectProvider: async (provider) => {
+        await apiClient.post('/auth/link/start', { provider });
+        const response = await signIn(provider, { callbackUrl: '/settings' });
+        return response ?? { ok: true, redirecting: true };
+    },
+
+    verifyEmail: async (token) => {
+        return await apiClient.post('/auth/verify-email', { token });
+    },
+
+    resendVerification: async () => {
+        return await apiClient.post('/auth/verify-email/resend');
+    },
+
     logout: async () => {
         return await apiClient.patch('/user/logout');
     }

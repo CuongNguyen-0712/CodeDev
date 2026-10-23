@@ -78,7 +78,6 @@ internet, 169.254.169.254, the host and `redis` all unreachable), `CapEff` 0, re
   PID namespace. The server and run-job are root inside the container with six capabilities, so a
   bug in server.mjs or run-job is more serious than before; learner code itself has none. A
   container per execution would need Docker daemon access, which is deliberately not granted.
-- The previous JavaScript-only `sandbox/Dockerfile` is no longer used by compose.
 - The Node permission model does not restrict network access in Node 24; the internal network
   is what blocks it. Do not attach the sandbox to another network.
 - CPU-heavy code is limited by the per-test time limit, `prlimit --cpu` and `cpus: 2`.

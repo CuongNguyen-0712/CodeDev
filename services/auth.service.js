@@ -117,18 +117,28 @@ export const authService = {
         return user;
     },
 
-    signUpWithProvider: async (data) => {
+    /**
+     * OAuth sign-in (docs/email-verification-plan.md 10.3). `email` must be the provider's
+     * verified email in lower case. A session is created only for 'login' | 'created' | 'linked';
+     * 'link_required' and 'blocked' return the matching user without one.
+     * @returns {Promise<{ result: string, user: object }>}
+     */
+    signInWithProvider: async (data) => {
         const { userAgent = null, ip = null, ...profile } = data;
         const id = generateSonyflake();
         const public_id = ulid();
 
-        const response = await userDb.signUpWithProvider({ ...profile, id, public_id });
+        const response = await userDb.signInWithProvider({ ...profile, id, public_id });
 
         if (!response || response.rowCount === 0) {
             throw new ApiError("Authentication failed, try again", 500);
         }
 
-        const user = response.rows[0];
+        const { result, ...user } = response.rows[0];
+
+        if (result === "link_required" || result === "blocked") {
+            return { result, user };
+        }
 
         const permissions = await userDb.getPermissions({ userId: user.id });
 
@@ -139,7 +149,12 @@ export const authService = {
         user.permissions = permissions.rows.map(p => p.permissions);
         user.session = await authService.createSession({ userId: user.id, userAgent, ip });
 
-        return user;
+        return { result, user };
+    },
+
+    /** Links a provider account to `userId` (public id). Throws SQLSTATE CD409 when it is taken. */
+    linkProviderAccount: async ({ userId, provider, providerAccountId, providerEmail }) => {
+        await userDb.linkProviderAccount({ userId, provider, providerAccountId, providerEmail });
     },
 
     /**

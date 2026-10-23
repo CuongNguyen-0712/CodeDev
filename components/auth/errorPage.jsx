@@ -53,6 +53,21 @@ export default function ErrorPage() {
             desc: "This email is already linked to another sign-in method on CodeDev.",
             tip: "Sign in with the method you used first (username or the other provider)."
         },
+        OAuthEmailUnverified: {
+            title: "Your provider email isn't verified",
+            desc: "GitHub or Google did not share a verified email address with CodeDev.",
+            tip: "Verify an email in your GitHub settings (Emails), then try again."
+        },
+        OAuthAccountInUse: {
+            title: "This account is already linked",
+            desc: "This GitHub or Google account belongs to another CodeDev account.",
+            tip: "Sign in with the CodeDev account it belongs to, or disconnect it there first."
+        },
+        LinkExpired: {
+            title: "Link request expired",
+            desc: "The request to link GitHub or Google to your account expired.",
+            tip: "Start again by signing in with GitHub or Google."
+        },
         CredentialsSignin: {
             title: "Sign-in failed",
             desc: "The username or password is incorrect.",
