@@ -219,7 +219,8 @@ function userEnv(user) {
 
 // ------------------------------------------------------------ process execution
 function limited(argv, { cpuSeconds, addressSpaceMb, fileBytes }) {
-    const limits = [`--nproc=${NPROC}`, "--nofile=128", "--core=0", `--fsize=${fileBytes}`, `--cpu=${cpuSeconds}`];
+    // Soft < hard CPU limit: the soft one sends SIGXCPU (reported as a timeout); with soft == hard the kernel sends SIGKILL.
+    const limits = [`--nproc=${NPROC}`, "--nofile=128", "--core=0", `--fsize=${fileBytes}`, `--cpu=${cpuSeconds}:${cpuSeconds + 1}`];
     if (addressSpaceMb) limits.push(`--as=${addressSpaceMb * 1024 * 1024}`);
     return ["/usr/bin/prlimit", ...limits, "--", ...argv];
 }
@@ -256,7 +257,8 @@ function exec(user, argv, { stdin = "", wallMs, fd3 = false }) {
             clearTimeout(timer);
             killGroup();
             killUser(user); // also catches processes that left the group (setsid)
-            resolve({ exitCode, signal, ...out, timeMs: Math.round(performance.now() - started) });
+            // The CPU limit and the wall timer race; either one is a timeout.
+            resolve({ exitCode, signal, ...out, timedOut: out.timedOut || signal === "SIGXCPU", timeMs: Math.round(performance.now() - started) });
         };
         child.on("error", (error) => { out.stderr = `failed to start: ${error.message}`; finish(null, null); });
         // A leftover child (even outside the group) keeps the pipes open, so "close" alone could
@@ -277,7 +279,6 @@ function failure(run, job, fallback) {
     if (/OutOfMemoryError|heap out of memory|MemoryError|std::bad_alloc|memory allocation of .* failed/i.test(run.stderr)) {
         return `Memory limit exceeded (${job.memoryLimitMb}MB)`;
     }
-    if (run.signal === "SIGXCPU") return `Time limit exceeded (${job.timeLimitMs}ms)`;
     return tail(run.stderr) || fallback || `Exited with ${run.signal || `code ${run.exitCode}`}`;
 }
 
