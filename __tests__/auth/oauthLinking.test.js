@@ -3,21 +3,42 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { usernameBase, splitDisplayName } from "@/lib/username";
 import { verifiedProviderEmail } from "@/lib/oauthEmail";
 import { openRecovery, sealRecovery } from "@/lib/auth.util";
-import { mailConfig } from "@/lib/mail";
+import { mailConfig } from "@/lib/mailConfig.mjs";
+import { checkEnvironment } from "@/lib/envCheck.mjs";
 
 describe("mailConfig", () => {
-    it("uses Gmail from EMAIL_USER / EMAIL_PASS (production)", () => {
-        expect(mailConfig({ EMAIL_USER: "a@gmail.com", EMAIL_PASS: "p" }))
-            .toEqual({ host: "smtp.gmail.com", port: 465, user: "a@gmail.com", pass: "p", from: "CodeDev <a@gmail.com>" });
+    it("MAIL_FROM + MAIL_PASSWORD send through Gmail in any environment", () => {
+        const expected = {
+            mode: "gmail", host: "smtp.gmail.com", port: 465, secure: true,
+            auth: { user: "team@gmail.com", pass: "abcdefghijklmnop" }, from: "CodeDev <team@gmail.com>",
+        };
+        // App Passwords are shown with spaces; the address is matched in lower case.
+        expect(mailConfig({ APP_ENV: "production", MAIL_FROM: "Team@Gmail.com", MAIL_PASSWORD: "abcd efgh ijkl mnop" })).toEqual(expected);
+        expect(mailConfig({ APP_ENV: "development", MAIL_FROM: "CodeDev <team@gmail.com>", MAIL_PASSWORD: "abcdefghijklmnop" })).toEqual(expected);
     });
 
-    it("prefers SMTP_HOST (Mailpit in development) and honours MAIL_FROM", () => {
-        expect(mailConfig({ SMTP_HOST: "127.0.0.1", SMTP_PORT: "1025", MAIL_FROM: "CodeDev <dev@x>", EMAIL_USER: "a@gmail.com", EMAIL_PASS: "p" }))
-            .toMatchObject({ host: "127.0.0.1", port: 1025, user: null, from: "CodeDev <dev@x>" });
+    it("development and tests without a password use Mailpit", () => {
+        expect(mailConfig({ APP_ENV: "development" })).toMatchObject({ mode: "mailpit", host: "127.0.0.1", port: 1025, auth: null, from: "CodeDev <dev@codedev.local>" });
+        expect(mailConfig({ NODE_ENV: "test", MAIL_FROM: "Dev <dev@x.test>" })).toMatchObject({ mode: "mailpit", from: "Dev <dev@x.test>" });
     });
 
-    it("is null without either", () => {
-        expect(mailConfig({ EMAIL_USER: "a@gmail.com" })).toBeNull();
+    it("refuses an incomplete configuration", () => {
+        expect(mailConfig({ APP_ENV: "production", MAIL_FROM: "team@gmail.com" }).error).toMatch(/MAIL_PASSWORD/);
+        expect(mailConfig({ MAIL_PASSWORD: "x" }).error).toMatch(/MAIL_FROM/);
+        expect(mailConfig({ MAIL_FROM: "not an address", MAIL_PASSWORD: "x" }).error).toMatch(/not an email address/);
+    });
+
+    it("MAIL_HOST / MAIL_PORT switch provider", () => {
+        expect(mailConfig({ MAIL_FROM: "noreply@codedev.app", MAIL_PASSWORD: "key", MAIL_HOST: "smtp.resend.com", MAIL_PORT: "587" }))
+            .toMatchObject({ mode: "smtp", host: "smtp.resend.com", port: 587, secure: false });
+    });
+
+    it("the start-up check reports missing mail settings without the password", () => {
+        const check = checkEnvironment({ APP_ENV: "production", MAIL_FROM: "team@gmail.com" });
+        expect(check.errors.join()).toMatch(/mail: MAIL_FROM \/ MAIL_PASSWORD/);
+        const ok = checkEnvironment({ APP_ENV: "production", MAIL_FROM: "team@gmail.com", MAIL_PASSWORD: "secretpass" });
+        expect(JSON.stringify(ok)).not.toContain("secretpass");
+        expect(ok.mail).toBe("gmail smtp.gmail.com:465 from CodeDev <team@gmail.com>");
     });
 });
 

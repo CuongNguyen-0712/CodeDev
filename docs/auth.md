@@ -32,6 +32,7 @@ Audit events: `account.linked` (`reason`: `verified_email` | `password` | `email
 
 **Email verification** — plan: [email-verification-plan.md](email-verification-plan.md) sections 3–6.
 - Sending: `emailVerificationService.request(userId)` queues `email.verify_requested` in the auth outbox and processes it at once; the handler issues a token (320-bit, stored as `HMAC("email-verify|" + token)` in `identity.email_tokens`, one live token per user, `EMAIL_VERIFY_TTL_SECONDS` = 24 h) and mails `/auth/verify-email?token=…` through `lib/mail.js` (SMTP). Failed sends are retried by the outbox; each retry issues a new token. Verified users get nothing.
+- Mail transport (`lib/mailConfig.mjs`, `lib/mail.js`): see `MAIL_FROM` / `MAIL_PASSWORD` below. Connection 10 s, greeting 10 s, socket 20 s timeouts, so a slow server fails fast and the outbox retries (5 s, 10 s, … up to 5 min). The start-up log prints `mail: gmail smtp.gmail.com:465 from …` or `mailpit …`. Check an env file without the app: `npm run mail:test -- --env .env.production --to <you>` (signs in, sends one test message, never prints the password).
 - Triggered by: signup (`/api/user/signup`, response `verificationSent`), an email change in Settings (`updateUserProfileAction` sets `email_verified = false`; shares the `emailVerify` budget, 429 when used up), `POST /api/auth/verify-email/resend` (signed in, same origin, `emailVerify` limiter: 3 / 15 min per user).
 - Checking: `/auth/verify-email` removes the token from the URL (`referrer: no-referrer`) and calls `POST /api/auth/verify-email` (`verifyEmail` limiter, 20 / min per IP). One transaction: unknown or replaced → 400, sent to a previous email → 400, expired → 410, already used → 200 `already_verified`, else `email_verified = true` → 200 `verified`. Not a GET, so link scanners do not use the token up.
 - UI: banner under the navbar (`components/auth/verifyEmailBanner.jsx`) while `/api/user/me` says `email_verified: false`; "Send verification email" next to the badge in Settings.
@@ -69,10 +70,9 @@ Revocation is committed in PostgreSQL first. Redis may say "active" until the ou
 | `AUTH_ACCEPT_LEGACY_JWT` | `true` | set `false` 30 days after deploying (all pre-iss/aud cookies expired) |
 | `AUTH_CRON_SECRET` | — | enables `POST /api/internal/auth-outbox` |
 | `AUTH_OUTBOX_WORKER` | on | `off` disables the in-process worker |
-| `EMAIL_USER` / `EMAIL_PASS` | — | production: Gmail address + its App Password; `lib/mail.js` then sends through `smtp.gmail.com:465` |
-| `SMTP_HOST` / `SMTP_PORT` | — / 465 | any other mail server, wins over `EMAIL_*`; dev: Mailpit `127.0.0.1:1025`. Neither set: dev/test log the message, production throws (outbox retries) and the start-up check logs an error |
-| `SMTP_USER` / `SMTP_PASS` | — | login for `SMTP_HOST` (Resend later: `resend` + API key) |
-| `MAIL_FROM` | `CodeDev <sending address>` | optional sender; with Gmail it must be that Gmail address |
+| `MAIL_FROM` | dev: `CodeDev <dev@codedev.local>` | sending address, `you@gmail.com` or `CodeDev <you@gmail.com>`; with Gmail it must be the signed-in account |
+| `MAIL_PASSWORD` | — | Google App Password of `MAIL_FROM` (spaces ignored). Set → `smtp.gmail.com:465` in any environment. Empty → development / test use Mailpit `127.0.0.1:1025`; production sends nothing (outbox retries) and the start-up check logs `mail: …` |
+| `MAIL_HOST` / `MAIL_PORT` | — / 465 | optional: another SMTP provider instead of Gmail (Resend later) |
 | `EMAIL_VERIFY_TTL_SECONDS` | 86400 | verification link lifetime |
 
 ## Deploying

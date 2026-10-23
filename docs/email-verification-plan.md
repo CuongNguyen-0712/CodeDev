@@ -43,14 +43,12 @@ Env mới:
 
 | Biến | Dev | Prod (A, hiện tại) | Prod (C) |
 |---|---|---|---|
-| `EMAIL_USER` / `EMAIL_PASS` | trống | Gmail / App Password (đã có trên prod) | trống |
-| `SMTP_HOST` | `127.0.0.1` | không đặt (`lib/mail.js` tự dùng `smtp.gmail.com:465`) | `smtp.resend.com` |
-| `SMTP_PORT` | `1025` | không đặt | `465` |
-| `SMTP_USER` / `SMTP_PASS` | trống | không đặt | `resend` / API key |
-| `MAIL_FROM` | `CodeDev <dev@codedev.local>` | tùy chọn, mặc định `CodeDev <EMAIL_USER>` | `CodeDev <noreply@<domain>>` |
+| `MAIL_FROM` | `CodeDev <dev@codedev.local>` | địa chỉ Gmail gửi đi | `CodeDev <noreply@<domain>>` |
+| `MAIL_PASSWORD` | trống → Mailpit `127.0.0.1:1025` | App Password của Gmail đó → `smtp.gmail.com:465` | API key Resend |
+| `MAIL_HOST` / `MAIL_PORT` | không đặt | không đặt | `smtp.resend.com` / `465` |
 | `EMAIL_VERIFY_TTL_SECONDS` | 86400 | 86400 | 86400 |
 
-Link trong mail dựng từ `NEXTAUTH_URL`. Production thiếu cả `EMAIL_USER`/`EMAIL_PASS` lẫn `SMTP_HOST` → kiểm env lúc khởi động log lỗi (`lib/envCheck.mjs`).
+Cấu hình nằm ở `lib/mailConfig.mjs`. Link trong mail dựng từ `NEXTAUTH_URL`. Production thiếu `MAIL_FROM` / `MAIL_PASSWORD` → không gửi, outbox thử lại, log lỗi lúc khởi động (`lib/envCheck.mjs`). Kiểm một file env: `npm run mail:test -- --env <file> --to <địa chỉ>`.
 
 ## 3. Thiết kế dữ liệu
 
@@ -243,7 +241,7 @@ Lỗi chiếm tài khoản qua OAuth đang có trên prod, nên sửa trước (
 5. Đổi email (4D) + phần OAuth cần mail: xác nhận liên kết qua email (10.3 trường hợp 5b), mail báo đã liên kết/gỡ liên kết.
 6. Settings → "Sign-in methods": kết nối / gỡ GitHub, Google (10.4, 10.5).
 7. Prod: tạo Gmail riêng, bật 2FA, tạo App Password, set env trên Vercel, apply migration, gửi thử 1 mail thật.
-8. Khi có domain: thêm domain vào Resend + DNS (SPF, DKIM, DMARC), đặt `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` (thắng `EMAIL_*`). Không đổi code.
+8. Khi có domain: thêm domain vào Resend + DNS (SPF, DKIM, DMARC), đặt `MAIL_HOST`, `MAIL_PORT`, `MAIL_FROM`, `MAIL_PASSWORD`. Không đổi code.
 
 Đợt sau (dùng lại `email_tokens`): quên mật khẩu (`purpose = 'reset_password'`, TTL 15 phút), đặt mật khẩu cho tài khoản chỉ có OAuth, `pending_email`, mail báo đăng nhập thiết bị lạ.
 

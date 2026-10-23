@@ -18,7 +18,8 @@
     "db:migrate": "node db/tools/migrate.mjs",
     "db:migrate:prod": "node db/tools/migrate.mjs --env .env.production",
     "db:compare": "node db/tools/compare-schema.mjs",
-    "db:export": "node db/tools/export-schema.mjs"
+    "db:export": "node db/tools/export-schema.mjs",
+    "mail:test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/mail-test.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",

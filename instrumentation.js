@@ -7,9 +7,9 @@ export async function register() {
     if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
     const { checkEnvironment } = await import("./lib/envCheck.mjs");
-    const { environment, storage, fatal, errors, warnings } = checkEnvironment();
+    const { environment, storage, mail, fatal, errors, warnings } = checkEnvironment();
 
-    console.info(`[env] ${environment} (storage: ${storage})`);
+    console.info(`[env] ${environment} (storage: ${storage}; mail: ${mail})`);
     for (const message of warnings) console.warn(`[env] ${message}`);
     for (const message of errors) console.error(`[env] ${message}`);
 

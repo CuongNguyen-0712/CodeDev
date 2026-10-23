@@ -10,6 +10,7 @@ decides which; `lib/appEnv.mjs` is the single definition used by the app, the te
 | PostgreSQL | local (`pg` driver) | Neon (serverless driver) |
 | Redis | local container (`npm run services:up`, `compose.yml`) | Upstash |
 | Object storage | **MinIO** (`compose.yml` profile `dev`, `MINIO_ENDPOINT`) | **Neon S3** (`AWS_ENDPOINT_URL_S3`) |
+| Mail | Mailpit (`compose.yml` profile `dev`, inbox `http://127.0.0.1:8025`; `MAIL_PASSWORD` empty) | Gmail `smtp.gmail.com:465` (`MAIL_FROM` + `MAIL_PASSWORD`) |
 | Code runner | `compose.yml` profile `dev` (`CODE_RUNNER_URL=http://127.0.0.1:4100`) | optional; browser-reported grading when unset ([sandbox.md](sandbox.md)) |
 | Images (Cloudinary) | folder `codedev/development/...` | folder `codedev/production/...` |
 | Schema | `npm run db:migrate` | `npm run db:migrate:prod -- --yes`; `npm run db:compare` must report "in sync" |
@@ -119,6 +120,7 @@ Set in the Vercel project (Production scope), with values distinct from developm
 `APP_ENV=production`, `STORAGE_PROVIDER=s3`, `AWS_ENDPOINT_URL_S3`, `AWS_ACCESS_KEY_ID`,
 `AWS_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_PRIVATE_BUCKET`, `DATABASE_URL`, `REDIS_URL` /
 `REDIS_TOKEN`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `REFRESH_TOKEN_HASH_SECRET`,
-`REFRESH_TOKEN_RECOVERY_KEY`, `AUTH_JWT_ISSUER`, `AUTH_JWT_AUDIENCE`, `EMAIL_USER`, `EMAIL_PASS`
-(Gmail + App Password; `SMTP_*` only for another mail server, see [auth.md](auth.md)). Never set
-`MINIO_*` or `SMTP_HOST` there unless the mail server really changes.
+`REFRESH_TOKEN_RECOVERY_KEY`, `AUTH_JWT_ISSUER`, `AUTH_JWT_AUDIENCE`, `MAIL_FROM` (the Gmail
+address), `MAIL_PASSWORD` (its App Password; see [auth.md](auth.md)). Never set `MINIO_*` there.
+`.env.local` leaves `MAIL_PASSWORD` empty, so development mail goes to Mailpit, never to real
+inboxes; `npm run mail:test -- --env <file>` checks either side.
