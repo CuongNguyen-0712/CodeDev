@@ -1,0 +1,45 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_whf_231",
+      "name": "cookies-401-403-quiz",
+      "type": "quiz",
+      "title": "Cookies, sessions and status codes",
+      "description": "Three pieces of evidence from the CodeDev login incident: a Set-Cookie header, a teacher-only request from a learner, and a line from the API's request log. Decide whether each statement is true or false.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After the teammate's change, the login response from https://api.codedev.test contains:\n\nHTTP/2 200\nset-cookie: session=s%3A9f2c...; Path=/; HttpOnly; SameSite=None\n\nStatement: \"The browser stores this cookie and, because of SameSite=None, sends it on every later request to api.codedev.test, including cross-site ones.\"",
+          "explanation": "False. A cookie with SameSite=None must also carry the Secure attribute; current browsers reject a SameSite=None cookie without Secure, so this cookie is never stored (DevTools shows a warning on the Set-Cookie line, and Application > Cookies stays empty). The misconception is that SameSite=None is a harmless \"allow everything\" switch. Here it was not even needed: app.codedev.test and api.codedev.test are the same site, so SameSite=Lax cookies are sent on requests between them.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A learner with a valid, unexpired session cookie (role: student) sends:\n\nDELETE https://api.codedev.test/courses/42\nCookie: session=s%3A7a1b...\n\nOnly users with the teacher role may delete courses, and course 42 is listed publicly in the catalog.\n\nStatement: \"The API should answer 403 Forbidden, and logging in again with the same account would not change that answer.\"",
+          "explanation": "True. The request is authenticated - the server knows who the learner is - but that user is not allowed to perform the action, which is exactly what 403 Forbidden means. RFC 9110 says the client should not repeat the request with the same credentials, so the web app should show an access-denied message instead of a login form. Answering 401 here is the common mistake: it tells the client to authenticate, and a client that redirects to login on 401 ends up in a loop. 404 would only make sense if the course's existence were private, and course 42 is public.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The API's request log contains:\n\n2026-10-20T08:14:03Z INFO GET /me 200 12ms user=17 cookie=\"session=s%3A9f2c4e...\"\n\nThe session cookie is set with Secure, HttpOnly and SameSite=Lax.\n\nStatement: \"Because the cookie is HttpOnly, writing it to the log is harmless: JavaScript cannot read it, so nobody can reuse it.\"",
+          "explanation": "False. HttpOnly only stops page scripts from reading the cookie through document.cookie. Anyone who can read the log can copy the value into a Cookie header (curl -H 'Cookie: session=...') and act as user 17 until the session ends. Logs should carry the user id, route, status and a reason, and redact Cookie, Set-Cookie and Authorization headers; sessions that already leaked should be invalidated. The misconception is treating HttpOnly as general secrecy rather than protection from scripts in the page.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

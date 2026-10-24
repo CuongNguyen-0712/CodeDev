@@ -1,0 +1,45 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_whf_321",
+      "name": "ui-states-quiz",
+      "type": "quiz",
+      "title": "Read the response, pick the state",
+      "description": "Three situations from the \"My courses\" incident: an error body that turned into an empty list, a search box with two requests racing, and a 401 on a page that only knows how to say \"try again\".",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The \"My courses\" page loads like this:\n\nlet courses;\ntry {\n  const res = await fetch(\"https://api.codedev.test/me/enrollments\");\n  courses = await res.json();\n} catch {\n  courses = [];\n}\nrender(courses.length ? courseList(courses) : \"You have no courses yet\");\n\nNetwork tab:\nGET /me/enrollments  503  application/json\nResponse: {\"error\":\"service_unavailable\"}\n\nStatement: \"For this response, the catch block runs and sets courses to an empty array.\"",
+          "explanation": "False. fetch() resolves for every HTTP response, including 4xx and 5xx; it rejects only when no response arrives (network error, CORS block, abort). The 503 body is valid JSON, so res.json() returns the object {\"error\":\"service_unavailable\"}. That object has no length property, courses.length is undefined, which is falsy, and the page shows \"You have no courses yet\" without ever entering the catch block. The misconception is that fetch throws on HTTP errors; you have to check res.ok or res.status yourself before you treat the body as data.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The course search box sends a request on every keystroke and renders each response when it arrives:\n\ninput.addEventListener(\"input\", async () => {\n  const res = await fetch(`https://api.codedev.test/courses?q=${encodeURIComponent(input.value)}`);\n  renderResults(await res.json());\n});\n\nA learner types \"p\" and then \"y\". Network tab, in start order:\n\nGET /courses?q=p    200   940 ms\nGET /courses?q=py   200   180 ms\n\nStatement: \"The list can end up showing the results for \\\"p\\\" while the search box shows \\\"py\\\".\"",
+          "explanation": "True. Both requests are in flight at the same time and responses do not arrive in the order the requests were sent. The \"py\" response arrives after about 180 ms and is rendered; the \"p\" response arrives later and overwrites it, so the newest input shows the oldest answer. The fix is to cancel the previous request with an AbortController (and ignore the AbortError it causes), or to remember which request is the latest and drop any other response. The misconception is that a later request always finishes later.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A learner opens \"My courses\" the morning after their session expired:\n\nGET /me/enrollments\nHTTP/1.1 401 Unauthorized\nWWW-Authenticate: Bearer error=\"invalid_token\"\n{\"error\":\"invalid_token\"}\n\nStatement: \"The page should show the same \\\"Something went wrong. Try again\\\" message and Retry button that it shows for a 503.\"",
+          "explanation": "False. A 503 can go away on its own, so a Retry button is honest. A 401 says the credentials are missing or no longer valid: pressing Retry sends the same expired token and gets the same 401, so the learner is stuck. The right state is \"session expired\": refresh the token if the app can, otherwise send the learner to sign in and bring them back to My courses afterwards. The misconception is that every error is one state; the response tells you which action can actually help.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

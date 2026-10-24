@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">The first visit pays for the connection, not for the API.</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Same request, GET https://api.codedev.test/v1/progress, as shown in the DevTools Timing tab. Scale: 100 ms = 80 px.</text>
+
+  <!-- First visit -->
+  <rect x="40" y="108" width="1120" height="190" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="140" font-size="18" font-weight="700" fill="#b91c1c">Before: first visit of the day (cold)</text>
+  <text x="64" y="162" font-size="13" fill="#64748b">no cached DNS answer, no open connection to api.codedev.test</text>
+  <text x="1136" y="140" font-size="18" font-weight="700" fill="#b91c1c" text-anchor="end">Total 1,131 ms</text>
+
+  <text x="64" y="208" font-size="14" font-weight="700" fill="#334155">timeline</text>
+  <rect x="200" y="186" width="4" height="36" fill="#94a3b8"/>
+  <rect x="204" y="186" width="488" height="36" fill="#fecaca" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="448" y="209" font-size="14" text-anchor="middle" fill="#7f1d1d">DNS Lookup 610 ms</text>
+  <rect x="692" y="186" width="104" height="36" fill="#fca5a5" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="744" y="209" font-size="13" text-anchor="middle" fill="#7f1d1d">TCP 130 ms</text>
+  <rect x="796" y="186" width="232" height="36" fill="#f87171" stroke="#dc2626" stroke-width="1.5"/>
+  <text x="912" y="209" font-size="14" text-anchor="middle" fill="#ffffff">TLS (SSL) 290 ms</text>
+  <rect x="1028" y="186" width="74" height="36" fill="#cbd5e1" stroke="#64748b" stroke-width="1.5"/>
+  <text x="1065" y="209" font-size="12" text-anchor="middle" fill="#0f172a">wait 92</text>
+  <rect x="1102" y="186" width="3" height="36" fill="#475569"/>
+
+  <line x1="204" y1="234" x2="1028" y2="234" stroke="#ef4444" stroke-width="2"/>
+  <line x1="204" y1="228" x2="204" y2="240" stroke="#ef4444" stroke-width="2"/>
+  <line x1="1028" y1="228" x2="1028" y2="240" stroke="#ef4444" stroke-width="2"/>
+  <text x="616" y="256" font-size="14" font-weight="700" fill="#b91c1c" text-anchor="middle">connection setup: 1,030 ms before the request is even sent</text>
+  <text x="1065" y="256" font-size="12" fill="#475569" text-anchor="middle">server work</text>
+
+  <g font-size="12" fill="#94a3b8" text-anchor="middle">
+    <line x1="200" y1="270" x2="1000" y2="270" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="200" y="286">0 ms</text>
+    <text x="400" y="286">250</text>
+    <text x="600" y="286">500</text>
+    <text x="800" y="286">750</text>
+    <text x="1000" y="286">1,000</text>
+  </g>
+
+  <!-- Repeat visit -->
+  <rect x="40" y="314" width="1120" height="118" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="64" y="346" font-size="18" font-weight="700" fill="#15803d">After: reload a minute later (warm)</text>
+  <text x="64" y="368" font-size="13" fill="#64748b">DNS answer cached, the same connection reused (same Connection ID)</text>
+  <text x="1136" y="346" font-size="18" font-weight="700" fill="#15803d" text-anchor="end">Total 94 ms</text>
+
+  <text x="64" y="408" font-size="14" font-weight="700" fill="#334155">timeline</text>
+  <rect x="200" y="386" width="2" height="36" fill="#94a3b8"/>
+  <rect x="202" y="386" width="70" height="36" fill="#bbf7d0" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="237" y="409" font-size="12" text-anchor="middle" fill="#14532d">wait 88</text>
+  <rect x="272" y="386" width="3" height="36" fill="#15803d"/>
+  <text x="290" y="403" font-size="14" fill="#15803d">no DNS Lookup, no Initial connection, no SSL rows:</text>
+  <text x="290" y="421" font-size="14" fill="#15803d">the server answered as fast as on the first visit</text>
+
+  <!-- Phase legend -->
+  <text x="40" y="466" font-size="18" font-weight="700" fill="#334155">What each Timing row usually means</text>
+  <rect x="40" y="480" width="265" height="92" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="58" y="506" font-size="15" font-weight="700" fill="#b45309">DNS Lookup</text>
+  <text x="58" y="530" font-size="13" fill="#92400e">name to IP address; skipped</text>
+  <text x="58" y="548" font-size="13" fill="#92400e">while a cached answer is valid</text>
+  <text x="58" y="566" font-size="13" fill="#92400e">(TTL)</text>
+
+  <rect x="325" y="480" width="265" height="92" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="343" y="506" font-size="15" font-weight="700" fill="#b91c1c">Initial connection + SSL</text>
+  <text x="343" y="530" font-size="13" fill="#7f1d1d">TCP and TLS handshakes, about</text>
+  <text x="343" y="548" font-size="13" fill="#7f1d1d">two round trips; gone when the</text>
+  <text x="343" y="566" font-size="13" fill="#7f1d1d">connection is reused</text>
+
+  <rect x="610" y="480" width="265" height="92" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/>
+  <text x="628" y="506" font-size="15" font-weight="700" fill="#334155">Waiting for server response</text>
+  <text x="628" y="530" font-size="13" fill="#475569">time to first byte: one round</text>
+  <text x="628" y="548" font-size="13" fill="#475569">trip plus the server's work;</text>
+  <text x="628" y="566" font-size="13" fill="#475569">compare this with server logs</text>
+
+  <rect x="895" y="480" width="265" height="92" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="913" y="506" font-size="15" font-weight="700" fill="#0e7490">Content Download</text>
+  <text x="913" y="530" font-size="13" fill="#155e75">receiving the body; grows with</text>
+  <text x="913" y="548" font-size="13" fill="#155e75">response size and a slow</text>
+  <text x="913" y="566" font-size="13" fill="#155e75">network</text>
+</svg>

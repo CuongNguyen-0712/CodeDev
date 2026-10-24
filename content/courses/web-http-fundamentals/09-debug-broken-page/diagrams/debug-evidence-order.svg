@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">The loudest message is not the cause. Read the status code first.</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Same capture, two ways to debug it: chase the console text, or walk the evidence from the server's answer outwards.</text>
+
+  <!-- Left: guessing -->
+  <rect x="40" y="112" width="545" height="300" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="146" font-size="18" font-weight="700" fill="#b91c1c">Before: fix the console message</text>
+  <text x="64" y="170" font-size="13" fill="#64748b">"it says CORS, so it is CORS"</text>
+
+  <rect x="64" y="186" width="497" height="40" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+  <text x="80" y="212" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">Console: blocked by CORS policy</text>
+  <rect x="64" y="234" width="497" height="40" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+  <text x="80" y="260" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">"Fix": Access-Control-Allow-Origin: *</text>
+  <rect x="64" y="282" width="497" height="40" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+  <text x="80" y="308" font-size="15" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">Still 401, now rejected for credentials</text>
+  <text x="64" y="356" font-size="15" font-weight="700" fill="#b91c1c">Page still shows Friday's 12 / 40</text>
+  <text x="64" y="380" font-size="13" fill="#64748b">the token is still expired and the client still hides</text>
+  <text x="64" y="398" font-size="13" fill="#64748b">every failure behind the cached numbers</text>
+
+  <!-- Right: evidence order -->
+  <rect x="615" y="112" width="545" height="300" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="639" y="146" font-size="18" font-weight="700" fill="#15803d">After: read the evidence in order</text>
+  <text x="639" y="170" font-size="13" fill="#64748b">each step confirms or rules out a hypothesis</text>
+
+  <rect x="639" y="186" width="497" height="40" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="655" y="212" font-size="15" fill="#15803d" font-family="Consolas, 'Courier New', monospace">1 Status: 401, WWW-Authenticate: expired</text>
+  <rect x="639" y="234" width="497" height="40" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="655" y="260" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">2 Headers: 401 has no Allow-Origin</text>
+  <rect x="639" y="282" width="497" height="40" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="655" y="308" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">3 Preflight: 204, origin allowed</text>
+  <rect x="639" y="330" width="497" height="40" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="655" y="356" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">4 Data source: cache, savedAt Friday</text>
+  <text x="639" y="396" font-size="13" fill="#64748b">causes: expired token + error path without CORS + a fallback that hides errors</text>
+
+  <!-- Method -->
+  <text x="40" y="452" font-size="18" font-weight="700" fill="#334155">The method</text>
+  <rect x="40" y="470" width="200" height="92" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="58" y="498" font-size="15" font-weight="700" fill="#b45309">1  Symptom</text>
+  <text x="58" y="522" font-size="13" fill="#92400e">what the user sees,</text>
+  <text x="58" y="540" font-size="13" fill="#92400e">written down exactly</text>
+  <line x1="240" y1="516" x2="270" y2="516" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="266,510 266,522 278,516" fill="#94a3b8"/>
+
+  <rect x="280" y="470" width="200" height="92" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="298" y="498" font-size="15" font-weight="700" fill="#334155">2  Hypotheses</text>
+  <text x="298" y="522" font-size="13" fill="#475569">several, each with the</text>
+  <text x="298" y="540" font-size="13" fill="#475569">evidence that would prove it</text>
+  <line x1="480" y1="516" x2="510" y2="516" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="506,510 506,522 518,516" fill="#94a3b8"/>
+
+  <rect x="520" y="470" width="200" height="92" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="538" y="498" font-size="15" font-weight="700" fill="#334155">3  Evidence</text>
+  <text x="538" y="522" font-size="13" fill="#475569">status, headers, body,</text>
+  <text x="538" y="540" font-size="13" fill="#475569">timing, storage, logs</text>
+  <line x1="720" y1="516" x2="750" y2="516" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="746,510 746,522 758,516" fill="#94a3b8"/>
+
+  <rect x="760" y="470" width="200" height="92" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="778" y="498" font-size="15" font-weight="700" fill="#334155">4  Fix</text>
+  <text x="778" y="522" font-size="13" fill="#475569">the cause the evidence</text>
+  <text x="778" y="540" font-size="13" fill="#475569">points to, nothing else</text>
+  <line x1="960" y1="516" x2="990" y2="516" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="986,510 986,522 998,516" fill="#94a3b8"/>
+
+  <rect x="1000" y="470" width="160" height="92" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="1018" y="498" font-size="15" font-weight="700" fill="#15803d">5  Verify</text>
+  <text x="1018" y="522" font-size="13" fill="#166534">reproduce the</text>
+  <text x="1018" y="540" font-size="13" fill="#166534">failing case again</text>
+</svg>

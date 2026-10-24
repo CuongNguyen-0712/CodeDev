@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">401, 403 or 404: say why it failed, so the client can react</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Learner 23 (role: student, valid session) opens the teacher page /admin/courses on https://app.codedev.test</text>
+
+  <!-- Left: before -->
+  <rect x="40" y="112" width="545" height="300" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="146" font-size="18" font-weight="700" fill="#b91c1c">Before: 401 for every failure</text>
+  <text x="64" y="170" font-size="13" fill="#64748b">the API never says whether the session or the role is the problem</text>
+  <rect x="64" y="184" width="440" height="36" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+  <text x="80" y="207" font-size="14" fill="#b91c1c">GET /admin/courses  -&gt;  401 Unauthorized</text>
+  <rect x="64" y="230" width="440" height="36" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+  <text x="80" y="253" font-size="14" fill="#334155">Web app: 401 means "log in"  -&gt;  go to /login</text>
+  <rect x="64" y="276" width="440" height="36" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+  <text x="80" y="299" font-size="14" fill="#334155">Login page: session is valid  -&gt;  back to /admin/courses</text>
+  <path d="M504 294 H540 V202 H512" fill="none" stroke="#ef4444" stroke-width="2"/>
+  <polygon points="516,196 516,208 504,202" fill="#ef4444"/>
+  <text x="64" y="364" font-size="15" font-weight="700" fill="#b91c1c">The page loops between /admin/courses and /login</text>
+  <text x="64" y="388" font-size="13" fill="#64748b">logging in again can never fix a missing teacher role</text>
+
+  <!-- Right: after -->
+  <rect x="615" y="112" width="545" height="300" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="639" y="146" font-size="18" font-weight="700" fill="#15803d">After: one question per status</text>
+  <text x="639" y="170" font-size="13" fill="#64748b">asked in this order, on the server, for every request</text>
+
+  <rect x="639" y="184" width="497" height="58" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="655" y="207" font-size="14" font-weight="700" fill="#334155">No valid session?</text>
+  <text x="655" y="228" font-size="13" fill="#64748b">client: go to the login page</text>
+  <rect x="900" y="196" width="222" height="34" rx="17" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="1011" y="218" font-size="13" text-anchor="middle" fill="#15803d">401 + WWW-Authenticate</text>
+
+  <rect x="639" y="250" width="497" height="58" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="655" y="273" font-size="14" font-weight="700" fill="#334155">Known user, not allowed?</text>
+  <text x="655" y="294" font-size="13" fill="#64748b">client: show "access denied", no redirect</text>
+  <rect x="900" y="262" width="222" height="34" rx="17" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="1011" y="284" font-size="13" text-anchor="middle" fill="#15803d">403 Forbidden</text>
+
+  <rect x="639" y="316" width="497" height="58" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="655" y="339" font-size="14" font-weight="700" fill="#334155">Its existence is private?</text>
+  <text x="655" y="360" font-size="13" fill="#64748b">another learner's submission</text>
+  <rect x="900" y="328" width="222" height="34" rx="17" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="1011" y="350" font-size="13" text-anchor="middle" fill="#15803d">404 Not Found</text>
+  <text x="639" y="396" font-size="13" fill="#64748b">learner 23 on /admin/courses now gets 403 and a clear message</text>
+
+  <!-- Logging -->
+  <text x="40" y="460" font-size="18" font-weight="700" fill="#334155">Log the reason, never the credential</text>
+  <rect x="40" y="478" width="340" height="84" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="60" y="508" font-size="15" font-weight="700" fill="#b45309">1  Log why</text>
+  <text x="60" y="532" font-size="13" fill="#92400e">request id, user id, route, status and</text>
+  <text x="60" y="550" font-size="13" fill="#92400e">a reason: no_session, missing_role:teacher</text>
+  <line x1="380" y1="520" x2="420" y2="520" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="416,514 416,526 428,520" fill="#94a3b8"/>
+  <rect x="430" y="478" width="340" height="84" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="450" y="508" font-size="15" font-weight="700" fill="#0e7490">2  Redact by default</text>
+  <text x="450" y="532" font-size="13" fill="#155e75">Cookie, Set-Cookie and Authorization</text>
+  <text x="450" y="550" font-size="13" fill="#155e75">become [REDACTED] before any log line</text>
+  <line x1="770" y1="520" x2="810" y2="520" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="806,514 806,526 818,520" fill="#94a3b8"/>
+  <rect x="820" y="478" width="340" height="84" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="840" y="508" font-size="15" font-weight="700" fill="#15803d">3  Leaked? Invalidate</text>
+  <text x="840" y="532" font-size="13" fill="#166534">a logged session id works like a password</text>
+  <text x="840" y="550" font-size="13" fill="#166534">until the session ends: revoke it</text>
+</svg>

@@ -1,0 +1,178 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_whf_131",
+      "name": "devtools-headers-json-quiz",
+      "type": "quiz",
+      "title": "Network failure or HTTP error?",
+      "description": "Two pieces of evidence from the lesson player: the failed submission during the deploy, and a fetch() call that receives a 404. Decide whether each statement is True or False.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "DevTools > Network, the failed submission during the deploy:\n\nRequest URL:   https://api.codedev.test/v1/lessons/12/submissions\nRequest Method: POST\nStatus Code:   502 Bad Gateway\ncontent-type:  text/html\n\nConsole:\nSyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON\n\nStatement: \"A response came back from the server side; the SyntaxError comes from parsing an HTML error page as JSON, not from a network failure.\"",
+          "explanation": "True. A status code and response headers can only exist if an HTTP response arrived, so the network worked. The 502 page was produced by the gateway in front of the API, its Content-Type is text/html, and res.json() threw while parsing the leading '<'. The common mistake is to treat every exception around fetch() as \"offline\"; a network failure would show (failed) in the Status column and no status code at all.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The progress widget runs:\n\nconst res = await fetch(\"https://api.codedev.test/v1/lessons/999/progress\", { credentials: \"include\" });\nconsole.log(res.ok, res.status);\n\nDevTools > Network shows the request with Status 404 and content-type: application/json.\n\nStatement: \"The await line throws because the server answered 404, so console.log never runs.\"",
+          "explanation": "False. fetch() resolves for every HTTP response that arrives, including 4xx and 5xx; it only rejects when no usable response arrives (offline, DNS failure, refused connection, a response blocked by CORS) or when the request is aborted. Here the console prints false 404. The misconception comes from HTTP libraries that throw on error statuses; with fetch() you must check res.ok or res.status yourself.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_whf_132",
+      "name": "classify-http-failure",
+      "type": "mini_coding",
+      "title": "Classify an HTTP failure",
+      "description": "The lesson player told learners \"You are offline\" when the API's gateway answered with a 502 HTML page. The fix needs one pure function that says what kind of result came back, so the UI can show the right message. Write classifyResponse(result).\n\nresult is either a received response { status, body } (body can be anything; it is ignored, the status decides) or a request that got no response { networkError: \"timeout\" | \"offline\" | \"aborted\" | ... }.\n\nReturn one of these strings, using the first rule that matches:\n1. result is null or not an object -> \"network\".\n2. result has a networkError that is a non-empty string -> \"network\", even if a status is also present.\n3. status is missing (undefined), null or 0 -> \"network\" (nothing usable came back; XMLHttpRequest and many libraries report status 0).\n4. status is not an integer from 100 to 599 (for example the string \"404\", 404.5, -1, 600) -> \"unexpected\".\n5. 200-299 -> \"success\"; 400 or 422 -> \"validation\"; 401 or 403 -> \"auth\"; 404 -> \"not_found\"; 500-599 -> \"server\".\n6. Any other status (1xx, 3xx, and other 4xx such as 405, 409 or 429) -> \"unexpected\": this screen does not expect them, so it reports them instead of guessing.\n\nThe function must not throw for any of these inputs.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "classifyResponse.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "Before you look at any status code, ask: did a response arrive at all? Which of the inputs describe a request where nothing usable came back?",
+        "Apply the rules from top to bottom and return as soon as one matches. Validate the type of status with Number.isInteger before comparing ranges: in JavaScript \"404\" >= 400 is true, because the string is converted to a number.",
+        "The same shape on a different problem: a payment terminal returns { declined } or { code }. Rule order: a non-empty declined string -> \"declined\" whatever else is present; a code that is not an integer -> \"unknown\"; 1000-1999 -> \"approved\"; 2001 -> \"retry\"; anything else -> \"unknown\". So { code: 1500 } is \"approved\", { code: \"1500\" } is \"unknown\", and { declined: \"expired\", code: 1000 } is \"declined\"."
+      ],
+      "tests": [
+        {
+          "name": "2xx responses are success, including 201 and 204",
+          "input": {
+            "results": [
+              { "status": 200, "body": { "passed": true, "score": 30 } },
+              { "status": 201, "body": { "id": "sub_81" } },
+              { "status": 204, "body": null }
+            ]
+          },
+          "expected": ["success", "success", "success"],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The deploy incident: a 502 HTML page is a server error, no response is a network error",
+          "input": {
+            "results": [
+              { "status": 502, "body": "<!DOCTYPE html><html><head><title>502 Bad Gateway</title></head><body><h1>502 Bad Gateway</h1></body></html>" },
+              { "networkError": "offline" },
+              { "networkError": "timeout" }
+            ]
+          },
+          "expected": ["server", "network", "network"],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "400 and 422 are validation, 401 and 403 are auth, 404 is not_found",
+          "input": {
+            "results": [
+              { "status": 400, "body": { "error": "Body is not valid JSON" } },
+              { "status": 422, "body": { "error": "code is required" } },
+              { "status": 401, "body": { "error": "Session expired" } },
+              { "status": 403, "body": { "error": "Not enrolled in this course" } },
+              { "status": 404, "body": { "error": "Lesson not found" } }
+            ]
+          },
+          "expected": ["validation", "validation", "auth", "auth", "not_found"],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Every status from 500 to 599 is a server error",
+          "input": {
+            "results": [
+              { "status": 500, "body": { "error": "Internal Server Error" } },
+              { "status": 501, "body": null },
+              { "status": 503, "body": "Service Unavailable" },
+              { "status": 504, "body": "<html>Gateway Timeout</html>" },
+              { "status": 599, "body": null }
+            ]
+          },
+          "expected": ["server", "server", "server", "server", "server"],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Status 0, a missing or null status, a null result and a networkError with a status are network",
+          "input": {
+            "results": [
+              { "status": 0, "body": "" },
+              {},
+              { "status": null, "body": null },
+              null,
+              { "networkError": "aborted", "status": 200 }
+            ]
+          },
+          "expected": ["network", "network", "network", "network", "network"],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Redirects, informational and other 4xx codes are unexpected",
+          "input": {
+            "results": [
+              { "status": 301, "body": null },
+              { "status": 304, "body": null },
+              { "status": 100, "body": null },
+              { "status": 405, "body": { "error": "Method Not Allowed" } },
+              { "status": 409, "body": { "error": "Already submitted" } },
+              { "status": 429, "body": { "error": "Too Many Requests" } }
+            ]
+          },
+          "expected": ["unexpected", "unexpected", "unexpected", "unexpected", "unexpected", "unexpected"],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Edges of the 2xx range: 199 and 300 are unexpected, 200, 206 and 299 succeed",
+          "input": {
+            "results": [
+              { "status": 199, "body": null },
+              { "status": 200, "body": [] },
+              { "status": 206, "body": "partial" },
+              { "status": 299, "body": null },
+              { "status": 300, "body": null }
+            ]
+          },
+          "expected": ["unexpected", "success", "success", "success", "unexpected"],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Malformed statuses are unexpected, not guessed",
+          "input": {
+            "results": [
+              { "status": "404", "body": null },
+              { "status": "200", "body": null },
+              { "status": 404.5, "body": null },
+              { "status": -1, "body": null },
+              { "status": 600, "body": null },
+              { "status": 99, "body": null }
+            ]
+          },
+          "expected": ["unexpected", "unexpected", "unexpected", "unexpected", "unexpected", "unexpected"],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

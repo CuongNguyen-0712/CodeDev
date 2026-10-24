@@ -5,7 +5,7 @@
       "title": "Frontend Developer",
       "description": "From semantic HTML and accessible CSS to typed React apps that load fast: JavaScript, TypeScript, async UI code, testing and web performance.",
       "nodes": [
-        { "title": "Web Foundations", "description": "Semantic HTML, modern CSS layout, responsive design and accessibility.", "courses": ["web-foundations-html-css-a11y"] },
+        { "title": "Web Foundations", "description": "Semantic HTML, modern CSS layout, responsive design, accessibility and how the browser talks to the server over HTTP.", "courses": ["web-foundations-html-css-a11y", "web-http-fundamentals"] },
         { "title": "JavaScript Fundamentals", "description": "Values, arrays and objects, closures, modules, errors and tests in modern JavaScript.", "courses": ["js-modern-foundations"] },
         { "title": "TypeScript", "description": "Types, narrowing, generics and discriminated unions that catch bugs before users do.", "courses": ["typescript-foundations"] },
         { "title": "Asynchronous JavaScript", "description": "Promises, cancellation, retries and race conditions in UI code.", "courses": ["javascript-async-architecture_2026100901"] },
@@ -22,7 +22,7 @@
       "nodes": [
         { "title": "A Server Language", "description": "Learn one language well first: JavaScript, Python, Java, Go, PHP or C#.", "courses": ["js-modern-foundations", "python-foundations-automation", "java21-foundations", "go-foundations", "php-foundations", "csharp-foundations"] },
         { "title": "Databases & SQL", "description": "Queries, joins, aggregation and the traps that produce wrong numbers.", "courses": ["sql-data-analysis-foundations"] },
-        { "title": "Building APIs", "description": "Routing, validation, errors, pagination and clean service code.", "courses": ["php-modern-apis", "csharp-async-services", "javascript-async-architecture_2026100901"] },
+        { "title": "Building APIs", "description": "Routing, validation, errors, pagination and clean service code.", "courses": ["php-modern-apis", "csharp-async-services", "javascript-async-architecture_2026100901", "web-http-fundamentals"] },
         { "title": "Concurrency & Async", "description": "Goroutines, virtual threads, asyncio and the bugs they bring.", "courses": ["go-concurrency", "java21-virtual-threads", "python-asyncio-services"] },
         { "title": "Performance", "description": "Profiling, event loop health, caching and backpressure.", "courses": ["nodejs-high-performance"] },
         { "title": "API Security", "description": "Authentication, authorization, input handling and abuse protection.", "courses": ["nodejs-api-security"] },
@@ -35,7 +35,7 @@
       "title": "Fullstack Developer",
       "description": "Ship complete features: a typed React frontend, a backend API with a database, tests, deployment and AI features.",
       "nodes": [
-        { "title": "Web & JavaScript Foundations", "description": "HTML, CSS, accessibility and modern JavaScript.", "courses": ["web-foundations-html-css-a11y", "js-modern-foundations"] },
+        { "title": "Web & JavaScript Foundations", "description": "HTML, CSS, accessibility, modern JavaScript and HTTP.", "courses": ["web-foundations-html-css-a11y", "js-modern-foundations", "web-http-fundamentals"] },
         { "title": "TypeScript & React", "description": "Typed components, state and data fetching.", "courses": ["typescript-foundations", "typescript-react-frontend"] },
         { "title": "Backend Basics", "description": "Asynchronous server code and a second backend language.", "courses": ["javascript-async-architecture_2026100901", "php-foundations", "csharp-foundations"] },
         { "title": "Databases & SQL", "description": "Model and query the data your features need.", "courses": ["sql-data-analysis-foundations"] },
@@ -93,7 +93,7 @@
       "nodes": [
         { "title": "A Programming Base", "description": "Enough code to automate tests: JavaScript, TypeScript or Python.", "courses": ["js-modern-foundations", "typescript-foundations", "python-foundations-automation"] },
         { "title": "Test Automation", "description": "Unit and integration tests, fixtures and test doubles.", "courses": ["test-automation-foundations"] },
-        { "title": "API Testing", "description": "Testing HTTP APIs, contracts and data.", "courses": ["python-api-testing"] },
+        { "title": "API Testing", "description": "Testing HTTP APIs, contracts and data.", "courses": ["web-http-fundamentals", "python-api-testing"] },
         { "title": "Test Design", "description": "Boundaries, properties, contracts and mutation testing.", "courses": ["typescript-test-design"] },
         { "title": "Performance & Reliability Testing", "description": "Load, latency percentiles and chaos experiments.", "courses": ["qa-performance-reliability"] },
         { "title": "Tests in CI", "description": "Pipelines that run your tests on every change.", "courses": ["devops-foundations-ci-containers"] }

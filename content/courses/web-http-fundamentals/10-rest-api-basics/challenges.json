@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_whf_341",
+      "name": "rest-api-basics-quiz",
+      "type": "quiz",
+      "title": "Retries and error bodies on the CodeDev API",
+      "description": "Three statements about real requests to https://api.codedev.test: a POST and a PUT retried after a timeout, and a Problem Details error body. Decide which ones are safe or correct, and why.",
+      "difficulty": "easy",
+      "points": 10,
+      "hints": [
+        "For each retried request, ask: if the server already did the first one and only the response was lost, what does the second one change on the server?",
+        "Look up what RFC 9110 section 9.2.2 says about PUT, DELETE and POST, and what RFC 9457 section 3.1 says about the difference between title and detail.",
+        "A similar case: DELETE /enrollments/enr_901 is sent twice. The first removes the enrollment, the second gets 404. The responses differ, but the server's state after two requests is the same as after one - that is what idempotent means."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The mobile app enrolled learner u_4821 in a course on a slow network:\n\nPOST /enrollments HTTP/2\nHost: api.codedev.test\ncontent-type: application/json\n\n{ \"userId\": \"u_4821\", \"courseId\": \"web-http-fundamentals\" }\n\nThe app gave up after 10 s without a response and sent exactly the same request again, which returned 201 Created. The database now has two enrollments for this learner and this course.\n\nStatement: \"Retrying a POST after a timeout is safe as long as the request body is identical, because the server then receives the same data twice.\"",
+          "explanation": "False. A timeout means the client does not know whether the first request was processed; here it was, and only the response was lost. POST asks the server to create a new resource, so each request that arrives creates another one - an identical body does not make it the same operation. RFC 9110 does not define POST as idempotent. To retry it safely, the client sends an Idempotency-Key that is the same for every retry of one user action, and the server returns the stored result for a key it has already seen; a unique constraint on (user_id, course_id) adds a second guard.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "When a learner finishes a lesson, the web app sends:\n\nPUT /users/u_4821/progress/lesson-whf-3-4 HTTP/2\nHost: api.codedev.test\ncontent-type: application/json\n\n{ \"status\": \"completed\", \"completedAt\": \"2026-10-19T09:40:00Z\" }\n\nThe API stores exactly this representation for that learner and lesson, replacing any earlier one. The first attempt timed out.\n\nStatement: \"Sending this PUT a second time leaves the server in the same state as sending it once, so the client can retry it after the timeout.\"",
+          "explanation": "True. PUT means \"make the resource at this URL have this state\". The body carries the full new state, including the completion time chosen by the client, so applying it once or twice gives the same result. RFC 9110 defines PUT as idempotent for exactly this reason, and that is what makes automatic retries of PUT acceptable. The misconception to avoid is the opposite one: thinking idempotent means the responses are identical. A first PUT may return 201 and a second 200; only the effect on the server has to be the same.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A learner submits a code solution with a missing field. The API answers:\n\nHTTP/2 422\ncontent-type: application/problem+json\n\n{\n  \"type\": \"https://api.codedev.test/problems/validation-error\",\n  \"title\": \"Your request is not valid\",\n  \"status\": 422,\n  \"detail\": \"The submission has 1 invalid field.\",\n  \"instance\": \"/submissions/sub_5512\",\n  \"errors\": [{ \"pointer\": \"#/language\", \"detail\": \"is required\" }]\n}\n\nA reviewer suggests changing the title to \"language is required\" so each response describes its own error.\n\nStatement: \"Following RFC 9457, the title should change from one occurrence to the next to describe the specific error, so the reviewer's change is correct.\"",
+          "explanation": "False. In RFC 9457 the title is a short summary of the problem type, and it should not change from occurrence to occurrence (except for localization). The occurrence-specific explanation belongs in detail, and machine-readable field errors belong in an extension member such as errors, which is what this body already does. Clients should branch on type (and status), never parse title or detail. The misconception is treating title as the error message; it is the name of the kind of problem.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

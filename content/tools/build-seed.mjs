@@ -230,6 +230,9 @@ ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
     max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();`);
                 out.push(`DELETE FROM challenge.challenge_test_cases WHERE challenge_id = ${challengeId};`);
+                // challenge_test_cases.name is varchar(100): fail here, not halfway through a production seed.
+                const longName = ch.tests.find((t) => String(t.name ?? "").length > 100);
+                if (longName) throw new Error(`${ch.publicId}: test name longer than 100 characters: "${longName.name}"`);
                 const rows = ch.tests.map((t, i) =>
                     `(${challengeId}, ${lit(t.name)}, ${json(t.input)}, ${json(t.expected)}, ${t.score ?? 1}, ${lit(!t.hidden)}, ${lit(Boolean(t.hidden))}, ${i + 1})`
                 ).join(",\n       ");

@@ -1,0 +1,272 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_whf_331",
+      "name": "debug-broken-progress-page-quiz",
+      "type": "quiz",
+      "title": "Read the evidence pack: the progress page with old numbers",
+      "description": "Six statements about one capture from the CodeDev progress page: a CORS error in the console, three 401 responses in the Network panel and numbers that come from a cache saved on Friday. One step of the method per statement: read the evidence, pick a hypothesis, rule one out, choose the fix and choose how to verify it.",
+      "difficulty": "easy",
+      "points": 10,
+      "hints": [
+        "Which line of the capture is the server's real answer, and which line is the browser's reaction to it?",
+        "Compare the response headers of the preflight (request 1) with those of the GET (request 2), and look at the WWW-Authenticate header and the token's exp claim.",
+        "A similar case: a page shows \"Failed to fetch\" and the Network panel shows the request with status 503 and no CORS header. The 503 is the cause (the server is overloaded); the missing header only explains why the script could not read it. Fix the cause, then make error responses carry CORS headers too."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence pack, step 1 (read the evidence). Console on https://app.codedev.test/progress:\n\nAccess to fetch at 'https://api.codedev.test/users/u_4821/progress' from origin 'https://app.codedev.test' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.\nGET https://api.codedev.test/users/u_4821/progress net::ERR_FAILED 401 (Unauthorized)\n\nNetwork, request 2 response headers:\nHTTP/2 401\ncontent-type: application/problem+json\nwww-authenticate: Bearer error=\"invalid_token\", error_description=\"The access token expired\"\n\nStatement: \"The server did answer the GET, with a 401. The CORS message appears because that 401 response has no Access-Control-Allow-Origin header, so the browser does not let the page's script read it.\"",
+          "explanation": "True. The request reached the API and got a complete answer: status 401, a problem+json body and a WWW-Authenticate header. CORS is enforced by the browser after the response arrives: without Access-Control-Allow-Origin the response is withheld from the script, and fetch rejects as if there had been a network error. The common misconception is that a CORS error means the request never reached the server. It did; the Network panel shows what the server actually said, and that status code is the first thing to read.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence pack, step 2 (pick a hypothesis). Network, request 1 (preflight) response:\n\nOPTIONS /users/u_4821/progress -> HTTP/2 204\naccess-control-allow-origin: https://app.codedev.test\naccess-control-allow-credentials: true\naccess-control-allow-methods: GET, POST, PUT, DELETE\naccess-control-allow-headers: authorization, content-type\n\nThe same page loaded fine on Friday, and nobody changed the API's CORS settings since.\n\nStatement: \"The preflight shows that the API no longer allows the origin https://app.codedev.test, so the most likely root cause is a CORS allow-list that lost the app's origin.\"",
+          "explanation": "False. The preflight succeeded with status 204 and allowed exactly this origin, the Authorization header and credentials, so the allow-list is fine. The missing header is only on the 401 error response, which points at the error path of the API (an auth check that answers before the CORS headers are added), not at the CORS configuration. Matching the evidence to each hypothesis is what rules this one out: a lost origin would make the preflight fail too.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence pack, step 3 (rule out a wrong fix). The client code that made the request:\n\nfetch(\"https://api.codedev.test/users/u_4821/progress\", { credentials: \"include\", headers: { Authorization: `Bearer ${token}` } })\n\nThe token's payload: { \"sub\": \"u_4821\", \"exp\": 1792359600 }  (Sunday 2026-10-18 21:40 UTC; the page was opened on Monday)\n\nStatement: \"Configuring the API to send Access-Control-Allow-Origin: * on every response would fix the broken progress page.\"",
+          "explanation": "False, for two reasons. First, the token is still expired: if the browser let the script read the response, the script would read a 401, not the learner's progress. Second, the request uses credentials: \"include\", and for a credentialed request the browser rejects the wildcard * - the header must name the exact origin. Adding CORS headers to error responses is part of the fix (it lets the client see the 401), but it never turns a 401 into data. The misconception is treating the loudest message, the CORS error, as the root cause.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence pack, step 4 (explain the symptom). The page shows \"Lessons completed: 12 / 40\" with no error, but the learner finished 3 lessons on Sunday afternoon.\n\nNetwork (filter: progress): 1 OPTIONS 204, then 3 x GET 401. No other progress request.\nApplication > Local Storage > https://app.codedev.test:\nprogress:u_4821 = {\"completed\":12,\"total\":40,\"streak\":6,\"savedAt\":\"2026-10-16T18:05:11Z\"}\n\nStatement: \"The numbers on the page come from the client's cache: no progress request in the capture returned 200, and the cached entry with exactly these numbers was saved on Friday.\"",
+          "explanation": "True. Every progress request in the capture failed, so the 12 / 40 cannot come from the API today; it matches the cached entry saved on Friday, before the Sunday lessons. The client caught the failure, retried, and then rendered the cached value as if it were fresh. This is the second bug: the fallback hid the real error and showed old data without any label. The common mistake is to look for a server bug in the progress calculation, when the server never sent these numbers today.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence pack, step 5 (choose the fix). The three GET requests in the capture each sent the same Authorization header and each got:\n\nHTTP/2 401\nwww-authenticate: Bearer error=\"invalid_token\", error_description=\"The access token expired\"\n\nStatement: \"Retrying the GET more times, with a longer backoff between attempts, is a reasonable fix, because a 401 is usually a temporary failure.\"",
+          "explanation": "False. A 401 is a definite answer about the credentials: this token is not accepted. Sending the same request with the same expired token gives the same 401 every time, which is exactly what the three identical requests show. The fix is to stop retrying, refresh the token or ask the learner to sign in again, and only then send a new request with the new token. Retries with backoff are for failures that can change on their own: no response, 503, 429 with Retry-After.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence pack, step 6 (verify). The fix: the API adds its CORS headers to every response, errors included, and the client handles 401 by asking the learner to sign in again, without retrying and without showing cached numbers.\n\nProposed check:\ncurl -i https://api.codedev.test/users/u_4821/progress -H \"Origin: https://app.codedev.test\" -H \"Authorization: Bearer <an expired test token>\"\n\nthen reload the page in a test account whose token has expired.\n\nStatement: \"A good verification is: the curl response is a 401 that now includes access-control-allow-origin: https://app.codedev.test, and after the reload the Network panel shows one GET 401, the console shows no CORS error and the page shows a sign-in prompt instead of numbers.\"",
+          "explanation": "True. Each part of the check targets one part of the fix with evidence: curl proves the error response now carries the CORS header (curl ignores CORS, so you read the raw headers), one GET proves the retry loop is gone, the absence of the CORS message proves the browser now passes the 401 to the script, and the sign-in prompt proves the UI handles it. The misconception is to verify only with a valid session: the page would look fine, and none of the changed code would run.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_whf_332",
+      "name": "debug-the-broken-page",
+      "type": "fix_bug",
+      "title": "Debug the Broken Page",
+      "description": "The API now adds CORS headers to its error responses, so the progress page's loadProgress(userId, { fetch, cache }) can finally see the 401 it gets when an access token expires. It still hides it. Learners with an expired session see last week's progress as if it were current, they are never asked to sign in again, and the API logs show three /progress requests with the same expired token for every page view. Fix loadProgress so that it makes exactly one request per call to GET https://api.codedev.test/users/{userId}/progress and returns: on a 2xx, { status: \"fresh\", data } and stores data in the cache under \"progress:<userId>\"; on a 401, { status: \"signed_out\" } with no cached data; when fetch rejects (no response) or on a 5xx, { status: \"stale\", data } with the cached value if the cache has one, otherwise { status: \"error\", httpStatus } (the status code, or null when there was no response); on any other status, { status: \"error\", httpStatus }. Only a 2xx writes the cache, and loadProgress never deletes from it.",
+      "difficulty": "easy",
+      "points": 30,
+      "hints": [
+        "When the server answers 401 to a token, what could a second identical request with the same token change? And when the page falls back to cached numbers, how would the learner know they are old?",
+        "Look at the retry loop and at the final return: every kind of failure ends in the same place and is labelled \"fresh\". Separate the cases by what actually happened: fetch rejected (no response at all), or a response arrived with a status code you can read.",
+        "A similar decision on different input, an avatar loader: let res; try { res = await fetch(url); } catch { return { kind: \"offline\" }; } if (res.status === 404) return { kind: \"missing\" }; if (res.status >= 500) return { kind: \"try-later\" }; - each outcome gets its own label, the no-response case is detected by the rejected fetch, and a definite answer such as 404 is reported, not replaced by something else."
+      ],
+      "coding": {
+        "language": "javascript",
+        "filePath": "loadProgress.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A 2xx returns fresh data and refreshes the cache",
+          "input": {
+            "scenarios": [
+              {
+                "userId": "u_4821",
+                "cached": { "completed": 12, "total": 40, "streak": 6 },
+                "responses": [{ "status": 200, "body": { "completed": 15, "total": 40, "streak": 7 } }]
+              }
+            ]
+          },
+          "expected": [
+            {
+              "result": { "status": "fresh", "data": { "completed": 15, "total": 40, "streak": 7 } },
+              "fetchCalls": 1,
+              "cacheAfter": { "completed": 15, "total": 40, "streak": 7 }
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "An expired session (401) asks for sign-in: one request and no cached numbers",
+          "input": {
+            "scenarios": [
+              {
+                "userId": "u_4821",
+                "cached": { "completed": 12, "total": 40, "streak": 6 },
+                "responses": [{ "status": 401, "body": { "type": "about:blank", "title": "Unauthorized", "status": 401 } }]
+              }
+            ]
+          },
+          "expected": [
+            {
+              "result": { "status": "signed_out" },
+              "fetchCalls": 1,
+              "cacheAfter": { "completed": 12, "total": 40, "streak": 6 }
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "No response at all: the cached progress is returned, marked stale",
+          "input": {
+            "scenarios": [
+              {
+                "userId": "u_4821",
+                "cached": { "completed": 12, "total": 40, "streak": 6 },
+                "responses": [{ "network": true }]
+              }
+            ]
+          },
+          "expected": [
+            {
+              "result": { "status": "stale", "data": { "completed": 12, "total": 40, "streak": 6 } },
+              "fetchCalls": 1,
+              "cacheAfter": { "completed": 12, "total": 40, "streak": 6 }
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A 5xx serves the cache as stale; with an empty cache it is an error with the status",
+          "input": {
+            "scenarios": [
+              {
+                "userId": "u_77",
+                "cached": { "completed": 3, "total": 12, "streak": 1 },
+                "responses": [{ "status": 503 }]
+              },
+              {
+                "userId": "u_78",
+                "cached": null,
+                "responses": [{ "status": 500 }]
+              }
+            ]
+          },
+          "expected": [
+            {
+              "result": { "status": "stale", "data": { "completed": 3, "total": 12, "streak": 1 } },
+              "fetchCalls": 1,
+              "cacheAfter": { "completed": 3, "total": 12, "streak": 1 }
+            },
+            {
+              "result": { "status": "error", "httpStatus": 500 },
+              "fetchCalls": 1,
+              "cacheAfter": null
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "No response and an empty cache: an error with httpStatus null, not an empty page",
+          "input": {
+            "scenarios": [
+              {
+                "userId": "u_90",
+                "cached": null,
+                "responses": [{ "network": true }]
+              }
+            ]
+          },
+          "expected": [
+            {
+              "result": { "status": "error", "httpStatus": null },
+              "fetchCalls": 1,
+              "cacheAfter": null
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "403 and 404 are surfaced as errors, never hidden behind cached data",
+          "input": {
+            "scenarios": [
+              {
+                "userId": "u_4821",
+                "cached": { "completed": 12, "total": 40, "streak": 6 },
+                "responses": [{ "status": 403, "body": { "title": "Forbidden", "status": 403 } }]
+              },
+              {
+                "userId": "u_5000",
+                "cached": { "completed": 1, "total": 8, "streak": 0 },
+                "responses": [{ "status": 404, "body": { "title": "Not Found", "status": 404 } }]
+              }
+            ]
+          },
+          "expected": [
+            {
+              "result": { "status": "error", "httpStatus": 403 },
+              "fetchCalls": 1,
+              "cacheAfter": { "completed": 12, "total": 40, "streak": 6 }
+            },
+            {
+              "result": { "status": "error", "httpStatus": 404 },
+              "fetchCalls": 1,
+              "cacheAfter": { "completed": 1, "total": 8, "streak": 0 }
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A 401 is not retried, even when a second request would have succeeded",
+          "input": {
+            "scenarios": [
+              {
+                "userId": "u_31",
+                "cached": null,
+                "responses": [{ "status": 401 }, { "status": 200, "body": { "completed": 9, "total": 10, "streak": 4 } }]
+              }
+            ]
+          },
+          "expected": [
+            {
+              "result": { "status": "signed_out" },
+              "fetchCalls": 1,
+              "cacheAfter": null
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,192 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_whf_311",
+      "name": "safe-to-retry-quiz",
+      "type": "quiz",
+      "title": "Which failures are safe to retry?",
+      "description": "Two pieces of evidence from the submissions incident: a client log that retried an expired token, and a timeout on a POST that the server finished anyway.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The submissions client logged this after one click on Run (the access token had expired at 09:12):\n\n09:14:03.120 POST /submissions -> 401 {\"error\":\"invalid_token\"}\n09:14:03.161 POST /submissions -> 401 {\"error\":\"invalid_token\"}\n09:14:03.198 POST /submissions -> 401 {\"error\":\"invalid_token\"}\n09:14:03.240 POST /submissions -> 401 {\"error\":\"invalid_token\"}\n09:14:03.277 POST /submissions -> 401 {\"error\":\"invalid_token\"}\n09:14:03.315 POST /submissions -> 401 {\"error\":\"invalid_token\"}\n\nStatement: \"Waiting longer between these attempts, with exponential backoff, would have fixed the incident.\"",
+          "explanation": "False. Backoff only spreads the same six requests over a longer time; each one still carries the expired token, so each one still gets 401. A 401 describes the request (its credentials), not a temporary state of the server: the fix is to stop retrying and get a new token or send the user to sign in again. Backoff is the right tool only for failures that can go away on their own, such as a network error, 429, 502, 503 or 504. The common misconception is that backoff makes any retry safe; it makes a retryable failure cheaper, it does not make a non-retryable one succeed.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Client code:\n\nconst res = await fetch(\"https://api.codedev.test/submissions\", {\n  method: \"POST\",\n  body: JSON.stringify({ challengeId: \"c_17\", code }),\n  signal: AbortSignal.timeout(3000),\n});\n\nBrowser console: TimeoutError: signal timed out (after 3.0 s)\n\nAPI access log for the same request:\n10:02:11.904 POST /submissions 201 4180ms\n\nStatement: \"The submission was saved even though the client saw a timeout, so retrying this POST automatically, without an idempotency key, can create a duplicate submission.\"",
+          "explanation": "True. A client timeout only stops the client from waiting; it does not cancel work the server already started. The access log shows the server answered 201 Created after 4.18 s, so the submission exists. POST is not idempotent (RFC 9110, section 9.2.2), so sending it again creates a second submission. Retry a POST only when the server can recognise the repeat, for example with an Idempotency-Key header that the client reuses for every attempt of the same action. The misconception is that a timeout means \"nothing happened\": it means \"I do not know what happened\".",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_whf_312",
+      "name": "fetch-with-retry-limit",
+      "type": "mini_coding",
+      "title": "Retry with a limit",
+      "description": "The progress page and the submissions client share one helper, fetchWithRetry(request, { fetch, sleep, retries = 3, baseDelayMs = 100 }). Rewrite it so it retries only failures that can go away on their own. Call fetch(request) with the request you were given. Retry when fetch rejects (network error, or TimeoutError from AbortSignal.timeout) - but rethrow an error named \"AbortError\" at once, because the user cancelled - and when the response status is 429, 502, 503 or 504. Return every other response immediately without retrying (2xx, 3xx, 400, 401, 403, 404, 409, 422, 500, 501 and so on). Make at most `retries` retries (at most retries + 1 calls to fetch). Before retry n (n starts at 1), await sleep(baseDelayMs * 2 ** (n - 1)) - 100, 200, 400 ms with the defaults - except when the retryable response has a Retry-After header made only of digits: then sleep that many seconds (seconds * 1000 ms). Any other Retry-After value, such as an HTTP-date, uses the backoff delay. When no retry is left, return the last response or rethrow the last error object. Use only the injected fetch and sleep: the tests replay scripted responses and record every delay.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "fetchWithRetry.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "For each attempt, ask two questions in order: did fetch throw or return a response, and if it failed, could the very same request succeed a moment later? Only then does the retry counter matter.",
+        "Look at three things: the error's name property (TimeoutError and TypeError are retryable, AbortError is not), response.status compared with a short list of retryable statuses, and response.headers.get(\"Retry-After\"), which returns null when the header is missing. The loop needs an attempt number to compute the delay and to stop after retries + 1 calls.",
+        "A worked trace with retries 2 and baseDelayMs 10, when the server answers: network error, then 504, then 504. Call 1 rejects -> retry 1 -> sleep(10). Call 2 is 504 -> retry 2 -> sleep(20). Call 3 is 504 -> no retry left -> return that 504 response. If call 2 had been 504 with Retry-After: 3, the second sleep would be 3000 instead of 20; if call 1 had been a 404, it would be returned at once with no sleep at all."
+      ],
+      "tests": [
+        {
+          "name": "A 503 or a network error is retried once after 100 ms and the 200 is returned",
+          "input": {
+            "scenarios": [
+              { "outcomes": [{ "status": 503 }, { "status": 200 }] },
+              { "outcomes": [{ "error": "network" }, { "status": 200 }] }
+            ]
+          },
+          "expected": [
+            { "attempts": 2, "delays": [100], "outcome": "response 200" },
+            { "attempts": 2, "delays": [100], "outcome": "response 200" }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The incident: 400, 401, 403, 404 and 500 are returned at once, never retried",
+          "input": {
+            "scenarios": [
+              { "outcomes": [{ "status": 400 }] },
+              { "outcomes": [{ "status": 401 }] },
+              { "outcomes": [{ "status": 403 }] },
+              { "outcomes": [{ "status": 404 }] },
+              { "outcomes": [{ "status": 500 }] }
+            ]
+          },
+          "expected": [
+            { "attempts": 1, "delays": [], "outcome": "response 400" },
+            { "attempts": 1, "delays": [], "outcome": "response 401" },
+            { "attempts": 1, "delays": [], "outcome": "response 403" },
+            { "attempts": 1, "delays": [], "outcome": "response 404" },
+            { "attempts": 1, "delays": [], "outcome": "response 500" }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A server that stays at 503: 3 retries after 100, 200 and 400 ms, then the last 503 is returned",
+          "input": {
+            "scenarios": [
+              { "outcomes": [{ "status": 503 }] }
+            ]
+          },
+          "expected": [
+            { "attempts": 4, "delays": [100, 200, 400], "outcome": "response 503" }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Network errors every time with retries 2 and baseDelayMs 50: the last error is rethrown",
+          "input": {
+            "scenarios": [
+              { "outcomes": [{ "error": "network" }], "options": { "retries": 2, "baseDelayMs": 50 } }
+            ]
+          },
+          "expected": [
+            { "attempts": 3, "delays": [50, 100], "outcome": "threw TypeError: Failed to fetch" }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Retry-After in whole seconds (including 0) replaces the backoff; an HTTP-date or junk value does not",
+          "input": {
+            "scenarios": [
+              { "outcomes": [{ "status": 429, "retryAfter": "2" }, { "status": 200 }] },
+              { "outcomes": [{ "status": 503, "retryAfter": "0" }, { "status": 503, "retryAfter": "1" }, { "status": 200 }] },
+              { "outcomes": [{ "status": 429, "retryAfter": "Wed, 21 Oct 2026 07:28:00 GMT" }, { "status": 429, "retryAfter": "soon" }, { "status": 200 }] }
+            ]
+          },
+          "expected": [
+            { "attempts": 2, "delays": [2000], "outcome": "response 200" },
+            { "attempts": 3, "delays": [0, 1000], "outcome": "response 200" },
+            { "attempts": 3, "delays": [100, 200], "outcome": "response 200" }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "502, 504 and timeouts are retried; a user abort is rethrown at once",
+          "input": {
+            "scenarios": [
+              { "outcomes": [{ "status": 502 }, { "status": 504 }, { "error": "timeout" }, { "status": 200 }] },
+              { "outcomes": [{ "error": "abort" }] },
+              { "outcomes": [{ "error": "timeout" }], "options": { "retries": 1 } }
+            ]
+          },
+          "expected": [
+            { "attempts": 4, "delays": [100, 200, 400], "outcome": "response 200" },
+            { "attempts": 1, "delays": [], "outcome": "threw AbortError: The operation was aborted." },
+            { "attempts": 2, "delays": [100], "outcome": "threw TimeoutError: signal timed out" }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "retries 0 = one call; 2xx, 304, 501 return at once; 429 without Retry-After uses the backoff",
+          "input": {
+            "scenarios": [
+              { "outcomes": [{ "status": 503 }], "options": { "retries": 0 } },
+              { "outcomes": [{ "status": 204 }] },
+              { "outcomes": [{ "status": 304 }] },
+              { "outcomes": [{ "status": 501 }] },
+              { "outcomes": [{ "status": 429 }], "options": { "retries": 1 } }
+            ]
+          },
+          "expected": [
+            { "attempts": 1, "delays": [], "outcome": "response 503" },
+            { "attempts": 1, "delays": [], "outcome": "response 204" },
+            { "attempts": 1, "delays": [], "outcome": "response 304" },
+            { "attempts": 1, "delays": [], "outcome": "response 501" },
+            { "attempts": 2, "delays": [100], "outcome": "response 429" }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A long outage with retries 8 and baseDelayMs 250: the delay doubles every time and the limit holds",
+          "input": {
+            "scenarios": [
+              { "outcomes": [{ "status": 504 }], "options": { "retries": 8, "baseDelayMs": 250 } },
+              { "outcomes": [{ "status": 503 }, { "status": 503 }, { "status": 503 }, { "status": 503 }, { "status": 503 }, { "status": 503 }, { "status": 503 }, { "status": 503 }, { "status": 200 }], "options": { "retries": 8, "baseDelayMs": 250 } }
+            ]
+          },
+          "expected": [
+            { "attempts": 9, "delays": [250, 500, 1000, 2000, 4000, 8000, 16000, 32000], "outcome": "response 504" },
+            { "attempts": 9, "delays": [250, 500, 1000, 2000, 4000, 8000, 16000, 32000], "outcome": "response 200" }
+          ],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

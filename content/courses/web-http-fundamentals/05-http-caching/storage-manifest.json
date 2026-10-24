@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_whf_222",
+      "key": "challenges/javascript/chal_coding_whf_222/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "cacheControl.js",
+      "size": 1912
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_coding_whf_222",
+      "key": "challenges/javascript/chal_coding_whf_222/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 593
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_whf_332",
+      "key": "challenges/javascript/chal_coding_whf_332/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "loadProgress.js",
+      "size": 2334
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_coding_whf_332",
+      "key": "challenges/javascript/chal_coding_whf_332/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 1729
+    }
+  ]
+}

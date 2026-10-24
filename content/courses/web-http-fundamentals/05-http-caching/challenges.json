@@ -1,0 +1,165 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_whf_221",
+      "name": "http-caching-evidence-quiz",
+      "type": "quiz",
+      "title": "Read the caching evidence",
+      "description": "Two responses from the CodeDev progress incident: one before the fix and one after. Decide whether each statement about what the browser does with them is true or false.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After the fix, GET https://api.codedev.test/me/progress answers:\n\nHTTP/2 200\ncontent-type: application/json\ncache-control: private, no-cache\netag: \"p17-v42\"\n\n{\"userId\":17,\"completedLessons\":12,\"percent\":40}\n\nStatement: \"Because of no-cache, the browser does not store this response, so every visit to the progress page downloads the full JSON body again.\"",
+          "explanation": "False. no-cache does not forbid storing; that is no-store. no-cache means the browser may store the response but must validate it with the server before each reuse. Because the response has an ETag, the browser sends If-None-Match: \"p17-v42\" and, while nothing has changed, receives 304 Not Modified with no body and reuses the stored JSON. Reading no-cache as \"do not cache\" is the most common caching misconception.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Before the fix, the progress page ran fetch(\"https://api.codedev.test/me/progress\", { credentials: \"include\" }) each time it opened. The first response, received at 09:00, was:\n\nHTTP/2 200\ncontent-type: application/json\ncache-control: public, max-age=86400\n\nAt 11:00 the same day, the learner opens the progress page again in the same browser, without a hard reload and without DevTools.\n\nStatement: \"The browser may answer this fetch from its own cache without sending any request to the API, and the Network tab would list it as (disk cache) or (memory cache).\"",
+          "explanation": "True. max-age=86400 makes the stored response fresh for 24 hours. Two hours later its age is about 7200 seconds, well under 86400, so the browser is allowed to reuse it without contacting the server - no request, no log line on the API, and the old numbers on screen. DevTools shows such a response with (disk cache) or (memory cache) in the Size column and the stored status, 200. A common misconception is that a fetch() call always goes to the network; it goes through the HTTP cache like any other request.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_whf_222",
+      "name": "read-cache-control",
+      "type": "mini_coding",
+      "title": "Read Cache-Control",
+      "description": "The CodeDev team is auditing the Cache-Control header of every API response after the stale progress page incident. Write parseCacheControl(header), which reads one Cache-Control header value and returns exactly this object:\n\n{ maxAge, noStore, noCache, private, public }\n\n- maxAge: the max-age value as an integer number of seconds, or null when max-age is missing or its value is not a plain non-negative integer (\"-1\", \"1.5\", \"60s\", \"abc\", an empty value or no value at all). A value larger than 2147483648 is capped at 2147483648, as RFC 9111 recommends. A quoted value such as max-age=\"120\" is accepted (120).\n- noStore, noCache, private, public: true when that directive is present, false otherwise. A directive with an argument still counts: no-cache=\"Set-Cookie\" sets noCache to true, private=\"Set-Cookie\" sets private to true.\n\nThe header follows RFC 9111: directives are separated by commas, with optional spaces around them; directive names are case-insensitive (MAX-AGE, No-Store); a value may be a quoted string that itself contains commas (no-cache=\"Set-Cookie, Authorization\" is one directive); empty items (\"max-age=60,,private\") and unknown directives (immutable, stale-while-revalidate=30, s-maxage=600) are ignored. s-maxage is a different directive: it never sets maxAge. A missing header (null or undefined) or an empty string gives { maxAge: null, noStore: false, noCache: false, private: false, public: false }.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "cacheControl.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "If you split private=\"Set-Cookie, Authorization\", max-age=30 at every comma, how many pieces do you get, and how many of them are real directives?",
+        "For each directive you need three steps: trim the spaces, lowercase the part before the first \"=\", and remove one pair of surrounding double quotes from the part after it. Only then decide whether the value of max-age is made of digits only - parseInt and Number both accept text that is not a plain integer.",
+        "A similar parser for a different header: Keep-Alive: \"Timeout=5, MAX=1000\". Split it into items, trim each, split each item at its first \"=\" into a name and a value, lowercase the name, and check the value with /^\\d+$/ before converting: \"timeout\" -> 5, \"max\" -> 1000. An item such as \"timeout=5s\" fails the check and is treated as missing rather than as 5."
+      ],
+      "tests": [
+        {
+          "name": "The incident header and the fixed header",
+          "input": {
+            "headers": ["public, max-age=86400", "private, no-cache"]
+          },
+          "expected": [
+            { "maxAge": 86400, "noStore": false, "noCache": false, "private": false, "public": true },
+            { "maxAge": null, "noStore": false, "noCache": true, "private": true, "public": false }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "no-store, max-age=0 and a missing or empty header",
+          "input": {
+            "headers": ["no-store", "max-age=0, must-revalidate", "", null]
+          },
+          "expected": [
+            { "maxAge": null, "noStore": true, "noCache": false, "private": false, "public": false },
+            { "maxAge": 0, "noStore": false, "noCache": false, "private": false, "public": false },
+            { "maxAge": null, "noStore": false, "noCache": false, "private": false, "public": false },
+            { "maxAge": null, "noStore": false, "noCache": false, "private": false, "public": false }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Directive names are case-insensitive and spaces around items are ignored",
+          "input": {
+            "headers": ["Max-Age=600 ,PRIVATE", "  No-Cache ,   NO-STORE  ", "Public,MAX-AGE=30"]
+          },
+          "expected": [
+            { "maxAge": 600, "noStore": false, "noCache": false, "private": true, "public": false },
+            { "maxAge": null, "noStore": true, "noCache": true, "private": false, "public": false },
+            { "maxAge": 30, "noStore": false, "noCache": false, "private": false, "public": true }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Quoted values, including quoted lists that contain commas",
+          "input": {
+            "headers": [
+              "max-age=\"120\"",
+              "private=\"Set-Cookie\", no-cache=\"Set-Cookie, Authorization\", max-age=30",
+              "no-cache=\"Set-Cookie, public, Authorization\", max-age=5"
+            ]
+          },
+          "expected": [
+            { "maxAge": 120, "noStore": false, "noCache": false, "private": false, "public": false },
+            { "maxAge": 30, "noStore": false, "noCache": true, "private": true, "public": false },
+            { "maxAge": 5, "noStore": false, "noCache": true, "private": false, "public": false }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Invalid max-age values become null, and s-maxage never sets maxAge",
+          "input": {
+            "headers": ["max-age=-1", "max-age=1.5", "max-age=60s", "max-age=abc", "max-age=", "max-age", "s-maxage=600, public", "max-age=\"\""]
+          },
+          "expected": [
+            { "maxAge": null, "noStore": false, "noCache": false, "private": false, "public": false },
+            { "maxAge": null, "noStore": false, "noCache": false, "private": false, "public": false },
+            { "maxAge": null, "noStore": false, "noCache": false, "private": false, "public": false },
+            { "maxAge": null, "noStore": false, "noCache": false, "private": false, "public": false },
+            { "maxAge": null, "noStore": false, "noCache": false, "private": false, "public": false },
+            { "maxAge": null, "noStore": false, "noCache": false, "private": false, "public": false },
+            { "maxAge": null, "noStore": false, "noCache": false, "private": false, "public": true },
+            { "maxAge": null, "noStore": false, "noCache": false, "private": false, "public": false }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Unknown directives and empty items are ignored",
+          "input": {
+            "headers": [
+              "stale-while-revalidate=30, immutable, max-age=31536000, public",
+              "max-age=60,,private,",
+              ", , no-transform"
+            ]
+          },
+          "expected": [
+            { "maxAge": 31536000, "noStore": false, "noCache": false, "private": false, "public": true },
+            { "maxAge": 60, "noStore": false, "noCache": false, "private": true, "public": false },
+            { "maxAge": null, "noStore": false, "noCache": false, "private": false, "public": false }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Huge max-age values are capped at 2147483648, leading zeros are fine",
+          "input": {
+            "headers": ["max-age=99999999999999999999", "max-age=2147483648", "max-age=2147483647", "max-age=007"]
+          },
+          "expected": [
+            { "maxAge": 2147483648, "noStore": false, "noCache": false, "private": false, "public": false },
+            { "maxAge": 2147483648, "noStore": false, "noCache": false, "private": false, "public": false },
+            { "maxAge": 2147483647, "noStore": false, "noCache": false, "private": false, "public": false },
+            { "maxAge": 7, "noStore": false, "noCache": false, "private": false, "public": false }
+          ],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

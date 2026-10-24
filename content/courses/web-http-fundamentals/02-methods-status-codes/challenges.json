@@ -1,0 +1,186 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_whf_121",
+      "name": "methods-status-codes-quiz",
+      "type": "quiz",
+      "title": "Idempotent or not, bad or invalid",
+      "description": "Two requests from the enrollments API after the fix: a DELETE sent twice, and an enrollment request whose body was cut off. Decide whether each statement is True or False.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The mobile app sends the same request twice because the learner double-taps \"Leave course\":\n\nDELETE /v1/enrollments/42  ->  HTTP/2 204\nDELETE /v1/enrollments/42  ->  HTTP/2 404  {\"error\":\"Enrollment not found\"}\n\nAfter both calls, enrollment 42 no longer exists and nothing else changed.\n\nStatement: \"Because the second call returned a different status code, DELETE is not idempotent on this API.\"",
+          "explanation": "False. Idempotent means that sending the request several times has the same effect on the server as sending it once. After one call or two, enrollment 42 is gone and nothing else changed, so the method is idempotent. The response is allowed to differ: there is nothing left to delete the second time, so 404 is a correct answer. The misconception is that idempotency promises identical responses; it promises identical server state.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A flaky mobile connection cut a request body short. The server received:\n\nPOST /v1/enrollments\nContent-Type: application/json\n\n{\"courseId\": \"web-http-fundam\n\nThe API's convention: 400 for requests it cannot read, 422 for well-formed requests whose content breaks a rule.\n\nStatement: \"400 Bad Request fits this request better than 422, because the server cannot even parse the body.\"",
+          "explanation": "True. The body is not valid JSON, so the request is malformed and the server cannot get as far as checking whether courseId is valid. 400 is the code for requests the server cannot process because of a client error such as malformed syntax. 422 Unprocessable Content is for a request that is well-formed (the JSON parses, the content type is right) but whose content is invalid, for example a missing courseId. A common mistake is to use 422 for every client mistake, or 500 because JSON.parse threw inside the server.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_whf_122",
+      "name": "choose-method-and-status",
+      "type": "mini_coding",
+      "title": "Choose the method and status code",
+      "description": "The CodeDev API team wants its conventions in one function, so every new route answers the same way. Write chooseResponse(operation) and return { method, status }.\n\noperation is an object:\n- action (required): exactly one of \"list\", \"read\", \"create\", \"replace\", \"update\", \"delete\" (lowercase).\n- targetExists (boolean, default true): whether the item addressed by id exists. Used only by read, replace, update and delete. list and create target a collection, which always exists, so they ignore it.\n- inputValid (boolean, default true): whether the request body passes validation. Used only by create, replace and update.\n- conflict (boolean, default false): whether the change conflicts with existing data, such as a duplicate enrollment. Used only by create, replace and update.\nFlags that an action does not use are ignored.\n\nmethod: list and read -> \"GET\", create -> \"POST\", replace -> \"PUT\", update -> \"PATCH\", delete -> \"DELETE\".\n\nstatus: the first matching rule wins.\n1. targetExists is false (read, replace, update, delete) -> 404. The API assigns ids itself, so PUT never creates a missing item.\n2. inputValid is false (create, replace, update) -> 422.\n3. conflict is true (create, replace, update) -> 409.\n4. Otherwise success: list 200 (also when nothing matches: an empty list is still 200), read 200, create 201, replace 200, update 200, delete 204.\n\nAny other action (missing, misspelled, uppercase, or an HTTP method name such as \"GET\") -> throw an Error.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "chooseResponse.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "Two separate questions decide every answer: which method does this action use, and which status rule matches first? What should an update answer when its id does not exist and its body is also invalid?",
+        "Write the method lookup as a small object map from action to method, and reject actions that are not in it. Then apply the status rules in the order given, and for each rule check whether the action is one of those the rule applies to: list and create never answer 404, and read, list and delete never look at inputValid or conflict.",
+        "The same pattern on a different API: a payments service maps charge -> POST and refund -> POST, then checks \"account closed\" (410) before \"amount invalid\" (422), and answers 201 otherwise. For { action: \"refund\", accountClosed: true, amountValid: false } the closed check matches first, so the answer is { method: \"POST\", status: 410 }; for { action: \"charge\" } it is { method: \"POST\", status: 201 }."
+      ],
+      "tests": [
+        {
+          "name": "Each action uses its method and its success status",
+          "input": {
+            "operations": [
+              { "action": "list" },
+              { "action": "read" },
+              { "action": "create" },
+              { "action": "replace" },
+              { "action": "update" },
+              { "action": "delete" }
+            ]
+          },
+          "expected": [
+            { "method": "GET", "status": 200 },
+            { "method": "GET", "status": 200 },
+            { "method": "POST", "status": 201 },
+            { "method": "PUT", "status": 200 },
+            { "method": "PATCH", "status": 200 },
+            { "method": "DELETE", "status": 204 }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A learner with no enrollments gets 200 and an empty list, not 404",
+          "input": {
+            "operations": [
+              { "action": "list", "targetExists": false },
+              { "action": "read", "targetExists": false }
+            ]
+          },
+          "expected": [
+            { "method": "GET", "status": 200 },
+            { "method": "GET", "status": 404 }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A duplicate enrollment is 409 and an invalid body is 422",
+          "input": {
+            "operations": [
+              { "action": "create", "conflict": true },
+              { "action": "create", "inputValid": false },
+              { "action": "update", "inputValid": false }
+            ]
+          },
+          "expected": [
+            { "method": "POST", "status": 409 },
+            { "method": "POST", "status": 422 },
+            { "method": "PATCH", "status": 422 }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "An unknown id is 404 for replace, update and delete; PUT never creates",
+          "input": {
+            "operations": [
+              { "action": "replace", "targetExists": false },
+              { "action": "update", "targetExists": false },
+              { "action": "delete", "targetExists": false }
+            ]
+          },
+          "expected": [
+            { "method": "PUT", "status": 404 },
+            { "method": "PATCH", "status": 404 },
+            { "method": "DELETE", "status": 404 }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Rules apply in order: 404 before 422 before 409",
+          "input": {
+            "operations": [
+              { "action": "update", "targetExists": false, "inputValid": false, "conflict": true },
+              { "action": "create", "inputValid": false, "conflict": true },
+              { "action": "replace", "inputValid": false, "conflict": true },
+              { "action": "replace", "conflict": true },
+              { "action": "update", "targetExists": true, "inputValid": true, "conflict": true }
+            ]
+          },
+          "expected": [
+            { "method": "PATCH", "status": 404 },
+            { "method": "POST", "status": 422 },
+            { "method": "PUT", "status": 422 },
+            { "method": "PUT", "status": 409 },
+            { "method": "PATCH", "status": 409 }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Flags an action does not use are ignored",
+          "input": {
+            "operations": [
+              { "action": "read", "inputValid": false, "conflict": true },
+              { "action": "delete", "inputValid": false, "conflict": true },
+              { "action": "list", "targetExists": false, "inputValid": false, "conflict": true },
+              { "action": "create", "targetExists": false }
+            ]
+          },
+          "expected": [
+            { "method": "GET", "status": 200 },
+            { "method": "DELETE", "status": 204 },
+            { "method": "GET", "status": 200 },
+            { "method": "POST", "status": 201 }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Unknown, uppercase, HTTP-method or missing actions are rejected",
+          "input": {
+            "operations": [
+              { "action": "remove" },
+              { "action": "LIST" },
+              { "action": "GET" },
+              { "targetExists": true }
+            ]
+          },
+          "expected": ["rejected", "rejected", "rejected", "rejected"],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

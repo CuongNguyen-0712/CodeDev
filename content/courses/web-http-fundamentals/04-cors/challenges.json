@@ -1,0 +1,157 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_whf_211",
+      "name": "cors-evidence-quiz",
+      "type": "quiz",
+      "title": "Read the CORS evidence",
+      "description": "Two pieces of evidence from the CodeDev CORS incident: a curl check that \"proves\" the API works, and a credentialed PUT from the web app that needs permission first. Decide whether each statement is true or false.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The admin app at https://admin.codedev.test calls the API with credentials: \"include\". Its console says the request was blocked by CORS policy. The backend developer runs:\n\n$ curl -i https://api.codedev.test/admin/courses -H 'Cookie: session=<test session>'\nHTTP/2 200\ncontent-type: application/json\naccess-control-allow-origin: *\naccess-control-allow-credentials: true\n\n[{\"id\":42,\"title\":\"Web Application Fundamentals\"}]\n\nStatement: \"Because curl receives 200 OK with the JSON, the API's CORS configuration is correct, and the bug must be in the admin app's fetch call.\"",
+          "explanation": "False. curl does not implement CORS at all: it shows what the server sent, not whether a browser would let a page read it. The headers are the bug. For a request sent with credentials, the browser requires Access-Control-Allow-Origin to be exactly the page's origin (https://admin.codedev.test) together with Access-Control-Allow-Credentials: true; the wildcard * is rejected in that mode. The common misconception is that a 200 in curl clears the server - it only proves the server answered.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The page https://app.codedev.test runs:\n\nawait fetch(\"https://api.codedev.test/progress/lesson-whf-2-1\", {\n  method: \"PUT\",\n  credentials: \"include\",\n  headers: { \"Content-Type\": \"application/json\" },\n  body: JSON.stringify({ completed: true }),\n});\n\nNo preflight result for this URL is cached yet.\n\nStatement: \"Before sending the PUT, the browser sends an OPTIONS request with Access-Control-Request-Method: PUT and Access-Control-Request-Headers: content-type, and that OPTIONS request carries no cookies.\"",
+          "explanation": "True. The method PUT and the Content-Type value application/json both fall outside the CORS-safelisted set, so the browser must ask first with a preflight. The preflight describes the real request in Access-Control-Request-Method and Access-Control-Request-Headers (header names lowercased), and it is always sent without credentials, even when the real request uses credentials: \"include\". A common mistake is to put authentication in front of OPTIONS: the preflight then gets a 401 and the PUT is never sent.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_whf_212",
+      "name": "spot-the-ai-mistake-cors-headers",
+      "type": "fix_bug",
+      "title": "Spot the AI Mistake: CORS headers",
+      "description": "An AI assistant was asked to \"allow our web app and the admin app to call the API with cookies\" and wrote corsHeaders(requestOrigin, allowlist). Since it shipped, every request the web app (https://app.codedev.test) and the admin app (https://admin.codedev.test) send with credentials: \"include\" fails with \"blocked by CORS policy\" in the console, while curl shows 200 OK. The security review adds that the helper's answer is the same for any website that calls the API, and that a CDN in front of the API could serve one origin's headers to another.\n\nFix corsHeaders so that it returns the response headers to add (an object, header name -> string value):\n- requestOrigin is the request's Origin header (a string such as \"https://app.codedev.test\"), or null when the request has no Origin header (curl, same-origin page loads).\n- allowlist is an array of trusted origins.\n- When requestOrigin is exactly equal to one of the allowlist entries (whole string, case as sent), return Access-Control-Allow-Origin set to that origin and Access-Control-Allow-Credentials set to \"true\".\n- For every other value - unknown origins, look-alikes such as \"https://app.codedev.test.evil.example\", a different scheme or port, the string \"null\", or no Origin at all - return no Access-Control-* headers.\n- Always include Vary: Origin, whatever the origin, because the response depends on the Origin header.\nHeader names are compared case-insensitively by the tests; values are compared exactly.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "cors.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "A request is sent with cookies (credentials: \"include\"). Which values of Access-Control-Allow-Origin will the browser accept for it, and is \"*\" one of them?",
+        "Look at what the function returns for an origin that is NOT in the allowlist, and at what it returns when there is no Origin header. Then ask what a shared cache would need to know if the headers change from one Origin to the next.",
+        "A similar decision on a different header: a server answers in a language from the list [\"en\", \"vi\"] based on Accept-Language. For \"vi\" it answers in Vietnamese; for \"vi-evil\" it falls back to its default, because \"vi-evil\".startsWith(\"vi\") is true but [\"en\", \"vi\"].includes(\"vi-evil\") is false. Every answer carries Vary: Accept-Language, even the default one, because the cached response depends on that header."
+      ],
+      "tests": [
+        {
+          "name": "Both CodeDev apps get an Allow-Origin header and credentials are allowed",
+          "input": {
+            "view": "basic",
+            "allowlist": ["https://app.codedev.test", "https://admin.codedev.test"],
+            "requests": ["https://app.codedev.test", "https://admin.codedev.test"]
+          },
+          "expected": [
+            { "allowOrigin": true, "allowCredentials": "true" },
+            { "allowOrigin": true, "allowCredentials": "true" }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A request without an Origin header (curl, same-origin) gets no Access-Control headers",
+          "input": {
+            "view": "basic",
+            "allowlist": ["https://app.codedev.test", "https://admin.codedev.test"],
+            "requests": [null]
+          },
+          "expected": [
+            { "allowOrigin": false, "allowCredentials": null }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Allowed origins are echoed exactly, with credentials and Vary: Origin",
+          "input": {
+            "view": "full",
+            "allowlist": ["https://app.codedev.test", "https://admin.codedev.test"],
+            "requests": ["https://app.codedev.test", "https://admin.codedev.test"]
+          },
+          "expected": [
+            { "allowOrigin": "https://app.codedev.test", "allowCredentials": "true", "varyOrigin": true },
+            { "allowOrigin": "https://admin.codedev.test", "allowCredentials": "true", "varyOrigin": true }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A browser lets both apps read a credentialed response and blocks an unknown site",
+          "input": {
+            "view": "browser",
+            "allowlist": ["https://app.codedev.test", "https://admin.codedev.test"],
+            "requests": ["https://app.codedev.test", "https://admin.codedev.test", "https://evil.example"]
+          },
+          "expected": ["readable", "readable", "blocked"],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Look-alike, wrong-scheme, wrong-port and null origins get no Access-Control headers",
+          "input": {
+            "view": "full",
+            "allowlist": ["https://app.codedev.test", "https://admin.codedev.test"],
+            "requests": [
+              "https://evil.example",
+              "https://app.codedev.test.evil.example",
+              "https://evilcodedev.test",
+              "https://codedev.test",
+              "http://app.codedev.test",
+              "https://app.codedev.test:8443",
+              "https://app.codedev.test/",
+              "null",
+              ""
+            ]
+          },
+          "expected": [
+            { "allowOrigin": null, "allowCredentials": null, "varyOrigin": true },
+            { "allowOrigin": null, "allowCredentials": null, "varyOrigin": true },
+            { "allowOrigin": null, "allowCredentials": null, "varyOrigin": true },
+            { "allowOrigin": null, "allowCredentials": null, "varyOrigin": true },
+            { "allowOrigin": null, "allowCredentials": null, "varyOrigin": true },
+            { "allowOrigin": null, "allowCredentials": null, "varyOrigin": true },
+            { "allowOrigin": null, "allowCredentials": null, "varyOrigin": true },
+            { "allowOrigin": null, "allowCredentials": null, "varyOrigin": true },
+            { "allowOrigin": null, "allowCredentials": null, "varyOrigin": true }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "No Origin and an empty allowlist still answer with Vary: Origin and nothing else",
+          "input": {
+            "view": "full",
+            "allowlist": [],
+            "requests": [null, "https://app.codedev.test"]
+          },
+          "expected": [
+            { "allowOrigin": null, "allowCredentials": null, "varyOrigin": true },
+            { "allowOrigin": null, "allowCredentials": null, "varyOrigin": true }
+          ],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

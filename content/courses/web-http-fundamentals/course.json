@@ -1,0 +1,52 @@
+{
+  "publicId": "web-http-fundamentals",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792849823/codedev/courses/web-http-fundamentals/cover",
+  "title": "Web Application Fundamentals: HTTP, APIs & Debugging the Network",
+  "concept": "Understand what really happens between the browser and the server: URLs, methods and status codes, headers and JSON, CORS, caching, cookies and sessions, timeouts and retries, each taught from a real bug on a learning platform and checked with evidence from the network.",
+  "description": "A beginner course for anyone who builds or tests web applications and wants to stop guessing when a page breaks. Every lesson starts from an incident on the CodeDev learning platform - a progress page that shows yesterday's numbers, a login that works on one domain and fails on another, a retry loop that hammers a server that said no, a \"CORS error\" that is really an expired token - and fixes it by reading the request and the response: the request lifecycle, HTTP methods and status codes, DevTools, CORS, Cache-Control and ETags, cookies and sessions, timeouts and safe retries, UI states for every response, and REST basics. 10 lessons with quizzes on real network evidence and hands-on JavaScript challenges.",
+  "level": "beginner",
+  "durationMinutes": 200,
+  "instructor": "CodeDev Engineering Team",
+  "language": "JavaScript",
+  "category": "Web Development",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 50,
+  "accessModel": "free",
+  "publishStatus": "draft",
+  "completionRules": {},
+  "careerRoles": ["student", "frontend_developer", "backend_developer", "fullstack_developer", "qa_engineer"],
+  "skills": { "api_design": 4, "javascript": 3, "performance": 1 },
+  "goals": ["fundamentals", "first_job", "change_career"],
+  "prerequisites": [],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Requests & Responses",
+      "lessons": [
+        { "orderIndex": 1, "folder": "01-request-lifecycle", "title": "How a web request travels: URL, DNS, TLS & the response", "sanityId": "lesson-whf-1-1" },
+        { "orderIndex": 2, "folder": "02-methods-status-codes", "title": "How to pick the right HTTP method and status code", "sanityId": "lesson-whf-1-2" },
+        { "orderIndex": 3, "folder": "03-devtools-headers-json", "title": "How to read a request in DevTools: headers, bodies & JSON", "sanityId": "lesson-whf-1-3" }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Browser Rules",
+      "lessons": [
+        { "orderIndex": 1, "folder": "04-cors", "title": "Why the browser blocks a response: CORS explained", "sanityId": "lesson-whf-2-1" },
+        { "orderIndex": 2, "folder": "05-http-caching", "title": "HTTP caching: Cache-Control, ETag & stale pages", "sanityId": "lesson-whf-2-2" },
+        { "orderIndex": 3, "folder": "06-cookies-sessions-auth", "title": "Cookies, sessions & when to answer 401 or 403", "sanityId": "lesson-whf-2-3" }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Reliable Clients",
+      "lessons": [
+        { "orderIndex": 1, "folder": "07-timeouts-retries", "title": "Timeouts & retries: which failures are safe to retry", "sanityId": "lesson-whf-3-1" },
+        { "orderIndex": 2, "folder": "08-ui-states", "title": "Loading, error & empty states for every response", "sanityId": "lesson-whf-3-2" },
+        { "orderIndex": 3, "folder": "09-debug-broken-page", "title": "Debug the broken page: symptom, hypothesis, evidence, fix", "sanityId": "lesson-whf-3-3" },
+        { "orderIndex": 4, "folder": "10-rest-api-basics", "title": "REST API basics: resources, idempotency & error bodies", "sanityId": "lesson-whf-3-4" }
+      ]
+    }
+  ]
+}

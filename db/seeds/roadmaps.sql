@@ -37,7 +37,7 @@ ON CONFLICT (id) DO UPDATE SET
 
 INSERT INTO roadmap.nodes (id, roadmap_id, title, description, order_index)
 VALUES
-    (101, 1, 'Web Foundations', 'Semantic HTML, modern CSS layout, responsive design and accessibility.', 1),
+    (101, 1, 'Web Foundations', 'Semantic HTML, modern CSS layout, responsive design, accessibility and how the browser talks to the server over HTTP.', 1),
     (102, 1, 'JavaScript Fundamentals', 'Values, arrays and objects, closures, modules, errors and tests in modern JavaScript.', 2),
     (103, 1, 'TypeScript', 'Types, narrowing, generics and discriminated unions that catch bugs before users do.', 3),
     (104, 1, 'Asynchronous JavaScript', 'Promises, cancellation, retries and race conditions in UI code.', 4),
@@ -53,7 +53,7 @@ VALUES
     (206, 2, 'API Security', 'Authentication, authorization, input handling and abuse protection.', 6),
     (207, 2, 'Distributed Systems', 'Resilient microservices, timeouts, retries and cloud-native services.', 7),
     (208, 2, 'Systems Languages', 'Rust and C++ for services where memory and latency matter.', 8),
-    (301, 3, 'Web & JavaScript Foundations', 'HTML, CSS, accessibility and modern JavaScript.', 1),
+    (301, 3, 'Web & JavaScript Foundations', 'HTML, CSS, accessibility, modern JavaScript and HTTP.', 1),
     (302, 3, 'TypeScript & React', 'Typed components, state and data fetching.', 2),
     (303, 3, 'Backend Basics', 'Asynchronous server code and a second backend language.', 3),
     (304, 3, 'Databases & SQL', 'Model and query the data your features need.', 4),
@@ -121,6 +121,7 @@ INSERT INTO roadmap.node_course (node_id, course_id, priority)
 SELECT v.node_id, c.id, v.priority
 FROM (VALUES
     (101, 'web-foundations-html-css-a11y', 0),
+    (101, 'web-http-fundamentals', 1),
     (102, 'js-modern-foundations', 0),
     (103, 'typescript-foundations', 0),
     (104, 'javascript-async-architecture_2026100901', 0),
@@ -139,6 +140,7 @@ FROM (VALUES
     (203, 'php-modern-apis', 0),
     (203, 'csharp-async-services', 1),
     (203, 'javascript-async-architecture_2026100901', 2),
+    (203, 'web-http-fundamentals', 3),
     (204, 'go-concurrency', 0),
     (204, 'java21-virtual-threads', 1),
     (204, 'python-asyncio-services', 2),
@@ -151,6 +153,7 @@ FROM (VALUES
     (208, 'cpp23-modern', 2),
     (301, 'web-foundations-html-css-a11y', 0),
     (301, 'js-modern-foundations', 1),
+    (301, 'web-http-fundamentals', 2),
     (302, 'typescript-foundations', 0),
     (302, 'typescript-react-frontend', 1),
     (303, 'javascript-async-architecture_2026100901', 0),
@@ -194,7 +197,8 @@ FROM (VALUES
     (701, 'typescript-foundations', 1),
     (701, 'python-foundations-automation', 2),
     (702, 'test-automation-foundations', 0),
-    (703, 'python-api-testing', 0),
+    (703, 'web-http-fundamentals', 0),
+    (703, 'python-api-testing', 1),
     (704, 'typescript-test-design', 0),
     (705, 'qa-performance-reliability', 0),
     (706, 'devops-foundations-ci-containers', 0),

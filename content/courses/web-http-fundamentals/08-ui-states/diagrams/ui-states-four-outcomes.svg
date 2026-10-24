@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">"Could not load" is not "nothing to show".</text>
+  <text x="40" y="82" font-size="16" fill="#475569">GET /me/enrollments can end four ways. Each one needs its own screen; only a 2xx with an empty list is "empty".</text>
+
+  <!-- Left: before -->
+  <rect x="40" y="112" width="545" height="450" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="146" font-size="18" font-weight="700" fill="#b91c1c">Before: catch { courses = [] }</text>
+  <text x="64" y="170" font-size="13" fill="#64748b">every outcome falls into the same branch</text>
+
+  <g font-family="Consolas, 'Courier New', monospace" font-size="14" fill="#334155">
+    <rect x="64" y="190" width="230" height="40" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+    <text x="80" y="215">200  { courses: [] }</text>
+    <rect x="64" y="244" width="230" height="40" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+    <text x="80" y="269">503  { error: ... }</text>
+    <rect x="64" y="298" width="230" height="40" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+    <text x="80" y="323">TypeError (network)</text>
+    <rect x="64" y="352" width="230" height="40" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+    <text x="80" y="377">401  invalid_token</text>
+  </g>
+  <g stroke="#ef4444" stroke-width="2" fill="none">
+    <path d="M294 210 L350 290"/>
+    <path d="M294 264 L350 290"/>
+    <path d="M294 318 L350 290"/>
+    <path d="M294 372 L350 290"/>
+  </g>
+  <polygon points="350,284 350,296 362,290" fill="#ef4444"/>
+  <rect x="366" y="258" width="195" height="64" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+  <text x="463" y="285" font-size="14" font-weight="700" text-anchor="middle" fill="#b91c1c">"You have no</text>
+  <text x="463" y="305" font-size="14" font-weight="700" text-anchor="middle" fill="#b91c1c">courses yet"</text>
+  <text x="64" y="440" font-size="15" font-weight="700" fill="#b91c1c">An outage looks like an empty account</text>
+  <text x="64" y="466" font-size="13" fill="#64748b">learners think their progress was deleted, enroll again,</text>
+  <text x="64" y="486" font-size="13" fill="#64748b">and support cannot find any error in the logs</text>
+  <text x="64" y="530" font-size="13" fill="#64748b">fetch resolves for a 503; res.json() returns the error object;</text>
+  <text x="64" y="548" font-size="13" fill="#64748b">{ error }.length is undefined, so the "empty" branch runs</text>
+
+  <!-- Right: after -->
+  <rect x="615" y="112" width="545" height="450" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="639" y="146" font-size="18" font-weight="700" fill="#15803d">After: check res.ok, then pick the state</text>
+  <text x="639" y="170" font-size="13" fill="#64748b">loading first, then exactly one of four outcomes</text>
+
+  <rect x="639" y="186" width="497" height="44" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="655" y="213" font-size="14" font-weight="700" fill="#15803d">Loading</text>
+  <text x="760" y="213" font-size="13" fill="#334155">skeleton + "Loading your courses" (aria-live)</text>
+
+  <rect x="639" y="246" width="240" height="70" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="655" y="272" font-size="14" font-weight="700" fill="#15803d">Data</text>
+  <text x="655" y="296" font-size="13" fill="#334155">2xx, list has items: render it</text>
+
+  <rect x="896" y="246" width="240" height="70" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="912" y="272" font-size="14" font-weight="700" fill="#15803d">Empty</text>
+  <text x="912" y="296" font-size="13" fill="#334155">2xx, empty list: "no courses yet"</text>
+
+  <rect x="639" y="332" width="497" height="120" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="655" y="358" font-size="14" font-weight="700" fill="#15803d">Error, by kind: offer the action that can help</text>
+  <g font-size="13" fill="#334155">
+    <text x="655" y="384">network, timeout, 5xx, 429</text><text x="900" y="384">-&gt; message + Retry</text>
+    <text x="655" y="404">401 session expired</text><text x="900" y="404">-&gt; Sign in, then come back</text>
+    <text x="655" y="424">403 / 404</text><text x="900" y="424">-&gt; explain access / not found</text>
+    <text x="655" y="444">400 / 422 on a form</text><text x="900" y="444">-&gt; message next to the field</text>
+  </g>
+
+  <rect x="639" y="468" width="497" height="74" rx="6" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="655" y="494" font-size="14" font-weight="700" fill="#b45309">Stale: a refresh failed but we had data</text>
+  <text x="655" y="518" font-size="13" fill="#92400e">keep the old list + "Could not refresh. Showing the list from 08:01. Retry"</text>
+  <text x="655" y="534" font-size="12" fill="#92400e">never a blank screen, never stale data presented as fresh</text>
+</svg>

@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Per-user data: private, no-cache and an ETag - not public, max-age</text>
+  <text x="40" y="82" font-size="16" fill="#475569">GET https://api.codedev.test/me/progress, the endpoint behind every learner's progress page</text>
+
+  <!-- Left: before -->
+  <rect x="40" y="112" width="545" height="300" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="146" font-size="18" font-weight="700" fill="#b91c1c">Before: public, max-age=86400</text>
+  <text x="64" y="170" font-size="13" fill="#64748b">every cache on the way may store it and reuse it for 24 hours</text>
+  <rect x="64" y="184" width="497" height="40" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+  <text x="80" y="209" font-size="14" fill="#334155">CDN stores learner 17's JSON under the URL /me/progress</text>
+  <rect x="64" y="232" width="497" height="40" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+  <text x="80" y="257" font-size="14" fill="#b91c1c">Learner 23 asks for the same URL and gets learner 17's data</text>
+  <rect x="64" y="280" width="497" height="40" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+  <text x="80" y="305" font-size="14" fill="#334155">Browser: still fresh, answers from (disk cache), sends nothing</text>
+  <text x="64" y="364" font-size="15" font-weight="700" fill="#b91c1c">The page shows yesterday's numbers</text>
+  <text x="64" y="388" font-size="13" fill="#64748b">and the API logs show almost no GET /me/progress requests</text>
+
+  <!-- Right: after -->
+  <rect x="615" y="112" width="545" height="300" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="639" y="146" font-size="18" font-weight="700" fill="#15803d">After: private, no-cache + ETag</text>
+  <text x="639" y="170" font-size="13" fill="#64748b">only the browser may store it, and it must ask before every reuse</text>
+  <rect x="639" y="184" width="497" height="40" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="655" y="209" font-size="14" fill="#334155">CDN: private, so it never stores or shares the response</text>
+  <rect x="639" y="232" width="497" height="40" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="655" y="257" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">Browser asks: If-None-Match: "p17-v42"</text>
+  <rect x="639" y="280" width="240" height="40" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="759" y="305" font-size="14" text-anchor="middle" fill="#15803d">same: 304, no body</text>
+  <rect x="896" y="280" width="240" height="40" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="1016" y="305" font-size="14" text-anchor="middle" fill="#15803d">changed: 200 + new ETag</text>
+  <text x="639" y="364" font-size="15" font-weight="700" fill="#15803d">Always current, cheap when nothing changed</text>
+  <text x="639" y="388" font-size="13" fill="#64748b">a 304 reuses the stored body, so only headers travel</text>
+
+  <!-- Verify -->
+  <text x="40" y="460" font-size="18" font-weight="700" fill="#334155">How to verify what a cache did</text>
+  <rect x="40" y="478" width="340" height="84" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="60" y="508" font-size="15" font-weight="700" fill="#b45309">1  DevTools Size column</text>
+  <text x="60" y="532" font-size="13" fill="#92400e">(disk cache) or (memory cache) means</text>
+  <text x="60" y="550" font-size="13" fill="#92400e">the request never left the browser</text>
+  <line x1="380" y1="520" x2="420" y2="520" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="416,514 416,526 428,520" fill="#94a3b8"/>
+  <rect x="430" y="478" width="340" height="84" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="450" y="508" font-size="15" font-weight="700" fill="#0e7490">2  Status 304</text>
+  <text x="450" y="532" font-size="13" fill="#155e75">the cache asked, the server said "same",</text>
+  <text x="450" y="550" font-size="13" fill="#155e75">and the stored body was reused</text>
+  <line x1="770" y1="520" x2="810" y2="520" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="806,514 806,526 818,520" fill="#94a3b8"/>
+  <rect x="820" y="478" width="340" height="84" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="840" y="508" font-size="15" font-weight="700" fill="#15803d">3  curl -i</text>
+  <text x="840" y="532" font-size="13" fill="#166534">Cache-Control, ETag and Age exactly as the</text>
+  <text x="840" y="550" font-size="13" fill="#166534">server or CDN sent them, no browser cache</text>
+</svg>

@@ -1,0 +1,35 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_whf_111",
+      "name": "request-lifecycle-quiz",
+      "type": "quiz",
+      "title": "What reaches the server, and where the time went",
+      "description": "Two pieces of evidence from the slow progress page: a link with a fragment and the server log it produced, and the DevTools Timing breakdown of the first and the repeat visit. Decide whether each statement is True or False.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A learner clicks this link in the course syllabus:\n\nhttps://app.codedev.test/courses/web-http/lessons?tab=notes#exercise-3\n\nThe access log of the web server shows:\n\n203.0.113.57 \"GET /courses/web-http/lessons?tab=notes HTTP/2\" 200\n\nStatement: \"The server can read exercise-3 from this request and use it to decide which exercise to render.\"",
+          "explanation": "False. The fragment (everything after #) is resolved by the browser and is never sent in the HTTP request, which is why the log line ends at ?tab=notes. Client-side code can read it from location.hash, but the server never sees it. A common misconception is that the whole URL travels to the server; if the server needs the value, put it in the path or the query string.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "DevTools Timing tab for GET https://api.codedev.test/v1/progress:\n\nFirst visit of the day:\n  DNS Lookup                  610 ms\n  Initial connection          420 ms (SSL 290 ms)\n  Waiting for server response  92 ms\n  Content Download              4 ms\n\nReload one minute later:\n  Waiting for server response  88 ms\n  Content Download              3 ms\n\nStatement: \"Most of the extra time on the first visit is spent before the request reaches the server, so making the progress query faster would not remove it.\"",
+          "explanation": "True. DNS Lookup and Initial connection (TCP plus the TLS handshake shown as SSL) happen before the request is sent, and they disappear on the reload because the DNS answer is cached and the connection is reused. Waiting for server response, the only row that includes server work, is about 90 ms on both visits. The common mistake is to read the total request time as server time; the fix here is to start the connection earlier (for example with preconnect), not to optimise the query.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

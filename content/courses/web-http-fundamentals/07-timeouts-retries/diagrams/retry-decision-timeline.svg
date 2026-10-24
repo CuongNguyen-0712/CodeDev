@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Retry what can recover. Return what cannot.</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The same request gets the same 400 or 401 every time. A 503 or a dropped connection can clear up in a moment.</text>
+
+  <!-- Left: before -->
+  <rect x="40" y="112" width="545" height="300" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="146" font-size="18" font-weight="700" fill="#b91c1c">Before: retry anything that is not 2xx</text>
+  <text x="64" y="170" font-size="13" fill="#64748b">one click on Run, no delay, up to 6 attempts</text>
+
+  <g font-family="Consolas, 'Courier New', monospace" font-size="14">
+    <rect x="64" y="186" width="497" height="30" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+    <text x="80" y="206" fill="#334155">#1  POST /submissions</text><text x="545" y="206" text-anchor="end" fill="#b91c1c">400</text>
+    <rect x="64" y="222" width="497" height="30" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+    <text x="80" y="242" fill="#334155">#2  POST /submissions   +0 ms</text><text x="545" y="242" text-anchor="end" fill="#b91c1c">400</text>
+    <rect x="64" y="258" width="497" height="30" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+    <text x="80" y="278" fill="#334155">#3  POST /submissions   +0 ms</text><text x="545" y="278" text-anchor="end" fill="#b91c1c">400</text>
+    <rect x="64" y="294" width="497" height="30" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+    <text x="80" y="314" fill="#334155">#4 ... #6  same bytes, same answer</text><text x="545" y="314" text-anchor="end" fill="#b91c1c">400</text>
+  </g>
+  <text x="64" y="364" font-size="15" font-weight="700" fill="#b91c1c">6 requests per click, 0 successes</text>
+  <text x="64" y="388" font-size="13" fill="#64748b">then a generic "Something went wrong" - and the learner clicks again</text>
+
+  <!-- Right: after -->
+  <rect x="615" y="112" width="545" height="300" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="639" y="146" font-size="18" font-weight="700" fill="#15803d">After: fetchWithRetry asks why it failed</text>
+  <text x="639" y="170" font-size="13" fill="#64748b">retries = 3, baseDelayMs = 100</text>
+
+  <g font-family="Consolas, 'Courier New', monospace" font-size="14">
+    <rect x="639" y="186" width="497" height="30" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+    <text x="655" y="206" fill="#334155">400 / 401  -&gt; return at once, show it</text><text x="1120" y="206" text-anchor="end" fill="#15803d">1 call</text>
+    <rect x="639" y="222" width="497" height="30" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+    <text x="655" y="242" fill="#334155">503  -&gt; wait 100 ms</text><text x="1120" y="242" text-anchor="end" fill="#15803d">retry 1</text>
+    <rect x="639" y="258" width="497" height="30" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+    <text x="655" y="278" fill="#334155">503  -&gt; wait 200 ms</text><text x="1120" y="278" text-anchor="end" fill="#15803d">retry 2</text>
+    <rect x="639" y="294" width="497" height="30" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+    <text x="655" y="314" fill="#334155">201 Created</text><text x="1120" y="314" text-anchor="end" fill="#15803d">done</text>
+  </g>
+  <text x="639" y="364" font-size="15" font-weight="700" fill="#15803d">At most 4 calls; delays 100, 200, 400 ms</text>
+  <text x="639" y="388" font-size="13" fill="#64748b">or the seconds in Retry-After; then the last answer is returned</text>
+
+  <!-- Decision strip -->
+  <text x="40" y="460" font-size="18" font-weight="700" fill="#334155">The decision, for every failed attempt</text>
+  <rect x="40" y="478" width="340" height="84" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="60" y="508" font-size="15" font-weight="700" fill="#15803d">Retry with backoff</text>
+  <text x="60" y="532" font-size="13" fill="#166534">network error, TimeoutError,</text>
+  <text x="60" y="550" font-size="13" fill="#166534">429, 502, 503, 504</text>
+  <rect x="430" y="478" width="340" height="84" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="450" y="508" font-size="15" font-weight="700" fill="#b91c1c">Return at once</text>
+  <text x="450" y="532" font-size="13" fill="#991b1b">400, 401, 403, 404, 409, 422, 500;</text>
+  <text x="450" y="550" font-size="13" fill="#991b1b">AbortError (the user cancelled)</text>
+  <rect x="820" y="478" width="340" height="84" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="840" y="508" font-size="15" font-weight="700" fill="#b45309">POST or PATCH?</text>
+  <text x="840" y="532" font-size="13" fill="#92400e">retry only with an Idempotency-Key</text>
+  <text x="840" y="550" font-size="13" fill="#92400e">the server stores; else let the user decide</text>
+</svg>
