@@ -23,6 +23,7 @@ DECLARE
     v_level int;
     v_total_exp bigint;
     v_course_completed boolean := false;
+    v_completion jsonb;
 BEGIN
     SELECT u.id INTO v_user_id FROM identity.users u WHERE u.public_id = _user_id;
     IF v_user_id IS NULL THEN
@@ -104,7 +105,13 @@ BEGIN
     SET progress = completed_lessons
     WHERE user_id = v_user_id AND course_id = v_course_id;
 
+    -- Every lesson done. A course with completion_rules also needs its quiz / coding pass rates
+    -- (course_completion_status); until then it stays in_progress and gets no bonus.
     IF completed_lessons >= total_lessons THEN
+        v_completion := public.course_completion_status(v_user_id, v_course_id);
+    END IF;
+
+    IF completed_lessons >= total_lessons AND (v_completion IS NULL OR (v_completion->>'met')::boolean) THEN
         UPDATE learning.register
         SET status = 'completed'
         WHERE user_id = v_user_id AND course_id = v_course_id;

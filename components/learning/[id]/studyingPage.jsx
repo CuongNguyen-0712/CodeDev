@@ -49,6 +49,48 @@ function LessonStatusIcon({ status, locked }) {
     return <LuCircle className="size-3.5 text-muted-foreground" aria-hidden="true" />;
 }
 
+// Pass rates a course with completion_rules needs on top of finishing every lesson
+// (public.course_completion_status). null for courses that only need the lessons.
+function CompletionRequirements({ completion, completedLessons, totalLessons }) {
+    if (!completion) return null;
+
+    const rows = [
+        { label: 'Quizzes passed', ...completion.quiz },
+        { label: 'Coding passed', ...completion.coding },
+    ].filter((row) => row.total > 0);
+    const hard = completion.hard || {};
+    const rateMet = (row) => row.passed * 100 >= row.minPercent * row.total;
+
+    return (
+        <section aria-labelledby="completion-heading" className="space-y-2 border-t px-4 py-3 text-xs">
+            <h3 id="completion-heading" className="flex items-center gap-1.5 font-semibold text-foreground">
+                {completion.met
+                    ? <LuCircleCheck className="size-3.5 text-success" aria-hidden="true" />
+                    : <LuCircle className="size-3.5 text-muted-foreground" aria-hidden="true" />}
+                To complete this course
+            </h3>
+            <ul className="list-none space-y-1 text-muted-foreground">
+                <li className={cn('flex justify-between gap-2', totalLessons > 0 && completedLessons >= totalLessons && 'text-success')}>
+                    <span>Lessons completed</span>
+                    <span className="tabular">{completedLessons}/{totalLessons}</span>
+                </li>
+                {rows.map((row) => (
+                    <li key={row.label} className={cn('flex justify-between gap-2', rateMet(row) && 'text-success')}>
+                        <span>{row.label}, {row.minPercent}% needed</span>
+                        <span className="tabular">{row.passed}/{row.total}</span>
+                    </li>
+                ))}
+                {hard.required > 0 && (
+                    <li className={cn('flex justify-between gap-2', hard.passed >= hard.required && 'text-success')}>
+                        <span>Hard coding passed</span>
+                        <span className="tabular">{hard.passed}/{hard.required}</span>
+                    </li>
+                )}
+            </ul>
+        </section>
+    );
+}
+
 function SyllabusPanel({
     data,
     isLoading,
@@ -203,6 +245,11 @@ function SyllabusPanel({
                     )}
                 </nav>
             </ScrollArea>
+            <CompletionRequirements
+                completion={data?.completion}
+                completedLessons={completedLessonsCount}
+                totalLessons={totalLessonsCount}
+            />
         </div>
     );
 }

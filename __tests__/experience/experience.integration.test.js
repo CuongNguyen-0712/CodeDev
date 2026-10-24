@@ -200,6 +200,53 @@ describe.skipIf(!hasDb)("EXP and levels (PostgreSQL)", () => {
         expect(coursePoints.n).toBe(0);
     });
 
+    it("completes a course with completion_rules only once the pass rates are met", async () => {
+        const ruled = await one(
+            `INSERT INTO catalog.course (title, concept, description, instructor, public_id, language_id, category_id, level, access_model, publish_status, completion_rules)
+             VALUES ($1, 'test', 'test', 'Test', $2, (SELECT MIN(id) FROM catalog.language), (SELECT MIN(id) FROM catalog.category), 'beginner', 'free', 'published', '{}')
+             RETURNING id, public_id`,
+            [`Rules ${TAG}`, `${TAG}-ruled`]
+        );
+        try {
+            const mod = await one(`INSERT INTO course.module (course_id, title, order_index) VALUES ($1, 'M1', 1) RETURNING id`, [ruled.id]);
+            const lesson = await one(
+                `INSERT INTO course.lesson (module_id, title, order_index, content_type, content_source) VALUES ($1, 'L1', 1, 'sanity', $2) RETURNING id`,
+                [mod.id, `${TAG}-ruled-lesson`]
+            );
+            const mk = (type, difficulty) => one(
+                `INSERT INTO challenge.challenges (course_id, module_id, lesson_id, name, title, status, difficulty, type, points, is_published, public_id)
+                 VALUES ($1, $2, $3, 'c', 'C', 'open', $4, $5, 0, true, $6) RETURNING id`,
+                [ruled.id, mod.id, lesson.id, difficulty, type, `${TAG}-r-${type}-${crypto.randomBytes(2).toString("hex")}`]
+            );
+            const [q1, q2, code] = [await mk("quiz", "easy"), await mk("quiz", "easy"), await mk("mini_coding", "easy")];
+
+            const user = await makeUser("ruled");
+            await courseDb.postRegister({ userId: user.publicId, courseId: ruled.public_id });
+            await sql(`UPDATE learning.history SET status = 'in_progress' WHERE user_id = $1 AND lesson_id = $2`, [user.id, lesson.id]);
+            const submit = async () => (await courseDb.postSubmitLesson({ userId: user.publicId, courseId: ruled.public_id, lessonId: lesson.id })).rows[0];
+            const status = async () => (await one(`SELECT public.course_completion_status($1, $2) AS s`, [user.id, ruled.id])).s;
+
+            // Beginner default: 60% of quizzes and 60% of coding. 1/2 quizzes, 0/1 coding: not met.
+            await award(user.id, q1.id);
+            expect(await status()).toMatchObject({ quiz: { passed: 1, total: 2, minPercent: 60 }, coding: { passed: 0, total: 1 }, met: false });
+            expect(await submit()).toMatchObject({ courseCompleted: false, awardedExp: 10 });
+
+            await award(user.id, q2.id);
+            await sql(
+                `INSERT INTO challenge.code_submissions (public_id, user_id, challenge_id, language, source_snapshot, status)
+                 VALUES ($1, $2, $3, 'javascript', '{}', 'passed')`,
+                [`${TAG}-sub`, user.id, code.id]
+            );
+            expect(await status()).toMatchObject({ met: true });
+            expect(await submit()).toMatchObject({ courseCompleted: true, awardedExp: 50 }); // bonus only, lesson already rewarded
+
+            // A course without rules has no status (every lesson is enough).
+            expect((await one(`SELECT public.course_completion_status($1, $2) AS s`, [user.id, course.id])).s).toBeNull();
+        } finally {
+            await sql(`DELETE FROM catalog.course WHERE id = $1`, [ruled.id]);
+        }
+    });
+
     it("keeps the EXP cache equal to the ledger", async () => {
         const drift = await one(`SELECT COUNT(*)::int AS n FROM profile.exp_drift WHERE user_id = ANY($1::bigint[])`, [userIds]);
         expect(drift.n).toBe(0);

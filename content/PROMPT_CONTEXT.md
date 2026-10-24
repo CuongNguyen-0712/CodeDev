@@ -43,6 +43,9 @@ bối cảnh của course đang viết.
 
 Course có level dạng khoảng (L1-2, L2-3) lấy tier theo level thấp hơn.
 
+Hoàn thành course (`completionRules: {}`): xong mọi lesson + pass ≥60/70/75/80% quiz challenge và ≥ cùng tỷ lệ
+coding challenge (theo tier) + từ advanced trở lên ≥1 bài coding hard. Mỗi coding tối đa 5 lượt nộp, quiz 3 lượt.
+
 ## 3. Nền tảng chấm được gì
 
 | Có | Chưa có |
@@ -128,7 +131,8 @@ dung chính xác kỹ thuật, chạy được ngay trên pipeline CodeDev.
 ### O1 — Course (`course.json`)
 Theo các course có sẵn: `publicId`, `title`, `concept`, `description`, `level`, `durationMinutes`,
 `language`, `category`, `cost`, `pointPrice`, `reward`, `accessModel` (+ `offers` nếu premium),
-`publishStatus: "draft"`, `careerRoles`, `skills`, `goals`, `prerequisites`, `modules[].lessons[]`
+`publishStatus: "draft"`, `careerRoles`, `skills`, `goals`, `prerequisites`, `completionRules: {}` (track
+kiến trúc: điều kiện hoàn thành theo tier), `modules[].lessons[]`
 (`orderIndex`, `folder`, `title`, `sanityId`). Course mới chỉ có outline: `modules: []` + `outline`.
 Kèm bảng: lesson → outcome → số câu Đ/S → coding liên quan; scenario của course; phần not graded.
 

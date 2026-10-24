@@ -174,6 +174,7 @@ BEGIN
         'language_logo', p.language_logo,
         'language_color', p.language_color,
         'category_name', p.category_name,
+        'completion', public.course_completion_status(v_user_id, v_course_id),
         'modules', COALESCE((
             SELECT jsonb_agg(
                 jsonb_build_object('id', md.id, 'title', md.title, 'order_index', md.order_index, 'lessons', md.lessons)

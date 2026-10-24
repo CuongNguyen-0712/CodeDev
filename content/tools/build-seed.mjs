@@ -126,6 +126,16 @@ FROM (VALUES ${entries.map(([code, weight]) => `(${lit(code)}, ${Number(weight)}
 JOIN catalog.skill s ON s.code = v.code;`);
     }
 }
+if (course.completionRules !== undefined) {
+    // {} = tier defaults by level; null = back to "every lesson" (public.course_completion_status).
+    const rules = course.completionRules;
+    const limits = { minQuizPercent: 100, minCodingPercent: 100, minHardPassed: 50 };
+    if (rules !== null && (typeof rules !== "object" || Array.isArray(rules)
+        || Object.entries(rules).some(([k, v]) => !(k in limits) || !Number.isInteger(v) || v < 0 || v > limits[k]))) {
+        throw new Error(`${course.publicId}: "completionRules" must be null or an object with integer ${Object.keys(limits).join(", ")}`);
+    }
+    out.push(`UPDATE catalog.course SET completion_rules = ${rules === null ? "NULL" : json(rules)} WHERE id = ${courseId};`);
+}
 if (Array.isArray(course.prerequisites)) {
     // Prerequisites seeded later are skipped here; re-run this seed once they exist.
     out.push(`DELETE FROM catalog.course_prerequisite WHERE course_id = ${courseId};

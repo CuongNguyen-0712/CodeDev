@@ -46,7 +46,7 @@ File này ghi phần nào của V1.3 **đã có** trong code, phần nào **đ�
 | Gợi ý course có lý do | Có (v1, trọng số riêng, chưa theo điểm số 7.5) | `services/recommendation.service.js` |
 | Điều chỉnh admin có lý do | Có | `app/api/admin/experience/adjust` |
 | `estimatedExp` | Có (tính khi đọc) | `docs/experience-leveling-design.md` §6 |
-| Điều kiện hoàn thành theo tier (≥60/70/75/80% quiz, pass mọi coding, ≥1 bài khó ở T3) | **Thiếu**: hiện = hoàn thành mọi lesson | P2 |
+| Điều kiện hoàn thành theo tier (≥60/70/75/80% quiz, pass mọi coding, ≥1 bài khó ở T3) | Có (P2), chỉ course khai báo `completionRules`; coding tính theo % thay vì tất cả | `public.course_completion_status` |
 | Hint 3 cấp + `challenge.*.assisted` 50% | Có (P1) | `challenge.challenge_hints`, `challenge.hint_views` |
 | Achievement (Bug Hunter, Self-Reliant) | **Thiếu** | P3 |
 | Điều chỉnh theo phong độ | Thiếu; V1.3 cũng tắt lúc đầu | Bỏ qua tới khi có dữ liệu |
@@ -93,7 +93,7 @@ và số coding của tier bằng cách phân bổ qua 8–15 lesson.
 |---|---|---|
 | D1 | Ngôn ngữ nội dung track kiến trúc: tiếng Việt (V1.3) hay tiếng Anh (như 46 course hiện có)? | Tiếng Anh, giữ đồng bộ UI và catalog |
 | D2 | Quiz: giữ EXP theo quiz challenge hay đổi sang 3 EXP/câu đúng lần đầu? | Giữ (mục 1) |
-| D3 | Điều kiện hoàn thành theo tier (P2) áp dụng cho course cũ hay chỉ course mới? | Chỉ course mới (`completion_rules` null = luật cũ) |
+| D3 | Điều kiện hoàn thành theo tier (P2) áp dụng cho course cũ hay chỉ course mới? | **Đã chốt 24/10**: chỉ course khai báo `completionRules`; coding giữ 5 lượt và tính theo % (cùng ngưỡng quiz) |
 | D4 | Ngôn ngữ coding của track: TypeScript (cần runner) hay JavaScript (chạy cả browser)? | TypeScript; bài nào cần chạy không runner thì JavaScript |
 
 ## 6. Thứ tự thực hiện
@@ -105,8 +105,12 @@ và số coding của tier bằng cách phân bổ qua 8–15 lesson.
   `challenge.hint_views`; khi pass, `awardChallengeRewards` nhân EXP 0.5 nếu đã mở cấp 3 (metadata
   `assisted: true`), points giữ nguyên. Challenge chưa có `hints` vẫn dùng hint đơn của `challengeEmbed`.
   Rollout prod: migration trước, rồi mới áp seed có `challenge_hints`.
-- **P2. Điều kiện hoàn thành theo tier.** Cột `catalog.course.completion_rules jsonb` (null = mọi lesson như
-  hiện nay); kiểm tra hoàn thành đọc tỷ lệ quiz đạt + mọi coding bắt buộc + `minHardPassed`.
+- **P2. Điều kiện hoàn thành theo tier — xong (migration `20261024_003`).** `catalog.course.completion_rules`
+  (null = mọi lesson như cũ; `{}` = mặc định theo level). `public.course_completion_status` tính tỷ lệ quiz
+  đạt (`minQuizPercent`), coding pass (`minCodingPercent`, cùng mặc định 60/70/75/80) và `minHardPassed`
+  (advanced trở lên 1, không vượt số bài khó có). `submit_lesson` chỉ đánh dấu hoàn thành + bonus khi đạt;
+  trang học hiện khối "To complete this course". Vì lesson chỉ xong khi mọi challenge đã pass hoặc hết lượt,
+  kết quả là cố định khi xong lesson cuối.
 - **P3. Achievement.** Bảng achievement + user_achievement trong `profile`; EXP qua `award_exp` rule
   `achievement.<code>`; 2 achievement đầu: Bug Hunter, Self-Reliant (cần P1).
 - **P4. Override khoảng Level theo course.** `catalog.course.recommended_min_level/max_level` (null = theo level);

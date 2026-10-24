@@ -189,6 +189,7 @@ Table catalog.course {
   published_at timestamptz
   course_type varchar(20) [not null, default: 'course']
   access_model varchar(20) [not null, default: 'free', note: 'free: anyone may enrol (a free entitlement is granted). premium: needs an entitlement from a purchase, points or an admin grant']
+  completion_rules jsonb [note: 'NULL: complete every lesson. Object: also minQuizPercent / minCodingPercent / minHardPassed (defaults by level), see public.course_completion_status']
 
   indexes {
     title [name: 'course_title']
@@ -203,6 +204,7 @@ Table catalog.course {
   chk_course_counters: CHECK (((modules >= 0) AND (lessons >= 0) AND (students >= 0) AND (duration >= 0) AND (COALESCE(cost, (0)::numeric) >= (0)::numeric)))
   chk_course_publish_status: CHECK (((publish_status)::text = ANY ((ARRAY['draft'::character varying, 'published'::character varying, 'unpublished'::character varying, 'archived'::character varying])::text[])))
   chk_course_type: CHECK (((course_type)::text = ANY ((ARRAY['course'::character varying, 'project'::character varying, 'workshop'::character varying])::text[])))
+  course_completion_rules_object: CHECK (((completion_rules IS NULL) OR (jsonb_typeof(completion_rules) = 'object'::text)))
   '''
 }
 
