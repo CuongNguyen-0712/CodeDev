@@ -7,14 +7,17 @@ import { sessionDb } from "@/db/session.db";
 export const emailTokenDb = {
     /**
      * Replaces the user's live token for `purpose`. Returns the address it is for, or null when
-     * the user does not exist, is not active, or is already verified. A link_account token is also
-     * refused unless the provider email is still the user's email: the pending link was decided on
-     * that match, and the user may have changed their email since.
+     * the user does not exist or is not active, and:
+     *   verify_email: the email is already verified;
+     *   link_account: the provider email is no longer the user's email (the pending link was
+     *     decided on that match), or the verification state no longer fits `payload.mode`
+     *     ('claim' = unverified account, plan 11.1; 'confirm' = verified account, 11.3 B).
+     * Also returns `purgeAfter` (verify reminders quote the deletion date, 11.2).
      */
     issue: async ({ userPublicId, purpose, tokenHash, ttlSec, payload = null }) => {
         return withTransaction(async (client) => {
             const userRes = await client.query(
-                `SELECT u.id, u.email, u.email_verified, i.name
+                `SELECT u.id, u.email, u.email_verified, u.purge_after, i.name
                  FROM identity.users u
                  LEFT JOIN profile.info i ON i.user_id = u.id
                  WHERE u.public_id = $1 AND u.status = 'active'
@@ -22,8 +25,12 @@ export const emailTokenDb = {
                 [userPublicId]
             );
             const user = userRes.rows[0];
-            if (!user || user.email_verified) return null;
-            if (purpose === "link_account" && String(payload?.providerEmail || "").toLowerCase() !== user.email) return null;
+            if (!user) return null;
+            if (purpose === "verify_email" && user.email_verified) return null;
+            if (purpose === "link_account") {
+                if (String(payload?.providerEmail || "").toLowerCase() !== user.email) return null;
+                if ((payload?.mode === "confirm") !== Boolean(user.email_verified)) return null;
+            }
 
             await client.query(
                 `DELETE FROM identity.email_tokens WHERE user_id = $1 AND purpose = $2 AND consumed_at IS NULL;`,
@@ -34,7 +41,7 @@ export const emailTokenDb = {
                  VALUES ($1, $2, $3, $4, now() + make_interval(secs => $5), $6::jsonb);`,
                 [user.id, purpose, user.email, tokenHash, ttlSec, payload ? JSON.stringify(payload) : null]
             );
-            return { email: user.email, name: user.name };
+            return { email: user.email, name: user.name, purgeAfter: user.purge_after };
         });
     },
 
@@ -70,13 +77,17 @@ export const emailTokenDb = {
     },
 
     /**
-     * Consumes a link_account token (plan 10.3, case 5b) in one transaction: attaches the provider
-     * account, marks the email verified, removes every other way to sign in (password or provider
-     * added by someone who never proved the email) and revokes every session. CD409 (account owned
-     * by another user) rolls it all back.
-     * @returns {Promise<{ status: "linked" | "expired" | "invalid", userId?, provider?, outboxIds? }>}
+     * Consumes a link_account token in one transaction (plan 11.1 / 11.3 B):
+     *   claim (unverified account): every other way to sign in is removed (password or provider
+     *     added by someone who never proved the email), the provider is attached, `passwordHash`
+     *     becomes the only password, the email is verified, other live tokens and every session
+     *     are revoked;
+     *   confirm (verified account): only the provider is attached.
+     * CD409 (provider account owned by another user) rolls it all back.
+     * @returns {Promise<{ status: "linked" | "password_required" | "expired" | "invalid",
+     *                     mode?, userId?, username?, provider?, outboxIds? }>}
      */
-    confirmLink: async ({ tokenHash }) => {
+    confirmLink: async ({ tokenHash, passwordHash = null }) => {
         return withTransaction(async (client) => {
             // Same lock order as issue(): user row first, then the token.
             const owner = await client.query(
@@ -85,7 +96,7 @@ export const emailTokenDb = {
             );
             if (!owner.rows[0]) return { status: "invalid" };
             const userRes = await client.query(
-                `SELECT id, public_id, email, email_verified FROM identity.users WHERE id = $1 AND status = 'active' FOR UPDATE;`,
+                `SELECT id, public_id, username, email, email_verified FROM identity.users WHERE id = $1 AND status = 'active' FOR UPDATE;`,
                 [owner.rows[0].user_id]
             );
             const user = userRes.rows[0];
@@ -96,26 +107,45 @@ export const emailTokenDb = {
             );
             const row = res.rows[0];
             const providerEmail = String(row?.payload?.providerEmail || "").toLowerCase();
-            if (!user || !row || row.consumed || user.email_verified || row.email !== user.email
-                || providerEmail !== user.email || !row.payload?.provider) {
+            const mode = row?.payload?.mode === "confirm" ? "confirm" : "claim";
+            if (!user || !row || row.consumed || row.email !== user.email || providerEmail !== user.email
+                || !row.payload?.provider || (mode === "confirm") !== Boolean(user.email_verified)) {
                 return { status: "invalid" };
             }
             if (row.expired) return { status: "expired" };
+            // Checked before anything is consumed: the page asks again and the link still works.
+            if (mode === "claim" && !passwordHash) return { status: "password_required", mode };
 
             const { provider, providerAccountId } = row.payload;
+            const base = { status: "linked", mode, userId: user.public_id, username: user.username, provider, outboxIds: [] };
             await client.query(`UPDATE identity.email_tokens SET consumed_at = now() WHERE id = $1;`, [row.id]);
-            // Purge first: one row per provider (accounts_user_provider_uq) leaves no room for the
-            // new account while an old GitHub / Google row of the same kind is still there.
+
+            if (mode === "confirm") {
+                // 11.3 B: the owner of a verified account approved the link; nothing else changes.
+                await client.query(`SELECT public.link_provider_account($1, $2, $3, $4);`, [user.public_id, provider, providerAccountId, providerEmail]);
+                return base;
+            }
+
+            // 11.1 claim. Purge first: one row per provider (accounts_user_provider_uq) leaves no
+            // room for the new account while an old GitHub / Google row of the same kind is there.
             await client.query(
                 `DELETE FROM identity.accounts
                  WHERE user_id = $1 AND NOT (provider = $2::provider_enum AND provider_account_id IS NOT DISTINCT FROM $3);`,
                 [user.id, provider, providerAccountId]
             );
             await client.query(`SELECT public.link_provider_account($1, $2, $3, $4);`, [user.public_id, provider, providerAccountId, providerEmail]);
+            await client.query(
+                `INSERT INTO identity.accounts (user_id, provider, password_hash) VALUES ($1, 'credentials', $2);`,
+                [user.id, passwordHash]
+            );
             await client.query(`UPDATE identity.users SET email_verified = true, updated_at = now() WHERE id = $1;`, [user.id]);
+            await client.query(
+                `DELETE FROM identity.email_tokens WHERE user_id = $1 AND consumed_at IS NULL;`,
+                [user.id]
+            );
 
-            const revoked = await sessionDb.revokeSessionsTx(client, { userPublicId: user.public_id, reason: "account_linked_by_email" });
-            return { status: "linked", userId: user.public_id, provider, outboxIds: [revoked.outboxId].filter(Boolean) };
+            const revoked = await sessionDb.revokeSessionsTx(client, { userPublicId: user.public_id, reason: "account_claimed" });
+            return { ...base, outboxIds: [revoked.outboxId].filter(Boolean) };
         });
     },
 

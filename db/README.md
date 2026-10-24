@@ -55,7 +55,7 @@ set) or an OAuth provider picture (no asset).
 |---|---|
 | `sign_up(7)` | `user.db.js` → `signUp` |
 | `log_in(1)` | `user.db.js` → `login` |
-| `sign_in_with_provider(9)` | `user.db.js` → `signInWithProvider`: OAuth sign-in decision (`login` / `created` / `linked` / `link_required` / `blocked`), see `docs/auth.md` |
+| `sign_in_with_provider(9)` | `user.db.js` → `signInWithProvider`: OAuth sign-in decision (`login` / `created` / `link_required` / `confirm_required` / `blocked`; never links by email itself since `20261024_001`), see `docs/auth.md` |
 | `link_provider_account(4)` | `user.db.js` → `linkProviderAccount`: explicit link after a password sign-in (`CD409` when the provider account belongs to another user) |
 | `auth_with_provider(7)` | no longer called (links by email without checking verification); kept for the app version running during the deploy of migration `20261023_001`, drop it afterwards |
 | `create_session(6)` | no longer called: sessions and refresh tokens are written by `session.db.js` (see `docs/auth.md`); kept for compatibility |

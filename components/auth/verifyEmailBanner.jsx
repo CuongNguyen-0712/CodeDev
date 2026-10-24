@@ -15,6 +15,7 @@ import { LuMailWarning, LuX } from "react-icons/lu"
 
 const DISMISS_KEY = "cd_verify_banner_dismissed"
 const COOLDOWN_SEC = 60
+const formatDeadline = (value) => new Date(value).toLocaleDateString(undefined, { day: "numeric", month: "short" })
 
 /**
  * "Verify your email" notice under the navbar for signed-in, unverified users
@@ -69,7 +70,9 @@ export default function VerifyEmailBanner() {
             <LuMailWarning className="mt-0.5 size-4 shrink-0 text-warning sm:mt-0" aria-hidden="true" />
             <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p className="min-w-0">
-                    Verify your email to secure your account and unlock purchases.{" "}
+                    {me.purge_after
+                        ? `Verify your email by ${formatDeadline(me.purge_after)}, or this account and its data will be deleted.`
+                        : "Verify your email to secure your account and unlock purchases."}{" "}
                     <span className="text-muted-foreground">
                         {message || `We sent a link to ${maskEmail(me.email)}.`}
                     </span>

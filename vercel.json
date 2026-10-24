@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/internal/account-maintenance", "schedule": "0 3 * * *" }
+  ]
+}

@@ -118,9 +118,9 @@ export const authService = {
     },
 
     /**
-     * OAuth sign-in (docs/email-verification-plan.md 10.3). `email` must be the provider's
-     * verified email in lower case. A session is created only for 'login' | 'created' | 'linked';
-     * 'link_required' and 'blocked' return the matching user without one.
+     * OAuth sign-in (docs/email-verification-plan.md 10.3, 11). `email` must be the provider's
+     * verified email in lower case. A session is created only for 'login' | 'created';
+     * 'link_required' / 'confirm_required' (pending claim) and 'blocked' return the user without one.
      * @returns {Promise<{ result: string, user: object }>}
      */
     signInWithProvider: async (data) => {
@@ -136,7 +136,7 @@ export const authService = {
 
         const { result, ...user } = response.rows[0];
 
-        if (result === "link_required" || result === "blocked") {
+        if (result === "link_required" || result === "confirm_required" || result === "blocked") {
             return { result, user };
         }
 

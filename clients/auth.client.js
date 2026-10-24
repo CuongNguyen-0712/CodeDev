@@ -31,17 +31,14 @@ export const authClient = {
         return await apiClient.delete('/auth/link');
     },
 
-    loginAndLink: async ({ username, password }) => {
-        return await signIn('credentials', { username, password, link: '1', redirect: false });
-    },
-
-    // "Don't know this password?": mail the account owner a confirmation link instead.
+    // Resend the confirmation link of the pending claim (/auth/link).
     emailPendingLink: async () => {
         return await apiClient.post('/auth/link/email');
     },
 
-    confirmLink: async (token) => {
-        return await apiClient.post('/auth/link/confirm', { token });
+    // `password`: the new password a claim of an unverified account requires (plan 11.1).
+    confirmLink: async (token, password) => {
+        return await apiClient.post('/auth/link/confirm', { token, ...(password && { password }) });
     },
 
     // Settings > Sign-in methods > Connect: remember who is connecting, then leave for the provider.

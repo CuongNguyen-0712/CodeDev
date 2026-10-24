@@ -167,12 +167,13 @@ describe.skipIf(!hasDb)("OAuth sign-in decisions (PostgreSQL)", () => {
         expect((await one(`SELECT count(*)::int n FROM identity.accounts a JOIN identity.users u ON u.id = a.user_id WHERE u.public_id = $1`, [userId])).n).toBe(1);
     });
 
-    it("links to a verified account by email", async () => {
+    it("asks the owner of a verified account to confirm by email; links nothing, opens no session (11.3 B)", async () => {
         const userId = await passwordUser("verified", { verified: true });
         const res = await providerSignIn("google", "3", email("verified"));
-        expect(res.result).toBe("linked");
+        expect(res.result).toBe("confirm_required");
         expect(res.user.id).toBe(userId);
-        expect((await one(`SELECT provider_email FROM identity.accounts WHERE provider_account_id = $1`, [`${TAG}-3`])).provider_email).toBe(email("verified"));
+        expect(res.user.session).toBeUndefined();
+        expect((await one(`SELECT count(*)::int n FROM identity.accounts WHERE provider_account_id = $1`, [`${TAG}-3`])).n).toBe(0);
     });
 
     it("links after the password proved the account, and marks the email verified", async () => {

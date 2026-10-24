@@ -151,7 +151,8 @@ export const userDb = {
                 nxt.min_exp as "nextLevelMinExp",
                 u.username as username,
                 u.email as email,
-                u.email_verified as email_verified
+                u.email_verified as email_verified,
+                u.purge_after as purge_after
             from identity.users u
             join profile.info i on u.id = i.user_id
             left join profile.exp_level lvl on lvl.level = i.exp_level

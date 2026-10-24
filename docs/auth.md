@@ -13,22 +13,29 @@ The JWT is a JWE (`dir` + `A256GCM`, key derived from `NEXTAUTH_SECRET`) with `i
 
 **Login** — `authService.createSession` inserts the session and its first refresh token in one PostgreSQL transaction, then caches the session in Redis, then the refresh cookie is set.
 
-**OAuth sign-in (GitHub / Google)** — decided in the next-auth `signIn` callback (`app/api/auth/[...nextauth]/route.js`); `jwt` only turns the result into a session. Plan and rationale: [email-verification-plan.md](email-verification-plan.md) section 10.
+**OAuth sign-in (GitHub / Google)** — decided in the next-auth `signIn` callback (`app/api/auth/[...nextauth]/route.js`); `jwt` only turns the result into a session. Plan and rationale: [email-verification-plan.md](email-verification-plan.md) sections 10 and 11.
 1. `lib/oauthEmail.js` gets the email the provider verified: Google `email_verified`, GitHub `/user/emails` (`primary && verified`, else any verified, never `users.noreply.github.com`). None → `/auth/error?error=OAuthEmailUnverified`.
-2. `public.sign_in_with_provider` (emails compared in lower case) returns the decision:
+2. `public.sign_in_with_provider` (emails compared in lower case) returns the decision. It never links by email itself:
    - `login` — the provider account is already linked;
    - `created` — new user, `email_verified = true`, username from `lib/username.js` with a numeric suffix when taken;
-   - `linked` — an existing user with the same email **and a verified email**: the provider account is attached;
-   - `link_required` — an existing user whose email was never verified: no session; the pending link goes into the sealed `cd_link` cookie (10 min) and the browser goes to `/auth/link`;
+   - `link_required` — an existing user with the same email that was **never verified** (pending claim, mode `claim`);
+   - `confirm_required` — an existing user with the same, **verified** email (mode `confirm`);
    - `blocked` — the user is not `active` → `AccessDenied`.
-3. `/auth/link` asks for that user's password (5a). The credentials sign-in carries `link: "1"`; the `signIn` callback then calls `public.link_provider_account` (which also marks the email verified when it matches the provider's) and clears the cookie. A provider account owned by another user → `OAuthAccountInUse`.
-4. "Email me a link instead" (5b): `POST /api/auth/link/email` (same origin, `emailVerify` limiter in its own `link:<user>` bucket) mails a `link_account` token (30 min, pending link in `email_tokens.payload`) to the account's email, only while that email is still unverified and still equals the provider email. `/auth/link/confirm` asks for a click, then `POST /api/auth/link/confirm` runs one transaction: user row locked, token consumed, every other sign-in method deleted (the password and any GitHub / Google added before the email was proven), provider linked, email verified, all sessions revoked.
+3. Pending OAuth claim (`link_required` / `confirm_required`): no session. The callback mails the account's email a `link_account` token right away (30 min, `{ provider, providerAccountId, providerEmail, mode }` in `email_tokens.payload`; 3 mails / 15 min per account, `link:<user>` bucket) and redirects to `/auth/link` ("check your inbox", Resend through `POST /api/auth/link/email`, Cancel). The sealed `cd_link` cookie (10 min) only feeds that page. A token is issued only while the account email still equals the provider email and its verification state still fits the mode.
+4. `/auth/link/confirm?token=…&mode=…` removes the token from the URL and waits for a click (link scanners). `POST /api/auth/link/confirm { token, password? }` runs one transaction, user row locked before the token:
+   - `claim` (11.1): the new password is required (8–72 characters; `422 password_required` / `weak_password` consume nothing). Every other sign-in method is deleted (an old password or a GitHub / Google added before the email was proven), the provider is linked, the new bcrypt hash becomes the only password, the email is verified, other live tokens and **every session** are revoked. The page then signs in with the new password (`signIn("credentials")`): the new session.
+   - `confirm` (11.3 B): only the provider is linked; password and sessions stay. The page offers "Sign in with GitHub".
+   - A provider account owned by another user → `409 in_use`, nothing changes.
 
 **Connect / disconnect (Settings → Sign-in methods)** — `GET /api/user/accounts` lists `{ password, providers[] }`. "Connect": `POST /api/auth/link/start` seals `cd_link_intent` `{ userId, sessionId, provider }` (10 min), then the provider sign-in runs; the `signIn` callback links only when the callback request still carries that session (`sid` and user match) and returns `/settings?linked=<provider>`, so next-auth writes no new session and the current one is kept. One account per provider (`accounts_user_provider_uq`). `DELETE /api/user/accounts/:provider` refuses the last way to sign in (`409 LAST_SIGN_IN_METHOD`; a credentials row without a hash does not count).
 
-Notices: "GitHub was connected / disconnected" mail (`email.account_notice` outbox event) after an automatic link (case 4), 5a, Settings connect and disconnect.
+Notices: "GitHub was connected / disconnected" mail (`email.account_notice` outbox event) after a confirmed claim (with "your password was changed" for `claim`), Settings connect and disconnect.
 
-Audit events: `account.linked` (`reason`: `verified_email` | `password` | `email` | `settings`), `account.link_required`, `account.unlinked`. `log_in` only returns `active` users.
+Audit events: `account.linked` (`reason`: `claim` | `email` | `settings`), `account.link_required` (`reason`: mode), `account.unlinked`, `account.purged`. `log_in` only returns `active` users.
+
+**Never-verified accounts (11.2)** — `identity.users.purge_after`: set to sign-up + 7 days by the trigger `identity.users_purge_after` on insert of an unverified user, cleared for good when the email gets verified (an email change later never sets it again). Accounts that existed before migration `20261024_001` got 7 days from that migration. `GET|POST /api/internal/account-maintenance[?dryRun=1]` (daily Vercel Cron in `vercel.json`, `Authorization: Bearer $CRON_SECRET` or `$AUTH_CRON_SECRET`; locally the outbox worker runs it every 10 min):
+- 2 days before the deadline: one reminder ("Verify your email by <date> to keep your CodeDev account"), `purge_reminded_at` set; the banner shows the date (`/api/user/me` → `purge_after`).
+- past the deadline: one transaction per account (`db/accountPurge.db.js`): skipped and logged when it has orders or is an actor of ledger / audit rows; sessions revoked (outbox → Redis); `roadmap.*` rows and `storage.assets` deleted; files queued (`storage.purge`: S3 objects, Cloudinary avatars); then the user row, so everything else cascades (profile, ledgers, enrolments, submissions, comments, messages, tokens, sign-in methods). The email is free again.
 
 **Email verification** — plan: [email-verification-plan.md](email-verification-plan.md) sections 3–6.
 - Sending: `emailVerificationService.request(userId)` queues `email.verify_requested` in the auth outbox and processes it at once; the handler issues a token (320-bit, stored as `HMAC("email-verify|" + token)` in `identity.email_tokens`, one live token per user, `EMAIL_VERIFY_TTL_SECONDS` = 24 h) and mails `/auth/verify-email?token=…` through `lib/mail.js` (SMTP). Failed sends are retried by the outbox; each retry issues a new token. Verified users get nothing.
@@ -68,7 +75,8 @@ Revocation is committed in PostgreSQL first. Redis may say "active" until the ou
 | `AUTH_JWT_ISSUER` / `AUTH_JWT_AUDIENCE` | `codedev` / `codedev-web` | use distinct values per environment |
 | `AUTH_ALLOWED_ORIGINS` | — | extra origins for refresh / logout |
 | `AUTH_ACCEPT_LEGACY_JWT` | `true` | set `false` 30 days after deploying (all pre-iss/aud cookies expired) |
-| `AUTH_CRON_SECRET` | — | enables `POST /api/internal/auth-outbox` |
+| `AUTH_CRON_SECRET` | — | enables `POST /api/internal/auth-outbox` (and the account maintenance route) |
+| `CRON_SECRET` | — | Vercel Cron's bearer token for `/api/internal/account-maintenance`; set it in Vercel or the job answers 404 |
 | `AUTH_OUTBOX_WORKER` | on | `off` disables the in-process worker |
 | `MAIL_FROM` | dev: `CodeDev <dev@codedev.local>` | sending address, `you@gmail.com` or `CodeDev <you@gmail.com>`; with Gmail it must be the signed-in account |
 | `MAIL_PASSWORD` | — | Google App Password of `MAIL_FROM` (spaces ignored). Set → `smtp.gmail.com:465` in any environment. Empty → development / test use Mailpit `127.0.0.1:1025`; production sends nothing (outbox retries) and the start-up check logs `mail: …` |

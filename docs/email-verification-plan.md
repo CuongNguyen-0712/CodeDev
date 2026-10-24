@@ -505,3 +505,95 @@ Trạng thái 2026-10-23: mục 1–11 và 13 đã làm (mục 11 chỉ thử đ
 13. **Docs**: cập nhật flow OAuth trong `docs/auth.md`.
 
 Ngoài bước 0: Settings "Sign-in methods" (10.4, 10.5) ở bước 6; 5b và mail báo liên kết ở bước 5.
+
+## 11. Đợt 2: nhận lại tài khoản chưa xác minh, xóa sau 7 ngày, liên kết tài khoản đã xác minh
+
+Lên plan 2026-10-24. Đã chốt: 11.3 phương án **B**, mật khẩu mới bắt buộc, ân hạn 7 ngày + 1 mail nhắc cho user cũ, xóa cả comment / tin nhắn (cascade). Thay cho 10.3 trường hợp 4 và 5 (5a / 5b).
+
+Trạng thái 2026-10-24: 11.4 bước 1–6 đã làm và test trên local (migration `20261024_001`, `vercel.json` cron, test `__tests__/auth/accountLink.test.js` + `accountPurge.test.js`, thử tay luồng claim trên trình duyệt). Chưa lên prod; chưa thử với GitHub/Google thật. Khác plan: một migration duy nhất (`purge_after` do trigger đặt / bỏ, không sửa `public.sign_up`); route bảo trì nhận cả GET (Vercel Cron) lẫn POST.
+
+### 11.0 Hiện trạng và dữ liệu prod
+
+- Trường hợp 5 hiện có 2 đường: 5a (nhập mật khẩu của tài khoản) và 5b (link qua mail: liên kết, xác minh email, xóa mọi cách đăng nhập cũ, thu hồi session, rồi người dùng tự đăng nhập lại bằng provider). Chưa có bước đặt mật khẩu mới, chưa tạo session mới, mail chỉ gửi khi người dùng bấm "Email me a link".
+- Prod 2026-10-24: 14 user, 6 đã xác minh, **8 chưa xác minh và đều tạo hơn 7 ngày** (cũ nhất 2026-04-20, 1 user có đăng ký khóa học). Bật xóa ngay sẽ mất cả 8: cần thời gian ân hạn (11.2).
+- Khóa ngoại tới `identity.users` khi xóa: hầu hết `CASCADE`. Chặn xóa: `commerce.orders` (`RESTRICT`), `roadmap.roadmap_users`, `roadmap.user_progress`, `profile.exp_transaction.actor_id` (`NO ACTION`). `profile.point_transaction.actor_id` là `SET NULL` nên đụng trigger append-only (lỗi đã gặp ở test premium). Nằm ngoài DB: avatar (Cloudinary), snapshot code (`coding/submissions/...` ở bucket private, `storage.assets`).
+
+### 11.1 Nhận lại tài khoản chưa xác minh bằng OAuth
+
+Luồng: **Pending OAuth Claim → Token-link → Explicit Confirmation → Atomic Link → Invalidate Old Credentials → New Session**.
+
+| Bước | Làm gì | Code |
+|---|---|---|
+| 1. Pending OAuth Claim | OAuth trả `link_required` (user U có cùng email, chưa xác minh). Provider đã chứng minh email. Không tạo session. Ghi claim vào `identity.email_tokens` (`purpose = 'link_account'`, `payload = { provider, providerAccountId, providerEmail }`, 30 phút) và **gửi mail ngay** trong callback, rate limit `link:<user>` 3 / 15 phút. Cookie `cd_link` chỉ còn để trang `/auth/link` hiện "đã gửi tới c***@gmail.com", nút gửi lại và Cancel. | `providerSignIn` gọi `accountLinkService.requestLinkEmail` trước khi trả `/auth/link` |
+| 2. Token-link | Mail "Confirm linking GitHub" (đã có template), link `/auth/link/confirm?token=`. Token 320 bit, lưu HMAC, dùng 1 lần, chết khi email đổi hoặc có token mới. | giữ nguyên |
+| 3. Explicit Confirmation | Trang confirm (mở được trên thiết bị khác) ghi rõ: liên kết GitHub vào @username, **đặt mật khẩu mới**, đăng xuất mọi thiết bị, gỡ mọi cách đăng nhập cũ. Form: mật khẩu mới + nhập lại (rule như đăng ký). Không gửi gì cho tới khi bấm. | `confirmLink.jsx` thêm 2 ô mật khẩu |
+| 4. Atomic Link | Một transaction, khóa user trước token: token còn hạn, chưa dùng, email user = email token = email provider, user còn chưa xác minh → tiêu token; gỡ mọi `identity.accounts` khác; liên kết provider; `email_verified = true`; ghi `credentials` với hash bcrypt mới. CD409 (provider thuộc người khác) → rollback toàn bộ. | `emailTokenDb.confirmLink({ tokenHash, passwordHash })` |
+| 5. Invalidate Old Credentials | Cùng transaction: thu hồi mọi session + refresh token (outbox `session.revoked` → Redis, realtime đăng xuất các tab), bỏ token còn sống khác của U (`verify_email`), mật khẩu cũ bị thay. Sau commit: reset `failureGuards.login`, xóa cache user, audit `account.linked` (`reason: claim`), mail báo "GitHub connected and your password was changed". | `accountLinkService.confirmLink` |
+| 6. New Session | API trả `{ username }`; trình duyệt gọi ngay `signIn("credentials", { username, password })` bằng mật khẩu vừa đặt → session mới qua đúng đường đăng nhập hiện có (rate limit, audit, cookie). Lỗi ở bước này chỉ cần đăng nhập lại; liên kết đã xong. | `confirmLink.jsx` |
+
+Bỏ:
+- **5a (nhập mật khẩu cũ để liên kết):** mật khẩu của tài khoản chưa xác minh không chứng minh được gì về hộp thư. Gỡ nhánh `link: "1"` trong `authorize` / `signIn`, hàm `linkPendingProvider`, form mật khẩu trên `/auth/link`. Ít code hơn.
+- **Nút "Email me a link instead":** mail đã gửi ở bước 1, nút thành "Resend".
+
+Câu hỏi cần chốt:
+1. Mật khẩu mới **bắt buộc**, hay cho chọn "Skip, sign in with GitHub only" (khi đó bước 6 là `signIn(provider)`, OAuth giờ trả `login`)? Đề xuất: bắt buộc. Luồng nói rõ "đổi lại mật khẩu", và tài khoản luôn còn một cách đăng nhập không phụ thuộc provider.
+2. Trong 30 phút chờ, user U đăng nhập bằng mật khẩu cũ vẫn được (chưa xác minh gì). Giữ nguyên: confirm sẽ thu hồi session đó.
+
+Test: claim gửi mail ngay và không tạo session; confirm với mật khẩu không hợp lệ → 422, token chưa bị tiêu; confirm đúng → chỉ còn provider mới + `credentials` mới, session cũ bị thu hồi, đăng nhập bằng mật khẩu mới được, mật khẩu cũ bị từ chối; email đổi giữa chừng → `invalid`; provider của người khác → `in_use`, không đổi gì; lần gửi thứ 4 trong 15 phút bị rate limit.
+
+### 11.2 Tài khoản không xác minh sau 7 ngày: xóa vĩnh viễn, giải phóng email
+
+Chỉ xóa tài khoản **chưa từng** xác minh. Tài khoản đã từng xác minh rồi đổi email (thành chưa xác minh) không bị xóa: họ có dữ liệu thật và từng chứng minh hộp thư.
+
+**Dữ liệu** (migration mới):
+
+```sql
+ALTER TABLE identity.users ADD COLUMN purge_after timestamptz;
+ALTER TABLE identity.users ADD COLUMN purge_reminded_at timestamptz;
+-- Ân hạn cho user hiện có: 7 ngày kể từ ngày deploy, không tính từ ngày tạo.
+UPDATE identity.users SET purge_after = now() + interval '7 days' WHERE email_verified IS NOT TRUE;
+CREATE INDEX users_purge_after_idx ON identity.users (purge_after) WHERE purge_after IS NOT NULL;
+```
+
+- Đăng ký mật khẩu: `purge_after = now() + 7 ngày` (trong `public.sign_up`).
+- Xác minh email, nhận lại qua OAuth (11.1), tạo user bằng OAuth, liên kết bằng email: `purge_after = NULL`. Không bao giờ đặt lại khi đổi email.
+
+**Job** `POST /api/internal/account-maintenance` (header `Authorization: Bearer ${CRON_SECRET}`; Vercel Cron gửi đúng header này), `vercel.json`: `{"crons":[{"path":"/api/internal/account-maintenance","schedule":"0 3 * * *"}]}`. Gói Hobby chỉ chạy 1 lần/ngày, nên tài khoản bị xóa trong khoảng 7–8 ngày. Local: chạy trong worker outbox hiện có (`cleanupAuthState`, 10 phút).
+1. **Nhắc trước 2 ngày:** `purge_after - 2 ngày <= now()` và `purge_reminded_at IS NULL` → gửi lại mail xác minh với dòng "Verify by <ngày> or the account and its data are deleted" (template xác minh thêm prop `deadline`), đặt `purge_reminded_at`.
+2. **Xóa:** từng user `purge_after <= now()`, mỗi user một transaction, `FOR UPDATE` và kiểm lại điều kiện (có thể vừa xác minh):
+   - có `commerce.orders` → bỏ qua, ghi log để xem tay (không xảy ra vì checkout cần email đã xác minh, nhưng không xóa lịch sử thanh toán);
+   - thu hồi session (`revokeSessionsTx` → outbox → Redis), để không còn phiên sống tới 5 phút sau khi xóa;
+   - gỡ trước các bảng không cascade: `roadmap.roadmap_users`, `roadmap.user_progress`; user là actor (`point_transaction.actor_id`, `exp_transaction.actor_id`) → bỏ qua và log (chỉ admin mới là actor);
+   - gom key file: `storage.assets` của user, `code_submissions.source_snapshot`, avatar Cloudinary → outbox `storage.purge` (xóa sau commit, retry);
+   - xóa dòng `identity.users` → cascade phần còn lại (profile, ledger, enrolments, comments, messages, tokens, accounts). Email được giải phóng vì dòng user không còn (unique `lower(email)`);
+   - audit `account.purged` (chỉ public id, không email).
+3. **Thông báo trên UI:** banner xác minh ghi hạn chót ("Verify by 31 Oct or this account will be deleted"); `/api/user/me` trả thêm `purge_after`.
+
+Câu hỏi cần chốt:
+1. 8 user chưa xác minh trên prod: ân hạn 7 ngày từ ngày deploy + 1 mail nhắc (đề xuất), hay miễn xóa cho tài khoản tạo trước ngày deploy?
+2. Xóa cả comment / tin nhắn của tài khoản đó (cascade, đề xuất), hay ẩn danh hóa?
+
+Test: user chưa xác minh quá hạn bị xóa cùng dữ liệu và email đăng ký lại được; vừa xác minh trước khi job chạy thì giữ; từng xác minh rồi đổi email thì giữ; có order thì bỏ qua; mail nhắc chỉ gửi 1 lần; session của user bị xóa thành không hợp lệ ngay.
+
+### 11.3 Tài khoản đã xác minh nhưng chưa liên kết OAuth: các phương án
+
+Tình huống: user U có email E **đã xác minh**, chưa có GitHub/Google; đăng nhập bằng GitHub/Google có email E (đã xác minh ở provider). Hiện tại (10.3 trường hợp 4): tự liên kết + mail báo.
+
+| # | Phương án | Bảo mật | Ma sát | Code |
+|---|---|---|---|---|
+| A | **Tự liên kết** + mail "GitHub connected, not you? disconnect" (đang chạy) | Tin hoàn toàn email do provider xác minh. Mail báo chỉ giúp phát hiện sau. | Không có | 0 |
+| B | **Xác nhận qua mail**: như 11.1 bước 1–4, không đặt lại mật khẩu, không thu hồi session; xác nhận xong đăng nhập luôn bằng provider | Chứng minh cả provider lẫn hộp thư, ngay lúc liên kết | 1 mail, 1 lần cho mỗi provider | Ít: dùng lại `link_account`, thêm cờ "verified" trong payload |
+| C | **Đăng nhập để liên kết**: màn hình "An account with this email exists. Sign in to link GitHub" (mật khẩu, hoặc provider đã liên kết), có nút chuyển sang B khi quên mật khẩu | Chứng minh quyền kiểm soát tài khoản trực tiếp | Nhập mật khẩu 1 lần | Trung bình: dựng lại nhánh 5a, chỉ cho user đã xác minh |
+| D | **Không liên kết khi đăng nhập**: báo "Sign in with your password, then connect GitHub in Settings" | Chặt nhất, chỉ liên kết từ Settings (10.4) | Cao: người dùng phải tự làm 2 bước | Ít: trả lỗi mới |
+| E | **Lai**: A cho Google (email Google có `email_verified` đáng tin), B cho GitHub | Theo độ tin của từng provider | Thấp | Ít |
+
+Đề xuất: **B**. Dùng lại gần như toàn bộ hạ tầng của 11.1, một cơ chế cho mọi trường hợp "OAuth gặp email đã có". Không còn tin mù email provider. Ma sát chỉ 1 lần cho mỗi provider. Nếu ưu tiên trải nghiệm thì chọn **E**.
+
+### 11.4 Thứ tự làm
+
+1. Migration `purge_after` / `purge_reminded_at` + ân hạn cho user hiện có (chưa có job xóa nên an toàn).
+2. 11.1: claim gửi mail ngay, trang confirm có đặt mật khẩu, transaction mới, đăng nhập lại; gỡ 5a.
+3. 11.3 theo phương án được chọn.
+4. 11.2 phần nhắc (mail + banner có hạn chót), deploy, chờ ít nhất 2 ngày.
+5. 11.2 phần xóa + `vercel.json` cron + `CRON_SECRET` trên Vercel. Trước lần chạy đầu: tạo branch backup Neon, chạy job chế độ `dryRun` liệt kê user sẽ bị xóa.
+6. Docs `docs/auth.md`, test cho từng mục.

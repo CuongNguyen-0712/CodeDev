@@ -26,12 +26,22 @@ const handlers = {
     // Imported lazily: emailVerification.service imports this module to process its event.
     "email.verify_requested": async (payload) => {
         const { emailVerificationService } = await import("@/services/emailVerification.service");
-        await emailVerificationService.send(payload.userId);
+        await emailVerificationService.send(payload.userId, { reminder: Boolean(payload.reminder) });
     },
 
     "email.link_requested": async (payload) => {
         const { accountLinkService } = await import("@/services/accountLink.service");
         await accountLinkService.sendLinkEmail(payload);
+    },
+
+    // Files of a purged account (plan 11.2). Both deletes are idempotent, so a retry is safe.
+    "storage.purge": async (payload) => {
+        const { s3 } = await import("@/lib/s3");
+        const { destroyAsset } = await import("@/lib/cloudinary");
+        for (const file of payload.files || []) {
+            if (file.provider === "cloudinary") await destroyAsset(file.key);
+            else await s3.delete(file.key, file.bucket ? { bucket: file.bucket } : undefined);
+        }
     },
 
     "email.account_notice": async (payload) => {
@@ -125,6 +135,9 @@ export function ensureAuthOutboxWorker() {
             if (Date.now() - lastCleanup > CLEANUP_INTERVAL_MS) {
                 lastCleanup = Date.now();
                 await cleanupAuthState();
+                // Imported lazily: account maintenance imports this module.
+                const { runAccountMaintenance } = await import("@/services/accountMaintenance.service");
+                await runAccountMaintenance();
             }
         } finally {
             state.running = false;

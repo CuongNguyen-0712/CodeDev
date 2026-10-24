@@ -9,7 +9,7 @@ import { RateLimiter, rateLimiters, failureGuards } from "@/lib/rateLimit";
 import { AUTH } from "@/lib/authConfig";
 import { encodeAuthJwt, decodeAuthJwt, tokenAccessExpiresAt, tokenSessionId } from "@/lib/authJwt";
 import {
-    setRefreshCookie, clearRefreshCookie, setLinkCookie, readLinkCookie, clearLinkCookie,
+    setRefreshCookie, clearRefreshCookie, setLinkCookie,
     readLinkIntentCookie, clearLinkIntentCookie,
 } from "@/lib/authCookies";
 import { auditAuth } from "@/lib/authAudit";
@@ -99,7 +99,7 @@ async function connectFromSettings({ intent, account, profile, meta }) {
 }
 
 /**
- * OAuth sign-in decision (docs/email-verification-plan.md 10.3). Returns true with the signed-in
+ * OAuth sign-in decision (docs/email-verification-plan.md 10.3, 11). Returns true with the signed-in
  * user stored on `user.codedev` (next-auth hands the same object to the jwt callback when there
  * is no adapter), or a URL to redirect to.
  */
@@ -153,23 +153,24 @@ async function providerSignIn({ user, account, profile }) {
             return authError("AccessDenied");
         }
 
-        if (result === "link_required") {
-            await setLinkCookie({
+        // Pending OAuth claim (plan 11.1 / 11.3 B): an account with this email exists. No session;
+        // the owner confirms by the link mailed right now. The cookie only feeds /auth/link.
+        if (result === "link_required" || result === "confirm_required") {
+            const link = {
                 provider,
                 providerAccountId: account.providerAccountId,
                 providerEmail: email,
                 targetUserId: dbUser.id,
                 targetUsername: dbUser.username,
                 targetEmail: dbUser.email,
-            });
-            auditAuth("account.link_required", { userId: dbUser.id, ip: meta.ip, provider });
+                mode: result === "confirm_required" ? "confirm" : "claim",
+            };
+            await setLinkCookie(link);
+            auditAuth("account.link_required", { userId: dbUser.id, ip: meta.ip, provider, reason: link.mode });
+            await accountLinkService.requestLinkEmail(link);
             return "/auth/link";
         }
 
-        if (result === "linked") {
-            auditAuth("account.linked", { userId: dbUser.id, ip: meta.ip, provider, reason: "verified_email" });
-            await accountLinkService.notify({ userId: dbUser.id, provider, action: "connected", ip: meta.ip });
-        }
         auditAuth("login.succeeded", { userId: dbUser.id, sessionId: dbUser.session.sessionId, ip: meta.ip, provider });
 
         user.codedev = dbUser;
@@ -178,42 +179,6 @@ async function providerSignIn({ user, account, profile }) {
         console.error(`[auth] ${provider} sign-in failed:`, err);
         return authError("Callback");
     }
-}
-
-/**
- * Password sign-in from /auth/link (credential `link: "1"`): attaches the pending provider
- * account to the user who just proved the password. Returns true or an error URL.
- */
-async function linkPendingProvider(user) {
-    const link = await readLinkCookie();
-    await clearLinkCookie();
-
-    let failure = null;
-    if (!link || link.targetUserId !== user.id) {
-        failure = "LinkExpired";
-    } else {
-        try {
-            await linkWithRetry({
-                userId: user.id,
-                provider: link.provider,
-                providerAccountId: link.providerAccountId,
-                providerEmail: link.providerEmail,
-            });
-            auditAuth("account.linked", { userId: user.id, sessionId: user.session?.sessionId, provider: link.provider, reason: "password" });
-            // The link also verified the email: drop a cached /api/user/me that still says otherwise.
-            await invalidateUserCache(user.id);
-            await accountLinkService.notify({ userId: user.id, provider: link.provider, action: "connected" });
-            return true;
-        } catch (err) {
-            failure = err?.code === "CD409" ? "OAuthAccountInUse" : "Callback";
-            if (failure === "Callback") console.error("[auth] Linking after password sign-in failed:", err);
-        }
-    }
-
-    // authorize already opened a session the browser will never receive: end it.
-    await authService.logout({ userId: user.id, sessionId: user.session.sessionId }).catch(() => { });
-    // Absolute: signIn("credentials", { redirect: false }) parses this with new URL() and no base.
-    return new URL(authError(failure), process.env.NEXTAUTH_URL).toString();
 }
 
 // Claims of a freshly signed-in session. The refresh token itself goes to its cookie only.
@@ -276,8 +241,6 @@ export const authOptions = {
             credentials: {
                 username: {},
                 password: {},
-                // "1" from /auth/link: also attach the pending provider account (signIn callback).
-                link: {},
             },
             // Thrown messages are shown to the user (signIn(...).error), so keep them safe.
             async authorize(credentials, req) {
@@ -286,13 +249,6 @@ export const authOptions = {
 
                 if (!username || !password) {
                     throw new Error("Enter your username and password.");
-                }
-
-                // Linking from /auth/link: refuse before any session exists when the request expired
-                // or names another account (signIn re-checks the user id after the password).
-                if (credentials?.link === "1") {
-                    const link = await readLinkCookie();
-                    if (!link || link.targetUsername !== username) throw new Error("LinkExpired");
                 }
 
                 const ip = RateLimiter.getClientIp(req);
@@ -341,10 +297,8 @@ export const authOptions = {
 
     callbacks: {
         // Decides who signs in; jwt only turns the result into a session.
-        async signIn({ user, account, profile, credentials }) {
-            if (account?.provider === "credentials") {
-                return credentials?.link === "1" ? linkPendingProvider(user) : true;
-            }
+        async signIn({ user, account, profile }) {
+            if (account?.provider === "credentials") return true;
             return providerSignIn({ user, account, profile });
         },
 

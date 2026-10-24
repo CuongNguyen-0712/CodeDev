@@ -1,5 +1,6 @@
 import { createElement } from "react";
 import { render } from "@react-email/components";
+import bcrypt from "bcryptjs";
 
 import { emailTokenDb } from "@/db/emailToken.db";
 import { userDb } from "@/db/user.db";
@@ -8,14 +9,16 @@ import { auditAuth } from "@/lib/authAudit";
 import { generateRefreshToken, hashRefreshToken } from "@/lib/auth.util";
 import { invalidateUserCache } from "@/lib/cacheKeys";
 import { sendMail } from "@/lib/mail";
+import { failureGuards, rateLimiters } from "@/lib/rateLimit";
 import { processAuthOutbox } from "@/services/authOutbox.service";
 
 import AccountEmailTemplate from "@/components/templates/accountEmailTemplate";
 
 /**
- * GitHub / Google accounts on an existing user (docs/email-verification-plan.md 10.3-10.5):
- * link confirmation by email (case 5b), "connected" / "disconnected" notices, and the Settings
- * list / disconnect. Mail goes through the auth outbox like the verification email.
+ * GitHub / Google accounts on an existing user (docs/email-verification-plan.md 10.4-10.5, 11):
+ * pending OAuth claim confirmed by email (11.1 claim with a new password, 11.3 B confirm),
+ * "connected" / "disconnected" notices, and the Settings list / disconnect. Mail goes through
+ * the auth outbox like the verification email.
  */
 
 export const PROVIDER_LABEL = { github: "GitHub", google: "Google" };
@@ -40,65 +43,93 @@ async function mail(to, subject, props) {
 }
 
 export const accountLinkService = {
-    /** Case 5b: mails the owner of `link.targetUserId` a link that confirms the pending link. */
-    requestLinkEmail: (link) => queue("email.link_requested", {
-        userId: link.targetUserId,
-        provider: link.provider,
-        providerAccountId: link.providerAccountId,
-        providerEmail: link.providerEmail,
-    }),
+    /**
+     * Pending OAuth claim (plan 11.1, 11.3 B): mails the owner of `link.targetUserId` a link that
+     * confirms it. `link.mode`: 'claim' (unverified account) | 'confirm' (verified account).
+     * Limited to 3 mails / 15 min per account (own bucket). Never throws.
+     * @returns {Promise<{ sent: boolean, retryAfter?: number }>}
+     */
+    requestLinkEmail: async (link) => {
+        const limit = await rateLimiters.emailVerify.check(`link:${link.targetUserId}`);
+        if (!limit.success) return { sent: false, retryAfter: limit.retryAfter };
+
+        const sent = await queue("email.link_requested", {
+            userId: link.targetUserId,
+            provider: link.provider,
+            providerAccountId: link.providerAccountId,
+            providerEmail: link.providerEmail,
+            mode: link.mode === "confirm" ? "confirm" : "claim",
+        });
+        return { sent };
+    },
 
     /** Outbox handler for "email.link_requested". Throws when sending fails (retried). */
-    sendLinkEmail: async ({ userId, provider, providerAccountId, providerEmail }) => {
+    sendLinkEmail: async ({ userId, provider, providerAccountId, providerEmail, mode = "claim" }) => {
         const token = generateRefreshToken();
         const issued = await emailTokenDb.issue({
             userPublicId: userId,
             purpose: "link_account",
             tokenHash: hashToken(token),
             ttlSec: LINK_TTL_SEC,
-            payload: { provider, providerAccountId, providerEmail },
+            payload: { provider, providerAccountId, providerEmail, mode },
         });
-        if (!issued) return; // blocked or deleted meanwhile
+        if (!issued) return; // blocked, deleted, email changed or verified meanwhile
 
         const label = PROVIDER_LABEL[provider] || provider;
+        const url = `${process.env.NEXTAUTH_URL}/auth/link/confirm?token=${token}&mode=${mode}&provider=${provider}`;
+        const claim = mode === "claim";
         await mail(issued.email, `Confirm linking ${label} to your CodeDev account`, {
-            preview: `Someone asked to link a ${label} account to your CodeDev account.`,
+            preview: `Someone signed in with ${label} using ${issued.email}.`,
             heading: `Link ${label} to your account`,
             lines: [
                 `Hi ${issued.name || "there"}, someone signed in with a ${label} account that uses ${issued.email} and asked to link it to your CodeDev account.`,
-                `If this was you, confirm below. For your security this signs you out on every device and removes the account's current password: from then on you sign in with ${label}.`,
+                claim
+                    ? "If this was you, confirm below and choose a new password. For your security this signs you out on every device and replaces every previous way to sign in."
+                    : `If this was you, confirm below. You can then sign in with ${label} or your current sign-in method.`,
             ],
-            action: { label: `Link ${label}`, url: `${process.env.NEXTAUTH_URL}/auth/link/confirm?token=${token}` },
+            action: { label: claim ? `Link ${label} and set a password` : `Link ${label}`, url },
             note: "This link expires in 30 minutes. If you did not ask for this, ignore this email: nothing changes.",
         });
     },
 
-    /** @returns {Promise<{ status: "linked" | "expired" | "invalid" | "in_use", provider?: string }>} */
-    confirmLink: async (token) => {
+    /**
+     * Explicit confirmation of a pending claim. `password` (the new one) is required for a claim.
+     * @returns {Promise<{ status: "linked" | "password_required" | "weak_password" | "expired" | "invalid" | "in_use",
+     *                     mode?: string, provider?: string, username?: string }>}
+     */
+    confirmLink: async (token, password = null) => {
         if (typeof token !== "string" || !/^[0-9a-f]{80}$/.test(token)) return { status: "invalid" };
+        // Same rule as sign-up; 72 is bcrypt's limit (longer input is silently cut).
+        if (password != null && (typeof password !== "string" || password.length < 8 || password.length > 72)) {
+            return { status: "weak_password" };
+        }
 
         let result;
         try {
-            result = await emailTokenDb.confirmLink({ tokenHash: hashToken(token) });
+            const passwordHash = password ? await bcrypt.hash(password, 10) : null;
+            result = await emailTokenDb.confirmLink({ tokenHash: hashToken(token), passwordHash });
         } catch (error) {
             // CD409: the provider account belongs to someone else; 23505: it just became theirs.
             if (error?.code === "CD409" || error?.code === "23505") return { status: "in_use" };
             throw error;
         }
-        if (result.status !== "linked") return { status: result.status };
+        if (result.status !== "linked") return { status: result.status, mode: result.mode };
 
         if (result.outboxIds.length) await processAuthOutbox({ ids: result.outboxIds, limit: result.outboxIds.length });
         await invalidateUserCache(result.userId);
-        auditAuth("account.linked", { userId: result.userId, provider: result.provider, reason: "email" });
-        return { status: "linked", provider: result.provider };
+        const claim = result.mode === "claim";
+        if (claim) await failureGuards.login.reset(result.username).catch(() => { });
+        auditAuth("account.linked", { userId: result.userId, provider: result.provider, reason: claim ? "claim" : "email" });
+        await accountLinkService.notify({ userId: result.userId, provider: result.provider, action: "connected", passwordChanged: claim });
+        return { status: "linked", mode: result.mode, provider: result.provider, username: result.username };
     },
 
     /** "connected" / "disconnected" notice to the account's email. Never throws. */
-    notify: ({ userId, provider, action, ip = null }) =>
-        queue("email.account_notice", { userId, provider, action, ip, at: new Date().toISOString() }),
+    notify: ({ userId, provider, action, ip = null, passwordChanged = false }) =>
+        queue("email.account_notice", { userId, provider, action, ip, passwordChanged, at: new Date().toISOString() }),
 
     /** Outbox handler for "email.account_notice". */
-    sendNotice: async ({ userId, provider, action, ip, at }) => {
+    sendNotice: async ({ userId, provider, action, ip, passwordChanged = false, at }) => {
         const to = await userDb.getMailRecipient({ userId });
         if (!to) return;
 
@@ -111,6 +142,7 @@ export const accountLinkService = {
             lines: [
                 `Hi ${to.name || "there"}, a ${label} account was ${connected ? "connected to" : "disconnected from"} your CodeDev account on ${when}${ip ? ` from IP ${ip}` : ""}.`,
                 connected ? `You can now sign in with ${label}.` : `You can no longer sign in with that ${label} account.`,
+                ...(passwordChanged ? ["Your password was changed and every device was signed out. Any other sign-in method on the account was removed."] : []),
             ],
             note: connected
                 ? "Not you? Sign in, disconnect it under Settings > Sign-in methods, then sign out your other devices."

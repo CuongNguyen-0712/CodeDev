@@ -23,16 +23,11 @@ BEGIN
   IF _user_id IS NOT NULL THEN
     _result := 'login';
   ELSE
-    -- 2. Existing user with the same email: link only when that email was verified.
-    SELECT u.id INTO _user_id FROM identity.users u WHERE lower(u.email) = _email LIMIT 1;
+    -- 2. Existing user with the same email: never linked here, the owner confirms by email.
+    SELECT u.id, u.email_verified INTO _user_id, _verified FROM identity.users u WHERE lower(u.email) = _email LIMIT 1;
 
     IF _user_id IS NOT NULL THEN
-      SELECT u.email_verified INTO _verified FROM identity.users u WHERE u.id = _user_id;
-      IF COALESCE(_verified, false) THEN
-        _result := 'linked';
-      ELSE
-        _result := 'link_required';
-      END IF;
+      _result := CASE WHEN COALESCE(_verified, false) THEN 'confirm_required' ELSE 'link_required' END;
     END IF;
   END IF;
 
@@ -40,16 +35,6 @@ BEGIN
     SELECT u.status INTO _status FROM identity.users u WHERE u.id = _user_id;
     IF _status <> 'active' THEN
       _result := 'blocked';
-    END IF;
-  END IF;
-
-  IF _result = 'linked' THEN
-    INSERT INTO identity.accounts (user_id, provider, provider_account_id, provider_email)
-    VALUES (_user_id, _provider::provider_enum, _provider_account_id, _email);
-
-    IF _image IS NOT NULL THEN
-      UPDATE profile.info SET image = _image
-      WHERE user_id = _user_id AND (image IS NULL OR image = '');
     END IF;
   END IF;
 

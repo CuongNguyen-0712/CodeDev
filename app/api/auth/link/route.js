@@ -20,7 +20,7 @@ export async function GET() {
 
     return NextResponse.json({
         success: true,
-        data: { provider: link.provider, username: link.targetUsername, email: maskEmail(link.targetEmail) },
+        data: { provider: link.provider, username: link.targetUsername, email: maskEmail(link.targetEmail), mode: link.mode || "claim" },
     }, { headers: NO_STORE });
 }
 

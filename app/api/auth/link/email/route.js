@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 
 import { errorResponse } from "@/lib/error/apiError";
 import { readLinkCookie } from "@/lib/authCookies";
-import { rateLimiters } from "@/lib/rateLimit";
 import { assertSameOrigin } from "@/lib/requestGuard";
 import { maskEmail } from "@/lib/utils";
 
@@ -13,9 +12,9 @@ export const dynamic = "force-dynamic";
 const NO_STORE = { "Cache-Control": "no-store" };
 
 /**
- * POST /api/auth/link/email — "Don't know this password?" on /auth/link (plan 10.3, case 5b):
- * mails the owner of the account a link that confirms the pending link. No session: the pending
- * link is in the sealed cd_link cookie. `emailVerify` limit per target user, in its own bucket.
+ * POST /api/auth/link/email — "Resend" on /auth/link (plan 11.1): mails the account owner a new
+ * confirmation link for the pending claim (the first one went out from the OAuth callback). No
+ * session: the pending claim is in the sealed cd_link cookie. 3 mails / 15 min per account.
  */
 export async function POST(req) {
     try {
@@ -26,15 +25,17 @@ export async function POST(req) {
             return NextResponse.json({ success: false, message: "This link request expired." }, { status: 404, headers: NO_STORE });
         }
 
-        // Own bucket: a cd_link holder must not use up the owner's verification resends.
-        const limit = await rateLimiters.emailVerify.limitRequest(req, `link:${link.targetUserId}`);
-        if (!limit.allowed) return limit.response;
-
-        await accountLinkService.requestLinkEmail(link);
+        const result = await accountLinkService.requestLinkEmail(link);
+        if (result.retryAfter) {
+            return NextResponse.json(
+                { success: false, message: "We already sent a few links. Check your inbox, or try again in a few minutes.", retryAfter: result.retryAfter },
+                { status: 429, headers: { ...NO_STORE, "Retry-After": String(result.retryAfter) } }
+            );
+        }
 
         return NextResponse.json(
             { success: true, message: "Link sent.", data: { email: maskEmail(link.targetEmail), minutes: 30 } },
-            { headers: { ...limit.headers, ...NO_STORE } }
+            { headers: NO_STORE }
         );
     } catch (error) {
         return errorResponse(error, "api/auth/link/email");

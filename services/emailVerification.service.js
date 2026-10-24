@@ -21,6 +21,8 @@ import VerifyEmailTemplate from "@/components/templates/verifyEmailTemplate";
  */
 
 const TTL_SEC = Number(process.env.EMAIL_VERIFY_TTL_SECONDS) || 24 * 60 * 60;
+// Mail has no viewer time zone: state the date in UTC, e.g. "31 Oct 2026".
+const formatDeadline = (value) => new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const hashToken = (token) => hashRefreshToken(`email-verify|${token}`);
 
 export const emailVerificationService = {
@@ -36,18 +38,31 @@ export const emailVerificationService = {
         }
     },
 
+    /** Queues the "verify or the account is deleted" reminder (plan 11.2). Never throws. */
+    remind: async (userId) => {
+        try {
+            const outboxId = await emailTokenDb.enqueue("email.verify_requested", { userId, reminder: true });
+            await processAuthOutbox({ ids: [outboxId], limit: 1 });
+            return true;
+        } catch (error) {
+            console.error("[email-verify] could not queue the reminder:", error?.message);
+            return false;
+        }
+    },
+
     /** Outbox handler: issues a token and mails the link. Throws when sending fails (retried). */
-    send: async (userId) => {
+    send: async (userId, { reminder = false } = {}) => {
         const token = generateRefreshToken();
         const issued = await emailTokenDb.issue({ userPublicId: userId, purpose: "verify_email", tokenHash: hashToken(token), ttlSec: TTL_SEC });
         if (!issued) return; // already verified, blocked or deleted
 
         const url = `${process.env.NEXTAUTH_URL}/auth/verify-email?token=${token}`;
-        const message = createElement(VerifyEmailTemplate, { name: issued.name, email: issued.email, url, hours: Math.round(TTL_SEC / 3600) });
+        const deadline = issued.purgeAfter ? formatDeadline(issued.purgeAfter) : null;
+        const message = createElement(VerifyEmailTemplate, { name: issued.name, email: issued.email, url, hours: Math.round(TTL_SEC / 3600), deadline });
 
         await sendMail({
             to: issued.email,
-            subject: "Verify your email for CodeDev",
+            subject: reminder && deadline ? `Verify your email by ${deadline} to keep your CodeDev account` : "Verify your email for CodeDev",
             html: await render(message),
             text: await render(message, { plainText: true }),
         });
