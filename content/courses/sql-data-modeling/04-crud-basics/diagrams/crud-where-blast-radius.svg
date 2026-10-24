@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">The WHERE clause decides how many rows change.</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Same request - cancel learner 1042's SQL course - two statements, two very different results.</text>
+
+  <!-- Left: incident -->
+  <rect x="40" y="112" width="545" height="300" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="146" font-size="18" font-weight="700" fill="#b91c1c">Before: half a key, values pasted in</text>
+  <text x="64" y="172" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">WHERE user_id = 1042</text>
+
+  <rect x="64" y="190" width="497" height="36" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+  <text x="80" y="214" font-size="15" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">1042 | 3  Web App Fundamentals  cancelled</text>
+  <rect x="64" y="232" width="497" height="36" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+  <text x="80" y="256" font-size="15" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">1042 | 7  SQL &amp; Data Modeling   cancelled</text>
+  <rect x="64" y="274" width="497" height="36" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+  <text x="80" y="298" font-size="15" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">1042 | 12 Docker Basics (done)   cancelled</text>
+  <rect x="64" y="316" width="497" height="36" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+  <text x="80" y="340" font-size="15" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">1042 | 15 Git for Teams          cancelled</text>
+  <text x="64" y="388" font-size="15" font-weight="700" fill="#b91c1c">changes() = 4, committed anyway</text>
+
+  <!-- Right: fix -->
+  <rect x="615" y="112" width="545" height="300" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="639" y="146" font-size="18" font-weight="700" fill="#15803d">After: whole key, state guard, parameters</text>
+  <text x="639" y="172" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">WHERE user_id = :user_id AND course_id = :course_id</text>
+  <text x="639" y="190" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">  AND status = 'active'</text>
+
+  <rect x="639" y="204" width="497" height="36" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="655" y="228" font-size="15" fill="#64748b" font-family="Consolas, 'Courier New', monospace">1042 | 3  Web App Fundamentals  active</text>
+  <rect x="639" y="246" width="497" height="36" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="655" y="270" font-size="15" fill="#15803d" font-family="Consolas, 'Courier New', monospace">1042 | 7  SQL &amp; Data Modeling   cancelled</text>
+  <rect x="639" y="288" width="497" height="36" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="655" y="312" font-size="15" fill="#64748b" font-family="Consolas, 'Courier New', monospace">1042 | 12 Docker Basics          completed</text>
+  <rect x="639" y="330" width="497" height="36" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="655" y="354" font-size="15" fill="#64748b" font-family="Consolas, 'Courier New', monospace">1042 | 15 Git for Teams          active</text>
+  <text x="639" y="396" font-size="15" font-weight="700" fill="#15803d">changes() = 1, checked before COMMIT</text>
+
+  <!-- Safe sequence -->
+  <text x="40" y="452" font-size="18" font-weight="700" fill="#334155">A safe change, step by step</text>
+  <rect x="40" y="470" width="200" height="92" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="58" y="498" font-size="15" font-weight="700" fill="#b45309">1  Preview</text>
+  <text x="58" y="522" font-size="13" fill="#92400e">SELECT COUNT(*) with</text>
+  <text x="58" y="540" font-size="13" fill="#92400e">the same WHERE</text>
+  <line x1="240" y1="516" x2="270" y2="516" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="266,510 266,522 278,516" fill="#94a3b8"/>
+
+  <rect x="280" y="470" width="200" height="92" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="298" y="498" font-size="15" font-weight="700" fill="#334155">2  BEGIN</text>
+  <text x="298" y="522" font-size="13" fill="#475569">open a transaction</text>
+  <text x="298" y="540" font-size="13" fill="#475569">(lesson 8)</text>
+  <line x1="480" y1="516" x2="510" y2="516" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="506,510 506,522 518,516" fill="#94a3b8"/>
+
+  <rect x="520" y="470" width="200" height="92" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="538" y="498" font-size="15" font-weight="700" fill="#334155">3  UPDATE</text>
+  <text x="538" y="522" font-size="13" fill="#475569">bound parameters,</text>
+  <text x="538" y="540" font-size="13" fill="#475569">RETURNING the rows</text>
+  <line x1="720" y1="516" x2="750" y2="516" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="746,510 746,522 758,516" fill="#94a3b8"/>
+
+  <rect x="760" y="470" width="200" height="92" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="778" y="498" font-size="15" font-weight="700" fill="#334155">4  Check</text>
+  <text x="778" y="522" font-size="13" fill="#475569">changed rows = 1?</text>
+  <text x="778" y="540" font-size="13" fill="#475569">the right rows?</text>
+  <line x1="960" y1="516" x2="990" y2="516" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="986,510 986,522 998,516" fill="#94a3b8"/>
+
+  <rect x="1000" y="470" width="160" height="92" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="1018" y="498" font-size="15" font-weight="700" fill="#15803d">5  Decide</text>
+  <text x="1018" y="522" font-size="13" fill="#166534">COMMIT, or</text>
+  <text x="1018" y="540" font-size="13" fill="#166534">ROLLBACK</text>
+</svg>

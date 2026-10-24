@@ -1,0 +1,35 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sdm_111",
+      "name": "entities-relationships-quiz",
+      "type": "quiz",
+      "title": "Lists in a column and facts about a pair",
+      "description": "Two pieces of evidence from the CodeDev student_ids incident: the query behind the My courses page, and a user story that needs an enrollment date. Decide whether each statement is True or False.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Schema v1 stores the learners of each course in one text column:\n\nid | title                        | student_ids\n---+------------------------------+------------\n12 | SQL & Data Modeling          | 3,17,27,70\n13 | Web Application Fundamentals | 7,8\n\nThe My courses page runs:\n\nSELECT id, title FROM courses WHERE student_ids LIKE '%7%';\n\nStatement: \"For learner 7, this query returns exactly the courses learner 7 is enrolled in.\"",
+          "explanation": "False. LIKE '%7%' matches the character 7 anywhere in the text, so course 12 matches because of 17, 27 and 70, although learner 7 is only in course 13. Patching the pattern (for example with commas around the id) only moves the problem: the root cause is a list stored in one value, which the database cannot index, check against users or update one element at a time. The fix is a join table, enrollments(user_id, course_id, ...), queried with WHERE user_id = 7.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "User stories:\n- A learner can enroll in many courses.\n- A course can have many learners.\n- Admins need to see when each learner enrolled in each course.\n\nProposed schema:\n\nusers(id, email)\ncourses(id, title)\nenrollments(user_id, course_id, enrolled_at, status)  -- primary key (user_id, course_id)\n\nStatement: \"enrolled_at belongs in enrollments rather than in users or courses, because it describes one learner in one course.\"",
+          "explanation": "True. A learner enrolls in many courses and a course has many learners, so one date column on users or on courses cannot hold one date per pair. The enrollment date is a fact about the relationship, and a many-to-many relationship with its own facts gets its own table: enrollments, with one row per learner and course. A common mistake is users.enrolled_at, which silently keeps only one date (usually the latest) for a learner with several courses.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

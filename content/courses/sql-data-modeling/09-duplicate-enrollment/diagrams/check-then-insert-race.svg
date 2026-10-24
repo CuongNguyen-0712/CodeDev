@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Both checks were right. The race is in the gap before the insert.</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Two POST /enrollments for user 1042, course 7, 12 ms apart, handled by two workers. Time runs down.</text>
+
+  <!-- Left: check-then-insert -->
+  <rect x="40" y="112" width="545" height="330" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="146" font-size="18" font-weight="700" fill="#b91c1c">Before: check, then blind INSERT</text>
+  <text x="64" y="172" font-size="13" font-weight="700" fill="#64748b">request A (a71f)</text>
+  <text x="330" y="172" font-size="13" font-weight="700" fill="#64748b">request B (b902)</text>
+
+  <rect x="64" y="184" width="240" height="36" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+  <text x="76" y="207" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">.431 check -&gt; 0</text>
+  <rect x="330" y="226" width="231" height="36" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+  <text x="342" y="249" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">.433 check -&gt; 0</text>
+  <rect x="64" y="268" width="240" height="36" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+  <text x="76" y="291" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">.436 INSERT 5531</text>
+  <rect x="330" y="310" width="231" height="36" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+  <text x="342" y="333" font-size="14" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">.438 INSERT 5532</text>
+
+  <text x="64" y="384" font-size="15" font-weight="700" fill="#b91c1c">Two active rows for (1042, 7)</text>
+  <text x="64" y="408" font-size="13" fill="#64748b">both requests answer 201; the report counts the learner twice</text>
+  <text x="64" y="426" font-size="13" fill="#64748b">no rule in the table says the pair may appear only once</text>
+
+  <!-- Right: unique constraint -->
+  <rect x="615" y="112" width="545" height="330" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="639" y="146" font-size="18" font-weight="700" fill="#15803d">After: UNIQUE (user_id, course_id) + ON CONFLICT</text>
+  <text x="639" y="172" font-size="13" font-weight="700" fill="#64748b">request A (a71f)</text>
+  <text x="905" y="172" font-size="13" font-weight="700" fill="#64748b">request B (b902)</text>
+
+  <rect x="639" y="184" width="240" height="36" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="651" y="207" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">.431 check -&gt; 0</text>
+  <rect x="905" y="226" width="231" height="36" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="917" y="249" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">.433 check -&gt; 0</text>
+  <rect x="639" y="268" width="240" height="36" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="651" y="291" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">.436 INSERT: 1 row</text>
+  <rect x="905" y="310" width="231" height="36" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="917" y="333" font-size="14" fill="#15803d" font-family="Consolas, 'Courier New', monospace">.438 conflict: 0 rows</text>
+
+  <text x="639" y="384" font-size="15" font-weight="700" fill="#15803d">One row; B answers already_enrolled</text>
+  <text x="639" y="408" font-size="13" fill="#64748b">the database checks the key while it writes the row,</text>
+  <text x="639" y="426" font-size="13" fill="#64748b">whatever the timing and whichever code path wrote it</text>
+
+  <!-- Bottom -->
+  <rect x="40" y="472" width="1120" height="92" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="64" y="504" font-size="17" font-weight="700" fill="#b45309">The check in the application is a fast path. The constraint is the guarantee.</text>
+  <text x="64" y="530" font-size="14" fill="#92400e">Fixing the check, disabling the button or sleeping before the insert all leave a gap between reading and writing.</text>
+  <text x="64" y="550" font-size="14" fill="#92400e">Only a rule enforced at write time sees the other request's row: UNIQUE + INSERT ... ON CONFLICT.</text>
+</svg>

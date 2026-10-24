@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">LEFT JOIN, then GROUP BY: count values, not rows</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Mai's enrollments joined to lessons and to her finished lessons, before and after grouping by course</text>
+
+  <!-- Left: joined rows -->
+  <rect x="40" y="112" width="560" height="320" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="64" y="144" font-size="18" font-weight="700" fill="#334155">1  Rows after the joins (no GROUP BY yet)</text>
+  <g font-family="Consolas, 'Courier New', monospace" font-size="14">
+    <text x="64" y="176" fill="#64748b">course</text><text x="250" y="176" fill="#64748b">lesson</text><text x="340" y="176" fill="#64748b">finished</text>
+    <rect x="56" y="186" width="536" height="24" rx="4" fill="#ffffff"/>
+    <text x="64" y="203" fill="#334155">SQL Basics</text><text x="250" y="203" fill="#334155">101</text><text x="340" y="203" fill="#334155">101</text>
+    <rect x="56" y="212" width="536" height="24" rx="4" fill="#ffffff"/>
+    <text x="64" y="229" fill="#334155">SQL Basics</text><text x="250" y="229" fill="#334155">102</text><text x="340" y="229" fill="#334155">102</text>
+    <rect x="56" y="238" width="536" height="24" rx="4" fill="#fef2f2" stroke="#ef4444" stroke-width="1.5"/>
+    <text x="64" y="255" fill="#b91c1c">SQL Basics</text><text x="250" y="255" fill="#b91c1c">102</text><text x="340" y="255" fill="#b91c1c">102</text><text x="420" y="255" fill="#b91c1c">duplicate</text>
+    <rect x="56" y="264" width="536" height="24" rx="4" fill="#ffffff"/>
+    <text x="64" y="281" fill="#334155">SQL Basics</text><text x="250" y="281" fill="#334155">103</text><text x="340" y="281" fill="#334155">NULL</text>
+    <rect x="56" y="290" width="536" height="24" rx="4" fill="#ffffff"/>
+    <text x="64" y="307" fill="#334155">Docker Basics</text><text x="250" y="307" fill="#334155">201</text><text x="340" y="307" fill="#334155">NULL</text>
+    <rect x="56" y="316" width="536" height="24" rx="4" fill="#ffffff"/>
+    <text x="64" y="333" fill="#334155">Docker Basics</text><text x="250" y="333" fill="#334155">202-204</text><text x="340" y="333" fill="#334155">NULL</text><text x="420" y="333" fill="#334155">3 rows</text>
+    <rect x="56" y="342" width="536" height="24" rx="4" fill="#fffbeb" stroke="#d97706" stroke-width="1.5"/>
+    <text x="64" y="359" fill="#b45309">Kubernetes Basics</text><text x="250" y="359" fill="#b45309">NULL</text><text x="340" y="359" fill="#b45309">NULL</text><text x="420" y="359" fill="#b45309">no lessons</text>
+  </g>
+  <text x="64" y="396" font-size="13" fill="#64748b">LEFT JOIN keeps a row for every enrolled course, with NULL</text>
+  <text x="64" y="414" font-size="13" fill="#64748b">where nothing matched. Starting from lesson_progress keeps only the first three.</text>
+
+  <!-- Arrow -->
+  <line x1="604" y1="272" x2="626" y2="272" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="622,266 622,278 634,272" fill="#94a3b8"/>
+
+  <!-- Right: grouped -->
+  <rect x="640" y="112" width="520" height="320" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="664" y="144" font-size="18" font-weight="700" fill="#15803d">2  One row per course after GROUP BY</text>
+  <g font-size="14">
+    <text x="664" y="176" fill="#64748b">course</text>
+    <text x="830" y="176" fill="#64748b">COUNT(*)</text>
+    <text x="930" y="176" fill="#64748b">lessons</text>
+    <text x="1030" y="176" fill="#64748b">finished</text>
+    <rect x="656" y="190" width="488" height="40" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+    <text x="672" y="215" fill="#334155">SQL Basics</text>
+    <text x="856" y="215" fill="#b91c1c">4</text>
+    <text x="952" y="215" fill="#15803d">3</text>
+    <text x="1054" y="215" fill="#15803d">2</text>
+    <rect x="656" y="238" width="488" height="40" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+    <text x="672" y="263" fill="#334155">Docker Basics</text>
+    <text x="856" y="263" fill="#b91c1c">4</text>
+    <text x="952" y="263" fill="#15803d">4</text>
+    <text x="1054" y="263" fill="#15803d">0</text>
+    <rect x="656" y="286" width="488" height="40" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+    <text x="672" y="311" fill="#334155">Kubernetes Basics</text>
+    <text x="856" y="311" fill="#b91c1c">1</text>
+    <text x="952" y="311" fill="#15803d">0</text>
+    <text x="1054" y="311" fill="#15803d">0</text>
+  </g>
+  <text x="664" y="362" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">lessons  = COUNT(DISTINCT l.lesson_id)</text>
+  <text x="664" y="382" font-size="13" fill="#334155" font-family="Consolas, 'Courier New', monospace">finished = COUNT(DISTINCT lp.lesson_id)</text>
+  <text x="664" y="410" font-size="13" fill="#64748b">COUNT(*) counts rows: the duplicate and the all-NULL row too</text>
+
+  <!-- Verify -->
+  <text x="40" y="472" font-size="18" font-weight="700" fill="#334155">How to verify a grouped result</text>
+  <rect x="40" y="490" width="340" height="84" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="60" y="520" font-size="15" font-weight="700" fill="#b45309">1  Rows before grouping</text>
+  <text x="60" y="544" font-size="13" fill="#92400e">remove GROUP BY and read the join keys:</text>
+  <text x="60" y="562" font-size="13" fill="#92400e">duplicates and missing rows show up</text>
+  <line x1="380" y1="532" x2="420" y2="532" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="416,526 416,538 428,532" fill="#94a3b8"/>
+  <rect x="430" y="490" width="340" height="84" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="450" y="520" font-size="15" font-weight="700" fill="#0e7490">2  One row per enrollment</text>
+  <text x="450" y="544" font-size="13" fill="#155e75">result rows = COUNT(DISTINCT course_id)</text>
+  <text x="450" y="562" font-size="13" fill="#155e75">of the learner's enrollments</text>
+  <line x1="770" y1="532" x2="810" y2="532" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="806,526 806,538 818,532" fill="#94a3b8"/>
+  <rect x="820" y="490" width="340" height="84" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="840" y="520" font-size="15" font-weight="700" fill="#15803d">3  Recount one course by hand</text>
+  <text x="840" y="544" font-size="13" fill="#166534">a plain COUNT on lessons and progress</text>
+  <text x="840" y="562" font-size="13" fill="#166534">must match the grouped numbers</text>
+</svg>

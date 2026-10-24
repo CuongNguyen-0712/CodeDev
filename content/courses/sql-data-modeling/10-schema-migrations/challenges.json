@@ -1,0 +1,45 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sdm_341",
+      "name": "schema-migrations-quiz",
+      "type": "quiz",
+      "title": "Backfills, new columns and the step you cannot undo",
+      "description": "Three pieces of evidence from the enrollments.status rename and the next migrations on the 3.2-million-row enrollments table: a backfill that locked the database, an ADD COLUMN, and an expand-contract plan. Decide whether each statement is True or False.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "On a copy of production (SQLite, 3.2 million enrollments, busy_timeout = 5000 ms), the backfill\n\nUPDATE enrollments SET state = status;\n\nran for 41 s. During it, POST /enroll failed with \"database is locked\".\n\nThe new backfill runs this statement in a loop, each run in its own transaction, with a 50 ms pause between runs, until it changes 0 rows (each run takes about 15 ms):\n\nUPDATE enrollments SET state = status\nWHERE rowid IN (SELECT rowid FROM enrollments WHERE state IS NULL LIMIT 1000);\n\nStatement: \"Batching this way shortens how long each write lock is held, so enroll requests can get the lock between batches instead of failing after 5,000 ms.\"",
+          "explanation": "True. SQLite allows one writer at a time, and a single UPDATE is a single transaction, so the one-statement backfill held the write lock for all 41 seconds and other writers gave up when their 5,000 ms busy timeout ran out. Each batch commits after about 15 ms, and the pause leaves the lock free, so a waiting enroll request gets its turn quickly. The batched version is also idempotent because it only touches rows where state is still NULL. A common misconception is that a backfill is harmless because it only writes to a new column; the lock covers the whole database, not one column.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Migration 0043 on the same 3.2-million-row table (SQLite 3.50):\n\nALTER TABLE enrollments ADD COLUMN source TEXT NOT NULL DEFAULT 'web';\n\nAfterwards, SELECT source FROM enrollments returns 'web' for every existing row.\n\nStatement: \"To run this statement, SQLite writes 'web' into each of the 3.2 million existing rows, so it holds the write lock about as long as a full-table UPDATE would.\"",
+          "explanation": "False. SQLite's ADD COLUMN only changes the table definition stored in the schema; existing rows are not rewritten, and when a row has no stored value for the new column SQLite returns the column's default. That is why the statement takes about the same time on a small or a large table. The non-NULL constant default is what makes NOT NULL acceptable here. PostgreSQL 11 and later behaves similarly for constant defaults, while a volatile default rewrites the table. The misconception is to treat every schema change as a full-table rewrite; the slow parts are backfills, index builds and table rebuilds.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Expand-contract plan for renaming enrollments.status to state:\n\n1. Add column state (nullable)\n2. Deploy v42: writes status and state, reads status\n3. Backfill state in batches\n4. Deploy v43: reads state, writes both\n5. Deploy v44: writes only state\n6. Back up, then ALTER TABLE enrollments DROP COLUMN status\n\nOne day after step 6, v44 shows a bug.\n\nStatement: \"Redeploying v42 is a safe rollback here, because v42 already worked with this schema during the expand phase.\"",
+          "explanation": "False. v42 reads status, and step 6 dropped that column, so every v42 request that reads enrollments would fail with \"no such column: status\" - the same failure as the original incident. Even before step 6, v42 stopped being a safe target at step 5, when status stopped being written and went stale. After the contract step, the only way back is restoring the backup taken just before it (and losing later writes), which is why the drop comes last, after a waiting period. v43 is not a way back either, because it still writes status. The safe move here is to fix forward with a v45.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

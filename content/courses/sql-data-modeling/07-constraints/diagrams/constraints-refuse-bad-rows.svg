@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Each audit finding is one rule, and each rule is one constraint</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The same bad writes from the import script and the admin tool, against the schema with constraints</text>
+
+  <!-- Column headers -->
+  <text x="64" y="128" font-size="14" font-weight="700" fill="#64748b">BAD WRITE</text>
+  <text x="520" y="128" font-size="14" font-weight="700" fill="#64748b">REFUSED BY</text>
+  <text x="900" y="128" font-size="14" font-weight="700" fill="#64748b">SQLITE SAYS</text>
+
+  <g font-size="14">
+    <!-- Row 1 -->
+    <rect x="40" y="140" width="1120" height="40" rx="6" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5"/>
+    <text x="64" y="165" fill="#334155">user 7 with name NULL</text>
+    <text x="520" y="165" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">name TEXT NOT NULL</text>
+    <text x="900" y="165" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">NOT NULL ... failed</text>
+    <!-- Row 2 -->
+    <rect x="40" y="186" width="1120" height="40" rx="6" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5"/>
+    <text x="64" y="211" fill="#334155">second account Mai@CodeDev.test</text>
+    <text x="520" y="211" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">COLLATE NOCASE UNIQUE</text>
+    <text x="900" y="211" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">UNIQUE ... failed</text>
+    <!-- Row 3 -->
+    <rect x="40" y="232" width="1120" height="40" rx="6" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5"/>
+    <text x="64" y="257" fill="#334155">email '' (empty, but not NULL)</text>
+    <text x="520" y="257" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">CHECK (instr(email, '@') &gt; 0)</text>
+    <text x="900" y="257" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">CHECK ... failed</text>
+    <!-- Row 4 -->
+    <rect x="40" y="278" width="1120" height="40" rx="6" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5"/>
+    <text x="64" y="303" fill="#334155">status 'done' or 'Active'</text>
+    <text x="520" y="303" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">NOT NULL CHECK (status IN (...))</text>
+    <text x="900" y="303" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">CHECK ... failed</text>
+    <!-- Row 5 -->
+    <rect x="40" y="324" width="1120" height="40" rx="6" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5"/>
+    <text x="64" y="349" fill="#334155">the same (user, course) enrolled twice</text>
+    <text x="520" y="349" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">PRIMARY KEY (user_id, course_id)</text>
+    <text x="900" y="349" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">UNIQUE ... failed</text>
+    <!-- Row 6 -->
+    <rect x="40" y="370" width="1120" height="40" rx="6" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5"/>
+    <text x="64" y="395" fill="#334155">enrollment for course 999 (does not exist)</text>
+    <text x="520" y="395" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">REFERENCES courses (course_id)</text>
+    <text x="900" y="395" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">FOREIGN KEY ... failed</text>
+    <!-- Row 7 -->
+    <rect x="40" y="416" width="1120" height="40" rx="6" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5"/>
+    <text x="64" y="441" fill="#334155">DELETE a course learners are enrolled in</text>
+    <text x="520" y="441" fill="#0f172a" font-family="Consolas, 'Courier New', monospace">ON DELETE RESTRICT</text>
+    <text x="900" y="441" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">FOREIGN KEY ... failed</text>
+  </g>
+
+  <!-- Verify -->
+  <text x="40" y="490" font-size="18" font-weight="700" fill="#334155">How to verify the schema really refuses it</text>
+  <rect x="40" y="504" width="340" height="76" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="60" y="532" font-size="15" font-weight="700" fill="#b45309">1  PRAGMA foreign_keys</text>
+  <text x="60" y="556" font-size="13" fill="#92400e">returns 1 on the app's own connection</text>
+  <line x1="380" y1="542" x2="420" y2="542" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="416,536 416,548 428,542" fill="#94a3b8"/>
+  <rect x="430" y="504" width="340" height="76" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="450" y="532" font-size="15" font-weight="700" fill="#0e7490">2  One failing insert per rule</text>
+  <text x="450" y="556" font-size="13" fill="#155e75">in a test, next to rows that must pass</text>
+  <line x1="770" y1="542" x2="810" y2="542" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="806,536 806,548 818,542" fill="#94a3b8"/>
+  <rect x="820" y="504" width="340" height="76" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="840" y="532" font-size="15" font-weight="700" fill="#15803d">3  PRAGMA foreign_key_check</text>
+  <text x="840" y="556" font-size="13" fill="#166534">returns no rows: no orphans left over</text>
+</svg>

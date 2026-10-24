@@ -1,0 +1,698 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sdm_311",
+      "name": "constraints-evidence-quiz",
+      "type": "quiz",
+      "title": "Will SQLite refuse this row?",
+      "description": "Two pieces of evidence from the CodeDev data audit: a cleanup script that deleted a course, and an enrollment saved with a NULL status. Decide whether each statement is true or false.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The schema was applied once from schema.sql:\n\nCREATE TABLE enrollments (\n    user_id     INTEGER NOT NULL REFERENCES users (user_id),\n    course_id   INTEGER NOT NULL REFERENCES courses (course_id) ON DELETE RESTRICT,\n    enrolled_at TEXT NOT NULL,\n    status      TEXT NOT NULL,\n    PRIMARY KEY (user_id, course_id)\n);\n\nCourse 10 still has three enrollments. An admin script runs:\n\nimport sqlite3\ndb = sqlite3.connect(\"codedev.db\")\ndb.execute(\"DELETE FROM courses WHERE course_id = 10\")\ndb.commit()\n\nStatement: \"The DELETE fails with FOREIGN KEY constraint failed, because the schema declares ON DELETE RESTRICT.\"",
+          "explanation": "False. In SQLite, foreign key enforcement is off by default and must be turned on for each connection with PRAGMA foreign_keys = ON (unless the library was compiled with foreign keys on by default, which the standard builds are not). The script never runs the pragma, so the DELETE succeeds and the three enrollments now point to a course that no longer exists. The REFERENCES clause is stored in the schema either way, which is why it looks protected. PRAGMA foreign_key_check lists the orphan rows afterwards. PostgreSQL always enforces foreign keys, so the same script there would fail.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Another version of the table declares the status like this:\n\nstatus TEXT CHECK (status IN ('active', 'completed', 'cancelled'))\n\nThe import script runs:\n\nINSERT INTO enrollments (user_id, course_id, enrolled_at, status)\nVALUES (1, 10, '2026-09-01 10:00:00', NULL);\n\nStatement: \"The insert succeeds and the row is stored with status NULL.\"",
+          "explanation": "True. A CHECK constraint only refuses a row when its expression is false. NULL IN ('active', 'completed', 'cancelled') is NULL (unknown), not false, so the row passes the CHECK. SQLite and PostgreSQL both behave this way. To refuse a missing status, the column also needs NOT NULL. The common misconception is that a CHECK listing the allowed values also excludes NULL.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_sdm_312",
+      "name": "schema-that-refuses-bad-data",
+      "type": "mini_coding",
+      "title": "A schema that refuses bad data",
+      "description": "Write SCHEMA, the CREATE TABLE statements for users, courses and enrollments, so that SQLite itself refuses the bad rows found in the CodeDev data audit. users(user_id INTEGER PRIMARY KEY, email, name): email required, unique ignoring case and containing '@'; name required. courses(course_id INTEGER PRIMARY KEY, title, level): title required; level required and exactly 'beginner', 'intermediate' or 'advanced'. enrollments(user_id, course_id, enrolled_at, status): user_id and course_id required and must exist in users and courses; deleting a user deletes their enrollments; deleting a course that still has enrollments is refused; enrolled_at required; status required, exactly 'active', 'completed' or 'cancelled', and 'active' when an insert leaves it out; the same (user_id, course_id) pair at most once. Each test is a list of operations, {\"op\": \"insert\", \"table\": ..., \"row\": {...}} or {\"op\": \"delete\", \"table\": ..., \"where\": {...}} or {\"op\": \"select\", \"table\": ..., \"columns\": [...], \"where\": {...}}, which reads stored values back. The runner at the bottom of the file applies SCHEMA, runs PRAGMA foreign_keys = ON, executes the operations one by one and prints a JSON list with one result per operation: \"ok\", or the kind of constraint that refused it, \"not_null\", \"unique\", \"check\" or \"foreign_key\"; for a select, the matching rows as lists of values, such as [[\"active\"]]. Example: [\"ok\", \"unique\", \"check\"].",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "schema_constraints.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "For each bad row in the audit, which kind of rule would have stopped it: a missing value, a duplicate, a value outside an allowed list, or a reference to a row that does not exist? Then ask what each of those rules does when the value is NULL.",
+        "Everything goes in the column and table definitions: NOT NULL, UNIQUE, CHECK (...), DEFAULT ..., REFERENCES parent (column) ON DELETE ..., and a table-level PRIMARY KEY (a, b). Check three details in the SQLite docs: which collation UNIQUE uses to compare text, whether a CHECK fails when its expression is NULL, and whether a composite PRIMARY KEY in an ordinary SQLite table refuses NULL by itself.",
+        "A similar table, not one of yours: CREATE TABLE lessons (lesson_id INTEGER PRIMARY KEY, course_id INTEGER NOT NULL REFERENCES courses (course_id) ON DELETE CASCADE, position INTEGER NOT NULL CHECK (position >= 1), title TEXT NOT NULL, slug TEXT NOT NULL COLLATE NOCASE, visibility TEXT NOT NULL DEFAULT 'draft' CHECK (visibility IN ('draft', 'published')), UNIQUE (course_id, position), UNIQUE (course_id, slug)). Deleting a course deletes its lessons, positions start at 1, a slug is unique per course ignoring case, and a lesson inserted without visibility is a draft."
+      ],
+      "tests": [
+        {
+          "name": "Valid rows are accepted: two users, a course and their enrollments",
+          "input": {
+            "ops": [
+              {
+                "op": "insert",
+                "table": "users",
+                "row": {
+                  "user_id": 1,
+                  "email": "mai@codedev.test",
+                  "name": "Mai"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "users",
+                "row": {
+                  "user_id": 2,
+                  "email": "linh@codedev.test",
+                  "name": "Linh"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "courses",
+                "row": {
+                  "course_id": 10,
+                  "title": "SQL Basics",
+                  "level": "beginner"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "enrollments",
+                "row": {
+                  "user_id": 1,
+                  "course_id": 10,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "enrollments",
+                "row": {
+                  "user_id": 2,
+                  "course_id": 10,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "completed"
+                }
+              }
+            ]
+          },
+          "expected": [
+            "ok",
+            "ok",
+            "ok",
+            "ok",
+            "ok"
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A missing name, an unknown level and an unknown course are refused",
+          "input": {
+            "ops": [
+              {
+                "op": "insert",
+                "table": "users",
+                "row": {
+                  "user_id": 1,
+                  "email": "mai@codedev.test",
+                  "name": "Mai"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "users",
+                "row": {
+                  "user_id": 2,
+                  "email": "linh@codedev.test",
+                  "name": null
+                }
+              },
+              {
+                "op": "insert",
+                "table": "courses",
+                "row": {
+                  "course_id": 10,
+                  "title": "SQL Basics",
+                  "level": "expert"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "courses",
+                "row": {
+                  "course_id": 20,
+                  "title": "Docker Basics",
+                  "level": "intermediate"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "enrollments",
+                "row": {
+                  "user_id": 1,
+                  "course_id": 99,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "enrollments",
+                "row": {
+                  "user_id": 1,
+                  "course_id": 20,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                }
+              }
+            ]
+          },
+          "expected": [
+            "ok",
+            "not_null",
+            "check",
+            "ok",
+            "foreign_key",
+            "ok"
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The same email in another case is a duplicate; an email without @ is refused",
+          "input": {
+            "ops": [
+              {
+                "op": "insert",
+                "table": "users",
+                "row": {
+                  "user_id": 1,
+                  "email": "mai@codedev.test",
+                  "name": "Mai"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "users",
+                "row": {
+                  "user_id": 2,
+                  "email": "Mai@CodeDev.TEST",
+                  "name": "Mai Tran"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "users",
+                "row": {
+                  "user_id": 3,
+                  "email": "",
+                  "name": "Tuan"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "users",
+                "row": {
+                  "user_id": 4,
+                  "email": "tuan.codedev.test",
+                  "name": "Tuan"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "users",
+                "row": {
+                  "user_id": 5,
+                  "email": "tuan@codedev.test",
+                  "name": "Tuan"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "users",
+                "row": {
+                  "user_id": 6,
+                  "email": null,
+                  "name": "Hoa"
+                }
+              }
+            ]
+          },
+          "expected": [
+            "ok",
+            "unique",
+            "check",
+            "check",
+            "ok",
+            "not_null"
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "The same learner cannot enroll twice in one course; a bad status is refused",
+          "input": {
+            "ops": [
+              {
+                "op": "insert",
+                "table": "users",
+                "row": {
+                  "user_id": 1,
+                  "email": "mai@codedev.test",
+                  "name": "Mai"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "courses",
+                "row": {
+                  "course_id": 10,
+                  "title": "SQL Basics",
+                  "level": "beginner"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "courses",
+                "row": {
+                  "course_id": 20,
+                  "title": "Docker Basics",
+                  "level": "beginner"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "enrollments",
+                "row": {
+                  "user_id": 1,
+                  "course_id": 10,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "enrollments",
+                "row": {
+                  "user_id": 1,
+                  "course_id": 10,
+                  "enrolled_at": "2026-09-01 10:00:01",
+                  "status": "active"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "enrollments",
+                "row": {
+                  "user_id": 1,
+                  "course_id": 20,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "Active"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "enrollments",
+                "row": {
+                  "user_id": 1,
+                  "course_id": 20,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "done"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "enrollments",
+                "row": {
+                  "user_id": 1,
+                  "course_id": 20,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "cancelled"
+                }
+              }
+            ]
+          },
+          "expected": [
+            "ok",
+            "ok",
+            "ok",
+            "ok",
+            "unique",
+            "check",
+            "check",
+            "ok"
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "NULL level, status, user_id or course_id is refused (a CHECK alone lets NULL through)",
+          "input": {
+            "ops": [
+              {
+                "op": "insert",
+                "table": "users",
+                "row": {
+                  "user_id": 1,
+                  "email": "mai@codedev.test",
+                  "name": "Mai"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "courses",
+                "row": {
+                  "course_id": 10,
+                  "title": "SQL Basics",
+                  "level": null
+                }
+              },
+              {
+                "op": "insert",
+                "table": "courses",
+                "row": {
+                  "course_id": 20,
+                  "title": "Docker Basics",
+                  "level": "advanced"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "enrollments",
+                "row": {
+                  "user_id": 1,
+                  "course_id": 20,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": null
+                }
+              },
+              {
+                "op": "insert",
+                "table": "enrollments",
+                "row": {
+                  "user_id": null,
+                  "course_id": 20,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "enrollments",
+                "row": {
+                  "user_id": 1,
+                  "course_id": null,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "enrollments",
+                "row": {
+                  "user_id": 1,
+                  "course_id": 20,
+                  "enrolled_at": null
+                }
+              }
+            ]
+          },
+          "expected": [
+            "ok",
+            "not_null",
+            "ok",
+            "not_null",
+            "not_null",
+            "not_null",
+            "not_null"
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "An enrollment that leaves out status is stored as 'active'; an explicit status is kept",
+          "input": {
+            "ops": [
+              {
+                "op": "insert",
+                "table": "users",
+                "row": {
+                  "user_id": 1,
+                  "email": "mai@codedev.test",
+                  "name": "Mai"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "courses",
+                "row": {
+                  "course_id": 10,
+                  "title": "SQL Basics",
+                  "level": "beginner"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "courses",
+                "row": {
+                  "course_id": 20,
+                  "title": "Docker Basics",
+                  "level": "beginner"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "enrollments",
+                "row": {
+                  "user_id": 1,
+                  "course_id": 10,
+                  "enrolled_at": "2026-09-01 10:00:00"
+                }
+              },
+              {
+                "op": "select",
+                "table": "enrollments",
+                "columns": [
+                  "status"
+                ],
+                "where": {
+                  "user_id": 1,
+                  "course_id": 10
+                }
+              },
+              {
+                "op": "insert",
+                "table": "enrollments",
+                "row": {
+                  "user_id": 1,
+                  "course_id": 10,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "completed"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "enrollments",
+                "row": {
+                  "user_id": 1,
+                  "course_id": 20,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "completed"
+                }
+              },
+              {
+                "op": "select",
+                "table": "enrollments",
+                "columns": [
+                  "status"
+                ],
+                "where": {
+                  "user_id": 1,
+                  "course_id": 20
+                }
+              }
+            ]
+          },
+          "expected": [
+            "ok",
+            "ok",
+            "ok",
+            "ok",
+            [
+              [
+                "active"
+              ]
+            ],
+            "unique",
+            "ok",
+            [
+              [
+                "completed"
+              ]
+            ]
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Deleting a course with enrollments is refused; deleting a user removes theirs",
+          "input": {
+            "ops": [
+              {
+                "op": "insert",
+                "table": "users",
+                "row": {
+                  "user_id": 1,
+                  "email": "mai@codedev.test",
+                  "name": "Mai"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "users",
+                "row": {
+                  "user_id": 2,
+                  "email": "linh@codedev.test",
+                  "name": "Linh"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "courses",
+                "row": {
+                  "course_id": 10,
+                  "title": "SQL Basics",
+                  "level": "beginner"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "courses",
+                "row": {
+                  "course_id": 20,
+                  "title": "Docker Basics",
+                  "level": "beginner"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "courses",
+                "row": {
+                  "course_id": 30,
+                  "title": "Git Basics",
+                  "level": "beginner"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "enrollments",
+                "row": {
+                  "user_id": 1,
+                  "course_id": 10,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                }
+              },
+              {
+                "op": "insert",
+                "table": "enrollments",
+                "row": {
+                  "user_id": 2,
+                  "course_id": 20,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                }
+              },
+              {
+                "op": "delete",
+                "table": "courses",
+                "where": {
+                  "course_id": 10
+                }
+              },
+              {
+                "op": "delete",
+                "table": "courses",
+                "where": {
+                  "course_id": 30
+                }
+              },
+              {
+                "op": "delete",
+                "table": "users",
+                "where": {
+                  "user_id": 1
+                }
+              },
+              {
+                "op": "delete",
+                "table": "courses",
+                "where": {
+                  "course_id": 10
+                }
+              },
+              {
+                "op": "insert",
+                "table": "enrollments",
+                "row": {
+                  "user_id": 1,
+                  "course_id": 20,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                }
+              },
+              {
+                "op": "delete",
+                "table": "courses",
+                "where": {
+                  "course_id": 20
+                }
+              }
+            ]
+          },
+          "expected": [
+            "ok",
+            "ok",
+            "ok",
+            "ok",
+            "ok",
+            "ok",
+            "ok",
+            "foreign_key",
+            "ok",
+            "ok",
+            "ok",
+            "foreign_key",
+            "foreign_key"
+          ],
+          "hidden": false,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,776 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sdm_211",
+      "name": "crud-safety-quiz",
+      "type": "quiz",
+      "title": "Which rows does this statement really touch?",
+      "description": "Two pieces of evidence from the CodeDev admin tool: a search query built by string concatenation, and a learner count after the team switched from hard delete to soft delete. Decide whether each statement is true or false.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The old admin tool searched learners by email like this (Python, sqlite3):\n\nemail = form[\"email\"]\nsql = \"SELECT user_id, email, name FROM users WHERE email = '\" + email + \"'\"\nrows = db.execute(sql).fetchall()\n\nSomeone types this into the search box:\n\nx' OR '1'='1\n\nStatement: \"The query returns every row of users, because the input closes the string literal and adds a condition that is true for every row.\"",
+          "explanation": "True. After concatenation the database receives WHERE email = 'x' OR '1'='1'. The first quote of the input ends the literal, and '1'='1' is true for every row, so the OR makes the whole condition true. The database cannot tell which part of the text was meant as data. With a bound parameter - WHERE email = :email and {\"email\": email} - the value travels separately from the SQL text and is compared as one plain string, so the same input matches no row. A common misconception is that escaping quotes by hand, or \"only staff use this form\", is enough; parameters are the fix, and they also cover every input you did not think of.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The team switched cancellation from a hard delete to a soft delete. Before:\n\nDELETE FROM enrollments WHERE user_id = :user_id AND course_id = :course_id;\n\nAfter:\n\nUPDATE enrollments SET status = 'cancelled'\nWHERE user_id = :user_id AND course_id = :course_id AND status = 'active';\n\nThe course page was not changed. It still counts learners with:\n\nSELECT COUNT(*) FROM enrollments WHERE course_id = :course_id;\n\nStatement: \"After the switch, this query still returns the number of learners currently enrolled in the course.\"",
+          "explanation": "False. With the hard delete, a cancelled enrollment disappeared, so COUNT(*) only saw current learners. With the soft delete the row stays in the table with status 'cancelled', and this query counts it. Every read that means \"current\" must now add AND status <> 'cancelled' (or read from a view that does). That is the price of soft delete: the history is kept, but each query has to remember to hide it. Verify by running the count before and after cancelling one test enrollment: it should go down by one.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_sdm_212",
+      "name": "crud-basic-queries",
+      "type": "mini_coding",
+      "title": "Basic queries: list, enroll and cancel safely",
+      "description": "The support team's admin tool cancelled all four courses of learner 1042 when support asked to cancel one. Write the three queries the tool now uses, with named parameters only. The runner at the bottom of the file builds the database from the test, runs Q1, then Q2, then Q3 with the test's parameters, and prints a JSON object.\n\n- Q1 \"My courses\" (:user_id): one row per course the learner is enrolled in, except cancelled enrollments: [course_id, title, status], ordered by title, then course_id.\n- Q2 (:user_id, :course_id, :enrolled_at): insert one enrollment with status 'active'.\n- Q3 (:user_id, :course_id): set status to 'cancelled' on that one enrollment, and only if it is still 'active' (a completed course stays completed).\n\nOutput: {\"my_courses\": Q1 rows (before Q2 and Q3), \"enrollments\": every enrollment after Q2 and Q3 as [user_id, course_id, enrolled_at, status] ordered by user_id, course_id, \"cancelled_rows\": number of rows Q3 changed}. enrollments has PRIMARY KEY (user_id, course_id); foreign keys are enforced.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "enrollment_queries.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "Support asked to cancel one course of one learner. Which columns identify exactly one enrollment, and does the WHERE of Q3 name all of them? What should happen to an enrollment that is already completed?",
+        "Read the CREATE TABLE enrollments at the bottom of the file: its primary key tells you what one row is. In Q1, check what the WHERE must keep out (rows of other learners, and which status?) and what ORDER BY needs when two courses have the same title. For Q2, name the columns you insert into.",
+        "A similar set of queries on lesson_progress (PRIMARY KEY (user_id, lesson_id)): list one learner's finished lessons with SELECT l.lesson_id, l.title FROM lesson_progress lp JOIN lessons l ON l.lesson_id = lp.lesson_id WHERE lp.user_id = :user_id AND lp.completed_at IS NOT NULL ORDER BY l.title, l.lesson_id; reset one lesson with UPDATE lesson_progress SET completed_at = NULL WHERE user_id = :user_id AND lesson_id = :lesson_id AND completed_at IS NOT NULL. Every column of the key is in the WHERE, plus the state the row must be in."
+      ],
+      "tests": [
+        {
+          "name": "The incident: cancel learner 1042's SQL course, the other three courses stay active",
+          "input": {
+            "tables": {
+              "users": [
+                {
+                  "user_id": 1042,
+                  "email": "mai1042@example.com",
+                  "name": "Mai Nguyen"
+                },
+                {
+                  "user_id": 2001,
+                  "email": "tom2001@example.com",
+                  "name": "Tom Becker"
+                }
+              ],
+              "courses": [
+                {
+                  "course_id": 3,
+                  "title": "Web Application Fundamentals",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 7,
+                  "title": "SQL & Data Modeling",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 12,
+                  "title": "Docker Basics",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 15,
+                  "title": "Git for Teams",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 21,
+                  "title": "Python Basics",
+                  "level": "beginner"
+                }
+              ],
+              "enrollments": [
+                {
+                  "user_id": 1042,
+                  "course_id": 3,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                },
+                {
+                  "user_id": 1042,
+                  "course_id": 7,
+                  "enrolled_at": "2026-09-03 18:20:00",
+                  "status": "active"
+                },
+                {
+                  "user_id": 1042,
+                  "course_id": 12,
+                  "enrolled_at": "2026-08-15 07:45:00",
+                  "status": "completed"
+                },
+                {
+                  "user_id": 1042,
+                  "course_id": 15,
+                  "enrolled_at": "2026-10-02 21:10:00",
+                  "status": "active"
+                },
+                {
+                  "user_id": 2001,
+                  "course_id": 7,
+                  "enrolled_at": "2026-10-05 12:00:00",
+                  "status": "active"
+                }
+              ]
+            },
+            "q1": {
+              "user_id": 1042
+            },
+            "q2": {
+              "user_id": 1042,
+              "course_id": 21,
+              "enrolled_at": "2026-10-20 08:30:00"
+            },
+            "q3": {
+              "user_id": 1042,
+              "course_id": 7
+            }
+          },
+          "hidden": false,
+          "score": 5,
+          "expected": {
+            "my_courses": [
+              [
+                12,
+                "Docker Basics",
+                "completed"
+              ],
+              [
+                15,
+                "Git for Teams",
+                "active"
+              ],
+              [
+                7,
+                "SQL & Data Modeling",
+                "active"
+              ],
+              [
+                3,
+                "Web Application Fundamentals",
+                "active"
+              ]
+            ],
+            "enrollments": [
+              [
+                1042,
+                3,
+                "2026-09-01 10:00:00",
+                "active"
+              ],
+              [
+                1042,
+                7,
+                "2026-09-03 18:20:00",
+                "cancelled"
+              ],
+              [
+                1042,
+                12,
+                "2026-08-15 07:45:00",
+                "completed"
+              ],
+              [
+                1042,
+                15,
+                "2026-10-02 21:10:00",
+                "active"
+              ],
+              [
+                1042,
+                21,
+                "2026-10-20 08:30:00",
+                "active"
+              ],
+              [
+                2001,
+                7,
+                "2026-10-05 12:00:00",
+                "active"
+              ]
+            ],
+            "cancelled_rows": 1
+          }
+        },
+        {
+          "name": "A new learner has no courses yet, enrolls, then cancels that one enrollment",
+          "input": {
+            "tables": {
+              "users": [
+                {
+                  "user_id": 1042,
+                  "email": "mai1042@example.com",
+                  "name": "Mai Nguyen"
+                },
+                {
+                  "user_id": 3001,
+                  "email": "ana3001@example.com",
+                  "name": "Ana Lopez"
+                }
+              ],
+              "courses": [
+                {
+                  "course_id": 3,
+                  "title": "Web Application Fundamentals",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 7,
+                  "title": "SQL & Data Modeling",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 12,
+                  "title": "Docker Basics",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 15,
+                  "title": "Git for Teams",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 21,
+                  "title": "Python Basics",
+                  "level": "beginner"
+                }
+              ],
+              "enrollments": [
+                {
+                  "user_id": 1042,
+                  "course_id": 7,
+                  "enrolled_at": "2026-09-03 18:20:00",
+                  "status": "active"
+                }
+              ]
+            },
+            "q1": {
+              "user_id": 3001
+            },
+            "q2": {
+              "user_id": 3001,
+              "course_id": 7,
+              "enrolled_at": "2026-10-21 09:00:00"
+            },
+            "q3": {
+              "user_id": 3001,
+              "course_id": 7
+            }
+          },
+          "hidden": false,
+          "score": 5,
+          "expected": {
+            "my_courses": [],
+            "enrollments": [
+              [
+                1042,
+                7,
+                "2026-09-03 18:20:00",
+                "active"
+              ],
+              [
+                3001,
+                7,
+                "2026-10-21 09:00:00",
+                "cancelled"
+              ]
+            ],
+            "cancelled_rows": 1
+          }
+        },
+        {
+          "name": "A cancelled enrollment is not listed in My courses; a completed one is",
+          "input": {
+            "tables": {
+              "users": [
+                {
+                  "user_id": 5,
+                  "email": "kim5@example.com",
+                  "name": "Kim Park"
+                },
+                {
+                  "user_id": 6,
+                  "email": "raj6@example.com",
+                  "name": "Raj Patel"
+                }
+              ],
+              "courses": [
+                {
+                  "course_id": 3,
+                  "title": "Web Application Fundamentals",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 7,
+                  "title": "SQL & Data Modeling",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 12,
+                  "title": "Docker Basics",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 15,
+                  "title": "Git for Teams",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 21,
+                  "title": "Python Basics",
+                  "level": "beginner"
+                }
+              ],
+              "enrollments": [
+                {
+                  "user_id": 5,
+                  "course_id": 3,
+                  "enrolled_at": "2026-07-01 08:00:00",
+                  "status": "cancelled"
+                },
+                {
+                  "user_id": 5,
+                  "course_id": 7,
+                  "enrolled_at": "2026-07-02 08:00:00",
+                  "status": "active"
+                },
+                {
+                  "user_id": 5,
+                  "course_id": 12,
+                  "enrolled_at": "2026-06-10 08:00:00",
+                  "status": "completed"
+                },
+                {
+                  "user_id": 6,
+                  "course_id": 3,
+                  "enrolled_at": "2026-07-03 08:00:00",
+                  "status": "active"
+                }
+              ]
+            },
+            "q1": {
+              "user_id": 5
+            },
+            "q2": {
+              "user_id": 6,
+              "course_id": 21,
+              "enrolled_at": "2026-10-22 14:00:00"
+            },
+            "q3": {
+              "user_id": 5,
+              "course_id": 7
+            }
+          },
+          "hidden": true,
+          "score": 5,
+          "expected": {
+            "my_courses": [
+              [
+                12,
+                "Docker Basics",
+                "completed"
+              ],
+              [
+                7,
+                "SQL & Data Modeling",
+                "active"
+              ]
+            ],
+            "enrollments": [
+              [
+                5,
+                3,
+                "2026-07-01 08:00:00",
+                "cancelled"
+              ],
+              [
+                5,
+                7,
+                "2026-07-02 08:00:00",
+                "cancelled"
+              ],
+              [
+                5,
+                12,
+                "2026-06-10 08:00:00",
+                "completed"
+              ],
+              [
+                6,
+                3,
+                "2026-07-03 08:00:00",
+                "active"
+              ],
+              [
+                6,
+                21,
+                "2026-10-22 14:00:00",
+                "active"
+              ]
+            ],
+            "cancelled_rows": 1
+          }
+        },
+        {
+          "name": "A completed enrollment is not cancelled (0 rows); a learner with only cancelled rows lists none",
+          "input": {
+            "tables": {
+              "users": [
+                {
+                  "user_id": 5,
+                  "email": "kim5@example.com",
+                  "name": "Kim Park"
+                },
+                {
+                  "user_id": 6,
+                  "email": "raj6@example.com",
+                  "name": "Raj Patel"
+                }
+              ],
+              "courses": [
+                {
+                  "course_id": 3,
+                  "title": "Web Application Fundamentals",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 7,
+                  "title": "SQL & Data Modeling",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 12,
+                  "title": "Docker Basics",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 15,
+                  "title": "Git for Teams",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 21,
+                  "title": "Python Basics",
+                  "level": "beginner"
+                }
+              ],
+              "enrollments": [
+                {
+                  "user_id": 5,
+                  "course_id": 12,
+                  "enrolled_at": "2026-06-10 08:00:00",
+                  "status": "completed"
+                },
+                {
+                  "user_id": 5,
+                  "course_id": 15,
+                  "enrolled_at": "2026-06-11 08:00:00",
+                  "status": "active"
+                },
+                {
+                  "user_id": 6,
+                  "course_id": 3,
+                  "enrolled_at": "2026-07-03 08:00:00",
+                  "status": "cancelled"
+                }
+              ]
+            },
+            "q1": {
+              "user_id": 6
+            },
+            "q2": {
+              "user_id": 6,
+              "course_id": 7,
+              "enrolled_at": "2026-10-22 15:00:00"
+            },
+            "q3": {
+              "user_id": 5,
+              "course_id": 12
+            }
+          },
+          "hidden": true,
+          "score": 5,
+          "expected": {
+            "my_courses": [],
+            "enrollments": [
+              [
+                5,
+                12,
+                "2026-06-10 08:00:00",
+                "completed"
+              ],
+              [
+                5,
+                15,
+                "2026-06-11 08:00:00",
+                "active"
+              ],
+              [
+                6,
+                3,
+                "2026-07-03 08:00:00",
+                "cancelled"
+              ],
+              [
+                6,
+                7,
+                "2026-10-22 15:00:00",
+                "active"
+              ]
+            ],
+            "cancelled_rows": 0
+          }
+        },
+        {
+          "name": "Cancelling a course the learner never enrolled in changes 0 rows",
+          "input": {
+            "tables": {
+              "users": [
+                {
+                  "user_id": 8,
+                  "email": "lea8@example.com",
+                  "name": "Lea Martin"
+                }
+              ],
+              "courses": [
+                {
+                  "course_id": 3,
+                  "title": "Web Application Fundamentals",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 7,
+                  "title": "SQL & Data Modeling",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 12,
+                  "title": "Docker Basics",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 15,
+                  "title": "Git for Teams",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 21,
+                  "title": "Python Basics",
+                  "level": "beginner"
+                }
+              ],
+              "enrollments": [
+                {
+                  "user_id": 8,
+                  "course_id": 3,
+                  "enrolled_at": "2026-05-01 08:00:00",
+                  "status": "active"
+                },
+                {
+                  "user_id": 8,
+                  "course_id": 15,
+                  "enrolled_at": "2026-05-02 08:00:00",
+                  "status": "active"
+                }
+              ]
+            },
+            "q1": {
+              "user_id": 8
+            },
+            "q2": {
+              "user_id": 8,
+              "course_id": 12,
+              "enrolled_at": "2026-10-23 10:00:00"
+            },
+            "q3": {
+              "user_id": 8,
+              "course_id": 21
+            }
+          },
+          "hidden": true,
+          "score": 5,
+          "expected": {
+            "my_courses": [
+              [
+                15,
+                "Git for Teams",
+                "active"
+              ],
+              [
+                3,
+                "Web Application Fundamentals",
+                "active"
+              ]
+            ],
+            "enrollments": [
+              [
+                8,
+                3,
+                "2026-05-01 08:00:00",
+                "active"
+              ],
+              [
+                8,
+                12,
+                "2026-10-23 10:00:00",
+                "active"
+              ],
+              [
+                8,
+                15,
+                "2026-05-02 08:00:00",
+                "active"
+              ]
+            ],
+            "cancelled_rows": 0
+          }
+        },
+        {
+          "name": "Two courses with the same title are listed by course_id",
+          "input": {
+            "tables": {
+              "users": [
+                {
+                  "user_id": 9,
+                  "email": "sam9@example.com",
+                  "name": "Sam Ito"
+                }
+              ],
+              "courses": [
+                {
+                  "course_id": 2,
+                  "title": "Advanced SQL",
+                  "level": "advanced"
+                },
+                {
+                  "course_id": 4,
+                  "title": "SQL Basics",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 9,
+                  "title": "SQL Basics",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 10,
+                  "title": "Database Design",
+                  "level": "intermediate"
+                }
+              ],
+              "enrollments": [
+                {
+                  "user_id": 9,
+                  "course_id": 9,
+                  "enrolled_at": "2026-04-01 08:00:00",
+                  "status": "active"
+                },
+                {
+                  "user_id": 9,
+                  "course_id": 4,
+                  "enrolled_at": "2025-11-01 08:00:00",
+                  "status": "completed"
+                },
+                {
+                  "user_id": 9,
+                  "course_id": 2,
+                  "enrolled_at": "2026-04-02 08:00:00",
+                  "status": "active"
+                }
+              ]
+            },
+            "q1": {
+              "user_id": 9
+            },
+            "q2": {
+              "user_id": 9,
+              "course_id": 10,
+              "enrolled_at": "2026-10-24 11:00:00"
+            },
+            "q3": {
+              "user_id": 9,
+              "course_id": 9
+            }
+          },
+          "hidden": true,
+          "score": 5,
+          "expected": {
+            "my_courses": [
+              [
+                2,
+                "Advanced SQL",
+                "active"
+              ],
+              [
+                4,
+                "SQL Basics",
+                "completed"
+              ],
+              [
+                9,
+                "SQL Basics",
+                "active"
+              ]
+            ],
+            "enrollments": [
+              [
+                9,
+                2,
+                "2026-04-02 08:00:00",
+                "active"
+              ],
+              [
+                9,
+                4,
+                "2025-11-01 08:00:00",
+                "completed"
+              ],
+              [
+                9,
+                9,
+                "2026-04-01 08:00:00",
+                "cancelled"
+              ],
+              [
+                9,
+                10,
+                "2026-10-24 11:00:00",
+                "active"
+              ]
+            ],
+            "cancelled_rows": 1
+          }
+        }
+      ]
+    }
+  ]
+}

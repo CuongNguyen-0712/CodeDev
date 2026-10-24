@@ -1,0 +1,854 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sdm_221",
+      "name": "join-rows-quiz",
+      "type": "quiz",
+      "title": "Count the rows a join really returns",
+      "description": "Two joins on the CodeDev course data: one that multiplies rows and one that loses them. Decide whether each statement is true or false.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Course 1 \"SQL & Data Modeling\" has 4 enrollments (all active) and 6 lessons.\n\nSELECT COUNT(*)\nFROM courses c\nJOIN enrollments e ON e.course_id = c.course_id\nJOIN lessons l     ON l.course_id = c.course_id\nWHERE c.course_id = 1;\n\nStatement: \"The query returns 24, because each of the 4 enrollments is paired with each of the 6 lessons of the course.\"",
+          "explanation": "True. Both joins match on course_id only, and enrollments and lessons are two unrelated one-to-many children of the same course. A join returns one row for every combination of matching rows, so the 4 enrollments and the 6 lessons combine into 4 x 6 = 24 rows. Each row is now a (learner, lesson) pair, not a learner and not a lesson. This is the fan-out that inflates counts when you aggregate after such a join. Check it by running the join without COUNT and reading the rows, or by comparing with SELECT COUNT(*) FROM enrollments WHERE course_id = 1.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "courses: 1 \"SQL & Data Modeling\", 2 \"Web Application Fundamentals\", 4 \"Git for Teams\".\nenrollments: course 1 has 2 active rows, course 2 has 1 active row, course 4 has no rows yet.\n\nSELECT c.course_id, COUNT(e.user_id) AS active_learners\nFROM courses c\nLEFT JOIN enrollments e ON e.course_id = c.course_id\nWHERE e.status = 'active'\nGROUP BY c.course_id\nORDER BY c.course_id;\n\nStatement: \"Git for Teams appears with 0 active learners, because a LEFT JOIN keeps every row of courses.\"",
+          "explanation": "False. The LEFT JOIN does keep Git for Teams, with NULL in every enrollments column. But WHERE runs after the join, and for that row e.status = 'active' compares NULL with 'active', which gives NULL, not true, so the row is removed. A filter on the right table in WHERE turns a LEFT JOIN back into an inner join. Move the condition into the join - LEFT JOIN enrollments e ON e.course_id = c.course_id AND e.status = 'active' - and Git for Teams comes back as (4, 0). Verify by checking that the report has as many rows as SELECT COUNT(*) FROM courses.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_sdm_222",
+      "name": "spot-the-ai-mistake-double-counting",
+      "type": "fix_bug",
+      "title": "Spot the AI Mistake: double counting",
+      "description": "A developer asked an AI assistant to \"count learners and completed lessons per course\" for the course dashboard and shipped the query after checking one small course. Since then instructors report learner counts higher than the enrollment list (a learner who finished three lessons is counted three times), and the new course \"Docker Basics\", which has no learners yet, is missing from the dashboard.\n\nFix QUERY so that it returns one row per course, every course included: [course_id, title, learners, completed_lessons], ordered by course_id.\n- learners = number of enrollments of the course whose status is not 'cancelled'.\n- completed_lessons = number of lesson_progress rows with a non-NULL completed_at for the lessons of the course (NULL = started, not finished).\n- Both numbers are 0, never NULL, when there is nothing to count.\nThe runner loads each test's rows into SQLite (foreign keys on), runs QUERY and prints the rows as JSON.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "course_dashboard.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "Take one course with one learner who finished three lessons. How many rows does the join produce for that course before GROUP BY, and what does COUNT(e.user_id) count in those rows?",
+        "Look at each join in turn. Which ones can remove a course or a learner completely (an inner join needs a match), and which ones repeat rows (enrollments and lesson_progress are both many rows per course)? Then check where the status filter sits: in WHERE or in the join condition.",
+        "A similar report per user: count each user's enrollments and finished lessons without multiplying them. Aggregate each table on its own first - SELECT user_id, COUNT(*) AS n FROM enrollments GROUP BY user_id, and the same for finished lesson_progress rows - so each subquery has one row per user, then LEFT JOIN both subqueries to users and wrap each count in COALESCE(..., 0)."
+      ],
+      "tests": [
+        {
+          "name": "A course with one learner who finished one lesson",
+          "input": {
+            "tables": {
+              "users": [
+                {
+                  "user_id": 1,
+                  "email": "mai1@example.com",
+                  "name": "Mai Nguyen"
+                },
+                {
+                  "user_id": 2,
+                  "email": "tom2@example.com",
+                  "name": "Tom Becker"
+                },
+                {
+                  "user_id": 3,
+                  "email": "ana3@example.com",
+                  "name": "Ana Lopez"
+                },
+                {
+                  "user_id": 4,
+                  "email": "raj4@example.com",
+                  "name": "Raj Patel"
+                }
+              ],
+              "courses": [
+                {
+                  "course_id": 2,
+                  "title": "Web Application Fundamentals",
+                  "level": "beginner"
+                }
+              ],
+              "lessons": [
+                {
+                  "lesson_id": 201,
+                  "course_id": 2,
+                  "position": 1,
+                  "title": "Requests"
+                },
+                {
+                  "lesson_id": 202,
+                  "course_id": 2,
+                  "position": 2,
+                  "title": "Status codes"
+                },
+                {
+                  "lesson_id": 203,
+                  "course_id": 2,
+                  "position": 3,
+                  "title": "CORS"
+                }
+              ],
+              "enrollments": [
+                {
+                  "user_id": 1,
+                  "course_id": 2,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                }
+              ],
+              "lesson_progress": [
+                {
+                  "user_id": 1,
+                  "lesson_id": 201,
+                  "completed_at": "2026-10-01 20:00:00"
+                }
+              ]
+            }
+          },
+          "hidden": false,
+          "score": 5,
+          "expected": [
+            [
+              2,
+              "Web Application Fundamentals",
+              1,
+              1
+            ]
+          ]
+        },
+        {
+          "name": "Two courses, one learner each; a started but unfinished lesson does not count",
+          "input": {
+            "tables": {
+              "users": [
+                {
+                  "user_id": 1,
+                  "email": "mai1@example.com",
+                  "name": "Mai Nguyen"
+                },
+                {
+                  "user_id": 2,
+                  "email": "tom2@example.com",
+                  "name": "Tom Becker"
+                },
+                {
+                  "user_id": 3,
+                  "email": "ana3@example.com",
+                  "name": "Ana Lopez"
+                },
+                {
+                  "user_id": 4,
+                  "email": "raj4@example.com",
+                  "name": "Raj Patel"
+                }
+              ],
+              "courses": [
+                {
+                  "course_id": 1,
+                  "title": "SQL & Data Modeling",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 2,
+                  "title": "Web Application Fundamentals",
+                  "level": "beginner"
+                }
+              ],
+              "lessons": [
+                {
+                  "lesson_id": 101,
+                  "course_id": 1,
+                  "position": 1,
+                  "title": "Entities"
+                },
+                {
+                  "lesson_id": 102,
+                  "course_id": 1,
+                  "position": 2,
+                  "title": "Keys"
+                },
+                {
+                  "lesson_id": 103,
+                  "course_id": 1,
+                  "position": 3,
+                  "title": "Normalization"
+                },
+                {
+                  "lesson_id": 104,
+                  "course_id": 1,
+                  "position": 4,
+                  "title": "CRUD"
+                },
+                {
+                  "lesson_id": 201,
+                  "course_id": 2,
+                  "position": 1,
+                  "title": "Requests"
+                },
+                {
+                  "lesson_id": 202,
+                  "course_id": 2,
+                  "position": 2,
+                  "title": "Status codes"
+                },
+                {
+                  "lesson_id": 203,
+                  "course_id": 2,
+                  "position": 3,
+                  "title": "CORS"
+                }
+              ],
+              "enrollments": [
+                {
+                  "user_id": 1,
+                  "course_id": 1,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                },
+                {
+                  "user_id": 2,
+                  "course_id": 2,
+                  "enrolled_at": "2026-09-02 10:00:00",
+                  "status": "active"
+                }
+              ],
+              "lesson_progress": [
+                {
+                  "user_id": 1,
+                  "lesson_id": 101,
+                  "completed_at": "2026-10-01 20:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 102,
+                  "completed_at": null
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 201,
+                  "completed_at": "2026-10-01 20:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 202,
+                  "completed_at": null
+                }
+              ]
+            }
+          },
+          "hidden": false,
+          "score": 5,
+          "expected": [
+            [
+              1,
+              "SQL & Data Modeling",
+              1,
+              1
+            ],
+            [
+              2,
+              "Web Application Fundamentals",
+              1,
+              1
+            ]
+          ]
+        },
+        {
+          "name": "The incident: one learner who finished three lessons is still one learner",
+          "input": {
+            "tables": {
+              "users": [
+                {
+                  "user_id": 1,
+                  "email": "mai1@example.com",
+                  "name": "Mai Nguyen"
+                },
+                {
+                  "user_id": 2,
+                  "email": "tom2@example.com",
+                  "name": "Tom Becker"
+                },
+                {
+                  "user_id": 3,
+                  "email": "ana3@example.com",
+                  "name": "Ana Lopez"
+                },
+                {
+                  "user_id": 4,
+                  "email": "raj4@example.com",
+                  "name": "Raj Patel"
+                }
+              ],
+              "courses": [
+                {
+                  "course_id": 1,
+                  "title": "SQL & Data Modeling",
+                  "level": "beginner"
+                }
+              ],
+              "lessons": [
+                {
+                  "lesson_id": 101,
+                  "course_id": 1,
+                  "position": 1,
+                  "title": "Entities"
+                },
+                {
+                  "lesson_id": 102,
+                  "course_id": 1,
+                  "position": 2,
+                  "title": "Keys"
+                },
+                {
+                  "lesson_id": 103,
+                  "course_id": 1,
+                  "position": 3,
+                  "title": "Normalization"
+                },
+                {
+                  "lesson_id": 104,
+                  "course_id": 1,
+                  "position": 4,
+                  "title": "CRUD"
+                }
+              ],
+              "enrollments": [
+                {
+                  "user_id": 1,
+                  "course_id": 1,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                }
+              ],
+              "lesson_progress": [
+                {
+                  "user_id": 1,
+                  "lesson_id": 101,
+                  "completed_at": "2026-10-01 20:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 102,
+                  "completed_at": "2026-10-02 20:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 103,
+                  "completed_at": "2026-10-03 20:00:00"
+                }
+              ]
+            }
+          },
+          "hidden": true,
+          "score": 5,
+          "expected": [
+            [
+              1,
+              "SQL & Data Modeling",
+              1,
+              3
+            ]
+          ]
+        },
+        {
+          "name": "A learner who has not finished any lesson yet still counts as a learner",
+          "input": {
+            "tables": {
+              "users": [
+                {
+                  "user_id": 1,
+                  "email": "mai1@example.com",
+                  "name": "Mai Nguyen"
+                },
+                {
+                  "user_id": 2,
+                  "email": "tom2@example.com",
+                  "name": "Tom Becker"
+                },
+                {
+                  "user_id": 3,
+                  "email": "ana3@example.com",
+                  "name": "Ana Lopez"
+                },
+                {
+                  "user_id": 4,
+                  "email": "raj4@example.com",
+                  "name": "Raj Patel"
+                }
+              ],
+              "courses": [
+                {
+                  "course_id": 1,
+                  "title": "SQL & Data Modeling",
+                  "level": "beginner"
+                }
+              ],
+              "lessons": [
+                {
+                  "lesson_id": 101,
+                  "course_id": 1,
+                  "position": 1,
+                  "title": "Entities"
+                },
+                {
+                  "lesson_id": 102,
+                  "course_id": 1,
+                  "position": 2,
+                  "title": "Keys"
+                },
+                {
+                  "lesson_id": 103,
+                  "course_id": 1,
+                  "position": 3,
+                  "title": "Normalization"
+                },
+                {
+                  "lesson_id": 104,
+                  "course_id": 1,
+                  "position": 4,
+                  "title": "CRUD"
+                }
+              ],
+              "enrollments": [
+                {
+                  "user_id": 1,
+                  "course_id": 1,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                },
+                {
+                  "user_id": 2,
+                  "course_id": 1,
+                  "enrolled_at": "2026-09-02 10:00:00",
+                  "status": "completed"
+                },
+                {
+                  "user_id": 3,
+                  "course_id": 1,
+                  "enrolled_at": "2026-09-03 10:00:00",
+                  "status": "active"
+                }
+              ],
+              "lesson_progress": [
+                {
+                  "user_id": 1,
+                  "lesson_id": 101,
+                  "completed_at": "2026-10-01 20:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 102,
+                  "completed_at": "2026-10-02 20:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 103,
+                  "completed_at": "2026-10-03 20:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 101,
+                  "completed_at": "2026-10-01 20:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 102,
+                  "completed_at": "2026-10-02 20:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 103,
+                  "completed_at": "2026-10-03 20:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 104,
+                  "completed_at": "2026-10-04 20:00:00"
+                },
+                {
+                  "user_id": 3,
+                  "lesson_id": 101,
+                  "completed_at": null
+                }
+              ]
+            }
+          },
+          "hidden": true,
+          "score": 5,
+          "expected": [
+            [
+              1,
+              "SQL & Data Modeling",
+              3,
+              7
+            ]
+          ]
+        },
+        {
+          "name": "A new course with no enrollments and no progress is listed with 0 and 0",
+          "input": {
+            "tables": {
+              "users": [
+                {
+                  "user_id": 1,
+                  "email": "mai1@example.com",
+                  "name": "Mai Nguyen"
+                },
+                {
+                  "user_id": 2,
+                  "email": "tom2@example.com",
+                  "name": "Tom Becker"
+                },
+                {
+                  "user_id": 3,
+                  "email": "ana3@example.com",
+                  "name": "Ana Lopez"
+                },
+                {
+                  "user_id": 4,
+                  "email": "raj4@example.com",
+                  "name": "Raj Patel"
+                }
+              ],
+              "courses": [
+                {
+                  "course_id": 1,
+                  "title": "SQL & Data Modeling",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 2,
+                  "title": "Web Application Fundamentals",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 3,
+                  "title": "Docker Basics",
+                  "level": "beginner"
+                }
+              ],
+              "lessons": [
+                {
+                  "lesson_id": 101,
+                  "course_id": 1,
+                  "position": 1,
+                  "title": "Entities"
+                },
+                {
+                  "lesson_id": 102,
+                  "course_id": 1,
+                  "position": 2,
+                  "title": "Keys"
+                },
+                {
+                  "lesson_id": 103,
+                  "course_id": 1,
+                  "position": 3,
+                  "title": "Normalization"
+                },
+                {
+                  "lesson_id": 104,
+                  "course_id": 1,
+                  "position": 4,
+                  "title": "CRUD"
+                },
+                {
+                  "lesson_id": 201,
+                  "course_id": 2,
+                  "position": 1,
+                  "title": "Requests"
+                },
+                {
+                  "lesson_id": 202,
+                  "course_id": 2,
+                  "position": 2,
+                  "title": "Status codes"
+                },
+                {
+                  "lesson_id": 203,
+                  "course_id": 2,
+                  "position": 3,
+                  "title": "CORS"
+                },
+                {
+                  "lesson_id": 301,
+                  "course_id": 3,
+                  "position": 1,
+                  "title": "Images"
+                },
+                {
+                  "lesson_id": 302,
+                  "course_id": 3,
+                  "position": 2,
+                  "title": "Containers"
+                }
+              ],
+              "enrollments": [
+                {
+                  "user_id": 1,
+                  "course_id": 1,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                },
+                {
+                  "user_id": 2,
+                  "course_id": 1,
+                  "enrolled_at": "2026-09-02 10:00:00",
+                  "status": "active"
+                },
+                {
+                  "user_id": 1,
+                  "course_id": 2,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                }
+              ],
+              "lesson_progress": [
+                {
+                  "user_id": 1,
+                  "lesson_id": 101,
+                  "completed_at": "2026-10-01 20:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 101,
+                  "completed_at": "2026-10-01 20:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 102,
+                  "completed_at": "2026-10-02 20:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 201,
+                  "completed_at": "2026-10-01 20:00:00"
+                }
+              ]
+            }
+          },
+          "hidden": true,
+          "score": 5,
+          "expected": [
+            [
+              1,
+              "SQL & Data Modeling",
+              2,
+              3
+            ],
+            [
+              2,
+              "Web Application Fundamentals",
+              1,
+              1
+            ],
+            [
+              3,
+              "Docker Basics",
+              0,
+              0
+            ]
+          ]
+        },
+        {
+          "name": "Cancelled enrollments do not count, and a course with only cancelled ones is still listed",
+          "input": {
+            "tables": {
+              "users": [
+                {
+                  "user_id": 1,
+                  "email": "mai1@example.com",
+                  "name": "Mai Nguyen"
+                },
+                {
+                  "user_id": 2,
+                  "email": "tom2@example.com",
+                  "name": "Tom Becker"
+                },
+                {
+                  "user_id": 3,
+                  "email": "ana3@example.com",
+                  "name": "Ana Lopez"
+                },
+                {
+                  "user_id": 4,
+                  "email": "raj4@example.com",
+                  "name": "Raj Patel"
+                }
+              ],
+              "courses": [
+                {
+                  "course_id": 1,
+                  "title": "SQL & Data Modeling",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 2,
+                  "title": "Web Application Fundamentals",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 3,
+                  "title": "Docker Basics",
+                  "level": "beginner"
+                }
+              ],
+              "lessons": [
+                {
+                  "lesson_id": 101,
+                  "course_id": 1,
+                  "position": 1,
+                  "title": "Entities"
+                },
+                {
+                  "lesson_id": 102,
+                  "course_id": 1,
+                  "position": 2,
+                  "title": "Keys"
+                },
+                {
+                  "lesson_id": 103,
+                  "course_id": 1,
+                  "position": 3,
+                  "title": "Normalization"
+                },
+                {
+                  "lesson_id": 104,
+                  "course_id": 1,
+                  "position": 4,
+                  "title": "CRUD"
+                },
+                {
+                  "lesson_id": 201,
+                  "course_id": 2,
+                  "position": 1,
+                  "title": "Requests"
+                },
+                {
+                  "lesson_id": 202,
+                  "course_id": 2,
+                  "position": 2,
+                  "title": "Status codes"
+                },
+                {
+                  "lesson_id": 203,
+                  "course_id": 2,
+                  "position": 3,
+                  "title": "CORS"
+                },
+                {
+                  "lesson_id": 301,
+                  "course_id": 3,
+                  "position": 1,
+                  "title": "Images"
+                },
+                {
+                  "lesson_id": 302,
+                  "course_id": 3,
+                  "position": 2,
+                  "title": "Containers"
+                }
+              ],
+              "enrollments": [
+                {
+                  "user_id": 1,
+                  "course_id": 1,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                },
+                {
+                  "user_id": 4,
+                  "course_id": 1,
+                  "enrolled_at": "2026-09-04 10:00:00",
+                  "status": "cancelled"
+                },
+                {
+                  "user_id": 2,
+                  "course_id": 2,
+                  "enrolled_at": "2026-09-02 10:00:00",
+                  "status": "cancelled"
+                },
+                {
+                  "user_id": 3,
+                  "course_id": 3,
+                  "enrolled_at": "2026-09-03 10:00:00",
+                  "status": "active"
+                }
+              ],
+              "lesson_progress": [
+                {
+                  "user_id": 1,
+                  "lesson_id": 101,
+                  "completed_at": "2026-10-01 20:00:00"
+                },
+                {
+                  "user_id": 3,
+                  "lesson_id": 301,
+                  "completed_at": "2026-10-01 20:00:00"
+                },
+                {
+                  "user_id": 3,
+                  "lesson_id": 302,
+                  "completed_at": "2026-10-02 20:00:00"
+                }
+              ]
+            }
+          },
+          "hidden": true,
+          "score": 5,
+          "expected": [
+            [
+              1,
+              "SQL & Data Modeling",
+              1,
+              1
+            ],
+            [
+              2,
+              "Web Application Fundamentals",
+              0,
+              0
+            ],
+            [
+              3,
+              "Docker Basics",
+              1,
+              2
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

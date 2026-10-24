@@ -1,0 +1,577 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sdm_331",
+      "name": "duplicate-enrollment-evidence-quiz",
+      "type": "quiz",
+      "title": "Read the evidence pack: one learner, two enrollments",
+      "description": "Six statements about one incident on the CodeDev platform: two POST /enrollments requests for the same learner and course arrive 12 ms apart, both pass the application's check and both insert. One step of the method per statement: read the evidence, pick the hypothesis, rule out two wrong fixes, choose the fix and choose how to verify it.",
+      "difficulty": "easy",
+      "points": 10,
+      "hints": [
+        "Line up the log by time, not by request: what had happened in the database when each check ran?",
+        "Compare the time of the second check with the time of the first insert, then ask which proposed change makes checking and writing one step inside the database.",
+        "A similar case on other tables: two workers both run SELECT count(*) FROM users WHERE email = 'an@example.com', both get 0, and both insert the same email. The fix there is UNIQUE on users.email, and the test that proves it runs both checks before both inserts."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence pack, step 1 (read the evidence). API log (two workers, each with its own database connection):\n08:15:03.412 req=a71f POST /enrollments user_id=1042 course_id=7 client=android/3.4.0\n08:15:03.424 req=b902 POST /enrollments user_id=1042 course_id=7 client=android/3.4.0\n08:15:03.431 req=a71f check existing=0\n08:15:03.433 req=b902 check existing=0\n08:15:03.436 req=a71f insert enrollment_id=5531\n08:15:03.438 req=b902 insert enrollment_id=5532\n08:15:03.440 req=a71f 201 Created\n08:15:03.441 req=b902 201 Created\n\nStatement: \"Both requests ran their check before either request inserted, so each check correctly found no enrollment for user 1042 in course 7 at the moment it ran.\"",
+          "explanation": "True. The checks ran at .431 and .433, the first insert at .436. At the moment each SELECT ran, no row for (1042, 7) existed, so existing=0 was the right answer both times. Nothing is wrong with either query on its own: the problem is the gap between reading and writing, which another request can fall into. Reading the timestamps in order, across both request ids, is what shows the interleaving.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence pack, step 2 (pick the hypothesis). API log (two workers, each with its own database connection):\n08:15:03.412 req=a71f POST /enrollments user_id=1042 course_id=7 client=android/3.4.0\n08:15:03.424 req=b902 POST /enrollments user_id=1042 course_id=7 client=android/3.4.0\n08:15:03.431 req=a71f check existing=0\n08:15:03.433 req=b902 check existing=0\n08:15:03.436 req=a71f insert enrollment_id=5531\n08:15:03.438 req=b902 insert enrollment_id=5532\n08:15:03.440 req=a71f 201 Created\n08:15:03.441 req=b902 201 Created\n\nHandler (the check logs \"check existing=n\", the insert logs \"insert enrollment_id=...\"):\nexisting = db.execute(\"SELECT count(*) FROM enrollments WHERE user_id = ? AND course_id = ? AND status <> 'cancelled'\", (user_id, course_id)).fetchone()[0]\nif existing > 0:\n    return 200, {\"status\": \"already_enrolled\"}\ndb.execute(\"INSERT INTO enrollments (user_id, course_id, enrolled_at, status) VALUES (?, ?, ?, 'active')\", (user_id, course_id, now))\nreturn 201, {\"status\": \"enrolled\"}\n\nStatement: \"The root cause is a wrong WHERE clause in the check query: with a correct condition, request b902 would have found the enrollment created by request a71f.\"",
+          "explanation": "False. When b902 checked (.433), a71f had not inserted yet (.436), so no WHERE clause could have found that row. The check is correct; the design is not. Check-then-insert is two separate steps, and with two workers the steps of two requests interleave: both read 0, then both write. This is a race condition, and the table has no rule that would reject the second row. The common mistake is to keep editing the check, which can only see rows that already exist.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence pack, step 3 (rule out a fix). The learner double-tapped Enroll; Android app 3.4.0 does not disable the button while the request is in flight. The same API also serves the web app, the iOS app and the admin import script.\n\nAPI log (two workers, each with its own database connection):\n08:15:03.412 req=a71f POST /enrollments user_id=1042 course_id=7 client=android/3.4.0\n08:15:03.424 req=b902 POST /enrollments user_id=1042 course_id=7 client=android/3.4.0\n08:15:03.431 req=a71f check existing=0\n08:15:03.433 req=b902 check existing=0\n08:15:03.436 req=a71f insert enrollment_id=5531\n08:15:03.438 req=b902 insert enrollment_id=5532\n08:15:03.440 req=a71f 201 Created\n08:15:03.441 req=b902 201 Created\n\nStatement: \"Disabling the Enroll button while a request is in flight is enough to fix the incident; the database schema needs no change.\"",
+          "explanation": "False. Disabling the button is a good UX fix for this one client, but it does not protect the data. Two browser tabs, a retry by the HTTP client after a timeout, the iOS app or the admin import can still send two requests for the same pair close together, and two server workers do not see each other's checks. Only a rule enforced where the rows are written, a unique constraint on (user_id, course_id), holds for every client and every code path.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence pack, step 4 (rule out a fix). A teammate proposes this change to the handler:\n\nexisting = check(user_id, course_id)\nif existing == 0:\n    time.sleep(0.1)\n    existing = check(user_id, course_id)   # check again, just before inserting\nif existing > 0:\n    return 200, {\"status\": \"already_enrolled\"}\ninsert(user_id, course_id)\n\nStatement: \"Running the check a second time after a short sleep, right before the INSERT, closes the race: two requests can no longer both pass the check.\"",
+          "explanation": "False. The sleep changes the timing, not the design. There is still a gap between the second check and the INSERT, and two requests that arrive at the same moment both pass both checks and both insert. It also makes every enrollment 100 ms slower. A race is closed only when checking and writing become one atomic step, which is what a unique constraint gives you: the database looks for the duplicate while it inserts the row.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence pack, step 5 (choose the fix). Proposed fix, after removing the existing duplicates:\n\nCREATE UNIQUE INDEX enrollments_user_course ON enrollments (user_id, course_id);\n\nINSERT INTO enrollments (user_id, course_id, enrolled_at, status)\nVALUES (?, ?, ?, 'active')\nON CONFLICT (user_id, course_id) DO NOTHING;\n\nThe handler keeps its check and answers 201 enrolled when the INSERT changed 1 row, 200 already_enrolled when it changed 0 rows.\n\nStatement: \"With this fix, if both requests from the log pass the check again, the second INSERT inserts nothing and the second request answers already_enrolled instead of creating a duplicate.\"",
+          "explanation": "True. The unique index is checked by the database at the moment each row is inserted, so the second INSERT hits the conflict whatever the timing. ON CONFLICT DO NOTHING turns that conflict into a no-op instead of an error, and the changed-row count (cursor.rowcount in Python) tells the handler which case it was. The same statement works in PostgreSQL. Two details: CREATE UNIQUE INDEX fails while duplicates exist, so clean them up first; and if a cancelled enrollment should be reactivated, use ON CONFLICT ... DO UPDATE ... WHERE status = 'cancelled' instead of DO NOTHING.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence pack, step 6 (verify). Two proposed tests for the fix:\n\nTest A: call enroll(1042, 7) twice, one call after the other, and assert there is one row.\nTest B: run the check for both requests first, then run both inserts (the order from the log), and assert one row for (1042, 7), the responses enrolled and already_enrolled, and no error.\n\nStatement: \"Test B reproduces the incident and fails on the old code, while Test A would pass on the old code too, so Test B is the one that proves the fix.\"",
+          "explanation": "True. With one call after the other, the old check sees the first row and refuses the second request, so Test A passes before and after the fix and proves nothing about the race. Test B forces the interleaving from the log: both checks before both inserts. On the old code it creates two rows; with the unique constraint and ON CONFLICT it creates one. A good verification fails on the bug and passes on the fix. In production, also run SELECT user_id, course_id, COUNT(*) FROM enrollments GROUP BY user_id, course_id HAVING COUNT(*) > 1 and expect no rows.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_sdm_332",
+      "name": "stop-duplicate-enrollment",
+      "type": "fix_bug",
+      "title": "Stop Duplicate Enrollment",
+      "description": "Symptom: learner 1042 double-tapped Enroll and now has two active enrollments in course 7; the progress report counts them twice. Both requests ran the application's check (SELECT count(*) of active or completed enrollments for the pair) before either inserted, and ENROLL inserts blindly. Fix SCHEMA and ENROLL (one statement, named parameters :user_id, :course_id, :at) so the database itself guarantees one enrollment per (user_id, course_id): a duplicate request never fails and never adds a row; an existing 'cancelled' enrollment is reactivated (status 'active', enrolled_at = :at); an 'active' or 'completed' one is left unchanged. A user can still enroll in other courses and a course still takes other users. The runner (do not change it) creates users, courses and existing enrollments, then replays bursts of requests: for every request of a burst it runs the application's check first, then ENROLL for each request whose check found nothing. Responses: \"enrolled\" (a row was inserted), \"reactivated\" (a cancelled row was changed), \"already_enrolled\" (the check found a row, or ENROLL changed 0 rows) or the error class name if ENROLL raised one. The connection uses isolation_level=None (every statement is its own transaction) with PRAGMA foreign_keys = ON. It prints {\"responses\": [...], \"enrollments\": [[user_id, course_id, enrolled_at, status], ...]} ordered by user_id, course_id, enrolled_at.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "stop_duplicate_enrollment.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "The application's check runs before the insert and can be fooled by timing. Which part of the system sees both rows at the moment the second one is written?",
+        "Look at the enrollments table in SCHEMA: which rule would make a second (user_id, course_id) row impossible? Then look at ENROLL: what should happen instead of an error when that rule is hit, and how can it change only cancelled rows?",
+        "A similar case on other tables: lesson_progress(user_id, lesson_id, completed_at) with UNIQUE (user_id, lesson_id). Marking a lesson complete twice should keep the first time: INSERT ... ON CONFLICT (user_id, lesson_id) DO NOTHING. To fill in the time only when it is still empty: ON CONFLICT (user_id, lesson_id) DO UPDATE SET completed_at = excluded.completed_at WHERE lesson_progress.completed_at IS NULL."
+      ],
+      "tests": [
+        {
+          "name": "The incident: two identical requests 12 ms apart create one enrollment",
+          "input": {
+            "users": [
+              1042
+            ],
+            "courses": [
+              7
+            ],
+            "bursts": [
+              [
+                {
+                  "user_id": 1042,
+                  "course_id": 7,
+                  "at": "2026-10-21 08:15:03.412"
+                },
+                {
+                  "user_id": 1042,
+                  "course_id": 7,
+                  "at": "2026-10-21 08:15:03.424"
+                }
+              ]
+            ]
+          },
+          "expected": {
+            "responses": [
+              "enrolled",
+              "already_enrolled"
+            ],
+            "enrollments": [
+              [
+                1042,
+                7,
+                "2026-10-21 08:15:03.412",
+                "active"
+              ]
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Requests one after another: the duplicate is refused, another course is still allowed",
+          "input": {
+            "users": [
+              1042
+            ],
+            "courses": [
+              7,
+              8
+            ],
+            "bursts": [
+              [
+                {
+                  "user_id": 1042,
+                  "course_id": 7,
+                  "at": "2026-10-21 09:00:00.000"
+                }
+              ],
+              [
+                {
+                  "user_id": 1042,
+                  "course_id": 7,
+                  "at": "2026-10-21 09:00:05.000"
+                }
+              ],
+              [
+                {
+                  "user_id": 1042,
+                  "course_id": 8,
+                  "at": "2026-10-21 09:01:00.000"
+                }
+              ]
+            ]
+          },
+          "expected": {
+            "responses": [
+              "enrolled",
+              "already_enrolled",
+              "enrolled"
+            ],
+            "enrollments": [
+              [
+                1042,
+                7,
+                "2026-10-21 09:00:00.000",
+                "active"
+              ],
+              [
+                1042,
+                8,
+                "2026-10-21 09:01:00.000",
+                "active"
+              ]
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Five retries in one burst still create exactly one enrollment",
+          "input": {
+            "users": [
+              1042
+            ],
+            "courses": [
+              7
+            ],
+            "bursts": [
+              [
+                {
+                  "user_id": 1042,
+                  "course_id": 7,
+                  "at": "2026-10-21 08:15:03.400"
+                },
+                {
+                  "user_id": 1042,
+                  "course_id": 7,
+                  "at": "2026-10-21 08:15:03.412"
+                },
+                {
+                  "user_id": 1042,
+                  "course_id": 7,
+                  "at": "2026-10-21 08:15:03.424"
+                },
+                {
+                  "user_id": 1042,
+                  "course_id": 7,
+                  "at": "2026-10-21 08:15:03.436"
+                },
+                {
+                  "user_id": 1042,
+                  "course_id": 7,
+                  "at": "2026-10-21 08:15:03.448"
+                }
+              ]
+            ]
+          },
+          "expected": {
+            "responses": [
+              "enrolled",
+              "already_enrolled",
+              "already_enrolled",
+              "already_enrolled",
+              "already_enrolled"
+            ],
+            "enrollments": [
+              [
+                1042,
+                7,
+                "2026-10-21 08:15:03.400",
+                "active"
+              ]
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "The same learner enrolls in two courses in one burst: both are enrolled",
+          "input": {
+            "users": [
+              1042
+            ],
+            "courses": [
+              7,
+              8
+            ],
+            "bursts": [
+              [
+                {
+                  "user_id": 1042,
+                  "course_id": 7,
+                  "at": "2026-10-21 08:15:03.412"
+                },
+                {
+                  "user_id": 1042,
+                  "course_id": 8,
+                  "at": "2026-10-21 08:15:03.430"
+                }
+              ]
+            ]
+          },
+          "expected": {
+            "responses": [
+              "enrolled",
+              "enrolled"
+            ],
+            "enrollments": [
+              [
+                1042,
+                7,
+                "2026-10-21 08:15:03.412",
+                "active"
+              ],
+              [
+                1042,
+                8,
+                "2026-10-21 08:15:03.430",
+                "active"
+              ]
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Two learners enroll in the same course in one burst: both are enrolled",
+          "input": {
+            "users": [
+              1042,
+              1043
+            ],
+            "courses": [
+              7
+            ],
+            "bursts": [
+              [
+                {
+                  "user_id": 1042,
+                  "course_id": 7,
+                  "at": "2026-10-21 08:15:03.412"
+                },
+                {
+                  "user_id": 1043,
+                  "course_id": 7,
+                  "at": "2026-10-21 08:15:03.415"
+                }
+              ]
+            ]
+          },
+          "expected": {
+            "responses": [
+              "enrolled",
+              "enrolled"
+            ],
+            "enrollments": [
+              [
+                1042,
+                7,
+                "2026-10-21 08:15:03.412",
+                "active"
+              ],
+              [
+                1043,
+                7,
+                "2026-10-21 08:15:03.415",
+                "active"
+              ]
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A cancelled enrollment is reactivated once; the duplicate in the same burst is a no-op",
+          "input": {
+            "users": [
+              1042
+            ],
+            "courses": [
+              7
+            ],
+            "enrollments": [
+              [
+                1042,
+                7,
+                "2026-09-01 10:00:00.000",
+                "cancelled"
+              ]
+            ],
+            "bursts": [
+              [
+                {
+                  "user_id": 1042,
+                  "course_id": 7,
+                  "at": "2026-10-21 08:15:03.412"
+                },
+                {
+                  "user_id": 1042,
+                  "course_id": 7,
+                  "at": "2026-10-21 08:15:03.424"
+                }
+              ]
+            ]
+          },
+          "expected": {
+            "responses": [
+              "reactivated",
+              "already_enrolled"
+            ],
+            "enrollments": [
+              [
+                1042,
+                7,
+                "2026-10-21 08:15:03.412",
+                "active"
+              ]
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Mixed: completed and active rows stay as they are, cancelled is reactivated, new rows are added",
+          "input": {
+            "users": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "courses": [
+              7,
+              8
+            ],
+            "enrollments": [
+              [
+                1,
+                7,
+                "2026-08-01 10:00:00.000",
+                "completed"
+              ],
+              [
+                2,
+                7,
+                "2026-09-01 10:00:00.000",
+                "active"
+              ],
+              [
+                3,
+                7,
+                "2026-09-02 10:00:00.000",
+                "cancelled"
+              ]
+            ],
+            "bursts": [
+              [
+                {
+                  "user_id": 1,
+                  "course_id": 7,
+                  "at": "2026-10-22 10:00:00.000"
+                },
+                {
+                  "user_id": 2,
+                  "course_id": 7,
+                  "at": "2026-10-22 10:00:00.010"
+                },
+                {
+                  "user_id": 3,
+                  "course_id": 7,
+                  "at": "2026-10-22 10:00:00.020"
+                },
+                {
+                  "user_id": 3,
+                  "course_id": 7,
+                  "at": "2026-10-22 10:00:00.032"
+                },
+                {
+                  "user_id": 4,
+                  "course_id": 7,
+                  "at": "2026-10-22 10:00:00.040"
+                },
+                {
+                  "user_id": 4,
+                  "course_id": 8,
+                  "at": "2026-10-22 10:00:00.050"
+                }
+              ],
+              [
+                {
+                  "user_id": 4,
+                  "course_id": 7,
+                  "at": "2026-10-22 10:00:01.000"
+                },
+                {
+                  "user_id": 1,
+                  "course_id": 8,
+                  "at": "2026-10-22 10:00:01.010"
+                }
+              ]
+            ]
+          },
+          "expected": {
+            "responses": [
+              "already_enrolled",
+              "already_enrolled",
+              "reactivated",
+              "already_enrolled",
+              "enrolled",
+              "enrolled",
+              "already_enrolled",
+              "enrolled"
+            ],
+            "enrollments": [
+              [
+                1,
+                7,
+                "2026-08-01 10:00:00.000",
+                "completed"
+              ],
+              [
+                1,
+                8,
+                "2026-10-22 10:00:01.010",
+                "active"
+              ],
+              [
+                2,
+                7,
+                "2026-09-01 10:00:00.000",
+                "active"
+              ],
+              [
+                3,
+                7,
+                "2026-10-22 10:00:00.020",
+                "active"
+              ],
+              [
+                4,
+                7,
+                "2026-10-22 10:00:00.040",
+                "active"
+              ],
+              [
+                4,
+                8,
+                "2026-10-22 10:00:00.050",
+                "active"
+              ]
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_sdm_222",
+      "key": "challenges/python/chal_coding_sdm_222/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "course_dashboard.py",
+      "size": 3624
+    }
+  ]
+}

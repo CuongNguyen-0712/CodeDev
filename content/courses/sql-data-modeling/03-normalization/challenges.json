@@ -1,0 +1,35 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sdm_131",
+      "name": "normalization-quiz",
+      "type": "quiz",
+      "title": "Copies that drift and columns that depend on part of the key",
+      "description": "Two pieces of evidence from the renamed-course incident: the drift query after a quick fix, and a progress table that copies the lesson title. Decide whether each statement is True or False.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "enrollments(user_id, course_id, course_title, enrolled_at, status), primary key (user_id, course_id). course_title is copied from courses.title when a learner enrolls.\n\nAfter course 12 was renamed, the drift query returns:\n\ncourse_id | copied_title | current_title       | rows\n----------+--------------+---------------------+-----\n12        | SQL Basics   | SQL & Data Modeling | 412\n\nA teammate proposes to run once:\n\nUPDATE enrollments\nSET course_title = (SELECT title FROM courses WHERE courses.id = enrollments.course_id);\n\nStatement: \"After this UPDATE, the schema is fixed: course titles in enrollments can no longer drift from courses.\"",
+          "explanation": "False. The UPDATE repairs the rows that exist today, so the drift query returns nothing for now. The design is unchanged: the title is still stored in every enrollment row, so the next rename (or a new code path that inserts an enrollment with a stale title) drifts again. This is the update anomaly of a 2NF violation, since course_title depends only on course_id. The fix is to remove the copy and read courses.title through a join, or, if a copy is really needed, give it one owner such as a trigger plus a reconcile query.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A teammate designs the progress table like this:\n\nCREATE TABLE lesson_progress (\n  user_id      INTEGER NOT NULL REFERENCES users(id),\n  lesson_id    INTEGER NOT NULL REFERENCES lessons(id),\n  completed_at TEXT    NOT NULL,\n  lesson_title TEXT    NOT NULL,\n  PRIMARY KEY (user_id, lesson_id)\n);\n\nStatement: \"lesson_title depends on lesson_id alone, not on the whole key (user_id, lesson_id), so this table is not in second normal form.\"",
+          "explanation": "True. With a composite key, second normal form asks every non-key column to depend on the whole key. completed_at needs both parts (when this learner finished this lesson), but lesson_title is the same for every learner of a lesson: it depends on lesson_id only. That partial dependency means the title is repeated in every progress row and will drift when a lesson is renamed, exactly like course_title in enrollments. A common misconception is that a table is normalized as long as it has a primary key; the question is what each column depends on.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

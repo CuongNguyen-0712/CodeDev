@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Deleting a course that still has learners.</text>
+  <text x="40" y="82" font-size="16" fill="#475569">DELETE FROM courses WHERE id = 21;  course 21 has 38 enrollments. The outcome depends on enforcement and on ON DELETE.</text>
+
+  <!-- Broken: enforcement off -->
+  <rect x="40" y="104" width="1120" height="118" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="136" font-size="18" font-weight="700" fill="#b91c1c">Before: PRAGMA foreign_keys = 0 (the default on every new connection)</text>
+  <text x="64" y="160" font-size="14" fill="#7f1d1d">REFERENCES is stored but not checked. The DELETE succeeds.</text>
+  <text x="64" y="182" font-size="14" fill="#7f1d1d">PRAGMA foreign_key_check lists 38 enrollments whose course no longer exists.</text>
+  <text x="64" y="204" font-size="14" fill="#7f1d1d">My courses: "Cannot read properties of undefined (reading 'title')".</text>
+
+  <rect x="760" y="128" width="150" height="56" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="835" y="152" font-size="14" font-weight="700" fill="#b91c1c" text-anchor="middle">courses</text>
+  <text x="835" y="172" font-size="13" fill="#b91c1c" text-anchor="middle">id 21 deleted</text>
+  <line x1="770" y1="134" x2="900" y2="180" stroke="#ef4444" stroke-width="2"/>
+  <rect x="990" y="128" width="150" height="56" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="1065" y="152" font-size="14" font-weight="700" fill="#b91c1c" text-anchor="middle">enrollments</text>
+  <text x="1065" y="172" font-size="13" fill="#b91c1c" text-anchor="middle">38 x course_id = 21</text>
+  <line x1="990" y1="156" x2="924" y2="156" stroke="#ef4444" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="957" y="200" font-size="13" font-weight="700" fill="#b91c1c" text-anchor="middle">orphans</text>
+
+  <!-- With enforcement -->
+  <text x="40" y="256" font-size="18" font-weight="700" fill="#334155">With PRAGMA foreign_keys = ON, the ON DELETE action of enrollments.course_id decides</text>
+
+  <rect x="40" y="272" width="265" height="208" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/>
+  <text x="58" y="300" font-size="16" font-weight="700" fill="#334155">NO ACTION / RESTRICT</text>
+  <text x="58" y="320" font-size="12" fill="#64748b">NO ACTION is the default</text>
+  <g font-size="13" fill="#334155">
+    <text x="58" y="350">The DELETE is refused:</text>
+    <text x="58" y="370" font-family="'JetBrains Mono', Consolas, monospace" font-size="12" fill="#b91c1c">FOREIGN KEY constraint</text>
+    <text x="58" y="386" font-family="'JetBrains Mono', Consolas, monospace" font-size="12" fill="#b91c1c">failed</text>
+    <text x="58" y="414">Course and 38 enrollments</text>
+    <text x="58" y="432">stay. Use when the children</text>
+    <text x="58" y="450">are history worth keeping.</text>
+  </g>
+
+  <rect x="325" y="272" width="265" height="208" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="343" y="300" font-size="16" font-weight="700" fill="#b45309">CASCADE</text>
+  <text x="343" y="320" font-size="12" fill="#92400e">no error, children deleted too</text>
+  <g font-size="13" fill="#92400e">
+    <text x="343" y="350">The course and its 38</text>
+    <text x="343" y="368">enrollments are deleted in</text>
+    <text x="343" y="386">one statement. No warning.</text>
+    <text x="343" y="414">Fits children with no meaning</text>
+    <text x="343" y="432">alone: lessons of a draft</text>
+    <text x="343" y="450">course nobody ever took.</text>
+  </g>
+
+  <rect x="610" y="272" width="265" height="208" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="628" y="300" font-size="16" font-weight="700" fill="#0e7490">SET NULL</text>
+  <text x="628" y="320" font-size="12" fill="#155e75">keep children, clear the link</text>
+  <g font-size="13" fill="#155e75">
+    <text x="628" y="350">course_id is NOT NULL, so:</text>
+    <text x="628" y="370" font-family="'JetBrains Mono', Consolas, monospace" font-size="12" fill="#b91c1c">NOT NULL constraint failed:</text>
+    <text x="628" y="386" font-family="'JetBrains Mono', Consolas, monospace" font-size="12" fill="#b91c1c">enrollments.course_id</text>
+    <text x="628" y="414">Fits optional links, such as</text>
+    <text x="628" y="432">courses.instructor_id when an</text>
+    <text x="628" y="450">instructor account is removed.</text>
+  </g>
+
+  <rect x="895" y="272" width="265" height="208" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2.5"/>
+  <text x="913" y="300" font-size="16" font-weight="700" fill="#15803d">After: RESTRICT + archive</text>
+  <text x="913" y="320" font-size="12" fill="#15803d">the fix for enrollments</text>
+  <g font-size="13" fill="#14532d">
+    <text x="913" y="350">Retired courses are not</text>
+    <text x="913" y="368">deleted. They are archived:</text>
+    <text x="913" y="390" font-family="'JetBrains Mono', Consolas, monospace" font-size="12">UPDATE courses SET</text>
+    <text x="913" y="406" font-family="'JetBrains Mono', Consolas, monospace" font-size="12">status = 'archived'</text>
+    <text x="913" y="432">Hidden from the catalog,</text>
+    <text x="913" y="450">every enrollment kept.</text>
+  </g>
+
+  <!-- Verify -->
+  <rect x="40" y="500" width="1120" height="76" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="64" y="528" font-size="16" font-weight="700" fill="#15803d">Verify</text>
+  <g font-size="14" fill="#334155">
+    <text x="64" y="556">PRAGMA foreign_keys returns 1 on the app's connection</text>
+    <text x="470" y="556">PRAGMA foreign_key_check returns no rows</text>
+    <text x="800" y="556">a test DELETE of a course with enrollments fails</text>
+  </g>
+</svg>

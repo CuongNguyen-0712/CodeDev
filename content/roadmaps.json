@@ -21,7 +21,7 @@
       "description": "Pick a server language, learn SQL, then build APIs and services that stay correct under concurrency, failures and attacks.",
       "nodes": [
         { "title": "A Server Language", "description": "Learn one language well first: JavaScript, Python, Java, Go, PHP or C#.", "courses": ["js-modern-foundations", "python-foundations-automation", "java21-foundations", "go-foundations", "php-foundations", "csharp-foundations"] },
-        { "title": "Databases & SQL", "description": "Queries, joins, aggregation and the traps that produce wrong numbers.", "courses": ["sql-data-analysis-foundations"] },
+        { "title": "Databases & SQL", "description": "Schemas, keys, constraints and transactions; queries, joins and aggregation without wrong numbers.", "courses": ["sql-data-modeling", "sql-data-analysis-foundations"] },
         { "title": "Building APIs", "description": "Routing, validation, errors, pagination and clean service code.", "courses": ["php-modern-apis", "csharp-async-services", "javascript-async-architecture_2026100901", "web-http-fundamentals"] },
         { "title": "Concurrency & Async", "description": "Goroutines, virtual threads, asyncio and the bugs they bring.", "courses": ["go-concurrency", "java21-virtual-threads", "python-asyncio-services"] },
         { "title": "Performance", "description": "Profiling, event loop health, caching and backpressure.", "courses": ["nodejs-high-performance"] },
@@ -38,7 +38,7 @@
         { "title": "Web & JavaScript Foundations", "description": "HTML, CSS, accessibility, modern JavaScript and HTTP.", "courses": ["web-foundations-html-css-a11y", "js-modern-foundations", "web-http-fundamentals"] },
         { "title": "TypeScript & React", "description": "Typed components, state and data fetching.", "courses": ["typescript-foundations", "typescript-react-frontend"] },
         { "title": "Backend Basics", "description": "Asynchronous server code and a second backend language.", "courses": ["javascript-async-architecture_2026100901", "php-foundations", "csharp-foundations"] },
-        { "title": "Databases & SQL", "description": "Model and query the data your features need.", "courses": ["sql-data-analysis-foundations"] },
+        { "title": "Databases & SQL", "description": "Model and query the data your features need.", "courses": ["sql-data-modeling", "sql-data-analysis-foundations"] },
         { "title": "APIs & Security", "description": "Design APIs and protect them.", "courses": ["php-modern-apis", "nodejs-api-security"] },
         { "title": "Testing", "description": "Automated tests across the stack.", "courses": ["test-automation-foundations", "typescript-test-design"] },
         { "title": "Delivery", "description": "Containers, CI pipelines and performance in production.", "courses": ["devops-foundations-ci-containers", "nodejs-high-performance", "frontend-web-performance"] },
@@ -105,7 +105,7 @@
       "description": "Move and model data reliably: Python and SQL, analytics queries, pipelines with idempotent loads, async services and the ML they feed.",
       "nodes": [
         { "title": "Python", "description": "Scripting, files and data structures.", "courses": ["python-foundations-automation"] },
-        { "title": "SQL", "description": "Joins, aggregation and correct numbers.", "courses": ["sql-data-analysis-foundations"] },
+        { "title": "SQL", "description": "Joins, aggregation, correct numbers and the schemas behind them.", "courses": ["sql-data-analysis-foundations", "sql-data-modeling"] },
         { "title": "Analytics SQL", "description": "Window functions, cohorts and deduplication.", "courses": ["sql-window-analytics"] },
         { "title": "Data Pipelines", "description": "Extract, validate, transform and load without duplicates.", "courses": ["python-data-pipelines"] },
         { "title": "Async Services", "description": "High-throughput Python services and workers.", "courses": ["python-asyncio-services"] },

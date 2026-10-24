@@ -1,0 +1,35 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sdm_121",
+      "name": "primary-foreign-keys-quiz",
+      "type": "quiz",
+      "title": "Foreign keys that SQLite enforces, and what ON DELETE keeps",
+      "description": "Two pieces of evidence from the deleted-course incident: the sqlite3 session that reproduced it, and a proposed fix with ON DELETE CASCADE. Decide whether each statement is True or False.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Schema:\n\nenrollments(\n  user_id   INTEGER NOT NULL REFERENCES users(id),\n  course_id INTEGER NOT NULL REFERENCES courses(id),\n  ...\n)\n\nsqlite3 session on a copy of the database, using the same connection settings as the app:\n\nsqlite> PRAGMA foreign_keys;\n0\nsqlite> DELETE FROM courses WHERE id = 21;\nsqlite> SELECT COUNT(*) FROM enrollments WHERE course_id = 21;\n38\n\nStatement: \"Had this connection run PRAGMA foreign_keys = ON before the DELETE, SQLite would have refused to delete course 21.\"",
+          "explanation": "True. PRAGMA foreign_keys returning 0 means enforcement is off on this connection, so SQLite stored the REFERENCES clause but did not check it. With enforcement on, the default action (NO ACTION) refuses to delete a parent row that still has child rows, and the DELETE fails with \"FOREIGN KEY constraint failed\". The common misconception is that writing REFERENCES is enough in SQLite; the setting is off by default and must be switched on for every new connection.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A teammate proposes this change, with PRAGMA foreign_keys = ON on every connection:\n\ncourse_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE\n\nTheir reasoning: \"After this, deleting a retired course can never leave orphan enrollments, so learners will not see the error page again.\"\n\nStatement: \"ON DELETE CASCADE is the safe fix here, because it removes the orphans while keeping the learners' enrollment history.\"",
+          "explanation": "False. CASCADE does prevent orphans, but it does so by deleting every enrollment of the course in the same statement: the learners' enrollment dates, statuses and their place in reports are gone, without an error to warn anyone. The common mistake is choosing CASCADE because it makes the error disappear. When the child rows are history worth keeping, use RESTRICT (or the default NO ACTION) so the DELETE fails, and archive retired courses instead of deleting them.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

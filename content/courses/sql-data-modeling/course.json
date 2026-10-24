@@ -1,0 +1,52 @@
+{
+  "publicId": "sql-data-modeling",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792851420/codedev/courses/sql-data-modeling/cover",
+  "title": "SQL & Data Modeling: Schemas, Constraints & Transactions",
+  "concept": "Design the tables behind a real application and keep its data correct: entities and relationships, primary and foreign keys, normalization, CRUD, joins and aggregates, constraints, transactions and safe schema changes, each taught from a data bug on a learning platform. Queries run on SQLite.",
+  "description": "A beginner course for developers who store data in a relational database and want the data to stay right. Every lesson starts from a data incident on the CodeDev learning platform - a learner enrolled twice in the same course, a progress report that counts lessons three times, a course deleted while learners were still enrolled, an enrollment saved without its progress row - and fixes it in SQL: modeling entities and cardinality, choosing keys, normalizing, writing CRUD, joins and GROUP BY without double counting, NOT NULL, UNIQUE, CHECK and foreign keys, transactions, stopping duplicate rows from concurrent requests, and changing a live schema safely. 10 lessons with quizzes on real data and hands-on SQL challenges.",
+  "level": "beginner",
+  "durationMinutes": 220,
+  "instructor": "CodeDev Engineering Team",
+  "language": "SQL",
+  "category": "Database",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 50,
+  "accessModel": "free",
+  "publishStatus": "draft",
+  "completionRules": {},
+  "careerRoles": ["student", "backend_developer", "fullstack_developer", "data_engineer"],
+  "skills": { "sql": 5, "system_design": 2 },
+  "goals": ["fundamentals", "first_job", "change_career"],
+  "prerequisites": [],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Modeling",
+      "lessons": [
+        { "orderIndex": 1, "folder": "01-entities-relationships", "title": "How to model a domain: entities, relationships & cardinality", "sanityId": "lesson-sdm-1-1" },
+        { "orderIndex": 2, "folder": "02-primary-foreign-keys", "title": "How to choose primary and foreign keys", "sanityId": "lesson-sdm-1-2" },
+        { "orderIndex": 3, "folder": "03-normalization", "title": "Normalization: when to split a table and when not to", "sanityId": "lesson-sdm-1-3" }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Querying",
+      "lessons": [
+        { "orderIndex": 1, "folder": "04-crud-basics", "title": "CRUD in SQL: insert, select, update & delete safely", "sanityId": "lesson-sdm-2-1" },
+        { "orderIndex": 2, "folder": "05-joins", "title": "Joins: inner, left & the rows you lose or double", "sanityId": "lesson-sdm-2-2" },
+        { "orderIndex": 3, "folder": "06-aggregates-progress", "title": "GROUP BY & aggregates: progress per course", "sanityId": "lesson-sdm-2-3" }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Integrity",
+      "lessons": [
+        { "orderIndex": 1, "folder": "07-constraints", "title": "Constraints: NOT NULL, UNIQUE, CHECK & foreign keys", "sanityId": "lesson-sdm-3-1" },
+        { "orderIndex": 2, "folder": "08-transactions", "title": "Transactions: all or nothing", "sanityId": "lesson-sdm-3-2" },
+        { "orderIndex": 3, "folder": "09-duplicate-enrollment", "title": "Stop duplicate enrollment: races & unique constraints", "sanityId": "lesson-sdm-3-3" },
+        { "orderIndex": 4, "folder": "10-schema-migrations", "title": "How to change a live schema safely", "sanityId": "lesson-sdm-3-4" }
+      ]
+    }
+  ]
+}

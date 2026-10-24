@@ -127,6 +127,9 @@ và số coding của tier bằng cách phân bổ qua 8–15 lesson.
    - A1 viết xong 24/10/2026 (local): 10 lesson, 27 câu Đ/S (6 câu scenario "Debug the Broken Page"),
      4 solve + 2 fix bug (1 "Spot the AI Mistake": CORS), JavaScript, `completionRules: {}`; gắn vào roadmap
      frontend, backend, fullstack, QA.
+   - A2 viết xong 24/10/2026 (local): `sql-data-modeling`, 10 lesson, 25 câu Đ/S (6 câu scenario "Stop Duplicate
+     Enrollment"), 4 solve + 2 fix bug (1 "Spot the AI Mistake": đếm trùng do join), SQL trên SQLite qua Python
+     stdio (cần code runner), `completionRules: {}`; gắn vào roadmap backend, fullstack, data engineer.
 2. AI wave 1: E1, E2 + bài "Spot the AI Mistake" trong 4 course MVP.
 3. AI wave 2: E3 (outline `nodejs-ai-engineering`), E7, B5 (outline `nodejs-api-security`), C2, B2.
 4. Còn lại: A3, A4, B4, C1, C3, C4, D2–D5, E5, E6.

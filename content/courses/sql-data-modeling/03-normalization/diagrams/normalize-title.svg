@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Store each fact once.</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Course 12 was renamed on October 1. Where its title is stored decides whether every screen agrees.</text>
+
+  <!-- Before -->
+  <rect x="40" y="104" width="550" height="300" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="136" font-size="18" font-weight="700" fill="#b91c1c">Before: a title copy in every enrollment</text>
+
+  <g font-family="'JetBrains Mono', Consolas, monospace" font-size="12" fill="#334155">
+    <rect x="64" y="152" width="180" height="58" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+    <text x="74" y="170" font-family="Inter, 'Segoe UI', Arial, sans-serif" font-size="13" font-weight="700">courses</text>
+    <text x="74" y="194">12  SQL &amp; Data Modeling</text>
+
+    <rect x="268" y="152" width="298" height="112" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="1.5"/>
+    <text x="278" y="170" font-family="Inter, 'Segoe UI', Arial, sans-serif" font-size="13" font-weight="700">enrollments</text>
+    <text x="278" y="190" fill="#64748b">user</text><text x="326" y="190" fill="#64748b">course</text><text x="382" y="190" fill="#64748b">course_title</text>
+    <text x="278" y="210">3</text><text x="326" y="210">12</text><text x="382" y="210" fill="#b91c1c" font-weight="700">SQL Basics</text>
+    <text x="278" y="230">4</text><text x="326" y="230">12</text><text x="382" y="230" fill="#b91c1c" font-weight="700">SQL Basics</text>
+    <text x="278" y="250">9</text><text x="326" y="250">12</text><text x="382" y="250">SQL &amp; Data Modeling</text>
+  </g>
+
+  <g font-size="14" fill="#7f1d1d">
+    <text x="64" y="294">412 rows still say "SQL Basics": the quick fix only updated</text>
+    <text x="64" y="314">active enrollments. My courses shows the old title.</text>
+  </g>
+  <rect x="64" y="330" width="502" height="58" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="1.5"/>
+  <text x="76" y="352" font-size="13" font-weight="700" fill="#b91c1c">Report: GROUP BY course_title</text>
+  <text x="76" y="374" font-size="13" fill="#7f1d1d">"SQL Basics" and "SQL &amp; Data Modeling" appear as two courses</text>
+
+  <!-- After -->
+  <rect x="610" y="104" width="550" height="300" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="634" y="136" font-size="18" font-weight="700" fill="#15803d">After: the title lives in courses only</text>
+
+  <g font-family="'JetBrains Mono', Consolas, monospace" font-size="12" fill="#334155">
+    <rect x="634" y="152" width="200" height="58" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/>
+    <text x="644" y="170" font-family="Inter, 'Segoe UI', Arial, sans-serif" font-size="13" font-weight="700">courses</text>
+    <text x="644" y="194">12  <tspan fill="#15803d" font-weight="700">SQL &amp; Data Modeling</tspan></text>
+
+    <rect x="900" y="152" width="236" height="92" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/>
+    <text x="910" y="170" font-family="Inter, 'Segoe UI', Arial, sans-serif" font-size="13" font-weight="700">enrollments</text>
+    <text x="910" y="190" fill="#64748b">user</text><text x="958" y="190" fill="#64748b">course</text><text x="1014" y="190" fill="#64748b">enrolled_at</text>
+    <text x="910" y="210">3</text><text x="958" y="210">12</text><text x="1014" y="210">2026-09-01</text>
+    <text x="910" y="230">4</text><text x="958" y="230">12</text><text x="1014" y="230">2026-09-02</text>
+  </g>
+  <line x1="900" y1="200" x2="842" y2="185" stroke="#16a34a" stroke-width="2"/>
+  <polygon points="836,183 848,181 845,192" fill="#16a34a"/>
+  <text x="868" y="226" font-size="12" fill="#15803d" text-anchor="middle">join on</text>
+  <text x="868" y="240" font-size="12" fill="#15803d" text-anchor="middle">course_id</text>
+
+  <rect x="634" y="266" width="502" height="70" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="646" y="286" font-size="13" font-weight="700" fill="#15803d">EXPLAIN QUERY PLAN for My courses</text>
+  <g font-family="'JetBrains Mono', Consolas, monospace" font-size="12" fill="#14532d">
+    <text x="646" y="306">SEARCH e USING INDEX sqlite_autoindex_enrollments_1 (user_id=?)</text>
+    <text x="646" y="324">SEARCH c USING INTEGER PRIMARY KEY (rowid=?)</text>
+  </g>
+  <text x="634" y="362" font-size="14" fill="#14532d">One UPDATE renames the course everywhere at once.</text>
+  <text x="634" y="384" font-size="14" fill="#14532d">Reports group by course_id and join for the label.</text>
+
+  <!-- Fair copies -->
+  <text x="40" y="440" font-size="18" font-weight="700" fill="#334155">Fair copies: each one has an owner, or is frozen on purpose</text>
+
+  <rect x="40" y="456" width="360" height="120" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="58" y="482" font-size="15" font-weight="700" fill="#15803d">Cached count</text>
+  <text x="58" y="504" font-size="13" fill="#14532d">courses.enrollment_count, kept by a trigger</text>
+  <text x="58" y="522" font-size="13" fill="#14532d">in the same transaction as the insert.</text>
+  <text x="58" y="548" font-size="13" fill="#14532d">Check: the reconcile query returns 0 rows.</text>
+
+  <rect x="420" y="456" width="360" height="120" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="438" y="482" font-size="15" font-weight="700" fill="#0e7490">Reporting table</text>
+  <text x="438" y="504" font-size="13" fill="#155e75">Rebuilt from the source every night,</text>
+  <text x="438" y="522" font-size="13" fill="#155e75">read-only, never edited by hand.</text>
+  <text x="438" y="548" font-size="13" fill="#155e75">Check: a built_at column shows how stale it is.</text>
+
+  <rect x="800" y="456" width="360" height="120" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="818" y="482" font-size="15" font-weight="700" fill="#b45309">Snapshot (not a copy)</text>
+  <text x="818" y="504" font-size="13" fill="#92400e">certificates.course_title_at_issue keeps</text>
+  <text x="818" y="522" font-size="13" fill="#92400e">the title the learner finished under.</text>
+  <text x="818" y="548" font-size="13" fill="#92400e">Rule: never synced after a rename.</text>
+</svg>

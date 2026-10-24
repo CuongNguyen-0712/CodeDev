@@ -1,0 +1,461 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sdm_321",
+      "name": "enrollment-transaction-quiz",
+      "type": "quiz",
+      "title": "Autocommit, rollback and locks during an enrollment",
+      "description": "Two statements about the half-written enrollments on the CodeDev platform: what autocommit keeps when the second insert fails, and what a transaction that waits on a network call does to other writers in SQLite.",
+      "difficulty": "easy",
+      "points": 10,
+      "hints": [
+        "When the driver runs in autocommit mode, where does each statement's transaction start and end?",
+        "Look at where BEGIN and COMMIT are (or are not) in each snippet, and at the point where the first write happens relative to the slow call.",
+        "A similar case on other tables: a script runs UPDATE lessons SET position = position + 1, then INSERT INTO lessons ... fails on a NOT NULL column. Without BEGIN, the renumbering is already saved and stays saved. With BEGIN ... and a ROLLBACK in the error handler, the positions are back to what they were."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The enrollment handler, before the fix (Python, sqlite3):\n\ndb = sqlite3.connect(\"codedev.db\", isolation_level=None)   # autocommit\ndb.execute(\"INSERT INTO enrollments (user_id, course_id, enrolled_at, status) VALUES (?, ?, ?, 'active')\", (2, 10, now))\ndb.execute(\"INSERT INTO enrollment_events (user_id, course_id, event_type, source, created_at) VALUES (?, ?, 'enrolled', ?, ?)\", (2, 10, \"ios\", now))\n\nThe second call raises:\nsqlite3.IntegrityError: CHECK constraint failed: source IN ('web', 'android', 'admin')\n\nStatement: \"Because the second INSERT failed, SQLite also undid the first INSERT, so learner 2 has no enrollment row for course 10.\"",
+          "explanation": "False. With isolation_level=None the driver never opens a transaction, so each statement runs in its own automatic transaction that commits as soon as the statement succeeds. The enrollment row was committed before the event insert even started, and nothing ties the two together. This is exactly how the half-written enrollments appeared. The common misconception is that a failure undoes 'the request'; the database only knows statements and transactions. To make the two inserts one unit, put them between BEGIN and COMMIT and roll back on error.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A proposed version of the handler:\n\nBEGIN;\nINSERT INTO enrollments (user_id, course_id, enrolled_at, status) VALUES (2, 10, '2026-10-20 09:01:30', 'active');\n-- the code now calls the email service over HTTP and waits for its answer (sometimes 10 s or more)\nINSERT INTO enrollment_events (user_id, course_id, event_type, source, created_at) VALUES (2, 10, 'enrolled', 'web', '2026-10-20 09:01:30');\nCOMMIT;\n\nThe platform's database is a single SQLite file shared by all request handlers.\n\nStatement: \"While this transaction waits for the email service, other connections that try to write to the database have to wait, and fail with 'database is locked' once their busy timeout runs out.\"",
+          "explanation": "True. SQLite allows one writer at a time for the whole database file. After the first INSERT, this transaction holds the write lock until COMMIT or ROLLBACK, so every other writer waits (up to its busy_timeout) and then gets SQLITE_BUSY, 'database is locked'. WAL mode lets readers keep reading, but it does not allow a second writer. In PostgreSQL other sessions could still write other rows, but this transaction would keep its row locks and its connection busy for the whole call. Either way the fix is the same: never wait on a network call inside a transaction. Commit first, then send the email (here the enrollment_events row is what the email job reads).",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_sdm_322",
+      "name": "enroll-in-one-transaction",
+      "type": "mini_coding",
+      "title": "Enroll in one transaction",
+      "description": "Enrolling a learner writes two rows: the enrollment, and an 'enrolled' row in enrollment_events that the welcome-email job reads. Requests from the new iOS app send source = 'ios', which the CHECK on enrollment_events.source rejects, and because each statement commits on its own, the enrollment row stays behind without its event. Fix ENROLL, a list of SQL statements that the runner executes in order for every request with the named parameters :user_id, :course_id, :at and :source, so that both rows are saved or neither is. Contract: keep both INSERT statements as they are; a request that fails at any statement leaves no row; a request that succeeds is committed before the next one starts. The runner opens the connection with isolation_level=None (the Python driver never starts or commits a transaction on its own), turns on PRAGMA foreign_keys, stops a request at the first error and executes ROLLBACK if a transaction is still open. It prints {\"requests\": [one outcome per request: \"ok\", \"not_committed\" (still inside a transaction at the end) or the error class such as \"IntegrityError\"], \"enrollments\": [[user_id, course_id, enrolled_at, status], ...] ordered by user_id, course_id, \"events\": [[user_id, course_id, event_type, source], ...] in insertion order}.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "enroll_transaction.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "Which statement decides that the first INSERT is saved for good, and when does it run in autocommit mode?",
+        "Look at the list itself: the runner runs every item in order and rolls back only if a transaction is still open when a statement fails. What has to come before the first INSERT, and what after the last one?",
+        "A similar case on other tables: moving a lesson means UPDATE lessons SET position = 3 WHERE lesson_id = 41 and UPDATE lessons SET position = 2 WHERE lesson_id = 42. Run as a list [\"BEGIN\", first update, second update, \"COMMIT\"], a failure in the second update leaves the transaction open, the error handler rolls it back, and neither lesson moves."
+      ],
+      "tests": [
+        {
+          "name": "The incident: an 'ios' request fails on the event insert and leaves no enrollment behind",
+          "input": {
+            "users": [
+              1,
+              2
+            ],
+            "courses": [
+              10
+            ],
+            "requests": [
+              {
+                "user_id": 1,
+                "course_id": 10,
+                "at": "2026-10-20 09:00:00",
+                "source": "web"
+              },
+              {
+                "user_id": 2,
+                "course_id": 10,
+                "at": "2026-10-20 09:01:30",
+                "source": "ios"
+              }
+            ]
+          },
+          "expected": {
+            "requests": [
+              "ok",
+              "IntegrityError"
+            ],
+            "enrollments": [
+              [
+                1,
+                10,
+                "2026-10-20 09:00:00",
+                "active"
+              ]
+            ],
+            "events": [
+              [
+                1,
+                10,
+                "enrolled",
+                "web"
+              ]
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Two valid requests: both enrollments and both events are saved",
+          "input": {
+            "users": [
+              1,
+              2
+            ],
+            "courses": [
+              10,
+              11
+            ],
+            "requests": [
+              {
+                "user_id": 1,
+                "course_id": 10,
+                "at": "2026-10-20 09:00:00",
+                "source": "web"
+              },
+              {
+                "user_id": 2,
+                "course_id": 11,
+                "at": "2026-10-20 09:02:00",
+                "source": "android"
+              }
+            ]
+          },
+          "expected": {
+            "requests": [
+              "ok",
+              "ok"
+            ],
+            "enrollments": [
+              [
+                1,
+                10,
+                "2026-10-20 09:00:00",
+                "active"
+              ],
+              [
+                2,
+                11,
+                "2026-10-20 09:02:00",
+                "active"
+              ]
+            ],
+            "events": [
+              [
+                1,
+                10,
+                "enrolled",
+                "web"
+              ],
+              [
+                2,
+                11,
+                "enrolled",
+                "android"
+              ]
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A failed request can be retried with a valid source, and the retry succeeds",
+          "input": {
+            "users": [
+              1
+            ],
+            "courses": [
+              10
+            ],
+            "requests": [
+              {
+                "user_id": 1,
+                "course_id": 10,
+                "at": "2026-10-20 10:00:00",
+                "source": "ios"
+              },
+              {
+                "user_id": 1,
+                "course_id": 10,
+                "at": "2026-10-20 10:00:05",
+                "source": "web"
+              }
+            ]
+          },
+          "expected": {
+            "requests": [
+              "IntegrityError",
+              "ok"
+            ],
+            "enrollments": [
+              [
+                1,
+                10,
+                "2026-10-20 10:00:05",
+                "active"
+              ]
+            ],
+            "events": [
+              [
+                1,
+                10,
+                "enrolled",
+                "web"
+              ]
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "An unknown user fails on the first insert and does not block the next request",
+          "input": {
+            "users": [
+              1
+            ],
+            "courses": [
+              10
+            ],
+            "requests": [
+              {
+                "user_id": 99,
+                "course_id": 10,
+                "at": "2026-10-20 11:00:00",
+                "source": "web"
+              },
+              {
+                "user_id": 1,
+                "course_id": 10,
+                "at": "2026-10-20 11:00:01",
+                "source": "web"
+              }
+            ]
+          },
+          "expected": {
+            "requests": [
+              "IntegrityError",
+              "ok"
+            ],
+            "enrollments": [
+              [
+                1,
+                10,
+                "2026-10-20 11:00:01",
+                "active"
+              ]
+            ],
+            "events": [
+              [
+                1,
+                10,
+                "enrolled",
+                "web"
+              ]
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A missing source (NULL) fails the event insert and leaves nothing",
+          "input": {
+            "users": [
+              1
+            ],
+            "courses": [
+              10,
+              11
+            ],
+            "requests": [
+              {
+                "user_id": 1,
+                "course_id": 10,
+                "at": "2026-10-20 12:00:00",
+                "source": null
+              },
+              {
+                "user_id": 1,
+                "course_id": 11,
+                "at": "2026-10-20 12:00:02",
+                "source": "admin"
+              }
+            ]
+          },
+          "expected": {
+            "requests": [
+              "IntegrityError",
+              "ok"
+            ],
+            "enrollments": [
+              [
+                1,
+                11,
+                "2026-10-20 12:00:02",
+                "active"
+              ]
+            ],
+            "events": [
+              [
+                1,
+                11,
+                "enrolled",
+                "admin"
+              ]
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Mixed run: duplicates, invalid sources and valid requests",
+          "input": {
+            "users": [
+              1,
+              2,
+              3
+            ],
+            "courses": [
+              10,
+              11
+            ],
+            "requests": [
+              {
+                "user_id": 1,
+                "course_id": 10,
+                "at": "2026-10-21 08:00:00",
+                "source": "web"
+              },
+              {
+                "user_id": 1,
+                "course_id": 10,
+                "at": "2026-10-21 08:00:01",
+                "source": "android"
+              },
+              {
+                "user_id": 2,
+                "course_id": 10,
+                "at": "2026-10-21 08:01:00",
+                "source": "ios"
+              },
+              {
+                "user_id": 2,
+                "course_id": 11,
+                "at": "2026-10-21 08:02:00",
+                "source": "web"
+              },
+              {
+                "user_id": 3,
+                "course_id": 10,
+                "at": "2026-10-21 08:03:00",
+                "source": "Web"
+              },
+              {
+                "user_id": 3,
+                "course_id": 11,
+                "at": "2026-10-21 08:04:00",
+                "source": "admin"
+              },
+              {
+                "user_id": 2,
+                "course_id": 10,
+                "at": "2026-10-21 08:05:00",
+                "source": "android"
+              }
+            ]
+          },
+          "expected": {
+            "requests": [
+              "ok",
+              "IntegrityError",
+              "IntegrityError",
+              "ok",
+              "IntegrityError",
+              "ok",
+              "ok"
+            ],
+            "enrollments": [
+              [
+                1,
+                10,
+                "2026-10-21 08:00:00",
+                "active"
+              ],
+              [
+                2,
+                10,
+                "2026-10-21 08:05:00",
+                "active"
+              ],
+              [
+                2,
+                11,
+                "2026-10-21 08:02:00",
+                "active"
+              ],
+              [
+                3,
+                11,
+                "2026-10-21 08:04:00",
+                "active"
+              ]
+            ],
+            "events": [
+              [
+                1,
+                10,
+                "enrolled",
+                "web"
+              ],
+              [
+                2,
+                11,
+                "enrolled",
+                "web"
+              ],
+              [
+                3,
+                11,
+                "enrolled",
+                "admin"
+              ],
+              [
+                2,
+                10,
+                "enrolled",
+                "android"
+              ]
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,887 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sdm_231",
+      "name": "progress-aggregates-quiz",
+      "type": "quiz",
+      "title": "Read the progress numbers the way SQLite computes them",
+      "description": "Two results from the CodeDev progress incident: what COUNT counts after a LEFT JOIN, and what integer division does to a percentage. Decide whether each statement is true or false.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "courses has two rows: (10, 'SQL Basics') and (40, 'Kubernetes Basics'). lessons has three rows, all with course_id = 10. Course 40 has no lessons yet.\n\nSELECT c.course_id, COUNT(*) AS total_lessons\nFROM courses AS c\nLEFT JOIN lessons AS l ON l.course_id = c.course_id\nGROUP BY c.course_id\nORDER BY c.course_id;\n\nStatement: \"The row for course 40 shows total_lessons = 0, because course 40 has no lessons.\"",
+          "explanation": "False. The LEFT JOIN keeps course 40 as one row whose lessons columns are all NULL. COUNT(*) counts rows, not lessons, so course 40 gets total_lessons = 1 (course 10 gets 3). COUNT(l.lesson_id) skips NULL values and returns 0 for course 40, which is the number you wanted. The common misconception is that COUNT(*) counts matches: it counts every row in the group, including the all-NULL row a LEFT JOIN adds for a parent without children.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Mai has finished 2 of the 3 lessons of SQL Basics. The progress query computes the percentage on SQLite, where both counts are integers:\n\nSELECT 2 / 3 * 100 AS a,\n       2 * 100 / 3 AS b;\n\nStatement: \"a is 0 and b is 66.\"",
+          "explanation": "True. When both operands are integers, SQLite's / is integer division and drops the fraction. In a, 2 / 3 is 0 and 0 * 100 is 0, so every learner who has not finished the whole course sees 0%. In b, 2 * 100 is 200 and 200 / 3 is 66, the percentage rounded down. PostgreSQL behaves the same way for integer operands. Writing 100.0 instead of 100 switches to real division (66.66...), and ROUND would then give 67, not 66. A common misconception is that SQL division always returns a fraction, as it does in JavaScript.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_sdm_232",
+      "name": "progress-per-course",
+      "type": "mini_coding",
+      "title": "Progress per course",
+      "description": "Rewrite the query behind the \"My courses\" page. For the user bound to :user_id, return one row per course the user is enrolled in (any enrollment status, even if the same enrollment is stored twice): course_id, title, total_lessons (lessons of the course), completed_lessons (different lessons of the course this user finished; a lesson_progress row counts only when completed_at is not NULL) and percent (completed_lessons * 100 / total_lessons as a whole number rounded down, 0 when the course has no lessons). A course with no finished lesson must still appear with 0. Progress rows of other users and of courses the user is not enrolled in never count. Order by course_id. The test runner at the bottom of the file builds the tables from each test case (with PRAGMA foreign_keys = ON), runs QUERY with :user_id bound and prints the rows as a JSON list of lists, for example [[10, \"SQL Basics\", 3, 2, 66], [20, \"Docker Basics\", 4, 0, 0]].",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "progress_per_course.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "Which table decides which courses appear on the page: the lessons the user has finished, or the courses the user is enrolled in? What happens to a course with no finished lesson if the query starts from lesson_progress?",
+        "Look at three places: the condition on lesson_progress (in the ON clause of a LEFT JOIN, or in WHERE, where it removes the NULL rows the join kept), what COUNT(*) and COUNT(column) each count when one lesson has two progress rows, and what 2 / 3 * 100 and 2 * 100 / 3 return in SQLite. Then ask what x / 0 returns.",
+        "A similar query on other tables: paid orders per customer, keeping customers with none. SELECT cu.customer_id, COUNT(DISTINCT o.order_id) AS paid_orders FROM customers AS cu LEFT JOIN orders AS o ON o.customer_id = cu.customer_id AND o.status = 'paid' GROUP BY cu.customer_id. The status filter sits in ON, so a customer without paid orders keeps one row with NULLs and gets 0. COALESCE(expression, 0) turns a NULL result into 0."
+      ],
+      "tests": [
+        {
+          "name": "A course with no finished lesson still appears with 0, and 2 of 3 is 66 percent",
+          "input": {
+            "user_id": 1,
+            "tables": {
+              "users": [
+                {
+                  "user_id": 1,
+                  "email": "mai@codedev.test",
+                  "name": "Mai"
+                }
+              ],
+              "courses": [
+                {
+                  "course_id": 10,
+                  "title": "SQL Basics",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 20,
+                  "title": "Docker Basics",
+                  "level": "beginner"
+                }
+              ],
+              "lessons": [
+                {
+                  "lesson_id": 101,
+                  "course_id": 10,
+                  "position": 1,
+                  "title": "Lesson 1"
+                },
+                {
+                  "lesson_id": 102,
+                  "course_id": 10,
+                  "position": 2,
+                  "title": "Lesson 2"
+                },
+                {
+                  "lesson_id": 103,
+                  "course_id": 10,
+                  "position": 3,
+                  "title": "Lesson 3"
+                },
+                {
+                  "lesson_id": 201,
+                  "course_id": 20,
+                  "position": 1,
+                  "title": "Lesson 1"
+                },
+                {
+                  "lesson_id": 202,
+                  "course_id": 20,
+                  "position": 2,
+                  "title": "Lesson 2"
+                },
+                {
+                  "lesson_id": 203,
+                  "course_id": 20,
+                  "position": 3,
+                  "title": "Lesson 3"
+                },
+                {
+                  "lesson_id": 204,
+                  "course_id": 20,
+                  "position": 4,
+                  "title": "Lesson 4"
+                }
+              ],
+              "enrollments": [
+                {
+                  "user_id": 1,
+                  "course_id": 10,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                },
+                {
+                  "user_id": 1,
+                  "course_id": 20,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                }
+              ],
+              "lesson_progress": [
+                {
+                  "user_id": 1,
+                  "lesson_id": 101,
+                  "completed_at": "2026-09-10 20:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 102,
+                  "completed_at": "2026-09-10 20:00:00"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              10,
+              "SQL Basics",
+              3,
+              2,
+              66
+            ],
+            [
+              20,
+              "Docker Basics",
+              4,
+              0,
+              0
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Other learners' progress and a course the user is not enrolled in do not count",
+          "input": {
+            "user_id": 1,
+            "tables": {
+              "users": [
+                {
+                  "user_id": 1,
+                  "email": "mai@codedev.test",
+                  "name": "Mai"
+                },
+                {
+                  "user_id": 2,
+                  "email": "linh@codedev.test",
+                  "name": "Linh"
+                }
+              ],
+              "courses": [
+                {
+                  "course_id": 10,
+                  "title": "SQL Basics",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 30,
+                  "title": "Git Basics",
+                  "level": "beginner"
+                }
+              ],
+              "lessons": [
+                {
+                  "lesson_id": 101,
+                  "course_id": 10,
+                  "position": 1,
+                  "title": "Lesson 1"
+                },
+                {
+                  "lesson_id": 102,
+                  "course_id": 10,
+                  "position": 2,
+                  "title": "Lesson 2"
+                },
+                {
+                  "lesson_id": 103,
+                  "course_id": 10,
+                  "position": 3,
+                  "title": "Lesson 3"
+                },
+                {
+                  "lesson_id": 301,
+                  "course_id": 30,
+                  "position": 1,
+                  "title": "Lesson 1"
+                },
+                {
+                  "lesson_id": 302,
+                  "course_id": 30,
+                  "position": 2,
+                  "title": "Lesson 2"
+                }
+              ],
+              "enrollments": [
+                {
+                  "user_id": 1,
+                  "course_id": 10,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                },
+                {
+                  "user_id": 2,
+                  "course_id": 10,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                },
+                {
+                  "user_id": 2,
+                  "course_id": 30,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                }
+              ],
+              "lesson_progress": [
+                {
+                  "user_id": 1,
+                  "lesson_id": 101,
+                  "completed_at": "2026-09-10 20:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 101,
+                  "completed_at": "2026-09-10 20:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 102,
+                  "completed_at": "2026-09-10 20:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 103,
+                  "completed_at": "2026-09-10 20:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 301,
+                  "completed_at": "2026-09-10 20:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 302,
+                  "completed_at": "2026-09-10 20:00:00"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              10,
+              "SQL Basics",
+              3,
+              1,
+              33
+            ]
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A course with no lessons yet shows 0 lessons and 0 percent, and 4 of 4 is 100",
+          "input": {
+            "user_id": 1,
+            "tables": {
+              "users": [
+                {
+                  "user_id": 1,
+                  "email": "mai@codedev.test",
+                  "name": "Mai"
+                }
+              ],
+              "courses": [
+                {
+                  "course_id": 10,
+                  "title": "SQL Basics",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 40,
+                  "title": "Kubernetes Basics",
+                  "level": "intermediate"
+                }
+              ],
+              "lessons": [
+                {
+                  "lesson_id": 101,
+                  "course_id": 10,
+                  "position": 1,
+                  "title": "Lesson 1"
+                },
+                {
+                  "lesson_id": 102,
+                  "course_id": 10,
+                  "position": 2,
+                  "title": "Lesson 2"
+                },
+                {
+                  "lesson_id": 103,
+                  "course_id": 10,
+                  "position": 3,
+                  "title": "Lesson 3"
+                },
+                {
+                  "lesson_id": 104,
+                  "course_id": 10,
+                  "position": 4,
+                  "title": "Lesson 4"
+                }
+              ],
+              "enrollments": [
+                {
+                  "user_id": 1,
+                  "course_id": 40,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                },
+                {
+                  "user_id": 1,
+                  "course_id": 10,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                }
+              ],
+              "lesson_progress": [
+                {
+                  "user_id": 1,
+                  "lesson_id": 101,
+                  "completed_at": "2026-09-10 20:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 102,
+                  "completed_at": "2026-09-10 20:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 103,
+                  "completed_at": "2026-09-10 20:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 104,
+                  "completed_at": "2026-09-10 20:00:00"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              10,
+              "SQL Basics",
+              4,
+              4,
+              100
+            ],
+            [
+              40,
+              "Kubernetes Basics",
+              0,
+              0,
+              0
+            ]
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A lesson finished twice counts once, and 1 of 8 is 12 percent (rounded down)",
+          "input": {
+            "user_id": 2,
+            "tables": {
+              "users": [
+                {
+                  "user_id": 1,
+                  "email": "mai@codedev.test",
+                  "name": "Mai"
+                },
+                {
+                  "user_id": 2,
+                  "email": "linh@codedev.test",
+                  "name": "Linh"
+                }
+              ],
+              "courses": [
+                {
+                  "course_id": 10,
+                  "title": "SQL Basics",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 50,
+                  "title": "Python Basics",
+                  "level": "beginner"
+                }
+              ],
+              "lessons": [
+                {
+                  "lesson_id": 101,
+                  "course_id": 10,
+                  "position": 1,
+                  "title": "Lesson 1"
+                },
+                {
+                  "lesson_id": 102,
+                  "course_id": 10,
+                  "position": 2,
+                  "title": "Lesson 2"
+                },
+                {
+                  "lesson_id": 501,
+                  "course_id": 50,
+                  "position": 1,
+                  "title": "Lesson 1"
+                },
+                {
+                  "lesson_id": 502,
+                  "course_id": 50,
+                  "position": 2,
+                  "title": "Lesson 2"
+                },
+                {
+                  "lesson_id": 503,
+                  "course_id": 50,
+                  "position": 3,
+                  "title": "Lesson 3"
+                },
+                {
+                  "lesson_id": 504,
+                  "course_id": 50,
+                  "position": 4,
+                  "title": "Lesson 4"
+                },
+                {
+                  "lesson_id": 505,
+                  "course_id": 50,
+                  "position": 5,
+                  "title": "Lesson 5"
+                },
+                {
+                  "lesson_id": 506,
+                  "course_id": 50,
+                  "position": 6,
+                  "title": "Lesson 6"
+                },
+                {
+                  "lesson_id": 507,
+                  "course_id": 50,
+                  "position": 7,
+                  "title": "Lesson 7"
+                },
+                {
+                  "lesson_id": 508,
+                  "course_id": 50,
+                  "position": 8,
+                  "title": "Lesson 8"
+                }
+              ],
+              "enrollments": [
+                {
+                  "user_id": 2,
+                  "course_id": 10,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                },
+                {
+                  "user_id": 2,
+                  "course_id": 50,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                }
+              ],
+              "lesson_progress": [
+                {
+                  "user_id": 2,
+                  "lesson_id": 101,
+                  "completed_at": "2026-09-10 20:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 101,
+                  "completed_at": "2026-09-10 20:00:01"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 102,
+                  "completed_at": "2026-09-10 20:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 102,
+                  "completed_at": "2026-09-10 20:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 102,
+                  "completed_at": "2026-09-10 20:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 501,
+                  "completed_at": "2026-09-10 20:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 501,
+                  "completed_at": "2026-09-11 08:00:00"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              10,
+              "SQL Basics",
+              2,
+              2,
+              100
+            ],
+            [
+              50,
+              "Python Basics",
+              8,
+              1,
+              12
+            ]
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "An enrollment stored twice still gives one row with the right counts",
+          "input": {
+            "user_id": 3,
+            "tables": {
+              "users": [
+                {
+                  "user_id": 3,
+                  "email": "tuan@codedev.test",
+                  "name": "Tuan"
+                }
+              ],
+              "courses": [
+                {
+                  "course_id": 10,
+                  "title": "SQL Basics",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 20,
+                  "title": "Docker Basics",
+                  "level": "beginner"
+                }
+              ],
+              "lessons": [
+                {
+                  "lesson_id": 101,
+                  "course_id": 10,
+                  "position": 1,
+                  "title": "Lesson 1"
+                },
+                {
+                  "lesson_id": 102,
+                  "course_id": 10,
+                  "position": 2,
+                  "title": "Lesson 2"
+                },
+                {
+                  "lesson_id": 103,
+                  "course_id": 10,
+                  "position": 3,
+                  "title": "Lesson 3"
+                },
+                {
+                  "lesson_id": 201,
+                  "course_id": 20,
+                  "position": 1,
+                  "title": "Lesson 1"
+                },
+                {
+                  "lesson_id": 202,
+                  "course_id": 20,
+                  "position": 2,
+                  "title": "Lesson 2"
+                }
+              ],
+              "enrollments": [
+                {
+                  "user_id": 3,
+                  "course_id": 20,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                },
+                {
+                  "user_id": 3,
+                  "course_id": 20,
+                  "enrolled_at": "2026-09-01 10:00:01",
+                  "status": "active"
+                },
+                {
+                  "user_id": 3,
+                  "course_id": 10,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "completed"
+                }
+              ],
+              "lesson_progress": [
+                {
+                  "user_id": 3,
+                  "lesson_id": 201,
+                  "completed_at": "2026-09-10 20:00:00"
+                },
+                {
+                  "user_id": 3,
+                  "lesson_id": 101,
+                  "completed_at": "2026-09-10 20:00:00"
+                },
+                {
+                  "user_id": 3,
+                  "lesson_id": 102,
+                  "completed_at": "2026-09-10 20:00:00"
+                },
+                {
+                  "user_id": 3,
+                  "lesson_id": 103,
+                  "completed_at": "2026-09-10 20:00:00"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              10,
+              "SQL Basics",
+              3,
+              3,
+              100
+            ],
+            [
+              20,
+              "Docker Basics",
+              2,
+              1,
+              50
+            ]
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A progress row with completed_at NULL is a lesson opened, not finished",
+          "input": {
+            "user_id": 1,
+            "tables": {
+              "users": [
+                {
+                  "user_id": 1,
+                  "email": "mai@codedev.test",
+                  "name": "Mai"
+                }
+              ],
+              "courses": [
+                {
+                  "course_id": 10,
+                  "title": "SQL Basics",
+                  "level": "beginner"
+                },
+                {
+                  "course_id": 20,
+                  "title": "Docker Basics",
+                  "level": "beginner"
+                }
+              ],
+              "lessons": [
+                {
+                  "lesson_id": 101,
+                  "course_id": 10,
+                  "position": 1,
+                  "title": "Lesson 1"
+                },
+                {
+                  "lesson_id": 102,
+                  "course_id": 10,
+                  "position": 2,
+                  "title": "Lesson 2"
+                },
+                {
+                  "lesson_id": 103,
+                  "course_id": 10,
+                  "position": 3,
+                  "title": "Lesson 3"
+                },
+                {
+                  "lesson_id": 201,
+                  "course_id": 20,
+                  "position": 1,
+                  "title": "Lesson 1"
+                },
+                {
+                  "lesson_id": 202,
+                  "course_id": 20,
+                  "position": 2,
+                  "title": "Lesson 2"
+                },
+                {
+                  "lesson_id": 203,
+                  "course_id": 20,
+                  "position": 3,
+                  "title": "Lesson 3"
+                }
+              ],
+              "enrollments": [
+                {
+                  "user_id": 1,
+                  "course_id": 10,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                },
+                {
+                  "user_id": 1,
+                  "course_id": 20,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "cancelled"
+                }
+              ],
+              "lesson_progress": [
+                {
+                  "user_id": 1,
+                  "lesson_id": 101,
+                  "completed_at": "2026-09-10 20:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 102,
+                  "completed_at": null
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 201,
+                  "completed_at": null
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              10,
+              "SQL Basics",
+              3,
+              1,
+              33
+            ],
+            [
+              20,
+              "Docker Basics",
+              3,
+              0,
+              0
+            ]
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A user with no enrollments gets an empty list, even with progress rows",
+          "input": {
+            "user_id": 4,
+            "tables": {
+              "users": [
+                {
+                  "user_id": 1,
+                  "email": "mai@codedev.test",
+                  "name": "Mai"
+                },
+                {
+                  "user_id": 4,
+                  "email": "hoa@codedev.test",
+                  "name": "Hoa"
+                }
+              ],
+              "courses": [
+                {
+                  "course_id": 10,
+                  "title": "SQL Basics",
+                  "level": "beginner"
+                }
+              ],
+              "lessons": [
+                {
+                  "lesson_id": 101,
+                  "course_id": 10,
+                  "position": 1,
+                  "title": "Lesson 1"
+                },
+                {
+                  "lesson_id": 102,
+                  "course_id": 10,
+                  "position": 2,
+                  "title": "Lesson 2"
+                },
+                {
+                  "lesson_id": 103,
+                  "course_id": 10,
+                  "position": 3,
+                  "title": "Lesson 3"
+                }
+              ],
+              "enrollments": [
+                {
+                  "user_id": 1,
+                  "course_id": 10,
+                  "enrolled_at": "2026-09-01 10:00:00",
+                  "status": "active"
+                }
+              ],
+              "lesson_progress": [
+                {
+                  "user_id": 4,
+                  "lesson_id": 101,
+                  "completed_at": "2026-09-10 20:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 101,
+                  "completed_at": "2026-09-10 20:00:00"
+                }
+              ]
+            }
+          },
+          "expected": [],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}
