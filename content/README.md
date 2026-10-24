@@ -36,7 +36,8 @@ Catalog metadata in `course.json` (onboarding recommendations, filters, admin): 
 (`{ "<catalog.skill code>": weight 1-5 }`), `prerequisites` (course public ids) and `completionRules`
 (`{}` = pass rates by level: 60/70/75/80% of quizzes and of coding challenges, 1 hard coding challenge from
 advanced up; override with `minQuizPercent`, `minCodingPercent`, `minHardPassed`; `null` or absent on a new
-course = finishing every lesson is enough). Each field present
+course = finishing every lesson is enough) and `recommendedLevel` (`{ "min": 6, "max": 12 }`, either bound
+optional: overrides the suggested User Level range of the course level; `null` clears it). Each field present
 replaces that link table for the course; a missing field keeps what the admin set; an unknown code aborts
 the seed.
 

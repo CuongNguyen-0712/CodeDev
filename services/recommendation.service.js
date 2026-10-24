@@ -1,5 +1,5 @@
 import { onboardingDb } from "@/db/onboarding.db";
-import { courseFit, recommendedLevel } from "@/lib/levels";
+import { courseFit, levelOverride, recommendedLevel } from "@/lib/levels";
 
 /**
  * Recommendation v1: transparent rules, every point of score comes with a human-readable reason.
@@ -57,12 +57,12 @@ const FIT_SIGNALS = {
     too_early: { score: WEIGHTS.levelTooHard, reason: () => "May be too advanced for now" },
 };
 
-function learnerLevelSignal(profile, courseLevel) {
+function learnerLevelSignal(profile, course) {
     if (profile.userExp > 0) {
-        const signal = FIT_SIGNALS[courseFit(profile.userLevel, courseLevel)];
+        const signal = FIT_SIGNALS[courseFit(profile.userLevel, course.level, levelOverride(course))];
         return signal ? { score: signal.score, reason: signal.reason(profile.userLevel) } : null;
     }
-    return profile.experienceLevel ? levelSignal(profile.experienceLevel, courseLevel) : null;
+    return profile.experienceLevel ? levelSignal(profile.experienceLevel, course.level) : null;
 }
 
 function listNames(items, max = 3) {
@@ -109,7 +109,7 @@ export function scoreCourse(profile, course) {
         if (hits) add(Math.min(WEIGHTS.goalMax, hits * WEIGHTS.goal), hits > 1 ? "Serves several of your goals" : "Serves one of your goals");
     }
 
-    const level = learnerLevelSignal(profile, course.level);
+    const level = learnerLevelSignal(profile, course);
     if (level) add(level.score, level.reason);
 
     for (const prerequisite of course.prerequisites || []) {
@@ -151,7 +151,7 @@ function toItem({ course, score, reasons }, ownedCourseIds) {
             title: course.title,
             image: course.image,
             level: course.level,
-            recommendedLevel: recommendedLevel(course.level),
+            recommendedLevel: recommendedLevel(course.level, levelOverride(course)),
             rating: course.rating,
             students: course.students,
             duration: course.duration,
@@ -202,7 +202,7 @@ export function rankCourses(profile, candidates, { limit = 6 } = {}) {
     // Fallback: popular open courses that are not obviously too hard, with an honest reason.
     const fallback = scored
         .filter((item) => {
-            const level = learnerLevelSignal(profile, item.course.level);
+            const level = learnerLevelSignal(profile, item.course);
             return !level || level.score > WEIGHTS.levelTooHard;
         })
         .map((item) => ({

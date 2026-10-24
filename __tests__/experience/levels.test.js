@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { courseFit, recommendedLevel } from "@/lib/levels";
+import { courseFit, levelOverride, recommendedLevel } from "@/lib/levels";
 import { normaliseProfile, scoreCourse } from "@/services/recommendation.service";
 
 /** Recommended levels, course fit labels and the recommender's level signal: no database needed. */
@@ -14,6 +14,16 @@ describe("course fit by User Level", () => {
         expect(courseFit(4, "intermediate")).toBe("suitable");  // min
         expect(courseFit(9, "intermediate")).toBe("suitable");  // max
         expect(courseFit(10, "intermediate")).toBe("review");   // max + 1
+    });
+
+    it("lets a course override either bound of its range", () => {
+        // V1.3 E2 (intermediate, 3-8) and E7 (intermediate, 6-12).
+        expect(recommendedLevel("intermediate", levelOverride({ recommended_min_level: 3, recommended_max_level: 8 }))).toEqual({ min: 3, max: 8 });
+        expect(recommendedLevel("intermediate", levelOverride({ recommended_min_level: 6, recommended_max_level: null }))).toEqual({ min: 6, max: 9 });
+        expect(recommendedLevel("beginner", { min: 7 })).toEqual({ min: 7, max: 7 }); // never an empty range
+        expect(courseFit(5, "intermediate", { min: 6, max: 12 })).toBe("challenge");
+        expect(courseFit(11, "intermediate", { min: 6, max: 12 })).toBe("suitable");
+        expect(courseFit(11, "intermediate", levelOverride({}))).toBe("review"); // no override: 4-9
     });
 
     it("has no opinion on courses without a difficulty", () => {
@@ -41,5 +51,11 @@ describe("recommender level signal", () => {
         expect(levelReason(levelled, "intermediate")).toMatchObject({ text: "Suits your level 8" });
         expect(levelReason(levelled, "beginner").points).toBeLessThan(0);
         expect(levelReason(levelled, "expert").points).toBeLessThan(0);
+    });
+
+    it("reads the course's own level range when it has one", () => {
+        const levelled = normaliseProfile({ experience_level: "beginner", exp: 5000, exp_level: 12 });
+        const e7 = { ...course("intermediate"), recommended_min_level: 6, recommended_max_level: 12 };
+        expect(scoreCourse(levelled, e7).reasons.find((r) => /level/i.test(r.text))).toMatchObject({ text: "Suits your level 12" });
     });
 });

@@ -136,6 +136,17 @@ if (course.completionRules !== undefined) {
     }
     out.push(`UPDATE catalog.course SET completion_rules = ${rules === null ? "NULL" : json(rules)} WHERE id = ${courseId};`);
 }
+if (course.recommendedLevel !== undefined) {
+    // { min, max } (either may be left out) overrides the User Level range of the course level; null clears it.
+    const range = course.recommendedLevel;
+    const bound = (v) => v === undefined || (Number.isInteger(v) && v >= 1 && v <= 20);
+    if (range !== null && (typeof range !== "object" || !bound(range.min) || !bound(range.max)
+        || Object.keys(range).some((k) => k !== "min" && k !== "max")
+        || (range.min !== undefined && range.max !== undefined && range.max < range.min))) {
+        throw new Error(`${course.publicId}: "recommendedLevel" must be null or { min, max } with levels 1-20 and min <= max`);
+    }
+    out.push(`UPDATE catalog.course SET recommended_min_level = ${lit(range?.min)}, recommended_max_level = ${lit(range?.max)} WHERE id = ${courseId};`);
+}
 if (Array.isArray(course.prerequisites)) {
     // Prerequisites seeded later are skipped here; re-run this seed once they exist.
     out.push(`DELETE FROM catalog.course_prerequisite WHERE course_id = ${courseId};

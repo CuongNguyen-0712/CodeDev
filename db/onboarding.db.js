@@ -186,6 +186,8 @@ export const onboardingDb = {
                 c.title,
                 c.image,
                 c.level,
+                c.recommended_min_level,
+                c.recommended_max_level,
                 c.rating,
                 c.students,
                 c.duration,

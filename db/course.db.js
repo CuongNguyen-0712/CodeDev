@@ -202,6 +202,8 @@ export const courseDb = {
                 c.lessons,
                 c.cost,
                 c.level,
+                c.recommended_min_level,
+                c.recommended_max_level,
                 c.duration,
                 c.instructor,
                 c.point_price,

@@ -247,6 +247,45 @@ describe.skipIf(!hasDb)("EXP and levels (PostgreSQL)", () => {
         }
     });
 
+    it("unlocks achievements once, with their EXP in the challenge reward", async () => {
+        const user = await makeUser("achiever");
+        const progress = async () => Object.fromEntries((await sql(
+            `SELECT a.code, p.progress FROM public.achievement_progress($1) p JOIN profile.achievement a ON a.id = p.achievement_id`, [user.id]
+        )).rows.map((r) => [r.code, r.progress]));
+        const passCoding = async (type, metadata = null) => {
+            const ch = await makeChallenge(course.lessons[0], course.module, { type, difficulty: "easy", points: 0 });
+            await sql(
+                `INSERT INTO challenge.code_submissions (public_id, user_id, challenge_id, language, source_snapshot, status)
+                 VALUES ($1, $2, $3, 'javascript', '{}', 'passed')`,
+                [`${TAG}-s-${ch.id}`, user.id, ch.id]
+            );
+            await one(`SELECT * FROM public.award_challenge_exp($1::bigint, $2::bigint, 1, $3::jsonb)`, [user.id, ch.id, metadata]);
+        };
+
+        for (let i = 0; i < 5; i++) await passCoding("fix_bug");
+        await passCoding("mini_coding", { assisted: true }); // hint 3 opened: not self-reliant
+        expect(await progress()).toMatchObject({ bug_hunter: 5, self_reliant: 5 });
+
+        // The next reward (any challenge) grants Bug Hunter: quiz.easy 5 + 30.
+        const quiz = await makeChallenge(course.lessons[0], course.module, { type: "quiz", difficulty: "easy", points: 0 });
+        const question = await one(
+            `INSERT INTO challenge.questions (challenge_id, question, type, order_index, points) VALUES ($1, 'Q', 'single_choice', 1, 10) RETURNING id`,
+            [quiz.id]
+        );
+        const rewards = await challengeDb.saveQuizAttempt({
+            userDbId: user.id, challengeId: quiz.id, passed: true, points: 0, maxAttempts: 3, cooldownSec: 0,
+            rows: [{ questionId: question.id, optionId: null, isCorrect: true }],
+        });
+        expect(rewards).toMatchObject({ awardedExp: 35, achievements: [{ code: "bug_hunter", title: "Bug Hunter", exp: 30 }] });
+
+        // Earned once: nothing new, and the ledger has one achievement transaction.
+        expect((await sql(`SELECT * FROM public.award_achievements($1)`, [user.id])).rowCount).toBe(0);
+        const tx = await one(
+            `SELECT COUNT(*)::int AS n FROM profile.exp_transaction WHERE user_id = $1 AND source_type = 'achievement'`, [user.id]
+        );
+        expect(tx.n).toBe(1);
+    });
+
     it("keeps the EXP cache equal to the ledger", async () => {
         const drift = await one(`SELECT COUNT(*)::int AS n FROM profile.exp_drift WHERE user_id = ANY($1::bigint[])`, [userIds]);
         expect(drift.n).toBe(0);

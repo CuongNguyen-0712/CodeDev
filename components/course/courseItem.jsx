@@ -10,7 +10,7 @@ import { useSession } from "next-auth/react";
 import { useCourseRegister } from "@/mutations/course.mutation";
 import { commerceQueries } from "@/queries/premium.query";
 import { userQueries } from "@/queries/user.query";
-import { FIT_LABELS, courseFit, recommendedLevel } from "@/lib/levels";
+import { FIT_LABELS, courseFit, levelOverride, recommendedLevel } from "@/lib/levels";
 import { fitCover } from "@/lib/coverFit";
 
 import { Badge } from "@/components/shadcn/badge";
@@ -58,9 +58,9 @@ export const CourseItem = ({ item }) => {
     const { status } = useSession();
     // Level suggestion only (never blocks access): the learner's level comes from the cached `me` query.
     const { data: me } = useQuery(userQueries.me(status));
-    const recommended = recommendedLevel(item.level);
+    const recommended = recommendedLevel(item.level, levelOverride(item));
     const estimatedExp = Number(item.estimated_exp) || 0;
-    const fit = me ? courseFit(me.level, item.level) : null;
+    const fit = me ? courseFit(me.level, item.level, levelOverride(item)) : null;
 
     const [dataRegistered, setDataRegistered] = useState([]);
     const [isNavigating, startTransition] = useTransition();

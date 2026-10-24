@@ -132,7 +132,8 @@ dung chính xác kỹ thuật, chạy được ngay trên pipeline CodeDev.
 Theo các course có sẵn: `publicId`, `title`, `concept`, `description`, `level`, `durationMinutes`,
 `language`, `category`, `cost`, `pointPrice`, `reward`, `accessModel` (+ `offers` nếu premium),
 `publishStatus: "draft"`, `careerRoles`, `skills`, `goals`, `prerequisites`, `completionRules: {}` (track
-kiến trúc: điều kiện hoàn thành theo tier), `modules[].lessons[]`
+kiến trúc: điều kiện hoàn thành theo tier), `recommendedLevel: { min, max }` (chỉ khi course override khoảng
+Level, ví dụ E2 3–8, E7 6–12), `modules[].lessons[]`
 (`orderIndex`, `folder`, `title`, `sanityId`). Course mới chỉ có outline: `modules: []` + `outline`.
 Kèm bảng: lesson → outcome → số câu Đ/S → coding liên quan; scenario của course; phần not graded.
 

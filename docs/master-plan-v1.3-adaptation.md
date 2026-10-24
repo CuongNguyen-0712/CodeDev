@@ -41,14 +41,14 @@ File này ghi phần nào của V1.3 **đã có** trong code, phần nào **đ�
 | Course bonus 50/100/150/200 | Có | `course.beginner…expert` |
 | Quiz Đ/S 3 EXP/câu đúng lần đầu | **Khác**: theo quiz challenge (5/8/12) | Giữ, xem mục 1 |
 | Level đề xuất 1–5 / 4–9 / 8–14 / 13–20 + nhãn phù hợp | Có, biên trùng | `lib/levels.js` `courseFit` |
-| Override khoảng Level theo course (E2: 3–8, E7: 6–12) | Thiếu | P4 |
+| Override khoảng Level theo course (E2: 3–8, E7: 6–12) | Có (P4) | `catalog.course.recommended_min_level/max_level` |
 | Prerequisite | Có | `catalog.course_prerequisite`, `course.json` `prerequisites` |
 | Gợi ý course có lý do | Có (v1, trọng số riêng, chưa theo điểm số 7.5) | `services/recommendation.service.js` |
 | Điều chỉnh admin có lý do | Có | `app/api/admin/experience/adjust` |
 | `estimatedExp` | Có (tính khi đọc) | `docs/experience-leveling-design.md` §6 |
 | Điều kiện hoàn thành theo tier (≥60/70/75/80% quiz, pass mọi coding, ≥1 bài khó ở T3) | Có (P2), chỉ course khai báo `completionRules`; coding tính theo % thay vì tất cả | `public.course_completion_status` |
 | Hint 3 cấp + `challenge.*.assisted` 50% | Có (P1) | `challenge.challenge_hints`, `challenge.hint_views` |
-| Achievement (Bug Hunter, Self-Reliant) | **Thiếu** | P3 |
+| Achievement (Bug Hunter, Self-Reliant) | Có (P3) | `profile.achievement`, `public.award_achievements` |
 | Điều chỉnh theo phong độ | Thiếu; V1.3 cũng tắt lúc đầu | Bỏ qua tới khi có dữ liệu |
 | Fix bug từ chối code gốc | Có gián tiếp: `verify-challenges` bắt buộc starter **fail**, nên nộp lại code gốc không bao giờ pass | Không cần code mới |
 | Test ẩn | Có: `tests[].hidden` → `challenge_test_cases.is_hidden` | — |
@@ -111,10 +111,14 @@ và số coding của tier bằng cách phân bổ qua 8–15 lesson.
   (advanced trở lên 1, không vượt số bài khó có). `submit_lesson` chỉ đánh dấu hoàn thành + bonus khi đạt;
   trang học hiện khối "To complete this course". Vì lesson chỉ xong khi mọi challenge đã pass hoặc hết lượt,
   kết quả là cố định khi xong lesson cuối.
-- **P3. Achievement.** Bảng achievement + user_achievement trong `profile`; EXP qua `award_exp` rule
-  `achievement.<code>`; 2 achievement đầu: Bug Hunter, Self-Reliant (cần P1).
-- **P4. Override khoảng Level theo course.** `catalog.course.recommended_min_level/max_level` (null = theo level);
-  `courseFit` nhận override.
+- **P3. Achievement — xong (migration `20261024_005`).** `profile.achievement` + `profile.user_achievement`;
+  EXP qua `award_exp` rule `achievement.<code>` (source_type `achievement`). `public.award_achievements` chạy
+  ngay sau mỗi lần thưởng challenge, cùng transaction; toast "Achievement unlocked", card Achievements ở
+  trang profile. Bug Hunter: pass 5 bài fix bug (+30 EXP). Self-Reliant: pass 10 bài coding không mở hint 3
+  trước (+50 EXP). Người đã đủ điều kiện từ trước nhận ở lần pass challenge kế tiếp (không backfill).
+- **P4. Override khoảng Level theo course — xong (migration `20261024_004`).**
+  `catalog.course.recommended_min_level/max_level` (null = theo level), `course.json` `recommendedLevel: { min, max }`;
+  `recommendedLevel` / `courseFit` trong `lib/levels.js` nhận override (thẻ course và gợi ý course).
 
 **Content** (theo pipeline `content/README.md`, prompt `content/PROMPT_CONTEXT.md`):
 

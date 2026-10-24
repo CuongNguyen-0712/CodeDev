@@ -108,6 +108,7 @@ function rewardView(rewards = {}) {
         view.level = Number(rewards.level) || 1;
         view.previousLevel = Number(rewards.previousLevel) || view.level;
     }
+    if (rewards.achievements?.length) view.achievements = rewards.achievements;
     return view;
 }
 

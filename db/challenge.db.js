@@ -57,12 +57,20 @@ async function awardChallengeRewards(client, { userDbId, challengeId, amount, ex
     );
     const exp = expRows[0] || {};
 
+    // A pass may complete an achievement (profile.achievement); its EXP joins this reward.
+    const { rows: earned } = await client.query(
+        `SELECT code, title, awarded, exp_after, new_level FROM public.award_achievements($1::bigint)`,
+        [userDbId]
+    );
+    const last = earned[earned.length - 1];
+
     return {
         awardedPoints,
-        awardedExp: Number(exp.awarded) || 0,
-        exp: Number(exp.exp_after) || 0,
-        level: Number(exp.new_level) || 1,
+        awardedExp: (Number(exp.awarded) || 0) + earned.reduce((sum, a) => sum + (Number(a.awarded) || 0), 0),
+        exp: Number(last?.exp_after ?? exp.exp_after) || 0,
+        level: Number(last?.new_level ?? exp.new_level) || 1,
         previousLevel: Number(exp.previous_level) || 1,
+        achievements: earned.map((a) => ({ code: a.code, title: a.title, exp: Number(a.awarded) || 0 })),
     };
 }
 

@@ -1,10 +1,11 @@
 'use client';
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { LuBookOpen, LuFlag, LuLoaderCircle, LuPuzzle, LuSlidersHorizontal } from "react-icons/lu";
+import { LuBookOpen, LuFlag, LuLoaderCircle, LuPuzzle, LuSlidersHorizontal, LuTrophy } from "react-icons/lu";
 
 import { userQueries } from "@/queries/user.query";
 import { formatDate } from "@/components/commerce/format";
 import { Button } from "@/components/shadcn/button";
+import { Progress } from "@/components/shadcn/progress";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -12,8 +13,57 @@ const SOURCES = {
     lesson: { icon: LuBookOpen, label: "Lesson completed" },
     challenge: { icon: LuPuzzle, label: "Challenge passed" },
     course: { icon: LuFlag, label: "Course completed" },
+    achievement: { icon: LuTrophy, label: "Achievement unlocked" },
     adjustment: { icon: LuSlidersHorizontal, label: "Adjustment" },
 };
+
+/** Earned achievements first-class, the rest with their progress (graded automatically). */
+function AchievementsCard({ achievements }) {
+    if (!achievements?.length) return null;
+    const earned = achievements.filter((a) => a.earnedAt).length;
+
+    return (
+        <div className="flex min-w-0 flex-col overflow-hidden rounded-xl border bg-card lg:col-span-3">
+            <div className="flex items-center justify-between border-b px-4 py-3">
+                <h2 id="achievements-heading" className="text-sm font-semibold text-foreground">Achievements</h2>
+                <span className="text-xs text-muted-foreground tabular">{earned}/{achievements.length} unlocked</span>
+            </div>
+            <ul aria-labelledby="achievements-heading" className="grid gap-px bg-border sm:grid-cols-2">
+                {achievements.map((a) => (
+                    <li key={a.code} className="flex items-start gap-3 bg-card px-4 py-3">
+                        <span
+                            className={cn(
+                                "flex size-8 shrink-0 items-center justify-center rounded-lg",
+                                a.earnedAt ? "bg-xp-soft text-xp" : "bg-muted text-muted-foreground"
+                            )}
+                        >
+                            <LuTrophy className="size-4" aria-hidden="true" />
+                        </span>
+                        <div className="min-w-0 flex-1 space-y-1">
+                            <p className="flex items-baseline justify-between gap-2 text-sm font-medium text-foreground">
+                                <span className="truncate">{a.title}</span>
+                                {a.exp > 0 && <span className="shrink-0 text-xs tabular text-xp">+{a.exp} EXP</span>}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{a.description}</p>
+                            {a.earnedAt ? (
+                                <p className="text-xs text-muted-foreground">Unlocked {formatDate(a.earnedAt)}</p>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <Progress
+                                        value={(a.progress / a.threshold) * 100}
+                                        className="h-1.5 flex-1 bg-muted"
+                                        aria-label={`${a.title}: ${a.progress} of ${a.threshold}`}
+                                    />
+                                    <span className="text-xs tabular text-muted-foreground">{a.progress}/{a.threshold}</span>
+                                </div>
+                            )}
+                        </div>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
 
 /** EXP history (newest first, paged) and the level table with the learner's level highlighted. */
 export default function ExperienceSection({ status, currentLevel = 1 }) {
@@ -24,6 +74,7 @@ export default function ExperienceSection({ status, currentLevel = 1 }) {
 
     return (
         <section aria-labelledby="experience-heading" className="grid items-start gap-6 lg:grid-cols-3">
+            <AchievementsCard achievements={pages[0]?.achievements} />
             <div className="flex min-w-0 flex-col rounded-xl border bg-card lg:col-span-2">
                 <div className="flex items-center justify-between border-b px-4 py-3">
                     <h2 id="experience-heading" className="text-sm font-semibold text-foreground">EXP history</h2>

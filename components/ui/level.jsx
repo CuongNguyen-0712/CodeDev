@@ -197,6 +197,13 @@ export function announceRewards(rewards, { title, id } = {}) {
         notify(200, title, { id });
     }
 
+    // Earned once per user, so the code identifies the toast across tabs and redeliveries.
+    for (const achievement of rewards?.achievements || []) {
+        notify(200, `Achievement unlocked: ${achievement.title}${achievement.exp > 0 ? ` · +${achievement.exp} EXP` : ""}`, {
+            id: `achievement:${achievement.code}`,
+        });
+    }
+
     // RankUpWatcher refetches the ranks and toasts a new tier.
     if ((points > 0 || exp > 0) && typeof window !== "undefined") {
         window.dispatchEvent(new Event(REWARDS_EVENT));

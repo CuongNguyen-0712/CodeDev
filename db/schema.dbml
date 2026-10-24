@@ -190,6 +190,8 @@ Table catalog.course {
   course_type varchar(20) [not null, default: 'course']
   access_model varchar(20) [not null, default: 'free', note: 'free: anyone may enrol (a free entitlement is granted). premium: needs an entitlement from a purchase, points or an admin grant']
   completion_rules jsonb [note: 'NULL: complete every lesson. Object: also minQuizPercent / minCodingPercent / minHardPassed (defaults by level), see public.course_completion_status']
+  recommended_min_level smallint
+  recommended_max_level smallint
 
   indexes {
     title [name: 'course_title']
@@ -205,6 +207,9 @@ Table catalog.course {
   chk_course_publish_status: CHECK (((publish_status)::text = ANY ((ARRAY['draft'::character varying, 'published'::character varying, 'unpublished'::character varying, 'archived'::character varying])::text[])))
   chk_course_type: CHECK (((course_type)::text = ANY ((ARRAY['course'::character varying, 'project'::character varying, 'workshop'::character varying])::text[])))
   course_completion_rules_object: CHECK (((completion_rules IS NULL) OR (jsonb_typeof(completion_rules) = 'object'::text)))
+  course_recommended_level_range: CHECK ((recommended_max_level >= recommended_min_level))
+  course_recommended_max_level_check: CHECK (((recommended_max_level >= 1) AND (recommended_max_level <= 20)))
+  course_recommended_min_level_check: CHECK (((recommended_min_level >= 1) AND (recommended_min_level <= 20)))
   '''
 }
 
@@ -1172,6 +1177,20 @@ Table learning.register {
   '''
 }
 
+Table profile.achievement {
+  id smallint [pk]
+  code varchar(40) [not null, unique]
+  title varchar(80) [not null]
+  description text [not null]
+  threshold int [not null]
+  sort_order smallint [not null, default: 0]
+  is_active boolean [not null, default: true]
+
+  Note: '''
+  achievement_threshold_check: CHECK ((threshold > 0))
+  '''
+}
+
 Table profile.exp_level {
   level int [pk]
   title varchar(60) [not null]
@@ -1221,7 +1240,7 @@ Table profile.exp_transaction {
   chk_exp_transaction_source: CHECK ((((source_type)::text = 'adjustment'::text) OR (source_id IS NOT NULL)))
   exp_transaction_amount_check: CHECK ((amount <> 0))
   exp_transaction_exp_after_check: CHECK ((exp_after >= 0))
-  exp_transaction_source_type_check: CHECK (((source_type)::text = ANY ((ARRAY['lesson'::character varying, 'challenge'::character varying, 'course'::character varying, 'adjustment'::character varying])::text[])))
+  exp_transaction_source_type_check: CHECK (((source_type)::text = ANY ((ARRAY['lesson'::character varying, 'challenge'::character varying, 'course'::character varying, 'achievement'::character varying, 'adjustment'::character varying])::text[])))
   '''
 }
 
@@ -1363,6 +1382,16 @@ Table profile.task {
 
   indexes {
     (user_id, status) [name: 'idx_task_user']
+  }
+}
+
+Table profile.user_achievement {
+  user_id bigint
+  achievement_id smallint
+  earned_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (user_id, achievement_id) [pk]
   }
 }
 
@@ -1603,6 +1632,8 @@ Ref fk_point_transaction_user: profile.point_transaction.user_id > identity.user
 Ref point_transaction_actor_id_fkey: profile.point_transaction.actor_id > identity.users.id [delete: set null]
 Ref point_transaction_order_id_fkey: profile.point_transaction.order_id > commerce.orders.id
 Ref fk_task_user: profile.task.user_id > identity.users.id [delete: cascade]
+Ref user_achievement_achievement_id_fkey: profile.user_achievement.achievement_id > profile.achievement.id
+Ref user_achievement_user_id_fkey: profile.user_achievement.user_id > identity.users.id [delete: cascade]
 Ref user_industry_industry_id_fkey: profile.user_industry.industry_id > catalog.industry.id [delete: cascade]
 Ref user_industry_user_id_fkey: profile.user_industry.user_id > identity.users.id [delete: cascade]
 Ref user_learning_goal_learning_goal_id_fkey: profile.user_learning_goal.learning_goal_id > catalog.learning_goal.id [delete: cascade]
@@ -1639,6 +1670,7 @@ TableGroup identity {
 }
 
 TableGroup profile {
+  profile.achievement
   profile.exp_level
   profile.exp_rule
   profile.exp_transaction
@@ -1649,6 +1681,7 @@ TableGroup profile {
   profile.point_transaction
   profile.rank_tier
   profile.task
+  profile.user_achievement
   profile.user_industry
   profile.user_learning_goal
 }
