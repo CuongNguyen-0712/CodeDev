@@ -28,6 +28,8 @@ async function withTransaction(callback) {
 // Credits a passed challenge once per (user, challenge): points through public.post_points and EXP
 // through public.award_challenge_exp (rule from the challenge type/difficulty, times expMultiplier).
 // Both writers lock the profile row and are idempotent per source; points first, then EXP.
+// Hint level 3 (a worked example) opened before this first pass halves the EXP ("assisted");
+// points are not affected.
 async function awardChallengeRewards(client, { userDbId, challengeId, amount, expMultiplier = 1 }) {
     let awardedPoints = 0;
     if (amount > 0) {
@@ -39,7 +41,18 @@ async function awardChallengeRewards(client, { userDbId, challengeId, amount, ex
     }
 
     const { rows: expRows } = await client.query(
-        `SELECT awarded, exp_after, previous_level, new_level FROM public.award_challenge_exp($1::bigint, $2::bigint, $3::numeric)`,
+        `SELECT e.awarded, e.exp_after, e.previous_level, e.new_level
+         FROM (
+             SELECT EXISTS (
+                 SELECT 1 FROM challenge.hint_views hv
+                 WHERE hv.user_id = $1::bigint AND hv.challenge_id = $2::bigint AND hv.level = 3
+             ) AS assisted
+         ) a
+         CROSS JOIN LATERAL public.award_challenge_exp(
+             $1::bigint, $2::bigint,
+             $3::numeric * CASE WHEN a.assisted THEN 0.5 ELSE 1 END,
+             CASE WHEN a.assisted THEN '{"assisted": true}'::jsonb END
+         ) e`,
         [userDbId, challengeId, expMultiplier]
     );
     const exp = expRows[0] || {};
@@ -219,6 +232,37 @@ export const challengeDb = {
         `;
 
         return await sql(query, [userId, lessonId]);
+    },
+
+    /**
+     * Opens hint `level` for a learner and returns its text. Levels open in order: level n needs
+     * level n-1 opened first. Opening again is a no-op (the first opened_at is kept).
+     * Returns null when the challenge has no such hint, { locked: true } when out of order.
+     */
+    openHint: async ({ userDbId, challengeId, level }) => {
+        return await withTransaction(async (client) => {
+            const { rows } = await client.query(
+                `SELECT h.body,
+                        ($3::smallint = 1 OR EXISTS (
+                            SELECT 1 FROM challenge.hint_views hv
+                            WHERE hv.user_id = $1::bigint AND hv.challenge_id = $2::bigint AND hv.level = $3::smallint - 1
+                        )) AS unlocked
+                 FROM challenge.challenge_hints h
+                 WHERE h.challenge_id = $2::bigint AND h.level = $3::smallint`,
+                [userDbId, challengeId, level]
+            );
+            const hint = rows[0];
+            if (!hint) return null;
+            if (!hint.unlocked) return { locked: true };
+
+            await client.query(
+                `INSERT INTO challenge.hint_views (user_id, challenge_id, level)
+                 VALUES ($1::bigint, $2::bigint, $3::smallint)
+                 ON CONFLICT DO NOTHING`,
+                [userDbId, challengeId, level]
+            );
+            return { body: hint.body };
+        });
     },
 
     getCodingDefinition: async ({ challengeId }) => {

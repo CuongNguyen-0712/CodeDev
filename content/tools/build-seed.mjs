@@ -174,6 +174,18 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();`);
 
+            // Hints 1-3 (guiding question, where to look, similar example). hint_views has no foreign key
+            // to them, so rewriting keeps what learners already opened.
+            const hints = ch.hints ?? [];
+            if (!Array.isArray(hints) || hints.length > 3 || hints.some((h) => typeof h !== "string" || !h.trim())) {
+                throw new Error(`${ch.publicId}: "hints" must be a list of at most 3 non-empty strings`);
+            }
+            out.push(`DELETE FROM challenge.challenge_hints WHERE challenge_id = ${challengeId};`);
+            if (hints.length > 0) {
+                out.push(`INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ${hints.map((h, i) => `(${challengeId}, ${i + 1}, ${lit(h.trim())})`).join(",\n       ")};`);
+            }
+
             if (ch.type === "quiz") {
                 ch.questions.forEach((q, index) => {
                     const options = q.options.map((o) => `(${lit(o.text)}, ${lit(Boolean(o.correct))})`).join(",\n        ");

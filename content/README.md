@@ -83,9 +83,16 @@ then apply `db/seeds/<course>.sql` (test it on a Neon branch first).
     spacing are ignored (`lib/challenges/compare.js` `stdoutMatches`);
   - standard library only, no network, deterministic; Java uses `public class Main`; C is `-std=c23`,
     C++ `-std=c++23`, Rust edition 2024.
+- Hints: `"hints": ["...", "...", "..."]` on a challenge, at most 3 (1 a guiding question, 2 where to look,
+  3 a similar worked example), never the solution. They go to `challenge.challenge_hints` (server-only) and
+  open one level at a time; opening level 3 before the first pass halves the challenge EXP. A challenge
+  with `hints` ignores the hint argument of `challenge(id, hint)` in `lesson.source.mjs`.
 - New courses: 1-2 challenges per lesson. Premium courses set `accessModel`, `offers` and usually
   `publishStatus: "draft"` in `course.json` (docs/course-catalog-plan.md).
 - javascript challenges run in a Web Worker: no DOM, no Node-only APIs, no imports. The entry is the
   first function in `starter.js`; `harness.js` defines `async function __harness(input, ctx)`.
 - Deterministic harnesses (fake clocks, injected timers), well under `timeLimitMs`.
 - Never put quiz answers, test expectations or solutions in `lesson.source.mjs`.
+
+AI-assisted authoring: paste `PROMPT_CONTEXT.md` (context pack, rules and output formats for these files) as
+the context, then fill its request block.

@@ -27,7 +27,7 @@ query modules in this folder (`*.db.js`, `roadmap.js`) via `lib/db.js`.
 | `catalog` | course (`publish_status`, `access_model`, `course_type`), category, language, career_role, industry, learning_goal, skill, career_role_skill, course_skill, course_career_role, course_industry, course_learning_goal, course_prerequisite |
 | `course` | module, lesson |
 | `learning` | register, history, favorite, recovery, view `user_progress` |
-| `challenge` | challenges, questions, question_options, question_submissions, coding_* , code_*, challenge_test_cases |
+| `challenge` | challenges, questions, question_options, question_submissions, coding_* , code_*, challenge_test_cases, challenge_hints (levels 1-3, server-only), hint_views (opened hints; level 3 before the first pass halves the challenge EXP) |
 | `roadmap` | roadmaps, nodes, node_course, roadmap_users, user_progress |
 | `community` | comment, voting, event, event_join, feedback, team, team_members, friend, messages |
 | `commerce` | offer (prices), orders, order_items, payment, payment_event (webhook inbox), entitlement (course access), cart_items |

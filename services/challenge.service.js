@@ -836,6 +836,29 @@ export const challengeService = {
         };
     },
 
+    // ---------------------------------------------------------------- hints
+
+    /**
+     * Opens hint `level` (1-3, in order) and returns its text. Level 3 opened before the first
+     * pass halves the challenge EXP (challengeDb awardChallengeRewards).
+     */
+    openHint: async ({ userId, challengeId, level }) => {
+        const n = Number(level);
+        if (!Number.isInteger(n) || n < 1 || n > 3) {
+            throw new ApiError("Invalid hint level", 400);
+        }
+
+        const ctx = await resolveContext({ userId, challengeId });
+        const hint = await challengeDb.openHint({ userDbId: ctx.user_db_id, challengeId: ctx.id, level: n });
+
+        if (!hint) throw new ApiError("This challenge has no such hint", 404);
+        if (hint.locked) throw new ApiError("Open the previous hint first", 409);
+
+        // The learning_progress payload (cached per user) lists the opened hints.
+        await invalidateUserCache(userId);
+        return { level: n, body: hint.body };
+    },
+
     // Removes grading data the browser must never see from the learning_progress payload.
     sanitizeLearningProgress: (progress) => {
         if (!progress?.modules) return progress;

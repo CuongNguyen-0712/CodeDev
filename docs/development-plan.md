@@ -93,6 +93,7 @@ Client: `hooks/usePusherChannel.js` (đếm tham chiếu kênh, tự refetch khi
 - **Chấm code phía server**: hiện `submitCoding` chấm dựa trên kết quả do trình duyệt báo về (`results`). Chuyển sang chạy test trong sandbox phía server (worker cô lập / Judge0 / container tạm) để kết quả và điểm không thể bị giả.
 - Streak học tập, mục tiêu tuần, nhắc học (cron + email / web push — đã có `@pusher/push-notifications-web`).
 - Roadmap cá nhân hóa: gợi ý khóa tiếp theo dựa trên tiến độ.
+- **Master Execution Plan V1.3** (track kiến trúc A1–E7, hint 3 cấp, điều kiện hoàn thành theo tier, achievement): đối chiếu và thứ tự làm ở [master-plan-v1.3-adaptation.md](master-plan-v1.3-adaptation.md); prompt viết nội dung ở `content/PROMPT_CONTEXT.md`.
 
 ---
 

@@ -5,10 +5,13 @@ import { createContext, useContext, useEffect, useState } from "react";
 import QuizChallenge from "./challenges/quizChallenge";
 import CodingChallenge from "./challenges/codingChallenge";
 
+import { useOpenHint } from "@/mutations/challenge.mutation";
+
 import { Badge } from "@/components/shadcn/badge";
+import { Button } from "@/components/shadcn/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
 
-import { LuBug, LuCheck, LuCode, LuListChecks, LuLock } from "react-icons/lu";
+import { LuBug, LuCheck, LuCode, LuLightbulb, LuListChecks, LuLoaderCircle, LuLock } from "react-icons/lu";
 
 const TYPE_META = {
     quiz: { label: "Knowledge check", Icon: LuListChecks },
@@ -79,6 +82,77 @@ function ChallengeHeader({ challenge, isDone, isExhausted }) {
             <h2 className="text-lg font-semibold tracking-tight">{challenge.title}</h2>
             {challenge.description && (
                 <p className="max-w-[70ch] text-sm leading-relaxed text-muted-foreground">{challenge.description}</p>
+            )}
+        </div>
+    );
+}
+
+const HINT_LABELS = { 1: "A question to guide you", 2: "Where to look", 3: "A similar example" };
+
+// Static hints, opened one level at a time on the server. Level 3 (a worked example) opened before
+// the first pass halves the challenge EXP. Challenges without hints keep the single Sanity hint.
+function ChallengeHints({ challenge, isDone, legacyHint }) {
+    const total = Number(challenge.hints_total) || 0;
+    const [opened, setOpened] = useState(() => challenge.hints || []);
+    const openHint = useOpenHint();
+
+    if (total === 0) {
+        return legacyHint ? (
+            <details className="group rounded-md border border-dashed px-3 py-2 text-sm">
+                <summary className="cursor-pointer font-medium select-none">Need a hint?</summary>
+                <p className="mt-2 text-muted-foreground">{legacyHint}</p>
+            </details>
+        ) : null;
+    }
+
+    const next = opened.length + 1;
+    const assisted = opened.some((h) => h.level === 3);
+    const costsExp = next === 3 && !isDone;
+
+    const handleOpen = () => openHint.mutate(
+        { challengeId: challenge.id, level: next },
+        { onSuccess: (hint) => setOpened((prev) => [...prev.filter((h) => h.level !== hint.level), hint]) }
+    );
+
+    return (
+        <div className="space-y-3 rounded-md border border-dashed px-3 py-2 text-sm">
+            <div className="flex items-center gap-2 font-medium">
+                <LuLightbulb className="size-4 text-muted-foreground" aria-hidden="true" />
+                Hints
+                <span className="text-xs font-normal text-muted-foreground tabular">{opened.length}/{total}</span>
+            </div>
+
+            {opened.length > 0 && (
+                <ol className="space-y-2">
+                    {opened.map((hint) => (
+                        <li key={hint.level}>
+                            <p className="text-xs font-medium text-muted-foreground">Hint {hint.level}: {HINT_LABELS[hint.level]}</p>
+                            <p className="mt-0.5 whitespace-pre-wrap">{hint.body}</p>
+                        </li>
+                    ))}
+                </ol>
+            )}
+
+            {assisted && !isDone && (
+                <p className="text-xs text-warning">Hint 3 is open, so this challenge gives half EXP when you pass it.</p>
+            )}
+
+            {next <= total && (
+                <div className="space-y-1.5">
+                    {costsExp && (
+                        <p className="text-xs text-muted-foreground">
+                            Hint 3 is a worked example. Opening it before you pass halves the EXP for this challenge.
+                        </p>
+                    )}
+                    <Button variant="outline" size="sm" onClick={handleOpen} disabled={openHint.isPending}>
+                        {openHint.isPending && <LuLoaderCircle className="animate-spin" aria-hidden="true" />}
+                        {costsExp ? "Show hint 3 (half EXP)" : `Show hint ${next}`}
+                    </Button>
+                </div>
+            )}
+
+            {openHint.isError && (
+                <p role="alert" className="text-xs text-destructive">{openHint.error.message}</p>
             )}
         </div>
     );
@@ -168,12 +242,7 @@ export function InlineChallenge({ publicId, hint }) {
             aria-label={`Practice: ${challenge.title}`}
         >
             <ChallengeHeader challenge={challenge} isDone={completed.has(challenge.id)} isExhausted={exhausted.has(challenge.id)} />
-            {hint && (
-                <details className="group rounded-md border border-dashed px-3 py-2 text-sm">
-                    <summary className="cursor-pointer font-medium select-none">Need a hint?</summary>
-                    <p className="mt-2 text-muted-foreground">{hint}</p>
-                </details>
-            )}
+            <ChallengeHints challenge={challenge} isDone={completed.has(challenge.id)} legacyHint={hint} />
             <ChallengeBody challenge={challenge} onPassed={handlePassed} onExhausted={handleExhausted} />
         </aside>
     );
@@ -223,6 +292,7 @@ export default function ChallengeSection({ embeddedIds = NO_EMBEDS }) {
             {items.length === 1 ? (
                 <div id={challengeAnchorId(items[0].id)} className="scroll-mt-16 space-y-4">
                     <ChallengeHeader challenge={items[0]} isDone={completed.has(items[0].id)} isExhausted={exhausted.has(items[0].id)} />
+                    <ChallengeHints challenge={items[0]} isDone={completed.has(items[0].id)} />
                     <ChallengeBody challenge={items[0]} onPassed={handlePassed} onExhausted={handleExhausted} />
                 </div>
             ) : (
@@ -257,6 +327,7 @@ export default function ChallengeSection({ embeddedIds = NO_EMBEDS }) {
                         >
                             <div id={challengeAnchorId(challenge.id)} className="scroll-mt-16 space-y-4">
                                 <ChallengeHeader challenge={challenge} isDone={completed.has(challenge.id)} isExhausted={exhausted.has(challenge.id)} />
+                                <ChallengeHints challenge={challenge} isDone={completed.has(challenge.id)} />
                                 <ChallengeBody challenge={challenge} onPassed={handlePassed} onExhausted={handleExhausted} />
                             </div>
                         </TabsContent>

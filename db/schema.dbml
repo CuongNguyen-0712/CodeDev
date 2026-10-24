@@ -317,6 +317,21 @@ Table catalog.skill {
   '''
 }
 
+Table challenge.challenge_hints {
+  challenge_id bigint
+  level smallint
+  body text [not null]
+
+  indexes {
+    (challenge_id, level) [pk]
+  }
+
+  Note: '''
+  challenge_hints_body_check: CHECK ((btrim(body) <> ''::text))
+  challenge_hints_level_check: CHECK (((level >= 1) AND (level <= 3)))
+  '''
+}
+
 Table challenge.challenge_test_cases {
   id bigint [pk, increment]
   challenge_id bigint [not null]
@@ -517,6 +532,21 @@ Table challenge.coding_workspaces {
     (challenge_id, user_id) [unique, name: 'uq_coding_workspace_user_challenge']
     user_id [name: 'idx_coding_workspaces_user']
   }
+}
+
+Table challenge.hint_views {
+  user_id bigint
+  challenge_id bigint
+  level smallint
+  opened_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (user_id, challenge_id, level) [pk]
+  }
+
+  Note: '''
+  hint_views_level_check: CHECK (((level >= 1) AND (level <= 3)))
+  '''
 }
 
 Table challenge.question_options {
@@ -1480,6 +1510,7 @@ Ref course_prerequisite_course_id_fkey: catalog.course_prerequisite.course_id > 
 Ref course_prerequisite_prerequisite_course_id_fkey: catalog.course_prerequisite.prerequisite_course_id > catalog.course.id [delete: cascade]
 Ref course_skill_course_id_fkey: catalog.course_skill.course_id > catalog.course.id [delete: cascade]
 Ref course_skill_skill_id_fkey: catalog.course_skill.skill_id > catalog.skill.id [delete: cascade]
+Ref challenge_hints_challenge_id_fkey: challenge.challenge_hints.challenge_id > challenge.challenges.id [delete: cascade]
 Ref fk_test_cases_challenge: challenge.challenge_test_cases.challenge_id > challenge.challenges.id [delete: cascade]
 Ref fk_challenge_course_id: challenge.challenges.course_id > catalog.course.id [delete: cascade]
 Ref fk_challenge_lesson: challenge.challenges.lesson_id > course.lesson.id [delete: cascade]
@@ -1499,6 +1530,8 @@ Ref fk_workspace_files_asset: challenge.coding_workspace_files.asset_id > storag
 Ref fk_workspace_files_workspace: challenge.coding_workspace_files.workspace_id > challenge.coding_workspaces.id [delete: cascade]
 Ref fk_coding_workspaces_challenge: challenge.coding_workspaces.challenge_id > challenge.challenges.id [delete: cascade]
 Ref fk_coding_workspaces_user: challenge.coding_workspaces.user_id > identity.users.id [delete: cascade]
+Ref hint_views_challenge_id_fkey: challenge.hint_views.challenge_id > challenge.challenges.id [delete: cascade]
+Ref hint_views_user_id_fkey: challenge.hint_views.user_id > identity.users.id [delete: cascade]
 Ref fk_options_question: challenge.question_options.question_id > challenge.questions.id [delete: cascade]
 Ref fk_qsub_option: challenge.question_submissions.question_option_id > challenge.question_options.id [delete: cascade]
 Ref fk_qsub_question: challenge.question_submissions.question_id > challenge.questions.id [delete: cascade]
@@ -1647,6 +1680,7 @@ TableGroup learning {
 }
 
 TableGroup challenge {
+  challenge.challenge_hints
   challenge.challenge_test_cases
   challenge.challenges
   challenge.code_run_results
@@ -1657,6 +1691,7 @@ TableGroup challenge {
   challenge.coding_files
   challenge.coding_workspace_files
   challenge.coding_workspaces
+  challenge.hint_views
   challenge.question_options
   challenge.question_submissions
   challenge.questions

@@ -25,6 +25,13 @@ export async function submitQuizAction({ challengeId, answers }) {
     );
 }
 
+export async function openChallengeHintAction({ challengeId, level }) {
+    return runAction(
+        ({ userId }) => challengeService.openHint({ userId, challengeId, level }),
+        { context: "openChallengeHintAction" }
+    );
+}
+
 // "Run" for languages the browser cannot execute: sample tests in the code runner, nothing recorded.
 export async function runCodingSamplesAction({ challengeId, code }) {
     return runAction(

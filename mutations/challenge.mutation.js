@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { submitQuizAction, runCodingSamplesAction, startCodingSubmissionAction, finishCodingSubmissionAction } from "@/actions/challenge.actions";
+import { submitQuizAction, runCodingSamplesAction, startCodingSubmissionAction, finishCodingSubmissionAction, openChallengeHintAction } from "@/actions/challenge.actions";
 import { unwrapActionResult } from "@/queries/challenge.query";
 import { callWithAuthRetry } from "@/lib/actionResult";
 
@@ -31,6 +31,17 @@ export const useSubmitQuiz = () => {
                 queryClient.invalidateQueries({ queryKey: challengeKeys.quizState(variables.challengeId) });
             }
         },
+    });
+};
+
+/** Opens a hint level. variables: { challengeId, level }; resolves to { level, body }. */
+export const useOpenHint = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (data) => unwrapActionResult(await callWithAuthRetry(() => openChallengeHintAction(data))),
+        // The lesson payload lists opened hints: refetch it on the next mount, not now (no re-render mid-lesson).
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: [...userKeys.all, 'learningProgress'], refetchType: 'none' }),
     });
 };
 

@@ -115,6 +115,43 @@ describe.skipIf(!hasDb)("EXP and levels (PostgreSQL)", () => {
         expect(await attempt(true)).toMatchObject({ awardedPoints: 10, awardedExp: 4, level: 1, previousLevel: 1 });
     });
 
+    it("opens hints in order and halves EXP once hint 3 is open (assisted)", async () => {
+        const user = await makeUser("hinted");
+        const other = await makeUser("unhinted");
+        const quiz = await makeChallenge(course.lessons[0], course.module, { type: "quiz", difficulty: "medium", points: 10 });
+        await sql(
+            `INSERT INTO challenge.challenge_hints (challenge_id, level, body) VALUES ($1, 1, 'h1'), ($1, 2, 'h2'), ($1, 3, 'h3')`,
+            [quiz.id]
+        );
+        const question = await one(
+            `INSERT INTO challenge.questions (challenge_id, question, type, order_index, points) VALUES ($1, 'Q', 'single_choice', 1, 10) RETURNING id`,
+            [quiz.id]
+        );
+        const open = (u, level) => challengeDb.openHint({ userDbId: u.id, challengeId: quiz.id, level });
+        const pass = (u) => challengeDb.saveQuizAttempt({
+            userDbId: u.id, challengeId: quiz.id, passed: true, points: 10, maxAttempts: 3, cooldownSec: 0,
+            rows: [{ questionId: question.id, optionId: null, isCorrect: true }],
+        });
+
+        expect(await open(user, 2)).toEqual({ locked: true });
+        expect(await open(user, 1)).toEqual({ body: "h1" });
+        expect(await open(user, 1)).toEqual({ body: "h1" }); // reopening is a no-op
+        expect(await open(user, 2)).toEqual({ body: "h2" });
+        expect(await open(user, 3)).toEqual({ body: "h3" });
+
+        // quiz.medium = 8 EXP; assisted: 8 * 0.5 = 4. Points are not reduced.
+        expect(await pass(user)).toMatchObject({ awardedPoints: 10, awardedExp: 4 });
+        const tx = await one(
+            `SELECT metadata FROM profile.exp_transaction WHERE user_id = $1 AND source_id = $2`, [user.id, quiz.id]
+        );
+        expect(tx.metadata).toMatchObject({ assisted: true });
+
+        // Hints 1-2 only: full EXP.
+        await open(other, 1);
+        await open(other, 2);
+        expect(await pass(other)).toMatchObject({ awardedPoints: 10, awardedExp: 8 });
+    });
+
     it("jumps several levels at once and floors adjustments at 0", async () => {
         const user = await makeUser("adjusted");
         const up = await one(

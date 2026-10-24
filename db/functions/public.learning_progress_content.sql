@@ -80,6 +80,15 @@ BEGIN
                                     'type', ch.type,
                                     'points', COALESCE(ch.points, 0),
                                     'exp', (SELECT r.amount FROM profile.exp_rule r WHERE r.is_active AND r.rule_key = CASE WHEN ch.type = 'quiz' THEN 'quiz.' || ch.difficulty ELSE 'coding.' || ch.type || '.' || ch.difficulty END),
+                                    -- Static hints: how many exist, and the text of the levels this learner opened.
+                                    'hints_total', (SELECT COUNT(*) FROM challenge.challenge_hints hn WHERE hn.challenge_id = ch.id),
+                                    'hints', COALESCE((
+                                        SELECT jsonb_agg(jsonb_build_object('level', hn.level, 'body', hn.body) ORDER BY hn.level)
+                                        FROM challenge.challenge_hints hn
+                                        JOIN challenge.hint_views hv
+                                          ON hv.challenge_id = hn.challenge_id AND hv.level = hn.level AND hv.user_id = v_user_id
+                                        WHERE hn.challenge_id = ch.id
+                                    ), '[]'::jsonb),
                                     'questions', CASE WHEN ch.type = 'quiz' THEN COALESCE((
                                         SELECT jsonb_agg(
                                             jsonb_build_object(
