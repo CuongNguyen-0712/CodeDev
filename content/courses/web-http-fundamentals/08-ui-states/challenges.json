@@ -7,6 +7,7 @@
       "title": "Read the response, pick the state",
       "description": "Three situations from the \"My courses\" incident: an error body that turned into an empty list, a search box with two requests racing, and a 401 on a page that only knows how to say \"try again\".",
       "difficulty": "easy",
+      "outcomes": ["network-evidence"],
       "points": 10,
       "questions": [
         {

@@ -7,6 +7,7 @@
       "title": "What reaches the server, and where the time went",
       "description": "Two pieces of evidence from the slow progress page: a link with a fragment and the server log it produced, and the DevTools Timing breakdown of the first and the repeat visit. Decide whether each statement is True or False.",
       "difficulty": "easy",
+      "outcomes": ["network-evidence"],
       "points": 10,
       "questions": [
         {

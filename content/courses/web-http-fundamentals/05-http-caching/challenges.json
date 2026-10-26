@@ -7,6 +7,7 @@
       "title": "Read the caching evidence",
       "description": "Two responses from the CodeDev progress incident: one before the fix and one after. Decide whether each statement about what the browser does with them is true or false.",
       "difficulty": "easy",
+      "outcomes": ["caching"],
       "points": 10,
       "questions": [
         {
@@ -38,6 +39,7 @@
       "title": "Read Cache-Control",
       "description": "The CodeDev team is auditing the Cache-Control header of every API response after the stale progress page incident. Write parseCacheControl(header), which reads one Cache-Control header value and returns exactly this object:\n\n{ maxAge, noStore, noCache, private, public }\n\n- maxAge: the max-age value as an integer number of seconds, or null when max-age is missing or its value is not a plain non-negative integer (\"-1\", \"1.5\", \"60s\", \"abc\", an empty value or no value at all). A value larger than 2147483648 is capped at 2147483648, as RFC 9111 recommends. A quoted value such as max-age=\"120\" is accepted (120).\n- noStore, noCache, private, public: true when that directive is present, false otherwise. A directive with an argument still counts: no-cache=\"Set-Cookie\" sets noCache to true, private=\"Set-Cookie\" sets private to true.\n\nThe header follows RFC 9111: directives are separated by commas, with optional spaces around them; directive names are case-insensitive (MAX-AGE, No-Store); a value may be a quoted string that itself contains commas (no-cache=\"Set-Cookie, Authorization\" is one directive); empty items (\"max-age=60,,private\") and unknown directives (immutable, stale-while-revalidate=30, s-maxage=600) are ignored. s-maxage is a different directive: it never sets maxAge. A missing header (null or undefined) or an empty string gives { maxAge: null, noStore: false, noCache: false, private: false, public: false }.",
       "difficulty": "easy",
+      "outcomes": ["caching"],
       "points": 30,
       "coding": {
         "language": "javascript",

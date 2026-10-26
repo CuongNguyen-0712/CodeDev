@@ -7,6 +7,7 @@
       "title": "Read the CORS evidence",
       "description": "Two pieces of evidence from the CodeDev CORS incident: a curl check that \"proves\" the API works, and a credentialed PUT from the web app that needs permission first. Decide whether each statement is true or false.",
       "difficulty": "easy",
+      "outcomes": ["cors"],
       "points": 10,
       "questions": [
         {
@@ -38,6 +39,7 @@
       "title": "Spot the AI Mistake: CORS headers",
       "description": "An AI assistant was asked to \"allow our web app and the admin app to call the API with cookies\" and wrote corsHeaders(requestOrigin, allowlist). Since it shipped, every request the web app (https://app.codedev.test) and the admin app (https://admin.codedev.test) send with credentials: \"include\" fails with \"blocked by CORS policy\" in the console, while curl shows 200 OK. The security review adds that the helper's answer is the same for any website that calls the API, and that a CDN in front of the API could serve one origin's headers to another.\n\nFix corsHeaders so that it returns the response headers to add (an object, header name -> string value):\n- requestOrigin is the request's Origin header (a string such as \"https://app.codedev.test\"), or null when the request has no Origin header (curl, same-origin page loads).\n- allowlist is an array of trusted origins.\n- When requestOrigin is exactly equal to one of the allowlist entries (whole string, case as sent), return Access-Control-Allow-Origin set to that origin and Access-Control-Allow-Credentials set to \"true\".\n- For every other value - unknown origins, look-alikes such as \"https://app.codedev.test.evil.example\", a different scheme or port, the string \"null\", or no Origin at all - return no Access-Control-* headers.\n- Always include Vary: Origin, whatever the origin, because the response depends on the Origin header.\nHeader names are compared case-insensitively by the tests; values are compared exactly.",
       "difficulty": "easy",
+      "outcomes": ["cors"],
       "points": 30,
       "coding": {
         "language": "javascript",

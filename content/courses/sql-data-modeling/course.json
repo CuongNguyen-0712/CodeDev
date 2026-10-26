@@ -15,6 +15,25 @@
   "accessModel": "free",
   "publishStatus": "draft",
   "completionRules": {},
+  "domain": "data",
+  "learningOutcomes": [
+    { "code": "data-model", "text": "Model entities and relationships with the right primary keys, foreign keys and normalized tables" },
+    { "code": "queries", "text": "Write CRUD, join and GROUP BY queries that return exactly the rows intended" },
+    { "code": "constraints", "text": "Use NOT NULL, UNIQUE, CHECK and foreign keys so the database refuses bad data" },
+    { "code": "transactions", "text": "Keep related writes in one transaction and stop duplicate rows under concurrent requests" }
+  ],
+  "testedVersions": { "SQLite": "sqlite3 module of the code runner's python3 (Ubuntu 26.04)" },
+  "lastReviewedAt": "2026-10-24",
+  "sourceLinks": [
+    "https://www.sqlite.org/lang_createtable.html",
+    "https://www.sqlite.org/foreignkeys.html",
+    "https://www.sqlite.org/lang_transaction.html"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "Runs on SQLite, not PostgreSQL: no EXPLAIN plans, and locking under concurrent writes differs from PostgreSQL"
+  ],
+  "scenario": { "title": "Stop Duplicate Enrollment", "quiz": "chal_quiz_sdm_331", "fixBug": "chal_coding_sdm_332" },
   "careerRoles": ["student", "backend_developer", "fullstack_developer", "data_engineer"],
   "skills": { "sql": 5, "system_design": 2 },
   "goals": ["fundamentals", "first_job", "change_career"],

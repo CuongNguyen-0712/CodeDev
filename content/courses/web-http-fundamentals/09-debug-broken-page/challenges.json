@@ -7,6 +7,7 @@
       "title": "Read the evidence pack: the progress page with old numbers",
       "description": "Six statements about one capture from the CodeDev progress page: a CORS error in the console, three 401 responses in the Network panel and numbers that come from a cache saved on Friday. One step of the method per statement: read the evidence, pick a hypothesis, rule one out, choose the fix and choose how to verify it.",
       "difficulty": "easy",
+      "outcomes": ["network-evidence", "cors", "caching"],
       "points": 10,
       "hints": [
         "Which line of the capture is the server's real answer, and which line is the browser's reaction to it?",
@@ -83,6 +84,7 @@
       "title": "Debug the Broken Page",
       "description": "The API now adds CORS headers to its error responses, so the progress page's loadProgress(userId, { fetch, cache }) can finally see the 401 it gets when an access token expires. It still hides it. Learners with an expired session see last week's progress as if it were current, they are never asked to sign in again, and the API logs show three /progress requests with the same expired token for every page view. Fix loadProgress so that it makes exactly one request per call to GET https://api.codedev.test/users/{userId}/progress and returns: on a 2xx, { status: \"fresh\", data } and stores data in the cache under \"progress:<userId>\"; on a 401, { status: \"signed_out\" } with no cached data; when fetch rejects (no response) or on a 5xx, { status: \"stale\", data } with the cached value if the cache has one, otherwise { status: \"error\", httpStatus } (the status code, or null when there was no response); on any other status, { status: \"error\", httpStatus }. Only a 2xx writes the cache, and loadProgress never deletes from it.",
       "difficulty": "easy",
+      "outcomes": ["network-evidence", "caching", "retries"],
       "points": 30,
       "hints": [
         "When the server answers 401 to a token, what could a second identical request with the same token change? And when the page falls back to cached numbers, how would the learner know they are old?",

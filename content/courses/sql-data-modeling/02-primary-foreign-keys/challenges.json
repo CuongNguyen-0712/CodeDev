@@ -7,6 +7,7 @@
       "title": "Foreign keys that SQLite enforces, and what ON DELETE keeps",
       "description": "Two pieces of evidence from the deleted-course incident: the sqlite3 session that reproduced it, and a proposed fix with ON DELETE CASCADE. Decide whether each statement is True or False.",
       "difficulty": "easy",
+      "outcomes": ["data-model"],
       "points": 10,
       "questions": [
         {

@@ -7,6 +7,7 @@
       "title": "Read the progress numbers the way SQLite computes them",
       "description": "Two results from the CodeDev progress incident: what COUNT counts after a LEFT JOIN, and what integer division does to a percentage. Decide whether each statement is true or false.",
       "difficulty": "easy",
+      "outcomes": ["queries"],
       "points": 10,
       "questions": [
         {
@@ -50,6 +51,7 @@
       "title": "Progress per course",
       "description": "Rewrite the query behind the \"My courses\" page. For the user bound to :user_id, return one row per course the user is enrolled in (any enrollment status, even if the same enrollment is stored twice): course_id, title, total_lessons (lessons of the course), completed_lessons (different lessons of the course this user finished; a lesson_progress row counts only when completed_at is not NULL) and percent (completed_lessons * 100 / total_lessons as a whole number rounded down, 0 when the course has no lessons). A course with no finished lesson must still appear with 0. Progress rows of other users and of courses the user is not enrolled in never count. Order by course_id. The test runner at the bottom of the file builds the tables from each test case (with PRAGMA foreign_keys = ON), runs QUERY with :user_id bound and prints the rows as a JSON list of lists, for example [[10, \"SQL Basics\", 3, 2, 66], [20, \"Docker Basics\", 4, 0, 0]].",
       "difficulty": "easy",
+      "outcomes": ["queries"],
       "points": 30,
       "coding": {
         "language": "python",

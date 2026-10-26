@@ -15,6 +15,24 @@
   "accessModel": "free",
   "publishStatus": "draft",
   "completionRules": {},
+  "domain": "backend",
+  "learningOutcomes": [
+    { "code": "http-semantics", "text": "Choose the HTTP method and status code that match what happened on the server" },
+    { "code": "network-evidence", "text": "Read a request and its response in DevTools and classify a failure as client, server, network or cache" },
+    { "code": "cors", "text": "Explain what CORS protects and fix a server that sends the wrong CORS headers" },
+    { "code": "caching", "text": "Read Cache-Control and ETag and tell a fresh response from a stale one" },
+    { "code": "retries", "text": "Retry only failures that are safe to retry, with a timeout and a limit" }
+  ],
+  "testedVersions": { "Node.js": "24", "HTTP semantics": "RFC 9110" },
+  "lastReviewedAt": "2026-10-24",
+  "sourceLinks": [
+    "https://www.rfc-editor.org/rfc/rfc9110",
+    "https://www.rfc-editor.org/rfc/rfc9111",
+    "https://fetch.spec.whatwg.org/"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [],
+  "scenario": { "title": "Debug the Broken Page", "quiz": "chal_quiz_whf_331", "fixBug": "chal_coding_whf_332" },
   "careerRoles": ["student", "frontend_developer", "backend_developer", "fullstack_developer", "qa_engineer"],
   "skills": { "api_design": 4, "javascript": 3, "performance": 1 },
   "goals": ["fundamentals", "first_job", "change_career"],

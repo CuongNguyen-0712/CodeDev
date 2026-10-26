@@ -7,6 +7,7 @@
       "title": "Count the rows a join really returns",
       "description": "Two joins on the CodeDev course data: one that multiplies rows and one that loses them. Decide whether each statement is true or false.",
       "difficulty": "easy",
+      "outcomes": ["queries"],
       "points": 10,
       "questions": [
         {
@@ -50,6 +51,7 @@
       "title": "Spot the AI Mistake: double counting",
       "description": "A developer asked an AI assistant to \"count learners and completed lessons per course\" for the course dashboard and shipped the query after checking one small course. Since then instructors report learner counts higher than the enrollment list (a learner who finished three lessons is counted three times), and the new course \"Docker Basics\", which has no learners yet, is missing from the dashboard.\n\nFix QUERY so that it returns one row per course, every course included: [course_id, title, learners, completed_lessons], ordered by course_id.\n- learners = number of enrollments of the course whose status is not 'cancelled'.\n- completed_lessons = number of lesson_progress rows with a non-NULL completed_at for the lessons of the course (NULL = started, not finished).\n- Both numbers are 0, never NULL, when there is nothing to count.\nThe runner loads each test's rows into SQLite (foreign keys on), runs QUERY and prints the rows as JSON.",
       "difficulty": "easy",
+      "outcomes": ["queries"],
       "points": 30,
       "coding": {
         "language": "python",

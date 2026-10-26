@@ -7,6 +7,7 @@
       "title": "Network failure or HTTP error?",
       "description": "Two pieces of evidence from the lesson player: the failed submission during the deploy, and a fetch() call that receives a 404. Decide whether each statement is True or False.",
       "difficulty": "easy",
+      "outcomes": ["network-evidence"],
       "points": 10,
       "questions": [
         {
@@ -38,6 +39,7 @@
       "title": "Classify an HTTP failure",
       "description": "The lesson player told learners \"You are offline\" when the API's gateway answered with a 502 HTML page. The fix needs one pure function that says what kind of result came back, so the UI can show the right message. Write classifyResponse(result).\n\nresult is either a received response { status, body } (body can be anything; it is ignored, the status decides) or a request that got no response { networkError: \"timeout\" | \"offline\" | \"aborted\" | ... }.\n\nReturn one of these strings, using the first rule that matches:\n1. result is null or not an object -> \"network\".\n2. result has a networkError that is a non-empty string -> \"network\", even if a status is also present.\n3. status is missing (undefined), null or 0 -> \"network\" (nothing usable came back; XMLHttpRequest and many libraries report status 0).\n4. status is not an integer from 100 to 599 (for example the string \"404\", 404.5, -1, 600) -> \"unexpected\".\n5. 200-299 -> \"success\"; 400 or 422 -> \"validation\"; 401 or 403 -> \"auth\"; 404 -> \"not_found\"; 500-599 -> \"server\".\n6. Any other status (1xx, 3xx, and other 4xx such as 405, 409 or 429) -> \"unexpected\": this screen does not expect them, so it reports them instead of guessing.\n\nThe function must not throw for any of these inputs.",
       "difficulty": "easy",
+      "outcomes": ["network-evidence"],
       "points": 30,
       "coding": {
         "language": "javascript",

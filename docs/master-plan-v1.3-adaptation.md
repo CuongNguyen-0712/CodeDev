@@ -53,7 +53,7 @@ File này ghi phần nào của V1.3 **đã có** trong code, phần nào **đ�
 | Fix bug từ chối code gốc | Có gián tiếp: `verify-challenges` bắt buộc starter **fail**, nên nộp lại code gốc không bao giờ pass | Không cần code mới |
 | Test ẩn | Có: `tests[].hidden` → `challenge_test_cases.is_hidden` | — |
 | Không trả đáp án về client trước khi nộp | Có | — |
-| Ngân hàng câu hỏi lớn hơn số câu hiển thị, xáo thứ tự | **Thiếu** | Để sau (lượt quiz cũ được chấm lại theo bộ câu hiện tại) |
+| Ngân hàng câu hỏi lớn hơn số câu hiển thị, xáo thứ tự | **Thiếu** | P6 (lượt quiz cũ được chấm lại theo bộ câu hiện tại) |
 
 ## 4. Catalog V1.3 → course của dự án
 
@@ -91,10 +91,12 @@ và số coding của tier bằng cách phân bổ qua 8–15 lesson.
 
 | # | Câu hỏi | Mặc định đề xuất |
 |---|---|---|
-| D1 | Ngôn ngữ nội dung track kiến trúc: tiếng Việt (V1.3) hay tiếng Anh (như 46 course hiện có)? | Tiếng Anh, giữ đồng bộ UI và catalog |
-| D2 | Quiz: giữ EXP theo quiz challenge hay đổi sang 3 EXP/câu đúng lần đầu? | Giữ (mục 1) |
+| D1 | Ngôn ngữ nội dung track kiến trúc: tiếng Việt (V1.3) hay tiếng Anh (như 46 course hiện có)? | **Đã chốt 26/10**: tiếng Anh. Tên hiển thị tiếng Việt (V1.3 §11.5) để sau |
+| D2 | Quiz: giữ EXP theo quiz challenge hay đổi sang 3 EXP/câu đúng lần đầu? | **Đã chốt 26/10**: giữ EXP theo quiz challenge (mục 1) |
 | D3 | Điều kiện hoàn thành theo tier (P2) áp dụng cho course cũ hay chỉ course mới? | **Đã chốt 24/10**: chỉ course khai báo `completionRules`; coding giữ 5 lượt và tính theo % (cùng ngưỡng quiz) |
 | D4 | Ngôn ngữ coding của track: TypeScript (cần runner) hay JavaScript (chạy cả browser)? | TypeScript; bài nào cần chạy không runner thì JavaScript |
+| D5 | Outline có level lệch tier V1.3 (`nodejs-ai-engineering` advanced, `nodejs-api-security` expert, `typescript-test-design` intermediate) | **Đã chốt 26/10**: sửa level theo V1.3 khi viết nội dung (E3 intermediate, B5 advanced, A4 beginner) |
+| D6 | Course đã viết bằng Python (`devops-foundations-ci-containers`, `qa-performance-reliability`, `python-rag-from-scratch`) | Giữ Python, chỉ bổ sung challenge V1.3 |
 
 ## 6. Thứ tự thực hiện
 
@@ -120,7 +122,31 @@ và số coding của tier bằng cách phân bổ qua 8–15 lesson.
   `catalog.course.recommended_min_level/max_level` (null = theo level), `course.json` `recommendedLevel: { min, max }`;
   `recommendedLevel` / `courseFit` trong `lib/levels.js` nhận override (thẻ course và gợi ý course).
 
-**Content** (theo pipeline `content/README.md`, prompt `content/PROMPT_CONTEXT.md`):
+- **P5. Metadata course + lint Definition of Done (V1.3 §3.4, §11.1) — xong 26/10 (A1, A2 đã điền và pass).** `course.json` thêm `domain`,
+  `learningOutcomes` (`[{ code, text }]`), `testedVersions`, `lastReviewedAt`, `sourceLinks`, `owner`, `knownIssues`,
+  `scenario` (`{ title, quiz, fixBug }`); mỗi challenge trong `challenges.json` thêm `outcomes: [code]`.
+  `content/tools/verify-course.mjs <course>` kiểm theo tier: số lesson, số câu Đ/S, solve/fix bug theo độ khó,
+  40–60% câu Sai, ≥5 câu scenario, mỗi outcome có ≥1 quiz và ≥1 coding, mỗi coding có 3 hint + test công khai
+  + test ẩn, ≥1 bài "Spot the AI Mistake". Metadata chỉ nằm trong file nội dung (chưa có màn hình nào đọc); cột DB
+  thêm ở P7 khi dashboard cần.
+- **P6. Ngân hàng câu hỏi lớn hơn số câu hiển thị + xáo thứ tự (V1.3 §5.6).** Migration, chọn câu theo seed của
+  user, chấm theo đúng bộ câu đã hiển thị.
+- **P7. KPI nội dung trong admin (V1.3 §11.3, §11.6).** Pass rate theo challenge; số lần submit trước khi pass
+  (tách solve và fix bug); câu Đ/S có tỷ lệ sai >70%; tỷ lệ hoàn thành theo tier; số hint mở mỗi challenge;
+  tỷ lệ course có `testedVersions`/`lastReviewedAt`.
+- **P8. Đối soát EXP + giám sát bất thường (V1.3 §7.3, §7.10).** Cron route theo mẫu `internal/account-maintenance`:
+  so ledger với `profile.info.exp`; báo cáo EXP/ngày vượt p99, quiz đúng bất thường kèm thời gian trả lời quá ngắn.
+  Chỉ báo cáo, không chặn tự động.
+- **P9. Bảng tự đánh giá mức dùng hint cho học viên (V1.3 §8, "Làm ngay").** Đọc `challenge.hint_views`, hiện ở
+  trang profile.
+- **P10. (Tùy chọn) Điểm gợi ý course theo V1.3 §7.5** (+30/+25/+15/+5/+10, top 5 kèm lý do).
+
+Bỏ qua có chủ đích: event endpoint `/internal/experience/events` (chấm và cộng EXP đã cùng transaction), điều chỉnh
+theo phong độ (V1.3 cũng tắt lúc đầu), backlog AI V1.3 §8.
+
+Thứ tự: P5 → B1, B3 → P6–P9 (trước pilot) → các AI wave. P10 khi có dữ liệu pilot.
+
+**Content** (theo pipeline `content/README.md`, prompt `content/PROMPT_CONTEXT.md`; mỗi course pass `verify-course`):
 
 1. MVP: A1 `web-http-fundamentals`, A2 `sql-data-modeling`, B1 (outline `typescript-react-frontend`),
    B3 course mới.
@@ -130,9 +156,16 @@ và số coding của tier bằng cách phân bổ qua 8–15 lesson.
    - A2 viết xong 24/10/2026 (local): `sql-data-modeling`, 10 lesson, 25 câu Đ/S (6 câu scenario "Stop Duplicate
      Enrollment"), 4 solve + 2 fix bug (1 "Spot the AI Mistake": đếm trùng do join), SQL trên SQLite qua Python
      stdio (cần code runner), `completionRules: {}`; gắn vào roadmap backend, fullstack, data engineer.
-2. AI wave 1: E1, E2 + bài "Spot the AI Mistake" trong 4 course MVP.
-3. AI wave 2: E3 (outline `nodejs-ai-engineering`), E7, B5 (outline `nodejs-api-security`), C2, B2.
-4. Còn lại: A3, A4, B4, C1, C3, C4, D2–D5, E5, E6.
+   - Còn lại: B1 điền outline `typescript-react-frontend` (12 lesson, 25 Đ/S, solve 2 dễ + 4 trung bình, 2 fix bug
+     trung bình, logic tách reducer/hàm thuần); B3 course mới `nestjs-modular-monolith` (TypeScript, DI viết thuần).
+     Sau đó nối A1, A2, B1, B3 thành lộ trình liền mạch trong `roadmaps.json`.
+2. AI wave 1: E1, E2 (fake LLM/fixture; E2 có lesson vibe coding, V1.3 §6.7) + bài "Spot the AI Mistake" trong 4 course MVP.
+3. AI wave 2: E3 (outline `nodejs-ai-engineering`, đổi sang intermediate), E7, B5 (outline `nodejs-api-security`,
+   đổi sang advanced), C2 (Redis in-memory), B2.
+4. Còn lại: course mới A3, B4, C1 (bài `EXPLAIN` để sau), C3, C4, D2, D4, D5, E5, E6 (MCP spec 2026-07-28);
+   bổ sung vào course có sẵn: A4 → `typescript-test-design` (đổi sang beginner, thêm mutation testing), D3 →
+   `qa-performance-reliability`, D1 → `devops-foundations-ci-containers` (scenario "Bad Release, Fast Rollback",
+   SBOM/secret scan), E4 → `python-rag-from-scratch` (thêm "Spot the AI Mistake").
 
 Mỗi course: viết local, `build-course`, verify, publish local; rollout prod theo `content/README.md`
 (storage trước, seed thử trên Neon branch).

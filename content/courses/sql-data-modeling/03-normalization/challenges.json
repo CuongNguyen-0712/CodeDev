@@ -7,6 +7,7 @@
       "title": "Copies that drift and columns that depend on part of the key",
       "description": "Two pieces of evidence from the renamed-course incident: the drift query after a quick fix, and a progress table that copies the lesson title. Decide whether each statement is True or False.",
       "difficulty": "easy",
+      "outcomes": ["data-model"],
       "points": 10,
       "questions": [
         {

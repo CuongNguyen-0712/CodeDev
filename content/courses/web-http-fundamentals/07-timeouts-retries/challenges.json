@@ -7,6 +7,7 @@
       "title": "Which failures are safe to retry?",
       "description": "Two pieces of evidence from the submissions incident: a client log that retried an expired token, and a timeout on a POST that the server finished anyway.",
       "difficulty": "easy",
+      "outcomes": ["retries"],
       "points": 10,
       "questions": [
         {
@@ -38,6 +39,7 @@
       "title": "Retry with a limit",
       "description": "The progress page and the submissions client share one helper, fetchWithRetry(request, { fetch, sleep, retries = 3, baseDelayMs = 100 }). Rewrite it so it retries only failures that can go away on their own. Call fetch(request) with the request you were given. Retry when fetch rejects (network error, or TimeoutError from AbortSignal.timeout) - but rethrow an error named \"AbortError\" at once, because the user cancelled - and when the response status is 429, 502, 503 or 504. Return every other response immediately without retrying (2xx, 3xx, 400, 401, 403, 404, 409, 422, 500, 501 and so on). Make at most `retries` retries (at most retries + 1 calls to fetch). Before retry n (n starts at 1), await sleep(baseDelayMs * 2 ** (n - 1)) - 100, 200, 400 ms with the defaults - except when the retryable response has a Retry-After header made only of digits: then sleep that many seconds (seconds * 1000 ms). Any other Retry-After value, such as an HTTP-date, uses the backoff delay. When no retry is left, return the last response or rethrow the last error object. Use only the injected fetch and sleep: the tests replay scripted responses and record every delay.",
       "difficulty": "easy",
+      "outcomes": ["retries"],
       "points": 30,
       "coding": {
         "language": "javascript",

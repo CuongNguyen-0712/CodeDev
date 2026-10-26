@@ -7,6 +7,7 @@
       "title": "Which rows does this statement really touch?",
       "description": "Two pieces of evidence from the CodeDev admin tool: a search query built by string concatenation, and a learner count after the team switched from hard delete to soft delete. Decide whether each statement is true or false.",
       "difficulty": "easy",
+      "outcomes": ["queries"],
       "points": 10,
       "questions": [
         {
@@ -50,6 +51,7 @@
       "title": "Basic queries: list, enroll and cancel safely",
       "description": "The support team's admin tool cancelled all four courses of learner 1042 when support asked to cancel one. Write the three queries the tool now uses, with named parameters only. The runner at the bottom of the file builds the database from the test, runs Q1, then Q2, then Q3 with the test's parameters, and prints a JSON object.\n\n- Q1 \"My courses\" (:user_id): one row per course the learner is enrolled in, except cancelled enrollments: [course_id, title, status], ordered by title, then course_id.\n- Q2 (:user_id, :course_id, :enrolled_at): insert one enrollment with status 'active'.\n- Q3 (:user_id, :course_id): set status to 'cancelled' on that one enrollment, and only if it is still 'active' (a completed course stays completed).\n\nOutput: {\"my_courses\": Q1 rows (before Q2 and Q3), \"enrollments\": every enrollment after Q2 and Q3 as [user_id, course_id, enrolled_at, status] ordered by user_id, course_id, \"cancelled_rows\": number of rows Q3 changed}. enrollments has PRIMARY KEY (user_id, course_id); foreign keys are enforced.",
       "difficulty": "easy",
+      "outcomes": ["queries"],
       "points": 30,
       "coding": {
         "language": "python",

@@ -7,6 +7,7 @@
       "title": "Lists in a column and facts about a pair",
       "description": "Two pieces of evidence from the CodeDev student_ids incident: the query behind the My courses page, and a user story that needs an enrollment date. Decide whether each statement is True or False.",
       "difficulty": "easy",
+      "outcomes": ["data-model"],
       "points": 10,
       "questions": [
         {

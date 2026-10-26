@@ -7,6 +7,7 @@
       "title": "Retries and error bodies on the CodeDev API",
       "description": "Three statements about real requests to https://api.codedev.test: a POST and a PUT retried after a timeout, and a Problem Details error body. Decide which ones are safe or correct, and why.",
       "difficulty": "easy",
+      "outcomes": ["http-semantics", "retries"],
       "points": 10,
       "hints": [
         "For each retried request, ask: if the server already did the first one and only the response was lost, what does the second one change on the server?",

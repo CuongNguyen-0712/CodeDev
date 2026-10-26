@@ -7,6 +7,7 @@
       "title": "Autocommit, rollback and locks during an enrollment",
       "description": "Two statements about the half-written enrollments on the CodeDev platform: what autocommit keeps when the second insert fails, and what a transaction that waits on a network call does to other writers in SQLite.",
       "difficulty": "easy",
+      "outcomes": ["transactions"],
       "points": 10,
       "hints": [
         "When the driver runs in autocommit mode, where does each statement's transaction start and end?",
@@ -55,6 +56,7 @@
       "title": "Enroll in one transaction",
       "description": "Enrolling a learner writes two rows: the enrollment, and an 'enrolled' row in enrollment_events that the welcome-email job reads. Requests from the new iOS app send source = 'ios', which the CHECK on enrollment_events.source rejects, and because each statement commits on its own, the enrollment row stays behind without its event. Fix ENROLL, a list of SQL statements that the runner executes in order for every request with the named parameters :user_id, :course_id, :at and :source, so that both rows are saved or neither is. Contract: keep both INSERT statements as they are; a request that fails at any statement leaves no row; a request that succeeds is committed before the next one starts. The runner opens the connection with isolation_level=None (the Python driver never starts or commits a transaction on its own), turns on PRAGMA foreign_keys, stops a request at the first error and executes ROLLBACK if a transaction is still open. It prints {\"requests\": [one outcome per request: \"ok\", \"not_committed\" (still inside a transaction at the end) or the error class such as \"IntegrityError\"], \"enrollments\": [[user_id, course_id, enrolled_at, status], ...] ordered by user_id, course_id, \"events\": [[user_id, course_id, event_type, source], ...] in insertion order}.",
       "difficulty": "easy",
+      "outcomes": ["transactions"],
       "points": 30,
       "coding": {
         "language": "python",

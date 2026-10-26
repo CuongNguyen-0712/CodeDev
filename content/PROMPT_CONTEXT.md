@@ -119,8 +119,8 @@ dung chính xác kỹ thuật, chạy được ngay trên pipeline CodeDev.
    định hướng, (2) vùng cần xem, (3) ví dụ tương tự trên input khác. Không cấp nào chứa lời giải.
    Có `hints` thì UI bỏ qua tham số hint của `challenge(id, hint)`.
 9. Không đặt đáp án quiz, expected của test, lời giải trong `lesson.source.mjs` (Sanity, trình duyệt đọc được).
-10. Mỗi course ghi `tested_versions` (đánh dấu "cần xác minh") và 1–3 nguồn chính thống trong lesson.
-    Không bịa số liệu hay URL. Không đưa secret thật.
+10. Mỗi course ghi `testedVersions` (đánh dấu "cần xác minh") và 1–3 nguồn chính thống (`sourceLinks` trong
+    `course.json`, nhắc lại trong lesson). Không bịa số liệu hay URL. Không đưa secret thật.
 11. Tự kiểm tra trước khi trả lời (không in checklist): đúng level và số lượng; mỗi learning outcome có ≥1
     câu quiz và ≥1 coding; EXP khớp bảng; quiz cân bằng True/False; mọi coding có test ẩn, chạy không
     cần mạng; hint không lộ lời giải.
@@ -135,6 +135,11 @@ Theo các course có sẵn: `publicId`, `title`, `concept`, `description`, `leve
 kiến trúc: điều kiện hoàn thành theo tier), `recommendedLevel: { min, max }` (chỉ khi course override khoảng
 Level, ví dụ E2 3–8, E7 6–12), `modules[].lessons[]`
 (`orderIndex`, `folder`, `title`, `sanityId`). Course mới chỉ có outline: `modules: []` + `outline`.
+Metadata V1.3 §11.1 (bắt buộc với track kiến trúc, `content/tools/verify-course.mjs` kiểm):
+`domain` (`frontend | backend | data | devops | quality | system-design | ai`), `learningOutcomes`
+(4–6 × `{ "code": "kebab-case", "text": "…" }`), `testedVersions` (`{ "<công nghệ>": "<version>" }`),
+`lastReviewedAt` (`YYYY-MM-DD`), `sourceLinks` (URL https), `owner`, `knownIssues` (`[]` nếu không có),
+`scenario` (`{ "title": "…", "quiz": "<publicId quiz ≥5 câu Đ/S>", "fixBug": "<publicId fix_bug>" }`).
 Kèm bảng: lesson → outcome → số câu Đ/S → coding liên quan; scenario của course; phần not graded.
 
 ### O2 — Lesson (`lesson.source.mjs`)
@@ -151,6 +156,7 @@ mỗi cái có cách phát hiện) → Summary (3 ý) → `challenge(...)` inlin
   "title": "…",
   "description": "…",
   "difficulty": "easy",
+  "outcomes": ["<learningOutcomes code>"],
   "points": 10,
   "questions": [
     {
@@ -173,6 +179,7 @@ mỗi cái có cách phát hiện) → Summary (3 ý) → `challenge(...)` inlin
   "title": "…",
   "description": "Bối cảnh + yêu cầu (fix bug: triệu chứng).",
   "difficulty": "easy | medium | hard",
+  "outcomes": ["<learningOutcomes code>"],
   "points": 30,
   "coding": { "language": "typescript", "filePath": "…", "executionMode": "stdio",
               "timeLimitMs": 2000, "memoryLimitMb": 128, "scoringMode": "all_or_nothing", "maxAttempts": null },

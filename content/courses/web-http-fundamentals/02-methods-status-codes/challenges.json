@@ -7,6 +7,7 @@
       "title": "Idempotent or not, bad or invalid",
       "description": "Two requests from the enrollments API after the fix: a DELETE sent twice, and an enrollment request whose body was cut off. Decide whether each statement is True or False.",
       "difficulty": "easy",
+      "outcomes": ["http-semantics"],
       "points": 10,
       "questions": [
         {
@@ -38,6 +39,7 @@
       "title": "Choose the method and status code",
       "description": "The CodeDev API team wants its conventions in one function, so every new route answers the same way. Write chooseResponse(operation) and return { method, status }.\n\noperation is an object:\n- action (required): exactly one of \"list\", \"read\", \"create\", \"replace\", \"update\", \"delete\" (lowercase).\n- targetExists (boolean, default true): whether the item addressed by id exists. Used only by read, replace, update and delete. list and create target a collection, which always exists, so they ignore it.\n- inputValid (boolean, default true): whether the request body passes validation. Used only by create, replace and update.\n- conflict (boolean, default false): whether the change conflicts with existing data, such as a duplicate enrollment. Used only by create, replace and update.\nFlags that an action does not use are ignored.\n\nmethod: list and read -> \"GET\", create -> \"POST\", replace -> \"PUT\", update -> \"PATCH\", delete -> \"DELETE\".\n\nstatus: the first matching rule wins.\n1. targetExists is false (read, replace, update, delete) -> 404. The API assigns ids itself, so PUT never creates a missing item.\n2. inputValid is false (create, replace, update) -> 422.\n3. conflict is true (create, replace, update) -> 409.\n4. Otherwise success: list 200 (also when nothing matches: an empty list is still 200), read 200, create 201, replace 200, update 200, delete 204.\n\nAny other action (missing, misspelled, uppercase, or an HTTP method name such as \"GET\") -> throw an Error.",
       "difficulty": "easy",
+      "outcomes": ["http-semantics"],
       "points": 30,
       "coding": {
         "language": "javascript",

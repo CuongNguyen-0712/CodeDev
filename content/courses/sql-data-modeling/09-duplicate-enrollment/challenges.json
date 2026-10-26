@@ -7,6 +7,7 @@
       "title": "Read the evidence pack: one learner, two enrollments",
       "description": "Six statements about one incident on the CodeDev platform: two POST /enrollments requests for the same learner and course arrive 12 ms apart, both pass the application's check and both insert. One step of the method per statement: read the evidence, pick the hypothesis, rule out two wrong fixes, choose the fix and choose how to verify it.",
       "difficulty": "easy",
+      "outcomes": ["constraints", "transactions"],
       "points": 10,
       "hints": [
         "Line up the log by time, not by request: what had happened in the database when each check ran?",
@@ -119,6 +120,7 @@
       "title": "Stop Duplicate Enrollment",
       "description": "Symptom: learner 1042 double-tapped Enroll and now has two active enrollments in course 7; the progress report counts them twice. Both requests ran the application's check (SELECT count(*) of active or completed enrollments for the pair) before either inserted, and ENROLL inserts blindly. Fix SCHEMA and ENROLL (one statement, named parameters :user_id, :course_id, :at) so the database itself guarantees one enrollment per (user_id, course_id): a duplicate request never fails and never adds a row; an existing 'cancelled' enrollment is reactivated (status 'active', enrolled_at = :at); an 'active' or 'completed' one is left unchanged. A user can still enroll in other courses and a course still takes other users. The runner (do not change it) creates users, courses and existing enrollments, then replays bursts of requests: for every request of a burst it runs the application's check first, then ENROLL for each request whose check found nothing. Responses: \"enrolled\" (a row was inserted), \"reactivated\" (a cancelled row was changed), \"already_enrolled\" (the check found a row, or ENROLL changed 0 rows) or the error class name if ENROLL raised one. The connection uses isolation_level=None (every statement is its own transaction) with PRAGMA foreign_keys = ON. It prints {\"responses\": [...], \"enrollments\": [[user_id, course_id, enrolled_at, status], ...]} ordered by user_id, course_id, enrolled_at.",
       "difficulty": "easy",
+      "outcomes": ["constraints", "transactions"],
       "points": 30,
       "coding": {
         "language": "python",

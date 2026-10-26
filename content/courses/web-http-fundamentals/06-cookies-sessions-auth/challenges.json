@@ -7,6 +7,7 @@
       "title": "Cookies, sessions and status codes",
       "description": "Three pieces of evidence from the CodeDev login incident: a Set-Cookie header, a teacher-only request from a learner, and a line from the API's request log. Decide whether each statement is true or false.",
       "difficulty": "easy",
+      "outcomes": ["http-semantics"],
       "points": 10,
       "questions": [
         {

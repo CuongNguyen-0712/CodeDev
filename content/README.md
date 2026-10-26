@@ -41,6 +41,14 @@ optional: overrides the suggested User Level range of the course level; `null` c
 replaces that link table for the course; a missing field keeps what the admin set; an unknown code aborts
 the seed.
 
+Courses of the V1.3 architecture track also carry the content metadata of the Definition of Done (files only,
+not seeded): `domain`, `learningOutcomes` (`[{ "code", "text" }]`, 4-6), `testedVersions`, `lastReviewedAt`,
+`sourceLinks`, `owner`, `knownIssues` and `scenario` (`{ title, quiz, fixBug }` public ids); each challenge in
+`challenges.json` lists the outcome codes it checks in `outcomes`. `tools/verify-course.mjs <course>` checks
+them together with the counts of the course's tier (lessons, True/False statements, solve/fix-bug per
+difficulty), 40-60% False statements, the scenario, outcome coverage, 3 hints and public + hidden tests per
+coding challenge and a "Spot the AI Mistake" fix-bug (docs/master-plan-v1.3-adaptation.md P5).
+
 A course that is only planned has `"modules": []` and an `outline` (modules, lesson titles, planned
 challenges): the seed writes its catalog row and metadata only, and it stays `draft` until its lessons
 are written and moved into `modules`.
@@ -56,6 +64,8 @@ Course cover: `node content/tools/upload-cover.mjs content/courses/<course>` ren
 uploads it to Cloudinary (`codedev/courses/<course>/cover`) and sets `image` in `course.json`
 (`update.image` for an `existing` course). Rebuild the seed afterwards; covers are 16:9, logos and other
 shapes are shown whole (`lib/coverFit.js`).
+
+V1.3 track courses: run `node content/tools/verify-course.mjs content/courses/<course>` first (no network).
 
 Step by step, per lesson (`tools/`):
 
