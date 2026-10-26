@@ -1,0 +1,365 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_trf_431",
+      "name": "debounced-search-quiz",
+      "type": "quiz",
+      "title": "Stale responses and fake timers",
+      "description": "Two pieces of evidence from the search incident: a slow response that arrived last, and a test that checks a 300 ms debounce in a few milliseconds.",
+      "difficulty": "medium",
+      "outcomes": [
+        "server-state"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "SearchBox.tsx (no debounce yet):\n\nuseEffect(() => {\n  if (!query) return;\n  fetch(`https://api.codedev.test/courses?search=${encodeURIComponent(query)}`)\n    .then((res) => res.json())\n    .then(setResults);\n}, [query]);\n\nNetwork panel after typing \"react\" quickly (request, then time until the response finished):\n?search=r      t=0 ms     110 ms\n?search=re     t=60 ms    900 ms   <- finished last, at t=960\n?search=rea    t=120 ms   130 ms\n?search=reac   t=180 ms   120 ms\n?search=react  t=240 ms   150 ms\n\nThe box shows \"react\", the list shows the results for \"re\".\n\nStatement: \"Returning a cleanup from this effect that aborts the request (an AbortController per run, controller.abort() in the cleanup) would keep the \\\"re\\\" response from replacing the \\\"react\\\" results.\"",
+          "explanation": "True. When query changes, React runs the previous effect's cleanup before the next effect. Aborting there rejects the pending fetch for \"re\" with an AbortError, so its .then(setResults) never runs, whenever its bytes arrive. The fetch for \"react\" belongs to the last effect and is the only one allowed to set state. Abort does not stop the server from doing the work, and you still want a debounce so that four of these five requests are never sent; but for correctness the cleanup alone is enough. Verify it in the Network panel: the superseded requests show as (canceled). The misconception is that the order of responses follows the order of requests.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A Vitest test for the debounced search hook (debounce 300 ms):\n\nvi.useFakeTimers();\nconst search = vi.fn().mockResolvedValue([]);\nconst box = createDebouncedSearch({ debounceMs: 300, search, ... });\nbox.onInput(\"react\");\nvi.advanceTimersByTime(299);\nexpect(search).toHaveBeenCalledTimes(0);   // passes\nvi.advanceTimersByTime(1);\nexpect(search).toHaveBeenCalledTimes(1);   // passes\n\n Test Files  1 passed (1)\n Duration  41ms\n\nStatement: \"Because the whole test runs in 41 ms, it cannot prove the 300 ms delay; only a test that really waits 300 ms can check the debounce.\"",
+          "explanation": "False. Fake timers replace setTimeout with a clock the test moves by hand, so time in the code under test is exactly the time the test advances: at 299 ms the timer has not fired, at 300 ms it has. That pins the boundary to the millisecond, deterministically, which a real 300 ms wait cannot do (a slow CI machine fires late, and the test cannot tell 299 from 320). What fake timers do not prove is how the real browser schedules timers, which is not what this test is about. The misconception is that a test about time has to spend real time.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_trf_432",
+      "name": "debounced-search",
+      "type": "mini_coding",
+      "title": "Debounced search that cancels stale requests",
+      "description": "Typing \"react hooks\" quickly in the catalog search box sent 11 requests, and the slow response for \"re\" arrived last and replaced the right results. Write createDebouncedSearch({ clock, debounceMs, search, show, showError }), which returns { onInput(text), dispose() }. Rules: (1) Every onInput cancels the pending timer, if any. (2) If text.trim() is empty: do not send anything, abort the in-flight request if there is one, and call show([]) at once. (3) Otherwise start a timer with clock.setTimeout for debounceMs; when it fires, abort the previous in-flight request (if any) first, then call search(text.trim(), signal) with the signal of a new FakeAbortController. (4) Only the latest request may update the screen: when it resolves, call show(results); when it rejects with an error whose name is not \"AbortError\", call showError(error.message). A request stops being the latest as soon as a newer request is sent, the box is cleared (rule 2) or dispose is called; its later response or error is ignored, even when the server ignored the abort and answered anyway. An earlier response that arrives while a new timer is still pending is still the latest, so it is shown. (5) dispose() (the component unmounts) cancels the pending timer and aborts the in-flight request; nothing is shown afterwards. Use only the injected clock (no setTimeout, no Date). The runner replays a timeline - { \"input\": text }, { \"type\": chars, \"every\": ms }, { \"advance\": ms }, { \"unmount\": true } - against a fake API with per-query latencies, some queries that ignore abort and some that fail with HTTP 503, runs the clock 10 more seconds at the end, and prints the event log: requests, aborts, responses, what was shown and errors, each with its time.",
+      "difficulty": "medium",
+      "outcomes": [
+        "server-state"
+      ],
+      "points": 30,
+      "hints": [
+        "Three separate jobs hide in this box: deciding when to send (the timer), stopping the network work that is no longer needed (abort), and deciding whether an answer may still reach the screen. Which of the three protects you when the server ignores the abort?",
+        "Keep three variables in the closure returned by createDebouncedSearch: the pending timer id, the controller of the in-flight request, and a counter or id of the latest request. Look at what each of onInput, the timer callback, the .then handlers and dispose has to read or change; the handlers compare the id they captured with the current latest one.",
+        "A similar pattern on a different feature, autosave of a lesson note with a 1 s delay: onChange clears the pending timer and starts a new one; when it fires, saveCount += 1 and the save captures const mine = saveCount; when its response arrives, it updates the \"Saved\" label only if mine === saveCount, so an older save that finishes late never overwrites the status of a newer one."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: \"react hooks\" typed every 80 ms sends one request, 300 ms after the last key",
+          "hidden": false,
+          "score": 3,
+          "input": {
+            "debounceMs": 300,
+            "steps": [
+              {
+                "type": "react hooks",
+                "every": 80
+              }
+            ]
+          },
+          "expected": [
+            "t=1100 request \"react hooks\"",
+            "t=1300 response \"react hooks\"",
+            "t=1300 show [React Hooks in Depth, Testing React Hooks with Fake Timers]"
+          ]
+        },
+        {
+          "name": "A slow \"re\" is aborted when \"react\" is sent, so it never replaces the results",
+          "hidden": false,
+          "score": 3,
+          "input": {
+            "debounceMs": 300,
+            "latency": {
+              "re": 900,
+              "react": 200
+            },
+            "steps": [
+              {
+                "input": "re"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "input": "react"
+              }
+            ]
+          },
+          "expected": [
+            "t=300 request \"re\"",
+            "t=700 abort \"re\"",
+            "t=700 request \"react\"",
+            "t=900 response \"react\"",
+            "t=900 show [React Basics, React Hooks in Depth, Testing React Hooks with Fake Timers, TypeScript for React Developers]"
+          ]
+        },
+        {
+          "name": "The server ignores the abort: the late \"re\" response arrives but is never shown",
+          "hidden": true,
+          "score": 3,
+          "input": {
+            "debounceMs": 300,
+            "latency": {
+              "re": 900,
+              "react": 200
+            },
+            "ignoresAbort": [
+              "re"
+            ],
+            "steps": [
+              {
+                "input": "re"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "input": "react"
+              }
+            ]
+          },
+          "expected": [
+            "t=300 request \"re\"",
+            "t=700 abort \"re\" (ignored by the server)",
+            "t=700 request \"react\"",
+            "t=900 response \"react\"",
+            "t=900 show [React Basics, React Hooks in Depth, Testing React Hooks with Fake Timers, TypeScript for React Developers]",
+            "t=1200 response \"re\""
+          ]
+        },
+        {
+          "name": "Clearing the box: results cleared at once, in-flight request aborted, pending timer dropped",
+          "hidden": true,
+          "score": 3,
+          "input": {
+            "debounceMs": 300,
+            "latency": {
+              "sql": 500
+            },
+            "ignoresAbort": [
+              "sql"
+            ],
+            "steps": [
+              {
+                "input": "sql"
+              },
+              {
+                "advance": 350
+              },
+              {
+                "input": "   "
+              },
+              {
+                "advance": 100
+              },
+              {
+                "input": "no"
+              },
+              {
+                "advance": 100
+              },
+              {
+                "input": ""
+              }
+            ]
+          },
+          "expected": [
+            "t=300 request \"sql\"",
+            "t=350 abort \"sql\" (ignored by the server)",
+            "t=350 show []",
+            "t=550 show []",
+            "t=800 response \"sql\""
+          ]
+        },
+        {
+          "name": "Errors: the latest request's HTTP 503 is shown, a stale request's error is not",
+          "hidden": true,
+          "score": 3,
+          "input": {
+            "debounceMs": 300,
+            "latency": {
+              "py": 700
+            },
+            "ignoresAbort": [
+              "py"
+            ],
+            "failing": [
+              "py",
+              "sql"
+            ],
+            "steps": [
+              {
+                "input": "py"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "input": "python"
+              },
+              {
+                "advance": 1000
+              },
+              {
+                "input": "sql"
+              }
+            ]
+          },
+          "expected": [
+            "t=300 request \"py\"",
+            "t=700 abort \"py\" (ignored by the server)",
+            "t=700 request \"python\"",
+            "t=900 response \"python\"",
+            "t=900 show [Python for Data Pipelines]",
+            "t=1000 response \"py\"",
+            "t=1700 request \"sql\"",
+            "t=1900 response \"sql\"",
+            "t=1900 error HTTP 503"
+          ]
+        },
+        {
+          "name": "Unmount with a pending timer and a request in flight: nothing is sent or shown afterwards",
+          "hidden": true,
+          "score": 2,
+          "input": {
+            "debounceMs": 300,
+            "latency": {
+              "node": 400
+            },
+            "steps": [
+              {
+                "input": "node"
+              },
+              {
+                "advance": 350
+              },
+              {
+                "input": "nodejs"
+              },
+              {
+                "advance": 100
+              },
+              {
+                "unmount": true
+              }
+            ]
+          },
+          "expected": [
+            "t=300 request \"node\"",
+            "t=450 abort \"node\"",
+            "t=450 unmount"
+          ]
+        },
+        {
+          "name": "Long session: leading spaces, pauses, a response during typing, out-of-order latencies",
+          "hidden": true,
+          "score": 3,
+          "input": {
+            "debounceMs": 250,
+            "defaultLatency": 150,
+            "latency": {
+              "react": 300,
+              "react hooks": 800,
+              "typescript for react": 500
+            },
+            "ignoresAbort": [
+              "react hooks"
+            ],
+            "steps": [
+              {
+                "type": "  react",
+                "every": 60
+              },
+              {
+                "advance": 300
+              },
+              {
+                "type": " hooks",
+                "every": 100
+              },
+              {
+                "advance": 260
+              },
+              {
+                "type": " with",
+                "every": 70
+              },
+              {
+                "advance": 400
+              },
+              {
+                "input": ""
+              },
+              {
+                "advance": 50
+              },
+              {
+                "type": "typescript for react developers",
+                "every": 40
+              },
+              {
+                "advance": 100
+              },
+              {
+                "input": "typescript for react"
+              },
+              {
+                "advance": 300
+              },
+              {
+                "input": "typescript for react developers"
+              }
+            ]
+          },
+          "expected": [
+            "t=0 show []",
+            "t=60 show []",
+            "t=610 request \"react\"",
+            "t=910 response \"react\"",
+            "t=910 show [React Basics, React Hooks in Depth, Testing React Hooks with Fake Timers, TypeScript for React Developers]",
+            "t=1470 request \"react hooks\"",
+            "t=2110 abort \"react hooks\" (ignored by the server)",
+            "t=2110 request \"react hooks with\"",
+            "t=2260 response \"react hooks with\"",
+            "t=2260 show [Testing React Hooks with Fake Timers]",
+            "t=2270 response \"react hooks\"",
+            "t=2330 show []",
+            "t=3970 request \"typescript for react\"",
+            "t=4270 abort \"typescript for react\"",
+            "t=4270 request \"typescript for react developers\"",
+            "t=4420 response \"typescript for react developers\"",
+            "t=4420 show [TypeScript for React Developers]"
+          ]
+        }
+      ]
+    }
+  ]
+}

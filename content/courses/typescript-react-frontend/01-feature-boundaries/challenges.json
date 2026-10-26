@@ -1,0 +1,36 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_trf_111",
+      "name": "feature-boundaries-quiz",
+      "type": "quiz",
+      "title": "Where does a change reach?",
+      "description": "Two pieces of evidence from the catalog feature after the split: a grep for the API host before a parameter rename, and the import lines of the API module.",
+      "difficulty": "medium",
+      "outcomes": ["feature-boundaries"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The API team will rename the query parameter category to topic on GET /courses next week. The catalog feature has an API module, src/features/catalog/api/catalogApi.ts. Before changing anything, a developer runs:\n\n$ grep -rn \"api.codedev.test/courses\" src/\nsrc/features/catalog/api/catalogApi.ts:18:   return request<Course[]>(`https://api.codedev.test/courses${query}`, { signal });\nsrc/features/catalog/hooks/usePopularCourses.ts:9:   fetch(`https://api.codedev.test/courses?category=${category}&sort=popular`)\nsrc/features/catalog/components/RelatedCourses.tsx:31:   fetch(`https://api.codedev.test/courses?category=${course.category}&limit=4`)\n\nStatement: \"Changing how catalogApi.ts builds the query string is enough for every catalog request to send topic instead of category.\"",
+          "explanation": "False. The grep shows two more places that build the URL themselves: a hook and, worse, a presentational component. Both keep sending ?category= after the API module is fixed, so the popular list and the related courses break on release day. An api/ folder only helps if it is the only code that knows URLs; the fix is to move both requests into catalogApi.ts (for example fetchCourses({ category, sort, limit })) and add a CI check that this grep matches only the API layer. The misconception is that having an API module means every call goes through it: the boundary exists only when something enforces it.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The first lines of the catalog API module:\n\n// src/features/catalog/api/catalogApi.ts\nimport { request } from \"../../../shared/http/request\";\nimport type { CourseCardProps } from \"../components/CourseCard\";\n\nexport function fetchCourses(params: CourseListParams): Promise<CourseCardProps[\"course\"][]> {\n  return request(`/courses${toQuery(params)}`, { signal: params.signal });\n}\n\nStatement: \"Because of the second import, renaming or reshaping the course prop of CourseCard can force a change in the API module, so this dependency points the wrong way.\"",
+          "explanation": "True. The API module takes its return type from a presentational component, so the arrow goes api -> components, the opposite of components -> hooks -> api. A purely visual change to CourseCard's props now changes the type of fetchCourses and every caller of it, and a reviewer of a UI change must also review the data layer. The fix is to define Course in the API module (it describes what the server returns) and let CourseCard import it. The misconception is that `import type` is harmless because it disappears at runtime: it is erased from the JavaScript, but it still couples the two files at compile time, which is where the change has to be made.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

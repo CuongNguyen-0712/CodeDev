@@ -1,0 +1,46 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_trf_311",
+      "name": "effect-dependencies-quiz",
+      "type": "quiz",
+      "title": "When does this effect run, and does it need to exist?",
+      "description": "Three pieces of code and evidence from the CodeDev catalog: an object passed as a prop into a dependency array, a count copied into state by an effect, and two requests on mount in development.",
+      "difficulty": "medium",
+      "outcomes": ["effects"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The course landing page shows a launch countdown and a \"Related courses\" panel:\n\nfunction CourseLanding({ course }: { course: Course }) {\n  const secondsLeft = useCountdown(course.publishedAt); // state, updated every second\n  return (\n    <>\n      <LaunchBanner secondsLeft={secondsLeft} />\n      <RelatedCourses query={{ category: course.category, exclude: course.id }} />\n    </>\n  );\n}\n\nfunction RelatedCourses({ query }: { query: RelatedQuery }) {\n  const [related, setRelated] = useState<Course[]>([]);\n  useEffect(() => {\n    fetchRelated(query).then(setRelated);\n  }, [query]);\n  return <CourseRow courses={related} />;\n}\n\nStatement: \"While the countdown runs, RelatedCourses sends a new GET /courses/related request about once per second, even though course never changes.\"",
+          "explanation": "True. useCountdown updates state every second, so CourseLanding renders every second, and each render evaluates the object literal { category, exclude } again: a new object. React compares the query dependency with Object.is, which compares objects by identity, so the dependency has changed and the effect runs again. Note that setRelated alone does not cause a loop here: it re-renders RelatedCourses, but the query prop is still the same object until the parent renders again. The fix is to pass category and exclude as strings and build the object inside the effect. The misconception is that React compares dependencies by their contents.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The course progress header:\n\nfunction ProgressHeader({ lessons }: { lessons: LessonProgress[] }) {\n  const [done, setDone] = useState(0);\n  useEffect(() => {\n    setDone(lessons.filter((l) => l.completed).length);\n  }, [lessons]);\n  return <h2>{done} / {lessons.length} lessons</h2>;\n}\n\nReact DevTools Profiler, after a learner completes a lesson (\"Record why each component rendered\" enabled):\n\nCommit 1  ProgressHeader  Why did this render? Props changed: (lessons)\nCommit 2  ProgressHeader  Why did this render? Hook 1 changed\n\nStatement: \"Replacing the state and the effect with const done = lessons.filter((l) => l.completed).length; removes the second commit and still shows the correct count.\"",
+          "explanation": "True. done is derived data: it can be computed from the lessons prop during render, so there is nothing outside React to synchronize with. With the effect, commit 1 renders the new lessons with the old done value (a stale frame), then the effect calls setDone and commit 2 renders again; Hook 1 is the done state. Computing it during render gives the right count in the first render and removes commit 2. Use useMemo only if the computation is measurably slow. The misconception is that every value shown on screen needs its own state.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The course detail page, running with npm run dev inside <StrictMode>:\n\nuseEffect(() => {\n  const controller = new AbortController();\n  fetchCourse(courseId, controller.signal).then(setCourse).catch(ignoreAbort);\n  return () => controller.abort();\n}, [courseId]);\n\nNetwork panel after opening /courses/c42 once:\n\nName        Status      Time\ncourses/c42 (canceled)  2 ms\ncourses/c42 200         38 ms\n\nStatement: \"The two rows show a bug in this effect, and adding a useRef flag so the fetch runs only once is the right fix before release.\"",
+          "explanation": "False. In development, StrictMode runs every effect's cleanup and setup one extra time right after mount to check that cleanup undoes setup. Here it does: the first request is aborted by the cleanup and the second one completes, which is exactly the expected picture. A production build mounts once and sends one request. A useRef guard would only hide this check; it would also hide a real missing cleanup in other effects. The misconception is that the double request in development is a bug to suppress rather than a test of the cleanup.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

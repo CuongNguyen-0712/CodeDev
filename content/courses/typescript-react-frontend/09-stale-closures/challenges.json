@@ -1,0 +1,180 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_trf_331",
+      "name": "stale-closure-quiz",
+      "type": "quiz",
+      "title": "Which filter does the effect see?",
+      "description": "Two pieces of code from LiveCatalog's 30-second refresh: what an interval created with an empty dependency array reads, and whether a functional state update fixes it.",
+      "difficulty": "medium",
+      "outcomes": [
+        "effects"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "function LiveCatalog({ filter }: { filter: Category }) {\n  const [courses, setCourses] = useState<Course[]>([]);\n  // ...initial fetch for filter...\n  useEffect(() => {\n    const id = setInterval(() => {\n      fetchCourses(filter).then(setCourses);\n    }, 30_000);\n    return () => clearInterval(id);\n    // eslint-disable-next-line react-hooks/exhaustive-deps\n  }, []);\n  // ...\n}\n\nAPI log for one tab (the learner switched from React to Node at 10:00:12):\n10:00:00 GET /courses?category=react 200\n10:00:12 GET /courses?category=node 200\n10:00:30 GET /courses?category=react 200\n\nStatement: \"The 10:00:30 request asks for react because the interval callback was created in the first render and still reads the filter value of that render.\"",
+          "explanation": "True. A function closes over the variables of the render that created it. With an empty dependency array the effect ran once, on mount, when filter was \"react\", so the interval callback holds that render's filter forever. Later renders have filter = \"node\", but they never create a new callback because the effect never runs again. That is a stale closure, and it is exactly what the silenced exhaustive-deps warning was about: the effect reads filter but does not list it. The misconception is that a callback reads \"the current\" prop; it reads the value from the render it was created in.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A reviewer suggests this change to the same effect, keeping the empty dependency array:\n\nuseEffect(() => {\n  const id = setInterval(() => {\n    fetchCourses(filter).then((fresh) => setCourses((prev) => (sameIds(prev, fresh) ? prev : fresh)));\n  }, 30_000);\n  return () => clearInterval(id);\n  // eslint-disable-next-line react-hooks/exhaustive-deps\n}, []);\n\nStatement: \"Because the update now uses the functional form setCourses((prev) => ...), the refresh will request the category the learner selected last.\"",
+          "explanation": "False. The functional update gives the callback the latest courses state, which is useful when the next state depends on the previous one. It does nothing for filter: filter is a prop read by the interval callback when it calls fetchCourses, and that callback still comes from the first render, so it still requests the first category. The fixes are to list filter as a dependency (with the cleanup, so the old interval is cleared when a new one starts) or to read the latest filter from a ref that each render updates. The misconception is that the functional form makes every value inside the callback fresh.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_trf_332",
+      "name": "spot-the-ai-mistake-stale-filter",
+      "type": "fix_bug",
+      "title": "Spot the AI Mistake: stale filter",
+      "description": "An AI assistant was asked to refresh the course list of LiveCatalog every 30 seconds. It added a polling effect, silenced the ESLint warning on it with an eslint-disable comment, and the change was merged. Learners now report that the catalog jumps back: they switch from React to Node, see the Node courses, and within 30 seconds the list shows React courses again; the API logs show React requests from tabs that show Node. Fix LiveCatalog so that the list always shows the category it was last rendered with: one request when the category changes, then exactly one request every 30 seconds for the current category, and none after the component unmounts. The public tests pass on the AI's code; the hidden tests change the category before the timer fires.",
+      "difficulty": "medium",
+      "outcomes": [
+        "effects"
+      ],
+      "points": 30,
+      "hints": [
+        "Which value of `filter` does the interval callback read: the one from the render that is on screen now, or the one from the render that created the interval?",
+        "Look at the dependency array of the polling effect and at the comment just above it. What did ESLint want to tell the author?",
+        "A similar case: `useEffect(() => { const id = setInterval(() => console.log(count), 1000); return () => clearInterval(id); }, [])` logs 0 forever. Listing `count` in the dependencies recreates the interval with the new value, and the cleanup removes the old one so only one interval runs."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 5000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Mount, then one refresh after 30 seconds",
+          "input": [
+            {
+              "filter": "react"
+            },
+            {
+              "advance": 30000
+            }
+          ],
+          "expected": "filter react: requests react; screen \"React Basics, Hooks in Depth\"\n+30s: requests react; screen \"React Basics, Hooks in Depth\"",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Changing the category sends one request for it",
+          "input": [
+            {
+              "filter": "react"
+            },
+            {
+              "filter": "node"
+            }
+          ],
+          "expected": "filter react: requests react; screen \"React Basics, Hooks in Depth\"\nfilter node: requests node; screen \"Node Streams\"",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Two refreshes in a minute",
+          "input": [
+            {
+              "filter": "react"
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "advance": 30000
+            }
+          ],
+          "expected": "filter react: requests react; screen \"React Basics, Hooks in Depth\"\n+30s: requests react; screen \"React Basics, Hooks in Depth\"\n+30s: requests react; screen \"React Basics, Hooks in Depth\"",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Change the category, then the refresh asks for the new one",
+          "input": [
+            {
+              "filter": "react"
+            },
+            {
+              "filter": "node"
+            },
+            {
+              "advance": 30000
+            }
+          ],
+          "expected": "filter react: requests react; screen \"React Basics, Hooks in Depth\"\nfilter node: requests node; screen \"Node Streams\"\n+30s: requests node; screen \"Node Streams\"",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Two changes in a row, then one refresh for the last category",
+          "input": [
+            {
+              "filter": "react"
+            },
+            {
+              "filter": "node"
+            },
+            {
+              "filter": "sql"
+            },
+            {
+              "advance": 30000
+            }
+          ],
+          "expected": "filter react: requests react; screen \"React Basics, Hooks in Depth\"\nfilter node: requests node; screen \"Node Streams\"\nfilter sql: requests sql; screen \"SQL Joins\"\n+30s: requests sql; screen \"SQL Joins\"",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "No refresh after unmount",
+          "input": [
+            {
+              "filter": "react"
+            },
+            {
+              "filter": "node"
+            },
+            {
+              "unmount": true
+            },
+            {
+              "advance": 60000
+            }
+          ],
+          "expected": "filter react: requests react; screen \"React Basics, Hooks in Depth\"\nfilter node: requests node; screen \"Node Streams\"\nunmount: requests none; screen \"(unmounted)\"\n+60s: requests none; screen \"(unmounted)\"",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

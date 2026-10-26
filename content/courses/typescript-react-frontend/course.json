@@ -1,11 +1,11 @@
 {
   "publicId": "typescript-react-frontend",
-  "title": "Frontend Engineering with TypeScript & React: State, Rendering & Performance",
-  "concept": "Write React apps that stay fast and correct as they grow: typed props and state, reducers, effects without races, memoization that pays off, list virtualization and testing the logic behind the UI.",
-  "description": "Write React apps that stay fast and correct as they grow: typed props and state, reducers, effects without races, memoization that pays off, list virtualization and testing the logic behind the UI. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "title": "React + TypeScript Architecture: Feature Boundaries, State & Server Data",
+  "concept": "Structure a React app so it stays correct as it grows: features with clear boundaries, typed props and UI state, one owner for every piece of state, effects with honest dependencies, and server data treated as a cache, each checked with tests on the logic behind the UI.",
+  "description": "An intermediate course for developers who can already write React components and want them to survive the next feature. Every lesson starts from an incident on the CodeDev course catalog - a page that fetches forever, a filter that jumps back to the old category, a list that shows yesterday's data after an edit, a form that accepts what the API refuses - and fixes it with a decision you can verify: feature folders and an API layer, discriminated unions for loading, error, empty and success, reducers for search, filter and page, derived state instead of copies, controlled forms, effect dependencies and cleanup, stale closures, a typed API client, query keys and invalidation, and debounced search that cancels old requests. 12 lessons with True/False quizzes on real code and evidence, and TypeScript challenges graded by hidden tests.",
   "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594627/codedev/courses/typescript-react-frontend/cover",
   "level": "intermediate",
-  "durationMinutes": 180,
+  "durationMinutes": 360,
   "instructor": "CodeDev Engineering Team",
   "language": "TypeScript",
   "category": "React",
@@ -25,6 +25,27 @@
       "currency": "VND"
     }
   ],
+  "completionRules": {},
+  "domain": "frontend",
+  "learningOutcomes": [
+    { "code": "feature-boundaries", "text": "Split a React app by feature into components, hooks and an API layer with typed props" },
+    { "code": "typed-ui-state", "text": "Model loading, error, empty and success as a discriminated union so impossible UI states do not compile" },
+    { "code": "state-ownership", "text": "Give every piece of state one owner: local, lifted, reduced or derived, and keep forms controlled" },
+    { "code": "effects", "text": "Write effects with honest dependencies and cleanup, without render loops or stale closures" },
+    { "code": "server-state", "text": "Treat server data as a cache: typed requests, query keys, invalidation after mutations and cancelled stale requests" }
+  ],
+  "testedVersions": { "TypeScript": "5.9.3 (tsc --strict in the code runner)", "React": "19 (lesson examples)", "TanStack Query": "5 (lesson examples)" },
+  "lastReviewedAt": "2026-10-26",
+  "sourceLinks": [
+    "https://react.dev/learn/you-might-not-need-an-effect",
+    "https://react.dev/reference/react/useEffect",
+    "https://tanstack.com/query/latest/docs/framework/react/guides/query-invalidation"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "No React or Testing Library in the code runner: challenges test the logic as pure functions, reducers and a small hook runtime that copies React's dependency rules"
+  ],
+  "scenario": { "title": "Find the Render Loop", "quiz": "chal_quiz_trf_321", "fixBug": "chal_coding_trf_322" },
   "careerRoles": [
     "frontend_developer",
     "fullstack_developer",
@@ -33,81 +54,53 @@
   "skills": {
     "react": 5,
     "typescript": 5,
-    "html_css": 3,
-    "performance": 3,
-    "testing": 2
+    "api_design": 2,
+    "performance": 2,
+    "testing": 3
   },
   "goals": [
     "grow_in_role",
     "build_projects"
   ],
   "prerequisites": [
-    "js-modern-foundations",
-    "typescript-foundations"
+    "typescript-foundations",
+    "web-http-fundamentals"
   ],
-  "modules": [],
-  "outline": [
+  "modules": [
     {
       "orderIndex": 1,
-      "title": "Typed Components",
+      "title": "Feature Boundaries & Types",
       "lessons": [
-        {
-          "orderIndex": 1,
-          "title": "TypeScript for React: props, unions & discriminated state",
-          "challenges": "Q(m) + C(m)"
-        },
-        {
-          "orderIndex": 2,
-          "title": "Reducers & state machines for UI state",
-          "challenges": "C(m)"
-        },
-        {
-          "orderIndex": 3,
-          "title": "Derived state bugs & single source of truth",
-          "challenges": "F(m)"
-        }
+        { "orderIndex": 1, "folder": "01-feature-boundaries", "title": "How to split a React app by feature: components, hooks & an API layer", "sanityId": "lesson-trf-1-1" },
+        { "orderIndex": 2, "folder": "02-typed-ui-state", "title": "How to type UI state with discriminated unions: loading, error, empty & success", "sanityId": "lesson-trf-1-2" },
+        { "orderIndex": 3, "folder": "03-catalog-pure-functions", "title": "Filter, sort & paginate the catalog with pure functions", "sanityId": "lesson-trf-1-3" }
       ]
     },
     {
       "orderIndex": 2,
-      "title": "Effects & Data",
+      "title": "State Ownership",
       "lessons": [
-        {
-          "orderIndex": 1,
-          "title": "Effects without races: stale responses & cleanup",
-          "challenges": "Q(m) + F(m)"
-        },
-        {
-          "orderIndex": 2,
-          "title": "Data fetching: caching, deduping & invalidation",
-          "challenges": "C(h)"
-        },
-        {
-          "orderIndex": 3,
-          "title": "Forms: controlled inputs & validation schemas",
-          "challenges": "C(m)"
-        }
+        { "orderIndex": 1, "folder": "04-catalog-reducer", "title": "How to manage search, filters & page with a reducer", "sanityId": "lesson-trf-2-1" },
+        { "orderIndex": 2, "folder": "05-derived-state", "title": "Derived state: compute it, don't copy it", "sanityId": "lesson-trf-2-2" },
+        { "orderIndex": 3, "folder": "06-controlled-forms", "title": "Controlled forms & validation the types can check", "sanityId": "lesson-trf-2-3" }
       ]
     },
     {
       "orderIndex": 3,
-      "title": "Performance",
+      "title": "Effects",
       "lessons": [
-        {
-          "orderIndex": 1,
-          "title": "Rendering cost: memo, useMemo & when they help",
-          "challenges": "Q(h)"
-        },
-        {
-          "orderIndex": 2,
-          "title": "Virtualizing long lists: computing the visible window",
-          "challenges": "C(m)"
-        },
-        {
-          "orderIndex": 3,
-          "title": "Measuring: React Profiler & Web Vitals",
-          "challenges": "Q(m) + C(m)"
-        }
+        { "orderIndex": 1, "folder": "07-effect-dependencies", "title": "How useEffect dependencies work, and when you don't need an effect", "sanityId": "lesson-trf-3-1" },
+        { "orderIndex": 2, "folder": "08-find-the-render-loop", "title": "Find the render loop: an effect that fetches forever", "sanityId": "lesson-trf-3-2" },
+        { "orderIndex": 3, "folder": "09-stale-closures", "title": "Stale closures: when an effect keeps the old filter", "sanityId": "lesson-trf-3-3" }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Server State",
+      "lessons": [
+        { "orderIndex": 1, "folder": "10-typed-api-client", "title": "A typed API layer: response types & errors as a union", "sanityId": "lesson-trf-4-1" },
+        { "orderIndex": 2, "folder": "11-query-keys-invalidation", "title": "Server state as a cache: query keys & invalidation after a mutation", "sanityId": "lesson-trf-4-2" },
+        { "orderIndex": 3, "folder": "12-debounced-search", "title": "Debounced search that cancels stale requests, tested with fake timers", "sanityId": "lesson-trf-4-3" }
       ]
     }
   ]

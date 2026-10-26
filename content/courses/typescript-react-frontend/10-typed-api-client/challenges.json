@@ -1,0 +1,602 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_trf_411",
+      "name": "typed-api-layer-quiz",
+      "type": "quiz",
+      "title": "What a type assertion does not check",
+      "description": "Two pieces of evidence from the catalog's API layer: a cast that kept compiling while the API changed under it, and a 204 response that crashed the parser.",
+      "difficulty": "medium",
+      "outcomes": [
+        "server-state"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "src/features/catalog/api.ts (unchanged for months):\n\nexport async function getCourses(): Promise<Course[]> {\n  const res = await fetch(\"https://api.codedev.test/courses\");\n  return (await res.json()) as Course[];\n}\n\n$ npx tsc --noEmit --strict\n(no output: 0 errors)\n\nNetwork panel, GET /courses after Monday's API deploy, response body (first element):\n{\"id\":\"c_101\",\"title\":\"React Basics\",\"category\":\"react\",\"level\":\"beginner\",\"averageRating\":4.6,\"enrolled\":1820,\"publishedAt\":\"2026-03-02T09:00:00Z\"}\n\nStatement: \"Because getCourses compiles under --strict with the return type Promise<Course[]>, every course it returns at runtime has a numeric rating property.\"",
+          "explanation": "False. `as Course[]` is a type assertion: it tells the compiler to trust you and generates no code at all, and res.json() resolves to whatever the server sent. Types are erased before the code runs, so after the deploy each object has averageRating and no rating, while TypeScript still believes rating is a number. The crash then appears far from the cause, in CourseCard when it calls course.rating.toFixed(1). A clean tsc run proves the code is consistent with its own declarations, not that the server keeps its side of the contract; that needs a runtime check at the boundary (a parser from unknown to Course, or a schema library). The misconception is that the declared return type is checked against the real response.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Unenrolling from a course in the catalog:\n\nconst res = await fetch(`https://api.codedev.test/enrollments/${courseId}`, { method: \"DELETE\" });\nif (!res.ok) throw new Error(`HTTP ${res.status}`);\nconst body = await res.json();\n\nNetwork panel: DELETE /enrollments/c_214  Status 204 No Content  Size 0 B\nConsole: Uncaught (in promise) SyntaxError: Failed to execute 'json' on 'Response': Unexpected end of JSON input\nAPI log: DELETE /enrollments/c_214 204 18ms (row deleted)\n\nStatement: \"The unenroll succeeded on the server; the error comes from parsing a response that has no body, so the API layer should treat 204 as success without calling res.json() rather than retry the request.\"",
+          "explanation": "True. 204 No Content means the request succeeded and the response has no content by definition (RFC 9110, section 15.3.5); the API log confirms the row was deleted. res.json() on an empty body rejects with a SyntaxError, so the UI reports an error for an action that worked, and a retry would send a second DELETE for nothing. The typed API layer handles this once: check the status first, return success with no data (or an empty list) for 204, and only parse a body that exists. The misconception is that any exception after fetch means the request failed.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_trf_412",
+      "name": "typed-api-result",
+      "type": "mini_coding",
+      "title": "Typed API layer: from a recorded response to a Result",
+      "description": "The catalog page used to read GET https://api.codedev.test/courses with `(await res.json()) as Course[]`. When the API renamed rating to averageRating, the cast still compiled and CourseCard crashed with \"Cannot read properties of undefined (reading 'toFixed')\". Write toResult(recorded), the one place where the API layer turns what fetch gave it into Result<Course[]> = { ok: true; data: Course[] } | { ok: false; error: ApiError }, with ApiError = { kind: \"network\" } | { kind: \"timeout\" } | { kind: \"http\"; status; message } | { kind: \"invalid-response\"; reason }. A recording is either { error: { name, message } } (fetch rejected) or { status, headers, body } (body is the raw text). Rules, in this order: (1) a rejected fetch is { kind: \"timeout\" } when error.name is \"TimeoutError\", otherwise { kind: \"network\" }. (2) A status outside 200-299 is { kind: \"http\", status, message }: when the content-type header (header names are case-insensitive) starts with application/problem+json and the body parses to an object, message is its detail if that is a string, else its title if that is a string; in every other case message is \"HTTP <status>\". (3) 204 is { ok: true, data: [] } (there is no body to parse). (4) Any other 2xx: a body that is empty or only whitespace gives reason \"empty body\"; a body JSON.parse rejects gives \"body is not JSON\"; a value that is not an array gives \"expected an array\". (5) Each element i, in array order: anything that is not a plain object (null and arrays included) gives \"courses[i] is not an object\"; otherwise the fields are checked in this order and the first bad one gives \"courses[i].<field> is invalid\": id a non-empty string, title a string, category one of react, node, sql, python, devops, level one of beginner, intermediate, advanced, rating a finite number from 0 to 5, enrolled an integer >= 0, publishedAt a string. One bad element makes the whole response invalid. (6) Otherwise { ok: true, data } where each course has exactly the seven Course fields: drop any extra property the API sends. Parse the body as unknown and check it; do not cast. The runner reads a list of recordings and prints the list of results as JSON.",
+      "difficulty": "medium",
+      "outcomes": [
+        "server-state"
+      ],
+      "points": 30,
+      "hints": [
+        "Before you look at a single field: which questions does the API layer have to answer, in which order, to know whether there is anything to parse at all? A rejected fetch, an error status and a 204 never reach JSON.parse.",
+        "Look at three places: the content-type header (find it by comparing the header names in lower case, then compare the start of the value), the status range, and a small function parseCourse(value: unknown, i: number) that returns either a Course built from the checked fields or the reason string. Type guards such as `typeof x === \"string\"`, Number.isInteger and a list of allowed values narrow unknown without any `as`.",
+        "A similar parser on different data, for a leaderboard row { userId: string; exp: number }: write isRecord(v: unknown): v is Record<string, unknown> (typeof v === \"object\", not null, not an array); then parseRow(v, i) returns \"rows[i] is not an object\" when !isRecord(v), reads const { userId, exp } = v, returns \"rows[i].userId is invalid\" unless typeof userId === \"string\", \"rows[i].exp is invalid\" unless Number.isInteger(exp), and finally returns the new object { userId, exp }. Because the result is a new object, an extra property such as \"debug\" never leaks into the app."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A valid list keeps only the seven Course fields; 204 No Content is an empty list",
+          "hidden": false,
+          "score": 3,
+          "input": [
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "application/json"
+              },
+              "body": "[{\"id\":\"c_101\",\"title\":\"React Basics\",\"category\":\"react\",\"level\":\"beginner\",\"rating\":4.6,\"enrolled\":1820,\"publishedAt\":\"2026-03-02T09:00:00Z\"},{\"id\":\"c_214\",\"title\":\"Node Streams in Practice\",\"category\":\"node\",\"level\":\"intermediate\",\"rating\":4.3,\"enrolled\":640,\"publishedAt\":\"2026-05-18T09:00:00Z\",\"draft\":false,\"instructorId\":\"u_9\"}]"
+            },
+            {
+              "status": 204,
+              "headers": {},
+              "body": ""
+            }
+          ],
+          "expected": [
+            {
+              "ok": true,
+              "data": [
+                {
+                  "id": "c_101",
+                  "title": "React Basics",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 4.6,
+                  "enrolled": 1820,
+                  "publishedAt": "2026-03-02T09:00:00Z"
+                },
+                {
+                  "id": "c_214",
+                  "title": "Node Streams in Practice",
+                  "category": "node",
+                  "level": "intermediate",
+                  "rating": 4.3,
+                  "enrolled": 640,
+                  "publishedAt": "2026-05-18T09:00:00Z"
+                }
+              ]
+            },
+            {
+              "ok": true,
+              "data": []
+            }
+          ]
+        },
+        {
+          "name": "The incident: rating renamed to averageRating, and a 503 with problem details",
+          "hidden": false,
+          "score": 3,
+          "input": [
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "application/json"
+              },
+              "body": "[{\"id\":\"c_101\",\"title\":\"React Basics\",\"category\":\"react\",\"level\":\"beginner\",\"enrolled\":1820,\"publishedAt\":\"2026-03-02T09:00:00Z\",\"averageRating\":4.6},{\"id\":\"c_305\",\"title\":\"SQL Joins Without Fear\",\"category\":\"sql\",\"level\":\"beginner\",\"enrolled\":2210,\"publishedAt\":\"2026-01-11T09:00:00Z\",\"averageRating\":4.8}]"
+            },
+            {
+              "status": 503,
+              "headers": {
+                "content-type": "application/problem+json"
+              },
+              "body": "{\"type\":\"about:blank\",\"title\":\"Service Unavailable\",\"status\":503,\"detail\":\"The catalog is being updated, try again in a minute.\"}"
+            }
+          ],
+          "expected": [
+            {
+              "ok": false,
+              "error": {
+                "kind": "invalid-response",
+                "reason": "courses[0].rating is invalid"
+              }
+            },
+            {
+              "ok": false,
+              "error": {
+                "kind": "http",
+                "status": 503,
+                "message": "The catalog is being updated, try again in a minute."
+              }
+            }
+          ]
+        },
+        {
+          "name": "A network error and a timeout",
+          "hidden": true,
+          "score": 2,
+          "input": [
+            {
+              "error": {
+                "name": "TypeError",
+                "message": "Failed to fetch"
+              }
+            },
+            {
+              "error": {
+                "name": "TimeoutError",
+                "message": "signal timed out"
+              }
+            }
+          ],
+          "expected": [
+            {
+              "ok": false,
+              "error": {
+                "kind": "network"
+              }
+            },
+            {
+              "ok": false,
+              "error": {
+                "kind": "timeout"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error messages: header case, charset, title fallback, broken problem body, HTML and plain JSON",
+          "hidden": true,
+          "score": 3,
+          "input": [
+            {
+              "status": 404,
+              "headers": {
+                "Content-Type": "application/problem+json; charset=utf-8"
+              },
+              "body": "{\"title\":\"Not Found\",\"status\":404}"
+            },
+            {
+              "status": 422,
+              "headers": {
+                "content-type": "application/problem+json"
+              },
+              "body": "{\"title\":\"Unprocessable Content\",\"detail\":42}"
+            },
+            {
+              "status": 500,
+              "headers": {
+                "content-type": "application/problem+json"
+              },
+              "body": "{\"title\": \"Internal"
+            },
+            {
+              "status": 502,
+              "headers": {
+                "content-type": "text/html"
+              },
+              "body": "<html><body><h1>502 Bad Gateway</h1></body></html>"
+            },
+            {
+              "status": 401,
+              "headers": {
+                "content-type": "application/json"
+              },
+              "body": "{\"message\":\"invalid_token\"}"
+            },
+            {
+              "status": 301,
+              "headers": {},
+              "body": ""
+            }
+          ],
+          "expected": [
+            {
+              "ok": false,
+              "error": {
+                "kind": "http",
+                "status": 404,
+                "message": "Not Found"
+              }
+            },
+            {
+              "ok": false,
+              "error": {
+                "kind": "http",
+                "status": 422,
+                "message": "Unprocessable Content"
+              }
+            },
+            {
+              "ok": false,
+              "error": {
+                "kind": "http",
+                "status": 500,
+                "message": "HTTP 500"
+              }
+            },
+            {
+              "ok": false,
+              "error": {
+                "kind": "http",
+                "status": 502,
+                "message": "HTTP 502"
+              }
+            },
+            {
+              "ok": false,
+              "error": {
+                "kind": "http",
+                "status": 401,
+                "message": "HTTP 401"
+              }
+            },
+            {
+              "ok": false,
+              "error": {
+                "kind": "http",
+                "status": 301,
+                "message": "HTTP 301"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bodies that are not a course list: empty, whitespace, HTML, an object, null, a nested array",
+          "hidden": true,
+          "score": 3,
+          "input": [
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "application/json"
+              },
+              "body": ""
+            },
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "application/json"
+              },
+              "body": "  \n"
+            },
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "text/html"
+              },
+              "body": "<!doctype html><html><head><title>CodeDev</title></head><body><div id=\"root\"></div></body></html>"
+            },
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "application/json"
+              },
+              "body": "{\"items\":[{\"id\":\"c_101\",\"title\":\"React Basics\",\"category\":\"react\",\"level\":\"beginner\",\"rating\":4.6,\"enrolled\":1820,\"publishedAt\":\"2026-03-02T09:00:00Z\"}],\"total\":1}"
+            },
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "application/json"
+              },
+              "body": "null"
+            },
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "application/json"
+              },
+              "body": "[{\"id\":\"c_101\",\"title\":\"React Basics\",\"category\":\"react\",\"level\":\"beginner\",\"rating\":4.6,\"enrolled\":1820,\"publishedAt\":\"2026-03-02T09:00:00Z\"},null]"
+            },
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "application/json"
+              },
+              "body": "[{\"id\":\"c_101\",\"title\":\"React Basics\",\"category\":\"react\",\"level\":\"beginner\",\"rating\":4.6,\"enrolled\":1820,\"publishedAt\":\"2026-03-02T09:00:00Z\"},[{\"id\":\"c_214\",\"title\":\"Node Streams in Practice\",\"category\":\"node\",\"level\":\"intermediate\",\"rating\":4.3,\"enrolled\":640,\"publishedAt\":\"2026-05-18T09:00:00Z\"}]]"
+            },
+            {
+              "status": 201,
+              "headers": {
+                "content-type": "application/json"
+              },
+              "body": "[]"
+            }
+          ],
+          "expected": [
+            {
+              "ok": false,
+              "error": {
+                "kind": "invalid-response",
+                "reason": "empty body"
+              }
+            },
+            {
+              "ok": false,
+              "error": {
+                "kind": "invalid-response",
+                "reason": "empty body"
+              }
+            },
+            {
+              "ok": false,
+              "error": {
+                "kind": "invalid-response",
+                "reason": "body is not JSON"
+              }
+            },
+            {
+              "ok": false,
+              "error": {
+                "kind": "invalid-response",
+                "reason": "expected an array"
+              }
+            },
+            {
+              "ok": false,
+              "error": {
+                "kind": "invalid-response",
+                "reason": "expected an array"
+              }
+            },
+            {
+              "ok": false,
+              "error": {
+                "kind": "invalid-response",
+                "reason": "courses[1] is not an object"
+              }
+            },
+            {
+              "ok": false,
+              "error": {
+                "kind": "invalid-response",
+                "reason": "courses[1] is not an object"
+              }
+            },
+            {
+              "ok": true,
+              "data": []
+            }
+          ]
+        },
+        {
+          "name": "Field checks: category, string rating, rating out of range, fractional enrolled, empty id",
+          "hidden": true,
+          "score": 3,
+          "input": [
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "application/json"
+              },
+              "body": "[{\"id\":\"c_101\",\"title\":\"React Basics\",\"category\":\"react\",\"level\":\"beginner\",\"rating\":4.6,\"enrolled\":1820,\"publishedAt\":\"2026-03-02T09:00:00Z\"},{\"id\":\"c_214\",\"title\":\"Node Streams in Practice\",\"category\":\"go\",\"level\":\"intermediate\",\"rating\":4.3,\"enrolled\":640,\"publishedAt\":\"2026-05-18T09:00:00Z\"}]"
+            },
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "application/json"
+              },
+              "body": "[{\"id\":\"c_101\",\"title\":\"React Basics\",\"category\":\"react\",\"level\":\"beginner\",\"rating\":\"4.6\",\"enrolled\":1820,\"publishedAt\":\"2026-03-02T09:00:00Z\"}]"
+            },
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "application/json"
+              },
+              "body": "[{\"id\":\"c_101\",\"title\":\"React Basics\",\"category\":\"react\",\"level\":\"beginner\",\"rating\":46,\"enrolled\":1820,\"publishedAt\":\"2026-03-02T09:00:00Z\"}]"
+            },
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "application/json"
+              },
+              "body": "[{\"id\":\"c_305\",\"title\":\"SQL Joins Without Fear\",\"category\":\"sql\",\"level\":\"beginner\",\"rating\":4.8,\"enrolled\":2210,\"publishedAt\":\"2026-01-11T09:00:00Z\"},{\"id\":\"c_101\",\"title\":\"React Basics\",\"category\":\"react\",\"level\":\"beginner\",\"rating\":4.6,\"enrolled\":12.5,\"publishedAt\":\"2026-03-02T09:00:00Z\"}]"
+            },
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "application/json"
+              },
+              "body": "[{\"id\":\"\",\"title\":\"React Basics\",\"category\":\"react\",\"level\":\"beginner\",\"rating\":4.6,\"enrolled\":1820,\"publishedAt\":\"2026-03-02T09:00:00Z\"}]"
+            },
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "application/json"
+              },
+              "body": "[{\"id\":\"c_101\",\"title\":\"React Basics\",\"category\":\"react\",\"level\":\"beginner\",\"rating\":4.6,\"enrolled\":1820,\"publishedAt\":null}]"
+            },
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "application/json"
+              },
+              "body": "[{\"id\":\"c_101\",\"title\":\"React Basics\",\"category\":\"react\",\"level\":\"expert\",\"rating\":\"x\",\"enrolled\":1820,\"publishedAt\":\"2026-03-02T09:00:00Z\"}]"
+            },
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "application/json"
+              },
+              "body": "[{\"id\":\"c_305\",\"title\":\"SQL Joins Without Fear\",\"category\":\"sql\",\"level\":\"beginner\",\"rating\":0,\"enrolled\":2210,\"publishedAt\":\"2026-01-11T09:00:00Z\"},{\"id\":\"c_214\",\"title\":\"\",\"category\":\"node\",\"level\":\"intermediate\",\"rating\":5,\"enrolled\":0,\"publishedAt\":\"2026-05-18T09:00:00Z\"}]"
+            }
+          ],
+          "expected": [
+            {
+              "ok": false,
+              "error": {
+                "kind": "invalid-response",
+                "reason": "courses[1].category is invalid"
+              }
+            },
+            {
+              "ok": false,
+              "error": {
+                "kind": "invalid-response",
+                "reason": "courses[0].rating is invalid"
+              }
+            },
+            {
+              "ok": false,
+              "error": {
+                "kind": "invalid-response",
+                "reason": "courses[0].rating is invalid"
+              }
+            },
+            {
+              "ok": false,
+              "error": {
+                "kind": "invalid-response",
+                "reason": "courses[1].enrolled is invalid"
+              }
+            },
+            {
+              "ok": false,
+              "error": {
+                "kind": "invalid-response",
+                "reason": "courses[0].id is invalid"
+              }
+            },
+            {
+              "ok": false,
+              "error": {
+                "kind": "invalid-response",
+                "reason": "courses[0].publishedAt is invalid"
+              }
+            },
+            {
+              "ok": false,
+              "error": {
+                "kind": "invalid-response",
+                "reason": "courses[0].level is invalid"
+              }
+            },
+            {
+              "ok": true,
+              "data": [
+                {
+                  "id": "c_305",
+                  "title": "SQL Joins Without Fear",
+                  "category": "sql",
+                  "level": "beginner",
+                  "rating": 0,
+                  "enrolled": 2210,
+                  "publishedAt": "2026-01-11T09:00:00Z"
+                },
+                {
+                  "id": "c_214",
+                  "title": "",
+                  "category": "node",
+                  "level": "intermediate",
+                  "rating": 5,
+                  "enrolled": 0,
+                  "publishedAt": "2026-05-18T09:00:00Z"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Large list: 120 courses, the 118th from an API instance that already sends averageRating",
+          "hidden": true,
+          "score": 3,
+          "input": [
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "application/json"
+              },
+              "body": "[{\"id\":\"c_1000\",\"title\":\"Course 1\",\"category\":\"react\",\"level\":\"beginner\",\"rating\":3,\"enrolled\":0,\"publishedAt\":\"2026-01-10T08:00:00Z\"},{\"id\":\"c_1001\",\"title\":\"Course 2\",\"category\":\"node\",\"level\":\"intermediate\",\"rating\":3.1,\"enrolled\":50,\"publishedAt\":\"2026-02-11T08:00:00Z\"},{\"id\":\"c_1002\",\"title\":\"Course 3\",\"category\":\"sql\",\"level\":\"advanced\",\"rating\":3.2,\"enrolled\":100,\"publishedAt\":\"2026-03-12T08:00:00Z\"},{\"id\":\"c_1003\",\"title\":\"Course 4\",\"category\":\"python\",\"level\":\"beginner\",\"rating\":3.3,\"enrolled\":150,\"publishedAt\":\"2026-04-13T08:00:00Z\"},{\"id\":\"c_1004\",\"title\":\"Course 5\",\"category\":\"devops\",\"level\":\"intermediate\",\"rating\":3.4,\"enrolled\":200,\"publishedAt\":\"2026-05-14T08:00:00Z\"},{\"id\":\"c_1005\",\"title\":\"Course 6\",\"category\":\"react\",\"level\":\"advanced\",\"rating\":3.5,\"enrolled\":250,\"publishedAt\":\"2026-06-15T08:00:00Z\"},{\"id\":\"c_1006\",\"title\":\"Course 7\",\"category\":\"node\",\"level\":\"beginner\",\"rating\":3.6,\"enrolled\":300,\"publishedAt\":\"2026-07-16T08:00:00Z\"},{\"id\":\"c_1007\",\"title\":\"Course 8\",\"category\":\"sql\",\"level\":\"intermediate\",\"rating\":3.7,\"enrolled\":350,\"publishedAt\":\"2026-08-17T08:00:00Z\"},{\"id\":\"c_1008\",\"title\":\"Course 9\",\"category\":\"python\",\"level\":\"advanced\",\"rating\":3.8,\"enrolled\":400,\"publishedAt\":\"2026-09-18T08:00:00Z\"},{\"id\":\"c_1009\",\"title\":\"Course 10\",\"category\":\"devops\",\"level\":\"beginner\",\"rating\":3.9,\"enrolled\":450,\"publishedAt\":\"2026-01-19T08:00:00Z\"},{\"id\":\"c_1010\",\"title\":\"Course 11\",\"category\":\"react\",\"level\":\"intermediate\",\"rating\":4,\"enrolled\":500,\"publishedAt\":\"2026-02-10T08:00:00Z\"},{\"id\":\"c_1011\",\"title\":\"Course 12\",\"category\":\"node\",\"level\":\"advanced\",\"rating\":4.1,\"enrolled\":550,\"publishedAt\":\"2026-03-11T08:00:00Z\"},{\"id\":\"c_1012\",\"title\":\"Course 13\",\"category\":\"sql\",\"level\":\"beginner\",\"rating\":4.2,\"enrolled\":600,\"publishedAt\":\"2026-04-12T08:00:00Z\"},{\"id\":\"c_1013\",\"title\":\"Course 14\",\"category\":\"python\",\"level\":\"intermediate\",\"rating\":4.3,\"enrolled\":650,\"publishedAt\":\"2026-05-13T08:00:00Z\"},{\"id\":\"c_1014\",\"title\":\"Course 15\",\"category\":\"devops\",\"level\":\"advanced\",\"rating\":4.4,\"enrolled\":700,\"publishedAt\":\"2026-06-14T08:00:00Z\"},{\"id\":\"c_1015\",\"title\":\"Course 16\",\"category\":\"react\",\"level\":\"beginner\",\"rating\":4.5,\"enrolled\":750,\"publishedAt\":\"2026-07-15T08:00:00Z\"},{\"id\":\"c_1016\",\"title\":\"Course 17\",\"category\":\"node\",\"level\":\"intermediate\",\"rating\":4.6,\"enrolled\":800,\"publishedAt\":\"2026-08-16T08:00:00Z\"},{\"id\":\"c_1017\",\"title\":\"Course 18\",\"category\":\"sql\",\"level\":\"advanced\",\"rating\":4.7,\"enrolled\":850,\"publishedAt\":\"2026-09-17T08:00:00Z\"},{\"id\":\"c_1018\",\"title\":\"Course 19\",\"category\":\"python\",\"level\":\"beginner\",\"rating\":4.8,\"enrolled\":900,\"publishedAt\":\"2026-01-18T08:00:00Z\"},{\"id\":\"c_1019\",\"title\":\"Course 20\",\"category\":\"devops\",\"level\":\"intermediate\",\"rating\":4.9,\"enrolled\":950,\"publishedAt\":\"2026-02-19T08:00:00Z\"},{\"id\":\"c_1020\",\"title\":\"Course 21\",\"category\":\"react\",\"level\":\"advanced\",\"rating\":5,\"enrolled\":1000,\"publishedAt\":\"2026-03-10T08:00:00Z\"},{\"id\":\"c_1021\",\"title\":\"Course 22\",\"category\":\"node\",\"level\":\"beginner\",\"rating\":3,\"enrolled\":1050,\"publishedAt\":\"2026-04-11T08:00:00Z\"},{\"id\":\"c_1022\",\"title\":\"Course 23\",\"category\":\"sql\",\"level\":\"intermediate\",\"rating\":3.1,\"enrolled\":1100,\"publishedAt\":\"2026-05-12T08:00:00Z\"},{\"id\":\"c_1023\",\"title\":\"Course 24\",\"category\":\"python\",\"level\":\"advanced\",\"rating\":3.2,\"enrolled\":1150,\"publishedAt\":\"2026-06-13T08:00:00Z\"},{\"id\":\"c_1024\",\"title\":\"Course 25\",\"category\":\"devops\",\"level\":\"beginner\",\"rating\":3.3,\"enrolled\":1200,\"publishedAt\":\"2026-07-14T08:00:00Z\"},{\"id\":\"c_1025\",\"title\":\"Course 26\",\"category\":\"react\",\"level\":\"intermediate\",\"rating\":3.4,\"enrolled\":1250,\"publishedAt\":\"2026-08-15T08:00:00Z\"},{\"id\":\"c_1026\",\"title\":\"Course 27\",\"category\":\"node\",\"level\":\"advanced\",\"rating\":3.5,\"enrolled\":1300,\"publishedAt\":\"2026-09-16T08:00:00Z\"},{\"id\":\"c_1027\",\"title\":\"Course 28\",\"category\":\"sql\",\"level\":\"beginner\",\"rating\":3.6,\"enrolled\":1350,\"publishedAt\":\"2026-01-17T08:00:00Z\"},{\"id\":\"c_1028\",\"title\":\"Course 29\",\"category\":\"python\",\"level\":\"intermediate\",\"rating\":3.7,\"enrolled\":1400,\"publishedAt\":\"2026-02-18T08:00:00Z\"},{\"id\":\"c_1029\",\"title\":\"Course 30\",\"category\":\"devops\",\"level\":\"advanced\",\"rating\":3.8,\"enrolled\":1450,\"publishedAt\":\"2026-03-19T08:00:00Z\"},{\"id\":\"c_1030\",\"title\":\"Course 31\",\"category\":\"react\",\"level\":\"beginner\",\"rating\":3.9,\"enrolled\":1500,\"publishedAt\":\"2026-04-10T08:00:00Z\"},{\"id\":\"c_1031\",\"title\":\"Course 32\",\"category\":\"node\",\"level\":\"intermediate\",\"rating\":4,\"enrolled\":1550,\"publishedAt\":\"2026-05-11T08:00:00Z\"},{\"id\":\"c_1032\",\"title\":\"Course 33\",\"category\":\"sql\",\"level\":\"advanced\",\"rating\":4.1,\"enrolled\":1600,\"publishedAt\":\"2026-06-12T08:00:00Z\"},{\"id\":\"c_1033\",\"title\":\"Course 34\",\"category\":\"python\",\"level\":\"beginner\",\"rating\":4.2,\"enrolled\":1650,\"publishedAt\":\"2026-07-13T08:00:00Z\"},{\"id\":\"c_1034\",\"title\":\"Course 35\",\"category\":\"devops\",\"level\":\"intermediate\",\"rating\":4.3,\"enrolled\":1700,\"publishedAt\":\"2026-08-14T08:00:00Z\"},{\"id\":\"c_1035\",\"title\":\"Course 36\",\"category\":\"react\",\"level\":\"advanced\",\"rating\":4.4,\"enrolled\":1750,\"publishedAt\":\"2026-09-15T08:00:00Z\"},{\"id\":\"c_1036\",\"title\":\"Course 37\",\"category\":\"node\",\"level\":\"beginner\",\"rating\":4.5,\"enrolled\":1800,\"publishedAt\":\"2026-01-16T08:00:00Z\"},{\"id\":\"c_1037\",\"title\":\"Course 38\",\"category\":\"sql\",\"level\":\"intermediate\",\"rating\":4.6,\"enrolled\":1850,\"publishedAt\":\"2026-02-17T08:00:00Z\"},{\"id\":\"c_1038\",\"title\":\"Course 39\",\"category\":\"python\",\"level\":\"advanced\",\"rating\":4.7,\"enrolled\":1900,\"publishedAt\":\"2026-03-18T08:00:00Z\"},{\"id\":\"c_1039\",\"title\":\"Course 40\",\"category\":\"devops\",\"level\":\"beginner\",\"rating\":4.8,\"enrolled\":1950,\"publishedAt\":\"2026-04-19T08:00:00Z\"},{\"id\":\"c_1040\",\"title\":\"Course 41\",\"category\":\"react\",\"level\":\"intermediate\",\"rating\":4.9,\"enrolled\":2000,\"publishedAt\":\"2026-05-10T08:00:00Z\"},{\"id\":\"c_1041\",\"title\":\"Course 42\",\"category\":\"node\",\"level\":\"advanced\",\"rating\":5,\"enrolled\":2050,\"publishedAt\":\"2026-06-11T08:00:00Z\"},{\"id\":\"c_1042\",\"title\":\"Course 43\",\"category\":\"sql\",\"level\":\"beginner\",\"rating\":3,\"enrolled\":2100,\"publishedAt\":\"2026-07-12T08:00:00Z\"},{\"id\":\"c_1043\",\"title\":\"Course 44\",\"category\":\"python\",\"level\":\"intermediate\",\"rating\":3.1,\"enrolled\":2150,\"publishedAt\":\"2026-08-13T08:00:00Z\"},{\"id\":\"c_1044\",\"title\":\"Course 45\",\"category\":\"devops\",\"level\":\"advanced\",\"rating\":3.2,\"enrolled\":2200,\"publishedAt\":\"2026-09-14T08:00:00Z\"},{\"id\":\"c_1045\",\"title\":\"Course 46\",\"category\":\"react\",\"level\":\"beginner\",\"rating\":3.3,\"enrolled\":2250,\"publishedAt\":\"2026-01-15T08:00:00Z\"},{\"id\":\"c_1046\",\"title\":\"Course 47\",\"category\":\"node\",\"level\":\"intermediate\",\"rating\":3.4,\"enrolled\":2300,\"publishedAt\":\"2026-02-16T08:00:00Z\"},{\"id\":\"c_1047\",\"title\":\"Course 48\",\"category\":\"sql\",\"level\":\"advanced\",\"rating\":3.5,\"enrolled\":2350,\"publishedAt\":\"2026-03-17T08:00:00Z\"},{\"id\":\"c_1048\",\"title\":\"Course 49\",\"category\":\"python\",\"level\":\"beginner\",\"rating\":3.6,\"enrolled\":2400,\"publishedAt\":\"2026-04-18T08:00:00Z\"},{\"id\":\"c_1049\",\"title\":\"Course 50\",\"category\":\"devops\",\"level\":\"intermediate\",\"rating\":3.7,\"enrolled\":2450,\"publishedAt\":\"2026-05-19T08:00:00Z\"},{\"id\":\"c_1050\",\"title\":\"Course 51\",\"category\":\"react\",\"level\":\"advanced\",\"rating\":3.8,\"enrolled\":2500,\"publishedAt\":\"2026-06-10T08:00:00Z\"},{\"id\":\"c_1051\",\"title\":\"Course 52\",\"category\":\"node\",\"level\":\"beginner\",\"rating\":3.9,\"enrolled\":2550,\"publishedAt\":\"2026-07-11T08:00:00Z\"},{\"id\":\"c_1052\",\"title\":\"Course 53\",\"category\":\"sql\",\"level\":\"intermediate\",\"rating\":4,\"enrolled\":2600,\"publishedAt\":\"2026-08-12T08:00:00Z\"},{\"id\":\"c_1053\",\"title\":\"Course 54\",\"category\":\"python\",\"level\":\"advanced\",\"rating\":4.1,\"enrolled\":2650,\"publishedAt\":\"2026-09-13T08:00:00Z\"},{\"id\":\"c_1054\",\"title\":\"Course 55\",\"category\":\"devops\",\"level\":\"beginner\",\"rating\":4.2,\"enrolled\":2700,\"publishedAt\":\"2026-01-14T08:00:00Z\"},{\"id\":\"c_1055\",\"title\":\"Course 56\",\"category\":\"react\",\"level\":\"intermediate\",\"rating\":4.3,\"enrolled\":2750,\"publishedAt\":\"2026-02-15T08:00:00Z\"},{\"id\":\"c_1056\",\"title\":\"Course 57\",\"category\":\"node\",\"level\":\"advanced\",\"rating\":4.4,\"enrolled\":2800,\"publishedAt\":\"2026-03-16T08:00:00Z\"},{\"id\":\"c_1057\",\"title\":\"Course 58\",\"category\":\"sql\",\"level\":\"beginner\",\"rating\":4.5,\"enrolled\":2850,\"publishedAt\":\"2026-04-17T08:00:00Z\"},{\"id\":\"c_1058\",\"title\":\"Course 59\",\"category\":\"python\",\"level\":\"intermediate\",\"rating\":4.6,\"enrolled\":2900,\"publishedAt\":\"2026-05-18T08:00:00Z\"},{\"id\":\"c_1059\",\"title\":\"Course 60\",\"category\":\"devops\",\"level\":\"advanced\",\"rating\":4.7,\"enrolled\":2950,\"publishedAt\":\"2026-06-19T08:00:00Z\"},{\"id\":\"c_1060\",\"title\":\"Course 61\",\"category\":\"react\",\"level\":\"beginner\",\"rating\":4.8,\"enrolled\":3000,\"publishedAt\":\"2026-07-10T08:00:00Z\"},{\"id\":\"c_1061\",\"title\":\"Course 62\",\"category\":\"node\",\"level\":\"intermediate\",\"rating\":4.9,\"enrolled\":3050,\"publishedAt\":\"2026-08-11T08:00:00Z\"},{\"id\":\"c_1062\",\"title\":\"Course 63\",\"category\":\"sql\",\"level\":\"advanced\",\"rating\":5,\"enrolled\":3100,\"publishedAt\":\"2026-09-12T08:00:00Z\"},{\"id\":\"c_1063\",\"title\":\"Course 64\",\"category\":\"python\",\"level\":\"beginner\",\"rating\":3,\"enrolled\":3150,\"publishedAt\":\"2026-01-13T08:00:00Z\"},{\"id\":\"c_1064\",\"title\":\"Course 65\",\"category\":\"devops\",\"level\":\"intermediate\",\"rating\":3.1,\"enrolled\":3200,\"publishedAt\":\"2026-02-14T08:00:00Z\"},{\"id\":\"c_1065\",\"title\":\"Course 66\",\"category\":\"react\",\"level\":\"advanced\",\"rating\":3.2,\"enrolled\":3250,\"publishedAt\":\"2026-03-15T08:00:00Z\"},{\"id\":\"c_1066\",\"title\":\"Course 67\",\"category\":\"node\",\"level\":\"beginner\",\"rating\":3.3,\"enrolled\":3300,\"publishedAt\":\"2026-04-16T08:00:00Z\"},{\"id\":\"c_1067\",\"title\":\"Course 68\",\"category\":\"sql\",\"level\":\"intermediate\",\"rating\":3.4,\"enrolled\":3350,\"publishedAt\":\"2026-05-17T08:00:00Z\"},{\"id\":\"c_1068\",\"title\":\"Course 69\",\"category\":\"python\",\"level\":\"advanced\",\"rating\":3.5,\"enrolled\":3400,\"publishedAt\":\"2026-06-18T08:00:00Z\"},{\"id\":\"c_1069\",\"title\":\"Course 70\",\"category\":\"devops\",\"level\":\"beginner\",\"rating\":3.6,\"enrolled\":3450,\"publishedAt\":\"2026-07-19T08:00:00Z\"},{\"id\":\"c_1070\",\"title\":\"Course 71\",\"category\":\"react\",\"level\":\"intermediate\",\"rating\":3.7,\"enrolled\":3500,\"publishedAt\":\"2026-08-10T08:00:00Z\"},{\"id\":\"c_1071\",\"title\":\"Course 72\",\"category\":\"node\",\"level\":\"advanced\",\"rating\":3.8,\"enrolled\":3550,\"publishedAt\":\"2026-09-11T08:00:00Z\"},{\"id\":\"c_1072\",\"title\":\"Course 73\",\"category\":\"sql\",\"level\":\"beginner\",\"rating\":3.9,\"enrolled\":3600,\"publishedAt\":\"2026-01-12T08:00:00Z\"},{\"id\":\"c_1073\",\"title\":\"Course 74\",\"category\":\"python\",\"level\":\"intermediate\",\"rating\":4,\"enrolled\":3650,\"publishedAt\":\"2026-02-13T08:00:00Z\"},{\"id\":\"c_1074\",\"title\":\"Course 75\",\"category\":\"devops\",\"level\":\"advanced\",\"rating\":4.1,\"enrolled\":3700,\"publishedAt\":\"2026-03-14T08:00:00Z\"},{\"id\":\"c_1075\",\"title\":\"Course 76\",\"category\":\"react\",\"level\":\"beginner\",\"rating\":4.2,\"enrolled\":3750,\"publishedAt\":\"2026-04-15T08:00:00Z\"},{\"id\":\"c_1076\",\"title\":\"Course 77\",\"category\":\"node\",\"level\":\"intermediate\",\"rating\":4.3,\"enrolled\":3800,\"publishedAt\":\"2026-05-16T08:00:00Z\"},{\"id\":\"c_1077\",\"title\":\"Course 78\",\"category\":\"sql\",\"level\":\"advanced\",\"rating\":4.4,\"enrolled\":3850,\"publishedAt\":\"2026-06-17T08:00:00Z\"},{\"id\":\"c_1078\",\"title\":\"Course 79\",\"category\":\"python\",\"level\":\"beginner\",\"rating\":4.5,\"enrolled\":3900,\"publishedAt\":\"2026-07-18T08:00:00Z\"},{\"id\":\"c_1079\",\"title\":\"Course 80\",\"category\":\"devops\",\"level\":\"intermediate\",\"rating\":4.6,\"enrolled\":3950,\"publishedAt\":\"2026-08-19T08:00:00Z\"},{\"id\":\"c_1080\",\"title\":\"Course 81\",\"category\":\"react\",\"level\":\"advanced\",\"rating\":4.7,\"enrolled\":4000,\"publishedAt\":\"2026-09-10T08:00:00Z\"},{\"id\":\"c_1081\",\"title\":\"Course 82\",\"category\":\"node\",\"level\":\"beginner\",\"rating\":4.8,\"enrolled\":4050,\"publishedAt\":\"2026-01-11T08:00:00Z\"},{\"id\":\"c_1082\",\"title\":\"Course 83\",\"category\":\"sql\",\"level\":\"intermediate\",\"rating\":4.9,\"enrolled\":4100,\"publishedAt\":\"2026-02-12T08:00:00Z\"},{\"id\":\"c_1083\",\"title\":\"Course 84\",\"category\":\"python\",\"level\":\"advanced\",\"rating\":5,\"enrolled\":4150,\"publishedAt\":\"2026-03-13T08:00:00Z\"},{\"id\":\"c_1084\",\"title\":\"Course 85\",\"category\":\"devops\",\"level\":\"beginner\",\"rating\":3,\"enrolled\":4200,\"publishedAt\":\"2026-04-14T08:00:00Z\"},{\"id\":\"c_1085\",\"title\":\"Course 86\",\"category\":\"react\",\"level\":\"intermediate\",\"rating\":3.1,\"enrolled\":4250,\"publishedAt\":\"2026-05-15T08:00:00Z\"},{\"id\":\"c_1086\",\"title\":\"Course 87\",\"category\":\"node\",\"level\":\"advanced\",\"rating\":3.2,\"enrolled\":4300,\"publishedAt\":\"2026-06-16T08:00:00Z\"},{\"id\":\"c_1087\",\"title\":\"Course 88\",\"category\":\"sql\",\"level\":\"beginner\",\"rating\":3.3,\"enrolled\":4350,\"publishedAt\":\"2026-07-17T08:00:00Z\"},{\"id\":\"c_1088\",\"title\":\"Course 89\",\"category\":\"python\",\"level\":\"intermediate\",\"rating\":3.4,\"enrolled\":4400,\"publishedAt\":\"2026-08-18T08:00:00Z\"},{\"id\":\"c_1089\",\"title\":\"Course 90\",\"category\":\"devops\",\"level\":\"advanced\",\"rating\":3.5,\"enrolled\":4450,\"publishedAt\":\"2026-09-19T08:00:00Z\"},{\"id\":\"c_1090\",\"title\":\"Course 91\",\"category\":\"react\",\"level\":\"beginner\",\"rating\":3.6,\"enrolled\":4500,\"publishedAt\":\"2026-01-10T08:00:00Z\"},{\"id\":\"c_1091\",\"title\":\"Course 92\",\"category\":\"node\",\"level\":\"intermediate\",\"rating\":3.7,\"enrolled\":4550,\"publishedAt\":\"2026-02-11T08:00:00Z\"},{\"id\":\"c_1092\",\"title\":\"Course 93\",\"category\":\"sql\",\"level\":\"advanced\",\"rating\":3.8,\"enrolled\":4600,\"publishedAt\":\"2026-03-12T08:00:00Z\"},{\"id\":\"c_1093\",\"title\":\"Course 94\",\"category\":\"python\",\"level\":\"beginner\",\"rating\":3.9,\"enrolled\":4650,\"publishedAt\":\"2026-04-13T08:00:00Z\"},{\"id\":\"c_1094\",\"title\":\"Course 95\",\"category\":\"devops\",\"level\":\"intermediate\",\"rating\":4,\"enrolled\":4700,\"publishedAt\":\"2026-05-14T08:00:00Z\"},{\"id\":\"c_1095\",\"title\":\"Course 96\",\"category\":\"react\",\"level\":\"advanced\",\"rating\":4.1,\"enrolled\":4750,\"publishedAt\":\"2026-06-15T08:00:00Z\"},{\"id\":\"c_1096\",\"title\":\"Course 97\",\"category\":\"node\",\"level\":\"beginner\",\"rating\":4.2,\"enrolled\":4800,\"publishedAt\":\"2026-07-16T08:00:00Z\"},{\"id\":\"c_1097\",\"title\":\"Course 98\",\"category\":\"sql\",\"level\":\"intermediate\",\"rating\":4.3,\"enrolled\":4850,\"publishedAt\":\"2026-08-17T08:00:00Z\"},{\"id\":\"c_1098\",\"title\":\"Course 99\",\"category\":\"python\",\"level\":\"advanced\",\"rating\":4.4,\"enrolled\":4900,\"publishedAt\":\"2026-09-18T08:00:00Z\"},{\"id\":\"c_1099\",\"title\":\"Course 100\",\"category\":\"devops\",\"level\":\"beginner\",\"rating\":4.5,\"enrolled\":4950,\"publishedAt\":\"2026-01-19T08:00:00Z\"},{\"id\":\"c_1100\",\"title\":\"Course 101\",\"category\":\"react\",\"level\":\"intermediate\",\"rating\":4.6,\"enrolled\":5000,\"publishedAt\":\"2026-02-10T08:00:00Z\"},{\"id\":\"c_1101\",\"title\":\"Course 102\",\"category\":\"node\",\"level\":\"advanced\",\"rating\":4.7,\"enrolled\":5050,\"publishedAt\":\"2026-03-11T08:00:00Z\"},{\"id\":\"c_1102\",\"title\":\"Course 103\",\"category\":\"sql\",\"level\":\"beginner\",\"rating\":4.8,\"enrolled\":5100,\"publishedAt\":\"2026-04-12T08:00:00Z\"},{\"id\":\"c_1103\",\"title\":\"Course 104\",\"category\":\"python\",\"level\":\"intermediate\",\"rating\":4.9,\"enrolled\":5150,\"publishedAt\":\"2026-05-13T08:00:00Z\"},{\"id\":\"c_1104\",\"title\":\"Course 105\",\"category\":\"devops\",\"level\":\"advanced\",\"rating\":5,\"enrolled\":5200,\"publishedAt\":\"2026-06-14T08:00:00Z\"},{\"id\":\"c_1105\",\"title\":\"Course 106\",\"category\":\"react\",\"level\":\"beginner\",\"rating\":3,\"enrolled\":5250,\"publishedAt\":\"2026-07-15T08:00:00Z\"},{\"id\":\"c_1106\",\"title\":\"Course 107\",\"category\":\"node\",\"level\":\"intermediate\",\"rating\":3.1,\"enrolled\":5300,\"publishedAt\":\"2026-08-16T08:00:00Z\"},{\"id\":\"c_1107\",\"title\":\"Course 108\",\"category\":\"sql\",\"level\":\"advanced\",\"rating\":3.2,\"enrolled\":5350,\"publishedAt\":\"2026-09-17T08:00:00Z\"},{\"id\":\"c_1108\",\"title\":\"Course 109\",\"category\":\"python\",\"level\":\"beginner\",\"rating\":3.3,\"enrolled\":5400,\"publishedAt\":\"2026-01-18T08:00:00Z\"},{\"id\":\"c_1109\",\"title\":\"Course 110\",\"category\":\"devops\",\"level\":\"intermediate\",\"rating\":3.4,\"enrolled\":5450,\"publishedAt\":\"2026-02-19T08:00:00Z\"},{\"id\":\"c_1110\",\"title\":\"Course 111\",\"category\":\"react\",\"level\":\"advanced\",\"rating\":3.5,\"enrolled\":5500,\"publishedAt\":\"2026-03-10T08:00:00Z\"},{\"id\":\"c_1111\",\"title\":\"Course 112\",\"category\":\"node\",\"level\":\"beginner\",\"rating\":3.6,\"enrolled\":5550,\"publishedAt\":\"2026-04-11T08:00:00Z\"},{\"id\":\"c_1112\",\"title\":\"Course 113\",\"category\":\"sql\",\"level\":\"intermediate\",\"rating\":3.7,\"enrolled\":5600,\"publishedAt\":\"2026-05-12T08:00:00Z\"},{\"id\":\"c_1113\",\"title\":\"Course 114\",\"category\":\"python\",\"level\":\"advanced\",\"rating\":3.8,\"enrolled\":5650,\"publishedAt\":\"2026-06-13T08:00:00Z\"},{\"id\":\"c_1114\",\"title\":\"Course 115\",\"category\":\"devops\",\"level\":\"beginner\",\"rating\":3.9,\"enrolled\":5700,\"publishedAt\":\"2026-07-14T08:00:00Z\"},{\"id\":\"c_1115\",\"title\":\"Course 116\",\"category\":\"react\",\"level\":\"intermediate\",\"rating\":4,\"enrolled\":5750,\"publishedAt\":\"2026-08-15T08:00:00Z\"},{\"id\":\"c_1116\",\"title\":\"Course 117\",\"category\":\"node\",\"level\":\"advanced\",\"rating\":4.1,\"enrolled\":5800,\"publishedAt\":\"2026-09-16T08:00:00Z\"},{\"id\":\"c_1117\",\"title\":\"Course 118\",\"category\":\"sql\",\"level\":\"beginner\",\"enrolled\":5850,\"publishedAt\":\"2026-01-17T08:00:00Z\",\"averageRating\":4.2},{\"id\":\"c_1118\",\"title\":\"Course 119\",\"category\":\"python\",\"level\":\"intermediate\",\"rating\":4.3,\"enrolled\":5900,\"publishedAt\":\"2026-02-18T08:00:00Z\"},{\"id\":\"c_1119\",\"title\":\"Course 120\",\"category\":\"devops\",\"level\":\"advanced\",\"rating\":4.4,\"enrolled\":5950,\"publishedAt\":\"2026-03-19T08:00:00Z\"}]"
+            },
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "application/json"
+              },
+              "body": "[{\"id\":\"c_1115\",\"title\":\"Course 116\",\"category\":\"react\",\"level\":\"intermediate\",\"rating\":4,\"enrolled\":5750,\"publishedAt\":\"2026-08-15T08:00:00Z\"},{\"id\":\"c_1116\",\"title\":\"Course 117\",\"category\":\"node\",\"level\":\"advanced\",\"rating\":4.1,\"enrolled\":5800,\"publishedAt\":\"2026-09-16T08:00:00Z\"}]"
+            }
+          ],
+          "expected": [
+            {
+              "ok": false,
+              "error": {
+                "kind": "invalid-response",
+                "reason": "courses[117].rating is invalid"
+              }
+            },
+            {
+              "ok": true,
+              "data": [
+                {
+                  "id": "c_1115",
+                  "title": "Course 116",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 4,
+                  "enrolled": 5750,
+                  "publishedAt": "2026-08-15T08:00:00Z"
+                },
+                {
+                  "id": "c_1116",
+                  "title": "Course 117",
+                  "category": "node",
+                  "level": "advanced",
+                  "rating": 4.1,
+                  "enrolled": 5800,
+                  "publishedAt": "2026-09-16T08:00:00Z"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

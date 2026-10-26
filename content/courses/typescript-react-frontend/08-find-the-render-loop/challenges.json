@@ -1,0 +1,246 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_trf_321",
+      "name": "find-the-render-loop-evidence",
+      "type": "quiz",
+      "title": "Find the Render Loop: read the evidence",
+      "description": "Since Friday's release every catalog tab sends GET /courses?category=react&page=1 about 40 times a second until the rate limiter answers 429. Six statements on one evidence pack - the release diff (A), the Network panel (B), the React DevTools Profiler (C) and the API log (D) - take you from reading the evidence to a hypothesis, past two wrong explanations, to the fix and its verification.",
+      "difficulty": "medium",
+      "outcomes": [
+        "effects"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence C - React DevTools Profiler, local reproduction (npm run dev), \"Record why each component rendered\" enabled:\nCommit  Component    Why did this render?\n41      CourseList   Hook 2 changed\n42      CourseList   Hooks 1 and 2 changed\n43      CourseList   Hook 2 changed\n44      CourseList   Hooks 1 and 2 changed\n...\nCatalogPage (the parent of CourseList) did not render during the recording.\n(Hook 1 = the courses state, Hook 2 = the loading state.)\n\nStatement: \"CourseList keeps rendering because its own state changes, not because CatalogPage re-renders it with new props.\"",
+          "explanation": "True. Every commit in C names a hook of CourseList as the reason (Hook 2 = loading, Hooks 1 and 2 = courses and loading), none says \"Props changed\" or \"The parent component rendered\", and the parent did not render at all. So the cycle is closed inside CourseList: its own state updates cause the renders. This matters because it rules out a whole family of fixes, such as memoizing the parent or wrapping CourseList in memo. The common mistake is to assume a component that renders too often is always pushed by its parent.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence B - Network panel, production (https://app.codedev.test/catalog?category=react), one tab:\nName                            Status  Started    Time   Initiator\ncourses?category=react&page=1   200     0.000 s    22 ms  CourseList.tsx:12\ncourses?category=react&page=1   200     0.024 s    19 ms  CourseList.tsx:12\ncourses?category=react&page=1   200     0.047 s    23 ms  CourseList.tsx:12\ncourses?category=react&page=1   200     0.072 s    21 ms  CourseList.tsx:12\n... about 2,000 more rows with the same URL ...\ncourses?category=react&page=1   429     50.310 s   3 ms   CourseList.tsx:12\n\nEvidence D - API access log (api.codedev.test, one user):\n14:02:07.112 GET /courses?category=react&page=1 200 4ms user=u_8812 build=2026.10.23-1\n14:02:07.136 GET /courses?category=react&page=1 200 3ms user=u_8812 build=2026.10.23-1\n14:02:07.159 GET /courses?category=react&page=1 200 4ms user=u_8812 build=2026.10.23-1\n...\n14:02:57.422 GET /courses?category=react&page=1 429 0ms user=u_8812 limit=2000/min\n\nStatement: \"The backend is too slow: requests pile up while earlier ones are still waiting, so a timeout on fetchCourses would stop the flood.\"",
+          "explanation": "False. D shows the server answering in 3-4 ms, and B shows about 20 ms end to end, with each request starting only after the previous one has finished (0.000 s + 22 ms, next at 0.024 s). Nothing is piling up and no request waits long enough for a timeout to fire. The requests are sent because each completed response leads to the next one; a faster backend would make the loop spin faster. The misconception is to read \"many requests\" as \"slow requests\"; the 429 is the rate limiter reacting to the loop, not its cause.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence B - Network panel, production (https://app.codedev.test/catalog?category=react), one tab:\nName                            Status  Started    Time   Initiator\ncourses?category=react&page=1   200     0.000 s    22 ms  CourseList.tsx:12\ncourses?category=react&page=1   200     0.024 s    19 ms  CourseList.tsx:12\ncourses?category=react&page=1   200     0.047 s    23 ms  CourseList.tsx:12\ncourses?category=react&page=1   200     0.072 s    21 ms  CourseList.tsx:12\n... about 2,000 more rows with the same URL ...\ncourses?category=react&page=1   429     50.310 s   3 ms   CourseList.tsx:12\n\nEvidence D - API access log (api.codedev.test, one user):\n14:02:07.112 GET /courses?category=react&page=1 200 4ms user=u_8812 build=2026.10.23-1\n14:02:07.136 GET /courses?category=react&page=1 200 3ms user=u_8812 build=2026.10.23-1\n14:02:07.159 GET /courses?category=react&page=1 200 4ms user=u_8812 build=2026.10.23-1\n...\n14:02:57.422 GET /courses?category=react&page=1 429 0ms user=u_8812 limit=2000/min\n\nStatement: \"This is React StrictMode running the effect twice in development; the production build sends one request per visit.\"",
+          "explanation": "False. StrictMode's extra setup and cleanup happens only in development and only once per mount, so it explains at most two requests on mount. B and D come from production (build 2026.10.23-1 on app.codedev.test) and show about 2,000 identical requests in 50 seconds from one tab. The misconception is to dismiss repeated effects as StrictMode without counting them: StrictMode doubles once, a loop never stops.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - release diff (PR #482 \"catalog: group request params into a query object\"):\n export function CourseList({ category, page }: Props) {\n   const [courses, setCourses] = useState<Course[]>([]);\n   const [loading, setLoading] = useState(true);\n+  const query: CourseQuery = { category, page };\n\n   useEffect(() => {\n     setLoading(true);\n-    fetchCourses({ category, page }).then((result) => {\n+    fetchCourses(query).then((result) => {\n       setCourses(result);\n       setLoading(false);\n     });\n-  }, [category, page]);\n+  }, [query]);\n\nEvidence C - React DevTools Profiler, local reproduction (npm run dev), \"Record why each component rendered\" enabled:\nCommit  Component    Why did this render?\n41      CourseList   Hook 2 changed\n42      CourseList   Hooks 1 and 2 changed\n43      CourseList   Hook 2 changed\n44      CourseList   Hooks 1 and 2 changed\n...\nCatalogPage (the parent of CourseList) did not render during the recording.\n(Hook 1 = the courses state, Hook 2 = the loading state.)\n\nStatement: \"Each state update re-renders CourseList, the render creates a new query object, Object.is(previous query, new query) is false, so the effect fetches again and its response updates the state again.\"",
+          "explanation": "True. This is the cycle, and it explains all the evidence. Diff A moves the object literal { category, page } into the render body and makes it the only dependency. React compares dependencies with Object.is, which compares objects by identity, so a fresh object never equals the previous one, even with the same category and page. C shows the two halves of each turn: setLoading(true) in the effect (Hook 2), then setCourses and setLoading(false) when the response arrives (Hooks 1 and 2). Before the release the dependencies were a string and a number, compared by value, so the cycle stopped after one request.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - release diff (PR #482 \"catalog: group request params into a query object\"):\n export function CourseList({ category, page }: Props) {\n   const [courses, setCourses] = useState<Course[]>([]);\n   const [loading, setLoading] = useState(true);\n+  const query: CourseQuery = { category, page };\n\n   useEffect(() => {\n     setLoading(true);\n-    fetchCourses({ category, page }).then((result) => {\n+    fetchCourses(query).then((result) => {\n       setCourses(result);\n       setLoading(false);\n     });\n-  }, [category, page]);\n+  }, [query]);\n\nStatement: \"Changing the dependency array to [] is the right fix: it stops the loop, and the list still updates when the learner picks another category or page.\"",
+          "explanation": "False. An empty array stops the loop because the effect then runs only on mount, but for the same reason it never runs again when category or page changes: page 2 would keep showing page 1. A fix must meet every requirement of the component: one request on mount, one per real change of category or page, none on a same-props re-render, and the spinner during a request. The fix that does that makes the effect depend on the values that define the request and compare by value. The misconception is to judge a fix only by whether the symptom stops.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - release diff (PR #482 \"catalog: group request params into a query object\"):\n export function CourseList({ category, page }: Props) {\n   const [courses, setCourses] = useState<Course[]>([]);\n   const [loading, setLoading] = useState(true);\n+  const query: CourseQuery = { category, page };\n\n   useEffect(() => {\n     setLoading(true);\n-    fetchCourses({ category, page }).then((result) => {\n+    fetchCourses(query).then((result) => {\n       setCourses(result);\n       setLoading(false);\n     });\n-  }, [category, page]);\n+  }, [query]);\n\nEvidence B - Network panel, production (https://app.codedev.test/catalog?category=react), one tab:\nName                            Status  Started    Time   Initiator\ncourses?category=react&page=1   200     0.000 s    22 ms  CourseList.tsx:12\ncourses?category=react&page=1   200     0.024 s    19 ms  CourseList.tsx:12\ncourses?category=react&page=1   200     0.047 s    23 ms  CourseList.tsx:12\ncourses?category=react&page=1   200     0.072 s    21 ms  CourseList.tsx:12\n... about 2,000 more rows with the same URL ...\ncourses?category=react&page=1   429     50.310 s   3 ms   CourseList.tsx:12\n\nStatement: \"A regression test that mounts CourseList with a fake API, re-renders it with the same props and then with page 2, and asserts 1, then still 1, then 2 calls, would fail on the code in diff A and pass after a correct fix.\"",
+          "explanation": "True. On the shipped code the effect fires again after every render, so the count is already above 1 before the first assertion and the test fails. After a correct fix, the same-props re-render sends nothing and the page change sends exactly one request. The test also catches the tempting wrong fix: with an empty dependency array the page 2 step stays at 1 call and fails. Counting requests is the same evidence as the Network panel in B, made automatic; \"the page looks right\" is not, because the shipped page also looked right for a few seconds.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_trf_322",
+      "name": "find-the-render-loop",
+      "type": "fix_bug",
+      "title": "Find the Render Loop",
+      "description": "Since Friday's release the CodeDev catalog page never stops loading: the API logs show GET /courses?category=react&page=1 about 40 times a second from every open tab and the rate limiter starts answering 429. The release only moved the request parameters of CourseList into a query object. Fix CourseList so that it requests the courses once on mount, once more each time category or page changes, and never when its parent re-renders it with the same props, while still showing \"loading\" during a request. The file contains a small hook runtime that follows React's rules (effects run after the render when a dependency changed by Object.is); the test runner mounts the component and prints the requests and the screen after each step.",
+      "difficulty": "medium",
+      "outcomes": [
+        "effects"
+      ],
+      "points": 30,
+      "hints": [
+        "The effect runs whenever one of its dependencies is not Object.is-equal to the value from the previous render. Is `query` ever equal to the previous `query`?",
+        "Look at the line that builds `query` and at the dependency array of the effect. Follow one request: it resolves, setCourses and setLoading run, the component renders again - what does the effect see?",
+        "A similar case: `const options = { sort: 'title' }; useEffect(() => load(options), [options]);` reloads after every render. Depending on `options.sort` (a string) instead, and building the object inside the effect, makes the effect run only when the sort really changes."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 5000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Mounts on react/1: one request, loading, then the titles",
+          "input": [
+            {
+              "category": "react",
+              "page": 1
+            }
+          ],
+          "expected": "react/1: requests react/1; first screen \"loading\"; then \"React Basics, Hooks in Depth\"",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Changing the page sends one request for the new page",
+          "input": [
+            {
+              "category": "react",
+              "page": 1
+            },
+            {
+              "category": "react",
+              "page": 2
+            }
+          ],
+          "expected": "react/1: requests react/1; first screen \"loading\"; then \"React Basics, Hooks in Depth\"\nreact/2: requests react/2; first screen \"React Basics, Hooks in Depth\"; then \"Testing React\"",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Parent re-renders with the same props: no new request",
+          "input": [
+            {
+              "category": "react",
+              "page": 1
+            },
+            {
+              "category": "react",
+              "page": 1
+            },
+            {
+              "category": "react",
+              "page": 1
+            }
+          ],
+          "expected": "react/1: requests react/1; first screen \"loading\"; then \"React Basics, Hooks in Depth\"\nreact/1: requests none; first screen \"React Basics, Hooks in Depth\"; then \"React Basics, Hooks in Depth\"\nreact/1: requests none; first screen \"React Basics, Hooks in Depth\"; then \"React Basics, Hooks in Depth\"",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Changing the category, then the page: one request each",
+          "input": [
+            {
+              "category": "react",
+              "page": 1
+            },
+            {
+              "category": "node",
+              "page": 1
+            },
+            {
+              "category": "node",
+              "page": 2
+            }
+          ],
+          "expected": "react/1: requests react/1; first screen \"loading\"; then \"React Basics, Hooks in Depth\"\nnode/1: requests node/1; first screen \"React Basics, Hooks in Depth\"; then \"Node Streams, Express to Fastify\"\nnode/2: requests node/2; first screen \"Node Streams, Express to Fastify\"; then \"no courses\"",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "A page past the end shows no courses",
+          "input": [
+            {
+              "category": "react",
+              "page": 1
+            },
+            {
+              "category": "react",
+              "page": 3
+            }
+          ],
+          "expected": "react/1: requests react/1; first screen \"loading\"; then \"React Basics, Hooks in Depth\"\nreact/3: requests react/3; first screen \"React Basics, Hooks in Depth\"; then \"no courses\"",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Going back to an earlier query requests it again",
+          "input": [
+            {
+              "category": "react",
+              "page": 1
+            },
+            {
+              "category": "node",
+              "page": 1
+            },
+            {
+              "category": "react",
+              "page": 1
+            }
+          ],
+          "expected": "react/1: requests react/1; first screen \"loading\"; then \"React Basics, Hooks in Depth\"\nnode/1: requests node/1; first screen \"React Basics, Hooks in Depth\"; then \"Node Streams, Express to Fastify\"\nreact/1: requests react/1; first screen \"Node Streams, Express to Fastify\"; then \"React Basics, Hooks in Depth\"",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

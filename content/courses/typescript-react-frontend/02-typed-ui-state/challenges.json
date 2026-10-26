@@ -1,0 +1,3448 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_trf_121",
+      "name": "typed-ui-state-quiz",
+      "type": "quiz",
+      "title": "Which states can the catalog be in?",
+      "description": "Two pieces of evidence from the catalog page: the boolean state that shipped, and a compiler error after the switch to a discriminated union.",
+      "difficulty": "medium",
+      "outcomes": [
+        "typed-ui-state"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The catalog state after a first refactor:\n\ntype CatalogState = {\n  isLoading: boolean;\n  isError: boolean;\n  errorMessage: string | null;\n  courses: Course[];\n};\n\nconst [state, setState] = useState<CatalogState>({\n  isLoading: false, isError: false, errorMessage: null, courses: [],\n});\n\n// in the search handler\nsetState((s) => ({ ...s, isLoading: true }));\n\nStatement: \"Because every field has a precise type, TypeScript rejects a state in which isLoading and isError are both true, or isError is true while errorMessage is null.\"",
+          "explanation": "False. Each field is typed on its own, and nothing in the type relates them: two booleans, a nullable string and an array allow every combination, including loading and failed at once, or failed with no message. The spread in the search handler shows exactly how that happens: it sets isLoading and keeps whatever isError and courses were before. Only a union whose members carry their own fields, such as { kind: \"loading\" } | { kind: \"error\"; message: string } | ..., lets the compiler reject those combinations. The misconception is that precise field types give a precise state; they constrain each value, not how the values fit together.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After switching to a discriminated union, a teammate writes:\n\ntype CatalogUiState =\n  | { kind: \"loading\" }\n  | { kind: \"error\"; message: string; canRetry: boolean }\n  | { kind: \"empty\"; query: string }\n  | { kind: \"success\"; courses: Course[]; refreshing: boolean };\n\nfunction CatalogBody({ state }: { state: CatalogUiState }) {\n  if (state.kind === \"error\") return <ErrorPanel message={state.message} />;\n  return <CourseGrid courses={state.courses} />;\n}\n\n$ npx tsc --noEmit\nCatalogBody.tsx:9:43 - error TS2339: Property 'courses' does not exist on type 'CatalogUiState'.\n  Property 'courses' does not exist on type '{ kind: \"loading\"; }'.\n\nStatement: \"The error points at a real bug: as written, the component would render CourseGrid while the catalog is still loading or has no results.\"",
+          "explanation": "True. After the error branch returns, state is narrowed to loading, empty or success, and only success has courses. If the code compiled (for example with a cast), a loading state would pass undefined to CourseGrid and an empty search would show an empty grid instead of the empty-state message: the same class of bug as the original incident. The fix is to handle every kind, ideally with a switch that ends in assertNever, not to silence the error with `as` or an optional field. The misconception is that such errors are the type system being fussy; here the compiler is listing the screens the component forgot.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_trf_122",
+      "name": "derive-catalog-ui-state",
+      "type": "mini_coding",
+      "title": "Derive the catalog's UI state",
+      "description": "The CodeDev catalog page used three booleans and showed \"No courses found\" while it was still loading and a blank page when the API failed. Its query hook now gives a request snapshot { status: \"pending\" | \"error\" | \"success\", isFetching, query, data?, error? } (error = { status, message }, status 0 for a network error or timeout). Write deriveUiState(snapshot), which returns exactly one of { kind: \"loading\" } | { kind: \"error\", message, canRetry } | { kind: \"empty\", query } | { kind: \"success\", courses, refreshing }. Rules, in order: status \"pending\" is loading. Status \"error\": a 401 gives the message \"Your session has expired. Sign in again.\" and canRetry false; status 0, 408, 429 or 500-599, or no error object at all, gives \"Could not load courses. Try again.\" and canRetry true; any other status gives the API's error.message and canRetry false. Status \"success\" with data missing or empty is empty, with the query trimmed; with courses it is success, with courses = data and refreshing = isFetching, so a background refetch keeps the list on screen. The test runner reads a list of snapshots as JSON and prints the UI state of each, with courses shown as their ids.",
+      "difficulty": "easy",
+      "outcomes": [
+        "typed-ui-state"
+      ],
+      "points": 20,
+      "hints": [
+        "Which field of the snapshot tells you whether there is a response at all, and should it be checked before or after you look at the number of courses?",
+        "Look at the three values of snapshot.status first (a switch on it narrows nicely), then, inside the error branch, at error.status, and remember that error can be missing. Inside the success branch, data can be missing too, and the query may contain spaces typed by the learner.",
+        "A similar mapping for a different screen, the leaderboard: { status: \"pending\" } -> { kind: \"loading\" }; { status: \"success\", isFetching: true, data: [3 rows] } -> { kind: \"ranked\", rows: those 3 rows, refreshing: true }; { status: \"success\", data: [] } -> { kind: \"noScores\" }; { status: \"error\", error: { status: 404 } } -> { kind: \"error\", message: the API's message, canRetry: false }. Note that \"no rows\" is decided only after the request has succeeded."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "First load: loading while pending, then the courses",
+          "input": [
+            {
+              "status": "pending",
+              "isFetching": true,
+              "query": ""
+            },
+            {
+              "status": "success",
+              "isFetching": false,
+              "query": "",
+              "data": [
+                {
+                  "id": "c1",
+                  "title": "React Basics",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 4.5,
+                  "enrolled": 1200,
+                  "publishedAt": "2026-03-02"
+                },
+                {
+                  "id": "c2",
+                  "title": "Hooks in Depth",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 4.8,
+                  "enrolled": 860,
+                  "publishedAt": "2026-05-14"
+                }
+              ]
+            }
+          ],
+          "expected": [
+            {
+              "kind": "loading"
+            },
+            {
+              "kind": "success",
+              "courses": [
+                "c1",
+                "c2"
+              ],
+              "refreshing": false
+            }
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A 401 asks the learner to sign in, a 503 can be retried",
+          "input": [
+            {
+              "status": "error",
+              "isFetching": false,
+              "query": "react",
+              "error": {
+                "status": 401,
+                "message": "invalid_token"
+              }
+            },
+            {
+              "status": "error",
+              "isFetching": false,
+              "query": "react",
+              "error": {
+                "status": 503,
+                "message": "Service Unavailable"
+              }
+            }
+          ],
+          "expected": [
+            {
+              "kind": "error",
+              "message": "Your session has expired. Sign in again.",
+              "canRetry": false
+            },
+            {
+              "kind": "error",
+              "message": "Could not load courses. Try again.",
+              "canRetry": true
+            }
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A search with no match shows the empty state with the query",
+          "input": [
+            {
+              "status": "success",
+              "isFetching": false,
+              "query": "kubernetes",
+              "data": []
+            }
+          ],
+          "expected": [
+            {
+              "kind": "empty",
+              "query": "kubernetes"
+            }
+          ],
+          "hidden": false,
+          "score": 2
+        },
+        {
+          "name": "Background refetch keeps the list on screen and sets refreshing",
+          "input": [
+            {
+              "status": "success",
+              "isFetching": true,
+              "query": "hooks",
+              "data": [
+                {
+                  "id": "c1",
+                  "title": "React Basics",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 4.5,
+                  "enrolled": 1200,
+                  "publishedAt": "2026-03-02"
+                },
+                {
+                  "id": "c2",
+                  "title": "Hooks in Depth",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 4.8,
+                  "enrolled": 860,
+                  "publishedAt": "2026-05-14"
+                }
+              ]
+            },
+            {
+              "status": "success",
+              "isFetching": false,
+              "query": "hooks",
+              "data": [
+                {
+                  "id": "c1",
+                  "title": "React Basics",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 4.5,
+                  "enrolled": 1200,
+                  "publishedAt": "2026-03-02"
+                },
+                {
+                  "id": "c2",
+                  "title": "Hooks in Depth",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 4.8,
+                  "enrolled": 860,
+                  "publishedAt": "2026-05-14"
+                }
+              ]
+            },
+            {
+              "status": "pending",
+              "isFetching": true,
+              "query": "node"
+            }
+          ],
+          "expected": [
+            {
+              "kind": "success",
+              "courses": [
+                "c1",
+                "c2"
+              ],
+              "refreshing": true
+            },
+            {
+              "kind": "success",
+              "courses": [
+                "c1",
+                "c2"
+              ],
+              "refreshing": false
+            },
+            {
+              "kind": "loading"
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Network error, 408, 429 and 5xx retry; 400, 403 and 404 show the API message",
+          "input": [
+            {
+              "status": "error",
+              "isFetching": false,
+              "query": "",
+              "error": {
+                "status": 0,
+                "message": "TypeError: Failed to fetch"
+              }
+            },
+            {
+              "status": "error",
+              "isFetching": false,
+              "query": "",
+              "error": {
+                "status": 408,
+                "message": "Request Timeout"
+              }
+            },
+            {
+              "status": "error",
+              "isFetching": false,
+              "query": "",
+              "error": {
+                "status": 429,
+                "message": "rate_limited"
+              }
+            },
+            {
+              "status": "error",
+              "isFetching": false,
+              "query": "",
+              "error": {
+                "status": 500,
+                "message": "Internal Server Error"
+              }
+            },
+            {
+              "status": "error",
+              "isFetching": false,
+              "query": "",
+              "error": {
+                "status": 599,
+                "message": "Network Connect Timeout"
+              }
+            },
+            {
+              "status": "error",
+              "isFetching": false,
+              "query": "",
+              "error": {
+                "status": 400,
+                "message": "Unknown sort field: popularity"
+              }
+            },
+            {
+              "status": "error",
+              "isFetching": false,
+              "query": "",
+              "error": {
+                "status": 403,
+                "message": "This catalog is for staff only"
+              }
+            },
+            {
+              "status": "error",
+              "isFetching": false,
+              "query": "",
+              "error": {
+                "status": 404,
+                "message": "Category not found"
+              }
+            }
+          ],
+          "expected": [
+            {
+              "kind": "error",
+              "message": "Could not load courses. Try again.",
+              "canRetry": true
+            },
+            {
+              "kind": "error",
+              "message": "Could not load courses. Try again.",
+              "canRetry": true
+            },
+            {
+              "kind": "error",
+              "message": "Could not load courses. Try again.",
+              "canRetry": true
+            },
+            {
+              "kind": "error",
+              "message": "Could not load courses. Try again.",
+              "canRetry": true
+            },
+            {
+              "kind": "error",
+              "message": "Could not load courses. Try again.",
+              "canRetry": true
+            },
+            {
+              "kind": "error",
+              "message": "Unknown sort field: popularity",
+              "canRetry": false
+            },
+            {
+              "kind": "error",
+              "message": "This catalog is for staff only",
+              "canRetry": false
+            },
+            {
+              "kind": "error",
+              "message": "Category not found",
+              "canRetry": false
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Incomplete snapshots: no error object, no data, a query with spaces",
+          "input": [
+            {
+              "status": "error",
+              "isFetching": false,
+              "query": "sql"
+            },
+            {
+              "status": "success",
+              "isFetching": false,
+              "query": "   Advanced  SQL  "
+            },
+            {
+              "status": "success",
+              "isFetching": true,
+              "query": "  ",
+              "data": []
+            }
+          ],
+          "expected": [
+            {
+              "kind": "error",
+              "message": "Could not load courses. Try again.",
+              "canRetry": true
+            },
+            {
+              "kind": "empty",
+              "query": "Advanced  SQL"
+            },
+            {
+              "kind": "empty",
+              "query": ""
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Large catalog: 300 courses refreshing in the background",
+          "input": [
+            {
+              "status": "success",
+              "isFetching": true,
+              "query": "",
+              "data": [
+                {
+                  "id": "c1",
+                  "title": "Course 1",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 100,
+                  "publishedAt": "2025-01-01"
+                },
+                {
+                  "id": "c2",
+                  "title": "Course 2",
+                  "category": "node",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 113,
+                  "publishedAt": "2025-02-02"
+                },
+                {
+                  "id": "c3",
+                  "title": "Course 3",
+                  "category": "sql",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 126,
+                  "publishedAt": "2025-03-03"
+                },
+                {
+                  "id": "c4",
+                  "title": "Course 4",
+                  "category": "python",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 139,
+                  "publishedAt": "2025-04-04"
+                },
+                {
+                  "id": "c5",
+                  "title": "Course 5",
+                  "category": "devops",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 152,
+                  "publishedAt": "2025-05-05"
+                },
+                {
+                  "id": "c6",
+                  "title": "Course 6",
+                  "category": "react",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 165,
+                  "publishedAt": "2025-06-06"
+                },
+                {
+                  "id": "c7",
+                  "title": "Course 7",
+                  "category": "node",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 178,
+                  "publishedAt": "2025-07-07"
+                },
+                {
+                  "id": "c8",
+                  "title": "Course 8",
+                  "category": "sql",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 191,
+                  "publishedAt": "2025-08-08"
+                },
+                {
+                  "id": "c9",
+                  "title": "Course 9",
+                  "category": "python",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 204,
+                  "publishedAt": "2025-09-09"
+                },
+                {
+                  "id": "c10",
+                  "title": "Course 10",
+                  "category": "devops",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 217,
+                  "publishedAt": "2025-10-10"
+                },
+                {
+                  "id": "c11",
+                  "title": "Course 11",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 230,
+                  "publishedAt": "2025-11-11"
+                },
+                {
+                  "id": "c12",
+                  "title": "Course 12",
+                  "category": "node",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 243,
+                  "publishedAt": "2025-12-12"
+                },
+                {
+                  "id": "c13",
+                  "title": "Course 13",
+                  "category": "sql",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 256,
+                  "publishedAt": "2025-01-13"
+                },
+                {
+                  "id": "c14",
+                  "title": "Course 14",
+                  "category": "python",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 269,
+                  "publishedAt": "2025-02-14"
+                },
+                {
+                  "id": "c15",
+                  "title": "Course 15",
+                  "category": "devops",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 282,
+                  "publishedAt": "2025-03-15"
+                },
+                {
+                  "id": "c16",
+                  "title": "Course 16",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 295,
+                  "publishedAt": "2025-04-16"
+                },
+                {
+                  "id": "c17",
+                  "title": "Course 17",
+                  "category": "node",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 308,
+                  "publishedAt": "2025-05-17"
+                },
+                {
+                  "id": "c18",
+                  "title": "Course 18",
+                  "category": "sql",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 321,
+                  "publishedAt": "2025-06-18"
+                },
+                {
+                  "id": "c19",
+                  "title": "Course 19",
+                  "category": "python",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 334,
+                  "publishedAt": "2025-07-19"
+                },
+                {
+                  "id": "c20",
+                  "title": "Course 20",
+                  "category": "devops",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 347,
+                  "publishedAt": "2025-08-20"
+                },
+                {
+                  "id": "c21",
+                  "title": "Course 21",
+                  "category": "react",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 360,
+                  "publishedAt": "2025-09-21"
+                },
+                {
+                  "id": "c22",
+                  "title": "Course 22",
+                  "category": "node",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 373,
+                  "publishedAt": "2025-10-22"
+                },
+                {
+                  "id": "c23",
+                  "title": "Course 23",
+                  "category": "sql",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 386,
+                  "publishedAt": "2025-11-23"
+                },
+                {
+                  "id": "c24",
+                  "title": "Course 24",
+                  "category": "python",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 399,
+                  "publishedAt": "2025-12-24"
+                },
+                {
+                  "id": "c25",
+                  "title": "Course 25",
+                  "category": "devops",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 412,
+                  "publishedAt": "2025-01-25"
+                },
+                {
+                  "id": "c26",
+                  "title": "Course 26",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 425,
+                  "publishedAt": "2025-02-26"
+                },
+                {
+                  "id": "c27",
+                  "title": "Course 27",
+                  "category": "node",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 438,
+                  "publishedAt": "2025-03-27"
+                },
+                {
+                  "id": "c28",
+                  "title": "Course 28",
+                  "category": "sql",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 451,
+                  "publishedAt": "2025-04-28"
+                },
+                {
+                  "id": "c29",
+                  "title": "Course 29",
+                  "category": "python",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 464,
+                  "publishedAt": "2025-05-01"
+                },
+                {
+                  "id": "c30",
+                  "title": "Course 30",
+                  "category": "devops",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 477,
+                  "publishedAt": "2025-06-02"
+                },
+                {
+                  "id": "c31",
+                  "title": "Course 31",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 490,
+                  "publishedAt": "2025-07-03"
+                },
+                {
+                  "id": "c32",
+                  "title": "Course 32",
+                  "category": "node",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 503,
+                  "publishedAt": "2025-08-04"
+                },
+                {
+                  "id": "c33",
+                  "title": "Course 33",
+                  "category": "sql",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 516,
+                  "publishedAt": "2025-09-05"
+                },
+                {
+                  "id": "c34",
+                  "title": "Course 34",
+                  "category": "python",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 529,
+                  "publishedAt": "2025-10-06"
+                },
+                {
+                  "id": "c35",
+                  "title": "Course 35",
+                  "category": "devops",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 542,
+                  "publishedAt": "2025-11-07"
+                },
+                {
+                  "id": "c36",
+                  "title": "Course 36",
+                  "category": "react",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 555,
+                  "publishedAt": "2025-12-08"
+                },
+                {
+                  "id": "c37",
+                  "title": "Course 37",
+                  "category": "node",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 568,
+                  "publishedAt": "2025-01-09"
+                },
+                {
+                  "id": "c38",
+                  "title": "Course 38",
+                  "category": "sql",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 581,
+                  "publishedAt": "2025-02-10"
+                },
+                {
+                  "id": "c39",
+                  "title": "Course 39",
+                  "category": "python",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 594,
+                  "publishedAt": "2025-03-11"
+                },
+                {
+                  "id": "c40",
+                  "title": "Course 40",
+                  "category": "devops",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 607,
+                  "publishedAt": "2025-04-12"
+                },
+                {
+                  "id": "c41",
+                  "title": "Course 41",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 620,
+                  "publishedAt": "2025-05-13"
+                },
+                {
+                  "id": "c42",
+                  "title": "Course 42",
+                  "category": "node",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 633,
+                  "publishedAt": "2025-06-14"
+                },
+                {
+                  "id": "c43",
+                  "title": "Course 43",
+                  "category": "sql",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 646,
+                  "publishedAt": "2025-07-15"
+                },
+                {
+                  "id": "c44",
+                  "title": "Course 44",
+                  "category": "python",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 659,
+                  "publishedAt": "2025-08-16"
+                },
+                {
+                  "id": "c45",
+                  "title": "Course 45",
+                  "category": "devops",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 672,
+                  "publishedAt": "2025-09-17"
+                },
+                {
+                  "id": "c46",
+                  "title": "Course 46",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 685,
+                  "publishedAt": "2025-10-18"
+                },
+                {
+                  "id": "c47",
+                  "title": "Course 47",
+                  "category": "node",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 698,
+                  "publishedAt": "2025-11-19"
+                },
+                {
+                  "id": "c48",
+                  "title": "Course 48",
+                  "category": "sql",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 711,
+                  "publishedAt": "2025-12-20"
+                },
+                {
+                  "id": "c49",
+                  "title": "Course 49",
+                  "category": "python",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 724,
+                  "publishedAt": "2025-01-21"
+                },
+                {
+                  "id": "c50",
+                  "title": "Course 50",
+                  "category": "devops",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 737,
+                  "publishedAt": "2025-02-22"
+                },
+                {
+                  "id": "c51",
+                  "title": "Course 51",
+                  "category": "react",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 750,
+                  "publishedAt": "2025-03-23"
+                },
+                {
+                  "id": "c52",
+                  "title": "Course 52",
+                  "category": "node",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 763,
+                  "publishedAt": "2025-04-24"
+                },
+                {
+                  "id": "c53",
+                  "title": "Course 53",
+                  "category": "sql",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 776,
+                  "publishedAt": "2025-05-25"
+                },
+                {
+                  "id": "c54",
+                  "title": "Course 54",
+                  "category": "python",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 789,
+                  "publishedAt": "2025-06-26"
+                },
+                {
+                  "id": "c55",
+                  "title": "Course 55",
+                  "category": "devops",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 802,
+                  "publishedAt": "2025-07-27"
+                },
+                {
+                  "id": "c56",
+                  "title": "Course 56",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 815,
+                  "publishedAt": "2025-08-28"
+                },
+                {
+                  "id": "c57",
+                  "title": "Course 57",
+                  "category": "node",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 828,
+                  "publishedAt": "2025-09-01"
+                },
+                {
+                  "id": "c58",
+                  "title": "Course 58",
+                  "category": "sql",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 841,
+                  "publishedAt": "2025-10-02"
+                },
+                {
+                  "id": "c59",
+                  "title": "Course 59",
+                  "category": "python",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 854,
+                  "publishedAt": "2025-11-03"
+                },
+                {
+                  "id": "c60",
+                  "title": "Course 60",
+                  "category": "devops",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 867,
+                  "publishedAt": "2025-12-04"
+                },
+                {
+                  "id": "c61",
+                  "title": "Course 61",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 880,
+                  "publishedAt": "2025-01-05"
+                },
+                {
+                  "id": "c62",
+                  "title": "Course 62",
+                  "category": "node",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 893,
+                  "publishedAt": "2025-02-06"
+                },
+                {
+                  "id": "c63",
+                  "title": "Course 63",
+                  "category": "sql",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 906,
+                  "publishedAt": "2025-03-07"
+                },
+                {
+                  "id": "c64",
+                  "title": "Course 64",
+                  "category": "python",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 919,
+                  "publishedAt": "2025-04-08"
+                },
+                {
+                  "id": "c65",
+                  "title": "Course 65",
+                  "category": "devops",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 932,
+                  "publishedAt": "2025-05-09"
+                },
+                {
+                  "id": "c66",
+                  "title": "Course 66",
+                  "category": "react",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 945,
+                  "publishedAt": "2025-06-10"
+                },
+                {
+                  "id": "c67",
+                  "title": "Course 67",
+                  "category": "node",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 958,
+                  "publishedAt": "2025-07-11"
+                },
+                {
+                  "id": "c68",
+                  "title": "Course 68",
+                  "category": "sql",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 971,
+                  "publishedAt": "2025-08-12"
+                },
+                {
+                  "id": "c69",
+                  "title": "Course 69",
+                  "category": "python",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 984,
+                  "publishedAt": "2025-09-13"
+                },
+                {
+                  "id": "c70",
+                  "title": "Course 70",
+                  "category": "devops",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 997,
+                  "publishedAt": "2025-10-14"
+                },
+                {
+                  "id": "c71",
+                  "title": "Course 71",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1010,
+                  "publishedAt": "2025-11-15"
+                },
+                {
+                  "id": "c72",
+                  "title": "Course 72",
+                  "category": "node",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1023,
+                  "publishedAt": "2025-12-16"
+                },
+                {
+                  "id": "c73",
+                  "title": "Course 73",
+                  "category": "sql",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1036,
+                  "publishedAt": "2025-01-17"
+                },
+                {
+                  "id": "c74",
+                  "title": "Course 74",
+                  "category": "python",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1049,
+                  "publishedAt": "2025-02-18"
+                },
+                {
+                  "id": "c75",
+                  "title": "Course 75",
+                  "category": "devops",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1062,
+                  "publishedAt": "2025-03-19"
+                },
+                {
+                  "id": "c76",
+                  "title": "Course 76",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1075,
+                  "publishedAt": "2025-04-20"
+                },
+                {
+                  "id": "c77",
+                  "title": "Course 77",
+                  "category": "node",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1088,
+                  "publishedAt": "2025-05-21"
+                },
+                {
+                  "id": "c78",
+                  "title": "Course 78",
+                  "category": "sql",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1101,
+                  "publishedAt": "2025-06-22"
+                },
+                {
+                  "id": "c79",
+                  "title": "Course 79",
+                  "category": "python",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1114,
+                  "publishedAt": "2025-07-23"
+                },
+                {
+                  "id": "c80",
+                  "title": "Course 80",
+                  "category": "devops",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1127,
+                  "publishedAt": "2025-08-24"
+                },
+                {
+                  "id": "c81",
+                  "title": "Course 81",
+                  "category": "react",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1140,
+                  "publishedAt": "2025-09-25"
+                },
+                {
+                  "id": "c82",
+                  "title": "Course 82",
+                  "category": "node",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1153,
+                  "publishedAt": "2025-10-26"
+                },
+                {
+                  "id": "c83",
+                  "title": "Course 83",
+                  "category": "sql",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1166,
+                  "publishedAt": "2025-11-27"
+                },
+                {
+                  "id": "c84",
+                  "title": "Course 84",
+                  "category": "python",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1179,
+                  "publishedAt": "2025-12-28"
+                },
+                {
+                  "id": "c85",
+                  "title": "Course 85",
+                  "category": "devops",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1192,
+                  "publishedAt": "2025-01-01"
+                },
+                {
+                  "id": "c86",
+                  "title": "Course 86",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1205,
+                  "publishedAt": "2025-02-02"
+                },
+                {
+                  "id": "c87",
+                  "title": "Course 87",
+                  "category": "node",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1218,
+                  "publishedAt": "2025-03-03"
+                },
+                {
+                  "id": "c88",
+                  "title": "Course 88",
+                  "category": "sql",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1231,
+                  "publishedAt": "2025-04-04"
+                },
+                {
+                  "id": "c89",
+                  "title": "Course 89",
+                  "category": "python",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1244,
+                  "publishedAt": "2025-05-05"
+                },
+                {
+                  "id": "c90",
+                  "title": "Course 90",
+                  "category": "devops",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1257,
+                  "publishedAt": "2025-06-06"
+                },
+                {
+                  "id": "c91",
+                  "title": "Course 91",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1270,
+                  "publishedAt": "2025-07-07"
+                },
+                {
+                  "id": "c92",
+                  "title": "Course 92",
+                  "category": "node",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1283,
+                  "publishedAt": "2025-08-08"
+                },
+                {
+                  "id": "c93",
+                  "title": "Course 93",
+                  "category": "sql",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1296,
+                  "publishedAt": "2025-09-09"
+                },
+                {
+                  "id": "c94",
+                  "title": "Course 94",
+                  "category": "python",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1309,
+                  "publishedAt": "2025-10-10"
+                },
+                {
+                  "id": "c95",
+                  "title": "Course 95",
+                  "category": "devops",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1322,
+                  "publishedAt": "2025-11-11"
+                },
+                {
+                  "id": "c96",
+                  "title": "Course 96",
+                  "category": "react",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1335,
+                  "publishedAt": "2025-12-12"
+                },
+                {
+                  "id": "c97",
+                  "title": "Course 97",
+                  "category": "node",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1348,
+                  "publishedAt": "2025-01-13"
+                },
+                {
+                  "id": "c98",
+                  "title": "Course 98",
+                  "category": "sql",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1361,
+                  "publishedAt": "2025-02-14"
+                },
+                {
+                  "id": "c99",
+                  "title": "Course 99",
+                  "category": "python",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1374,
+                  "publishedAt": "2025-03-15"
+                },
+                {
+                  "id": "c100",
+                  "title": "Course 100",
+                  "category": "devops",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1387,
+                  "publishedAt": "2025-04-16"
+                },
+                {
+                  "id": "c101",
+                  "title": "Course 101",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1400,
+                  "publishedAt": "2025-05-17"
+                },
+                {
+                  "id": "c102",
+                  "title": "Course 102",
+                  "category": "node",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1413,
+                  "publishedAt": "2025-06-18"
+                },
+                {
+                  "id": "c103",
+                  "title": "Course 103",
+                  "category": "sql",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1426,
+                  "publishedAt": "2025-07-19"
+                },
+                {
+                  "id": "c104",
+                  "title": "Course 104",
+                  "category": "python",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1439,
+                  "publishedAt": "2025-08-20"
+                },
+                {
+                  "id": "c105",
+                  "title": "Course 105",
+                  "category": "devops",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1452,
+                  "publishedAt": "2025-09-21"
+                },
+                {
+                  "id": "c106",
+                  "title": "Course 106",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1465,
+                  "publishedAt": "2025-10-22"
+                },
+                {
+                  "id": "c107",
+                  "title": "Course 107",
+                  "category": "node",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1478,
+                  "publishedAt": "2025-11-23"
+                },
+                {
+                  "id": "c108",
+                  "title": "Course 108",
+                  "category": "sql",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1491,
+                  "publishedAt": "2025-12-24"
+                },
+                {
+                  "id": "c109",
+                  "title": "Course 109",
+                  "category": "python",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1504,
+                  "publishedAt": "2025-01-25"
+                },
+                {
+                  "id": "c110",
+                  "title": "Course 110",
+                  "category": "devops",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1517,
+                  "publishedAt": "2025-02-26"
+                },
+                {
+                  "id": "c111",
+                  "title": "Course 111",
+                  "category": "react",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1530,
+                  "publishedAt": "2025-03-27"
+                },
+                {
+                  "id": "c112",
+                  "title": "Course 112",
+                  "category": "node",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1543,
+                  "publishedAt": "2025-04-28"
+                },
+                {
+                  "id": "c113",
+                  "title": "Course 113",
+                  "category": "sql",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1556,
+                  "publishedAt": "2025-05-01"
+                },
+                {
+                  "id": "c114",
+                  "title": "Course 114",
+                  "category": "python",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1569,
+                  "publishedAt": "2025-06-02"
+                },
+                {
+                  "id": "c115",
+                  "title": "Course 115",
+                  "category": "devops",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1582,
+                  "publishedAt": "2025-07-03"
+                },
+                {
+                  "id": "c116",
+                  "title": "Course 116",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1595,
+                  "publishedAt": "2025-08-04"
+                },
+                {
+                  "id": "c117",
+                  "title": "Course 117",
+                  "category": "node",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1608,
+                  "publishedAt": "2025-09-05"
+                },
+                {
+                  "id": "c118",
+                  "title": "Course 118",
+                  "category": "sql",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1621,
+                  "publishedAt": "2025-10-06"
+                },
+                {
+                  "id": "c119",
+                  "title": "Course 119",
+                  "category": "python",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1634,
+                  "publishedAt": "2025-11-07"
+                },
+                {
+                  "id": "c120",
+                  "title": "Course 120",
+                  "category": "devops",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1647,
+                  "publishedAt": "2025-12-08"
+                },
+                {
+                  "id": "c121",
+                  "title": "Course 121",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1660,
+                  "publishedAt": "2025-01-09"
+                },
+                {
+                  "id": "c122",
+                  "title": "Course 122",
+                  "category": "node",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1673,
+                  "publishedAt": "2025-02-10"
+                },
+                {
+                  "id": "c123",
+                  "title": "Course 123",
+                  "category": "sql",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1686,
+                  "publishedAt": "2025-03-11"
+                },
+                {
+                  "id": "c124",
+                  "title": "Course 124",
+                  "category": "python",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1699,
+                  "publishedAt": "2025-04-12"
+                },
+                {
+                  "id": "c125",
+                  "title": "Course 125",
+                  "category": "devops",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1712,
+                  "publishedAt": "2025-05-13"
+                },
+                {
+                  "id": "c126",
+                  "title": "Course 126",
+                  "category": "react",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1725,
+                  "publishedAt": "2025-06-14"
+                },
+                {
+                  "id": "c127",
+                  "title": "Course 127",
+                  "category": "node",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1738,
+                  "publishedAt": "2025-07-15"
+                },
+                {
+                  "id": "c128",
+                  "title": "Course 128",
+                  "category": "sql",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1751,
+                  "publishedAt": "2025-08-16"
+                },
+                {
+                  "id": "c129",
+                  "title": "Course 129",
+                  "category": "python",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1764,
+                  "publishedAt": "2025-09-17"
+                },
+                {
+                  "id": "c130",
+                  "title": "Course 130",
+                  "category": "devops",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1777,
+                  "publishedAt": "2025-10-18"
+                },
+                {
+                  "id": "c131",
+                  "title": "Course 131",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1790,
+                  "publishedAt": "2025-11-19"
+                },
+                {
+                  "id": "c132",
+                  "title": "Course 132",
+                  "category": "node",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1803,
+                  "publishedAt": "2025-12-20"
+                },
+                {
+                  "id": "c133",
+                  "title": "Course 133",
+                  "category": "sql",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1816,
+                  "publishedAt": "2025-01-21"
+                },
+                {
+                  "id": "c134",
+                  "title": "Course 134",
+                  "category": "python",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1829,
+                  "publishedAt": "2025-02-22"
+                },
+                {
+                  "id": "c135",
+                  "title": "Course 135",
+                  "category": "devops",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1842,
+                  "publishedAt": "2025-03-23"
+                },
+                {
+                  "id": "c136",
+                  "title": "Course 136",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1855,
+                  "publishedAt": "2025-04-24"
+                },
+                {
+                  "id": "c137",
+                  "title": "Course 137",
+                  "category": "node",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1868,
+                  "publishedAt": "2025-05-25"
+                },
+                {
+                  "id": "c138",
+                  "title": "Course 138",
+                  "category": "sql",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1881,
+                  "publishedAt": "2025-06-26"
+                },
+                {
+                  "id": "c139",
+                  "title": "Course 139",
+                  "category": "python",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1894,
+                  "publishedAt": "2025-07-27"
+                },
+                {
+                  "id": "c140",
+                  "title": "Course 140",
+                  "category": "devops",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1907,
+                  "publishedAt": "2025-08-28"
+                },
+                {
+                  "id": "c141",
+                  "title": "Course 141",
+                  "category": "react",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1920,
+                  "publishedAt": "2025-09-01"
+                },
+                {
+                  "id": "c142",
+                  "title": "Course 142",
+                  "category": "node",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1933,
+                  "publishedAt": "2025-10-02"
+                },
+                {
+                  "id": "c143",
+                  "title": "Course 143",
+                  "category": "sql",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1946,
+                  "publishedAt": "2025-11-03"
+                },
+                {
+                  "id": "c144",
+                  "title": "Course 144",
+                  "category": "python",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1959,
+                  "publishedAt": "2025-12-04"
+                },
+                {
+                  "id": "c145",
+                  "title": "Course 145",
+                  "category": "devops",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 1972,
+                  "publishedAt": "2025-01-05"
+                },
+                {
+                  "id": "c146",
+                  "title": "Course 146",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 1985,
+                  "publishedAt": "2025-02-06"
+                },
+                {
+                  "id": "c147",
+                  "title": "Course 147",
+                  "category": "node",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 1998,
+                  "publishedAt": "2025-03-07"
+                },
+                {
+                  "id": "c148",
+                  "title": "Course 148",
+                  "category": "sql",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2011,
+                  "publishedAt": "2025-04-08"
+                },
+                {
+                  "id": "c149",
+                  "title": "Course 149",
+                  "category": "python",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2024,
+                  "publishedAt": "2025-05-09"
+                },
+                {
+                  "id": "c150",
+                  "title": "Course 150",
+                  "category": "devops",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2037,
+                  "publishedAt": "2025-06-10"
+                },
+                {
+                  "id": "c151",
+                  "title": "Course 151",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2050,
+                  "publishedAt": "2025-07-11"
+                },
+                {
+                  "id": "c152",
+                  "title": "Course 152",
+                  "category": "node",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2063,
+                  "publishedAt": "2025-08-12"
+                },
+                {
+                  "id": "c153",
+                  "title": "Course 153",
+                  "category": "sql",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2076,
+                  "publishedAt": "2025-09-13"
+                },
+                {
+                  "id": "c154",
+                  "title": "Course 154",
+                  "category": "python",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2089,
+                  "publishedAt": "2025-10-14"
+                },
+                {
+                  "id": "c155",
+                  "title": "Course 155",
+                  "category": "devops",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2102,
+                  "publishedAt": "2025-11-15"
+                },
+                {
+                  "id": "c156",
+                  "title": "Course 156",
+                  "category": "react",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2115,
+                  "publishedAt": "2025-12-16"
+                },
+                {
+                  "id": "c157",
+                  "title": "Course 157",
+                  "category": "node",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2128,
+                  "publishedAt": "2025-01-17"
+                },
+                {
+                  "id": "c158",
+                  "title": "Course 158",
+                  "category": "sql",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2141,
+                  "publishedAt": "2025-02-18"
+                },
+                {
+                  "id": "c159",
+                  "title": "Course 159",
+                  "category": "python",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2154,
+                  "publishedAt": "2025-03-19"
+                },
+                {
+                  "id": "c160",
+                  "title": "Course 160",
+                  "category": "devops",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2167,
+                  "publishedAt": "2025-04-20"
+                },
+                {
+                  "id": "c161",
+                  "title": "Course 161",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2180,
+                  "publishedAt": "2025-05-21"
+                },
+                {
+                  "id": "c162",
+                  "title": "Course 162",
+                  "category": "node",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2193,
+                  "publishedAt": "2025-06-22"
+                },
+                {
+                  "id": "c163",
+                  "title": "Course 163",
+                  "category": "sql",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2206,
+                  "publishedAt": "2025-07-23"
+                },
+                {
+                  "id": "c164",
+                  "title": "Course 164",
+                  "category": "python",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2219,
+                  "publishedAt": "2025-08-24"
+                },
+                {
+                  "id": "c165",
+                  "title": "Course 165",
+                  "category": "devops",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2232,
+                  "publishedAt": "2025-09-25"
+                },
+                {
+                  "id": "c166",
+                  "title": "Course 166",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2245,
+                  "publishedAt": "2025-10-26"
+                },
+                {
+                  "id": "c167",
+                  "title": "Course 167",
+                  "category": "node",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2258,
+                  "publishedAt": "2025-11-27"
+                },
+                {
+                  "id": "c168",
+                  "title": "Course 168",
+                  "category": "sql",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2271,
+                  "publishedAt": "2025-12-28"
+                },
+                {
+                  "id": "c169",
+                  "title": "Course 169",
+                  "category": "python",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2284,
+                  "publishedAt": "2025-01-01"
+                },
+                {
+                  "id": "c170",
+                  "title": "Course 170",
+                  "category": "devops",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2297,
+                  "publishedAt": "2025-02-02"
+                },
+                {
+                  "id": "c171",
+                  "title": "Course 171",
+                  "category": "react",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2310,
+                  "publishedAt": "2025-03-03"
+                },
+                {
+                  "id": "c172",
+                  "title": "Course 172",
+                  "category": "node",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2323,
+                  "publishedAt": "2025-04-04"
+                },
+                {
+                  "id": "c173",
+                  "title": "Course 173",
+                  "category": "sql",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2336,
+                  "publishedAt": "2025-05-05"
+                },
+                {
+                  "id": "c174",
+                  "title": "Course 174",
+                  "category": "python",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2349,
+                  "publishedAt": "2025-06-06"
+                },
+                {
+                  "id": "c175",
+                  "title": "Course 175",
+                  "category": "devops",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2362,
+                  "publishedAt": "2025-07-07"
+                },
+                {
+                  "id": "c176",
+                  "title": "Course 176",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2375,
+                  "publishedAt": "2025-08-08"
+                },
+                {
+                  "id": "c177",
+                  "title": "Course 177",
+                  "category": "node",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2388,
+                  "publishedAt": "2025-09-09"
+                },
+                {
+                  "id": "c178",
+                  "title": "Course 178",
+                  "category": "sql",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2401,
+                  "publishedAt": "2025-10-10"
+                },
+                {
+                  "id": "c179",
+                  "title": "Course 179",
+                  "category": "python",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2414,
+                  "publishedAt": "2025-11-11"
+                },
+                {
+                  "id": "c180",
+                  "title": "Course 180",
+                  "category": "devops",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2427,
+                  "publishedAt": "2025-12-12"
+                },
+                {
+                  "id": "c181",
+                  "title": "Course 181",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2440,
+                  "publishedAt": "2025-01-13"
+                },
+                {
+                  "id": "c182",
+                  "title": "Course 182",
+                  "category": "node",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2453,
+                  "publishedAt": "2025-02-14"
+                },
+                {
+                  "id": "c183",
+                  "title": "Course 183",
+                  "category": "sql",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2466,
+                  "publishedAt": "2025-03-15"
+                },
+                {
+                  "id": "c184",
+                  "title": "Course 184",
+                  "category": "python",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2479,
+                  "publishedAt": "2025-04-16"
+                },
+                {
+                  "id": "c185",
+                  "title": "Course 185",
+                  "category": "devops",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2492,
+                  "publishedAt": "2025-05-17"
+                },
+                {
+                  "id": "c186",
+                  "title": "Course 186",
+                  "category": "react",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2505,
+                  "publishedAt": "2025-06-18"
+                },
+                {
+                  "id": "c187",
+                  "title": "Course 187",
+                  "category": "node",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2518,
+                  "publishedAt": "2025-07-19"
+                },
+                {
+                  "id": "c188",
+                  "title": "Course 188",
+                  "category": "sql",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2531,
+                  "publishedAt": "2025-08-20"
+                },
+                {
+                  "id": "c189",
+                  "title": "Course 189",
+                  "category": "python",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2544,
+                  "publishedAt": "2025-09-21"
+                },
+                {
+                  "id": "c190",
+                  "title": "Course 190",
+                  "category": "devops",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2557,
+                  "publishedAt": "2025-10-22"
+                },
+                {
+                  "id": "c191",
+                  "title": "Course 191",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2570,
+                  "publishedAt": "2025-11-23"
+                },
+                {
+                  "id": "c192",
+                  "title": "Course 192",
+                  "category": "node",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2583,
+                  "publishedAt": "2025-12-24"
+                },
+                {
+                  "id": "c193",
+                  "title": "Course 193",
+                  "category": "sql",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2596,
+                  "publishedAt": "2025-01-25"
+                },
+                {
+                  "id": "c194",
+                  "title": "Course 194",
+                  "category": "python",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2609,
+                  "publishedAt": "2025-02-26"
+                },
+                {
+                  "id": "c195",
+                  "title": "Course 195",
+                  "category": "devops",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2622,
+                  "publishedAt": "2025-03-27"
+                },
+                {
+                  "id": "c196",
+                  "title": "Course 196",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2635,
+                  "publishedAt": "2025-04-28"
+                },
+                {
+                  "id": "c197",
+                  "title": "Course 197",
+                  "category": "node",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2648,
+                  "publishedAt": "2025-05-01"
+                },
+                {
+                  "id": "c198",
+                  "title": "Course 198",
+                  "category": "sql",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2661,
+                  "publishedAt": "2025-06-02"
+                },
+                {
+                  "id": "c199",
+                  "title": "Course 199",
+                  "category": "python",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2674,
+                  "publishedAt": "2025-07-03"
+                },
+                {
+                  "id": "c200",
+                  "title": "Course 200",
+                  "category": "devops",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2687,
+                  "publishedAt": "2025-08-04"
+                },
+                {
+                  "id": "c201",
+                  "title": "Course 201",
+                  "category": "react",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2700,
+                  "publishedAt": "2025-09-05"
+                },
+                {
+                  "id": "c202",
+                  "title": "Course 202",
+                  "category": "node",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2713,
+                  "publishedAt": "2025-10-06"
+                },
+                {
+                  "id": "c203",
+                  "title": "Course 203",
+                  "category": "sql",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2726,
+                  "publishedAt": "2025-11-07"
+                },
+                {
+                  "id": "c204",
+                  "title": "Course 204",
+                  "category": "python",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2739,
+                  "publishedAt": "2025-12-08"
+                },
+                {
+                  "id": "c205",
+                  "title": "Course 205",
+                  "category": "devops",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2752,
+                  "publishedAt": "2025-01-09"
+                },
+                {
+                  "id": "c206",
+                  "title": "Course 206",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2765,
+                  "publishedAt": "2025-02-10"
+                },
+                {
+                  "id": "c207",
+                  "title": "Course 207",
+                  "category": "node",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2778,
+                  "publishedAt": "2025-03-11"
+                },
+                {
+                  "id": "c208",
+                  "title": "Course 208",
+                  "category": "sql",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2791,
+                  "publishedAt": "2025-04-12"
+                },
+                {
+                  "id": "c209",
+                  "title": "Course 209",
+                  "category": "python",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2804,
+                  "publishedAt": "2025-05-13"
+                },
+                {
+                  "id": "c210",
+                  "title": "Course 210",
+                  "category": "devops",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2817,
+                  "publishedAt": "2025-06-14"
+                },
+                {
+                  "id": "c211",
+                  "title": "Course 211",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2830,
+                  "publishedAt": "2025-07-15"
+                },
+                {
+                  "id": "c212",
+                  "title": "Course 212",
+                  "category": "node",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2843,
+                  "publishedAt": "2025-08-16"
+                },
+                {
+                  "id": "c213",
+                  "title": "Course 213",
+                  "category": "sql",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2856,
+                  "publishedAt": "2025-09-17"
+                },
+                {
+                  "id": "c214",
+                  "title": "Course 214",
+                  "category": "python",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2869,
+                  "publishedAt": "2025-10-18"
+                },
+                {
+                  "id": "c215",
+                  "title": "Course 215",
+                  "category": "devops",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2882,
+                  "publishedAt": "2025-11-19"
+                },
+                {
+                  "id": "c216",
+                  "title": "Course 216",
+                  "category": "react",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2895,
+                  "publishedAt": "2025-12-20"
+                },
+                {
+                  "id": "c217",
+                  "title": "Course 217",
+                  "category": "node",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2908,
+                  "publishedAt": "2025-01-21"
+                },
+                {
+                  "id": "c218",
+                  "title": "Course 218",
+                  "category": "sql",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2921,
+                  "publishedAt": "2025-02-22"
+                },
+                {
+                  "id": "c219",
+                  "title": "Course 219",
+                  "category": "python",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2934,
+                  "publishedAt": "2025-03-23"
+                },
+                {
+                  "id": "c220",
+                  "title": "Course 220",
+                  "category": "devops",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2947,
+                  "publishedAt": "2025-04-24"
+                },
+                {
+                  "id": "c221",
+                  "title": "Course 221",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2960,
+                  "publishedAt": "2025-05-25"
+                },
+                {
+                  "id": "c222",
+                  "title": "Course 222",
+                  "category": "node",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 2973,
+                  "publishedAt": "2025-06-26"
+                },
+                {
+                  "id": "c223",
+                  "title": "Course 223",
+                  "category": "sql",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 2986,
+                  "publishedAt": "2025-07-27"
+                },
+                {
+                  "id": "c224",
+                  "title": "Course 224",
+                  "category": "python",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 2999,
+                  "publishedAt": "2025-08-28"
+                },
+                {
+                  "id": "c225",
+                  "title": "Course 225",
+                  "category": "devops",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3012,
+                  "publishedAt": "2025-09-01"
+                },
+                {
+                  "id": "c226",
+                  "title": "Course 226",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3025,
+                  "publishedAt": "2025-10-02"
+                },
+                {
+                  "id": "c227",
+                  "title": "Course 227",
+                  "category": "node",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3038,
+                  "publishedAt": "2025-11-03"
+                },
+                {
+                  "id": "c228",
+                  "title": "Course 228",
+                  "category": "sql",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3051,
+                  "publishedAt": "2025-12-04"
+                },
+                {
+                  "id": "c229",
+                  "title": "Course 229",
+                  "category": "python",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3064,
+                  "publishedAt": "2025-01-05"
+                },
+                {
+                  "id": "c230",
+                  "title": "Course 230",
+                  "category": "devops",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3077,
+                  "publishedAt": "2025-02-06"
+                },
+                {
+                  "id": "c231",
+                  "title": "Course 231",
+                  "category": "react",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3090,
+                  "publishedAt": "2025-03-07"
+                },
+                {
+                  "id": "c232",
+                  "title": "Course 232",
+                  "category": "node",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3103,
+                  "publishedAt": "2025-04-08"
+                },
+                {
+                  "id": "c233",
+                  "title": "Course 233",
+                  "category": "sql",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3116,
+                  "publishedAt": "2025-05-09"
+                },
+                {
+                  "id": "c234",
+                  "title": "Course 234",
+                  "category": "python",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3129,
+                  "publishedAt": "2025-06-10"
+                },
+                {
+                  "id": "c235",
+                  "title": "Course 235",
+                  "category": "devops",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3142,
+                  "publishedAt": "2025-07-11"
+                },
+                {
+                  "id": "c236",
+                  "title": "Course 236",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3155,
+                  "publishedAt": "2025-08-12"
+                },
+                {
+                  "id": "c237",
+                  "title": "Course 237",
+                  "category": "node",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3168,
+                  "publishedAt": "2025-09-13"
+                },
+                {
+                  "id": "c238",
+                  "title": "Course 238",
+                  "category": "sql",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3181,
+                  "publishedAt": "2025-10-14"
+                },
+                {
+                  "id": "c239",
+                  "title": "Course 239",
+                  "category": "python",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3194,
+                  "publishedAt": "2025-11-15"
+                },
+                {
+                  "id": "c240",
+                  "title": "Course 240",
+                  "category": "devops",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3207,
+                  "publishedAt": "2025-12-16"
+                },
+                {
+                  "id": "c241",
+                  "title": "Course 241",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3220,
+                  "publishedAt": "2025-01-17"
+                },
+                {
+                  "id": "c242",
+                  "title": "Course 242",
+                  "category": "node",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3233,
+                  "publishedAt": "2025-02-18"
+                },
+                {
+                  "id": "c243",
+                  "title": "Course 243",
+                  "category": "sql",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3246,
+                  "publishedAt": "2025-03-19"
+                },
+                {
+                  "id": "c244",
+                  "title": "Course 244",
+                  "category": "python",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3259,
+                  "publishedAt": "2025-04-20"
+                },
+                {
+                  "id": "c245",
+                  "title": "Course 245",
+                  "category": "devops",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3272,
+                  "publishedAt": "2025-05-21"
+                },
+                {
+                  "id": "c246",
+                  "title": "Course 246",
+                  "category": "react",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3285,
+                  "publishedAt": "2025-06-22"
+                },
+                {
+                  "id": "c247",
+                  "title": "Course 247",
+                  "category": "node",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3298,
+                  "publishedAt": "2025-07-23"
+                },
+                {
+                  "id": "c248",
+                  "title": "Course 248",
+                  "category": "sql",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3311,
+                  "publishedAt": "2025-08-24"
+                },
+                {
+                  "id": "c249",
+                  "title": "Course 249",
+                  "category": "python",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3324,
+                  "publishedAt": "2025-09-25"
+                },
+                {
+                  "id": "c250",
+                  "title": "Course 250",
+                  "category": "devops",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3337,
+                  "publishedAt": "2025-10-26"
+                },
+                {
+                  "id": "c251",
+                  "title": "Course 251",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3350,
+                  "publishedAt": "2025-11-27"
+                },
+                {
+                  "id": "c252",
+                  "title": "Course 252",
+                  "category": "node",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3363,
+                  "publishedAt": "2025-12-28"
+                },
+                {
+                  "id": "c253",
+                  "title": "Course 253",
+                  "category": "sql",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3376,
+                  "publishedAt": "2025-01-01"
+                },
+                {
+                  "id": "c254",
+                  "title": "Course 254",
+                  "category": "python",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3389,
+                  "publishedAt": "2025-02-02"
+                },
+                {
+                  "id": "c255",
+                  "title": "Course 255",
+                  "category": "devops",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3402,
+                  "publishedAt": "2025-03-03"
+                },
+                {
+                  "id": "c256",
+                  "title": "Course 256",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3415,
+                  "publishedAt": "2025-04-04"
+                },
+                {
+                  "id": "c257",
+                  "title": "Course 257",
+                  "category": "node",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3428,
+                  "publishedAt": "2025-05-05"
+                },
+                {
+                  "id": "c258",
+                  "title": "Course 258",
+                  "category": "sql",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3441,
+                  "publishedAt": "2025-06-06"
+                },
+                {
+                  "id": "c259",
+                  "title": "Course 259",
+                  "category": "python",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3454,
+                  "publishedAt": "2025-07-07"
+                },
+                {
+                  "id": "c260",
+                  "title": "Course 260",
+                  "category": "devops",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3467,
+                  "publishedAt": "2025-08-08"
+                },
+                {
+                  "id": "c261",
+                  "title": "Course 261",
+                  "category": "react",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3480,
+                  "publishedAt": "2025-09-09"
+                },
+                {
+                  "id": "c262",
+                  "title": "Course 262",
+                  "category": "node",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3493,
+                  "publishedAt": "2025-10-10"
+                },
+                {
+                  "id": "c263",
+                  "title": "Course 263",
+                  "category": "sql",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3506,
+                  "publishedAt": "2025-11-11"
+                },
+                {
+                  "id": "c264",
+                  "title": "Course 264",
+                  "category": "python",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3519,
+                  "publishedAt": "2025-12-12"
+                },
+                {
+                  "id": "c265",
+                  "title": "Course 265",
+                  "category": "devops",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3532,
+                  "publishedAt": "2025-01-13"
+                },
+                {
+                  "id": "c266",
+                  "title": "Course 266",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3545,
+                  "publishedAt": "2025-02-14"
+                },
+                {
+                  "id": "c267",
+                  "title": "Course 267",
+                  "category": "node",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3558,
+                  "publishedAt": "2025-03-15"
+                },
+                {
+                  "id": "c268",
+                  "title": "Course 268",
+                  "category": "sql",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3571,
+                  "publishedAt": "2025-04-16"
+                },
+                {
+                  "id": "c269",
+                  "title": "Course 269",
+                  "category": "python",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3584,
+                  "publishedAt": "2025-05-17"
+                },
+                {
+                  "id": "c270",
+                  "title": "Course 270",
+                  "category": "devops",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3597,
+                  "publishedAt": "2025-06-18"
+                },
+                {
+                  "id": "c271",
+                  "title": "Course 271",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3610,
+                  "publishedAt": "2025-07-19"
+                },
+                {
+                  "id": "c272",
+                  "title": "Course 272",
+                  "category": "node",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3623,
+                  "publishedAt": "2025-08-20"
+                },
+                {
+                  "id": "c273",
+                  "title": "Course 273",
+                  "category": "sql",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3636,
+                  "publishedAt": "2025-09-21"
+                },
+                {
+                  "id": "c274",
+                  "title": "Course 274",
+                  "category": "python",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3649,
+                  "publishedAt": "2025-10-22"
+                },
+                {
+                  "id": "c275",
+                  "title": "Course 275",
+                  "category": "devops",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3662,
+                  "publishedAt": "2025-11-23"
+                },
+                {
+                  "id": "c276",
+                  "title": "Course 276",
+                  "category": "react",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3675,
+                  "publishedAt": "2025-12-24"
+                },
+                {
+                  "id": "c277",
+                  "title": "Course 277",
+                  "category": "node",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3688,
+                  "publishedAt": "2025-01-25"
+                },
+                {
+                  "id": "c278",
+                  "title": "Course 278",
+                  "category": "sql",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3701,
+                  "publishedAt": "2025-02-26"
+                },
+                {
+                  "id": "c279",
+                  "title": "Course 279",
+                  "category": "python",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3714,
+                  "publishedAt": "2025-03-27"
+                },
+                {
+                  "id": "c280",
+                  "title": "Course 280",
+                  "category": "devops",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3727,
+                  "publishedAt": "2025-04-28"
+                },
+                {
+                  "id": "c281",
+                  "title": "Course 281",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3740,
+                  "publishedAt": "2025-05-01"
+                },
+                {
+                  "id": "c282",
+                  "title": "Course 282",
+                  "category": "node",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3753,
+                  "publishedAt": "2025-06-02"
+                },
+                {
+                  "id": "c283",
+                  "title": "Course 283",
+                  "category": "sql",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3766,
+                  "publishedAt": "2025-07-03"
+                },
+                {
+                  "id": "c284",
+                  "title": "Course 284",
+                  "category": "python",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3779,
+                  "publishedAt": "2025-08-04"
+                },
+                {
+                  "id": "c285",
+                  "title": "Course 285",
+                  "category": "devops",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3792,
+                  "publishedAt": "2025-09-05"
+                },
+                {
+                  "id": "c286",
+                  "title": "Course 286",
+                  "category": "react",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3805,
+                  "publishedAt": "2025-10-06"
+                },
+                {
+                  "id": "c287",
+                  "title": "Course 287",
+                  "category": "node",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3818,
+                  "publishedAt": "2025-11-07"
+                },
+                {
+                  "id": "c288",
+                  "title": "Course 288",
+                  "category": "sql",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3831,
+                  "publishedAt": "2025-12-08"
+                },
+                {
+                  "id": "c289",
+                  "title": "Course 289",
+                  "category": "python",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3844,
+                  "publishedAt": "2025-01-09"
+                },
+                {
+                  "id": "c290",
+                  "title": "Course 290",
+                  "category": "devops",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3857,
+                  "publishedAt": "2025-02-10"
+                },
+                {
+                  "id": "c291",
+                  "title": "Course 291",
+                  "category": "react",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3870,
+                  "publishedAt": "2025-03-11"
+                },
+                {
+                  "id": "c292",
+                  "title": "Course 292",
+                  "category": "node",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3883,
+                  "publishedAt": "2025-04-12"
+                },
+                {
+                  "id": "c293",
+                  "title": "Course 293",
+                  "category": "sql",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3896,
+                  "publishedAt": "2025-05-13"
+                },
+                {
+                  "id": "c294",
+                  "title": "Course 294",
+                  "category": "python",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3909,
+                  "publishedAt": "2025-06-14"
+                },
+                {
+                  "id": "c295",
+                  "title": "Course 295",
+                  "category": "devops",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3922,
+                  "publishedAt": "2025-07-15"
+                },
+                {
+                  "id": "c296",
+                  "title": "Course 296",
+                  "category": "react",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3935,
+                  "publishedAt": "2025-08-16"
+                },
+                {
+                  "id": "c297",
+                  "title": "Course 297",
+                  "category": "node",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3948,
+                  "publishedAt": "2025-09-17"
+                },
+                {
+                  "id": "c298",
+                  "title": "Course 298",
+                  "category": "sql",
+                  "level": "beginner",
+                  "rating": 3,
+                  "enrolled": 3961,
+                  "publishedAt": "2025-10-18"
+                },
+                {
+                  "id": "c299",
+                  "title": "Course 299",
+                  "category": "python",
+                  "level": "intermediate",
+                  "rating": 3.7,
+                  "enrolled": 3974,
+                  "publishedAt": "2025-11-19"
+                },
+                {
+                  "id": "c300",
+                  "title": "Course 300",
+                  "category": "devops",
+                  "level": "advanced",
+                  "rating": 4.4,
+                  "enrolled": 3987,
+                  "publishedAt": "2025-12-20"
+                }
+              ]
+            }
+          ],
+          "expected": [
+            {
+              "kind": "success",
+              "courses": [
+                "c1",
+                "c2",
+                "c3",
+                "c4",
+                "c5",
+                "c6",
+                "c7",
+                "c8",
+                "c9",
+                "c10",
+                "c11",
+                "c12",
+                "c13",
+                "c14",
+                "c15",
+                "c16",
+                "c17",
+                "c18",
+                "c19",
+                "c20",
+                "c21",
+                "c22",
+                "c23",
+                "c24",
+                "c25",
+                "c26",
+                "c27",
+                "c28",
+                "c29",
+                "c30",
+                "c31",
+                "c32",
+                "c33",
+                "c34",
+                "c35",
+                "c36",
+                "c37",
+                "c38",
+                "c39",
+                "c40",
+                "c41",
+                "c42",
+                "c43",
+                "c44",
+                "c45",
+                "c46",
+                "c47",
+                "c48",
+                "c49",
+                "c50",
+                "c51",
+                "c52",
+                "c53",
+                "c54",
+                "c55",
+                "c56",
+                "c57",
+                "c58",
+                "c59",
+                "c60",
+                "c61",
+                "c62",
+                "c63",
+                "c64",
+                "c65",
+                "c66",
+                "c67",
+                "c68",
+                "c69",
+                "c70",
+                "c71",
+                "c72",
+                "c73",
+                "c74",
+                "c75",
+                "c76",
+                "c77",
+                "c78",
+                "c79",
+                "c80",
+                "c81",
+                "c82",
+                "c83",
+                "c84",
+                "c85",
+                "c86",
+                "c87",
+                "c88",
+                "c89",
+                "c90",
+                "c91",
+                "c92",
+                "c93",
+                "c94",
+                "c95",
+                "c96",
+                "c97",
+                "c98",
+                "c99",
+                "c100",
+                "c101",
+                "c102",
+                "c103",
+                "c104",
+                "c105",
+                "c106",
+                "c107",
+                "c108",
+                "c109",
+                "c110",
+                "c111",
+                "c112",
+                "c113",
+                "c114",
+                "c115",
+                "c116",
+                "c117",
+                "c118",
+                "c119",
+                "c120",
+                "c121",
+                "c122",
+                "c123",
+                "c124",
+                "c125",
+                "c126",
+                "c127",
+                "c128",
+                "c129",
+                "c130",
+                "c131",
+                "c132",
+                "c133",
+                "c134",
+                "c135",
+                "c136",
+                "c137",
+                "c138",
+                "c139",
+                "c140",
+                "c141",
+                "c142",
+                "c143",
+                "c144",
+                "c145",
+                "c146",
+                "c147",
+                "c148",
+                "c149",
+                "c150",
+                "c151",
+                "c152",
+                "c153",
+                "c154",
+                "c155",
+                "c156",
+                "c157",
+                "c158",
+                "c159",
+                "c160",
+                "c161",
+                "c162",
+                "c163",
+                "c164",
+                "c165",
+                "c166",
+                "c167",
+                "c168",
+                "c169",
+                "c170",
+                "c171",
+                "c172",
+                "c173",
+                "c174",
+                "c175",
+                "c176",
+                "c177",
+                "c178",
+                "c179",
+                "c180",
+                "c181",
+                "c182",
+                "c183",
+                "c184",
+                "c185",
+                "c186",
+                "c187",
+                "c188",
+                "c189",
+                "c190",
+                "c191",
+                "c192",
+                "c193",
+                "c194",
+                "c195",
+                "c196",
+                "c197",
+                "c198",
+                "c199",
+                "c200",
+                "c201",
+                "c202",
+                "c203",
+                "c204",
+                "c205",
+                "c206",
+                "c207",
+                "c208",
+                "c209",
+                "c210",
+                "c211",
+                "c212",
+                "c213",
+                "c214",
+                "c215",
+                "c216",
+                "c217",
+                "c218",
+                "c219",
+                "c220",
+                "c221",
+                "c222",
+                "c223",
+                "c224",
+                "c225",
+                "c226",
+                "c227",
+                "c228",
+                "c229",
+                "c230",
+                "c231",
+                "c232",
+                "c233",
+                "c234",
+                "c235",
+                "c236",
+                "c237",
+                "c238",
+                "c239",
+                "c240",
+                "c241",
+                "c242",
+                "c243",
+                "c244",
+                "c245",
+                "c246",
+                "c247",
+                "c248",
+                "c249",
+                "c250",
+                "c251",
+                "c252",
+                "c253",
+                "c254",
+                "c255",
+                "c256",
+                "c257",
+                "c258",
+                "c259",
+                "c260",
+                "c261",
+                "c262",
+                "c263",
+                "c264",
+                "c265",
+                "c266",
+                "c267",
+                "c268",
+                "c269",
+                "c270",
+                "c271",
+                "c272",
+                "c273",
+                "c274",
+                "c275",
+                "c276",
+                "c277",
+                "c278",
+                "c279",
+                "c280",
+                "c281",
+                "c282",
+                "c283",
+                "c284",
+                "c285",
+                "c286",
+                "c287",
+                "c288",
+                "c289",
+                "c290",
+                "c291",
+                "c292",
+                "c293",
+                "c294",
+                "c295",
+                "c296",
+                "c297",
+                "c298",
+                "c299",
+                "c300"
+              ],
+              "refreshing": true
+            }
+          ],
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

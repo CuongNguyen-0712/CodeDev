@@ -1,0 +1,36 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_trf_231",
+      "name": "controlled-forms-quiz",
+      "type": "quiz",
+      "title": "Read the Create course form: a console warning and a curl request",
+      "description": "Two pieces of evidence from the instructors' Create course form: the warning from the first fix attempt, and a request sent after the form gained validation.",
+      "difficulty": "medium",
+      "outcomes": ["state-ownership"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "function PriceField() {\n  const [price, setPrice] = useState<string>();\n  return <input name=\"price\" value={price} onChange={(e) => setPrice(e.target.value)} />;\n}\n\nConsole, right after typing the first digit:\n\nWarning: A component is changing an uncontrolled input to be controlled. This is likely caused by the value changing from undefined to a defined value, which should not happen.\n\nStatement: \"The input starts uncontrolled because `price` is undefined on the first render; starting the state with useState(\\\"\\\") makes it controlled from the first render and removes the warning.\"",
+          "explanation": "True. useState<string>() with no argument starts as undefined, and value={undefined} means \"no value prop\" to React, so the first render creates an uncontrolled input. The first keystroke sets a string, which makes it controlled, and React warns because an input should keep one mode for its whole life. With an empty string as the initial value, the input is controlled from the start. The misconception is that the warning is about onChange or about the type parameter; it is about the value being undefined on one render and a string on the next.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The form now validates in the browser: validate(values) rejects an empty title and any price that is not 1-9 digits, the submit handler returns early when validation fails, and createCourse only accepts a CreateCourseInput. A teammate opens a PR that removes the API's own price and title checks, saying \"the form can no longer send bad values\". The reviewer runs:\n\ncurl -i -X POST https://api.codedev.test/courses \\\n  -H \"Authorization: Bearer $INSTRUCTOR_TOKEN\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"title\":\"\",\"price\":\"12abc\"}'\n\nStatement: \"With the form's validation in place, merging this PR is safe: an invalid course can only reach the API through the Create course form.\"",
+          "explanation": "False. Validation in the browser controls what the form sends, not what the API receives. Anyone with a valid token can send the request with curl, a script, an old version of the app still open in a tab, or another client such as a mobile app. The API is the trust boundary and must keep its own checks (and should answer 422 with field errors, which the form maps back to its fields). Form validation exists to give the user fast, precise feedback. The misconception is that typed client code protects the server; TypeScript types disappear at runtime and never cross the network.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

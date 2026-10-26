@@ -1,0 +1,46 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_trf_221",
+      "name": "derived-state-quiz",
+      "type": "quiz",
+      "title": "Copy or compute? Read the catalog's state",
+      "description": "Three pieces of evidence from the catalog: a filtered list that missed a new course, a details panel after a rename, and a Profiler measurement someone wants to fix with useMemo.",
+      "difficulty": "medium",
+      "outcomes": ["state-ownership"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "function CourseResults({ courses, filter }: Props) {\n  const [visible, setVisible] = useState(filterCourses(courses, filter));\n  return <CourseGrid courses={visible} />;\n}\n\nAfter the course list refetched, React DevTools shows for CourseResults:\n\nprops\n  courses: Array(20)\n  filter: { category: \"sql\", search: \"\" }\nhooks\n  1 State: Array(19)\n\nA console.log placed inside filterCourses prints on every render of CourseResults.\n\nStatement: \"Because filterCourses(courses, filter) runs on every render, `visible` is recalculated with the 20 new courses, so the missing course must be a problem in the API cache rather than in this component.\"",
+          "explanation": "False. The argument of useState is only the initial value: React uses it on the first render and ignores it afterwards. filterCourses does run on every render (it is an ordinary call in the component body), but its result is thrown away, so the state keeps the 19 courses it started with. DevTools shows the proof: the prop has 20 entries and the state has 19, so the fresh data did reach the component. The fix is to delete the state and compute `const visible = filterCourses(courses, filter)` during render. The misconception is that the expression inside useState(...) keeps the state up to date because it is evaluated each time.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "function CourseResults({ courses }: { courses: Course[] }) {\n  const [selectedId, setSelectedId] = useState<string | null>(null);\n  const selected = courses.find((c) => c.id === selectedId) ?? null;\n  return (\n    <>\n      <CourseGrid courses={courses} onSelect={(c) => setSelectedId(c.id)} />\n      {selected && <CourseDetails course={selected} />}\n    </>\n  );\n}\n\nThe learner selects course c_12. An instructor renames it, and the courses query refetches:\n\nGET https://api.codedev.test/courses -> 200 [..., { \"id\": \"c_12\", \"title\": \"React Hooks in Depth\", ... }, ...]\n\nThe parent re-renders CourseResults with the new array.\n\nStatement: \"The details panel now shows \\\"React Hooks in Depth\\\" with no extra code, because only the id is kept in state and the course object is looked up again from the new array on this render.\"",
+          "explanation": "True. selectedId (\"c_12\") did not change, but `selected` is computed during render from the current props, so this render finds the new object with the new title and passes it to CourseDetails. There is no copy to keep in sync. Had the component stored the whole course (setSelected(c)), the state would still hold the old object with the old title. The common misconception is that you need an effect watching `courses` to update the selection; looking up by id during render makes that effect unnecessary.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The fixed CourseResults computes the list during render:\n\nconst visible = filterCourses(courses, filter);\n\nMeasured on the production build with 4x CPU throttling:\n\nconsole.time -> filterCourses: 0.07 ms (120 courses)\nReact Profiler -> CourseResults render: 0.9 ms\n\nIn review, a teammate comments: \"Wrap it in useMemo with [courses, filter].\"\n\nStatement: \"The teammate is right that useMemo is needed: recomputing derived data on every render is what made the earlier version show stale results.\"",
+          "explanation": "False, on both counts. The stale results came from copying the list into useState, where it stopped following the props; recomputing on every render is what fixes that. useMemo is a performance cache for a computation, not a correctness tool, and 0.07 ms is far below the roughly 1 ms at which react.dev suggests memoizing is worth considering. Adding it here buys nothing measurable and adds a dependency list that can go wrong: with [filter] alone, a refetched `courses` array would be ignored and the stale bug would return. The misconception is that derived values must be cached to be correct.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

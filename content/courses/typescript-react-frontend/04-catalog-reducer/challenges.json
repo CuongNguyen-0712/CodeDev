@@ -1,0 +1,1573 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_trf_211",
+      "name": "catalog-reducer-quiz",
+      "type": "quiz",
+      "title": "Read the reducer: empty page 7 and a pager that does not move",
+      "description": "Two pieces of evidence from the catalog: the request that showed an empty page 7 of SQL, and a pager that ignores clicks after a refactor to useReducer.",
+      "difficulty": "medium",
+      "outcomes": [
+        "state-ownership"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The catalog reducer before the fix:\n\ncase \"categoryToggled\": {\n  const categories = state.categories.includes(action.category)\n    ? state.categories.filter((c) => c !== action.category)\n    : [...state.categories, action.category];\n  return { ...state, categories };\n}\n\nThe learner was on page 7 of React, clicked the React chip off and the SQL chip on. Network tab:\n\nGET https://api.codedev.test/courses?category=sql&page=7&pageSize=12\n200 OK  {\"items\":[],\"total\":19,\"totalPages\":2}\n\nStatement: \"The API answered correctly for the request it received; the empty page comes from the reducer keeping page 7 when the categories changed.\"",
+          "explanation": "True. The response is consistent: 19 SQL courses at 12 per page make 2 pages, so page 7 really is empty. The request asked for page 7 because the reducer copied the old page into the new state: `{ ...state, categories }` keeps every field it does not overwrite. A page number only means something for one combination of search, filters and sort, so every action that changes that combination must also set page to 1. The misconception is to blame the API (or to add a client-side \"if empty, go back a page\" patch) when the Network tab shows the client asked for a page that cannot exist.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After a refactor to useReducer, clicking \"Next\" does nothing visible:\n\nfunction catalogReducer(state: CatalogState, action: CatalogAction): CatalogState {\n  switch (action.type) {\n    case \"pageChanged\":\n      state.page = action.page;\n      return state;\n    // ...\n  }\n}\n\nconst [state, dispatch] = useReducer(catalogReducer, initialState);\n<button onClick={() => dispatch({ type: \"pageChanged\", page: state.page + 1 })}>Next</button>\n\nA console.log inside the reducer prints \"page 2\" after the click; the pager still shows \"Page 1 of 5\".\n\nStatement: \"The update is only delayed: dispatch is asynchronous, so the pager will show page 2 once React finishes processing the queued action.\"",
+          "explanation": "False. React did process the action - the log proves the reducer ran. It then compared the returned state with the current one using Object.is, got the same object (the reducer changed it in place and returned it), concluded nothing changed and skipped the re-render. Nothing is pending, so waiting does not help; the screen changes only if something else happens to re-render the component, and then it shows a value nobody asked React to render. The fix is to return a new object: `return { ...state, page: action.page }`. The misconception is that \"asynchronous\" explains every missing update; with reducers, a missing update usually means the same reference came back.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_trf_212",
+      "name": "catalog-reducer",
+      "type": "mini_coding",
+      "title": "Reducer catalog: search, filters, sort and page in one place",
+      "description": "The CodeDev catalog page keeps its search box, category chips, level filter, sort and page in one CatalogState, changed only by catalogReducer(state, action) through useReducer. Write the reducer. Every rule below that says \"same state\" means: return the state argument itself, not a copy. searchTyped: when text is a string different from state.search, set search to text exactly as typed and page to 1. categoryToggled: when category is one of CATEGORIES, remove it if present or append it at the end if not, and set page to 1. levelSet / sortChanged: when the value is one of LEVELS / SORTS and different from the current one, set it and page to 1. pageChanged: when page is an integer from 1 to state.totalPages and different from state.page, set it. filtersReset: search \"\", categories [], level \"all\", page 1, keeping sort and totalPages; same state when all four already have those values. resultsLoaded: when totalPages is an integer >= 0, set totalPages to max(1, totalPages) and page to min(page, totalPages); same state when neither value changes. Anything else - an unknown type, a missing field, or a value outside the types (the tests send actions parsed from the URL and from sessions saved by older versions of the app, such as page \"5\", page 2.5 or category \"java\") - returns the same state. Never change the state you receive or its categories array. Input (stdin): { \"state\": CatalogState, \"actions\": [...], \"summary\"?: true }. The test runner prints each action with the returned state, marked [same object] when you returned the state you received and [previous state mutated] when you changed it; with summary only the final state, how many actions returned the same object and how many mutated it.",
+      "difficulty": "medium",
+      "outcomes": [
+        "state-ownership"
+      ],
+      "points": 30,
+      "hints": [
+        "For each action, ask two questions in this order: is this action valid and does it change anything at all - and if it does, which other fields lose their meaning because of the change?",
+        "Look at the runtime checks you need before trusting a payload: Array.includes on the readonly constant lists, Number.isInteger for pages, typeof for the search text. Then look at which branches end in `return state` and which build `{ ...state, ... }`; a filter on the categories array returns a new array, push and splice change the old one.",
+        "A similar reducer for a lesson list with { tab: \"all\" | \"done\"; page: number; totalPages: number }: tabChanged \"done\" on { tab: \"all\", page: 4, totalPages: 6 } returns { tab: \"done\", page: 1, totalPages: 6 }; tabChanged \"all\" on that same state returns the very same object; tabChanged \"archived\" returns the same object; pageChanged 9 returns the same object; listLoaded with totalPages 2 on page 4 returns { ..., page: 2, totalPages: 2 }."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: page 7 of React, switch to SQL, then the SQL results load with 2 pages",
+          "input": {
+            "state": {
+              "search": "",
+              "categories": [
+                "react"
+              ],
+              "level": "all",
+              "sort": "newest",
+              "page": 7,
+              "totalPages": 12
+            },
+            "actions": [
+              {
+                "type": "categoryToggled",
+                "category": "react"
+              },
+              {
+                "type": "categoryToggled",
+                "category": "sql"
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 2
+              }
+            ]
+          },
+          "expected": "{\"type\":\"categoryToggled\",\"category\":\"react\"} -> search=\"\" categories=[] level=all sort=newest page=1/12\n{\"type\":\"categoryToggled\",\"category\":\"sql\"} -> search=\"\" categories=[sql] level=all sort=newest page=1/12\n{\"type\":\"resultsLoaded\",\"totalPages\":2} -> search=\"\" categories=[sql] level=all sort=newest page=1/2",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Search, level and sort send the learner to page 1; pageChanged moves within the results",
+          "input": {
+            "state": {
+              "search": "hooks",
+              "categories": [],
+              "level": "all",
+              "sort": "newest",
+              "page": 3,
+              "totalPages": 5
+            },
+            "actions": [
+              {
+                "type": "pageChanged",
+                "page": 4
+              },
+              {
+                "type": "searchTyped",
+                "text": "hooks "
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "levelSet",
+                "level": "intermediate"
+              },
+              {
+                "type": "pageChanged",
+                "page": 2
+              },
+              {
+                "type": "sortChanged",
+                "sort": "rating"
+              }
+            ]
+          },
+          "expected": "{\"type\":\"pageChanged\",\"page\":4} -> search=\"hooks\" categories=[] level=all sort=newest page=4/5\n{\"type\":\"searchTyped\",\"text\":\"hooks \"} -> search=\"hooks \" categories=[] level=all sort=newest page=1/5\n{\"type\":\"pageChanged\",\"page\":5} -> search=\"hooks \" categories=[] level=all sort=newest page=5/5\n{\"type\":\"levelSet\",\"level\":\"intermediate\"} -> search=\"hooks \" categories=[] level=intermediate sort=newest page=1/5\n{\"type\":\"pageChanged\",\"page\":2} -> search=\"hooks \" categories=[] level=intermediate sort=newest page=2/5\n{\"type\":\"sortChanged\",\"sort\":\"rating\"} -> search=\"hooks \" categories=[] level=intermediate sort=rating page=1/5",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "An action that changes nothing returns the same state object",
+          "input": {
+            "state": {
+              "search": "react",
+              "categories": [],
+              "level": "beginner",
+              "sort": "popular",
+              "page": 2,
+              "totalPages": 4
+            },
+            "actions": [
+              {
+                "type": "searchTyped",
+                "text": "react"
+              },
+              {
+                "type": "levelSet",
+                "level": "beginner"
+              },
+              {
+                "type": "sortChanged",
+                "sort": "popular"
+              },
+              {
+                "type": "pageChanged",
+                "page": 2
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 4
+              },
+              {
+                "type": "filtersReset"
+              },
+              {
+                "type": "filtersReset"
+              }
+            ]
+          },
+          "expected": "{\"type\":\"searchTyped\",\"text\":\"react\"} -> search=\"react\" categories=[] level=beginner sort=popular page=2/4 [same object]\n{\"type\":\"levelSet\",\"level\":\"beginner\"} -> search=\"react\" categories=[] level=beginner sort=popular page=2/4 [same object]\n{\"type\":\"sortChanged\",\"sort\":\"popular\"} -> search=\"react\" categories=[] level=beginner sort=popular page=2/4 [same object]\n{\"type\":\"pageChanged\",\"page\":2} -> search=\"react\" categories=[] level=beginner sort=popular page=2/4 [same object]\n{\"type\":\"resultsLoaded\",\"totalPages\":4} -> search=\"react\" categories=[] level=beginner sort=popular page=2/4 [same object]\n{\"type\":\"filtersReset\"} -> search=\"\" categories=[] level=all sort=popular page=1/4\n{\"type\":\"filtersReset\"} -> search=\"\" categories=[] level=all sort=popular page=1/4 [same object]",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Invalid values and unknown actions from the URL and old sessions are ignored",
+          "input": {
+            "state": {
+              "search": "",
+              "categories": [
+                "node"
+              ],
+              "level": "all",
+              "sort": "newest",
+              "page": 3,
+              "totalPages": 12
+            },
+            "actions": [
+              {
+                "type": "pageChanged",
+                "page": "5"
+              },
+              {
+                "type": "pageChanged",
+                "page": 2.5
+              },
+              {
+                "type": "pageChanged",
+                "page": 0
+              },
+              {
+                "type": "pageChanged",
+                "page": 13
+              },
+              {
+                "type": "pageChanged"
+              },
+              {
+                "type": "categoryToggled",
+                "category": "java"
+              },
+              {
+                "type": "levelSet",
+                "level": "expert"
+              },
+              {
+                "type": "sortChanged",
+                "sort": "price"
+              },
+              {
+                "type": "searchTyped",
+                "text": 42
+              },
+              {
+                "type": "pageSet",
+                "page": 2
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": -1
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": "3"
+              },
+              {
+                "type": "pageChanged",
+                "page": 12
+              }
+            ]
+          },
+          "expected": "{\"type\":\"pageChanged\",\"page\":\"5\"} -> search=\"\" categories=[node] level=all sort=newest page=3/12 [same object]\n{\"type\":\"pageChanged\",\"page\":2.5} -> search=\"\" categories=[node] level=all sort=newest page=3/12 [same object]\n{\"type\":\"pageChanged\",\"page\":0} -> search=\"\" categories=[node] level=all sort=newest page=3/12 [same object]\n{\"type\":\"pageChanged\",\"page\":13} -> search=\"\" categories=[node] level=all sort=newest page=3/12 [same object]\n{\"type\":\"pageChanged\"} -> search=\"\" categories=[node] level=all sort=newest page=3/12 [same object]\n{\"type\":\"categoryToggled\",\"category\":\"java\"} -> search=\"\" categories=[node] level=all sort=newest page=3/12 [same object]\n{\"type\":\"levelSet\",\"level\":\"expert\"} -> search=\"\" categories=[node] level=all sort=newest page=3/12 [same object]\n{\"type\":\"sortChanged\",\"sort\":\"price\"} -> search=\"\" categories=[node] level=all sort=newest page=3/12 [same object]\n{\"type\":\"searchTyped\",\"text\":42} -> search=\"\" categories=[node] level=all sort=newest page=3/12 [same object]\n{\"type\":\"pageSet\",\"page\":2} -> search=\"\" categories=[node] level=all sort=newest page=3/12 [same object]\n{\"type\":\"resultsLoaded\",\"totalPages\":-1} -> search=\"\" categories=[node] level=all sort=newest page=3/12 [same object]\n{\"type\":\"resultsLoaded\",\"totalPages\":\"3\"} -> search=\"\" categories=[node] level=all sort=newest page=3/12 [same object]\n{\"type\":\"pageChanged\",\"page\":12} -> search=\"\" categories=[node] level=all sort=newest page=12/12",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Fewer results clamp the page to the last one; zero results is one empty page",
+          "input": {
+            "state": {
+              "search": "sql",
+              "categories": [],
+              "level": "all",
+              "sort": "newest",
+              "page": 9,
+              "totalPages": 12
+            },
+            "actions": [
+              {
+                "type": "resultsLoaded",
+                "totalPages": 4
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 0
+              },
+              {
+                "type": "pageChanged",
+                "page": 2
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 6
+              },
+              {
+                "type": "pageChanged",
+                "page": 6
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 9
+              }
+            ]
+          },
+          "expected": "{\"type\":\"resultsLoaded\",\"totalPages\":4} -> search=\"sql\" categories=[] level=all sort=newest page=4/4\n{\"type\":\"resultsLoaded\",\"totalPages\":0} -> search=\"sql\" categories=[] level=all sort=newest page=1/1\n{\"type\":\"pageChanged\",\"page\":2} -> search=\"sql\" categories=[] level=all sort=newest page=1/1 [same object]\n{\"type\":\"resultsLoaded\",\"totalPages\":6} -> search=\"sql\" categories=[] level=all sort=newest page=1/6\n{\"type\":\"pageChanged\",\"page\":6} -> search=\"sql\" categories=[] level=all sort=newest page=6/6\n{\"type\":\"resultsLoaded\",\"totalPages\":9} -> search=\"sql\" categories=[] level=all sort=newest page=6/9",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Toggling chips and resetting filters keeps the sort and never changes the previous state",
+          "input": {
+            "state": {
+              "search": "ts",
+              "categories": [
+                "react",
+                "sql"
+              ],
+              "level": "advanced",
+              "sort": "popular",
+              "page": 3,
+              "totalPages": 8
+            },
+            "actions": [
+              {
+                "type": "categoryToggled",
+                "category": "sql"
+              },
+              {
+                "type": "categoryToggled",
+                "category": "python"
+              },
+              {
+                "type": "categoryToggled",
+                "category": "react"
+              },
+              {
+                "type": "categoryToggled",
+                "category": "sql"
+              },
+              {
+                "type": "filtersReset"
+              },
+              {
+                "type": "filtersReset"
+              }
+            ]
+          },
+          "expected": "{\"type\":\"categoryToggled\",\"category\":\"sql\"} -> search=\"ts\" categories=[react] level=advanced sort=popular page=1/8\n{\"type\":\"categoryToggled\",\"category\":\"python\"} -> search=\"ts\" categories=[react,python] level=advanced sort=popular page=1/8\n{\"type\":\"categoryToggled\",\"category\":\"react\"} -> search=\"ts\" categories=[python] level=advanced sort=popular page=1/8\n{\"type\":\"categoryToggled\",\"category\":\"sql\"} -> search=\"ts\" categories=[python,sql] level=advanced sort=popular page=1/8\n{\"type\":\"filtersReset\"} -> search=\"\" categories=[] level=all sort=popular page=1/8\n{\"type\":\"filtersReset\"} -> search=\"\" categories=[] level=all sort=popular page=1/8 [same object]",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "300 mixed actions, valid and invalid: final state and counts",
+          "input": {
+            "state": {
+              "search": "",
+              "categories": [
+                "react"
+              ],
+              "level": "all",
+              "sort": "newest",
+              "page": 7,
+              "totalPages": 12
+            },
+            "actions": [
+              {
+                "type": "resultsLoaded",
+                "totalPages": -2
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "levelSet",
+                "level": "beginner"
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "levelSet",
+                "level": "all"
+              },
+              {
+                "type": "searchTyped",
+                "text": "hooks"
+              },
+              {
+                "type": "levelSet",
+                "level": "advanced"
+              },
+              {
+                "type": "searchTyped",
+                "text": "react "
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "searchTyped",
+                "text": "hooks"
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 1
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "levelSet",
+                "level": "intermediate"
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 7
+              },
+              {
+                "type": "levelSet",
+                "level": "all"
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "levelSet",
+                "level": "advanced"
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 0
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "levelSet",
+                "level": "all"
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "levelSet",
+                "level": "advanced"
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 7
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 3
+              },
+              {
+                "type": "searchTyped",
+                "text": "sql joins"
+              },
+              {
+                "type": "levelSet",
+                "level": "all"
+              },
+              {
+                "type": "levelSet",
+                "level": "intermediate"
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "levelSet",
+                "level": "all"
+              },
+              {
+                "type": "searchTyped",
+                "text": "react"
+              },
+              {
+                "type": "searchTyped",
+                "text": "hooks"
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 7
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "searchTyped",
+                "text": "hooks"
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 7
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 1
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "searchTyped",
+                "text": "react "
+              },
+              {
+                "type": "searchTyped",
+                "text": ""
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "searchTyped",
+                "text": "react"
+              },
+              {
+                "type": "levelSet",
+                "level": "advanced"
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 3
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "levelSet",
+                "level": "expert"
+              },
+              {
+                "type": "levelSet",
+                "level": "expert"
+              },
+              {
+                "type": "searchTyped",
+                "text": ""
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "levelSet",
+                "level": "intermediate"
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 12
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 12
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": -2
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 3
+              },
+              {
+                "type": "searchTyped",
+                "text": "react"
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 7
+              },
+              {
+                "type": "searchTyped",
+                "text": "react"
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 3
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "levelSet",
+                "level": "beginner"
+              },
+              {
+                "type": "searchTyped",
+                "text": "react"
+              },
+              {
+                "type": "searchTyped",
+                "text": "sql joins"
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 12
+              },
+              {
+                "type": "searchTyped",
+                "text": ""
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "searchTyped",
+                "text": ""
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "levelSet",
+                "level": "advanced"
+              },
+              {
+                "type": "searchTyped",
+                "text": "react"
+              },
+              {
+                "type": "searchTyped",
+                "text": ""
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 0
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "levelSet",
+                "level": "advanced"
+              },
+              {
+                "type": "searchTyped",
+                "text": "react "
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "levelSet",
+                "level": "expert"
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": -2
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "searchTyped",
+                "text": "react"
+              },
+              {
+                "type": "levelSet",
+                "level": "advanced"
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 0
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": -2
+              },
+              {
+                "type": "searchTyped",
+                "text": "hooks"
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 1
+              },
+              {
+                "type": "searchTyped",
+                "text": "react "
+              },
+              {
+                "type": "searchTyped",
+                "text": "react"
+              },
+              {
+                "type": "levelSet",
+                "level": "beginner"
+              },
+              {
+                "type": "levelSet",
+                "level": "advanced"
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "searchTyped",
+                "text": "react "
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "levelSet",
+                "level": "beginner"
+              },
+              {
+                "type": "searchTyped",
+                "text": ""
+              },
+              {
+                "type": "levelSet",
+                "level": "expert"
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 1
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 1
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "searchTyped",
+                "text": "react"
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 1
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 0
+              },
+              {
+                "type": "levelSet",
+                "level": "expert"
+              },
+              {
+                "type": "levelSet",
+                "level": "expert"
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": -2
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 7
+              },
+              {
+                "type": "levelSet",
+                "level": "beginner"
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 7
+              },
+              {
+                "type": "levelSet",
+                "level": "intermediate"
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "searchTyped",
+                "text": "react "
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 3
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 7
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 1
+              },
+              {
+                "type": "searchTyped",
+                "text": "sql joins"
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 0
+              },
+              {
+                "type": "searchTyped",
+                "text": "sql joins"
+              },
+              {
+                "type": "levelSet",
+                "level": "all"
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "levelSet",
+                "level": "advanced"
+              },
+              {
+                "type": "levelSet",
+                "level": "intermediate"
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 1
+              },
+              {
+                "type": "levelSet",
+                "level": "advanced"
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 7
+              },
+              {
+                "type": "searchTyped",
+                "text": ""
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "searchTyped",
+                "text": ""
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": -2
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "searchTyped",
+                "text": "react"
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "searchTyped",
+                "text": "react"
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 7
+              },
+              {
+                "type": "levelSet",
+                "level": "all"
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 12
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": -2
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "searchTyped",
+                "text": ""
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 0
+              },
+              {
+                "type": "searchTyped",
+                "text": "react "
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 0
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "levelSet",
+                "level": "advanced"
+              },
+              {
+                "type": "searchTyped",
+                "text": "react "
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 4.5
+              },
+              {
+                "type": "levelSet",
+                "level": "beginner"
+              },
+              {
+                "type": "searchTyped",
+                "text": "react"
+              },
+              {
+                "type": "levelSet",
+                "level": "beginner"
+              },
+              {
+                "type": "levelSet",
+                "level": "beginner"
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 4.5
+              },
+              {
+                "type": "levelSet",
+                "level": "advanced"
+              },
+              {
+                "type": "searchTyped",
+                "text": ""
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "levelSet",
+                "level": "all"
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "levelSet",
+                "level": "expert"
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "levelSet",
+                "level": "expert"
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "searchTyped",
+                "text": "sql joins"
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": -2
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "levelSet",
+                "level": "intermediate"
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "levelSet",
+                "level": "expert"
+              },
+              {
+                "type": "levelSet",
+                "level": "beginner"
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 12
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 3
+              },
+              {
+                "type": "levelSet",
+                "level": "beginner"
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "searchTyped",
+                "text": ""
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "searchTyped",
+                "text": "hooks"
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 1
+              },
+              {
+                "type": "levelSet",
+                "level": "advanced"
+              },
+              {
+                "type": "searchTyped",
+                "text": "react"
+              },
+              {
+                "type": "levelSet",
+                "level": "advanced"
+              },
+              {
+                "type": "levelSet",
+                "level": "all"
+              },
+              {
+                "type": "searchTyped",
+                "text": "react "
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "searchTyped",
+                "text": ""
+              },
+              {
+                "type": "levelSet",
+                "level": "intermediate"
+              },
+              {
+                "type": "searchTyped",
+                "text": "sql joins"
+              },
+              {
+                "type": "levelSet",
+                "level": "advanced"
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "searchTyped",
+                "text": "sql joins"
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 3
+              },
+              {
+                "type": "searchTyped",
+                "text": "react "
+              },
+              {
+                "type": "levelSet",
+                "level": "all"
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "searchTyped",
+                "text": "react "
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 0
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "levelSet",
+                "level": "all"
+              },
+              {
+                "type": "searchTyped",
+                "text": ""
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 3
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 4.5
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": -2
+              },
+              {
+                "type": "sortChanged",
+                "sort": "newest"
+              },
+              {
+                "type": "searchTyped",
+                "text": ""
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 12
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 4.5
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 4.5
+              },
+              {
+                "type": "searchTyped",
+                "text": "react "
+              },
+              {
+                "type": "levelSet",
+                "level": "expert"
+              },
+              {
+                "type": "pageChanged",
+                "page": -1
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "searchTyped",
+                "text": "react "
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 12
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 0
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 0
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "levelSet",
+                "level": "all"
+              },
+              {
+                "type": "levelSet",
+                "level": "beginner"
+              },
+              {
+                "type": "levelSet",
+                "level": "beginner"
+              },
+              {
+                "type": "searchTyped",
+                "text": "hooks"
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 12
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 12
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "levelSet",
+                "level": "all"
+              },
+              {
+                "type": "pageChanged",
+                "page": 1
+              },
+              {
+                "type": "searchTyped",
+                "text": "react"
+              },
+              {
+                "type": "levelSet",
+                "level": "intermediate"
+              },
+              {
+                "type": "searchTyped",
+                "text": ""
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 4.5
+              },
+              {
+                "type": "resultsLoaded",
+                "totalPages": 3
+              },
+              {
+                "type": "pageChanged",
+                "page": 5
+              },
+              {
+                "type": "searchTyped",
+                "text": "react"
+              },
+              {
+                "type": "searchTyped",
+                "text": "react "
+              },
+              {
+                "type": "searchTyped",
+                "text": "sql joins"
+              },
+              {
+                "type": "levelSet",
+                "level": "expert"
+              },
+              {
+                "type": "levelSet",
+                "level": "expert"
+              },
+              {
+                "type": "searchTyped",
+                "text": "react"
+              },
+              {
+                "type": "levelSet",
+                "level": "beginner"
+              }
+            ],
+            "summary": true
+          },
+          "expected": "after 300 actions: search=\"react\" categories=[react] level=beginner sort=newest page=1/3; same object 169; mutations 0",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

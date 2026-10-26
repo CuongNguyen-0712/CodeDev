@@ -1,0 +1,2125 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_trf_421",
+      "name": "query-keys-invalidation-quiz",
+      "type": "quiz",
+      "title": "Which queries does an invalidation reach?",
+      "description": "Two pieces of evidence from the enrollment incident: an invalidation that never matched, and what invalidateQueries really refetches.",
+      "difficulty": "medium",
+      "outcomes": [
+        "server-state"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "MyCourses.tsx:\nconst { data } = useQuery({ queryKey: [\"enrollments\", userId], queryFn: () => getEnrollments(userId) });\n\nEnrollButton.tsx:\nconst enroll = useMutation({\n  mutationFn: (courseId: string) => postEnrollment(courseId),\n  onSuccess: () => queryClient.invalidateQueries({ queryKey: [\"enrollment\", userId] }),\n});\n\nNetwork panel after clicking Enroll on c_214 (the My courses tab is open):\nPOST /enrollments 201\n(no GET /users/u_7/enrollments follows)\n\nStatement: \"onSuccess runs, but its key matches no cached query, because [\\\"enrollment\\\", userId] is not a prefix of [\\\"enrollments\\\", userId]; building both keys with one key factory would have prevented it.\"",
+          "explanation": "True. invalidateQueries compares the filter key with each cached key element by element, from the start: \"enrollment\" and \"enrollments\" are different strings, so no query is marked stale, nothing refetches, and no error is reported. The POST succeeded, which is why the button looked fine and only the other tab was wrong. A key factory (enrollmentKeys.byUser(userId)) used by both useQuery and the invalidation turns a typo into a compile error or makes it impossible. The misconception is that an invalidation that matches nothing fails loudly; it silently does nothing.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After saving a course in the admin page:\n\nawait queryClient.invalidateQueries({ queryKey: [\"courses\"] });\n\nTanStack Query Devtools just before the call:\n[\"courses\",\"list\",{\"category\":\"react\"}]   1 observer   (on screen)\n[\"courses\",\"list\",{\"category\":\"node\"}]    0 observers  (inactive)\n[\"courses\",\"detail\",\"c_214\"]               0 observers  (inactive)\n\nStatement: \"With the default options, this call immediately sends three GET requests, one for each cached query under [\\\"courses\\\"].\"",
+          "explanation": "False. In TanStack Query v5, invalidateQueries marks every matching query as stale, but by default (refetchType: \"active\") it refetches only the queries that are currently rendered, here the react list: one GET. The two inactive queries stay in the cache marked stale and refetch when a component uses them again. So a broad invalidation is cheaper than it looks on a quiet page and expensive on a dashboard with many mounted queries, which is how the over-eager fix reached 40 requests per click. Check it in the Network panel and in Devtools, where invalidated queries turn stale. The misconception is that invalidate means refetch everything now.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_trf_422",
+      "name": "query-keys-invalidation",
+      "type": "mini_coding",
+      "title": "Query key factory and invalidation after a mutation",
+      "description": "After a learner enrolled, the catalog's My courses tab kept showing Enroll until a full reload; the first fix invalidated every query after every mutation and refetched 40 queries per click. Write the key factories and keysToInvalidate. (1) normalizeFilters(filters) turns URL filters into a canonical object: keep category only if it is react, node, sql, python or devops; level only if beginner, intermediate or advanced; page only if it is an integer greater than 1 (page 1 is the default); search trimmed and lower-cased, only if not empty; sort only if it is newest or rating (popular is the default; any other value is dropped). Every other property is dropped. Add the kept properties in alphabetical order (category, level, page, search, sort), so equal filters give identical keys. (2) courseKeys.all = [\"courses\"], courseKeys.lists() = [\"courses\", \"list\"], courseKeys.list(filters) = [\"courses\", \"list\", normalizeFilters(filters)], courseKeys.details() = [\"courses\", \"detail\"], courseKeys.detail(id) = [\"courses\", \"detail\", id], enrollmentKeys.all = [\"enrollments\"], enrollmentKeys.byUser(userId) = [\"enrollments\", userId]. (3) keysToInvalidate(cachedKeys, mutation) returns the cached keys, in cache order, that start with one of the mutation's target keys, compared element by element (an element matches when it is deep-equal; a longer cached key below a target matches too, a string that merely begins with the same characters does not). Targets: enroll and unenroll -> courseKeys.detail(courseId) and enrollmentKeys.byUser(userId) (lists are not invalidated: catalog cards may show the enrolled count up to a minute late); edit -> courseKeys.detail(courseId), courseKeys.lists() and enrollmentKeys.all (My courses shows titles); publish -> courseKeys.lists(); any other mutation type -> nothing. The runner prints courseKeys.list(f) for each f of { \"filters\": [...] }, or keysToInvalidate(cache, m) for each m of { \"cache\": [...], \"mutations\": [...] }, as JSON.",
+      "difficulty": "medium",
+      "outcomes": [
+        "server-state"
+      ],
+      "points": 30,
+      "hints": [
+        "Two separate questions: when are two filter objects \"the same request\" for the server, and when does a mutation make a cached answer wrong? The first is answered by normalizeFilters, the second by a small table from mutation type to target keys.",
+        "Look at how the keys are built: courseKeys.list starts with courseKeys.lists(), which starts with courseKeys.all, so a target such as [\"courses\", \"list\"] is a prefix of every list key. Then look at how you compare a target with a cached key: position by position, with the target no longer than the key. Joining a key into one string such as \"courses/detail/c_1\" and calling startsWith treats \"c_1\" as a prefix of \"c_10\".",
+        "A similar factory for a different feature: leaderboardKeys.all = [\"leaderboard\"], leaderboardKeys.period(p) = [\"leaderboard\", p]. With the cache [[\"leaderboard\",\"weekly\"], [\"leaderboard\",\"weekly\",\"page\",2], [\"leaderboard\",\"weekly-2025\"], [\"users\",\"u_7\"]], invalidating the target [\"leaderboard\",\"weekly\"] returns the first two keys only: the third has a different second element, and the fourth a different first one."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Equal filters give equal keys: property order, defaults and spaces do not matter",
+          "hidden": false,
+          "score": 3,
+          "input": {
+            "filters": [
+              {
+                "category": "react",
+                "page": 1
+              },
+              {
+                "page": 1,
+                "sort": "popular",
+                "category": "react"
+              },
+              {
+                "category": "react",
+                "search": "   "
+              },
+              {
+                "search": " Hooks ",
+                "category": "react",
+                "page": 2
+              },
+              {
+                "page": 2,
+                "category": "react",
+                "search": "hooks"
+              }
+            ]
+          },
+          "expected": [
+            [
+              "courses",
+              "list",
+              {
+                "category": "react"
+              }
+            ],
+            [
+              "courses",
+              "list",
+              {
+                "category": "react"
+              }
+            ],
+            [
+              "courses",
+              "list",
+              {
+                "category": "react"
+              }
+            ],
+            [
+              "courses",
+              "list",
+              {
+                "category": "react",
+                "page": 2,
+                "search": "hooks"
+              }
+            ],
+            [
+              "courses",
+              "list",
+              {
+                "category": "react",
+                "page": 2,
+                "search": "hooks"
+              }
+            ]
+          ]
+        },
+        {
+          "name": "The incident: enroll refreshes the course and the user's enrollments, not every query",
+          "hidden": false,
+          "score": 3,
+          "input": {
+            "cache": [
+              [
+                "courses",
+                "list",
+                {}
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "page": 2
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_214"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_101"
+              ],
+              [
+                "enrollments",
+                "u_7"
+              ],
+              [
+                "leaderboard",
+                "weekly"
+              ],
+              [
+                "users",
+                "u_7",
+                "profile"
+              ]
+            ],
+            "mutations": [
+              {
+                "type": "enroll",
+                "userId": "u_7",
+                "courseId": "c_214"
+              }
+            ]
+          },
+          "expected": [
+            [
+              [
+                "courses",
+                "detail",
+                "c_214"
+              ],
+              [
+                "enrollments",
+                "u_7"
+              ]
+            ]
+          ]
+        },
+        {
+          "name": "Edit and publish reach every list; unenroll only the course and the enrollments",
+          "hidden": true,
+          "score": 3,
+          "input": {
+            "cache": [
+              [
+                "courses",
+                "list",
+                {}
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "page": 2
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_214"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_101"
+              ],
+              [
+                "enrollments",
+                "u_7"
+              ],
+              [
+                "leaderboard",
+                "weekly"
+              ],
+              [
+                "users",
+                "u_7",
+                "profile"
+              ]
+            ],
+            "mutations": [
+              {
+                "type": "edit",
+                "courseId": "c_101"
+              },
+              {
+                "type": "publish",
+                "courseId": "c_999"
+              },
+              {
+                "type": "unenroll",
+                "userId": "u_7",
+                "courseId": "c_101"
+              }
+            ]
+          },
+          "expected": [
+            [
+              [
+                "courses",
+                "list",
+                {}
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "page": 2
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_101"
+              ],
+              [
+                "enrollments",
+                "u_7"
+              ]
+            ],
+            [
+              [
+                "courses",
+                "list",
+                {}
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "page": 2
+                }
+              ]
+            ],
+            [
+              [
+                "courses",
+                "detail",
+                "c_101"
+              ],
+              [
+                "enrollments",
+                "u_7"
+              ]
+            ]
+          ]
+        },
+        {
+          "name": "Element prefix, not string prefix: c_1 must not reach c_10, c_1-intro or user u_10",
+          "hidden": true,
+          "score": 3,
+          "input": {
+            "cache": [
+              [
+                "courses",
+                "detail",
+                "c_1"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_10"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1-intro"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1",
+                "reviews"
+              ],
+              [
+                "courses",
+                "details",
+                "c_1"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "search": "c_1"
+                }
+              ],
+              [
+                "enrollments",
+                "u_1"
+              ],
+              [
+                "enrollments",
+                "u_10"
+              ],
+              [
+                "enrollment",
+                "u_1"
+              ]
+            ],
+            "mutations": [
+              {
+                "type": "enroll",
+                "userId": "u_1",
+                "courseId": "c_1"
+              },
+              {
+                "type": "edit",
+                "courseId": "c_1"
+              }
+            ]
+          },
+          "expected": [
+            [
+              [
+                "courses",
+                "detail",
+                "c_1"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1",
+                "reviews"
+              ],
+              [
+                "enrollments",
+                "u_1"
+              ]
+            ],
+            [
+              [
+                "courses",
+                "detail",
+                "c_1"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1",
+                "reviews"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "search": "c_1"
+                }
+              ],
+              [
+                "enrollments",
+                "u_1"
+              ],
+              [
+                "enrollments",
+                "u_10"
+              ]
+            ]
+          ]
+        },
+        {
+          "name": "URL filters: unknown params, invalid values, page 0, a string page, upper-case search",
+          "hidden": true,
+          "score": 3,
+          "input": {
+            "filters": [
+              {
+                "category": "react",
+                "utm_source": "newsletter",
+                "ref": "email"
+              },
+              {
+                "category": "go",
+                "page": 0
+              },
+              {
+                "page": "2"
+              },
+              {
+                "page": 2.5,
+                "level": "expert"
+              },
+              {
+                "sort": "rating",
+                "level": "advanced",
+                "search": "React HOOKS",
+                "category": "react",
+                "page": 3
+              },
+              {},
+              {
+                "sort": "random",
+                "search": 42
+              },
+              {
+                "sort": "newest",
+                "search": "  SQL joins  "
+              }
+            ]
+          },
+          "expected": [
+            [
+              "courses",
+              "list",
+              {
+                "category": "react"
+              }
+            ],
+            [
+              "courses",
+              "list",
+              {}
+            ],
+            [
+              "courses",
+              "list",
+              {}
+            ],
+            [
+              "courses",
+              "list",
+              {}
+            ],
+            [
+              "courses",
+              "list",
+              {
+                "category": "react",
+                "level": "advanced",
+                "page": 3,
+                "search": "react hooks",
+                "sort": "rating"
+              }
+            ],
+            [
+              "courses",
+              "list",
+              {}
+            ],
+            [
+              "courses",
+              "list",
+              {}
+            ],
+            [
+              "courses",
+              "list",
+              {
+                "search": "sql joins",
+                "sort": "newest"
+              }
+            ]
+          ]
+        },
+        {
+          "name": "An unknown mutation type and a mutation that matches nothing invalidate nothing",
+          "hidden": true,
+          "score": 2,
+          "input": {
+            "cache": [
+              [
+                "courses",
+                "list",
+                {}
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "page": 2
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_214"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_101"
+              ],
+              [
+                "enrollments",
+                "u_7"
+              ],
+              [
+                "leaderboard",
+                "weekly"
+              ],
+              [
+                "users",
+                "u_7",
+                "profile"
+              ]
+            ],
+            "mutations": [
+              {
+                "type": "archive",
+                "courseId": "c_101"
+              },
+              {
+                "type": "unenroll",
+                "userId": "u_9",
+                "courseId": "c_555"
+              }
+            ]
+          },
+          "expected": [
+            [],
+            []
+          ]
+        },
+        {
+          "name": "Large cache: 155 keys, enroll touches 2 of them, edit reaches 60 lists, 3 users and 1 course",
+          "hidden": true,
+          "score": 3,
+          "input": {
+            "cache": [
+              [
+                "courses",
+                "list",
+                {}
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1000"
+              ],
+              [
+                "enrollments",
+                "u_7"
+              ],
+              [
+                "leaderboard",
+                "weekly"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1001"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "node"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1002"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "sql"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1003"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "python"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1004"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "devops"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1005"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1006"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1007"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "node",
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1008"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "sql",
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1009"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "python",
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1010"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "devops",
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1011"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1012"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1013"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "node",
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1014"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "sql",
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1015"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "python",
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1016"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "devops",
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1017"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "page": 2
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1018"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "page": 2
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1019"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "node",
+                  "page": 2
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1020"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "sql",
+                  "page": 2
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1021"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "python",
+                  "page": 2
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1022"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "devops",
+                  "page": 2
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1023"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "page": 2,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1024"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "page": 2,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1025"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "node",
+                  "page": 2,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1026"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "sql",
+                  "page": 2,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1027"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "python",
+                  "page": 2,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1028"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "devops",
+                  "page": 2,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1029"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "page": 2,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1030"
+              ],
+              [
+                "enrollments",
+                "u_37"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "page": 2,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1031"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "node",
+                  "page": 2,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1032"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "sql",
+                  "page": 2,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1033"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "python",
+                  "page": 2,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1034"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "devops",
+                  "page": 2,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1035"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "page": 3
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1036"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "page": 3
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1037"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "node",
+                  "page": 3
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1038"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "sql",
+                  "page": 3
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1039"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "python",
+                  "page": 3
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1040"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "devops",
+                  "page": 3
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1041"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "page": 3,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1042"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "page": 3,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1043"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "node",
+                  "page": 3,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1044"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "sql",
+                  "page": 3,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1045"
+              ],
+              [
+                "leaderboard",
+                "all-time"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "python",
+                  "page": 3,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1046"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "devops",
+                  "page": 3,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1047"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "page": 3,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1048"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "page": 3,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1049"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "node",
+                  "page": 3,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1050"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "sql",
+                  "page": 3,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1051"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "python",
+                  "page": 3,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1052"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "devops",
+                  "page": 3,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1053"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "page": 4
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1054"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "page": 4
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1055"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "node",
+                  "page": 4
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1056"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "sql",
+                  "page": 4
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1057"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "python",
+                  "page": 4
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1058"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "devops",
+                  "page": 4
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1059"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1060"
+              ],
+              [
+                "enrollments",
+                "u_67"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1061"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1062"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1063"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1064"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1065"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1066"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1067"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1068"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1069"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1070"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1071"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1072"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1073"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1074"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1075"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1076"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1077"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1078"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1079"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1080"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1081"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1082"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1083"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1084"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1085"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1086"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1087"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1088"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1089"
+              ]
+            ],
+            "mutations": [
+              {
+                "type": "enroll",
+                "userId": "u_37",
+                "courseId": "c_1042"
+              },
+              {
+                "type": "edit",
+                "courseId": "c_1007"
+              }
+            ]
+          },
+          "expected": [
+            [
+              [
+                "enrollments",
+                "u_37"
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1042"
+              ]
+            ],
+            [
+              [
+                "courses",
+                "list",
+                {}
+              ],
+              [
+                "enrollments",
+                "u_7"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "node"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "sql"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "python"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "devops"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "detail",
+                "c_1007"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "node",
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "sql",
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "python",
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "devops",
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "node",
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "sql",
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "python",
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "devops",
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "page": 2
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "page": 2
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "node",
+                  "page": 2
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "sql",
+                  "page": 2
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "python",
+                  "page": 2
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "devops",
+                  "page": 2
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "page": 2,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "page": 2,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "node",
+                  "page": 2,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "sql",
+                  "page": 2,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "python",
+                  "page": 2,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "devops",
+                  "page": 2,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "page": 2,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "enrollments",
+                "u_37"
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "page": 2,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "node",
+                  "page": 2,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "sql",
+                  "page": 2,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "python",
+                  "page": 2,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "devops",
+                  "page": 2,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "page": 3
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "page": 3
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "node",
+                  "page": 3
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "sql",
+                  "page": 3
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "python",
+                  "page": 3
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "devops",
+                  "page": 3
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "page": 3,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "page": 3,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "node",
+                  "page": 3,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "sql",
+                  "page": 3,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "python",
+                  "page": 3,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "devops",
+                  "page": 3,
+                  "sort": "newest"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "page": 3,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "page": 3,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "node",
+                  "page": 3,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "sql",
+                  "page": 3,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "python",
+                  "page": 3,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "devops",
+                  "page": 3,
+                  "sort": "rating"
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "page": 4
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "react",
+                  "page": 4
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "node",
+                  "page": 4
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "sql",
+                  "page": 4
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "python",
+                  "page": 4
+                }
+              ],
+              [
+                "courses",
+                "list",
+                {
+                  "category": "devops",
+                  "page": 4
+                }
+              ],
+              [
+                "enrollments",
+                "u_67"
+              ]
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}
