@@ -1,0 +1,508 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pgp_221",
+      "name": "query-got-slower-evidence",
+      "type": "quiz",
+      "title": "The Query Got Slower: read the evidence",
+      "description": "Since release 2026.10.20 the user lookup of POST /auth/sign-in takes about 900 ms at p95 instead of 4 ms, and the database CPU went from 22% to 85%. Six statements on one evidence pack - the release diff (A), the plan before (B) and after (C), pg_stat_statements (D) and two table checks (E) - take you from reading the evidence to a hypothesis, past two wrong explanations and one wrong fix, to the fix and its verification.",
+      "difficulty": "medium",
+      "outcomes": [
+        "index-design",
+        "read-plans"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence C - EXPLAIN (ANALYZE, BUFFERS), production replica, after the release:\nGather  (cost=1000.00..24318.33 rows=6000 width=68) (actual time=611.402..842.957 rows=1 loops=1)\n  Workers Planned: 2\n  Workers Launched: 2\n  Buffers: shared hit=2208 read=13256\n  ->  Parallel Seq Scan on users  (cost=0.00..22718.33 rows=2500 width=68) (actual time=764.211..823.590 rows=0 loops=3)\n        Filter: (lower(email) = 'mai.nguyen@codedev.test'::text)\n        Rows Removed by Filter: 400000\n        Buffers: shared hit=2208 read=13256\nExecution Time: 843.020 ms\n\nStatement: \"The new plan checks about 1.2 million rows to return one: Rows Removed by Filter is an average per loop, and the scan ran in 3 processes (loops=3).\"",
+          "explanation": "True. In EXPLAIN ANALYZE, rows and Rows Removed by Filter are averages per loop. The Parallel Seq Scan ran in the leader and 2 workers (loops=3), so it removed about 3 x 400,000 = 1.2 million rows, the whole table, to find the one row that Gather returns. It also touched 2,208 + 13,256 = 15,464 blocks. The misconception is to read 400000 as the total and to read rows=0 as \"found nothing\": one row across three loops averages to 0.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - release diff (release 2026.10.20, PR #913 \"auth: case-insensitive sign-in\"):\n-  SELECT id, password_hash FROM users WHERE email = $1\n+  SELECT id, password_hash FROM users WHERE lower(email) = lower($1)\nSchema: users (1.2M rows) has one index on email: users_email_key UNIQUE (email).\n\nEvidence B - EXPLAIN (ANALYZE, BUFFERS), production replica, before the release:\nIndex Scan using users_email_key on users  (cost=0.43..8.45 rows=1 width=68) (actual time=0.031..0.032 rows=1 loops=1)\n  Index Cond: (email = 'mai.nguyen@codedev.test'::text)\n  Buffers: shared hit=4\nExecution Time: 0.049 ms\n\nEvidence C - EXPLAIN (ANALYZE, BUFFERS), production replica, after the release:\nGather  (cost=1000.00..24318.33 rows=6000 width=68) (actual time=611.402..842.957 rows=1 loops=1)\n  Workers Planned: 2\n  Workers Launched: 2\n  Buffers: shared hit=2208 read=13256\n  ->  Parallel Seq Scan on users  (cost=0.00..22718.33 rows=2500 width=68) (actual time=764.211..823.590 rows=0 loops=3)\n        Filter: (lower(email) = 'mai.nguyen@codedev.test'::text)\n        Rows Removed by Filter: 400000\n        Buffers: shared hit=2208 read=13256\nExecution Time: 843.020 ms\n\nStatement: \"users_email_key stores the values of email, but the new WHERE clause compares lower(email); a B-tree on email cannot be searched for the result of a function on that column, so the planner falls back to a sequential scan.\"",
+          "explanation": "True. A B-tree index can only be searched for the expression it was built on. users_email_key is sorted by email, so it can find email = 'x' (plan B) but not lower(email) = 'x': lower('Mai@...') and lower('mai@...') are equal although the two values sit in different places of the index. Plan C shows the comparison moved into a Filter on a Seq Scan, applied to every row. The estimate rows=6000 (0.5% of the table) is the planner's default guess for an expression it has no statistics on, another sign that no index or statistics cover lower(email).",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence C - EXPLAIN (ANALYZE, BUFFERS), production replica, after the release:\nGather  (cost=1000.00..24318.33 rows=6000 width=68) (actual time=611.402..842.957 rows=1 loops=1)\n  Workers Planned: 2\n  Workers Launched: 2\n  Buffers: shared hit=2208 read=13256\n  ->  Parallel Seq Scan on users  (cost=0.00..22718.33 rows=2500 width=68) (actual time=764.211..823.590 rows=0 loops=3)\n        Filter: (lower(email) = 'mai.nguyen@codedev.test'::text)\n        Rows Removed by Filter: 400000\n        Buffers: shared hit=2208 read=13256\nExecution Time: 843.020 ms\n\nEvidence E - table checks:\nSELECT n_live_tup, n_dead_tup, last_autovacuum FROM pg_stat_user_tables WHERE relname = 'users';\n n_live_tup | n_dead_tup | last_autovacuum\n    1201544 |       3120 | 2026-10-21 03:12:40+00\nSELECT count(*) FROM users WHERE email <> lower(email);\n count\n 48310\n\nStatement: \"The users table is bloated with dead rows, which is why the scan reads 15,464 blocks; a VACUUM FULL of users would bring sign-in back to 4 ms.\"",
+          "explanation": "False. E shows 3,120 dead rows next to 1.2 million live ones (about 0.3%) and an autovacuum two days ago, so the table is not bloated. And bloat would not explain a 4-to-15,464-block jump: plan B read 4 blocks through the index because it never looked at the rest of the table. A VACUUM FULL would rewrite the table under an ACCESS EXCLUSIVE lock, blocking every sign-in while it runs, and leave the plan a Seq Scan. The misconception is to reach for maintenance when the plan shape changed.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence C - EXPLAIN (ANALYZE, BUFFERS), production replica, after the release:\nGather  (cost=1000.00..24318.33 rows=6000 width=68) (actual time=611.402..842.957 rows=1 loops=1)\n  Workers Planned: 2\n  Workers Launched: 2\n  Buffers: shared hit=2208 read=13256\n  ->  Parallel Seq Scan on users  (cost=0.00..22718.33 rows=2500 width=68) (actual time=764.211..823.590 rows=0 loops=3)\n        Filter: (lower(email) = 'mai.nguyen@codedev.test'::text)\n        Rows Removed by Filter: 400000\n        Buffers: shared hit=2208 read=13256\nExecution Time: 843.020 ms\n\nEvidence D - pg_stat_statements (calls, mean_ms, blocks per call), snapshot of 2026-10-19 and of today:\n query                                                              | calls  | mean_ms | blocks_per_call\n SELECT id, password_hash FROM users WHERE email = $1               | 412380 |    0.04 |               4\n SELECT id, password_hash FROM users WHERE lower(email) = lower($1) |  18412 |  812.37 |           15464\n\nStatement: \"Most blocks in plan C are read from disk (read=13256), so the root cause is memory: with shared_buffers large enough to keep users in cache, sign-in would be back near the old 4 ms.\"",
+          "explanation": "False. More memory would turn the reads into hits, but every sign-in would still visit all 15,464 blocks and call lower() on 1.2 million emails, against 4 blocks before the release (D). That is CPU time measured in hundreds of milliseconds per call, it grows with the table, and it already shows as the database CPU going from 22% to 85%. The cause is the plan, not the cache: the work per call went up about 3,900 times. The misconception is to treat \"read\" in Buffers as the problem instead of asking why so many blocks are touched at all.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - release diff (release 2026.10.20, PR #913 \"auth: case-insensitive sign-in\"):\n-  SELECT id, password_hash FROM users WHERE email = $1\n+  SELECT id, password_hash FROM users WHERE lower(email) = lower($1)\nSchema: users (1.2M rows) has one index on email: users_email_key UNIQUE (email).\n\nEvidence E - table checks:\nSELECT n_live_tup, n_dead_tup, last_autovacuum FROM pg_stat_user_tables WHERE relname = 'users';\n n_live_tup | n_dead_tup | last_autovacuum\n    1201544 |       3120 | 2026-10-21 03:12:40+00\nSELECT count(*) FROM users WHERE email <> lower(email);\n count\n 48310\n\nStatement: \"Rewriting the query as WHERE email = lower($1) is a safe quick fix: it keeps sign-in case-insensitive and lets users_email_key be used again.\"",
+          "explanation": "False. The rewrite does use the index again, but it only lowers what the user typed, not what is stored. E shows 48,310 users whose stored email has capital letters (for example \"Linh.Tran@CodeDev.test\"); none of them could sign in any more, whatever they type. The real options compare the same expression on both sides and index it: an expression index on lower(email), a citext column, or normalising the stored emails to lower case once (with a migration) and on every write. The misconception is to check only that the plan improved, not that the results stayed correct.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Fix applied: CREATE UNIQUE INDEX CONCURRENTLY users_email_lower ON users (lower(email)); then ANALYZE users;\n\nIndex Scan using users_email_lower on users  (cost=0.43..8.45 rows=1 width=68) (actual time=0.036..0.037 rows=1 loops=1)\n  Index Cond: (lower(email) = 'mai.nguyen@codedev.test'::text)\n  Buffers: shared hit=4\nExecution Time: 0.055 ms\n\nStatement: \"This plan shows the query now searches the expression index (Index Cond, 4 blocks, rows=1 estimated and actual); to close the incident you still compare pg_stat_statements mean_ms for the lower(email) query and the p95 of the sign-in lookup with the values before the release.\"",
+          "explanation": "True. Index Cond on lower(email) means the index is searched, not scanned, and the 4 buffers match plan B. The estimate is right again because ANALYZE collects statistics for the expression of an expression index. One plan on a replica is one sample, though: the incident is closed when the production numbers that raised it are back - mean_ms in pg_stat_statements (after pg_stat_statements_reset() or a fresh snapshot) and the p95 of the lookup span. CONCURRENTLY builds the index without blocking writes; the UNIQUE version first needs a check that no two emails differ only in case.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pgp_222",
+      "name": "fix-the-case-insensitive-sign-in",
+      "type": "fix_bug",
+      "title": "Fix the sign-in that stopped using its index",
+      "description": "Release 2026.10.20 made sign-in on CodeDev case-insensitive by changing the query to SELECT id FROM users WHERE lower(email) = lower(?). Since then sign-in is slow: the users table has a unique index on email, yet EXPLAIN QUERY PLAN shows the query reading every user. Fix SCHEMA and/or SIGN_IN_QUERY in the starter so that sign-in searches an index and stays case-insensitive.\n\nEmails are stored as the user typed them at sign-up, in any case (for example \"Linh.Tran@CodeDev.test\"); no two stored emails differ only in case, and they contain only ASCII letters, digits and . _ % @. SIGN_IN_QUERY receives one parameter, the email typed on the sign-in form, and returns the ids of the matching users. Characters such as _ and % are part of the email, not wildcards.\n\nInput (stdin): {\"users\": [[id, email, created_at], ...], \"attempts\": [typed emails]} or {\"generate\": N, \"attempts\": [...]} for N generated users. The runner applies SCHEMA to an empty database, inserts the users with INSERT INTO users (id, email, created_at) VALUES (?, ?, ?), then runs SIGN_IN_QUERY once per attempt.\n\nOutput: {\"plan\": ..., \"sign_ins\": [...]}. plan is \"uses an index\" when EXPLAIN QUERY PLAN shows SEARCH users ... INDEX, otherwise \"full scan of users\" (SCAN users USING COVERING INDEX is still a full scan: it reads every index entry). sign_ins has one entry per attempt: the sorted list of matching ids ([] for no account), or \"too slow\" when one sign-in needs more than 20,000 SQLite VM steps (counted with set_progress_handler; the large test has 20,000 users). Every test checks both: the plan and the ids.\n\nSQLite, like PostgreSQL, supports indexes on expressions; SQLite's lower() and COLLATE NOCASE fold ASCII letters only, and SQLite has no citext or ILIKE.",
+      "difficulty": "medium",
+      "outcomes": [
+        "index-design"
+      ],
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "sign_in.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "The index users_email is sorted by the stored email. Where in that order would you look for every row whose lower(email) is 'mai@codedev.test', if the stored value could be 'Mai@...', 'MAI@...' or 'mai@...'?",
+        "Compare the expression in the WHERE clause with the expression the index was built on: the planner only searches an index whose key is exactly the expression being compared. Then check the stored data in the tests: are all stored emails already lower case?",
+        "A similar case on another column: courses are looked up with WHERE lower(title) = lower(?), and an index on title is never searched. CREATE INDEX courses_title_lower ON courses (lower(title)) indexes the same expression the query compares, and EXPLAIN QUERY PLAN then shows SEARCH courses USING INDEX courses_title_lower (<expr>=?)."
+      ],
+      "tests": [
+        {
+          "name": "Sign-in with the email exactly as stored",
+          "input": {
+            "users": [
+              [
+                1,
+                "mai@codedev.test",
+                "2025-02-10 09:00:00"
+              ],
+              [
+                2,
+                "Linh.Tran@CodeDev.test",
+                "2025-03-01 12:30:00"
+              ],
+              [
+                3,
+                "an.nguyen@codedev.test",
+                "2025-04-12 08:15:00"
+              ],
+              [
+                4,
+                "BINH@CODEDEV.TEST",
+                "2025-05-20 19:45:00"
+              ],
+              [
+                5,
+                "mai_1@codedev.test",
+                "2025-06-02 07:00:00"
+              ],
+              [
+                6,
+                "mai11@codedev.test",
+                "2025-06-03 07:00:00"
+              ],
+              [
+                7,
+                "chi%dev@codedev.test",
+                "2025-07-14 10:10:00"
+              ],
+              [
+                8,
+                "chixdev@codedev.test",
+                "2025-07-15 10:10:00"
+              ]
+            ],
+            "attempts": [
+              "mai@codedev.test",
+              "an.nguyen@codedev.test"
+            ]
+          },
+          "expected": {
+            "plan": "uses an index",
+            "sign_ins": [
+              [
+                1
+              ],
+              [
+                3
+              ]
+            ]
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Sign-in typed in another case finds the same account",
+          "input": {
+            "users": [
+              [
+                1,
+                "mai@codedev.test",
+                "2025-02-10 09:00:00"
+              ],
+              [
+                2,
+                "Linh.Tran@CodeDev.test",
+                "2025-03-01 12:30:00"
+              ],
+              [
+                3,
+                "an.nguyen@codedev.test",
+                "2025-04-12 08:15:00"
+              ],
+              [
+                4,
+                "BINH@CODEDEV.TEST",
+                "2025-05-20 19:45:00"
+              ],
+              [
+                5,
+                "mai_1@codedev.test",
+                "2025-06-02 07:00:00"
+              ],
+              [
+                6,
+                "mai11@codedev.test",
+                "2025-06-03 07:00:00"
+              ],
+              [
+                7,
+                "chi%dev@codedev.test",
+                "2025-07-14 10:10:00"
+              ],
+              [
+                8,
+                "chixdev@codedev.test",
+                "2025-07-15 10:10:00"
+              ]
+            ],
+            "attempts": [
+              "MAI@CodeDev.Test",
+              "An.Nguyen@codedev.test",
+              "nobody@codedev.test"
+            ]
+          },
+          "expected": {
+            "plan": "uses an index",
+            "sign_ins": [
+              [
+                1
+              ],
+              [
+                3
+              ],
+              []
+            ]
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Emails stored in mixed case, typed in lower case",
+          "input": {
+            "users": [
+              [
+                1,
+                "mai@codedev.test",
+                "2025-02-10 09:00:00"
+              ],
+              [
+                2,
+                "Linh.Tran@CodeDev.test",
+                "2025-03-01 12:30:00"
+              ],
+              [
+                3,
+                "an.nguyen@codedev.test",
+                "2025-04-12 08:15:00"
+              ],
+              [
+                4,
+                "BINH@CODEDEV.TEST",
+                "2025-05-20 19:45:00"
+              ],
+              [
+                5,
+                "mai_1@codedev.test",
+                "2025-06-02 07:00:00"
+              ],
+              [
+                6,
+                "mai11@codedev.test",
+                "2025-06-03 07:00:00"
+              ],
+              [
+                7,
+                "chi%dev@codedev.test",
+                "2025-07-14 10:10:00"
+              ],
+              [
+                8,
+                "chixdev@codedev.test",
+                "2025-07-15 10:10:00"
+              ]
+            ],
+            "attempts": [
+              "linh.tran@codedev.test",
+              "binh@codedev.test",
+              "LINH.TRAN@CODEDEV.TEST"
+            ]
+          },
+          "expected": {
+            "plan": "uses an index",
+            "sign_ins": [
+              [
+                2
+              ],
+              [
+                4
+              ],
+              [
+                2
+              ]
+            ]
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Underscore and percent in emails are plain characters, not wildcards",
+          "input": {
+            "users": [
+              [
+                1,
+                "mai@codedev.test",
+                "2025-02-10 09:00:00"
+              ],
+              [
+                2,
+                "Linh.Tran@CodeDev.test",
+                "2025-03-01 12:30:00"
+              ],
+              [
+                3,
+                "an.nguyen@codedev.test",
+                "2025-04-12 08:15:00"
+              ],
+              [
+                4,
+                "BINH@CODEDEV.TEST",
+                "2025-05-20 19:45:00"
+              ],
+              [
+                5,
+                "mai_1@codedev.test",
+                "2025-06-02 07:00:00"
+              ],
+              [
+                6,
+                "mai11@codedev.test",
+                "2025-06-03 07:00:00"
+              ],
+              [
+                7,
+                "chi%dev@codedev.test",
+                "2025-07-14 10:10:00"
+              ],
+              [
+                8,
+                "chixdev@codedev.test",
+                "2025-07-15 10:10:00"
+              ]
+            ],
+            "attempts": [
+              "MAI_1@codedev.test",
+              "mai11@codedev.test",
+              "chi%dev@codedev.test",
+              "chi_dev@codedev.test"
+            ]
+          },
+          "expected": {
+            "plan": "uses an index",
+            "sign_ins": [
+              [
+                5
+              ],
+              [
+                6
+              ],
+              [
+                7
+              ],
+              []
+            ]
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Unknown, empty and partial emails match no account",
+          "input": {
+            "users": [
+              [
+                1,
+                "mai@codedev.test",
+                "2025-02-10 09:00:00"
+              ],
+              [
+                2,
+                "Linh.Tran@CodeDev.test",
+                "2025-03-01 12:30:00"
+              ],
+              [
+                3,
+                "an.nguyen@codedev.test",
+                "2025-04-12 08:15:00"
+              ],
+              [
+                4,
+                "BINH@CODEDEV.TEST",
+                "2025-05-20 19:45:00"
+              ],
+              [
+                5,
+                "mai_1@codedev.test",
+                "2025-06-02 07:00:00"
+              ],
+              [
+                6,
+                "mai11@codedev.test",
+                "2025-06-03 07:00:00"
+              ],
+              [
+                7,
+                "chi%dev@codedev.test",
+                "2025-07-14 10:10:00"
+              ],
+              [
+                8,
+                "chixdev@codedev.test",
+                "2025-07-15 10:10:00"
+              ]
+            ],
+            "attempts": [
+              "",
+              "mai",
+              "@codedev.test",
+              "mai@codedev.test "
+            ]
+          },
+          "expected": {
+            "plan": "uses an index",
+            "sign_ins": [
+              [],
+              [],
+              [],
+              []
+            ]
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "20,000 users: each sign-in within the step budget",
+          "input": {
+            "generate": 20000,
+            "attempts": [
+              "mai10@codedev.test",
+              "khanh.19998@codedev.test",
+              "KHANH.18@CODEDEV.TEST",
+              "linh19991@CodeDev.test",
+              "ghost@codedev.test"
+            ]
+          },
+          "expected": {
+            "plan": "uses an index",
+            "sign_ins": [
+              [
+                10
+              ],
+              [
+                19998
+              ],
+              [
+                18
+              ],
+              [
+                19991
+              ],
+              []
+            ]
+          },
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

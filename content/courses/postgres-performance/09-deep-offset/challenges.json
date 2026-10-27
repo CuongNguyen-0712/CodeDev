@@ -1,0 +1,566 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pgp_331",
+      "name": "deep-offset-evidence",
+      "type": "quiz",
+      "title": "Read the deep OFFSET evidence",
+      "description": "Two pieces of evidence from the admin activity pages: the plan of page 400 of the export, and two consecutive pages of the newest-first admin list while learners keep working. Decide whether each statement is true or false.",
+      "difficulty": "medium",
+      "outcomes": [
+        "query-shapes"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "activity_log: 2.7 million rows, 9 GB, mostly not in shared_buffers; rows imported from the old system are not stored in created_at order. The admin API runs with statement_timeout = 5s.\n\nEXPLAIN (ANALYZE, BUFFERS)\nSELECT id, user_id, kind, created_at FROM activity_log\nORDER BY created_at, id\nLIMIT 100 OFFSET 39900;            -- page 400\n\nLimit  (cost=3418.27..3426.84 rows=100 width=52) (actual time=4805.931..4813.117 rows=100 loops=1)\n  Buffers: shared hit=1204 read=38811\n  ->  Index Scan using activity_log_created_id on activity_log  (cost=0.43..233512.88 rows=2725410 width=52) (actual time=0.031..4805.926 rows=40000 loops=1)\n        Buffers: shared hit=1204 read=38811\nPlanning Time: 0.102 ms\nExecution Time: 4813.215 ms\n\nStatement: \"Only the 100 rows of page 400 were read from the table; most of the 4.8 s is spent sending those rows to the client.\"",
+          "explanation": "False. The Index Scan node reports actual rows=40000: PostgreSQL fetched every row of pages 1 to 400 in order, and the Limit node threw away the first 39,900 (OFFSET is applied after the rows are produced). The 38,811 buffer reads are those rows' heap pages, read from disk because the table is not in cache and imported rows are scattered. The scan's own actual time (4805 ms) covers almost the whole execution, and EXPLAIN ANALYZE does not even send rows to a client. The common misconception is that OFFSET jumps to a position; the database has no way to find row 39,901 of an order without producing the 39,900 rows before it, so the cost of a page grows with its number.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The admin activity list shows the newest events first, 100 per page, with OFFSET. API log:\n\n10:41:07.120  GET /admin/activity?page=3   ORDER BY created_at DESC, id DESC LIMIT 100 OFFSET 200\n              -> 100 rows, last two: 9120417, 9120416\n10:41:09.004  INSERT activity_log id=9120533 (lesson_completed)\n10:41:09.004  INSERT activity_log id=9120534 (badge_earned)\n10:41:12.871  GET /admin/activity?page=4   ORDER BY created_at DESC, id DESC LIMIT 100 OFFSET 300\n              -> 100 rows, first three: 9120417, 9120416, 9120415\n\nStatement: \"The two rows repeated at the top of page 4 are caused by the two events inserted between the requests; a cursor (created_at, id) < (the created_at of 9120416, 9120416) would have started page 4 at 9120415.\"",
+          "explanation": "True. OFFSET 300 means \"skip 300 rows of the order as it is now\". Two new rows were inserted at the top of the newest-first order, so everything moved down by two positions and the last two rows of page 3 became rows 301 and 302. A keyset cursor names a position in the order by value, not by count, so rows inserted before it do not move it: page 4 starts right after 9120416. Deletes have the opposite effect with OFFSET: rows move up and some are never shown. The common misconception is that OFFSET pages are a stable snapshot; each request counts again on the data as it is at that moment.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pgp_332",
+      "name": "admin-export-deep-offset",
+      "type": "fix_bug",
+      "title": "Fix the admin export that times out on deep pages",
+      "description": "The quarterly audit export of the CodeDev activity log reads the table oldest first in pages of PAGE_SIZE rows. Since the table grew, the export job dies on deep pages (in production around page 400, with \"canceling statement due to statement timeout\"): each page is slower than the previous one, although each returns only PAGE_SIZE rows. Fix export_activity so that every page costs about the same and the export is exactly the same as before: the same rows, in the same order (created_at, then id), split into the same pages. Table: activity_log(id INTEGER PRIMARY KEY, user_id, kind, created_at TEXT 'YYYY-MM-DD HH:MM:SS'), with the index activity_log_created_id ON activity_log (created_at, id); created_at is not unique and ids are not in time order (imported events got larger ids with their original timestamps). db.execute(sql, params) runs one statement and returns all its rows as a list of tuples. The test runner at the bottom of the file runs every statement with a budget of SQLite VM steps (set_progress_handler, standing in for statement_timeout): a statement that reads far more rows than it returns is stopped and the runner prints {\"error\": \"too slow: ...\"}. For small tests the runner sets PAGE_SIZE from the test case. It prints {\"pages\": <pages>, \"rows\": <rows>, \"head\": <first 3 rows>, \"tail\": <last 3 rows>, \"sha256\": <hash of the page split and all rows>}.",
+      "difficulty": "medium",
+      "outcomes": [
+        "query-shapes"
+      ],
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "export_activity.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "To return page 400, how many rows does the database have to produce before it can throw away the first 39,900? What do you already know at the end of page 399 that could tell the database where page 400 starts?",
+        "Look at what the loop carries from one page to the next (a page number) and at the ORDER BY: the next page is \"the rows after the last row I received in this order\". Every column of ORDER BY has to be part of that condition, or rows that share a created_at get lost at a page boundary.",
+        "A similar loop on other data: exporting submissions ordered by (score, id) in pages of 50. After a page that ended with (score 88, id 1203), the next statement is SELECT ... WHERE (score, id) > (88, 1203) ORDER BY score, id LIMIT 50. The first page has no WHERE; the loop keeps the last row of each page instead of a page number and stops when a page has fewer than 50 rows."
+      ],
+      "tests": [
+        {
+          "name": "Pages of 2: events sharing a timestamp are split across a page boundary",
+          "input": {
+            "page_size": 2,
+            "rows": [
+              [
+                5,
+                3,
+                "lesson_completed",
+                "2026-07-01 09:00:00"
+              ],
+              [
+                7,
+                3,
+                "badge_earned",
+                "2026-07-01 09:00:00"
+              ],
+              [
+                6,
+                3,
+                "streak_extended",
+                "2026-07-01 09:00:00"
+              ],
+              [
+                2,
+                4,
+                "course_enrolled",
+                "2026-07-01 08:59:00"
+              ],
+              [
+                9,
+                4,
+                "lesson_completed",
+                "2026-07-01 09:30:00"
+              ]
+            ]
+          },
+          "expected": {
+            "pages": 3,
+            "rows": 5,
+            "head": [
+              [
+                2,
+                4,
+                "course_enrolled",
+                "2026-07-01 08:59:00"
+              ],
+              [
+                5,
+                3,
+                "lesson_completed",
+                "2026-07-01 09:00:00"
+              ],
+              [
+                6,
+                3,
+                "streak_extended",
+                "2026-07-01 09:00:00"
+              ]
+            ],
+            "tail": [
+              [
+                6,
+                3,
+                "streak_extended",
+                "2026-07-01 09:00:00"
+              ],
+              [
+                7,
+                3,
+                "badge_earned",
+                "2026-07-01 09:00:00"
+              ],
+              [
+                9,
+                4,
+                "lesson_completed",
+                "2026-07-01 09:30:00"
+              ]
+            ],
+            "sha256": "ef2a161972d9720d"
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Large: 12,000 events in pages of 100, every page within the statement budget",
+          "input": {
+            "rows": [],
+            "bulk": {
+              "count": 12000,
+              "start": "2026-07-01 00:00:00"
+            }
+          },
+          "expected": {
+            "pages": 120,
+            "rows": 12000,
+            "head": [
+              [
+                100000,
+                1,
+                "lesson_completed",
+                "2026-07-01 00:00:00"
+              ],
+              [
+                100001,
+                2,
+                "badge_earned",
+                "2026-07-01 00:00:00"
+              ],
+              [
+                100002,
+                3,
+                "streak_extended",
+                "2026-07-01 00:00:00"
+              ]
+            ],
+            "tail": [
+              [
+                111997,
+                48,
+                "streak_extended",
+                "2026-07-01 05:49:53"
+              ],
+              [
+                111998,
+                49,
+                "challenge_passed",
+                "2026-07-01 05:49:53"
+              ],
+              [
+                111999,
+                50,
+                "course_enrolled",
+                "2026-07-01 05:49:53"
+              ]
+            ],
+            "sha256": "7f6248c906fe46fb"
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A whole page of rows with the same timestamp",
+          "input": {
+            "page_size": 2,
+            "rows": [
+              [
+                14,
+                1,
+                "lesson_completed",
+                "2026-07-02 12:00:00"
+              ],
+              [
+                11,
+                2,
+                "badge_earned",
+                "2026-07-02 12:00:00"
+              ],
+              [
+                13,
+                1,
+                "streak_extended",
+                "2026-07-02 12:00:00"
+              ],
+              [
+                12,
+                3,
+                "challenge_passed",
+                "2026-07-02 12:00:00"
+              ],
+              [
+                15,
+                2,
+                "badge_earned",
+                "2026-07-02 12:00:00"
+              ],
+              [
+                10,
+                1,
+                "course_enrolled",
+                "2026-07-02 12:00:01"
+              ]
+            ]
+          },
+          "expected": {
+            "pages": 3,
+            "rows": 6,
+            "head": [
+              [
+                11,
+                2,
+                "badge_earned",
+                "2026-07-02 12:00:00"
+              ],
+              [
+                12,
+                3,
+                "challenge_passed",
+                "2026-07-02 12:00:00"
+              ],
+              [
+                13,
+                1,
+                "streak_extended",
+                "2026-07-02 12:00:00"
+              ]
+            ],
+            "tail": [
+              [
+                14,
+                1,
+                "lesson_completed",
+                "2026-07-02 12:00:00"
+              ],
+              [
+                15,
+                2,
+                "badge_earned",
+                "2026-07-02 12:00:00"
+              ],
+              [
+                10,
+                1,
+                "course_enrolled",
+                "2026-07-02 12:00:01"
+              ]
+            ],
+            "sha256": "57b7f7f535c72bde"
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Imported events with large ids and old timestamps keep their place",
+          "input": {
+            "page_size": 3,
+            "rows": [
+              [
+                101,
+                1,
+                "lesson_completed",
+                "2026-07-03 08:00:00"
+              ],
+              [
+                102,
+                2,
+                "lesson_completed",
+                "2026-07-03 09:00:00"
+              ],
+              [
+                900,
+                1,
+                "course_enrolled",
+                "2025-01-15 10:00:00"
+              ],
+              [
+                103,
+                3,
+                "badge_earned",
+                "2026-07-03 10:00:00"
+              ],
+              [
+                901,
+                2,
+                "lesson_completed",
+                "2025-01-15 10:00:00"
+              ],
+              [
+                104,
+                1,
+                "challenge_passed",
+                "2026-07-03 11:00:00"
+              ],
+              [
+                902,
+                3,
+                "streak_extended",
+                "2025-02-01 07:00:00"
+              ]
+            ]
+          },
+          "expected": {
+            "pages": 3,
+            "rows": 7,
+            "head": [
+              [
+                900,
+                1,
+                "course_enrolled",
+                "2025-01-15 10:00:00"
+              ],
+              [
+                901,
+                2,
+                "lesson_completed",
+                "2025-01-15 10:00:00"
+              ],
+              [
+                902,
+                3,
+                "streak_extended",
+                "2025-02-01 07:00:00"
+              ]
+            ],
+            "tail": [
+              [
+                102,
+                2,
+                "lesson_completed",
+                "2026-07-03 09:00:00"
+              ],
+              [
+                103,
+                3,
+                "badge_earned",
+                "2026-07-03 10:00:00"
+              ],
+              [
+                104,
+                1,
+                "challenge_passed",
+                "2026-07-03 11:00:00"
+              ]
+            ],
+            "sha256": "f9cb21e6735b82f7"
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Exactly two full pages: no empty page in the export",
+          "input": {
+            "page_size": 2,
+            "rows": [
+              [
+                21,
+                1,
+                "lesson_completed",
+                "2026-07-04 08:00:00"
+              ],
+              [
+                22,
+                1,
+                "badge_earned",
+                "2026-07-04 08:00:00"
+              ],
+              [
+                23,
+                2,
+                "lesson_completed",
+                "2026-07-04 08:00:01"
+              ],
+              [
+                24,
+                2,
+                "badge_earned",
+                "2026-07-04 08:00:02"
+              ]
+            ]
+          },
+          "expected": {
+            "pages": 2,
+            "rows": 4,
+            "head": [
+              [
+                21,
+                1,
+                "lesson_completed",
+                "2026-07-04 08:00:00"
+              ],
+              [
+                22,
+                1,
+                "badge_earned",
+                "2026-07-04 08:00:00"
+              ],
+              [
+                23,
+                2,
+                "lesson_completed",
+                "2026-07-04 08:00:01"
+              ]
+            ],
+            "tail": [
+              [
+                22,
+                1,
+                "badge_earned",
+                "2026-07-04 08:00:00"
+              ],
+              [
+                23,
+                2,
+                "lesson_completed",
+                "2026-07-04 08:00:01"
+              ],
+              [
+                24,
+                2,
+                "badge_earned",
+                "2026-07-04 08:00:02"
+              ]
+            ],
+            "sha256": "c6a20b0ca0021449"
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Invalid input: an empty table gives an empty export",
+          "input": {
+            "rows": []
+          },
+          "expected": {
+            "pages": 0,
+            "rows": 0,
+            "head": [],
+            "tail": [],
+            "sha256": "a683096011db3975"
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large: 20,000 events, the deepest pages cost the same as the first",
+          "input": {
+            "rows": [
+              [
+                1,
+                1,
+                "course_enrolled",
+                "2026-06-30 23:59:59"
+              ]
+            ],
+            "bulk": {
+              "count": 20000,
+              "start": "2026-07-01 00:00:00"
+            }
+          },
+          "expected": {
+            "pages": 201,
+            "rows": 20001,
+            "head": [
+              [
+                1,
+                1,
+                "course_enrolled",
+                "2026-06-30 23:59:59"
+              ],
+              [
+                100000,
+                1,
+                "lesson_completed",
+                "2026-07-01 00:00:00"
+              ],
+              [
+                100001,
+                2,
+                "badge_earned",
+                "2026-07-01 00:00:00"
+              ]
+            ],
+            "tail": [
+              [
+                119997,
+                48,
+                "streak_extended",
+                "2026-07-01 09:43:13"
+              ],
+              [
+                119998,
+                49,
+                "challenge_passed",
+                "2026-07-01 09:43:13"
+              ],
+              [
+                119999,
+                50,
+                "course_enrolled",
+                "2026-07-01 09:43:13"
+              ]
+            ],
+            "sha256": "21843192509ed2f8"
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

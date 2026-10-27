@@ -1,0 +1,186 @@
+{
+  "publicId": "postgres-performance",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793025115/codedev/courses/postgres-performance/cover",
+  "title": "PostgreSQL Performance Engineering: Query Plans, Indexes & Faster Queries",
+  "concept": "Make slow queries fast with evidence instead of guesses: measure a baseline, read EXPLAIN ANALYZE, compare estimated and actual rows, choose indexes for the query pattern and column order, remove N+1 queries and deep OFFSETs, rewrite reports, and weigh what every index costs.",
+  "description": "An advanced course for backend developers whose database became the bottleneck. Every lesson starts from an incident on the CodeDev learning platform - a sign-in that went from 4 ms to 900 ms after a release, a course page that sent 120 queries, page 400 of the activity log timing out, an AI-suggested composite index that the planner never used, a nightly progress report that ran for 40 minutes, two updates waiting on each other - and fixes it with a plan you can read: baselines and pg_stat_statements, EXPLAIN ANALYZE nodes and costs, statistics and selectivity, indexes per query pattern, the Query Got Slower scenario, composite index order, N+1, keyset pagination, report rewrites, lock contention and index trade-offs. 12 lessons with True/False quizzes on real plans and logs; the SQL challenges run on SQLite in the code runner and check results and query plans.",
+  "level": "advanced",
+  "durationMinutes": 400,
+  "instructor": "CodeDev Engineering Team",
+  "language": "SQL",
+  "category": "Database",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "completionRules": {},
+  "domain": "data",
+  "learningOutcomes": [
+    {
+      "code": "read-plans",
+      "text": "Measure a baseline and read execution plans: nodes, costs, estimated versus actual rows"
+    },
+    {
+      "code": "index-design",
+      "text": "Choose indexes for a query pattern, including expression indexes and composite column order"
+    },
+    {
+      "code": "query-shapes",
+      "text": "Remove N+1 queries and deep OFFSETs with joins and keyset pagination"
+    },
+    {
+      "code": "selectivity-stats",
+      "text": "Use statistics and selectivity to predict what the planner will do"
+    },
+    {
+      "code": "contention-tradeoffs",
+      "text": "Find lock contention and weigh the write and storage cost of every index"
+    }
+  ],
+  "testedVersions": {
+    "PostgreSQL": "16-17 (lesson examples, EXPLAIN output formats)",
+    "SQLite": "sqlite3 module of the code runner's python3 (challenges)"
+  },
+  "lastReviewedAt": "2026-10-26",
+  "sourceLinks": [
+    "https://www.postgresql.org/docs/current/using-explain.html",
+    "https://www.postgresql.org/docs/current/indexes-multicolumn.html",
+    "https://www.postgresql.org/docs/current/pgstatstatements.html"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "The code runner has SQLite, not PostgreSQL: challenges check results and SQLite's EXPLAIN QUERY PLAN; lessons teach PostgreSQL EXPLAIN ANALYZE and note where SQLite differs"
+  ],
+  "scenario": {
+    "title": "The Query Got Slower",
+    "quiz": "chal_quiz_pgp_221",
+    "fixBug": "chal_coding_pgp_222"
+  },
+  "careerRoles": [
+    "backend_developer",
+    "data_engineer",
+    "fullstack_developer"
+  ],
+  "skills": {
+    "sql": 5,
+    "performance": 4,
+    "system_design": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "performance"
+  ],
+  "prerequisites": [
+    "sql-data-modeling"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Reading Plans",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-measure-baseline",
+          "title": "Measure first: baselines, pg_stat_statements & the slow query log",
+          "sanityId": "lesson-pgp-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-read-explain",
+          "title": "How to read EXPLAIN ANALYZE: nodes, costs & actual rows",
+          "sanityId": "lesson-pgp-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-estimates-vs-actual",
+          "title": "Estimated vs actual rows: statistics & selectivity",
+          "sanityId": "lesson-pgp-1-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Indexes",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "04-index-for-pattern",
+          "title": "Choosing an index for the query pattern",
+          "sanityId": "lesson-pgp-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "05-query-got-slower",
+          "title": "The query got slower: a sign-in that stopped using its index",
+          "sanityId": "lesson-pgp-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-composite-index-order",
+          "title": "Spot the AI mistake: composite index column order",
+          "sanityId": "lesson-pgp-2-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Query Shapes",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "07-n-plus-one",
+          "title": "N+1 queries: one query instead of a loop",
+          "sanityId": "lesson-pgp-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-keyset-pagination",
+          "title": "Keyset pagination with (created_at, id)",
+          "sanityId": "lesson-pgp-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "09-deep-offset",
+          "title": "Fix it: deep OFFSET pages that time out",
+          "sanityId": "lesson-pgp-3-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Under Load",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "10-report-query",
+          "title": "Rewrite the progress report query",
+          "sanityId": "lesson-pgp-4-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "11-lock-contention",
+          "title": "Lock contention: who is waiting for whom",
+          "sanityId": "lesson-pgp-4-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "12-index-tradeoffs",
+          "title": "Index trade-offs: write cost, bloat & unused indexes",
+          "sanityId": "lesson-pgp-4-3"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pgp_111",
+      "name": "measure-baseline-quiz",
+      "type": "quiz",
+      "title": "Is it really faster?",
+      "description": "Two pieces of evidence from the CodeDev database: the same query run twice with EXPLAIN (ANALYZE, BUFFERS), and the top of a pg_stat_statements report. Decide whether each statement is true or false.",
+      "difficulty": "medium",
+      "outcomes": [
+        "read-plans"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The course progress query was run twice in a row on the staging copy of production, right after a restart, with nothing changed in between:\n\n-- run 1\nIndex Scan using lesson_progress_course_id_idx on lesson_progress  (cost=0.56..48210.33 rows=41500 width=32) (actual time=0.912..1838.207 rows=41022 loops=1)\n  Index Cond: (course_id = 42)\n  Buffers: shared hit=180 read=41022\nExecution Time: 1843.118 ms\n\n-- run 2\nIndex Scan using lesson_progress_course_id_idx on lesson_progress  (cost=0.56..48210.33 rows=41500 width=32) (actual time=0.021..95.640 rows=41022 loops=1)\n  Index Cond: (course_id = 42)\n  Buffers: shared hit=41202\nExecution Time: 97.304 ms\n\nStatement: \"Run 2 did the same work as run 1 - the same plan touching the same 41,202 pages - and was faster only because the pages were already in shared_buffers.\"",
+          "explanation": "True. The plan, the estimate and the row count are identical, and the page count is identical too: 180 + 41,022 = 41,202 pages in run 1, 41,202 in run 2. The only difference is where the pages came from: read means PostgreSQL asked the operating system for them (from disk or from the OS page cache), hit means they were already in shared_buffers. So the 19x difference is the cache, not the query. That is why comparing a cold first run before a change with a warm second run after it proves nothing: compare runs in the same cache state, and compare the buffer counts, which do not depend on the cache.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The database dashboard lists the top statements from pg_stat_statements for the last 24 hours (since the last reset):\n\nSELECT calls, round(mean_exec_time::numeric, 1) AS mean_ms, rows, left(query, 60) AS query\nFROM pg_stat_statements\nORDER BY mean_exec_time DESC\nLIMIT 3;\n\n calls  | mean_ms |  rows   | query\n--------+---------+---------+--------------------------------------------------------------\n     40 |  2310.0 |    1240 | SELECT c.category, count(*) FROM activity_log a JOIN courses\n   1920 |    61.3 |   19200 | SELECT * FROM enrollments WHERE user_id = $1 ORDER BY create\n 118400 |     4.2 |  118400 | SELECT id, password_hash FROM users WHERE lower(email) = $1\n\nStatement: \"The first row of this report is the statement that spent the most total time in the database during these 24 hours.\"",
+          "explanation": "False. Total time is calls x mean: 40 x 2,310 ms = 92 s for the category report, 1,920 x 61.3 ms = 118 s for the enrollments query and 118,400 x 4.2 ms = 497 s for the sign-in lookup. Ordered by mean, the sign-in query sits at the bottom although it uses five times more database time than the report at the top (pg_stat_statements also has a total_exec_time column; order by it to see the load). Mean time answers \"which query is slow when it runs\", total time answers \"which query costs the database most\" - both are worth knowing, but a ranking by mean alone hides the frequent fast query that keeps the database busy.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

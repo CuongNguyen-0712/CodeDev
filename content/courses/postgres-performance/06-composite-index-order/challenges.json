@@ -1,0 +1,4311 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pgp_231",
+      "name": "composite-index-order-plans",
+      "type": "quiz",
+      "title": "Composite index order: read two plans",
+      "description": "Two PostgreSQL 17 plans taken after the AI-generated indexes activity_log (created_at, user_id) and enrollments (status, course_id) were deployed. Decide whether each statement is true or false.",
+      "difficulty": "medium",
+      "outcomes": [
+        "index-design"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Feed of a learner with only 3 events, index activity_log_created_user ON activity_log (created_at, user_id), activity_log has 40M rows:\nSELECT id, kind, created_at FROM activity_log\nWHERE user_id = 9001 ORDER BY created_at DESC LIMIT 20;\n\nLimit  (cost=0.56..499855.49 rows=20 width=40) (actual time=1843.551..1843.560 rows=3 loops=1)\n  ->  Index Scan Backward using activity_log_created_user on activity_log  (cost=0.56..824761.20 rows=33 width=40) (actual time=1843.549..1843.556 rows=3 loops=1)\n        Index Cond: (user_id = 9001)\n        Buffers: shared hit=171032 read=29871\nExecution Time: 1843.602 ms\n\nStatement: \"Because user_id appears in Index Cond, the index took the scan straight to the entries of user 9001, as an index on (user_id, created_at) would.\"",
+          "explanation": "False. An Index Cond on a column that is not the leading column is checked on every index entry, not used to jump to a starting point. The index is sorted by created_at first, so the entries of user 9001 are spread across the whole index: PostgreSQL walks it backward from the newest entry and tests user_id on each one. The Limit can only stop early after 20 matches; this learner has 3, so the scan reads the entire index (about 200,000 buffers, 1.8 s). With (user_id, created_at) the scan starts at the user's newest entry and stops after at most 20 entries. The misconception is to read \"Index Scan ... Index Cond\" as proof of a narrow search; the buffer count and the time say otherwise.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Course roster, index enrollments_status_course ON enrollments (status, course_id), enrollments has 6M rows:\nSELECT user_id, status FROM enrollments WHERE course_id = 17;\n\nSeq Scan on enrollments  (cost=0.00..113496.00 rows=1180 width=12) (actual time=0.412..402.118 rows=1204 loops=1)\n  Filter: (course_id = 17)\n  Rows Removed by Filter: 5998796\nExecution Time: 402.301 ms\n\nStatement: \"The planner ignores enrollments_status_course here because course_id is not its leading column; an index on (course_id, status) would serve both WHERE course_id = ? and WHERE course_id = ? AND status = ?.\"",
+          "explanation": "True. A B-tree on (status, course_id) is sorted by status first, so rows of course 17 sit in three separate runs, one per status, and without a condition on status there is no single place to start. PostgreSQL 16-17 then prefers a Seq Scan (PostgreSQL 18 can sometimes skip-scan a leading column with few values, at extra cost). An index on (course_id, status) has every row of course 17 together, so it serves the roster by its leading column alone and the filtered roster by both columns. The misconception is that the column with fewer distinct values should go first; for equality conditions the order does not change selectivity, but it decides which queries can use the index at all.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pgp_232",
+      "name": "spot-the-ai-mistake-composite-index-order",
+      "type": "fix_bug",
+      "title": "Spot the AI Mistake: composite index column order",
+      "description": "A developer sent this request to an AI assistant: \"Add indexes for these three queries. activity_log has 40M rows, enrollments 6M. Add at most one index per table: every index slows down our writes. feed: SELECT id, kind, created_at FROM activity_log WHERE user_id = ? ORDER BY created_at DESC LIMIT 20; roster: SELECT user_id, status FROM enrollments WHERE course_id = ?; roster_by_status: SELECT user_id, status FROM enrollments WHERE course_id = ? AND status = ?\". The assistant answered with the two indexes in INDEXES and the note \"created_at goes first because the feed sorts by it; status goes first because it has only three values.\" The results of all three queries were correct in review and the change was merged, but production still reads millions of rows for a quiet learner's feed and for a course roster. Fix INDEXES: at most 2 CREATE INDEX statements, queries unchanged.\n\nTables (created and filled by the runner before INDEXES is applied): activity_log(id INTEGER PRIMARY KEY, user_id, kind, created_at) and enrollments(id INTEGER PRIMARY KEY, user_id, course_id, created_at, status).\n\nInput (stdin): the rows of both tables or a \"generate\" spec for a large deterministic data set, \"calls\" ([{\"query\": \"feed\" | \"roster\" | \"roster_by_status\", \"params\": [...]}, ...]) and optionally \"explain\": true.\n\nOutput: {\"indexes\": \"ok\" or \"too many indexes: N (at most 2)\", \"calls\": [...]}, one entry per call: \"rows\" (roster rows sorted by the runner), or \"too slow\" when the call needs more than 20,000 SQLite VM steps (counted with set_progress_handler; the large tests have 40,000 activity rows and 12,000 enrollments); with \"explain\": true also \"plan\", a verdict from EXPLAIN QUERY PLAN: \"ok\" (every WHERE column searches the index and the feed needs no USE TEMP B-TREE FOR ORDER BY), \"full scan of <table>\" (SCAN, including SCAN ... USING INDEX), \"index does not narrow by <column>\" or \"sorts with a temp B-tree\". The public tests check the rows, as the review did; the hidden tests check the plans and the step budget on large tables. The runner does not run ANALYZE.",
+      "difficulty": "hard",
+      "outcomes": [
+        "index-design",
+        "contention-tradeoffs"
+      ],
+      "points": 40,
+      "coding": {
+        "language": "python",
+        "filePath": "composite_index_order.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "For the feed of a learner with only 3 events, where in an index sorted by (created_at, user_id) are those 3 entries, and how many entries must be read before the query knows there is no fourth one?",
+        "Read the assistant's two reasons against the queries: which column is compared with = in every query that uses each index, and which column only decides the order? Then check the roster query: which index column does it give a value for?",
+        "A similar pair on another table: SELECT lesson_id FROM lesson_progress WHERE course_id = ? ORDER BY completed_at DESC LIMIT 10 needs (course_id, completed_at), not (completed_at, course_id): the first finds the course's entries in order and stops after 10, the second walks every course's entries. And an index on (user_id, course_id) serves WHERE user_id = ? and WHERE user_id = ? AND course_id = ?, but not WHERE course_id = ? alone."
+      ],
+      "tests": [
+        {
+          "name": "Mai's feed: the newest 20 of her 24 events, newest first",
+          "input": {
+            "activity": [
+              [
+                1,
+                8,
+                "lesson_completed",
+                "2026-10-01 00:00:00"
+              ],
+              [
+                2,
+                7,
+                "quiz_passed",
+                "2026-10-08 05:13:00"
+              ],
+              [
+                3,
+                7,
+                "challenge_submitted",
+                "2026-10-15 10:26:00"
+              ],
+              [
+                4,
+                8,
+                "comment_posted",
+                "2026-10-22 15:39:00"
+              ],
+              [
+                5,
+                7,
+                "lesson_completed",
+                "2026-10-03 20:52:00"
+              ],
+              [
+                6,
+                7,
+                "quiz_passed",
+                "2026-10-10 01:05:00"
+              ],
+              [
+                7,
+                8,
+                "challenge_submitted",
+                "2026-10-17 06:18:00"
+              ],
+              [
+                8,
+                7,
+                "comment_posted",
+                "2026-10-24 11:31:00"
+              ],
+              [
+                9,
+                7,
+                "lesson_completed",
+                "2026-10-05 16:44:00"
+              ],
+              [
+                10,
+                8,
+                "quiz_passed",
+                "2026-10-12 21:57:00"
+              ],
+              [
+                11,
+                7,
+                "challenge_submitted",
+                "2026-10-19 02:10:00"
+              ],
+              [
+                12,
+                7,
+                "comment_posted",
+                "2026-10-26 07:23:00"
+              ],
+              [
+                13,
+                8,
+                "lesson_completed",
+                "2026-10-07 12:36:00"
+              ],
+              [
+                14,
+                7,
+                "quiz_passed",
+                "2026-10-14 17:49:00"
+              ],
+              [
+                15,
+                7,
+                "challenge_submitted",
+                "2026-10-21 22:02:00"
+              ],
+              [
+                16,
+                8,
+                "comment_posted",
+                "2026-10-02 03:15:00"
+              ],
+              [
+                17,
+                7,
+                "lesson_completed",
+                "2026-10-09 08:28:00"
+              ],
+              [
+                18,
+                7,
+                "quiz_passed",
+                "2026-10-16 13:41:00"
+              ],
+              [
+                19,
+                8,
+                "challenge_submitted",
+                "2026-10-23 18:54:00"
+              ],
+              [
+                20,
+                7,
+                "comment_posted",
+                "2026-10-04 23:07:00"
+              ],
+              [
+                21,
+                7,
+                "lesson_completed",
+                "2026-10-11 04:20:00"
+              ],
+              [
+                22,
+                8,
+                "quiz_passed",
+                "2026-10-18 09:33:00"
+              ],
+              [
+                23,
+                7,
+                "challenge_submitted",
+                "2026-10-25 14:46:00"
+              ],
+              [
+                24,
+                7,
+                "comment_posted",
+                "2026-10-06 19:59:00"
+              ],
+              [
+                25,
+                8,
+                "lesson_completed",
+                "2026-10-13 00:12:00"
+              ],
+              [
+                26,
+                7,
+                "quiz_passed",
+                "2026-10-20 05:25:00"
+              ],
+              [
+                27,
+                7,
+                "challenge_submitted",
+                "2026-10-01 10:38:00"
+              ],
+              [
+                28,
+                8,
+                "comment_posted",
+                "2026-10-08 15:51:00"
+              ],
+              [
+                29,
+                7,
+                "lesson_completed",
+                "2026-10-15 20:04:00"
+              ],
+              [
+                30,
+                7,
+                "quiz_passed",
+                "2026-10-22 01:17:00"
+              ],
+              [
+                31,
+                8,
+                "challenge_submitted",
+                "2026-10-03 06:30:00"
+              ],
+              [
+                32,
+                7,
+                "comment_posted",
+                "2026-10-10 11:43:00"
+              ],
+              [
+                33,
+                7,
+                "lesson_completed",
+                "2026-10-17 16:56:00"
+              ],
+              [
+                34,
+                8,
+                "quiz_passed",
+                "2026-10-24 21:09:00"
+              ],
+              [
+                35,
+                7,
+                "challenge_submitted",
+                "2026-10-05 02:22:00"
+              ],
+              [
+                36,
+                7,
+                "comment_posted",
+                "2026-10-12 07:35:00"
+              ],
+              [
+                37,
+                9,
+                "lesson_completed",
+                "2026-03-02 08:00:00"
+              ]
+            ],
+            "enrollments": [
+              [
+                1,
+                7,
+                1,
+                "2026-01-01 10:00:00",
+                "active"
+              ],
+              [
+                2,
+                8,
+                2,
+                "2026-02-04 10:00:00",
+                "cancelled"
+              ],
+              [
+                3,
+                9,
+                3,
+                "2026-03-07 10:00:00",
+                "active"
+              ],
+              [
+                4,
+                10,
+                4,
+                "2026-04-10 10:00:00",
+                "completed"
+              ],
+              [
+                5,
+                11,
+                1,
+                "2026-05-13 10:00:00",
+                "completed"
+              ],
+              [
+                6,
+                12,
+                2,
+                "2026-06-16 10:00:00",
+                "active"
+              ],
+              [
+                7,
+                13,
+                3,
+                "2026-07-19 10:00:00",
+                "cancelled"
+              ],
+              [
+                8,
+                14,
+                4,
+                "2026-08-22 10:00:00",
+                "active"
+              ],
+              [
+                9,
+                15,
+                1,
+                "2026-09-25 10:00:00",
+                "active"
+              ],
+              [
+                10,
+                16,
+                2,
+                "2026-01-01 10:00:00",
+                "completed"
+              ],
+              [
+                11,
+                17,
+                3,
+                "2026-02-04 10:00:00",
+                "active"
+              ],
+              [
+                12,
+                18,
+                4,
+                "2026-03-07 10:00:00",
+                "cancelled"
+              ],
+              [
+                13,
+                19,
+                1,
+                "2026-04-10 10:00:00",
+                "cancelled"
+              ],
+              [
+                14,
+                7,
+                2,
+                "2026-05-13 10:00:00",
+                "active"
+              ],
+              [
+                15,
+                8,
+                3,
+                "2026-06-16 10:00:00",
+                "completed"
+              ],
+              [
+                16,
+                9,
+                4,
+                "2026-07-19 10:00:00",
+                "active"
+              ],
+              [
+                17,
+                10,
+                1,
+                "2026-08-22 10:00:00",
+                "active"
+              ],
+              [
+                18,
+                11,
+                2,
+                "2026-09-25 10:00:00",
+                "cancelled"
+              ],
+              [
+                19,
+                12,
+                3,
+                "2026-01-01 10:00:00",
+                "active"
+              ],
+              [
+                20,
+                13,
+                4,
+                "2026-02-04 10:00:00",
+                "completed"
+              ],
+              [
+                21,
+                14,
+                1,
+                "2026-03-07 10:00:00",
+                "completed"
+              ],
+              [
+                22,
+                15,
+                2,
+                "2026-04-10 10:00:00",
+                "active"
+              ],
+              [
+                23,
+                16,
+                3,
+                "2026-05-13 10:00:00",
+                "cancelled"
+              ],
+              [
+                24,
+                17,
+                4,
+                "2026-06-16 10:00:00",
+                "active"
+              ],
+              [
+                25,
+                18,
+                1,
+                "2026-07-19 10:00:00",
+                "active"
+              ],
+              [
+                26,
+                19,
+                2,
+                "2026-08-22 10:00:00",
+                "completed"
+              ],
+              [
+                27,
+                7,
+                3,
+                "2026-09-25 10:00:00",
+                "active"
+              ],
+              [
+                28,
+                8,
+                4,
+                "2026-01-01 10:00:00",
+                "cancelled"
+              ],
+              [
+                29,
+                9,
+                1,
+                "2026-02-04 10:00:00",
+                "cancelled"
+              ],
+              [
+                30,
+                10,
+                2,
+                "2026-03-07 10:00:00",
+                "active"
+              ]
+            ],
+            "calls": [
+              {
+                "query": "feed",
+                "params": [
+                  7
+                ]
+              },
+              {
+                "query": "feed",
+                "params": [
+                  8
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "indexes": "ok",
+            "calls": [
+              {
+                "rows": [
+                  [
+                    12,
+                    "comment_posted",
+                    "2026-10-26 07:23:00"
+                  ],
+                  [
+                    23,
+                    "challenge_submitted",
+                    "2026-10-25 14:46:00"
+                  ],
+                  [
+                    8,
+                    "comment_posted",
+                    "2026-10-24 11:31:00"
+                  ],
+                  [
+                    30,
+                    "quiz_passed",
+                    "2026-10-22 01:17:00"
+                  ],
+                  [
+                    15,
+                    "challenge_submitted",
+                    "2026-10-21 22:02:00"
+                  ],
+                  [
+                    26,
+                    "quiz_passed",
+                    "2026-10-20 05:25:00"
+                  ],
+                  [
+                    11,
+                    "challenge_submitted",
+                    "2026-10-19 02:10:00"
+                  ],
+                  [
+                    33,
+                    "lesson_completed",
+                    "2026-10-17 16:56:00"
+                  ],
+                  [
+                    18,
+                    "quiz_passed",
+                    "2026-10-16 13:41:00"
+                  ],
+                  [
+                    29,
+                    "lesson_completed",
+                    "2026-10-15 20:04:00"
+                  ],
+                  [
+                    3,
+                    "challenge_submitted",
+                    "2026-10-15 10:26:00"
+                  ],
+                  [
+                    14,
+                    "quiz_passed",
+                    "2026-10-14 17:49:00"
+                  ],
+                  [
+                    36,
+                    "comment_posted",
+                    "2026-10-12 07:35:00"
+                  ],
+                  [
+                    21,
+                    "lesson_completed",
+                    "2026-10-11 04:20:00"
+                  ],
+                  [
+                    32,
+                    "comment_posted",
+                    "2026-10-10 11:43:00"
+                  ],
+                  [
+                    6,
+                    "quiz_passed",
+                    "2026-10-10 01:05:00"
+                  ],
+                  [
+                    17,
+                    "lesson_completed",
+                    "2026-10-09 08:28:00"
+                  ],
+                  [
+                    2,
+                    "quiz_passed",
+                    "2026-10-08 05:13:00"
+                  ],
+                  [
+                    24,
+                    "comment_posted",
+                    "2026-10-06 19:59:00"
+                  ],
+                  [
+                    9,
+                    "lesson_completed",
+                    "2026-10-05 16:44:00"
+                  ]
+                ]
+              },
+              {
+                "rows": [
+                  [
+                    34,
+                    "quiz_passed",
+                    "2026-10-24 21:09:00"
+                  ],
+                  [
+                    19,
+                    "challenge_submitted",
+                    "2026-10-23 18:54:00"
+                  ],
+                  [
+                    4,
+                    "comment_posted",
+                    "2026-10-22 15:39:00"
+                  ],
+                  [
+                    22,
+                    "quiz_passed",
+                    "2026-10-18 09:33:00"
+                  ],
+                  [
+                    7,
+                    "challenge_submitted",
+                    "2026-10-17 06:18:00"
+                  ],
+                  [
+                    25,
+                    "lesson_completed",
+                    "2026-10-13 00:12:00"
+                  ],
+                  [
+                    10,
+                    "quiz_passed",
+                    "2026-10-12 21:57:00"
+                  ],
+                  [
+                    28,
+                    "comment_posted",
+                    "2026-10-08 15:51:00"
+                  ],
+                  [
+                    13,
+                    "lesson_completed",
+                    "2026-10-07 12:36:00"
+                  ],
+                  [
+                    31,
+                    "challenge_submitted",
+                    "2026-10-03 06:30:00"
+                  ],
+                  [
+                    16,
+                    "comment_posted",
+                    "2026-10-02 03:15:00"
+                  ],
+                  [
+                    1,
+                    "lesson_completed",
+                    "2026-10-01 00:00:00"
+                  ]
+                ]
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Roster of course 2, all learners and only the active ones",
+          "input": {
+            "activity": [
+              [
+                1,
+                8,
+                "lesson_completed",
+                "2026-10-01 00:00:00"
+              ],
+              [
+                2,
+                7,
+                "quiz_passed",
+                "2026-10-08 05:13:00"
+              ],
+              [
+                3,
+                7,
+                "challenge_submitted",
+                "2026-10-15 10:26:00"
+              ],
+              [
+                4,
+                8,
+                "comment_posted",
+                "2026-10-22 15:39:00"
+              ],
+              [
+                5,
+                7,
+                "lesson_completed",
+                "2026-10-03 20:52:00"
+              ],
+              [
+                6,
+                7,
+                "quiz_passed",
+                "2026-10-10 01:05:00"
+              ],
+              [
+                7,
+                8,
+                "challenge_submitted",
+                "2026-10-17 06:18:00"
+              ],
+              [
+                8,
+                7,
+                "comment_posted",
+                "2026-10-24 11:31:00"
+              ],
+              [
+                9,
+                7,
+                "lesson_completed",
+                "2026-10-05 16:44:00"
+              ],
+              [
+                10,
+                8,
+                "quiz_passed",
+                "2026-10-12 21:57:00"
+              ],
+              [
+                11,
+                7,
+                "challenge_submitted",
+                "2026-10-19 02:10:00"
+              ],
+              [
+                12,
+                7,
+                "comment_posted",
+                "2026-10-26 07:23:00"
+              ],
+              [
+                13,
+                8,
+                "lesson_completed",
+                "2026-10-07 12:36:00"
+              ],
+              [
+                14,
+                7,
+                "quiz_passed",
+                "2026-10-14 17:49:00"
+              ],
+              [
+                15,
+                7,
+                "challenge_submitted",
+                "2026-10-21 22:02:00"
+              ],
+              [
+                16,
+                8,
+                "comment_posted",
+                "2026-10-02 03:15:00"
+              ],
+              [
+                17,
+                7,
+                "lesson_completed",
+                "2026-10-09 08:28:00"
+              ],
+              [
+                18,
+                7,
+                "quiz_passed",
+                "2026-10-16 13:41:00"
+              ],
+              [
+                19,
+                8,
+                "challenge_submitted",
+                "2026-10-23 18:54:00"
+              ],
+              [
+                20,
+                7,
+                "comment_posted",
+                "2026-10-04 23:07:00"
+              ],
+              [
+                21,
+                7,
+                "lesson_completed",
+                "2026-10-11 04:20:00"
+              ],
+              [
+                22,
+                8,
+                "quiz_passed",
+                "2026-10-18 09:33:00"
+              ],
+              [
+                23,
+                7,
+                "challenge_submitted",
+                "2026-10-25 14:46:00"
+              ],
+              [
+                24,
+                7,
+                "comment_posted",
+                "2026-10-06 19:59:00"
+              ],
+              [
+                25,
+                8,
+                "lesson_completed",
+                "2026-10-13 00:12:00"
+              ],
+              [
+                26,
+                7,
+                "quiz_passed",
+                "2026-10-20 05:25:00"
+              ],
+              [
+                27,
+                7,
+                "challenge_submitted",
+                "2026-10-01 10:38:00"
+              ],
+              [
+                28,
+                8,
+                "comment_posted",
+                "2026-10-08 15:51:00"
+              ],
+              [
+                29,
+                7,
+                "lesson_completed",
+                "2026-10-15 20:04:00"
+              ],
+              [
+                30,
+                7,
+                "quiz_passed",
+                "2026-10-22 01:17:00"
+              ],
+              [
+                31,
+                8,
+                "challenge_submitted",
+                "2026-10-03 06:30:00"
+              ],
+              [
+                32,
+                7,
+                "comment_posted",
+                "2026-10-10 11:43:00"
+              ],
+              [
+                33,
+                7,
+                "lesson_completed",
+                "2026-10-17 16:56:00"
+              ],
+              [
+                34,
+                8,
+                "quiz_passed",
+                "2026-10-24 21:09:00"
+              ],
+              [
+                35,
+                7,
+                "challenge_submitted",
+                "2026-10-05 02:22:00"
+              ],
+              [
+                36,
+                7,
+                "comment_posted",
+                "2026-10-12 07:35:00"
+              ],
+              [
+                37,
+                9,
+                "lesson_completed",
+                "2026-03-02 08:00:00"
+              ]
+            ],
+            "enrollments": [
+              [
+                1,
+                7,
+                1,
+                "2026-01-01 10:00:00",
+                "active"
+              ],
+              [
+                2,
+                8,
+                2,
+                "2026-02-04 10:00:00",
+                "cancelled"
+              ],
+              [
+                3,
+                9,
+                3,
+                "2026-03-07 10:00:00",
+                "active"
+              ],
+              [
+                4,
+                10,
+                4,
+                "2026-04-10 10:00:00",
+                "completed"
+              ],
+              [
+                5,
+                11,
+                1,
+                "2026-05-13 10:00:00",
+                "completed"
+              ],
+              [
+                6,
+                12,
+                2,
+                "2026-06-16 10:00:00",
+                "active"
+              ],
+              [
+                7,
+                13,
+                3,
+                "2026-07-19 10:00:00",
+                "cancelled"
+              ],
+              [
+                8,
+                14,
+                4,
+                "2026-08-22 10:00:00",
+                "active"
+              ],
+              [
+                9,
+                15,
+                1,
+                "2026-09-25 10:00:00",
+                "active"
+              ],
+              [
+                10,
+                16,
+                2,
+                "2026-01-01 10:00:00",
+                "completed"
+              ],
+              [
+                11,
+                17,
+                3,
+                "2026-02-04 10:00:00",
+                "active"
+              ],
+              [
+                12,
+                18,
+                4,
+                "2026-03-07 10:00:00",
+                "cancelled"
+              ],
+              [
+                13,
+                19,
+                1,
+                "2026-04-10 10:00:00",
+                "cancelled"
+              ],
+              [
+                14,
+                7,
+                2,
+                "2026-05-13 10:00:00",
+                "active"
+              ],
+              [
+                15,
+                8,
+                3,
+                "2026-06-16 10:00:00",
+                "completed"
+              ],
+              [
+                16,
+                9,
+                4,
+                "2026-07-19 10:00:00",
+                "active"
+              ],
+              [
+                17,
+                10,
+                1,
+                "2026-08-22 10:00:00",
+                "active"
+              ],
+              [
+                18,
+                11,
+                2,
+                "2026-09-25 10:00:00",
+                "cancelled"
+              ],
+              [
+                19,
+                12,
+                3,
+                "2026-01-01 10:00:00",
+                "active"
+              ],
+              [
+                20,
+                13,
+                4,
+                "2026-02-04 10:00:00",
+                "completed"
+              ],
+              [
+                21,
+                14,
+                1,
+                "2026-03-07 10:00:00",
+                "completed"
+              ],
+              [
+                22,
+                15,
+                2,
+                "2026-04-10 10:00:00",
+                "active"
+              ],
+              [
+                23,
+                16,
+                3,
+                "2026-05-13 10:00:00",
+                "cancelled"
+              ],
+              [
+                24,
+                17,
+                4,
+                "2026-06-16 10:00:00",
+                "active"
+              ],
+              [
+                25,
+                18,
+                1,
+                "2026-07-19 10:00:00",
+                "active"
+              ],
+              [
+                26,
+                19,
+                2,
+                "2026-08-22 10:00:00",
+                "completed"
+              ],
+              [
+                27,
+                7,
+                3,
+                "2026-09-25 10:00:00",
+                "active"
+              ],
+              [
+                28,
+                8,
+                4,
+                "2026-01-01 10:00:00",
+                "cancelled"
+              ],
+              [
+                29,
+                9,
+                1,
+                "2026-02-04 10:00:00",
+                "cancelled"
+              ],
+              [
+                30,
+                10,
+                2,
+                "2026-03-07 10:00:00",
+                "active"
+              ]
+            ],
+            "calls": [
+              {
+                "query": "roster",
+                "params": [
+                  2
+                ]
+              },
+              {
+                "query": "roster_by_status",
+                "params": [
+                  2,
+                  "active"
+                ]
+              },
+              {
+                "query": "roster_by_status",
+                "params": [
+                  3,
+                  "completed"
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "indexes": "ok",
+            "calls": [
+              {
+                "rows": [
+                  [
+                    7,
+                    "active"
+                  ],
+                  [
+                    8,
+                    "cancelled"
+                  ],
+                  [
+                    10,
+                    "active"
+                  ],
+                  [
+                    11,
+                    "cancelled"
+                  ],
+                  [
+                    12,
+                    "active"
+                  ],
+                  [
+                    15,
+                    "active"
+                  ],
+                  [
+                    16,
+                    "completed"
+                  ],
+                  [
+                    19,
+                    "completed"
+                  ]
+                ]
+              },
+              {
+                "rows": [
+                  [
+                    7,
+                    "active"
+                  ],
+                  [
+                    10,
+                    "active"
+                  ],
+                  [
+                    12,
+                    "active"
+                  ],
+                  [
+                    15,
+                    "active"
+                  ]
+                ]
+              },
+              {
+                "rows": [
+                  [
+                    8,
+                    "completed"
+                  ]
+                ]
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Plans: the feed searches by user and needs no sort",
+          "input": {
+            "activity": [
+              [
+                1,
+                8,
+                "lesson_completed",
+                "2026-10-01 00:00:00"
+              ],
+              [
+                2,
+                7,
+                "quiz_passed",
+                "2026-10-08 05:13:00"
+              ],
+              [
+                3,
+                7,
+                "challenge_submitted",
+                "2026-10-15 10:26:00"
+              ],
+              [
+                4,
+                8,
+                "comment_posted",
+                "2026-10-22 15:39:00"
+              ],
+              [
+                5,
+                7,
+                "lesson_completed",
+                "2026-10-03 20:52:00"
+              ],
+              [
+                6,
+                7,
+                "quiz_passed",
+                "2026-10-10 01:05:00"
+              ],
+              [
+                7,
+                8,
+                "challenge_submitted",
+                "2026-10-17 06:18:00"
+              ],
+              [
+                8,
+                7,
+                "comment_posted",
+                "2026-10-24 11:31:00"
+              ],
+              [
+                9,
+                7,
+                "lesson_completed",
+                "2026-10-05 16:44:00"
+              ],
+              [
+                10,
+                8,
+                "quiz_passed",
+                "2026-10-12 21:57:00"
+              ],
+              [
+                11,
+                7,
+                "challenge_submitted",
+                "2026-10-19 02:10:00"
+              ],
+              [
+                12,
+                7,
+                "comment_posted",
+                "2026-10-26 07:23:00"
+              ],
+              [
+                13,
+                8,
+                "lesson_completed",
+                "2026-10-07 12:36:00"
+              ],
+              [
+                14,
+                7,
+                "quiz_passed",
+                "2026-10-14 17:49:00"
+              ],
+              [
+                15,
+                7,
+                "challenge_submitted",
+                "2026-10-21 22:02:00"
+              ],
+              [
+                16,
+                8,
+                "comment_posted",
+                "2026-10-02 03:15:00"
+              ],
+              [
+                17,
+                7,
+                "lesson_completed",
+                "2026-10-09 08:28:00"
+              ],
+              [
+                18,
+                7,
+                "quiz_passed",
+                "2026-10-16 13:41:00"
+              ],
+              [
+                19,
+                8,
+                "challenge_submitted",
+                "2026-10-23 18:54:00"
+              ],
+              [
+                20,
+                7,
+                "comment_posted",
+                "2026-10-04 23:07:00"
+              ],
+              [
+                21,
+                7,
+                "lesson_completed",
+                "2026-10-11 04:20:00"
+              ],
+              [
+                22,
+                8,
+                "quiz_passed",
+                "2026-10-18 09:33:00"
+              ],
+              [
+                23,
+                7,
+                "challenge_submitted",
+                "2026-10-25 14:46:00"
+              ],
+              [
+                24,
+                7,
+                "comment_posted",
+                "2026-10-06 19:59:00"
+              ],
+              [
+                25,
+                8,
+                "lesson_completed",
+                "2026-10-13 00:12:00"
+              ],
+              [
+                26,
+                7,
+                "quiz_passed",
+                "2026-10-20 05:25:00"
+              ],
+              [
+                27,
+                7,
+                "challenge_submitted",
+                "2026-10-01 10:38:00"
+              ],
+              [
+                28,
+                8,
+                "comment_posted",
+                "2026-10-08 15:51:00"
+              ],
+              [
+                29,
+                7,
+                "lesson_completed",
+                "2026-10-15 20:04:00"
+              ],
+              [
+                30,
+                7,
+                "quiz_passed",
+                "2026-10-22 01:17:00"
+              ],
+              [
+                31,
+                8,
+                "challenge_submitted",
+                "2026-10-03 06:30:00"
+              ],
+              [
+                32,
+                7,
+                "comment_posted",
+                "2026-10-10 11:43:00"
+              ],
+              [
+                33,
+                7,
+                "lesson_completed",
+                "2026-10-17 16:56:00"
+              ],
+              [
+                34,
+                8,
+                "quiz_passed",
+                "2026-10-24 21:09:00"
+              ],
+              [
+                35,
+                7,
+                "challenge_submitted",
+                "2026-10-05 02:22:00"
+              ],
+              [
+                36,
+                7,
+                "comment_posted",
+                "2026-10-12 07:35:00"
+              ],
+              [
+                37,
+                9,
+                "lesson_completed",
+                "2026-03-02 08:00:00"
+              ]
+            ],
+            "enrollments": [
+              [
+                1,
+                7,
+                1,
+                "2026-01-01 10:00:00",
+                "active"
+              ],
+              [
+                2,
+                8,
+                2,
+                "2026-02-04 10:00:00",
+                "cancelled"
+              ],
+              [
+                3,
+                9,
+                3,
+                "2026-03-07 10:00:00",
+                "active"
+              ],
+              [
+                4,
+                10,
+                4,
+                "2026-04-10 10:00:00",
+                "completed"
+              ],
+              [
+                5,
+                11,
+                1,
+                "2026-05-13 10:00:00",
+                "completed"
+              ],
+              [
+                6,
+                12,
+                2,
+                "2026-06-16 10:00:00",
+                "active"
+              ],
+              [
+                7,
+                13,
+                3,
+                "2026-07-19 10:00:00",
+                "cancelled"
+              ],
+              [
+                8,
+                14,
+                4,
+                "2026-08-22 10:00:00",
+                "active"
+              ],
+              [
+                9,
+                15,
+                1,
+                "2026-09-25 10:00:00",
+                "active"
+              ],
+              [
+                10,
+                16,
+                2,
+                "2026-01-01 10:00:00",
+                "completed"
+              ],
+              [
+                11,
+                17,
+                3,
+                "2026-02-04 10:00:00",
+                "active"
+              ],
+              [
+                12,
+                18,
+                4,
+                "2026-03-07 10:00:00",
+                "cancelled"
+              ],
+              [
+                13,
+                19,
+                1,
+                "2026-04-10 10:00:00",
+                "cancelled"
+              ],
+              [
+                14,
+                7,
+                2,
+                "2026-05-13 10:00:00",
+                "active"
+              ],
+              [
+                15,
+                8,
+                3,
+                "2026-06-16 10:00:00",
+                "completed"
+              ],
+              [
+                16,
+                9,
+                4,
+                "2026-07-19 10:00:00",
+                "active"
+              ],
+              [
+                17,
+                10,
+                1,
+                "2026-08-22 10:00:00",
+                "active"
+              ],
+              [
+                18,
+                11,
+                2,
+                "2026-09-25 10:00:00",
+                "cancelled"
+              ],
+              [
+                19,
+                12,
+                3,
+                "2026-01-01 10:00:00",
+                "active"
+              ],
+              [
+                20,
+                13,
+                4,
+                "2026-02-04 10:00:00",
+                "completed"
+              ],
+              [
+                21,
+                14,
+                1,
+                "2026-03-07 10:00:00",
+                "completed"
+              ],
+              [
+                22,
+                15,
+                2,
+                "2026-04-10 10:00:00",
+                "active"
+              ],
+              [
+                23,
+                16,
+                3,
+                "2026-05-13 10:00:00",
+                "cancelled"
+              ],
+              [
+                24,
+                17,
+                4,
+                "2026-06-16 10:00:00",
+                "active"
+              ],
+              [
+                25,
+                18,
+                1,
+                "2026-07-19 10:00:00",
+                "active"
+              ],
+              [
+                26,
+                19,
+                2,
+                "2026-08-22 10:00:00",
+                "completed"
+              ],
+              [
+                27,
+                7,
+                3,
+                "2026-09-25 10:00:00",
+                "active"
+              ],
+              [
+                28,
+                8,
+                4,
+                "2026-01-01 10:00:00",
+                "cancelled"
+              ],
+              [
+                29,
+                9,
+                1,
+                "2026-02-04 10:00:00",
+                "cancelled"
+              ],
+              [
+                30,
+                10,
+                2,
+                "2026-03-07 10:00:00",
+                "active"
+              ]
+            ],
+            "explain": true,
+            "calls": [
+              {
+                "query": "feed",
+                "params": [
+                  7
+                ]
+              },
+              {
+                "query": "feed",
+                "params": [
+                  9
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "indexes": "ok",
+            "calls": [
+              {
+                "rows": [
+                  [
+                    12,
+                    "comment_posted",
+                    "2026-10-26 07:23:00"
+                  ],
+                  [
+                    23,
+                    "challenge_submitted",
+                    "2026-10-25 14:46:00"
+                  ],
+                  [
+                    8,
+                    "comment_posted",
+                    "2026-10-24 11:31:00"
+                  ],
+                  [
+                    30,
+                    "quiz_passed",
+                    "2026-10-22 01:17:00"
+                  ],
+                  [
+                    15,
+                    "challenge_submitted",
+                    "2026-10-21 22:02:00"
+                  ],
+                  [
+                    26,
+                    "quiz_passed",
+                    "2026-10-20 05:25:00"
+                  ],
+                  [
+                    11,
+                    "challenge_submitted",
+                    "2026-10-19 02:10:00"
+                  ],
+                  [
+                    33,
+                    "lesson_completed",
+                    "2026-10-17 16:56:00"
+                  ],
+                  [
+                    18,
+                    "quiz_passed",
+                    "2026-10-16 13:41:00"
+                  ],
+                  [
+                    29,
+                    "lesson_completed",
+                    "2026-10-15 20:04:00"
+                  ],
+                  [
+                    3,
+                    "challenge_submitted",
+                    "2026-10-15 10:26:00"
+                  ],
+                  [
+                    14,
+                    "quiz_passed",
+                    "2026-10-14 17:49:00"
+                  ],
+                  [
+                    36,
+                    "comment_posted",
+                    "2026-10-12 07:35:00"
+                  ],
+                  [
+                    21,
+                    "lesson_completed",
+                    "2026-10-11 04:20:00"
+                  ],
+                  [
+                    32,
+                    "comment_posted",
+                    "2026-10-10 11:43:00"
+                  ],
+                  [
+                    6,
+                    "quiz_passed",
+                    "2026-10-10 01:05:00"
+                  ],
+                  [
+                    17,
+                    "lesson_completed",
+                    "2026-10-09 08:28:00"
+                  ],
+                  [
+                    2,
+                    "quiz_passed",
+                    "2026-10-08 05:13:00"
+                  ],
+                  [
+                    24,
+                    "comment_posted",
+                    "2026-10-06 19:59:00"
+                  ],
+                  [
+                    9,
+                    "lesson_completed",
+                    "2026-10-05 16:44:00"
+                  ]
+                ],
+                "plan": "ok"
+              },
+              {
+                "rows": [
+                  [
+                    37,
+                    "lesson_completed",
+                    "2026-03-02 08:00:00"
+                  ]
+                ],
+                "plan": "ok"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Plans: the roster searches by course with and without status",
+          "input": {
+            "activity": [
+              [
+                1,
+                8,
+                "lesson_completed",
+                "2026-10-01 00:00:00"
+              ],
+              [
+                2,
+                7,
+                "quiz_passed",
+                "2026-10-08 05:13:00"
+              ],
+              [
+                3,
+                7,
+                "challenge_submitted",
+                "2026-10-15 10:26:00"
+              ],
+              [
+                4,
+                8,
+                "comment_posted",
+                "2026-10-22 15:39:00"
+              ],
+              [
+                5,
+                7,
+                "lesson_completed",
+                "2026-10-03 20:52:00"
+              ],
+              [
+                6,
+                7,
+                "quiz_passed",
+                "2026-10-10 01:05:00"
+              ],
+              [
+                7,
+                8,
+                "challenge_submitted",
+                "2026-10-17 06:18:00"
+              ],
+              [
+                8,
+                7,
+                "comment_posted",
+                "2026-10-24 11:31:00"
+              ],
+              [
+                9,
+                7,
+                "lesson_completed",
+                "2026-10-05 16:44:00"
+              ],
+              [
+                10,
+                8,
+                "quiz_passed",
+                "2026-10-12 21:57:00"
+              ],
+              [
+                11,
+                7,
+                "challenge_submitted",
+                "2026-10-19 02:10:00"
+              ],
+              [
+                12,
+                7,
+                "comment_posted",
+                "2026-10-26 07:23:00"
+              ],
+              [
+                13,
+                8,
+                "lesson_completed",
+                "2026-10-07 12:36:00"
+              ],
+              [
+                14,
+                7,
+                "quiz_passed",
+                "2026-10-14 17:49:00"
+              ],
+              [
+                15,
+                7,
+                "challenge_submitted",
+                "2026-10-21 22:02:00"
+              ],
+              [
+                16,
+                8,
+                "comment_posted",
+                "2026-10-02 03:15:00"
+              ],
+              [
+                17,
+                7,
+                "lesson_completed",
+                "2026-10-09 08:28:00"
+              ],
+              [
+                18,
+                7,
+                "quiz_passed",
+                "2026-10-16 13:41:00"
+              ],
+              [
+                19,
+                8,
+                "challenge_submitted",
+                "2026-10-23 18:54:00"
+              ],
+              [
+                20,
+                7,
+                "comment_posted",
+                "2026-10-04 23:07:00"
+              ],
+              [
+                21,
+                7,
+                "lesson_completed",
+                "2026-10-11 04:20:00"
+              ],
+              [
+                22,
+                8,
+                "quiz_passed",
+                "2026-10-18 09:33:00"
+              ],
+              [
+                23,
+                7,
+                "challenge_submitted",
+                "2026-10-25 14:46:00"
+              ],
+              [
+                24,
+                7,
+                "comment_posted",
+                "2026-10-06 19:59:00"
+              ],
+              [
+                25,
+                8,
+                "lesson_completed",
+                "2026-10-13 00:12:00"
+              ],
+              [
+                26,
+                7,
+                "quiz_passed",
+                "2026-10-20 05:25:00"
+              ],
+              [
+                27,
+                7,
+                "challenge_submitted",
+                "2026-10-01 10:38:00"
+              ],
+              [
+                28,
+                8,
+                "comment_posted",
+                "2026-10-08 15:51:00"
+              ],
+              [
+                29,
+                7,
+                "lesson_completed",
+                "2026-10-15 20:04:00"
+              ],
+              [
+                30,
+                7,
+                "quiz_passed",
+                "2026-10-22 01:17:00"
+              ],
+              [
+                31,
+                8,
+                "challenge_submitted",
+                "2026-10-03 06:30:00"
+              ],
+              [
+                32,
+                7,
+                "comment_posted",
+                "2026-10-10 11:43:00"
+              ],
+              [
+                33,
+                7,
+                "lesson_completed",
+                "2026-10-17 16:56:00"
+              ],
+              [
+                34,
+                8,
+                "quiz_passed",
+                "2026-10-24 21:09:00"
+              ],
+              [
+                35,
+                7,
+                "challenge_submitted",
+                "2026-10-05 02:22:00"
+              ],
+              [
+                36,
+                7,
+                "comment_posted",
+                "2026-10-12 07:35:00"
+              ],
+              [
+                37,
+                9,
+                "lesson_completed",
+                "2026-03-02 08:00:00"
+              ]
+            ],
+            "enrollments": [
+              [
+                1,
+                7,
+                1,
+                "2026-01-01 10:00:00",
+                "active"
+              ],
+              [
+                2,
+                8,
+                2,
+                "2026-02-04 10:00:00",
+                "cancelled"
+              ],
+              [
+                3,
+                9,
+                3,
+                "2026-03-07 10:00:00",
+                "active"
+              ],
+              [
+                4,
+                10,
+                4,
+                "2026-04-10 10:00:00",
+                "completed"
+              ],
+              [
+                5,
+                11,
+                1,
+                "2026-05-13 10:00:00",
+                "completed"
+              ],
+              [
+                6,
+                12,
+                2,
+                "2026-06-16 10:00:00",
+                "active"
+              ],
+              [
+                7,
+                13,
+                3,
+                "2026-07-19 10:00:00",
+                "cancelled"
+              ],
+              [
+                8,
+                14,
+                4,
+                "2026-08-22 10:00:00",
+                "active"
+              ],
+              [
+                9,
+                15,
+                1,
+                "2026-09-25 10:00:00",
+                "active"
+              ],
+              [
+                10,
+                16,
+                2,
+                "2026-01-01 10:00:00",
+                "completed"
+              ],
+              [
+                11,
+                17,
+                3,
+                "2026-02-04 10:00:00",
+                "active"
+              ],
+              [
+                12,
+                18,
+                4,
+                "2026-03-07 10:00:00",
+                "cancelled"
+              ],
+              [
+                13,
+                19,
+                1,
+                "2026-04-10 10:00:00",
+                "cancelled"
+              ],
+              [
+                14,
+                7,
+                2,
+                "2026-05-13 10:00:00",
+                "active"
+              ],
+              [
+                15,
+                8,
+                3,
+                "2026-06-16 10:00:00",
+                "completed"
+              ],
+              [
+                16,
+                9,
+                4,
+                "2026-07-19 10:00:00",
+                "active"
+              ],
+              [
+                17,
+                10,
+                1,
+                "2026-08-22 10:00:00",
+                "active"
+              ],
+              [
+                18,
+                11,
+                2,
+                "2026-09-25 10:00:00",
+                "cancelled"
+              ],
+              [
+                19,
+                12,
+                3,
+                "2026-01-01 10:00:00",
+                "active"
+              ],
+              [
+                20,
+                13,
+                4,
+                "2026-02-04 10:00:00",
+                "completed"
+              ],
+              [
+                21,
+                14,
+                1,
+                "2026-03-07 10:00:00",
+                "completed"
+              ],
+              [
+                22,
+                15,
+                2,
+                "2026-04-10 10:00:00",
+                "active"
+              ],
+              [
+                23,
+                16,
+                3,
+                "2026-05-13 10:00:00",
+                "cancelled"
+              ],
+              [
+                24,
+                17,
+                4,
+                "2026-06-16 10:00:00",
+                "active"
+              ],
+              [
+                25,
+                18,
+                1,
+                "2026-07-19 10:00:00",
+                "active"
+              ],
+              [
+                26,
+                19,
+                2,
+                "2026-08-22 10:00:00",
+                "completed"
+              ],
+              [
+                27,
+                7,
+                3,
+                "2026-09-25 10:00:00",
+                "active"
+              ],
+              [
+                28,
+                8,
+                4,
+                "2026-01-01 10:00:00",
+                "cancelled"
+              ],
+              [
+                29,
+                9,
+                1,
+                "2026-02-04 10:00:00",
+                "cancelled"
+              ],
+              [
+                30,
+                10,
+                2,
+                "2026-03-07 10:00:00",
+                "active"
+              ]
+            ],
+            "explain": true,
+            "calls": [
+              {
+                "query": "roster",
+                "params": [
+                  1
+                ]
+              },
+              {
+                "query": "roster_by_status",
+                "params": [
+                  1,
+                  "cancelled"
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "indexes": "ok",
+            "calls": [
+              {
+                "rows": [
+                  [
+                    7,
+                    "active"
+                  ],
+                  [
+                    9,
+                    "cancelled"
+                  ],
+                  [
+                    10,
+                    "active"
+                  ],
+                  [
+                    11,
+                    "completed"
+                  ],
+                  [
+                    14,
+                    "completed"
+                  ],
+                  [
+                    15,
+                    "active"
+                  ],
+                  [
+                    18,
+                    "active"
+                  ],
+                  [
+                    19,
+                    "cancelled"
+                  ]
+                ],
+                "plan": "ok"
+              },
+              {
+                "rows": [
+                  [
+                    9,
+                    "cancelled"
+                  ],
+                  [
+                    19,
+                    "cancelled"
+                  ]
+                ],
+                "plan": "ok"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large tables: a quiet user's feed and a full roster within the step budget",
+          "input": {
+            "generate": {
+              "seed": 11,
+              "users": 500,
+              "courses": 60,
+              "activity": 40000,
+              "enrollments": 12000,
+              "quiet_users": {
+                "9001": 3
+              }
+            },
+            "calls": [
+              {
+                "query": "feed",
+                "params": [
+                  9001
+                ]
+              },
+              {
+                "query": "feed",
+                "params": [
+                  42
+                ]
+              },
+              {
+                "query": "roster",
+                "params": [
+                  17
+                ]
+              },
+              {
+                "query": "roster_by_status",
+                "params": [
+                  17,
+                  "completed"
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "indexes": "ok",
+            "calls": [
+              {
+                "rows": [
+                  [
+                    40003,
+                    "lesson_completed",
+                    "2026-01-01 00:02:00"
+                  ],
+                  [
+                    40002,
+                    "lesson_completed",
+                    "2026-01-01 00:01:00"
+                  ],
+                  [
+                    40001,
+                    "lesson_completed",
+                    "2026-01-01 00:00:00"
+                  ]
+                ]
+              },
+              {
+                "rows": [
+                  [
+                    39661,
+                    "lesson_completed",
+                    "2026-02-25 02:00:00"
+                  ],
+                  [
+                    39574,
+                    "comment_posted",
+                    "2026-02-24 23:06:00"
+                  ],
+                  [
+                    39359,
+                    "challenge_submitted",
+                    "2026-02-24 15:56:00"
+                  ],
+                  [
+                    39267,
+                    "comment_posted",
+                    "2026-02-24 12:52:00"
+                  ],
+                  [
+                    39041,
+                    "lesson_completed",
+                    "2026-02-24 05:20:00"
+                  ],
+                  [
+                    38872,
+                    "challenge_submitted",
+                    "2026-02-23 23:42:00"
+                  ],
+                  [
+                    38489,
+                    "challenge_submitted",
+                    "2026-02-23 10:56:00"
+                  ],
+                  [
+                    36364,
+                    "quiz_passed",
+                    "2026-02-20 12:06:00"
+                  ],
+                  [
+                    35817,
+                    "challenge_submitted",
+                    "2026-02-19 17:52:00"
+                  ],
+                  [
+                    33348,
+                    "quiz_passed",
+                    "2026-02-16 07:34:00"
+                  ],
+                  [
+                    33197,
+                    "comment_posted",
+                    "2026-02-16 02:32:00"
+                  ],
+                  [
+                    33097,
+                    "quiz_passed",
+                    "2026-02-15 23:12:00"
+                  ],
+                  [
+                    32644,
+                    "challenge_submitted",
+                    "2026-02-15 08:06:00"
+                  ],
+                  [
+                    32535,
+                    "lesson_completed",
+                    "2026-02-15 04:28:00"
+                  ],
+                  [
+                    31882,
+                    "quiz_passed",
+                    "2026-02-14 06:42:00"
+                  ],
+                  [
+                    31643,
+                    "lesson_completed",
+                    "2026-02-13 22:44:00"
+                  ],
+                  [
+                    31384,
+                    "lesson_completed",
+                    "2026-02-13 14:06:00"
+                  ],
+                  [
+                    31244,
+                    "quiz_passed",
+                    "2026-02-13 09:26:00"
+                  ],
+                  [
+                    30025,
+                    "quiz_passed",
+                    "2026-02-11 16:48:00"
+                  ],
+                  [
+                    29930,
+                    "quiz_passed",
+                    "2026-02-11 13:38:00"
+                  ]
+                ]
+              },
+              {
+                "rows": [
+                  [
+                    3,
+                    "active"
+                  ],
+                  [
+                    4,
+                    "cancelled"
+                  ],
+                  [
+                    5,
+                    "active"
+                  ],
+                  [
+                    9,
+                    "completed"
+                  ],
+                  [
+                    10,
+                    "active"
+                  ],
+                  [
+                    12,
+                    "cancelled"
+                  ],
+                  [
+                    15,
+                    "active"
+                  ],
+                  [
+                    17,
+                    "active"
+                  ],
+                  [
+                    18,
+                    "active"
+                  ],
+                  [
+                    18,
+                    "cancelled"
+                  ],
+                  [
+                    23,
+                    "cancelled"
+                  ],
+                  [
+                    25,
+                    "cancelled"
+                  ],
+                  [
+                    27,
+                    "active"
+                  ],
+                  [
+                    29,
+                    "active"
+                  ],
+                  [
+                    30,
+                    "cancelled"
+                  ],
+                  [
+                    35,
+                    "completed"
+                  ],
+                  [
+                    36,
+                    "active"
+                  ],
+                  [
+                    39,
+                    "active"
+                  ],
+                  [
+                    40,
+                    "active"
+                  ],
+                  [
+                    48,
+                    "active"
+                  ],
+                  [
+                    50,
+                    "completed"
+                  ],
+                  [
+                    60,
+                    "active"
+                  ],
+                  [
+                    60,
+                    "cancelled"
+                  ],
+                  [
+                    64,
+                    "completed"
+                  ],
+                  [
+                    66,
+                    "cancelled"
+                  ],
+                  [
+                    69,
+                    "completed"
+                  ],
+                  [
+                    76,
+                    "active"
+                  ],
+                  [
+                    77,
+                    "cancelled"
+                  ],
+                  [
+                    80,
+                    "completed"
+                  ],
+                  [
+                    82,
+                    "active"
+                  ],
+                  [
+                    82,
+                    "cancelled"
+                  ],
+                  [
+                    83,
+                    "active"
+                  ],
+                  [
+                    83,
+                    "active"
+                  ],
+                  [
+                    86,
+                    "cancelled"
+                  ],
+                  [
+                    87,
+                    "active"
+                  ],
+                  [
+                    90,
+                    "cancelled"
+                  ],
+                  [
+                    90,
+                    "cancelled"
+                  ],
+                  [
+                    93,
+                    "completed"
+                  ],
+                  [
+                    94,
+                    "completed"
+                  ],
+                  [
+                    95,
+                    "active"
+                  ],
+                  [
+                    95,
+                    "active"
+                  ],
+                  [
+                    95,
+                    "active"
+                  ],
+                  [
+                    101,
+                    "active"
+                  ],
+                  [
+                    102,
+                    "cancelled"
+                  ],
+                  [
+                    106,
+                    "cancelled"
+                  ],
+                  [
+                    115,
+                    "active"
+                  ],
+                  [
+                    115,
+                    "active"
+                  ],
+                  [
+                    116,
+                    "completed"
+                  ],
+                  [
+                    117,
+                    "active"
+                  ],
+                  [
+                    119,
+                    "active"
+                  ],
+                  [
+                    122,
+                    "active"
+                  ],
+                  [
+                    124,
+                    "cancelled"
+                  ],
+                  [
+                    125,
+                    "cancelled"
+                  ],
+                  [
+                    128,
+                    "cancelled"
+                  ],
+                  [
+                    128,
+                    "cancelled"
+                  ],
+                  [
+                    130,
+                    "active"
+                  ],
+                  [
+                    132,
+                    "cancelled"
+                  ],
+                  [
+                    133,
+                    "active"
+                  ],
+                  [
+                    133,
+                    "completed"
+                  ],
+                  [
+                    134,
+                    "completed"
+                  ],
+                  [
+                    137,
+                    "completed"
+                  ],
+                  [
+                    140,
+                    "active"
+                  ],
+                  [
+                    142,
+                    "active"
+                  ],
+                  [
+                    143,
+                    "active"
+                  ],
+                  [
+                    152,
+                    "cancelled"
+                  ],
+                  [
+                    153,
+                    "active"
+                  ],
+                  [
+                    158,
+                    "active"
+                  ],
+                  [
+                    159,
+                    "active"
+                  ],
+                  [
+                    161,
+                    "completed"
+                  ],
+                  [
+                    164,
+                    "cancelled"
+                  ],
+                  [
+                    167,
+                    "cancelled"
+                  ],
+                  [
+                    175,
+                    "active"
+                  ],
+                  [
+                    178,
+                    "active"
+                  ],
+                  [
+                    178,
+                    "completed"
+                  ],
+                  [
+                    180,
+                    "cancelled"
+                  ],
+                  [
+                    183,
+                    "active"
+                  ],
+                  [
+                    183,
+                    "cancelled"
+                  ],
+                  [
+                    188,
+                    "active"
+                  ],
+                  [
+                    195,
+                    "completed"
+                  ],
+                  [
+                    196,
+                    "active"
+                  ],
+                  [
+                    197,
+                    "active"
+                  ],
+                  [
+                    202,
+                    "cancelled"
+                  ],
+                  [
+                    203,
+                    "active"
+                  ],
+                  [
+                    208,
+                    "completed"
+                  ],
+                  [
+                    209,
+                    "cancelled"
+                  ],
+                  [
+                    210,
+                    "cancelled"
+                  ],
+                  [
+                    211,
+                    "active"
+                  ],
+                  [
+                    212,
+                    "active"
+                  ],
+                  [
+                    212,
+                    "active"
+                  ],
+                  [
+                    212,
+                    "active"
+                  ],
+                  [
+                    219,
+                    "active"
+                  ],
+                  [
+                    222,
+                    "active"
+                  ],
+                  [
+                    227,
+                    "cancelled"
+                  ],
+                  [
+                    228,
+                    "cancelled"
+                  ],
+                  [
+                    229,
+                    "completed"
+                  ],
+                  [
+                    237,
+                    "active"
+                  ],
+                  [
+                    237,
+                    "active"
+                  ],
+                  [
+                    237,
+                    "cancelled"
+                  ],
+                  [
+                    240,
+                    "completed"
+                  ],
+                  [
+                    247,
+                    "active"
+                  ],
+                  [
+                    250,
+                    "cancelled"
+                  ],
+                  [
+                    262,
+                    "active"
+                  ],
+                  [
+                    263,
+                    "cancelled"
+                  ],
+                  [
+                    266,
+                    "active"
+                  ],
+                  [
+                    266,
+                    "cancelled"
+                  ],
+                  [
+                    267,
+                    "active"
+                  ],
+                  [
+                    270,
+                    "completed"
+                  ],
+                  [
+                    273,
+                    "cancelled"
+                  ],
+                  [
+                    279,
+                    "active"
+                  ],
+                  [
+                    280,
+                    "completed"
+                  ],
+                  [
+                    282,
+                    "active"
+                  ],
+                  [
+                    283,
+                    "active"
+                  ],
+                  [
+                    283,
+                    "completed"
+                  ],
+                  [
+                    288,
+                    "active"
+                  ],
+                  [
+                    299,
+                    "completed"
+                  ],
+                  [
+                    303,
+                    "completed"
+                  ],
+                  [
+                    303,
+                    "completed"
+                  ],
+                  [
+                    304,
+                    "cancelled"
+                  ],
+                  [
+                    308,
+                    "active"
+                  ],
+                  [
+                    309,
+                    "active"
+                  ],
+                  [
+                    312,
+                    "completed"
+                  ],
+                  [
+                    317,
+                    "completed"
+                  ],
+                  [
+                    318,
+                    "active"
+                  ],
+                  [
+                    318,
+                    "cancelled"
+                  ],
+                  [
+                    322,
+                    "completed"
+                  ],
+                  [
+                    323,
+                    "completed"
+                  ],
+                  [
+                    332,
+                    "active"
+                  ],
+                  [
+                    333,
+                    "completed"
+                  ],
+                  [
+                    334,
+                    "completed"
+                  ],
+                  [
+                    340,
+                    "active"
+                  ],
+                  [
+                    342,
+                    "completed"
+                  ],
+                  [
+                    347,
+                    "cancelled"
+                  ],
+                  [
+                    349,
+                    "active"
+                  ],
+                  [
+                    350,
+                    "active"
+                  ],
+                  [
+                    350,
+                    "active"
+                  ],
+                  [
+                    352,
+                    "active"
+                  ],
+                  [
+                    356,
+                    "cancelled"
+                  ],
+                  [
+                    366,
+                    "active"
+                  ],
+                  [
+                    370,
+                    "active"
+                  ],
+                  [
+                    371,
+                    "active"
+                  ],
+                  [
+                    372,
+                    "completed"
+                  ],
+                  [
+                    373,
+                    "active"
+                  ],
+                  [
+                    376,
+                    "active"
+                  ],
+                  [
+                    377,
+                    "cancelled"
+                  ],
+                  [
+                    378,
+                    "active"
+                  ],
+                  [
+                    382,
+                    "completed"
+                  ],
+                  [
+                    383,
+                    "active"
+                  ],
+                  [
+                    389,
+                    "active"
+                  ],
+                  [
+                    389,
+                    "completed"
+                  ],
+                  [
+                    392,
+                    "active"
+                  ],
+                  [
+                    393,
+                    "cancelled"
+                  ],
+                  [
+                    397,
+                    "active"
+                  ],
+                  [
+                    403,
+                    "active"
+                  ],
+                  [
+                    411,
+                    "cancelled"
+                  ],
+                  [
+                    412,
+                    "active"
+                  ],
+                  [
+                    412,
+                    "cancelled"
+                  ],
+                  [
+                    413,
+                    "active"
+                  ],
+                  [
+                    417,
+                    "completed"
+                  ],
+                  [
+                    423,
+                    "active"
+                  ],
+                  [
+                    423,
+                    "cancelled"
+                  ],
+                  [
+                    423,
+                    "completed"
+                  ],
+                  [
+                    424,
+                    "completed"
+                  ],
+                  [
+                    428,
+                    "completed"
+                  ],
+                  [
+                    429,
+                    "active"
+                  ],
+                  [
+                    430,
+                    "cancelled"
+                  ],
+                  [
+                    433,
+                    "cancelled"
+                  ],
+                  [
+                    438,
+                    "cancelled"
+                  ],
+                  [
+                    438,
+                    "completed"
+                  ],
+                  [
+                    442,
+                    "cancelled"
+                  ],
+                  [
+                    442,
+                    "completed"
+                  ],
+                  [
+                    443,
+                    "active"
+                  ],
+                  [
+                    443,
+                    "active"
+                  ],
+                  [
+                    445,
+                    "completed"
+                  ],
+                  [
+                    447,
+                    "active"
+                  ],
+                  [
+                    447,
+                    "active"
+                  ],
+                  [
+                    448,
+                    "active"
+                  ],
+                  [
+                    448,
+                    "cancelled"
+                  ],
+                  [
+                    451,
+                    "active"
+                  ],
+                  [
+                    452,
+                    "completed"
+                  ],
+                  [
+                    457,
+                    "completed"
+                  ],
+                  [
+                    462,
+                    "active"
+                  ],
+                  [
+                    462,
+                    "completed"
+                  ],
+                  [
+                    467,
+                    "active"
+                  ],
+                  [
+                    467,
+                    "cancelled"
+                  ],
+                  [
+                    467,
+                    "completed"
+                  ],
+                  [
+                    469,
+                    "active"
+                  ],
+                  [
+                    476,
+                    "active"
+                  ],
+                  [
+                    476,
+                    "cancelled"
+                  ],
+                  [
+                    478,
+                    "active"
+                  ],
+                  [
+                    480,
+                    "cancelled"
+                  ],
+                  [
+                    481,
+                    "active"
+                  ],
+                  [
+                    486,
+                    "active"
+                  ],
+                  [
+                    487,
+                    "active"
+                  ],
+                  [
+                    488,
+                    "active"
+                  ],
+                  [
+                    490,
+                    "active"
+                  ],
+                  [
+                    490,
+                    "active"
+                  ],
+                  [
+                    492,
+                    "active"
+                  ],
+                  [
+                    492,
+                    "cancelled"
+                  ],
+                  [
+                    494,
+                    "active"
+                  ],
+                  [
+                    498,
+                    "active"
+                  ]
+                ]
+              },
+              {
+                "rows": [
+                  [
+                    9,
+                    "completed"
+                  ],
+                  [
+                    35,
+                    "completed"
+                  ],
+                  [
+                    50,
+                    "completed"
+                  ],
+                  [
+                    64,
+                    "completed"
+                  ],
+                  [
+                    69,
+                    "completed"
+                  ],
+                  [
+                    80,
+                    "completed"
+                  ],
+                  [
+                    93,
+                    "completed"
+                  ],
+                  [
+                    94,
+                    "completed"
+                  ],
+                  [
+                    116,
+                    "completed"
+                  ],
+                  [
+                    133,
+                    "completed"
+                  ],
+                  [
+                    134,
+                    "completed"
+                  ],
+                  [
+                    137,
+                    "completed"
+                  ],
+                  [
+                    161,
+                    "completed"
+                  ],
+                  [
+                    178,
+                    "completed"
+                  ],
+                  [
+                    195,
+                    "completed"
+                  ],
+                  [
+                    208,
+                    "completed"
+                  ],
+                  [
+                    229,
+                    "completed"
+                  ],
+                  [
+                    240,
+                    "completed"
+                  ],
+                  [
+                    270,
+                    "completed"
+                  ],
+                  [
+                    280,
+                    "completed"
+                  ],
+                  [
+                    283,
+                    "completed"
+                  ],
+                  [
+                    299,
+                    "completed"
+                  ],
+                  [
+                    303,
+                    "completed"
+                  ],
+                  [
+                    303,
+                    "completed"
+                  ],
+                  [
+                    312,
+                    "completed"
+                  ],
+                  [
+                    317,
+                    "completed"
+                  ],
+                  [
+                    322,
+                    "completed"
+                  ],
+                  [
+                    323,
+                    "completed"
+                  ],
+                  [
+                    333,
+                    "completed"
+                  ],
+                  [
+                    334,
+                    "completed"
+                  ],
+                  [
+                    342,
+                    "completed"
+                  ],
+                  [
+                    372,
+                    "completed"
+                  ],
+                  [
+                    382,
+                    "completed"
+                  ],
+                  [
+                    389,
+                    "completed"
+                  ],
+                  [
+                    417,
+                    "completed"
+                  ],
+                  [
+                    423,
+                    "completed"
+                  ],
+                  [
+                    424,
+                    "completed"
+                  ],
+                  [
+                    428,
+                    "completed"
+                  ],
+                  [
+                    438,
+                    "completed"
+                  ],
+                  [
+                    442,
+                    "completed"
+                  ],
+                  [
+                    445,
+                    "completed"
+                  ],
+                  [
+                    452,
+                    "completed"
+                  ],
+                  [
+                    457,
+                    "completed"
+                  ],
+                  [
+                    462,
+                    "completed"
+                  ],
+                  [
+                    467,
+                    "completed"
+                  ]
+                ]
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Large tables, another seed: unknown user, unknown course and plans",
+          "input": {
+            "generate": {
+              "seed": 2026,
+              "users": 500,
+              "courses": 60,
+              "activity": 40000,
+              "enrollments": 12000,
+              "quiet_users": {
+                "9002": 1
+              }
+            },
+            "explain": true,
+            "calls": [
+              {
+                "query": "feed",
+                "params": [
+                  9002
+                ]
+              },
+              {
+                "query": "feed",
+                "params": [
+                  123456
+                ]
+              },
+              {
+                "query": "roster",
+                "params": [
+                  999
+                ]
+              },
+              {
+                "query": "roster",
+                "params": [
+                  60
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "indexes": "ok",
+            "calls": [
+              {
+                "rows": [
+                  [
+                    40001,
+                    "lesson_completed",
+                    "2026-01-01 00:00:00"
+                  ]
+                ],
+                "plan": "ok"
+              },
+              {
+                "rows": [],
+                "plan": "ok"
+              },
+              {
+                "rows": [],
+                "plan": "ok"
+              },
+              {
+                "rows": [
+                  [
+                    7,
+                    "completed"
+                  ],
+                  [
+                    14,
+                    "active"
+                  ],
+                  [
+                    14,
+                    "cancelled"
+                  ],
+                  [
+                    15,
+                    "completed"
+                  ],
+                  [
+                    17,
+                    "cancelled"
+                  ],
+                  [
+                    18,
+                    "cancelled"
+                  ],
+                  [
+                    20,
+                    "active"
+                  ],
+                  [
+                    26,
+                    "active"
+                  ],
+                  [
+                    32,
+                    "completed"
+                  ],
+                  [
+                    35,
+                    "completed"
+                  ],
+                  [
+                    36,
+                    "active"
+                  ],
+                  [
+                    39,
+                    "active"
+                  ],
+                  [
+                    39,
+                    "active"
+                  ],
+                  [
+                    41,
+                    "completed"
+                  ],
+                  [
+                    54,
+                    "active"
+                  ],
+                  [
+                    57,
+                    "cancelled"
+                  ],
+                  [
+                    61,
+                    "completed"
+                  ],
+                  [
+                    64,
+                    "active"
+                  ],
+                  [
+                    64,
+                    "active"
+                  ],
+                  [
+                    65,
+                    "active"
+                  ],
+                  [
+                    70,
+                    "active"
+                  ],
+                  [
+                    76,
+                    "active"
+                  ],
+                  [
+                    78,
+                    "active"
+                  ],
+                  [
+                    79,
+                    "completed"
+                  ],
+                  [
+                    80,
+                    "completed"
+                  ],
+                  [
+                    82,
+                    "active"
+                  ],
+                  [
+                    90,
+                    "completed"
+                  ],
+                  [
+                    97,
+                    "active"
+                  ],
+                  [
+                    98,
+                    "active"
+                  ],
+                  [
+                    100,
+                    "cancelled"
+                  ],
+                  [
+                    101,
+                    "completed"
+                  ],
+                  [
+                    113,
+                    "active"
+                  ],
+                  [
+                    114,
+                    "active"
+                  ],
+                  [
+                    119,
+                    "active"
+                  ],
+                  [
+                    121,
+                    "active"
+                  ],
+                  [
+                    123,
+                    "active"
+                  ],
+                  [
+                    128,
+                    "active"
+                  ],
+                  [
+                    133,
+                    "active"
+                  ],
+                  [
+                    134,
+                    "cancelled"
+                  ],
+                  [
+                    136,
+                    "active"
+                  ],
+                  [
+                    138,
+                    "active"
+                  ],
+                  [
+                    144,
+                    "completed"
+                  ],
+                  [
+                    150,
+                    "completed"
+                  ],
+                  [
+                    152,
+                    "active"
+                  ],
+                  [
+                    152,
+                    "completed"
+                  ],
+                  [
+                    158,
+                    "cancelled"
+                  ],
+                  [
+                    159,
+                    "completed"
+                  ],
+                  [
+                    163,
+                    "cancelled"
+                  ],
+                  [
+                    167,
+                    "active"
+                  ],
+                  [
+                    171,
+                    "cancelled"
+                  ],
+                  [
+                    173,
+                    "active"
+                  ],
+                  [
+                    174,
+                    "active"
+                  ],
+                  [
+                    176,
+                    "completed"
+                  ],
+                  [
+                    179,
+                    "cancelled"
+                  ],
+                  [
+                    182,
+                    "cancelled"
+                  ],
+                  [
+                    185,
+                    "active"
+                  ],
+                  [
+                    185,
+                    "completed"
+                  ],
+                  [
+                    186,
+                    "active"
+                  ],
+                  [
+                    189,
+                    "active"
+                  ],
+                  [
+                    190,
+                    "cancelled"
+                  ],
+                  [
+                    191,
+                    "cancelled"
+                  ],
+                  [
+                    192,
+                    "active"
+                  ],
+                  [
+                    192,
+                    "active"
+                  ],
+                  [
+                    194,
+                    "active"
+                  ],
+                  [
+                    197,
+                    "active"
+                  ],
+                  [
+                    198,
+                    "completed"
+                  ],
+                  [
+                    200,
+                    "active"
+                  ],
+                  [
+                    201,
+                    "active"
+                  ],
+                  [
+                    201,
+                    "active"
+                  ],
+                  [
+                    201,
+                    "completed"
+                  ],
+                  [
+                    204,
+                    "cancelled"
+                  ],
+                  [
+                    205,
+                    "completed"
+                  ],
+                  [
+                    207,
+                    "completed"
+                  ],
+                  [
+                    208,
+                    "active"
+                  ],
+                  [
+                    210,
+                    "active"
+                  ],
+                  [
+                    210,
+                    "cancelled"
+                  ],
+                  [
+                    215,
+                    "completed"
+                  ],
+                  [
+                    216,
+                    "completed"
+                  ],
+                  [
+                    217,
+                    "active"
+                  ],
+                  [
+                    217,
+                    "cancelled"
+                  ],
+                  [
+                    224,
+                    "active"
+                  ],
+                  [
+                    226,
+                    "active"
+                  ],
+                  [
+                    234,
+                    "active"
+                  ],
+                  [
+                    234,
+                    "cancelled"
+                  ],
+                  [
+                    235,
+                    "completed"
+                  ],
+                  [
+                    235,
+                    "completed"
+                  ],
+                  [
+                    236,
+                    "active"
+                  ],
+                  [
+                    238,
+                    "completed"
+                  ],
+                  [
+                    239,
+                    "completed"
+                  ],
+                  [
+                    241,
+                    "completed"
+                  ],
+                  [
+                    243,
+                    "active"
+                  ],
+                  [
+                    244,
+                    "cancelled"
+                  ],
+                  [
+                    248,
+                    "active"
+                  ],
+                  [
+                    250,
+                    "cancelled"
+                  ],
+                  [
+                    255,
+                    "completed"
+                  ],
+                  [
+                    257,
+                    "active"
+                  ],
+                  [
+                    257,
+                    "cancelled"
+                  ],
+                  [
+                    259,
+                    "active"
+                  ],
+                  [
+                    264,
+                    "active"
+                  ],
+                  [
+                    265,
+                    "active"
+                  ],
+                  [
+                    267,
+                    "active"
+                  ],
+                  [
+                    277,
+                    "cancelled"
+                  ],
+                  [
+                    278,
+                    "cancelled"
+                  ],
+                  [
+                    279,
+                    "active"
+                  ],
+                  [
+                    280,
+                    "active"
+                  ],
+                  [
+                    281,
+                    "active"
+                  ],
+                  [
+                    282,
+                    "completed"
+                  ],
+                  [
+                    289,
+                    "active"
+                  ],
+                  [
+                    293,
+                    "cancelled"
+                  ],
+                  [
+                    294,
+                    "cancelled"
+                  ],
+                  [
+                    296,
+                    "completed"
+                  ],
+                  [
+                    303,
+                    "cancelled"
+                  ],
+                  [
+                    305,
+                    "active"
+                  ],
+                  [
+                    315,
+                    "active"
+                  ],
+                  [
+                    317,
+                    "active"
+                  ],
+                  [
+                    322,
+                    "cancelled"
+                  ],
+                  [
+                    325,
+                    "completed"
+                  ],
+                  [
+                    328,
+                    "active"
+                  ],
+                  [
+                    328,
+                    "completed"
+                  ],
+                  [
+                    329,
+                    "completed"
+                  ],
+                  [
+                    331,
+                    "completed"
+                  ],
+                  [
+                    332,
+                    "active"
+                  ],
+                  [
+                    332,
+                    "cancelled"
+                  ],
+                  [
+                    332,
+                    "completed"
+                  ],
+                  [
+                    337,
+                    "active"
+                  ],
+                  [
+                    341,
+                    "cancelled"
+                  ],
+                  [
+                    342,
+                    "completed"
+                  ],
+                  [
+                    345,
+                    "completed"
+                  ],
+                  [
+                    349,
+                    "active"
+                  ],
+                  [
+                    350,
+                    "active"
+                  ],
+                  [
+                    353,
+                    "active"
+                  ],
+                  [
+                    353,
+                    "completed"
+                  ],
+                  [
+                    357,
+                    "active"
+                  ],
+                  [
+                    359,
+                    "active"
+                  ],
+                  [
+                    365,
+                    "cancelled"
+                  ],
+                  [
+                    371,
+                    "active"
+                  ],
+                  [
+                    375,
+                    "active"
+                  ],
+                  [
+                    376,
+                    "cancelled"
+                  ],
+                  [
+                    377,
+                    "active"
+                  ],
+                  [
+                    385,
+                    "active"
+                  ],
+                  [
+                    391,
+                    "cancelled"
+                  ],
+                  [
+                    391,
+                    "completed"
+                  ],
+                  [
+                    392,
+                    "cancelled"
+                  ],
+                  [
+                    396,
+                    "active"
+                  ],
+                  [
+                    396,
+                    "active"
+                  ],
+                  [
+                    400,
+                    "active"
+                  ],
+                  [
+                    400,
+                    "active"
+                  ],
+                  [
+                    401,
+                    "cancelled"
+                  ],
+                  [
+                    403,
+                    "completed"
+                  ],
+                  [
+                    406,
+                    "active"
+                  ],
+                  [
+                    406,
+                    "cancelled"
+                  ],
+                  [
+                    409,
+                    "cancelled"
+                  ],
+                  [
+                    410,
+                    "active"
+                  ],
+                  [
+                    413,
+                    "active"
+                  ],
+                  [
+                    414,
+                    "active"
+                  ],
+                  [
+                    421,
+                    "active"
+                  ],
+                  [
+                    421,
+                    "active"
+                  ],
+                  [
+                    424,
+                    "completed"
+                  ],
+                  [
+                    425,
+                    "active"
+                  ],
+                  [
+                    429,
+                    "completed"
+                  ],
+                  [
+                    440,
+                    "cancelled"
+                  ],
+                  [
+                    444,
+                    "cancelled"
+                  ],
+                  [
+                    445,
+                    "completed"
+                  ],
+                  [
+                    446,
+                    "completed"
+                  ],
+                  [
+                    448,
+                    "active"
+                  ],
+                  [
+                    449,
+                    "cancelled"
+                  ],
+                  [
+                    450,
+                    "active"
+                  ],
+                  [
+                    455,
+                    "active"
+                  ],
+                  [
+                    458,
+                    "active"
+                  ],
+                  [
+                    458,
+                    "cancelled"
+                  ],
+                  [
+                    461,
+                    "active"
+                  ],
+                  [
+                    461,
+                    "cancelled"
+                  ],
+                  [
+                    464,
+                    "active"
+                  ],
+                  [
+                    465,
+                    "cancelled"
+                  ],
+                  [
+                    466,
+                    "cancelled"
+                  ],
+                  [
+                    471,
+                    "completed"
+                  ],
+                  [
+                    473,
+                    "active"
+                  ],
+                  [
+                    473,
+                    "completed"
+                  ],
+                  [
+                    479,
+                    "active"
+                  ],
+                  [
+                    482,
+                    "cancelled"
+                  ],
+                  [
+                    489,
+                    "completed"
+                  ],
+                  [
+                    490,
+                    "cancelled"
+                  ],
+                  [
+                    491,
+                    "active"
+                  ],
+                  [
+                    493,
+                    "active"
+                  ],
+                  [
+                    496,
+                    "cancelled"
+                  ],
+                  [
+                    498,
+                    "active"
+                  ]
+                ],
+                "plan": "ok"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_pgp_412",
+      "key": "challenges/python/chal_coding_pgp_412/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "progress_report.py",
+      "size": 10392
+    }
+  ]
+}

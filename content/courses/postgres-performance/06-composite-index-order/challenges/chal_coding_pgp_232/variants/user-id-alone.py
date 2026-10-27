@@ -1,0 +1,179 @@
+"""
+The "Recent activity" feed and the course roster of CodeDev were slow, so a developer sent this
+request to an AI assistant:
+
+  "Add indexes for these three queries. activity_log has 40M rows, enrollments 6M. Add at most
+   one index per table: every index slows down our writes.
+     feed:             SELECT id, kind, created_at FROM activity_log
+                       WHERE user_id = ? ORDER BY created_at DESC LIMIT 20
+     roster:           SELECT user_id, status FROM enrollments WHERE course_id = ?
+     roster_by_status: SELECT user_id, status FROM enrollments WHERE course_id = ? AND status = ?"
+
+The assistant answered with INDEXES below and this note: "created_at goes first because the feed
+sorts by it; status goes first because it has only three values." The results of all three
+queries were correct in review, so the change was merged. Production still reads millions of rows.
+Fix INDEXES: keep at most 2 indexes, and do not change the queries.
+
+The tables (created and filled by the runner before INDEXES is applied):
+  activity_log(id INTEGER PRIMARY KEY, user_id, kind, created_at)
+  enrollments(id INTEGER PRIMARY KEY, user_id, course_id, created_at, status)
+
+Each test lists calls ({"query": "feed" | "roster" | "roster_by_status", "params": [...]}) and
+the runner prints {"indexes": ..., "calls": [...]}, one entry per call:
+  "rows"  the rows of the call (roster and roster_by_status sorted by the runner), or "too slow"
+          when one call needs more than 20,000 SQLite VM steps (the large tests have 40,000
+          activity rows and 12,000 enrollments);
+  "plan"  only when the test sets "explain": true, a verdict from EXPLAIN QUERY PLAN:
+          "ok" (every WHERE column searches the index, and the feed needs no sort),
+          "full scan of <table>" (SCAN, also SCAN ... USING INDEX), "index does not narrow by
+          <column>", or "sorts with a temp B-tree".
+"indexes" is "ok" or "too many indexes: N (at most 2)".
+SQLite note: the runner does not run ANALYZE, so SQLite plans from the indexes alone, like
+PostgreSQL with default statistics would for these shapes.
+
+Example: {"indexes": "ok", "calls": [{"rows": [[9, "quiz_passed", "2026-10-21 09:15:00"]], "plan": "ok"}]}
+"""
+import json
+import re
+import sqlite3
+import sys
+from datetime import datetime, timedelta
+
+INDEXES = """
+CREATE INDEX activity_log_user_id ON activity_log (user_id);
+CREATE INDEX enrollments_course_status ON enrollments (course_id, status);
+"""
+
+
+# ---------------------------------------------------------------- test runner (do not change)
+# Builds the two tables from the test case (JSON on stdin), applies INDEXES, runs each call under
+# a VM-step budget and prints its rows, plus a verdict on its plan when the test asks for it.
+SCHEMA = """
+CREATE TABLE activity_log (
+    id          INTEGER PRIMARY KEY,
+    user_id     INTEGER NOT NULL,
+    kind        TEXT NOT NULL,
+    created_at  TEXT NOT NULL
+);
+CREATE TABLE enrollments (
+    id          INTEGER PRIMARY KEY,
+    user_id     INTEGER NOT NULL,
+    course_id   INTEGER NOT NULL,
+    created_at  TEXT NOT NULL,
+    status      TEXT NOT NULL
+);
+"""
+
+QUERIES = {
+    # name: (sql, table, columns the index must search by, the index must also give the order)
+    "feed": ("SELECT id, kind, created_at FROM activity_log WHERE user_id = ? ORDER BY created_at DESC LIMIT 20",
+             "activity_log", ["user_id"], True),
+    "roster": ("SELECT user_id, status FROM enrollments WHERE course_id = ?",
+               "enrollments", ["course_id"], False),
+    "roster_by_status": ("SELECT user_id, status FROM enrollments WHERE course_id = ? AND status = ?",
+                         "enrollments", ["course_id", "status"], False),
+}
+MAX_INDEXES = 2
+STEP_BUDGET = 20_000
+STEPS_PER_CALL = 100
+
+
+def generate(spec):
+    """A large deterministic data set: a small linear congruential generator, no random module."""
+    state = spec["seed"]
+
+    def pick(n):
+        nonlocal state
+        state = (state * 1103515245 + 12345) % 2147483648
+        return (state >> 8) % n
+
+    start = datetime(2026, 1, 1)
+    stamp = lambda minutes: (start + timedelta(minutes=minutes)).strftime("%Y-%m-%d %H:%M:%S")
+    kinds = ["lesson_completed", "quiz_passed", "challenge_submitted", "comment_posted"]
+    statuses = ["active", "active", "completed", "cancelled"]
+    activity = [[i + 1, pick(spec["users"]) + 1, kinds[pick(4)], stamp(i * 2)] for i in range(spec["activity"])]
+    enrollments = [[i + 1, pick(spec["users"]) + 1, pick(spec["courses"]) + 1, stamp(i * 5), statuses[pick(4)]]
+                   for i in range(spec["enrollments"])]
+    for user_id, count in spec.get("quiet_users", {}).items():  # users with only a few old events
+        base = len(activity)
+        activity += [[base + k + 1, int(user_id), "lesson_completed", stamp(k)] for k in range(count)]
+    return activity, enrollments
+
+
+def ddl_statements(text):
+    without_comments = re.sub(r"--[^\n]*", "", text)
+    return [s.strip() for s in without_comments.split(";") if s.strip()]
+
+
+def plan_verdict(db, sql, params, table, columns, ordered):
+    details = [row[3] for row in db.execute("EXPLAIN QUERY PLAN " + sql, params)]
+    search = next((d for d in details if d.startswith(f"SEARCH {table} USING ") and "INDEX" in d), None)
+    if search is None:
+        return f"full scan of {table}"
+    used = search[search.find("("):] if "(" in search else ""
+    missing = [column for column in columns if column not in used]
+    if missing:
+        return "index does not narrow by " + " and ".join(missing)
+    if ordered and any("TEMP B-TREE" in d for d in details):
+        return "sorts with a temp B-tree"
+    return "ok"
+
+
+def run_call(db, sql, params, name):
+    calls = 0
+
+    def count_steps():
+        nonlocal calls
+        calls += 1
+        return 1 if calls * STEPS_PER_CALL > STEP_BUDGET else 0
+
+    db.set_progress_handler(count_steps, STEPS_PER_CALL)
+    try:
+        rows = [list(row) for row in db.execute(sql, params)]
+    except sqlite3.OperationalError as error:
+        if "interrupted" in str(error):
+            return "too slow"
+        raise
+    finally:
+        db.set_progress_handler(None, 0)
+    return rows if name == "feed" else sorted(rows)
+
+
+def main():
+    case = json.load(sys.stdin)
+    if "generate" in case:
+        activity, enrollments = generate(case["generate"])
+    else:
+        activity, enrollments = case["activity"], case["enrollments"]
+    db = sqlite3.connect(":memory:")
+    db.executescript(SCHEMA)
+    db.executemany("INSERT INTO activity_log VALUES (?, ?, ?, ?)", activity)
+    db.executemany("INSERT INTO enrollments VALUES (?, ?, ?, ?, ?)", enrollments)
+    db.commit()
+
+    statements = ddl_statements(INDEXES)
+    for statement in statements:
+        if not re.match(r"CREATE\s+(UNIQUE\s+)?INDEX\s", statement, re.IGNORECASE):
+            print(json.dumps({"error": f"INDEXES may only contain CREATE INDEX statements: {statement[:60]}"}))
+            return
+    try:
+        for statement in statements:
+            db.execute(statement)
+    except sqlite3.Error as error:
+        print(json.dumps({"error": f"INDEXES: {type(error).__name__}: {error}"}))
+        return
+
+    count = db.execute("SELECT count(*) FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL").fetchone()[0]
+    result = {"indexes": "ok" if count <= MAX_INDEXES else f"too many indexes: {count} (at most {MAX_INDEXES})",
+              "calls": []}
+    for call in case["calls"]:
+        sql, table, columns, ordered = QUERIES[call["query"]]
+        entry = {"rows": run_call(db, sql, call["params"], call["query"])}
+        if case.get("explain"):
+            entry["plan"] = plan_verdict(db, sql, call["params"], table, columns, ordered)
+        result["calls"].append(entry)
+    print(json.dumps(result))
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,2027 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pgp_211",
+      "name": "index-for-pattern-plans",
+      "type": "quiz",
+      "title": "Index for the pattern: read two plans",
+      "description": "Two plans from the CodeDev database: the \"My courses\" page after the indexes were reworked, and the weekly activity count still on the old one-column indexes. Decide whether each statement is true or false.",
+      "difficulty": "medium",
+      "outcomes": [
+        "index-design"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Query of the \"My courses\" page, index enrollments_user_created ON enrollments (user_id, created_at):\nSELECT id, course_id, status, created_at FROM enrollments\nWHERE user_id = 4812 ORDER BY created_at DESC LIMIT 20;\n\nLimit  (cost=0.43..21.30 rows=20 width=32) (actual time=0.031..0.074 rows=20 loops=1)\n  ->  Index Scan Backward using enrollments_user_created on enrollments  (cost=0.43..77.65 rows=74 width=32) (actual time=0.030..0.069 rows=20 loops=1)\n        Index Cond: (user_id = 4812)\nPlanning Time: 0.142 ms\nExecution Time: 0.093 ms\n\nStatement: \"The ascending index (user_id, created_at) serves ORDER BY created_at DESC: the plan has no Sort node and the scan stops after 20 index entries.\"",
+          "explanation": "True. Inside one user_id the index entries are already sorted by created_at, and a B-tree can be read in both directions, so PostgreSQL reads it backward (Index Scan Backward) and needs no Sort. The Index Scan reports actual rows=20 although about 74 rows match: the Limit stops it as soon as it has 20. The common misconception is that ORDER BY ... DESC needs an index declared DESC; that only matters when columns are sorted in mixed directions, such as ORDER BY a ASC, b DESC.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Weekly activity count, with the old one-column indexes activity_log_user_id (user_id) and activity_log_created_at (created_at):\nSELECT count(*) FROM activity_log\nWHERE user_id = 4812 AND created_at >= '2026-10-19' AND created_at < '2026-10-26';\n\nAggregate  (cost=1873.52..1873.53 rows=1 width=8) (actual time=14.902..14.904 rows=1 loops=1)\n  ->  Bitmap Heap Scan on activity_log  (cost=1866.10..1873.51 rows=3 width=0) (actual time=14.890..14.897 rows=9 loops=1)\n        Recheck Cond: ((user_id = 4812) AND (created_at >= '2026-10-19 00:00:00+00'::timestamptz) AND (created_at < '2026-10-26 00:00:00+00'::timestamptz))\n        Heap Blocks: exact=9\n        ->  BitmapAnd  (cost=1866.10..1866.10 rows=3 width=0) (actual time=14.861..14.862 rows=0 loops=1)\n              ->  Bitmap Index Scan on activity_log_user_id  (cost=0.00..21.40 rows=1610 width=0) (actual time=0.188..0.188 rows=1702 loops=1)\n                    Index Cond: (user_id = 4812)\n              ->  Bitmap Index Scan on activity_log_created_at  (cost=0.00..1844.45 rows=148000 width=0) (actual time=14.420..14.420 rows=151380 loops=1)\n                    Index Cond: ((created_at >= '2026-10-19 00:00:00+00'::timestamptz) AND (created_at < '2026-10-26 00:00:00+00'::timestamptz))\nExecution Time: 14.951 ms\n\nStatement: \"Both WHERE columns already have an index and PostgreSQL combines them with BitmapAnd, so one composite index on (user_id, created_at) would read about as many index entries as this plan.\"",
+          "explanation": "False. The BitmapAnd has to build both bitmaps in full: 1,702 entries for the user and 151,380 entries for the whole week of every user (almost all of the 14.4 ms), only to keep the 9 rows where they overlap. A composite index (user_id, created_at) descends straight to this user's entries inside the range and reads about 9 entries, and it can answer count(*) with an Index Only Scan. The misconception is that \"every column has an index\" means the query is indexed: combining one-column indexes is a fallback whose cost grows with the least selective condition, not with the result.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pgp_212",
+      "name": "indexes-for-three-query-patterns",
+      "type": "mini_coding",
+      "title": "Indexes for three query patterns",
+      "description": "Three queries of CodeDev are at the top of pg_stat_statements, and the database has one index per column that appears in a WHERE or ORDER BY. Replace INDEXES (a SQL string in the starter) with at most 3 CREATE INDEX statements so that SQLite searches an index for every query.\n\nTables (created and filled by the runner before INDEXES is applied): enrollments(id INTEGER PRIMARY KEY, user_id, course_id, created_at, status) and activity_log(id INTEGER PRIMARY KEY, user_id, kind, created_at). The queries, run exactly as written:\n- my_courses: SELECT id, course_id, status, created_at FROM enrollments WHERE user_id = ? ORDER BY created_at DESC LIMIT 20\n- weekly_activity: SELECT count(*) FROM activity_log WHERE user_id = ? AND created_at >= ? AND created_at < ?\n- course_learners: SELECT user_id, created_at FROM enrollments WHERE course_id = ? AND status = ?\n\nInput (stdin): either the rows of both tables or a \"generate\" spec for a large deterministic data set, plus the parameters of each query. Output: one JSON object with, for each query, {\"plan\": verdict, \"rows\": rows} (course_learners rows sorted by the runner), and \"indexes\": \"ok\" or \"too many indexes: N (at most 3)\". The plan verdict comes from SQLite's EXPLAIN QUERY PLAN: \"ok\" when every WHERE column is used to search the index (and, for my_courses, there is no USE TEMP B-TREE FOR ORDER BY); \"full scan of <table>\" for SCAN (including SCAN ... USING INDEX, which reads every index entry); \"index does not narrow by <column>\" when the search uses only some of the WHERE columns; \"sorts with a temp B-tree\" when my_courses is sorted after reading. INDEXES may only contain CREATE INDEX statements, and the rows must stay what the queries return without indexes. Every test expects every plan \"ok\", the correct rows and \"indexes\": \"ok\".\n\nSQLite and PostgreSQL use the same CREATE INDEX syntax and the same B-tree rules for these patterns. The runner does not run ANALYZE, so SQLite plans from the indexes alone.",
+      "difficulty": "medium",
+      "outcomes": [
+        "index-design"
+      ],
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "indexes_for_patterns.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "For each query, which columns are compared with =, which one is a range, and which one decides the order of the rows? An index is sorted by its first column, then by the second column inside equal first values.",
+        "Run the starter and read the verdicts one query at a time: \"sorts with a temp B-tree\" means the index found the rows but not in the right order, and \"does not narrow by\" names the column the index search could not use. Then count how many indexes the three queries really need: two of them read the same table but filter on different columns.",
+        "A similar pattern on another table: SELECT lesson_id, completed_at FROM lesson_progress WHERE course_id = ? ORDER BY completed_at DESC LIMIT 10 is served by CREATE INDEX lesson_progress_course_completed ON lesson_progress (course_id, completed_at): the equality column first, the ORDER BY column second. An index on (completed_at) alone gives the order but walks through every course; an index on (course_id) alone finds the rows but has to sort them."
+      ],
+      "tests": [
+        {
+          "name": "Mai's courses, her activity this week and the active learners of course 3",
+          "input": {
+            "enrollments": [
+              [
+                1,
+                7,
+                3,
+                "2026-09-01 10:00:00",
+                "completed"
+              ],
+              [
+                2,
+                7,
+                5,
+                "2026-09-15 08:30:00",
+                "active"
+              ],
+              [
+                3,
+                8,
+                3,
+                "2026-09-02 11:00:00",
+                "active"
+              ],
+              [
+                4,
+                7,
+                9,
+                "2026-10-20 09:00:00",
+                "active"
+              ],
+              [
+                5,
+                9,
+                3,
+                "2026-10-01 14:00:00",
+                "active"
+              ],
+              [
+                6,
+                8,
+                5,
+                "2026-10-03 16:20:00",
+                "cancelled"
+              ],
+              [
+                7,
+                9,
+                9,
+                "2026-10-21 07:45:00",
+                "completed"
+              ]
+            ],
+            "activity": [
+              [
+                1,
+                7,
+                "lesson_completed",
+                "2026-10-18 22:10:00"
+              ],
+              [
+                2,
+                7,
+                "quiz_passed",
+                "2026-10-19 00:00:00"
+              ],
+              [
+                3,
+                8,
+                "lesson_completed",
+                "2026-10-20 10:00:00"
+              ],
+              [
+                4,
+                7,
+                "lesson_completed",
+                "2026-10-21 09:15:00"
+              ],
+              [
+                5,
+                7,
+                "challenge_submitted",
+                "2026-10-25 23:59:59"
+              ],
+              [
+                6,
+                7,
+                "comment_posted",
+                "2026-10-26 00:00:00"
+              ],
+              [
+                7,
+                9,
+                "quiz_passed",
+                "2026-10-22 12:00:00"
+              ]
+            ],
+            "params": {
+              "my_courses": [
+                7
+              ],
+              "weekly_activity": [
+                7,
+                "2026-10-19 00:00:00",
+                "2026-10-26 00:00:00"
+              ],
+              "course_learners": [
+                3,
+                "active"
+              ]
+            }
+          },
+          "expected": {
+            "my_courses": {
+              "plan": "ok",
+              "rows": [
+                [
+                  4,
+                  9,
+                  "active",
+                  "2026-10-20 09:00:00"
+                ],
+                [
+                  2,
+                  5,
+                  "active",
+                  "2026-09-15 08:30:00"
+                ],
+                [
+                  1,
+                  3,
+                  "completed",
+                  "2026-09-01 10:00:00"
+                ]
+              ]
+            },
+            "weekly_activity": {
+              "plan": "ok",
+              "rows": [
+                [
+                  3
+                ]
+              ]
+            },
+            "course_learners": {
+              "plan": "ok",
+              "rows": [
+                [
+                  8,
+                  "2026-09-02 11:00:00"
+                ],
+                [
+                  9,
+                  "2026-10-01 14:00:00"
+                ]
+              ]
+            },
+            "indexes": "ok"
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A learner with 25 enrollments gets the newest 20, newest first",
+          "input": {
+            "enrollments": [
+              [
+                1,
+                4,
+                1,
+                "2026-01-01 00:00:00",
+                "active"
+              ],
+              [
+                2,
+                4,
+                2,
+                "2026-02-12 01:00:00",
+                "completed"
+              ],
+              [
+                3,
+                4,
+                3,
+                "2026-03-23 02:00:00",
+                "cancelled"
+              ],
+              [
+                4,
+                4,
+                4,
+                "2026-04-06 03:00:00",
+                "active"
+              ],
+              [
+                5,
+                4,
+                5,
+                "2026-05-17 04:00:00",
+                "completed"
+              ],
+              [
+                6,
+                12,
+                6,
+                "2026-06-28 05:00:00",
+                "cancelled"
+              ],
+              [
+                7,
+                10,
+                1,
+                "2026-07-11 06:00:00",
+                "active"
+              ],
+              [
+                8,
+                11,
+                2,
+                "2026-08-22 07:00:00",
+                "completed"
+              ],
+              [
+                9,
+                4,
+                3,
+                "2026-09-05 08:00:00",
+                "cancelled"
+              ],
+              [
+                10,
+                4,
+                4,
+                "2026-01-16 09:00:00",
+                "active"
+              ],
+              [
+                11,
+                4,
+                5,
+                "2026-02-27 10:00:00",
+                "completed"
+              ],
+              [
+                12,
+                4,
+                6,
+                "2026-03-10 11:00:00",
+                "cancelled"
+              ],
+              [
+                13,
+                4,
+                1,
+                "2026-04-21 12:00:00",
+                "active"
+              ],
+              [
+                14,
+                11,
+                2,
+                "2026-05-04 13:00:00",
+                "completed"
+              ],
+              [
+                15,
+                12,
+                3,
+                "2026-06-15 14:00:00",
+                "cancelled"
+              ],
+              [
+                16,
+                10,
+                4,
+                "2026-07-26 15:00:00",
+                "active"
+              ],
+              [
+                17,
+                4,
+                5,
+                "2026-08-09 16:00:00",
+                "completed"
+              ],
+              [
+                18,
+                4,
+                6,
+                "2026-09-20 17:00:00",
+                "cancelled"
+              ],
+              [
+                19,
+                4,
+                1,
+                "2026-01-03 18:00:00",
+                "active"
+              ],
+              [
+                20,
+                4,
+                2,
+                "2026-02-14 19:00:00",
+                "completed"
+              ],
+              [
+                21,
+                4,
+                3,
+                "2026-03-25 20:00:00",
+                "cancelled"
+              ],
+              [
+                22,
+                10,
+                4,
+                "2026-04-08 21:00:00",
+                "active"
+              ],
+              [
+                23,
+                11,
+                5,
+                "2026-05-19 22:00:00",
+                "completed"
+              ],
+              [
+                24,
+                12,
+                6,
+                "2026-06-02 23:00:00",
+                "cancelled"
+              ],
+              [
+                25,
+                4,
+                1,
+                "2026-07-13 00:00:00",
+                "active"
+              ],
+              [
+                26,
+                4,
+                2,
+                "2026-08-24 01:00:00",
+                "completed"
+              ],
+              [
+                27,
+                4,
+                3,
+                "2026-09-07 02:00:00",
+                "cancelled"
+              ],
+              [
+                28,
+                4,
+                4,
+                "2026-01-18 03:00:00",
+                "active"
+              ],
+              [
+                29,
+                4,
+                5,
+                "2026-02-01 04:00:00",
+                "completed"
+              ],
+              [
+                30,
+                12,
+                6,
+                "2026-03-12 05:00:00",
+                "cancelled"
+              ],
+              [
+                31,
+                10,
+                1,
+                "2026-04-23 06:00:00",
+                "active"
+              ],
+              [
+                32,
+                11,
+                2,
+                "2026-05-06 07:00:00",
+                "completed"
+              ],
+              [
+                33,
+                4,
+                3,
+                "2026-06-17 08:00:00",
+                "cancelled"
+              ],
+              [
+                34,
+                4,
+                4,
+                "2026-07-28 09:00:00",
+                "active"
+              ],
+              [
+                35,
+                4,
+                5,
+                "2026-08-11 10:00:00",
+                "completed"
+              ],
+              [
+                36,
+                4,
+                6,
+                "2026-09-22 11:00:00",
+                "cancelled"
+              ],
+              [
+                37,
+                4,
+                1,
+                "2026-01-05 12:00:00",
+                "active"
+              ],
+              [
+                38,
+                11,
+                2,
+                "2026-02-16 13:00:00",
+                "completed"
+              ],
+              [
+                39,
+                12,
+                3,
+                "2026-03-27 14:00:00",
+                "cancelled"
+              ],
+              [
+                40,
+                10,
+                4,
+                "2026-04-10 15:00:00",
+                "active"
+              ]
+            ],
+            "activity": [
+              [
+                1,
+                11,
+                "lesson_completed",
+                "2026-10-10 00:30:00"
+              ],
+              [
+                2,
+                4,
+                "quiz_passed",
+                "2026-10-11 01:30:00"
+              ],
+              [
+                3,
+                11,
+                "lesson_completed",
+                "2026-10-12 02:30:00"
+              ],
+              [
+                4,
+                4,
+                "quiz_passed",
+                "2026-10-13 03:30:00"
+              ],
+              [
+                5,
+                11,
+                "lesson_completed",
+                "2026-10-14 04:30:00"
+              ],
+              [
+                6,
+                4,
+                "quiz_passed",
+                "2026-10-15 05:30:00"
+              ],
+              [
+                7,
+                11,
+                "lesson_completed",
+                "2026-10-16 06:30:00"
+              ],
+              [
+                8,
+                4,
+                "quiz_passed",
+                "2026-10-17 07:30:00"
+              ],
+              [
+                9,
+                11,
+                "lesson_completed",
+                "2026-10-18 08:30:00"
+              ],
+              [
+                10,
+                4,
+                "quiz_passed",
+                "2026-10-19 09:30:00"
+              ],
+              [
+                11,
+                11,
+                "lesson_completed",
+                "2026-10-20 10:30:00"
+              ],
+              [
+                12,
+                4,
+                "quiz_passed",
+                "2026-10-21 11:30:00"
+              ],
+              [
+                13,
+                11,
+                "lesson_completed",
+                "2026-10-22 12:30:00"
+              ],
+              [
+                14,
+                4,
+                "quiz_passed",
+                "2026-10-23 13:30:00"
+              ],
+              [
+                15,
+                11,
+                "lesson_completed",
+                "2026-10-24 14:30:00"
+              ],
+              [
+                16,
+                4,
+                "quiz_passed",
+                "2026-10-10 15:30:00"
+              ],
+              [
+                17,
+                11,
+                "lesson_completed",
+                "2026-10-11 16:30:00"
+              ],
+              [
+                18,
+                4,
+                "quiz_passed",
+                "2026-10-12 17:30:00"
+              ],
+              [
+                19,
+                11,
+                "lesson_completed",
+                "2026-10-13 18:30:00"
+              ],
+              [
+                20,
+                4,
+                "quiz_passed",
+                "2026-10-14 19:30:00"
+              ],
+              [
+                21,
+                11,
+                "lesson_completed",
+                "2026-10-15 20:30:00"
+              ],
+              [
+                22,
+                4,
+                "quiz_passed",
+                "2026-10-16 21:30:00"
+              ],
+              [
+                23,
+                11,
+                "lesson_completed",
+                "2026-10-17 22:30:00"
+              ],
+              [
+                24,
+                4,
+                "quiz_passed",
+                "2026-10-18 23:30:00"
+              ],
+              [
+                25,
+                11,
+                "lesson_completed",
+                "2026-10-19 00:30:00"
+              ],
+              [
+                26,
+                4,
+                "quiz_passed",
+                "2026-10-20 01:30:00"
+              ],
+              [
+                27,
+                11,
+                "lesson_completed",
+                "2026-10-21 02:30:00"
+              ],
+              [
+                28,
+                4,
+                "quiz_passed",
+                "2026-10-22 03:30:00"
+              ],
+              [
+                29,
+                11,
+                "lesson_completed",
+                "2026-10-23 04:30:00"
+              ],
+              [
+                30,
+                4,
+                "quiz_passed",
+                "2026-10-24 05:30:00"
+              ]
+            ],
+            "params": {
+              "my_courses": [
+                4
+              ],
+              "weekly_activity": [
+                4,
+                "2026-10-12 00:00:00",
+                "2026-10-19 00:00:00"
+              ],
+              "course_learners": [
+                2,
+                "completed"
+              ]
+            }
+          },
+          "expected": {
+            "my_courses": {
+              "plan": "ok",
+              "rows": [
+                [
+                  36,
+                  6,
+                  "cancelled",
+                  "2026-09-22 11:00:00"
+                ],
+                [
+                  18,
+                  6,
+                  "cancelled",
+                  "2026-09-20 17:00:00"
+                ],
+                [
+                  27,
+                  3,
+                  "cancelled",
+                  "2026-09-07 02:00:00"
+                ],
+                [
+                  9,
+                  3,
+                  "cancelled",
+                  "2026-09-05 08:00:00"
+                ],
+                [
+                  26,
+                  2,
+                  "completed",
+                  "2026-08-24 01:00:00"
+                ],
+                [
+                  35,
+                  5,
+                  "completed",
+                  "2026-08-11 10:00:00"
+                ],
+                [
+                  17,
+                  5,
+                  "completed",
+                  "2026-08-09 16:00:00"
+                ],
+                [
+                  34,
+                  4,
+                  "active",
+                  "2026-07-28 09:00:00"
+                ],
+                [
+                  25,
+                  1,
+                  "active",
+                  "2026-07-13 00:00:00"
+                ],
+                [
+                  33,
+                  3,
+                  "cancelled",
+                  "2026-06-17 08:00:00"
+                ],
+                [
+                  5,
+                  5,
+                  "completed",
+                  "2026-05-17 04:00:00"
+                ],
+                [
+                  13,
+                  1,
+                  "active",
+                  "2026-04-21 12:00:00"
+                ],
+                [
+                  4,
+                  4,
+                  "active",
+                  "2026-04-06 03:00:00"
+                ],
+                [
+                  21,
+                  3,
+                  "cancelled",
+                  "2026-03-25 20:00:00"
+                ],
+                [
+                  3,
+                  3,
+                  "cancelled",
+                  "2026-03-23 02:00:00"
+                ],
+                [
+                  12,
+                  6,
+                  "cancelled",
+                  "2026-03-10 11:00:00"
+                ],
+                [
+                  11,
+                  5,
+                  "completed",
+                  "2026-02-27 10:00:00"
+                ],
+                [
+                  20,
+                  2,
+                  "completed",
+                  "2026-02-14 19:00:00"
+                ],
+                [
+                  2,
+                  2,
+                  "completed",
+                  "2026-02-12 01:00:00"
+                ],
+                [
+                  29,
+                  5,
+                  "completed",
+                  "2026-02-01 04:00:00"
+                ]
+              ]
+            },
+            "weekly_activity": {
+              "plan": "ok",
+              "rows": [
+                [
+                  7
+                ]
+              ]
+            },
+            "course_learners": {
+              "plan": "ok",
+              "rows": [
+                [
+                  4,
+                  "2026-02-12 01:00:00"
+                ],
+                [
+                  4,
+                  "2026-02-14 19:00:00"
+                ],
+                [
+                  4,
+                  "2026-08-24 01:00:00"
+                ],
+                [
+                  11,
+                  "2026-02-16 13:00:00"
+                ],
+                [
+                  11,
+                  "2026-05-04 13:00:00"
+                ],
+                [
+                  11,
+                  "2026-05-06 07:00:00"
+                ],
+                [
+                  11,
+                  "2026-08-22 07:00:00"
+                ]
+              ]
+            },
+            "indexes": "ok"
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Unknown user, a range that ends before it starts and an unknown status",
+          "input": {
+            "enrollments": [
+              [
+                1,
+                7,
+                3,
+                "2026-09-01 10:00:00",
+                "completed"
+              ],
+              [
+                2,
+                7,
+                5,
+                "2026-09-15 08:30:00",
+                "active"
+              ],
+              [
+                3,
+                8,
+                3,
+                "2026-09-02 11:00:00",
+                "active"
+              ],
+              [
+                4,
+                7,
+                9,
+                "2026-10-20 09:00:00",
+                "active"
+              ],
+              [
+                5,
+                9,
+                3,
+                "2026-10-01 14:00:00",
+                "active"
+              ],
+              [
+                6,
+                8,
+                5,
+                "2026-10-03 16:20:00",
+                "cancelled"
+              ],
+              [
+                7,
+                9,
+                9,
+                "2026-10-21 07:45:00",
+                "completed"
+              ]
+            ],
+            "activity": [
+              [
+                1,
+                7,
+                "lesson_completed",
+                "2026-10-18 22:10:00"
+              ],
+              [
+                2,
+                7,
+                "quiz_passed",
+                "2026-10-19 00:00:00"
+              ],
+              [
+                3,
+                8,
+                "lesson_completed",
+                "2026-10-20 10:00:00"
+              ],
+              [
+                4,
+                7,
+                "lesson_completed",
+                "2026-10-21 09:15:00"
+              ],
+              [
+                5,
+                7,
+                "challenge_submitted",
+                "2026-10-25 23:59:59"
+              ],
+              [
+                6,
+                7,
+                "comment_posted",
+                "2026-10-26 00:00:00"
+              ],
+              [
+                7,
+                9,
+                "quiz_passed",
+                "2026-10-22 12:00:00"
+              ]
+            ],
+            "params": {
+              "my_courses": [
+                99
+              ],
+              "weekly_activity": [
+                7,
+                "2026-10-26 00:00:00",
+                "2026-10-19 00:00:00"
+              ],
+              "course_learners": [
+                3,
+                "paused"
+              ]
+            }
+          },
+          "expected": {
+            "my_courses": {
+              "plan": "ok",
+              "rows": []
+            },
+            "weekly_activity": {
+              "plan": "ok",
+              "rows": [
+                [
+                  0
+                ]
+              ]
+            },
+            "course_learners": {
+              "plan": "ok",
+              "rows": []
+            },
+            "indexes": "ok"
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Completed learners and an empty week for a user with older activity",
+          "input": {
+            "enrollments": [
+              [
+                1,
+                7,
+                3,
+                "2026-09-01 10:00:00",
+                "completed"
+              ],
+              [
+                2,
+                7,
+                5,
+                "2026-09-15 08:30:00",
+                "active"
+              ],
+              [
+                3,
+                8,
+                3,
+                "2026-09-02 11:00:00",
+                "active"
+              ],
+              [
+                4,
+                7,
+                9,
+                "2026-10-20 09:00:00",
+                "active"
+              ],
+              [
+                5,
+                9,
+                3,
+                "2026-10-01 14:00:00",
+                "active"
+              ],
+              [
+                6,
+                8,
+                5,
+                "2026-10-03 16:20:00",
+                "cancelled"
+              ],
+              [
+                7,
+                9,
+                9,
+                "2026-10-21 07:45:00",
+                "completed"
+              ]
+            ],
+            "activity": [
+              [
+                1,
+                7,
+                "lesson_completed",
+                "2026-10-18 22:10:00"
+              ],
+              [
+                2,
+                7,
+                "quiz_passed",
+                "2026-10-19 00:00:00"
+              ],
+              [
+                3,
+                8,
+                "lesson_completed",
+                "2026-10-20 10:00:00"
+              ],
+              [
+                4,
+                7,
+                "lesson_completed",
+                "2026-10-21 09:15:00"
+              ],
+              [
+                5,
+                7,
+                "challenge_submitted",
+                "2026-10-25 23:59:59"
+              ],
+              [
+                6,
+                7,
+                "comment_posted",
+                "2026-10-26 00:00:00"
+              ],
+              [
+                7,
+                9,
+                "quiz_passed",
+                "2026-10-22 12:00:00"
+              ]
+            ],
+            "params": {
+              "my_courses": [
+                9
+              ],
+              "weekly_activity": [
+                8,
+                "2026-10-21 00:00:00",
+                "2026-10-28 00:00:00"
+              ],
+              "course_learners": [
+                9,
+                "completed"
+              ]
+            }
+          },
+          "expected": {
+            "my_courses": {
+              "plan": "ok",
+              "rows": [
+                [
+                  7,
+                  9,
+                  "completed",
+                  "2026-10-21 07:45:00"
+                ],
+                [
+                  5,
+                  3,
+                  "active",
+                  "2026-10-01 14:00:00"
+                ]
+              ]
+            },
+            "weekly_activity": {
+              "plan": "ok",
+              "rows": [
+                [
+                  0
+                ]
+              ]
+            },
+            "course_learners": {
+              "plan": "ok",
+              "rows": [
+                [
+                  9,
+                  "2026-10-21 07:45:00"
+                ]
+              ]
+            },
+            "indexes": "ok"
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large tables: 6,000 enrollments and 20,000 activity rows",
+          "input": {
+            "generate": {
+              "seed": 7,
+              "users": 400,
+              "courses": 30,
+              "enrollments": 6000,
+              "activity": 20000
+            },
+            "params": {
+              "my_courses": [
+                17
+              ],
+              "weekly_activity": [
+                17,
+                "2026-01-10 00:00:00",
+                "2026-01-24 00:00:00"
+              ],
+              "course_learners": [
+                12,
+                "completed"
+              ]
+            }
+          },
+          "expected": {
+            "my_courses": {
+              "plan": "ok",
+              "rows": [
+                [
+                  5868,
+                  20,
+                  "active",
+                  "2026-01-29 12:29:00"
+                ],
+                [
+                  5566,
+                  23,
+                  "active",
+                  "2026-01-28 01:15:00"
+                ],
+                [
+                  4841,
+                  6,
+                  "active",
+                  "2026-01-24 12:40:00"
+                ],
+                [
+                  4724,
+                  22,
+                  "active",
+                  "2026-01-23 23:01:00"
+                ],
+                [
+                  3742,
+                  13,
+                  "cancelled",
+                  "2026-01-19 04:27:00"
+                ],
+                [
+                  2834,
+                  4,
+                  "cancelled",
+                  "2026-01-14 18:31:00"
+                ],
+                [
+                  2267,
+                  5,
+                  "completed",
+                  "2026-01-12 00:22:00"
+                ],
+                [
+                  2006,
+                  4,
+                  "cancelled",
+                  "2026-01-10 17:55:00"
+                ],
+                [
+                  1631,
+                  30,
+                  "cancelled",
+                  "2026-01-08 22:10:00"
+                ],
+                [
+                  816,
+                  22,
+                  "cancelled",
+                  "2026-01-04 23:05:00"
+                ],
+                [
+                  484,
+                  7,
+                  "active",
+                  "2026-01-03 08:21:00"
+                ],
+                [
+                  244,
+                  21,
+                  "active",
+                  "2026-01-02 04:21:00"
+                ]
+              ]
+            },
+            "weekly_activity": {
+              "plan": "ok",
+              "rows": [
+                [
+                  14
+                ]
+              ]
+            },
+            "course_learners": {
+              "plan": "ok",
+              "rows": [
+                [
+                  10,
+                  "2026-01-23 18:42:00"
+                ],
+                [
+                  36,
+                  "2026-01-10 03:48:00"
+                ],
+                [
+                  41,
+                  "2026-01-19 18:55:00"
+                ],
+                [
+                  54,
+                  "2026-01-25 08:30:00"
+                ],
+                [
+                  59,
+                  "2026-01-02 13:48:00"
+                ],
+                [
+                  61,
+                  "2026-01-22 01:24:00"
+                ],
+                [
+                  89,
+                  "2026-01-20 11:57:00"
+                ],
+                [
+                  98,
+                  "2026-01-21 17:07:00"
+                ],
+                [
+                  101,
+                  "2026-01-14 19:27:00"
+                ],
+                [
+                  103,
+                  "2026-01-07 22:36:00"
+                ],
+                [
+                  106,
+                  "2026-01-28 23:25:00"
+                ],
+                [
+                  108,
+                  "2026-01-14 12:20:00"
+                ],
+                [
+                  127,
+                  "2026-01-19 10:10:00"
+                ],
+                [
+                  132,
+                  "2026-01-21 23:46:00"
+                ],
+                [
+                  151,
+                  "2026-01-28 22:43:00"
+                ],
+                [
+                  162,
+                  "2026-01-17 05:33:00"
+                ],
+                [
+                  164,
+                  "2026-01-07 08:57:00"
+                ],
+                [
+                  167,
+                  "2026-01-07 02:53:00"
+                ],
+                [
+                  175,
+                  "2026-01-26 09:28:00"
+                ],
+                [
+                  178,
+                  "2026-01-12 12:23:00"
+                ],
+                [
+                  192,
+                  "2026-01-15 04:26:00"
+                ],
+                [
+                  195,
+                  "2026-01-12 12:44:00"
+                ],
+                [
+                  200,
+                  "2026-01-12 12:37:00"
+                ],
+                [
+                  209,
+                  "2026-01-28 14:54:00"
+                ],
+                [
+                  223,
+                  "2026-01-11 12:21:00"
+                ],
+                [
+                  230,
+                  "2026-01-05 10:38:00"
+                ],
+                [
+                  260,
+                  "2026-01-25 14:13:00"
+                ],
+                [
+                  275,
+                  "2026-01-14 05:34:00"
+                ],
+                [
+                  290,
+                  "2026-01-12 12:30:00"
+                ],
+                [
+                  295,
+                  "2026-01-19 09:42:00"
+                ],
+                [
+                  305,
+                  "2026-01-30 03:46:00"
+                ],
+                [
+                  315,
+                  "2026-01-26 06:40:00"
+                ],
+                [
+                  318,
+                  "2026-01-25 11:39:00"
+                ],
+                [
+                  320,
+                  "2026-01-03 04:51:00"
+                ],
+                [
+                  321,
+                  "2026-01-12 23:56:00"
+                ],
+                [
+                  321,
+                  "2026-01-29 12:43:00"
+                ],
+                [
+                  325,
+                  "2026-01-08 18:05:00"
+                ],
+                [
+                  327,
+                  "2026-01-04 17:08:00"
+                ],
+                [
+                  334,
+                  "2026-01-15 09:34:00"
+                ],
+                [
+                  335,
+                  "2026-01-17 21:32:00"
+                ],
+                [
+                  337,
+                  "2026-01-25 18:18:00"
+                ],
+                [
+                  339,
+                  "2026-01-29 09:13:00"
+                ],
+                [
+                  351,
+                  "2026-01-09 10:46:00"
+                ],
+                [
+                  362,
+                  "2026-01-22 19:08:00"
+                ],
+                [
+                  371,
+                  "2026-01-29 11:47:00"
+                ],
+                [
+                  372,
+                  "2026-01-18 10:08:00"
+                ],
+                [
+                  374,
+                  "2026-01-14 14:40:00"
+                ],
+                [
+                  377,
+                  "2026-01-03 22:35:00"
+                ]
+              ]
+            },
+            "indexes": "ok"
+          },
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Large tables, another seed and another user",
+          "input": {
+            "generate": {
+              "seed": 2026,
+              "users": 300,
+              "courses": 40,
+              "enrollments": 8000,
+              "activity": 24000
+            },
+            "params": {
+              "my_courses": [
+                123
+              ],
+              "weekly_activity": [
+                5,
+                "2026-01-20 00:00:00",
+                "2026-02-10 00:00:00"
+              ],
+              "course_learners": [
+                40,
+                "active"
+              ]
+            }
+          },
+          "expected": {
+            "my_courses": {
+              "plan": "ok",
+              "rows": [
+                [
+                  7833,
+                  23,
+                  "completed",
+                  "2026-02-08 01:44:00"
+                ],
+                [
+                  7796,
+                  25,
+                  "active",
+                  "2026-02-07 21:25:00"
+                ],
+                [
+                  7742,
+                  40,
+                  "completed",
+                  "2026-02-07 15:07:00"
+                ],
+                [
+                  6777,
+                  16,
+                  "completed",
+                  "2026-02-02 22:32:00"
+                ],
+                [
+                  6744,
+                  26,
+                  "cancelled",
+                  "2026-02-02 18:41:00"
+                ],
+                [
+                  5852,
+                  8,
+                  "active",
+                  "2026-01-29 10:37:00"
+                ],
+                [
+                  5286,
+                  27,
+                  "active",
+                  "2026-01-26 16:35:00"
+                ],
+                [
+                  4742,
+                  34,
+                  "cancelled",
+                  "2026-01-24 01:07:00"
+                ],
+                [
+                  3979,
+                  11,
+                  "active",
+                  "2026-01-20 08:06:00"
+                ],
+                [
+                  3965,
+                  3,
+                  "cancelled",
+                  "2026-01-20 06:28:00"
+                ],
+                [
+                  3724,
+                  36,
+                  "active",
+                  "2026-01-19 02:21:00"
+                ],
+                [
+                  3570,
+                  17,
+                  "active",
+                  "2026-01-18 08:23:00"
+                ],
+                [
+                  3543,
+                  34,
+                  "active",
+                  "2026-01-18 05:14:00"
+                ],
+                [
+                  1409,
+                  27,
+                  "cancelled",
+                  "2026-01-07 20:16:00"
+                ],
+                [
+                  1089,
+                  20,
+                  "active",
+                  "2026-01-06 06:56:00"
+                ],
+                [
+                  913,
+                  19,
+                  "active",
+                  "2026-01-05 10:24:00"
+                ],
+                [
+                  776,
+                  30,
+                  "completed",
+                  "2026-01-04 18:25:00"
+                ],
+                [
+                  772,
+                  8,
+                  "cancelled",
+                  "2026-01-04 17:57:00"
+                ],
+                [
+                  752,
+                  2,
+                  "cancelled",
+                  "2026-01-04 15:37:00"
+                ]
+              ]
+            },
+            "weekly_activity": {
+              "plan": "ok",
+              "rows": [
+                [
+                  25
+                ]
+              ]
+            },
+            "course_learners": {
+              "plan": "ok",
+              "rows": [
+                [
+                  3,
+                  "2026-01-17 14:32:00"
+                ],
+                [
+                  5,
+                  "2026-01-25 12:35:00"
+                ],
+                [
+                  7,
+                  "2026-01-28 21:47:00"
+                ],
+                [
+                  9,
+                  "2026-01-23 03:46:00"
+                ],
+                [
+                  14,
+                  "2026-01-09 14:09:00"
+                ],
+                [
+                  20,
+                  "2026-01-04 16:05:00"
+                ],
+                [
+                  28,
+                  "2026-01-17 00:11:00"
+                ],
+                [
+                  31,
+                  "2026-02-03 13:00:00"
+                ],
+                [
+                  31,
+                  "2026-02-08 17:50:00"
+                ],
+                [
+                  33,
+                  "2026-02-04 04:59:00"
+                ],
+                [
+                  35,
+                  "2026-01-01 07:28:00"
+                ],
+                [
+                  37,
+                  "2026-02-03 08:48:00"
+                ],
+                [
+                  50,
+                  "2026-01-20 14:45:00"
+                ],
+                [
+                  50,
+                  "2026-02-08 01:23:00"
+                ],
+                [
+                  51,
+                  "2026-02-01 16:33:00"
+                ],
+                [
+                  57,
+                  "2026-01-07 20:30:00"
+                ],
+                [
+                  70,
+                  "2026-02-01 01:23:00"
+                ],
+                [
+                  71,
+                  "2026-02-03 03:12:00"
+                ],
+                [
+                  76,
+                  "2026-01-25 02:26:00"
+                ],
+                [
+                  77,
+                  "2026-02-06 17:18:00"
+                ],
+                [
+                  79,
+                  "2026-01-08 23:55:00"
+                ],
+                [
+                  82,
+                  "2026-01-10 06:36:00"
+                ],
+                [
+                  82,
+                  "2026-01-30 07:23:00"
+                ],
+                [
+                  84,
+                  "2026-01-17 20:36:00"
+                ],
+                [
+                  89,
+                  "2026-01-17 14:46:00"
+                ],
+                [
+                  91,
+                  "2026-01-29 17:51:00"
+                ],
+                [
+                  96,
+                  "2026-01-18 08:30:00"
+                ],
+                [
+                  98,
+                  "2026-01-06 09:02:00"
+                ],
+                [
+                  99,
+                  "2026-02-08 16:47:00"
+                ],
+                [
+                  101,
+                  "2026-01-15 14:21:00"
+                ],
+                [
+                  109,
+                  "2026-01-13 04:50:00"
+                ],
+                [
+                  111,
+                  "2026-02-07 20:43:00"
+                ],
+                [
+                  114,
+                  "2026-01-08 04:19:00"
+                ],
+                [
+                  115,
+                  "2026-01-25 17:22:00"
+                ],
+                [
+                  121,
+                  "2026-01-01 22:38:00"
+                ],
+                [
+                  121,
+                  "2026-01-14 14:12:00"
+                ],
+                [
+                  122,
+                  "2026-01-04 20:24:00"
+                ],
+                [
+                  124,
+                  "2026-02-04 01:50:00"
+                ],
+                [
+                  131,
+                  "2026-01-09 19:59:00"
+                ],
+                [
+                  133,
+                  "2026-01-20 12:39:00"
+                ],
+                [
+                  133,
+                  "2026-02-01 08:44:00"
+                ],
+                [
+                  134,
+                  "2026-01-17 15:49:00"
+                ],
+                [
+                  143,
+                  "2026-01-20 16:44:00"
+                ],
+                [
+                  144,
+                  "2026-01-14 10:07:00"
+                ],
+                [
+                  150,
+                  "2026-01-30 10:18:00"
+                ],
+                [
+                  154,
+                  "2026-01-27 08:55:00"
+                ],
+                [
+                  155,
+                  "2026-01-29 18:54:00"
+                ],
+                [
+                  156,
+                  "2026-01-28 10:49:00"
+                ],
+                [
+                  156,
+                  "2026-02-01 05:42:00"
+                ],
+                [
+                  157,
+                  "2026-01-04 12:00:00"
+                ],
+                [
+                  162,
+                  "2026-01-16 06:34:00"
+                ],
+                [
+                  167,
+                  "2026-01-10 11:23:00"
+                ],
+                [
+                  169,
+                  "2026-01-31 20:08:00"
+                ],
+                [
+                  173,
+                  "2026-01-26 18:48:00"
+                ],
+                [
+                  173,
+                  "2026-01-28 15:01:00"
+                ],
+                [
+                  176,
+                  "2026-01-25 11:04:00"
+                ],
+                [
+                  182,
+                  "2026-01-16 15:19:00"
+                ],
+                [
+                  186,
+                  "2026-01-11 07:34:00"
+                ],
+                [
+                  188,
+                  "2026-02-04 10:35:00"
+                ],
+                [
+                  188,
+                  "2026-02-07 12:47:00"
+                ],
+                [
+                  189,
+                  "2026-01-25 06:03:00"
+                ],
+                [
+                  195,
+                  "2026-01-07 20:09:00"
+                ],
+                [
+                  199,
+                  "2026-01-22 15:52:00"
+                ],
+                [
+                  202,
+                  "2026-01-07 16:53:00"
+                ],
+                [
+                  206,
+                  "2026-01-28 18:24:00"
+                ],
+                [
+                  210,
+                  "2026-01-15 10:58:00"
+                ],
+                [
+                  216,
+                  "2026-01-30 17:46:00"
+                ],
+                [
+                  217,
+                  "2026-01-07 15:50:00"
+                ],
+                [
+                  221,
+                  "2026-01-30 11:35:00"
+                ],
+                [
+                  223,
+                  "2026-01-22 17:37:00"
+                ],
+                [
+                  231,
+                  "2026-01-01 05:29:00"
+                ],
+                [
+                  239,
+                  "2026-01-06 23:23:00"
+                ],
+                [
+                  240,
+                  "2026-01-07 01:15:00"
+                ],
+                [
+                  243,
+                  "2026-01-08 15:45:00"
+                ],
+                [
+                  243,
+                  "2026-02-08 16:05:00"
+                ],
+                [
+                  244,
+                  "2026-01-15 03:30:00"
+                ],
+                [
+                  246,
+                  "2026-01-07 11:03:00"
+                ],
+                [
+                  250,
+                  "2026-01-30 13:41:00"
+                ],
+                [
+                  255,
+                  "2026-01-11 15:58:00"
+                ],
+                [
+                  266,
+                  "2026-01-23 11:14:00"
+                ],
+                [
+                  267,
+                  "2026-01-30 12:38:00"
+                ],
+                [
+                  268,
+                  "2026-02-04 01:22:00"
+                ],
+                [
+                  270,
+                  "2026-01-26 14:15:00"
+                ],
+                [
+                  274,
+                  "2026-02-05 05:50:00"
+                ],
+                [
+                  282,
+                  "2026-02-06 07:44:00"
+                ],
+                [
+                  284,
+                  "2026-01-08 00:35:00"
+                ],
+                [
+                  288,
+                  "2026-01-09 05:59:00"
+                ],
+                [
+                  289,
+                  "2026-01-31 06:57:00"
+                ],
+                [
+                  293,
+                  "2026-01-27 02:23:00"
+                ],
+                [
+                  294,
+                  "2026-01-14 19:20:00"
+                ],
+                [
+                  294,
+                  "2026-01-23 05:24:00"
+                ],
+                [
+                  300,
+                  "2026-01-23 22:05:00"
+                ]
+              ]
+            },
+            "indexes": "ok"
+          },
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

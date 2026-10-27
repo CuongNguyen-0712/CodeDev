@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_pgp_212",
+      "key": "challenges/python/chal_coding_pgp_212/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "indexes_for_patterns.py",
+      "size": 7224
+    }
+  ]
+}

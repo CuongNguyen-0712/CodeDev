@@ -1,0 +1,46 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pgp_431",
+      "name": "index-tradeoffs-quiz",
+      "type": "quiz",
+      "title": "What does this index cost?",
+      "description": "Three pieces of evidence from the CodeDev index review: index usage statistics for enrollments, HOT update counters before and after a new index on users, and a CREATE INDEX CONCURRENTLY that failed. Decide whether each statement is true or false.",
+      "difficulty": "medium",
+      "outcomes": ["contention-tradeoffs"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Index review on the primary (PostgreSQL 16). Statistics were last reset 45 days ago; the database has no read replicas. enrollments_user_course_key is the index behind UNIQUE (user_id, course_id).\n\nSELECT s.indexrelname, s.idx_scan, s.last_idx_scan,\n       pg_size_pretty(pg_relation_size(s.indexrelid)) AS size,\n       pg_get_indexdef(s.indexrelid) AS definition\nFROM pg_stat_user_indexes AS s\nWHERE s.relname = 'enrollments'\nORDER BY s.idx_scan;\n\n indexrelname                  | idx_scan | last_idx_scan          | size   | definition\n-------------------------------+----------+------------------------+--------+---------------------------------------------------------\n enrollments_user_id_idx       |        0 |                        | 412 MB | CREATE INDEX ... ON enrollments USING btree (user_id)\n enrollments_created_at_idx    |       37 | 2026-10-20 02:00:11+00 | 398 MB | CREATE INDEX ... ON enrollments USING btree (created_at)\n enrollments_course_status_idx |   918442 | 2026-10-26 09:41:52+00 | 455 MB | CREATE INDEX ... USING btree (course_id, status)\n enrollments_user_course_key   | 48113207 | 2026-10-26 09:41:53+00 | 503 MB | CREATE UNIQUE INDEX ... USING btree (user_id, course_id)\n enrollments_pkey              | 61002318 | 2026-10-26 09:41:53+00 | 389 MB | CREATE UNIQUE INDEX ... USING btree (id)\n\nStatement: \"enrollments_user_id_idx is a reasonable candidate to drop: it has not been scanned in 45 days, and the unique index on (user_id, course_id) can serve lookups by user_id alone.\"",
+          "explanation": "True. idx_scan = 0 with an empty last_idx_scan means no query used the index since the statistics reset, and a B-tree on (user_id, course_id) can answer WHERE user_id = $1 by its leading column, so the single-column index duplicates it. Meanwhile every INSERT into enrollments and every non-HOT UPDATE still writes an entry into its 412 MB. Before dropping it, check what statistics cannot show: usage on replicas (counters are per server; here there are none), a job that runs less often than the statistics window, and whether a constraint depends on it (it does not: it is not unique). Then drop it with DROP INDEX CONCURRENTLY and keep its definition so it can be recreated. Note the opposite trap: a unique index with idx_scan = 0 can still be essential, because enforcing uniqueness is not counted as a scan. The misconception is that every index pays for itself just by existing.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "On October 12 a migration added an index for the weekly \"inactive learners\" admin report:\n\nCREATE INDEX CONCURRENTLY users_last_activity_at_idx ON users (last_activity_at);\n\nThe hottest statement on users runs on every finished lesson:\n\nUPDATE users SET xp = xp + 10, last_activity_at = now() WHERE id = $1;\n\npg_stat_user_tables for users, 7 days before and 7 days after the migration:\n\n           | n_tup_upd  | n_tup_hot_upd | WAL per day (pg_stat_wal)\n-----------+------------+---------------+--------------------------\n before    | 41,220,118 |    39,571,313 | 38 GB\n after     | 41,906,550 |     1,173,383 | 61 GB\n\nStatement: \"The drop in HOT updates is not caused by the new index: an index on last_activity_at only adds cost to queries that filter on last_activity_at.\"",
+          "explanation": "False. An UPDATE can be HOT (heap-only tuple) only when it changes no indexed column and the new row version fits on the same page. Before the migration the hot UPDATE changed xp and last_activity_at, neither indexed, so 96% of updates were HOT and touched no index. Now last_activity_at is indexed, so every one of those updates is non-HOT: it inserts a new entry into every index of users, not only the new one, which shows up as more WAL, more index bloat and more vacuum work. The cost of an index is paid by every write that touches an indexed column, whether or not anyone reads it. Options: drop it and let the weekly report scan the table, or index a column that is not updated on every request. The misconception is that an index only costs the queries that use it.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A migration ran during the day with the API role's settings (statement_timeout = 5min):\n\nCREATE INDEX CONCURRENTLY activity_log_user_created_idx ON activity_log (user_id, created_at);\nERROR:  canceling statement due to statement timeout\n\nThen:\n\n\\d activity_log\n...\nIndexes:\n    \"activity_log_pkey\" PRIMARY KEY, btree (id)\n    \"activity_log_user_created_idx\" btree (user_id, created_at) INVALID\n\nStatement: \"The INVALID index is not used by any query but is still updated on every INSERT into activity_log, so it should be dropped with DROP INDEX CONCURRENTLY before the migration is run again.\"",
+          "explanation": "True. When CREATE INDEX CONCURRENTLY fails or is cancelled, PostgreSQL leaves the index behind marked INVALID. The planner ignores it because it may be incomplete, but writes still maintain it, so it costs every INSERT on a busy table and buys nothing. Drop it with DROP INDEX CONCURRENTLY (or rebuild it with REINDEX INDEX CONCURRENTLY) and run the migration again with a longer statement_timeout for that session. Running the original statement with IF NOT EXISTS would silently skip it because the name exists, leaving the invalid index in place. Find leftovers with SELECT indexrelid::regclass FROM pg_index WHERE NOT indisvalid. The misconception is that a failed index build cleans up after itself, as a failed transaction would.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

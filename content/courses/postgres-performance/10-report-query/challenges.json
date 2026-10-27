@@ -1,0 +1,3297 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pgp_411",
+      "name": "progress-report-plan-quiz",
+      "type": "quiz",
+      "title": "Read the slow report's plan and check a rewrite",
+      "description": "Two pieces of evidence from the nightly progress report incident: the auto_explain plan of the report that ran for 40 minutes, and a first attempt at rewriting it with a join. Decide whether each statement is true or false.",
+      "difficulty": "medium",
+      "outcomes": [
+        "query-shapes",
+        "read-plans"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The old challenge section of the same nightly report computed each learner's average best score with a subquery per row of report_learners, a work table the job fills first with one row per (learner, course). Part of its auto_explain plan (PostgreSQL 16):\n\n->  Seq Scan on report_learners rl  (cost=0.00..46121488.30 rows=389114 width=16) (actual time=0.402..1117962.113 rows=389114 loops=1)\n      SubPlan 1\n        ->  Aggregate  (cost=118.43..118.44 rows=1 width=32) (actual time=2.871..2.871 rows=1 loops=389114)\n              ->  Index Scan using submissions_user_id_idx on submissions s  (cost=0.43..118.40 rows=12 width=4) (actual time=0.214..2.862 rows=16 loops=389114)\n                    Index Cond: (user_id = rl.user_id)\n                    Filter: (course_id = rl.course_id)\n                    Rows Removed by Filter: 41\n\nStatement: \"SubPlan 1 accounts for roughly 18 minutes of the run: its actual time is per loop, and it ran once for every (learner, course) row.\"",
+          "explanation": "True. In EXPLAIN ANALYZE, actual time and rows of a node are averages per loop, so the total is time x loops: 2.871 ms x 389,114 loops is about 1,117 seconds (18.6 minutes), which matches the 1,117,962 ms the Seq Scan above it reports. Each execution is a cheap index scan; what makes it expensive is that a correlated subquery runs again for every outer row. The misconception is to read 2.871 ms as the cost of the node and conclude the subquery is fast: always multiply by loops.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A first rewrite of the report's enrolled column. enrollments has UNIQUE (user_id, course_id), and lesson_progress has one row per (user_id, lesson_id) a learner has opened.\n\nSELECT e.course_id,\n       COUNT(*) AS enrolled\nFROM enrollments AS e\nJOIN lesson_progress AS lp\n  ON lp.user_id = e.user_id AND lp.course_id = e.course_id\nWHERE e.status <> 'cancelled'\nGROUP BY e.course_id\nORDER BY e.course_id;\n\nOld report, course 7: enrolled = 2 (learner 1 opened 4 lessons, learner 2 opened 2 lessons).\n\nStatement: \"For course 7 this query also returns enrolled = 2, because the unique key allows only one enrollment per learner and course.\"",
+          "explanation": "False. The unique key limits enrollments, not the joined rows. The join produces one row per progress row of each learner, so course 7 gets 4 + 2 = 6 rows and COUNT(*) returns 6. The inner join also drops learners who have not opened any lesson, so the number can be too high and too low at once. Aggregate the child table to one row per (user, course) first, then join, or count the parent's key with COUNT(DISTINCT e.id). The misconception is that a unique key on the parent protects a count taken after a one-to-many join: it is the join that multiplies the rows (fan-out).",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pgp_412",
+      "name": "rewrite-progress-report",
+      "type": "mini_coding",
+      "title": "Rewrite the nightly progress report",
+      "description": "The nightly progress report of CodeDev ran for 40 minutes: it computes three numbers per course with correlated subqueries, one subquery run per course and, inside it, one per enrollment. Rewrite QUERY in the starter so it returns exactly the same rows but reads each table in one pass (CTEs, joins, GROUP BY). You may also add indexes in INDEXES (optional).\n\nTables: courses(id, title, category, created_at), lessons(id, course_id, position), users(id, email, created_at), enrollments(id, user_id, course_id, created_at, status) with UNIQUE (user_id, course_id) and status 'active', 'completed' or 'cancelled', lesson_progress(user_id, lesson_id, course_id, completed_at) with PRIMARY KEY (user_id, lesson_id); completed_at NULL means the lesson was opened but not finished.\n\nOutput: one row per course, every course (also one without enrollments or lessons), ORDER BY course id: [course_id, title, enrolled, completed_all, avg_completion_pct]. enrolled = enrollments of the course whose status is not 'cancelled' (the learners). completed_all = learners of the course whose number of lesson_progress rows for that course with completed_at NOT NULL equals the course's number of lessons; 0 for a course without lessons; do not use the status 'completed', which a separate job sets late. avg_completion_pct = ROUND(100.0 * (finished lessons of the course summed over its learners) / (enrolled * number of lessons), 1), the average of each learner's completion percentage rounded to 1 decimal place, 0.0 when the course has no learners or no lessons. Progress of cancelled enrollments and of users not enrolled in the course never counts.\n\nThe test runner (do not change) builds an in-memory SQLite database from each test case, either small tables or a generated dataset of about 200 courses, 3,000 users, 10,000 enrollments and 50,000 progress rows. It runs INDEXES (CREATE INDEX statements only, not counted), then checks the plan of QUERY with EXPLAIN QUERY PLAN: a CORRELATED subquery is rejected as \"too slow\" because a report that reads every row must read each table once. Then it runs QUERY with a budget of 6,000,000 SQLite VM steps (set_progress_handler: steps are counted, not seconds, so the check is exact) and prints \"too slow\" with the plan when the budget is exceeded. Otherwise it prints the rows as a JSON list of lists, for example [[7, \"Redis Patterns\", 2, 1, 62.5]]. SQLite differs from PostgreSQL here: it has no EXPLAIN ANALYZE and shows a correlated subquery as CORRELATED SCALAR SUBQUERY where PostgreSQL shows a SubPlan; CTEs, LEFT JOIN, GROUP BY, CASE, COALESCE and aggregate FILTER work in both.",
+      "difficulty": "hard",
+      "outcomes": [
+        "query-shapes",
+        "index-design"
+      ],
+      "points": 40,
+      "coding": {
+        "language": "python",
+        "filePath": "progress_report.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "Every subquery in the old report answers a question about one course or one learner. Which of those answers could you compute for all courses, or for all (user, course) pairs, in a single GROUP BY, and how small would that result be compared with the tables it reads?",
+        "Look at three places: the finished-lesson count per learner (one GROUP BY over lesson_progress with the completed_at filter, keyed by user and course), the lesson count per course (one GROUP BY over lessons), and the final join from courses, which must keep courses without learners or lessons (LEFT JOIN plus COALESCE). Count learners before you join anything that has several rows per learner, or the counts multiply.",
+        "The same shape on other tables: per category, the number of courses and how many have every lesson published. WITH lesson_totals AS (SELECT course_id, COUNT(*) AS total, SUM(CASE WHEN published THEN 1 ELSE 0 END) AS published FROM lessons GROUP BY course_id) SELECT c.category, COUNT(*) AS courses, SUM(CASE WHEN lt.total > 0 AND lt.published = lt.total THEN 1 ELSE 0 END) AS fully_published FROM courses AS c LEFT JOIN lesson_totals AS lt ON lt.course_id = c.id GROUP BY c.category ORDER BY c.category. The child table is reduced to one row per parent first, then joined once."
+      ],
+      "tests": [
+        {
+          "name": "Example course: cancelled and unfinished progress do not count, a course without learners is 0",
+          "input": {
+            "tables": {
+              "courses": [
+                {
+                  "id": 7,
+                  "title": "Redis Patterns",
+                  "category": "backend",
+                  "created_at": "2026-01-05"
+                },
+                {
+                  "id": 8,
+                  "title": "PostgreSQL Performance Engineering",
+                  "category": "data",
+                  "created_at": "2026-01-05"
+                }
+              ],
+              "lessons": [
+                {
+                  "id": 701,
+                  "course_id": 7,
+                  "position": 1
+                },
+                {
+                  "id": 702,
+                  "course_id": 7,
+                  "position": 2
+                },
+                {
+                  "id": 703,
+                  "course_id": 7,
+                  "position": 3
+                },
+                {
+                  "id": 704,
+                  "course_id": 7,
+                  "position": 4
+                },
+                {
+                  "id": 801,
+                  "course_id": 8,
+                  "position": 1
+                },
+                {
+                  "id": 802,
+                  "course_id": 8,
+                  "position": 2
+                },
+                {
+                  "id": 803,
+                  "course_id": 8,
+                  "position": 3
+                }
+              ],
+              "users": [
+                {
+                  "id": 1,
+                  "email": "user1@codedev.test",
+                  "created_at": "2026-01-10"
+                },
+                {
+                  "id": 2,
+                  "email": "user2@codedev.test",
+                  "created_at": "2026-01-10"
+                },
+                {
+                  "id": 3,
+                  "email": "user3@codedev.test",
+                  "created_at": "2026-01-10"
+                },
+                {
+                  "id": 4,
+                  "email": "user4@codedev.test",
+                  "created_at": "2026-01-10"
+                }
+              ],
+              "enrollments": [
+                {
+                  "id": 1,
+                  "user_id": 1,
+                  "course_id": 7,
+                  "created_at": "2026-02-01",
+                  "status": "completed"
+                },
+                {
+                  "id": 2,
+                  "user_id": 2,
+                  "course_id": 7,
+                  "created_at": "2026-02-01",
+                  "status": "active"
+                },
+                {
+                  "id": 3,
+                  "user_id": 3,
+                  "course_id": 7,
+                  "created_at": "2026-02-01",
+                  "status": "cancelled"
+                }
+              ],
+              "lesson_progress": [
+                {
+                  "user_id": 1,
+                  "lesson_id": 701,
+                  "course_id": 7,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 702,
+                  "course_id": 7,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 703,
+                  "course_id": 7,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 704,
+                  "course_id": 7,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 701,
+                  "course_id": 7,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 702,
+                  "course_id": 7,
+                  "completed_at": null
+                },
+                {
+                  "user_id": 3,
+                  "lesson_id": 701,
+                  "course_id": 7,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 3,
+                  "lesson_id": 702,
+                  "course_id": 7,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 3,
+                  "lesson_id": 703,
+                  "course_id": 7,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 3,
+                  "lesson_id": 704,
+                  "course_id": 7,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 4,
+                  "lesson_id": 701,
+                  "course_id": 7,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 4,
+                  "lesson_id": 702,
+                  "course_id": 7,
+                  "completed_at": "2026-03-01 08:00:00"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              7,
+              "Redis Patterns",
+              2,
+              1,
+              62.5
+            ],
+            [
+              8,
+              "PostgreSQL Performance Engineering",
+              0,
+              0,
+              0
+            ]
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Nightly dataset (200 courses, 3,000 users): same rows within the step budget",
+          "input": {
+            "generate": {
+              "seed": 11,
+              "courses": 200,
+              "users": 3000,
+              "max_courses_per_user": 6
+            }
+          },
+          "expected": [
+            [
+              1,
+              "Course 1",
+              41,
+              2,
+              49.7
+            ],
+            [
+              2,
+              "Course 2",
+              62,
+              6,
+              52.3
+            ],
+            [
+              3,
+              "Course 3",
+              47,
+              5,
+              49.6
+            ],
+            [
+              4,
+              "Course 4",
+              46,
+              11,
+              52.2
+            ],
+            [
+              5,
+              "Course 5",
+              53,
+              6,
+              55.3
+            ],
+            [
+              6,
+              "Course 6",
+              46,
+              1,
+              51.2
+            ],
+            [
+              7,
+              "Course 7",
+              43,
+              8,
+              61
+            ],
+            [
+              8,
+              "Course 8",
+              39,
+              5,
+              55.8
+            ],
+            [
+              9,
+              "Course 9",
+              43,
+              7,
+              49.6
+            ],
+            [
+              10,
+              "Course 10",
+              56,
+              10,
+              57.5
+            ],
+            [
+              11,
+              "Course 11",
+              50,
+              9,
+              47.3
+            ],
+            [
+              12,
+              "Course 12",
+              42,
+              5,
+              57.5
+            ],
+            [
+              13,
+              "Course 13",
+              49,
+              12,
+              52.6
+            ],
+            [
+              14,
+              "Course 14",
+              45,
+              8,
+              60.4
+            ],
+            [
+              15,
+              "Course 15",
+              51,
+              12,
+              52.5
+            ],
+            [
+              16,
+              "Course 16",
+              49,
+              12,
+              59.5
+            ],
+            [
+              17,
+              "Course 17",
+              42,
+              6,
+              54.8
+            ],
+            [
+              18,
+              "Course 18",
+              46,
+              4,
+              52.2
+            ],
+            [
+              19,
+              "Course 19",
+              55,
+              3,
+              55.5
+            ],
+            [
+              20,
+              "Course 20",
+              47,
+              9,
+              57.4
+            ],
+            [
+              21,
+              "Course 21",
+              47,
+              8,
+              61.3
+            ],
+            [
+              22,
+              "Course 22",
+              37,
+              2,
+              50.5
+            ],
+            [
+              23,
+              "Course 23",
+              41,
+              0,
+              0
+            ],
+            [
+              24,
+              "Course 24",
+              59,
+              2,
+              48.1
+            ],
+            [
+              25,
+              "Course 25",
+              47,
+              3,
+              54.6
+            ],
+            [
+              26,
+              "Course 26",
+              40,
+              4,
+              44.4
+            ],
+            [
+              27,
+              "Course 27",
+              45,
+              9,
+              59.4
+            ],
+            [
+              28,
+              "Course 28",
+              41,
+              8,
+              56.1
+            ],
+            [
+              29,
+              "Course 29",
+              47,
+              4,
+              47.8
+            ],
+            [
+              30,
+              "Course 30",
+              37,
+              3,
+              47.6
+            ],
+            [
+              31,
+              "Course 31",
+              45,
+              6,
+              50.3
+            ],
+            [
+              32,
+              "Course 32",
+              42,
+              10,
+              55.1
+            ],
+            [
+              33,
+              "Course 33",
+              44,
+              2,
+              54.9
+            ],
+            [
+              34,
+              "Course 34",
+              36,
+              11,
+              59.7
+            ],
+            [
+              35,
+              "Course 35",
+              53,
+              4,
+              55.9
+            ],
+            [
+              36,
+              "Course 36",
+              56,
+              9,
+              57.7
+            ],
+            [
+              37,
+              "Course 37",
+              42,
+              2,
+              60.1
+            ],
+            [
+              38,
+              "Course 38",
+              47,
+              8,
+              64.1
+            ],
+            [
+              39,
+              "Course 39",
+              60,
+              4,
+              47.4
+            ],
+            [
+              40,
+              "Course 40",
+              52,
+              9,
+              55.8
+            ],
+            [
+              41,
+              "Course 41",
+              52,
+              11,
+              58.1
+            ],
+            [
+              42,
+              "Course 42",
+              51,
+              9,
+              52.9
+            ],
+            [
+              43,
+              "Course 43",
+              53,
+              5,
+              56.2
+            ],
+            [
+              44,
+              "Course 44",
+              44,
+              4,
+              49.2
+            ],
+            [
+              45,
+              "Course 45",
+              43,
+              10,
+              60.5
+            ],
+            [
+              46,
+              "Course 46",
+              52,
+              0,
+              0
+            ],
+            [
+              47,
+              "Course 47",
+              43,
+              4,
+              64.9
+            ],
+            [
+              48,
+              "Course 48",
+              44,
+              8,
+              54.1
+            ],
+            [
+              49,
+              "Course 49",
+              37,
+              4,
+              47.8
+            ],
+            [
+              50,
+              "Course 50",
+              43,
+              11,
+              60.9
+            ],
+            [
+              51,
+              "Course 51",
+              46,
+              6,
+              59.4
+            ],
+            [
+              52,
+              "Course 52",
+              55,
+              7,
+              53
+            ],
+            [
+              53,
+              "Course 53",
+              50,
+              9,
+              54
+            ],
+            [
+              54,
+              "Course 54",
+              45,
+              8,
+              54.6
+            ],
+            [
+              55,
+              "Course 55",
+              45,
+              4,
+              59.1
+            ],
+            [
+              56,
+              "Course 56",
+              42,
+              3,
+              62.1
+            ],
+            [
+              57,
+              "Course 57",
+              50,
+              14,
+              58.5
+            ],
+            [
+              58,
+              "Course 58",
+              46,
+              0,
+              45.7
+            ],
+            [
+              59,
+              "Course 59",
+              51,
+              13,
+              56.9
+            ],
+            [
+              60,
+              "Course 60",
+              36,
+              3,
+              53.8
+            ],
+            [
+              61,
+              "Course 61",
+              48,
+              7,
+              56
+            ],
+            [
+              62,
+              "Course 62",
+              44,
+              8,
+              53.6
+            ],
+            [
+              63,
+              "Course 63",
+              42,
+              4,
+              59.3
+            ],
+            [
+              64,
+              "Course 64",
+              46,
+              6,
+              54.8
+            ],
+            [
+              65,
+              "Course 65",
+              46,
+              2,
+              58.7
+            ],
+            [
+              66,
+              "Course 66",
+              41,
+              2,
+              55.2
+            ],
+            [
+              67,
+              "Course 67",
+              37,
+              3,
+              53.5
+            ],
+            [
+              68,
+              "Course 68",
+              47,
+              6,
+              55.9
+            ],
+            [
+              69,
+              "Course 69",
+              58,
+              0,
+              0
+            ],
+            [
+              70,
+              "Course 70",
+              28,
+              3,
+              59.2
+            ],
+            [
+              71,
+              "Course 71",
+              48,
+              5,
+              63.4
+            ],
+            [
+              72,
+              "Course 72",
+              72,
+              13,
+              51.4
+            ],
+            [
+              73,
+              "Course 73",
+              38,
+              0,
+              57.9
+            ],
+            [
+              74,
+              "Course 74",
+              49,
+              6,
+              63
+            ],
+            [
+              75,
+              "Course 75",
+              50,
+              8,
+              58.4
+            ],
+            [
+              76,
+              "Course 76",
+              47,
+              3,
+              57.2
+            ],
+            [
+              77,
+              "Course 77",
+              49,
+              5,
+              54.9
+            ],
+            [
+              78,
+              "Course 78",
+              54,
+              3,
+              54.4
+            ],
+            [
+              79,
+              "Course 79",
+              40,
+              4,
+              56.4
+            ],
+            [
+              80,
+              "Course 80",
+              57,
+              14,
+              56.8
+            ],
+            [
+              81,
+              "Course 81",
+              51,
+              14,
+              64.3
+            ],
+            [
+              82,
+              "Course 82",
+              41,
+              6,
+              63.1
+            ],
+            [
+              83,
+              "Course 83",
+              49,
+              10,
+              57.1
+            ],
+            [
+              84,
+              "Course 84",
+              57,
+              3,
+              58.4
+            ],
+            [
+              85,
+              "Course 85",
+              45,
+              4,
+              52.5
+            ],
+            [
+              86,
+              "Course 86",
+              55,
+              6,
+              49.1
+            ],
+            [
+              87,
+              "Course 87",
+              49,
+              14,
+              57.5
+            ],
+            [
+              88,
+              "Course 88",
+              41,
+              5,
+              59.2
+            ],
+            [
+              89,
+              "Course 89",
+              41,
+              9,
+              53.1
+            ],
+            [
+              90,
+              "Course 90",
+              46,
+              4,
+              52.2
+            ],
+            [
+              91,
+              "Course 91",
+              43,
+              12,
+              54.4
+            ],
+            [
+              92,
+              "Course 92",
+              47,
+              0,
+              0
+            ],
+            [
+              93,
+              "Course 93",
+              49,
+              5,
+              53.8
+            ],
+            [
+              94,
+              "Course 94",
+              40,
+              9,
+              62.5
+            ],
+            [
+              95,
+              "Course 95",
+              45,
+              5,
+              52.1
+            ],
+            [
+              96,
+              "Course 96",
+              51,
+              3,
+              57.1
+            ],
+            [
+              97,
+              "Course 97",
+              43,
+              5,
+              51.8
+            ],
+            [
+              98,
+              "Course 98",
+              52,
+              6,
+              53.1
+            ],
+            [
+              99,
+              "Course 99",
+              53,
+              11,
+              61.5
+            ],
+            [
+              100,
+              "Course 100",
+              42,
+              2,
+              42.9
+            ],
+            [
+              101,
+              "Course 101",
+              43,
+              3,
+              54.5
+            ],
+            [
+              102,
+              "Course 102",
+              52,
+              20,
+              67.3
+            ],
+            [
+              103,
+              "Course 103",
+              46,
+              6,
+              56.5
+            ],
+            [
+              104,
+              "Course 104",
+              43,
+              5,
+              61.6
+            ],
+            [
+              105,
+              "Course 105",
+              50,
+              5,
+              54.9
+            ],
+            [
+              106,
+              "Course 106",
+              38,
+              4,
+              51.8
+            ],
+            [
+              107,
+              "Course 107",
+              56,
+              5,
+              53.8
+            ],
+            [
+              108,
+              "Course 108",
+              48,
+              11,
+              59.7
+            ],
+            [
+              109,
+              "Course 109",
+              46,
+              7,
+              57.8
+            ],
+            [
+              110,
+              "Course 110",
+              50,
+              7,
+              51
+            ],
+            [
+              111,
+              "Course 111",
+              36,
+              2,
+              49.5
+            ],
+            [
+              112,
+              "Course 112",
+              41,
+              7,
+              59.9
+            ],
+            [
+              113,
+              "Course 113",
+              44,
+              6,
+              56.2
+            ],
+            [
+              114,
+              "Course 114",
+              35,
+              4,
+              47.1
+            ],
+            [
+              115,
+              "Course 115",
+              31,
+              0,
+              0
+            ],
+            [
+              116,
+              "Course 116",
+              39,
+              3,
+              54.6
+            ],
+            [
+              117,
+              "Course 117",
+              51,
+              7,
+              55.1
+            ],
+            [
+              118,
+              "Course 118",
+              46,
+              4,
+              58.3
+            ],
+            [
+              119,
+              "Course 119",
+              39,
+              5,
+              52
+            ],
+            [
+              120,
+              "Course 120",
+              45,
+              3,
+              50.5
+            ],
+            [
+              121,
+              "Course 121",
+              53,
+              7,
+              56.9
+            ],
+            [
+              122,
+              "Course 122",
+              39,
+              4,
+              57.3
+            ],
+            [
+              123,
+              "Course 123",
+              50,
+              3,
+              49.1
+            ],
+            [
+              124,
+              "Course 124",
+              49,
+              5,
+              55.1
+            ],
+            [
+              125,
+              "Course 125",
+              51,
+              9,
+              50.7
+            ],
+            [
+              126,
+              "Course 126",
+              45,
+              3,
+              54.8
+            ],
+            [
+              127,
+              "Course 127",
+              52,
+              5,
+              54.4
+            ],
+            [
+              128,
+              "Course 128",
+              48,
+              3,
+              58.7
+            ],
+            [
+              129,
+              "Course 129",
+              47,
+              11,
+              48.4
+            ],
+            [
+              130,
+              "Course 130",
+              41,
+              3,
+              63.8
+            ],
+            [
+              131,
+              "Course 131",
+              50,
+              11,
+              60.7
+            ],
+            [
+              132,
+              "Course 132",
+              54,
+              10,
+              54
+            ],
+            [
+              133,
+              "Course 133",
+              58,
+              9,
+              56.9
+            ],
+            [
+              134,
+              "Course 134",
+              41,
+              4,
+              56.9
+            ],
+            [
+              135,
+              "Course 135",
+              43,
+              2,
+              48.8
+            ],
+            [
+              136,
+              "Course 136",
+              42,
+              8,
+              60.4
+            ],
+            [
+              137,
+              "Course 137",
+              52,
+              13,
+              60.3
+            ],
+            [
+              138,
+              "Course 138",
+              38,
+              0,
+              0
+            ],
+            [
+              139,
+              "Course 139",
+              41,
+              8,
+              58
+            ],
+            [
+              140,
+              "Course 140",
+              44,
+              7,
+              47.7
+            ],
+            [
+              141,
+              "Course 141",
+              50,
+              4,
+              53.8
+            ],
+            [
+              142,
+              "Course 142",
+              45,
+              11,
+              53.9
+            ],
+            [
+              143,
+              "Course 143",
+              36,
+              5,
+              46.1
+            ],
+            [
+              144,
+              "Course 144",
+              53,
+              4,
+              54.3
+            ],
+            [
+              145,
+              "Course 145",
+              51,
+              5,
+              59.4
+            ],
+            [
+              146,
+              "Course 146",
+              50,
+              9,
+              59.4
+            ],
+            [
+              147,
+              "Course 147",
+              43,
+              6,
+              61.3
+            ],
+            [
+              148,
+              "Course 148",
+              41,
+              6,
+              62.2
+            ],
+            [
+              149,
+              "Course 149",
+              44,
+              6,
+              55.7
+            ],
+            [
+              150,
+              "Course 150",
+              40,
+              11,
+              55.6
+            ],
+            [
+              151,
+              "Course 151",
+              56,
+              12,
+              52.5
+            ],
+            [
+              152,
+              "Course 152",
+              45,
+              2,
+              53.9
+            ],
+            [
+              153,
+              "Course 153",
+              40,
+              5,
+              46.4
+            ],
+            [
+              154,
+              "Course 154",
+              39,
+              7,
+              50.4
+            ],
+            [
+              155,
+              "Course 155",
+              42,
+              6,
+              57.5
+            ],
+            [
+              156,
+              "Course 156",
+              43,
+              9,
+              51.6
+            ],
+            [
+              157,
+              "Course 157",
+              33,
+              2,
+              56.7
+            ],
+            [
+              158,
+              "Course 158",
+              44,
+              10,
+              51.1
+            ],
+            [
+              159,
+              "Course 159",
+              44,
+              9,
+              59.1
+            ],
+            [
+              160,
+              "Course 160",
+              60,
+              3,
+              51.5
+            ],
+            [
+              161,
+              "Course 161",
+              46,
+              0,
+              0
+            ],
+            [
+              162,
+              "Course 162",
+              49,
+              6,
+              63.9
+            ],
+            [
+              163,
+              "Course 163",
+              39,
+              2,
+              57.5
+            ],
+            [
+              164,
+              "Course 164",
+              54,
+              14,
+              56
+            ],
+            [
+              165,
+              "Course 165",
+              54,
+              13,
+              60.7
+            ],
+            [
+              166,
+              "Course 166",
+              47,
+              4,
+              45.5
+            ],
+            [
+              167,
+              "Course 167",
+              49,
+              10,
+              66.6
+            ],
+            [
+              168,
+              "Course 168",
+              44,
+              7,
+              54.5
+            ],
+            [
+              169,
+              "Course 169",
+              49,
+              10,
+              52.7
+            ],
+            [
+              170,
+              "Course 170",
+              51,
+              8,
+              51
+            ],
+            [
+              171,
+              "Course 171",
+              43,
+              5,
+              53.5
+            ],
+            [
+              172,
+              "Course 172",
+              40,
+              8,
+              63.5
+            ],
+            [
+              173,
+              "Course 173",
+              44,
+              10,
+              62.1
+            ],
+            [
+              174,
+              "Course 174",
+              42,
+              3,
+              46.7
+            ],
+            [
+              175,
+              "Course 175",
+              50,
+              2,
+              59.8
+            ],
+            [
+              176,
+              "Course 176",
+              47,
+              4,
+              56.4
+            ],
+            [
+              177,
+              "Course 177",
+              57,
+              5,
+              52.3
+            ],
+            [
+              178,
+              "Course 178",
+              48,
+              10,
+              53.1
+            ],
+            [
+              179,
+              "Course 179",
+              55,
+              10,
+              61.6
+            ],
+            [
+              180,
+              "Course 180",
+              46,
+              7,
+              53
+            ],
+            [
+              181,
+              "Course 181",
+              45,
+              5,
+              61.2
+            ],
+            [
+              182,
+              "Course 182",
+              42,
+              9,
+              58.9
+            ],
+            [
+              183,
+              "Course 183",
+              56,
+              6,
+              63.6
+            ],
+            [
+              184,
+              "Course 184",
+              53,
+              0,
+              0
+            ],
+            [
+              185,
+              "Course 185",
+              53,
+              9,
+              47.5
+            ],
+            [
+              186,
+              "Course 186",
+              48,
+              11,
+              51
+            ],
+            [
+              187,
+              "Course 187",
+              37,
+              7,
+              51.4
+            ],
+            [
+              188,
+              "Course 188",
+              46,
+              2,
+              56.3
+            ],
+            [
+              189,
+              "Course 189",
+              47,
+              11,
+              68.1
+            ],
+            [
+              190,
+              "Course 190",
+              38,
+              9,
+              60.8
+            ],
+            [
+              191,
+              "Course 191",
+              59,
+              7,
+              56.4
+            ],
+            [
+              192,
+              "Course 192",
+              51,
+              7,
+              52.9
+            ],
+            [
+              193,
+              "Course 193",
+              46,
+              4,
+              47.2
+            ],
+            [
+              194,
+              "Course 194",
+              41,
+              7,
+              63.4
+            ],
+            [
+              195,
+              "Course 195",
+              53,
+              8,
+              64.2
+            ],
+            [
+              196,
+              "Course 196",
+              48,
+              13,
+              67
+            ],
+            [
+              197,
+              "Course 197",
+              43,
+              4,
+              56.8
+            ],
+            [
+              198,
+              "Course 198",
+              37,
+              3,
+              57.9
+            ],
+            [
+              199,
+              "Course 199",
+              37,
+              2,
+              49.8
+            ],
+            [
+              200,
+              "Course 200",
+              46,
+              5,
+              58.5
+            ]
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "completed_all comes from progress: a lagging 'completed' status and an active finisher",
+          "input": {
+            "tables": {
+              "courses": [
+                {
+                  "id": 3,
+                  "title": "SQL for Backend Developers",
+                  "category": "backend",
+                  "created_at": "2026-01-05"
+                }
+              ],
+              "lessons": [
+                {
+                  "id": 31,
+                  "course_id": 3,
+                  "position": 1
+                },
+                {
+                  "id": 32,
+                  "course_id": 3,
+                  "position": 2
+                },
+                {
+                  "id": 33,
+                  "course_id": 3,
+                  "position": 3
+                },
+                {
+                  "id": 34,
+                  "course_id": 3,
+                  "position": 4
+                },
+                {
+                  "id": 35,
+                  "course_id": 3,
+                  "position": 5
+                }
+              ],
+              "users": [
+                {
+                  "id": 1,
+                  "email": "user1@codedev.test",
+                  "created_at": "2026-01-10"
+                },
+                {
+                  "id": 2,
+                  "email": "user2@codedev.test",
+                  "created_at": "2026-01-10"
+                },
+                {
+                  "id": 3,
+                  "email": "user3@codedev.test",
+                  "created_at": "2026-01-10"
+                }
+              ],
+              "enrollments": [
+                {
+                  "id": 10,
+                  "user_id": 1,
+                  "course_id": 3,
+                  "created_at": "2026-02-01",
+                  "status": "completed"
+                },
+                {
+                  "id": 11,
+                  "user_id": 2,
+                  "course_id": 3,
+                  "created_at": "2026-02-01",
+                  "status": "active"
+                },
+                {
+                  "id": 12,
+                  "user_id": 3,
+                  "course_id": 3,
+                  "created_at": "2026-02-01",
+                  "status": "active"
+                }
+              ],
+              "lesson_progress": [
+                {
+                  "user_id": 1,
+                  "lesson_id": 31,
+                  "course_id": 3,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 32,
+                  "course_id": 3,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 33,
+                  "course_id": 3,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 34,
+                  "course_id": 3,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 35,
+                  "course_id": 3,
+                  "completed_at": null
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 31,
+                  "course_id": 3,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 32,
+                  "course_id": 3,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 33,
+                  "course_id": 3,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 34,
+                  "course_id": 3,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 35,
+                  "course_id": 3,
+                  "completed_at": "2026-03-01 08:00:00"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              3,
+              "SQL for Backend Developers",
+              3,
+              1,
+              60
+            ]
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A course without lessons and a course with only cancelled learners report 0 and 0.0",
+          "input": {
+            "tables": {
+              "courses": [
+                {
+                  "id": 1,
+                  "title": "Kafka in Practice",
+                  "category": "backend",
+                  "created_at": "2026-01-05"
+                },
+                {
+                  "id": 2,
+                  "title": "Docker Basics",
+                  "category": "devops",
+                  "created_at": "2026-01-05"
+                },
+                {
+                  "id": 5,
+                  "title": "Go Concurrency",
+                  "category": "backend",
+                  "created_at": "2026-01-05"
+                }
+              ],
+              "lessons": [
+                {
+                  "id": 21,
+                  "course_id": 2,
+                  "position": 1
+                },
+                {
+                  "id": 22,
+                  "course_id": 2,
+                  "position": 2
+                },
+                {
+                  "id": 23,
+                  "course_id": 2,
+                  "position": 3
+                },
+                {
+                  "id": 51,
+                  "course_id": 5,
+                  "position": 1
+                },
+                {
+                  "id": 52,
+                  "course_id": 5,
+                  "position": 2
+                }
+              ],
+              "users": [
+                {
+                  "id": 1,
+                  "email": "user1@codedev.test",
+                  "created_at": "2026-01-10"
+                },
+                {
+                  "id": 2,
+                  "email": "user2@codedev.test",
+                  "created_at": "2026-01-10"
+                },
+                {
+                  "id": 3,
+                  "email": "user3@codedev.test",
+                  "created_at": "2026-01-10"
+                }
+              ],
+              "enrollments": [
+                {
+                  "id": 1,
+                  "user_id": 1,
+                  "course_id": 1,
+                  "created_at": "2026-02-01",
+                  "status": "active"
+                },
+                {
+                  "id": 2,
+                  "user_id": 2,
+                  "course_id": 1,
+                  "created_at": "2026-02-01",
+                  "status": "active"
+                },
+                {
+                  "id": 3,
+                  "user_id": 1,
+                  "course_id": 2,
+                  "created_at": "2026-02-01",
+                  "status": "cancelled"
+                },
+                {
+                  "id": 4,
+                  "user_id": 3,
+                  "course_id": 5,
+                  "created_at": "2026-02-01",
+                  "status": "active"
+                }
+              ],
+              "lesson_progress": [
+                {
+                  "user_id": 1,
+                  "lesson_id": 21,
+                  "course_id": 2,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 22,
+                  "course_id": 2,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 23,
+                  "course_id": 2,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 3,
+                  "lesson_id": 51,
+                  "course_id": 5,
+                  "completed_at": "2026-03-01 08:00:00"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              1,
+              "Kafka in Practice",
+              2,
+              0,
+              0
+            ],
+            [
+              2,
+              "Docker Basics",
+              0,
+              0,
+              0
+            ],
+            [
+              5,
+              "Go Concurrency",
+              1,
+              0,
+              50
+            ]
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Learners in several courses: progress counts only in its own course, 1/3 and 2/3 round to 1 place",
+          "input": {
+            "tables": {
+              "courses": [
+                {
+                  "id": 1,
+                  "title": "Course A",
+                  "category": "backend",
+                  "created_at": "2026-01-05"
+                },
+                {
+                  "id": 2,
+                  "title": "Course B",
+                  "category": "backend",
+                  "created_at": "2026-01-05"
+                }
+              ],
+              "lessons": [
+                {
+                  "id": 11,
+                  "course_id": 1,
+                  "position": 1
+                },
+                {
+                  "id": 12,
+                  "course_id": 1,
+                  "position": 2
+                },
+                {
+                  "id": 13,
+                  "course_id": 1,
+                  "position": 3
+                },
+                {
+                  "id": 21,
+                  "course_id": 2,
+                  "position": 1
+                },
+                {
+                  "id": 22,
+                  "course_id": 2,
+                  "position": 2
+                },
+                {
+                  "id": 23,
+                  "course_id": 2,
+                  "position": 3
+                }
+              ],
+              "users": [
+                {
+                  "id": 1,
+                  "email": "user1@codedev.test",
+                  "created_at": "2026-01-10"
+                },
+                {
+                  "id": 2,
+                  "email": "user2@codedev.test",
+                  "created_at": "2026-01-10"
+                }
+              ],
+              "enrollments": [
+                {
+                  "id": 1,
+                  "user_id": 1,
+                  "course_id": 1,
+                  "created_at": "2026-02-01",
+                  "status": "active"
+                },
+                {
+                  "id": 2,
+                  "user_id": 1,
+                  "course_id": 2,
+                  "created_at": "2026-02-01",
+                  "status": "active"
+                },
+                {
+                  "id": 3,
+                  "user_id": 2,
+                  "course_id": 2,
+                  "created_at": "2026-02-01",
+                  "status": "active"
+                }
+              ],
+              "lesson_progress": [
+                {
+                  "user_id": 1,
+                  "lesson_id": 11,
+                  "course_id": 1,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 21,
+                  "course_id": 2,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 1,
+                  "lesson_id": 22,
+                  "course_id": 2,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 21,
+                  "course_id": 2,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 22,
+                  "course_id": 2,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 23,
+                  "course_id": 2,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 11,
+                  "course_id": 1,
+                  "completed_at": "2026-03-01 08:00:00"
+                },
+                {
+                  "user_id": 2,
+                  "lesson_id": 12,
+                  "course_id": 1,
+                  "completed_at": "2026-03-01 08:00:00"
+                }
+              ]
+            }
+          },
+          "expected": [
+            [
+              1,
+              "Course A",
+              1,
+              0,
+              33.3
+            ],
+            [
+              2,
+              "Course B",
+              2,
+              1,
+              83.3
+            ]
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Empty database: no courses, no rows",
+          "input": {
+            "tables": {}
+          },
+          "expected": [],
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Second nightly dataset (160 courses, 3,500 users) within the step budget",
+          "input": {
+            "generate": {
+              "seed": 2026,
+              "courses": 160,
+              "users": 3500,
+              "max_courses_per_user": 5
+            }
+          },
+          "expected": [
+            [
+              1,
+              "Course 1",
+              54,
+              11,
+              57.4
+            ],
+            [
+              2,
+              "Course 2",
+              66,
+              8,
+              52.5
+            ],
+            [
+              3,
+              "Course 3",
+              58,
+              5,
+              57.1
+            ],
+            [
+              4,
+              "Course 4",
+              62,
+              9,
+              55.3
+            ],
+            [
+              5,
+              "Course 5",
+              68,
+              6,
+              57.8
+            ],
+            [
+              6,
+              "Course 6",
+              53,
+              15,
+              57.1
+            ],
+            [
+              7,
+              "Course 7",
+              61,
+              2,
+              48.3
+            ],
+            [
+              8,
+              "Course 8",
+              54,
+              15,
+              51.4
+            ],
+            [
+              9,
+              "Course 9",
+              65,
+              12,
+              58.5
+            ],
+            [
+              10,
+              "Course 10",
+              61,
+              13,
+              55.7
+            ],
+            [
+              11,
+              "Course 11",
+              52,
+              7,
+              60.4
+            ],
+            [
+              12,
+              "Course 12",
+              84,
+              20,
+              52.1
+            ],
+            [
+              13,
+              "Course 13",
+              55,
+              10,
+              47.3
+            ],
+            [
+              14,
+              "Course 14",
+              54,
+              2,
+              52.7
+            ],
+            [
+              15,
+              "Course 15",
+              61,
+              13,
+              54.8
+            ],
+            [
+              16,
+              "Course 16",
+              53,
+              9,
+              61.3
+            ],
+            [
+              17,
+              "Course 17",
+              69,
+              11,
+              55.3
+            ],
+            [
+              18,
+              "Course 18",
+              74,
+              12,
+              59.8
+            ],
+            [
+              19,
+              "Course 19",
+              58,
+              7,
+              53
+            ],
+            [
+              20,
+              "Course 20",
+              70,
+              23,
+              62.5
+            ],
+            [
+              21,
+              "Course 21",
+              53,
+              10,
+              57.4
+            ],
+            [
+              22,
+              "Course 22",
+              55,
+              2,
+              48.8
+            ],
+            [
+              23,
+              "Course 23",
+              50,
+              0,
+              0
+            ],
+            [
+              24,
+              "Course 24",
+              63,
+              10,
+              62.9
+            ],
+            [
+              25,
+              "Course 25",
+              51,
+              4,
+              48.2
+            ],
+            [
+              26,
+              "Course 26",
+              64,
+              4,
+              52.8
+            ],
+            [
+              27,
+              "Course 27",
+              56,
+              12,
+              58.5
+            ],
+            [
+              28,
+              "Course 28",
+              61,
+              7,
+              55.5
+            ],
+            [
+              29,
+              "Course 29",
+              54,
+              7,
+              62
+            ],
+            [
+              30,
+              "Course 30",
+              72,
+              11,
+              58.5
+            ],
+            [
+              31,
+              "Course 31",
+              78,
+              17,
+              58.4
+            ],
+            [
+              32,
+              "Course 32",
+              55,
+              4,
+              57.9
+            ],
+            [
+              33,
+              "Course 33",
+              72,
+              10,
+              55.3
+            ],
+            [
+              34,
+              "Course 34",
+              53,
+              5,
+              61.5
+            ],
+            [
+              35,
+              "Course 35",
+              59,
+              5,
+              51.4
+            ],
+            [
+              36,
+              "Course 36",
+              49,
+              4,
+              57.1
+            ],
+            [
+              37,
+              "Course 37",
+              61,
+              5,
+              55
+            ],
+            [
+              38,
+              "Course 38",
+              51,
+              4,
+              54.6
+            ],
+            [
+              39,
+              "Course 39",
+              58,
+              8,
+              52.1
+            ],
+            [
+              40,
+              "Course 40",
+              53,
+              11,
+              55.7
+            ],
+            [
+              41,
+              "Course 41",
+              59,
+              9,
+              58.2
+            ],
+            [
+              42,
+              "Course 42",
+              52,
+              15,
+              66.7
+            ],
+            [
+              43,
+              "Course 43",
+              57,
+              12,
+              49.7
+            ],
+            [
+              44,
+              "Course 44",
+              53,
+              6,
+              58.2
+            ],
+            [
+              45,
+              "Course 45",
+              55,
+              4,
+              55.9
+            ],
+            [
+              46,
+              "Course 46",
+              68,
+              0,
+              0
+            ],
+            [
+              47,
+              "Course 47",
+              55,
+              7,
+              60.5
+            ],
+            [
+              48,
+              "Course 48",
+              65,
+              6,
+              55.8
+            ],
+            [
+              49,
+              "Course 49",
+              73,
+              9,
+              53.8
+            ],
+            [
+              50,
+              "Course 50",
+              66,
+              12,
+              55.8
+            ],
+            [
+              51,
+              "Course 51",
+              68,
+              4,
+              54.7
+            ],
+            [
+              52,
+              "Course 52",
+              45,
+              2,
+              54.7
+            ],
+            [
+              53,
+              "Course 53",
+              61,
+              9,
+              53.7
+            ],
+            [
+              54,
+              "Course 54",
+              55,
+              14,
+              55.9
+            ],
+            [
+              55,
+              "Course 55",
+              48,
+              6,
+              53.3
+            ],
+            [
+              56,
+              "Course 56",
+              65,
+              12,
+              59
+            ],
+            [
+              57,
+              "Course 57",
+              51,
+              7,
+              59
+            ],
+            [
+              58,
+              "Course 58",
+              69,
+              10,
+              55.1
+            ],
+            [
+              59,
+              "Course 59",
+              47,
+              10,
+              54.9
+            ],
+            [
+              60,
+              "Course 60",
+              49,
+              5,
+              50
+            ],
+            [
+              61,
+              "Course 61",
+              66,
+              2,
+              53.4
+            ],
+            [
+              62,
+              "Course 62",
+              76,
+              10,
+              51.7
+            ],
+            [
+              63,
+              "Course 63",
+              52,
+              4,
+              59.4
+            ],
+            [
+              64,
+              "Course 64",
+              53,
+              3,
+              56.4
+            ],
+            [
+              65,
+              "Course 65",
+              59,
+              7,
+              58.1
+            ],
+            [
+              66,
+              "Course 66",
+              60,
+              7,
+              49.4
+            ],
+            [
+              67,
+              "Course 67",
+              63,
+              11,
+              57.9
+            ],
+            [
+              68,
+              "Course 68",
+              67,
+              5,
+              52.4
+            ],
+            [
+              69,
+              "Course 69",
+              58,
+              0,
+              0
+            ],
+            [
+              70,
+              "Course 70",
+              56,
+              9,
+              54.8
+            ],
+            [
+              71,
+              "Course 71",
+              63,
+              11,
+              58.2
+            ],
+            [
+              72,
+              "Course 72",
+              48,
+              2,
+              54.2
+            ],
+            [
+              73,
+              "Course 73",
+              58,
+              14,
+              61.6
+            ],
+            [
+              74,
+              "Course 74",
+              51,
+              8,
+              55.1
+            ],
+            [
+              75,
+              "Course 75",
+              51,
+              3,
+              49.5
+            ],
+            [
+              76,
+              "Course 76",
+              66,
+              6,
+              57.3
+            ],
+            [
+              77,
+              "Course 77",
+              59,
+              5,
+              56.1
+            ],
+            [
+              78,
+              "Course 78",
+              55,
+              14,
+              51.4
+            ],
+            [
+              79,
+              "Course 79",
+              59,
+              11,
+              53.6
+            ],
+            [
+              80,
+              "Course 80",
+              53,
+              9,
+              54.4
+            ],
+            [
+              81,
+              "Course 81",
+              64,
+              8,
+              58.6
+            ],
+            [
+              82,
+              "Course 82",
+              55,
+              13,
+              63.1
+            ],
+            [
+              83,
+              "Course 83",
+              58,
+              9,
+              54.5
+            ],
+            [
+              84,
+              "Course 84",
+              68,
+              6,
+              52.3
+            ],
+            [
+              85,
+              "Course 85",
+              63,
+              12,
+              54
+            ],
+            [
+              86,
+              "Course 86",
+              68,
+              9,
+              47.5
+            ],
+            [
+              87,
+              "Course 87",
+              60,
+              12,
+              50
+            ],
+            [
+              88,
+              "Course 88",
+              51,
+              3,
+              54.7
+            ],
+            [
+              89,
+              "Course 89",
+              58,
+              3,
+              53.3
+            ],
+            [
+              90,
+              "Course 90",
+              58,
+              9,
+              53.4
+            ],
+            [
+              91,
+              "Course 91",
+              52,
+              7,
+              55.5
+            ],
+            [
+              92,
+              "Course 92",
+              62,
+              0,
+              0
+            ],
+            [
+              93,
+              "Course 93",
+              54,
+              5,
+              52.2
+            ],
+            [
+              94,
+              "Course 94",
+              52,
+              2,
+              64.9
+            ],
+            [
+              95,
+              "Course 95",
+              55,
+              11,
+              55.8
+            ],
+            [
+              96,
+              "Course 96",
+              52,
+              6,
+              51.7
+            ],
+            [
+              97,
+              "Course 97",
+              69,
+              6,
+              49
+            ],
+            [
+              98,
+              "Course 98",
+              63,
+              7,
+              52.6
+            ],
+            [
+              99,
+              "Course 99",
+              39,
+              6,
+              64.6
+            ],
+            [
+              100,
+              "Course 100",
+              59,
+              7,
+              48.7
+            ],
+            [
+              101,
+              "Course 101",
+              64,
+              8,
+              58.5
+            ],
+            [
+              102,
+              "Course 102",
+              56,
+              5,
+              57.3
+            ],
+            [
+              103,
+              "Course 103",
+              51,
+              9,
+              56.9
+            ],
+            [
+              104,
+              "Course 104",
+              68,
+              13,
+              55.5
+            ],
+            [
+              105,
+              "Course 105",
+              54,
+              12,
+              65.3
+            ],
+            [
+              106,
+              "Course 106",
+              56,
+              6,
+              49.6
+            ],
+            [
+              107,
+              "Course 107",
+              68,
+              16,
+              53.3
+            ],
+            [
+              108,
+              "Course 108",
+              59,
+              4,
+              56.9
+            ],
+            [
+              109,
+              "Course 109",
+              74,
+              14,
+              55.4
+            ],
+            [
+              110,
+              "Course 110",
+              63,
+              5,
+              58.7
+            ],
+            [
+              111,
+              "Course 111",
+              72,
+              6,
+              57.7
+            ],
+            [
+              112,
+              "Course 112",
+              68,
+              5,
+              45.5
+            ],
+            [
+              113,
+              "Course 113",
+              69,
+              11,
+              57.2
+            ],
+            [
+              114,
+              "Course 114",
+              60,
+              9,
+              53.5
+            ],
+            [
+              115,
+              "Course 115",
+              49,
+              0,
+              0
+            ],
+            [
+              116,
+              "Course 116",
+              57,
+              6,
+              45.8
+            ],
+            [
+              117,
+              "Course 117",
+              72,
+              21,
+              61.5
+            ],
+            [
+              118,
+              "Course 118",
+              59,
+              14,
+              58.8
+            ],
+            [
+              119,
+              "Course 119",
+              54,
+              9,
+              55.2
+            ],
+            [
+              120,
+              "Course 120",
+              56,
+              5,
+              56.1
+            ],
+            [
+              121,
+              "Course 121",
+              54,
+              12,
+              57.1
+            ],
+            [
+              122,
+              "Course 122",
+              53,
+              6,
+              50.6
+            ],
+            [
+              123,
+              "Course 123",
+              51,
+              2,
+              58.4
+            ],
+            [
+              124,
+              "Course 124",
+              50,
+              6,
+              51.7
+            ],
+            [
+              125,
+              "Course 125",
+              55,
+              12,
+              59.7
+            ],
+            [
+              126,
+              "Course 126",
+              62,
+              17,
+              59.7
+            ],
+            [
+              127,
+              "Course 127",
+              57,
+              5,
+              61.4
+            ],
+            [
+              128,
+              "Course 128",
+              61,
+              6,
+              61.7
+            ],
+            [
+              129,
+              "Course 129",
+              61,
+              15,
+              49.2
+            ],
+            [
+              130,
+              "Course 130",
+              51,
+              8,
+              52.5
+            ],
+            [
+              131,
+              "Course 131",
+              80,
+              20,
+              57.2
+            ],
+            [
+              132,
+              "Course 132",
+              59,
+              3,
+              52.3
+            ],
+            [
+              133,
+              "Course 133",
+              54,
+              6,
+              57.9
+            ],
+            [
+              134,
+              "Course 134",
+              55,
+              4,
+              56.9
+            ],
+            [
+              135,
+              "Course 135",
+              55,
+              8,
+              51.8
+            ],
+            [
+              136,
+              "Course 136",
+              55,
+              8,
+              56.4
+            ],
+            [
+              137,
+              "Course 137",
+              58,
+              4,
+              45.8
+            ],
+            [
+              138,
+              "Course 138",
+              61,
+              0,
+              0
+            ],
+            [
+              139,
+              "Course 139",
+              54,
+              16,
+              58.3
+            ],
+            [
+              140,
+              "Course 140",
+              58,
+              4,
+              52.6
+            ],
+            [
+              141,
+              "Course 141",
+              62,
+              12,
+              54.5
+            ],
+            [
+              142,
+              "Course 142",
+              59,
+              5,
+              59.6
+            ],
+            [
+              143,
+              "Course 143",
+              57,
+              7,
+              57
+            ],
+            [
+              144,
+              "Course 144",
+              58,
+              5,
+              56.2
+            ],
+            [
+              145,
+              "Course 145",
+              66,
+              7,
+              59.5
+            ],
+            [
+              146,
+              "Course 146",
+              60,
+              11,
+              54
+            ],
+            [
+              147,
+              "Course 147",
+              41,
+              3,
+              57.5
+            ],
+            [
+              148,
+              "Course 148",
+              45,
+              3,
+              58.5
+            ],
+            [
+              149,
+              "Course 149",
+              50,
+              11,
+              46.3
+            ],
+            [
+              150,
+              "Course 150",
+              74,
+              9,
+              60.3
+            ],
+            [
+              151,
+              "Course 151",
+              52,
+              7,
+              64
+            ],
+            [
+              152,
+              "Course 152",
+              57,
+              14,
+              57.9
+            ],
+            [
+              153,
+              "Course 153",
+              68,
+              6,
+              59.2
+            ],
+            [
+              154,
+              "Course 154",
+              59,
+              15,
+              55.9
+            ],
+            [
+              155,
+              "Course 155",
+              53,
+              11,
+              60.4
+            ],
+            [
+              156,
+              "Course 156",
+              55,
+              11,
+              54.9
+            ],
+            [
+              157,
+              "Course 157",
+              58,
+              11,
+              51.7
+            ],
+            [
+              158,
+              "Course 158",
+              58,
+              14,
+              54.3
+            ],
+            [
+              159,
+              "Course 159",
+              54,
+              6,
+              45.9
+            ],
+            [
+              160,
+              "Course 160",
+              59,
+              5,
+              49.9
+            ]
+          ],
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}
