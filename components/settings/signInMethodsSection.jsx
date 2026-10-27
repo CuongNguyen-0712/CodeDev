@@ -11,6 +11,7 @@ import { userQueries } from "@/queries/user.query";
 import { userKeys } from "@/keys/user.keys";
 
 import { ErrorReload } from "@/components/ui/error";
+import LinkConflictDialog from "@/components/settings/linkConflictDialog";
 
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
@@ -56,6 +57,7 @@ export default function SignInMethodsSection() {
     const { showAlert: alert } = useApp();
     const queryClient = useQueryClient();
     const [pending, setPending] = useState(null);
+    const [conflict, setConflict] = useState(null);
     const reported = useRef(false);
 
     const { data, isLoading, isError, error, refetch } = useQuery(userQueries.signInMethods(status));
@@ -77,7 +79,12 @@ export default function SignInMethodsSection() {
             queryClient.invalidateQueries({ queryKey: userKeys.me() });
         } else {
             const label = LABEL[params.get("provider")] || "the account";
-            alert(409, (LINK_ERROR[linkError] || LINK_ERROR.Callback)(label));
+            const report = () => alert(409, (LINK_ERROR[linkError] || LINK_ERROR.Callback)(label));
+            // Unverified account (plan 12.4): the server kept who owns it, offer to switch there.
+            if (linkError !== "OAuthAccountInUse") return report();
+            userClient.getLinkConflict()
+                .then((found) => (found ? setConflict(found) : report()))
+                .catch(report);
         }
     }, [alert, queryClient]);
 
@@ -109,7 +116,7 @@ export default function SignInMethodsSection() {
 
     if (isLoading) {
         return (
-            <div className="flex flex-col gap-3 p-4" aria-busy="true" aria-label="Loading sign-in methods">
+            <div className="flex flex-col gap-3 p-4" role="status" aria-busy="true" aria-label="Loading sign-in methods">
                 {[0, 1, 2].map((index) => (
                     <div key={index} className="flex items-center gap-3">
                         <Skeleton className="size-9 rounded-md" />
@@ -125,6 +132,8 @@ export default function SignInMethodsSection() {
     }
 
     return (
+        <>
+        {conflict && <LinkConflictDialog conflict={conflict} onClose={() => setConflict(null)} />}
         <ul className="divide-y">
             <MethodRow
                 Icon={LuKeyRound}
@@ -163,5 +172,6 @@ export default function SignInMethodsSection() {
                 );
             })}
         </ul>
+        </>
     );
 }

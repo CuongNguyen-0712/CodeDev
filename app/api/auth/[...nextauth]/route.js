@@ -10,7 +10,7 @@ import { AUTH } from "@/lib/authConfig";
 import { encodeAuthJwt, decodeAuthJwt, tokenAccessExpiresAt, tokenSessionId } from "@/lib/authJwt";
 import {
     setRefreshCookie, clearRefreshCookie, setLinkCookie,
-    readLinkIntentCookie, clearLinkIntentCookie,
+    readLinkIntentCookie, clearLinkIntentCookie, setLinkConflictCookie,
 } from "@/lib/authCookies";
 import { auditAuth } from "@/lib/authAudit";
 import { invalidateUserCache } from "@/lib/cacheKeys";
@@ -87,7 +87,17 @@ async function connectFromSettings({ intent, account, profile, meta }) {
 
         await linkWithRetry({ userId: intent.userId, provider, providerAccountId: account.providerAccountId, providerEmail });
     } catch (err) {
-        if (err?.code === "CD409") return settingsResult(`linkError=OAuthAccountInUse&provider=${provider}`);
+        if (err?.code === "CD409") {
+            // Unverified account (plan 12.4): offer to switch to the owner, who signed in just now.
+            const conflict = await accountLinkService.linkConflict({ userId: intent.userId, provider, providerAccountId: account.providerAccountId }).catch(() => null);
+            if (conflict && !conflict.email_verified) {
+                await setLinkConflictCookie({
+                    userId: intent.userId, sessionId: intent.sessionId, provider,
+                    ownerUsername: conflict.owner_username, deletable: conflict.deletable, purgeAfter: conflict.purge_after,
+                });
+            }
+            return settingsResult(`linkError=OAuthAccountInUse&provider=${provider}`);
+        }
         console.error("[auth] Connecting from Settings failed:", err);
         return settingsResult(`linkError=Callback&provider=${provider}`);
     }

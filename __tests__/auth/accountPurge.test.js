@@ -133,6 +133,29 @@ describe.skipIf(!hasDb)("never-verified account purge (PostgreSQL)", () => {
         );
     });
 
+    it("deletes a never-verified account on its owner's request before the deadline, never a once-verified one", async () => {
+        const fresh = await makeUser();
+        expect((await purgeDb.purgeUser({ userPublicId: fresh.publicId, requested: true })).status).toBe("purged");
+        expect(await count(`SELECT count(*)::int n FROM identity.users WHERE id = $1`, [fresh.id])).toBe(0);
+
+        const moved = await makeUser({ verified: true });
+        await sql(`UPDATE identity.users SET email = $2, email_verified = false WHERE id = $1`, [moved.id, `moved-${moved.email}`]);
+        expect((await purgeDb.purgeUser({ userPublicId: moved.publicId, requested: true })).status).toBe("gone");
+        const verified = await makeUser({ verified: true });
+        expect((await purgeDb.purgeUser({ userPublicId: verified.publicId, requested: true })).status).toBe("gone");
+    });
+
+    it("names the owner of a provider account a Connect was refused for (plan 12.4)", async () => {
+        const { userDb } = await import("@/db/user.db");
+        const owner = await makeUser({ verified: true });
+        await sql(`INSERT INTO identity.accounts (user_id, provider, provider_account_id) VALUES ($1, 'google', $2)`, [owner.id, `g-${owner.publicId}`]);
+        const unverified = await makeUser();
+
+        expect(await userDb.getLinkConflict({ userId: unverified.publicId, provider: "google", providerAccountId: `g-${owner.publicId}` }))
+            .toMatchObject({ owner_username: owner.publicId, email_verified: false, deletable: true });
+        expect(await userDb.getLinkConflict({ userId: unverified.publicId, provider: "google", providerAccountId: "nobody" })).toBeNull();
+    });
+
     it("keeps verified accounts, accounts not yet due, and accounts with orders", async () => {
         const verified = await makeUser({ verified: true });
         expect((await purgeDb.purgeUser({ userPublicId: verified.publicId })).status).toBe("gone");

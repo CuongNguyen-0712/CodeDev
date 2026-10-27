@@ -65,20 +65,23 @@ export const accountPurgeDb = {
     },
 
     /**
-     * Deletes one never-verified account and everything that cascades from it (profile, ledgers,
+     * Deletes one never-verified account (past its deadline, or any time when `requested` by its
+     * owner) and everything that cascades from it (profile, ledgers,
      * enrolments, submissions, comments, messages, tokens, sign-in methods), in one transaction.
      * The email is free again afterwards. Files outside the database are queued for deletion
      * (outbox "storage.purge") and sessions for cache invalidation ("session.revoked").
      * @returns {Promise<{ status: "purged" | "would_purge" | "skipped" | "gone", reason?: string,
      *                     files?: number, outboxIds?: string[] }>}
      */
-    purgeUser: async ({ userPublicId, dryRun = false }) => {
+    purgeUser: async ({ userPublicId, dryRun = false, requested = false }) => {
         return withTransaction(async (client) => {
+            // `requested`: the owner deletes it now (plan 12.4); still only a never-verified account.
             const userRes = await client.query(
                 `SELECT id FROM identity.users
-                 WHERE public_id = $1 AND purge_after <= now() AND email_verified IS NOT TRUE
+                 WHERE public_id = $1 AND email_verified IS NOT TRUE
+                   AND purge_after IS NOT NULL AND ($2 OR purge_after <= now())
                  FOR UPDATE;`,
-                [userPublicId]
+                [userPublicId, requested]
             );
             const id = userRes.rows[0]?.id;
             if (!id) return { status: "gone" }; // verified or deleted meanwhile

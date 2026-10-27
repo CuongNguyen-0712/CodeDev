@@ -62,6 +62,22 @@ export const userDb = {
         );
     },
 
+    /**
+     * Who owns a provider account, and whether `userId` can still delete itself (never verified),
+     * for the "already belongs to @username" dialog (plan 12.4).
+     */
+    getLinkConflict: async ({ userId, provider, providerAccountId }) => {
+        const res = await sql(
+            `SELECT o.username AS owner_username, u.email_verified, u.purge_after IS NOT NULL AS deletable, u.purge_after
+             FROM identity.users u
+             JOIN identity.accounts a ON a.provider = $2::provider_enum AND a.provider_account_id = $3
+             JOIN identity.users o ON o.id = a.user_id
+             WHERE u.public_id = $1;`,
+            [userId, provider, providerAccountId]
+        );
+        return res.rows[0] || null;
+    },
+
     /** Sign-in methods for Settings: password (only when a hash exists) and linked providers. */
     listSignInMethods: async ({ userId }) => {
         const res = await sql(
