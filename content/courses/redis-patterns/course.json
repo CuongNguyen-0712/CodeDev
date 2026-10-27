@@ -1,0 +1,189 @@
+{
+  "publicId": "redis-patterns",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793020062/codedev/courses/redis-patterns/cover",
+  "title": "Redis Patterns: Cache, Sessions, Rate Limits & Leaderboards",
+  "concept": "Use Redis for what it is good at without trusting it with what it is not: data structures chosen by access pattern, cache-aside with TTLs, sessions, rate limits and sorted-set leaderboards, with PostgreSQL as the source of truth, invalidation that does not drift, and scores that survive duplicate and out-of-order events.",
+  "description": "An advanced course for backend developers who already have Redis in production and want to stop being surprised by it. Every lesson starts from an incident on the CodeDev learning platform - a course price that stayed wrong for an hour after an edit, a leaderboard that lost every score when Redis restarted, a late event that overwrote a newer score, a login flood that took the API down, a hot key that melted the cache when it expired - and fixes it with a pattern you can test: choosing strings, hashes, sorted sets and streams, cache-aside with TTL, session keys, fixed and sliding window rate limits, invalidation, the source of truth, top N and rank, versioned score updates, rebuilding from the event log, stampedes and hot keys, and operating memory, eviction and persistence. 12 lessons with True/False quizzes on real commands, logs and timelines, and TypeScript challenges graded by hidden tests on an in-memory Redis model.",
+  "level": "advanced",
+  "durationMinutes": 400,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "Database",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "completionRules": {},
+  "domain": "data",
+  "learningOutcomes": [
+    {
+      "code": "data-structures",
+      "text": "Choose a Redis data structure by access pattern: strings, hashes, sorted sets or streams"
+    },
+    {
+      "code": "ttl-cache-aside",
+      "text": "Cache with cache-aside and sensible TTLs, and keep sessions in keys that expire"
+    },
+    {
+      "code": "invalidation-consistency",
+      "text": "Keep the database as the source of truth and invalidate the cache so it does not drift"
+    },
+    {
+      "code": "leaderboard",
+      "text": "Build leaderboards with sorted sets that survive duplicate and out-of-order events and can be rebuilt"
+    },
+    {
+      "code": "rate-limits-ops",
+      "text": "Protect services with rate limits and operate Redis safely: memory, eviction, persistence and hot keys"
+    }
+  ],
+  "testedVersions": {
+    "TypeScript": "5.9.3 (tsc --strict in the code runner)",
+    "Redis": "7.x / 8.x commands in lesson examples (in-memory model in challenges)"
+  },
+  "lastReviewedAt": "2026-10-26",
+  "sourceLinks": [
+    "https://redis.io/docs/latest/develop/data-types/",
+    "https://redis.io/docs/latest/develop/data-types/sorted-sets/",
+    "https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "No Redis in the code runner: challenges use an in-memory model of the Redis commands they need (TTL on a fake clock, sorted sets)"
+  ],
+  "scenario": {
+    "title": "Cache Drift & Duplicate Events",
+    "quiz": "chal_quiz_rdp_411",
+    "fixBug": "chal_coding_rdp_412"
+  },
+  "careerRoles": [
+    "backend_developer",
+    "fullstack_developer",
+    "data_engineer",
+    "devops_engineer"
+  ],
+  "skills": {
+    "system_design": 4,
+    "performance": 3,
+    "typescript": 3,
+    "sql": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "performance"
+  ],
+  "prerequisites": [
+    "sql-data-modeling",
+    "nestjs-modular-monolith"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Redis as a Cache",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-redis-data-structures",
+          "title": "How to choose a Redis data structure by access pattern",
+          "sanityId": "lesson-rdp-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-cache-aside",
+          "title": "Cache-aside with TTL: read, miss, load, store",
+          "sanityId": "lesson-rdp-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-sessions-ttl",
+          "title": "Session keys with TTL: create, extend & delete",
+          "sanityId": "lesson-rdp-1-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Correctness",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "04-cache-drift",
+          "title": "Cache drift: update the database, invalidate the cache",
+          "sanityId": "lesson-rdp-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "05-rate-limiter",
+          "title": "Rate limits with Redis: fixed & sliding windows",
+          "sanityId": "lesson-rdp-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-source-of-truth",
+          "title": "Spot the AI mistake: Redis as the source of truth",
+          "sanityId": "lesson-rdp-2-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Leaderboards",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "07-leaderboard-sorted-sets",
+          "title": "Leaderboards with sorted sets: top N & a learner's rank",
+          "sanityId": "lesson-rdp-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-versioned-scores",
+          "title": "Apply only newer events: versioned score updates",
+          "sanityId": "lesson-rdp-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "09-rebuild-leaderboard",
+          "title": "Rebuild the leaderboard from the event log",
+          "sanityId": "lesson-rdp-3-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Incidents & Operations",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "10-duplicate-out-of-order-events",
+          "title": "Cache drift & duplicate events: when late events overwrite new scores",
+          "sanityId": "lesson-rdp-4-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "11-stampede-hot-keys",
+          "title": "Cache stampedes & hot keys",
+          "sanityId": "lesson-rdp-4-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "12-operating-redis",
+          "title": "Operating Redis: memory, eviction & persistence",
+          "sanityId": "lesson-rdp-4-3"
+        }
+      ]
+    }
+  ]
+}

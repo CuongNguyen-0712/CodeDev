@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_rdp_111",
+      "name": "redis-data-structures-quiz",
+      "type": "quiz",
+      "title": "Choose the structure by access pattern",
+      "description": "Two pieces of evidence from the contest-night leaderboard incident: the shipped write path with the size of its key, and a MONITOR capture of two API instances updating scores at the same moment.",
+      "difficulty": "medium",
+      "outcomes": [
+        "data-structures"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The shipped write path and the size of its key:\n\nconst raw = await redis.get(\"leaderboard:global\");\nconst board: Record<string, number> = raw ? JSON.parse(raw) : {};\nboard[userId] = (board[userId] ?? 0) + points;\nawait redis.set(\"leaderboard:global\", JSON.stringify(board));\n\n$ redis-cli STRLEN leaderboard:global\n(integer) 2097152\n\nA reviewer proposes a hash with one field per learner instead: HINCRBY leaderboard:global <userId> <points>.\n\nStatement: \"With the hash, GET /leaderboard?top=10 can read just the ten best learners from Redis instead of all 40,000 entries.\"",
+          "explanation": "False. The hash fixes the write path: HINCRBY changes one field on the server, sends a few bytes and cannot lose a concurrent update. But a hash has no order. Redis cannot return \"the ten largest fields\" of a hash, so the top-10 endpoint would still need HGETALL (all 40,000 fields) and a sort in Node.js on every request. The structure whose cheap operations include both \"add points to one member\" and \"read the top N\" is a sorted set: ZINCRBY and ZRANGE ... REV (or ZREVRANGE), O(log N) plus the ten members returned. The misconception is that splitting a big string into fields solves every access pattern; it solves the ones that touch a single field.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "redis-cli MONITOR on the primary during the contest (two API instances, 10.0.1.5 and 10.0.1.6; values shortened):\n\n1792004400.101 [0 10.0.1.5:51234] \"GET\" \"leaderboard:global\"\n1792004400.103 [0 10.0.1.6:40022] \"GET\" \"leaderboard:global\"\n1792004400.140 [0 10.0.1.5:51234] \"SET\" \"leaderboard:global\" \"{...\\\"u_88\\\":430,\\\"u_91\\\":120...}\"\n1792004400.142 [0 10.0.1.6:40022] \"SET\" \"leaderboard:global\" \"{...\\\"u_88\\\":400,\\\"u_91\\\":150...}\"\n\nBoth SET commands replied OK.\n\nStatement: \"After these four commands, the +30 points that instance 10.0.1.5 added for u_88 are no longer in Redis.\"",
+          "explanation": "True. Both instances read the same version of the string (u_88 = 400). Instance .5 wrote 430 for u_88; instance .6, which had read the old version, then wrote its own copy with u_88 = 400 and u_91 = 150, replacing the whole value. Both writes succeeded, and one update is gone. Redis executes each command atomically, but a GET followed by a SET from one client is not atomic: other clients' commands run in between. ZINCRBY (or HINCRBY) performs the read-modify-write inside one command, and MULTI/EXEC with WATCH or a Lua script can make several commands act as one. The misconception is that because Redis is single-threaded, application code that reads and then writes is safe.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

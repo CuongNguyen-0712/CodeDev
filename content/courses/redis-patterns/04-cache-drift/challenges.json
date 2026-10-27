@@ -1,0 +1,3964 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_rdp_211",
+      "name": "cache-drift-quiz",
+      "type": "quiz",
+      "title": "Who put the old price back?",
+      "description": "A Redis MONITOR trace of the price edit that did not show up, and a proposed change to the update path. Read the order of the commands, not the order of the code.",
+      "difficulty": "medium",
+      "outcomes": [
+        "invalidation-consistency"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Two API instances share one Redis. A course page request on catalog-api-2 and a price edit on admin-api ran at the same time (Redis MONITOR, merged with the PostgreSQL log):\n\n10:00:00.000 [catalog-api-2] GET course:c1 -> (nil)\n10:00:00.002 [catalog-api-2] SELECT * FROM courses WHERE id = 'c1'   -- returns price_vnd 249000, answers at .478\n10:00:00.120 [admin-api]     UPDATE courses SET price_vnd = 199000 WHERE id = 'c1'; COMMIT\n10:00:00.125 [admin-api]     DEL course:c1 -> (integer) 0\n10:00:00.482 [catalog-api-2] SET course:c1 '{\"id\":\"c1\",\"priceVnd\":249000,...}' EX 3600 -> OK\n\nStatement: \"Redis now serves 249000 for course:c1 because catalog-api-2 read the row before the UPDATE committed and stored it after the DEL; without another invalidation it stays wrong until the key expires.\"",
+          "explanation": "True. The DEL did its job at .125: the key was gone (it even returned 0 because nothing was cached). The problem is the request that started earlier. Its SELECT saw the committed row of that moment (249000), and its SET arrived at .482, after both the COMMIT and the DEL, so it re-created the key with the old price and a fresh one-hour TTL. Nothing else touches the key, so every reader gets 249000 until 11:00. The misconception is that \"update the database, then delete the key\" is enough on its own: it closes the drift from a missing invalidation, but a slow reader can still re-populate the key with a value it loaded before the change. A version check on the fill (or a short delayed second delete) is what closes this window.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "To fix the trace above, a teammate changes the admin path from DEL to a write-through:\n\nasync updateCoursePrice(id: string, priceVnd: number) {\n  const row = await this.db.updatePrice(id, priceVnd);           // UPDATE ... RETURNING *\n  await this.redis.set(`course:${id}`, JSON.stringify(row), { EX: 3600 });\n}\n\nThe course page code is unchanged: GET, on a miss SELECT, then SET with EX 3600.\n\nStatement: \"Replayed with the same timing (catalog-api-2's SELECT at .002, the edit at .120, catalog-api-2's SET at .482), course:c1 ends up holding 199000, because the update path now writes the new value itself.\"",
+          "explanation": "False. The admin SET at about .125 writes 199000, but catalog-api-2 still sends its SET at .482 with the row it read at .002, and in Redis the last write wins: course:c1 ends with 249000 again, for an hour. Writing the new value from the update path does not stop a slower writer, and it adds a second race: two edits whose SETs arrive in the opposite order of their COMMITs leave the older price in the cache. Deleting is safer because a missing key can only be filled by a reader, and a fill that checks a version (or is followed by a delayed second delete) cannot win against a newer change. The misconception is that writing the cache yourself makes it \"the latest\" value; it is only the latest SET.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_rdp_212",
+      "name": "cache-drift-invalidate",
+      "type": "fix_bug",
+      "title": "Fix the cache drift after a price edit",
+      "description": "CatalogService serves the course page (getCourse, cached as course:<id>) and the category page (listCategory, cached as courses:category:<category>) from Redis with cache-aside and a one-hour TTL; PostgreSQL is the source of truth. After an admin lowered \"Redis Patterns\" from 249000 to 199000 VND, both pages kept the old price for about an hour. A later edit was followed by a manual DEL, yet seconds after it the course page showed the old price again: a request that had loaded the row before the edit stored it in Redis after the edit.\n\nFix the service with this protocol, which the tests check exactly:\n- updateCoursePrice(id, priceVnd) writes PostgreSQL first (db.updatePrice). Once the UPDATE has answered, it invalidates course:<id> and courses:category:<category of the course> (the category comes from the returned row). Invalidating a key means INCR \"<key>:ver\", then DEL <key>. The update path never SETs a cached value.\n- A cache fill (a miss in getCourse or listCategory) reads \"<key>:ver\" before it queries PostgreSQL. After the query answers, it SETs the key with EX CACHE_TTL_SECONDS only if \"<key>:ver\" has not changed; otherwise it skips the SET. Either way the request returns what it loaded.\n- Keep the validation: a priceVnd that is not a whole number >= 0, or an unknown course id, returns false and changes nothing. A valid edit returns true.\n\nInput (one test case, JSON on stdin): { db: Course[], steps }. Each step starts a request as an actor ({ \"as\": \"A\", \"getCourse\": \"c1\" }, { \"as\": \"B\", \"listCategory\": \"redis\" }, { \"as\": \"U\", \"updateCoursePrice\": \"c1\", \"priceVnd\": 199000 }), resumes one ({ \"resume\": \"A\" }) or moves the clock ({ \"advance\": 600 }, in seconds). A request with \"slow\": true sends its next PostgreSQL query, but the answer only arrives at its resume step: a slow SELECT returns the rows as they were when it was sent, a slow UPDATE commits when it answers.\n\nOutput: one line per step, printed by the runner: what the request returned (\"Redis Patterns 199000\", \"c1 249000, c2 199000\", \"not found\", \"ok\", \"rejected\" or \"waiting for PostgreSQL\") and, for reads, whether it queried PostgreSQL (db) or answered from Redis (cache). The tests replay edits, slow readers that loaded before an edit, slow edits and invalid edits, and check what every later reader sees.",
+      "difficulty": "medium",
+      "outcomes": [
+        "invalidation-consistency"
+      ],
+      "points": 30,
+      "hints": [
+        "After an edit has answered, which code can still write course:c1 in Redis? List every SET in the service and ask, for each one, how old the value it writes can be.",
+        "Look at two places: updateCoursePrice, which today only talks to PostgreSQL, and the private cached() helper that both readers share. The helper is the only place that fills keys, so a check added there protects the course page and the category page at once.",
+        "A similar case on different data: a profile cache user:<id> with a fill that takes 300 ms. At t=0 the fill reads user:7:ver (\"4\") and starts its SELECT; at t=100 a rename commits, then INCR user:7:ver (now \"5\") and DEL user:7; at t=300 the fill reads user:7:ver again, sees \"5\" instead of \"4\", returns the old name to its own caller and does not SET. The next reader misses and loads the new name."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "After a price edit the course page shows the new price",
+          "input": {
+            "db": [
+              {
+                "id": "c1",
+                "title": "Redis Patterns",
+                "category": "redis",
+                "priceVnd": 249000
+              },
+              {
+                "id": "c2",
+                "title": "Redis Streams in Practice",
+                "category": "redis",
+                "priceVnd": 199000
+              },
+              {
+                "id": "c3",
+                "title": "SQL Data Modeling",
+                "category": "database",
+                "priceVnd": 149000
+              }
+            ],
+            "steps": [
+              {
+                "as": "A",
+                "getCourse": "c1"
+              },
+              {
+                "as": "A",
+                "getCourse": "c1"
+              },
+              {
+                "as": "U",
+                "updateCoursePrice": "c1",
+                "priceVnd": 199000
+              },
+              {
+                "as": "B",
+                "getCourse": "c1"
+              },
+              {
+                "as": "C",
+                "getCourse": "c1"
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 3,
+          "expected": "A getCourse c1 -> Redis Patterns 249000 (db)\nA getCourse c1 -> Redis Patterns 249000 (cache)\nU updateCoursePrice c1 199000 -> ok\nB getCourse c1 -> Redis Patterns 199000 (db)\nC getCourse c1 -> Redis Patterns 199000 (cache)"
+        },
+        {
+          "name": "After a price edit the category list shows the new price",
+          "input": {
+            "db": [
+              {
+                "id": "c1",
+                "title": "Redis Patterns",
+                "category": "redis",
+                "priceVnd": 249000
+              },
+              {
+                "id": "c2",
+                "title": "Redis Streams in Practice",
+                "category": "redis",
+                "priceVnd": 199000
+              },
+              {
+                "id": "c3",
+                "title": "SQL Data Modeling",
+                "category": "database",
+                "priceVnd": 149000
+              }
+            ],
+            "steps": [
+              {
+                "as": "A",
+                "listCategory": "redis"
+              },
+              {
+                "as": "A",
+                "listCategory": "database"
+              },
+              {
+                "as": "U",
+                "updateCoursePrice": "c2",
+                "priceVnd": 179000
+              },
+              {
+                "as": "B",
+                "listCategory": "redis"
+              },
+              {
+                "as": "B",
+                "listCategory": "database"
+              },
+              {
+                "as": "C",
+                "listCategory": "redis"
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 3,
+          "expected": "A listCategory redis -> c1 249000, c2 199000 (db)\nA listCategory database -> c3 149000 (db)\nU updateCoursePrice c2 179000 -> ok\nB listCategory redis -> c1 249000, c2 179000 (db)\nB listCategory database -> c3 149000 (cache)\nC listCategory redis -> c1 249000, c2 179000 (cache)"
+        },
+        {
+          "name": "A slow course reader that loaded before the edit does not re-cache the old price",
+          "input": {
+            "db": [
+              {
+                "id": "c1",
+                "title": "Redis Patterns",
+                "category": "redis",
+                "priceVnd": 249000
+              },
+              {
+                "id": "c2",
+                "title": "Redis Streams in Practice",
+                "category": "redis",
+                "priceVnd": 199000
+              },
+              {
+                "id": "c3",
+                "title": "SQL Data Modeling",
+                "category": "database",
+                "priceVnd": 149000
+              }
+            ],
+            "steps": [
+              {
+                "as": "A",
+                "getCourse": "c1",
+                "slow": true
+              },
+              {
+                "as": "U",
+                "updateCoursePrice": "c1",
+                "priceVnd": 199000
+              },
+              {
+                "as": "B",
+                "getCourse": "c1"
+              },
+              {
+                "resume": "A"
+              },
+              {
+                "as": "C",
+                "getCourse": "c1"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "as": "D",
+                "getCourse": "c1"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": "A getCourse c1 -> waiting for PostgreSQL\nU updateCoursePrice c1 199000 -> ok\nB getCourse c1 -> Redis Patterns 199000 (db)\nresume A: A getCourse c1 -> Redis Patterns 249000 (db)\nC getCourse c1 -> Redis Patterns 199000 (cache)\n+60s\nD getCourse c1 -> Redis Patterns 199000 (cache)"
+        },
+        {
+          "name": "A slow category reader that loaded before the edit does not re-cache the old list",
+          "input": {
+            "db": [
+              {
+                "id": "c1",
+                "title": "Redis Patterns",
+                "category": "redis",
+                "priceVnd": 249000
+              },
+              {
+                "id": "c2",
+                "title": "Redis Streams in Practice",
+                "category": "redis",
+                "priceVnd": 199000
+              },
+              {
+                "id": "c3",
+                "title": "SQL Data Modeling",
+                "category": "database",
+                "priceVnd": 149000
+              }
+            ],
+            "steps": [
+              {
+                "as": "A",
+                "getCourse": "c1"
+              },
+              {
+                "as": "L",
+                "listCategory": "redis",
+                "slow": true
+              },
+              {
+                "as": "U",
+                "updateCoursePrice": "c1",
+                "priceVnd": 199000
+              },
+              {
+                "resume": "L"
+              },
+              {
+                "as": "B",
+                "listCategory": "redis"
+              },
+              {
+                "as": "C",
+                "listCategory": "redis"
+              },
+              {
+                "as": "D",
+                "getCourse": "c1"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": "A getCourse c1 -> Redis Patterns 249000 (db)\nL listCategory redis -> waiting for PostgreSQL\nU updateCoursePrice c1 199000 -> ok\nresume L: L listCategory redis -> c1 249000, c2 199000 (db)\nB listCategory redis -> c1 199000, c2 199000 (db)\nC listCategory redis -> c1 199000, c2 199000 (cache)\nD getCourse c1 -> Redis Patterns 199000 (db)"
+        },
+        {
+          "name": "During a slow UPDATE readers see the old price, after the commit the new one",
+          "input": {
+            "db": [
+              {
+                "id": "c1",
+                "title": "Redis Patterns",
+                "category": "redis",
+                "priceVnd": 249000
+              },
+              {
+                "id": "c2",
+                "title": "Redis Streams in Practice",
+                "category": "redis",
+                "priceVnd": 199000
+              },
+              {
+                "id": "c3",
+                "title": "SQL Data Modeling",
+                "category": "database",
+                "priceVnd": 149000
+              }
+            ],
+            "steps": [
+              {
+                "as": "A",
+                "getCourse": "c1"
+              },
+              {
+                "as": "A",
+                "listCategory": "redis"
+              },
+              {
+                "as": "U",
+                "updateCoursePrice": "c1",
+                "priceVnd": 199000,
+                "slow": true
+              },
+              {
+                "as": "B",
+                "getCourse": "c1"
+              },
+              {
+                "as": "B",
+                "listCategory": "redis"
+              },
+              {
+                "advance": 3600
+              },
+              {
+                "as": "E",
+                "getCourse": "c1"
+              },
+              {
+                "resume": "U"
+              },
+              {
+                "as": "C",
+                "getCourse": "c1"
+              },
+              {
+                "as": "C",
+                "listCategory": "redis"
+              },
+              {
+                "as": "D",
+                "getCourse": "c1"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": "A getCourse c1 -> Redis Patterns 249000 (db)\nA listCategory redis -> c1 249000, c2 199000 (db)\nU updateCoursePrice c1 199000 -> waiting for PostgreSQL\nB getCourse c1 -> Redis Patterns 249000 (cache)\nB listCategory redis -> c1 249000, c2 199000 (cache)\n+3600s\nE getCourse c1 -> Redis Patterns 249000 (db)\nresume U: U updateCoursePrice c1 199000 -> ok\nC getCourse c1 -> Redis Patterns 199000 (db)\nC listCategory redis -> c1 199000, c2 199000 (db)\nD getCourse c1 -> Redis Patterns 199000 (cache)"
+        },
+        {
+          "name": "Invalid edits are rejected and change nothing; a free course (0) is a valid price",
+          "input": {
+            "db": [
+              {
+                "id": "c1",
+                "title": "Redis Patterns",
+                "category": "redis",
+                "priceVnd": 249000
+              },
+              {
+                "id": "c2",
+                "title": "Redis Streams in Practice",
+                "category": "redis",
+                "priceVnd": 199000
+              },
+              {
+                "id": "c3",
+                "title": "SQL Data Modeling",
+                "category": "database",
+                "priceVnd": 149000
+              }
+            ],
+            "steps": [
+              {
+                "as": "A",
+                "getCourse": "c3"
+              },
+              {
+                "as": "U",
+                "updateCoursePrice": "c3",
+                "priceVnd": -1
+              },
+              {
+                "as": "U",
+                "updateCoursePrice": "c3",
+                "priceVnd": 1.5
+              },
+              {
+                "as": "U",
+                "updateCoursePrice": "c3",
+                "priceVnd": "99000"
+              },
+              {
+                "as": "U",
+                "updateCoursePrice": "c9",
+                "priceVnd": 99000
+              },
+              {
+                "as": "B",
+                "getCourse": "c3"
+              },
+              {
+                "as": "B",
+                "getCourse": "c9"
+              },
+              {
+                "as": "C",
+                "getCourse": "c9"
+              },
+              {
+                "as": "U",
+                "updateCoursePrice": "c3",
+                "priceVnd": 0
+              },
+              {
+                "as": "D",
+                "getCourse": "c3"
+              },
+              {
+                "as": "D",
+                "listCategory": "database"
+              },
+              {
+                "advance": 3599
+              },
+              {
+                "as": "E",
+                "getCourse": "c3"
+              },
+              {
+                "advance": 1
+              },
+              {
+                "as": "F",
+                "getCourse": "c3"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": "A getCourse c3 -> SQL Data Modeling 149000 (db)\nU updateCoursePrice c3 -1 -> rejected\nU updateCoursePrice c3 1.5 -> rejected\nU updateCoursePrice c3 \"99000\" -> rejected\nU updateCoursePrice c9 99000 -> rejected\nB getCourse c3 -> SQL Data Modeling 149000 (cache)\nB getCourse c9 -> not found (db)\nC getCourse c9 -> not found (cache)\nU updateCoursePrice c3 0 -> ok\nD getCourse c3 -> SQL Data Modeling 0 (db)\nD listCategory database -> c3 0 (db)\n+3599s\nE getCourse c3 -> SQL Data Modeling 0 (cache)\n+1s\nF getCourse c3 -> SQL Data Modeling 0 (db)"
+        },
+        {
+          "name": "Large: 120 courses, 650 interleaved reads, slow reads and edits",
+          "input": {
+            "db": [
+              {
+                "id": "c1",
+                "title": "Course 1",
+                "category": "database",
+                "priceVnd": 207000
+              },
+              {
+                "id": "c2",
+                "title": "Course 2",
+                "category": "node",
+                "priceVnd": 102000
+              },
+              {
+                "id": "c3",
+                "title": "Course 3",
+                "category": "react",
+                "priceVnd": 172000
+              },
+              {
+                "id": "c4",
+                "title": "Course 4",
+                "category": "devops",
+                "priceVnd": 138000
+              },
+              {
+                "id": "c5",
+                "title": "Course 5",
+                "category": "ai",
+                "priceVnd": 225000
+              },
+              {
+                "id": "c6",
+                "title": "Course 6",
+                "category": "redis",
+                "priceVnd": 265000
+              },
+              {
+                "id": "c7",
+                "title": "Course 7",
+                "category": "database",
+                "priceVnd": 193000
+              },
+              {
+                "id": "c8",
+                "title": "Course 8",
+                "category": "node",
+                "priceVnd": 218000
+              },
+              {
+                "id": "c9",
+                "title": "Course 9",
+                "category": "react",
+                "priceVnd": 281000
+              },
+              {
+                "id": "c10",
+                "title": "Course 10",
+                "category": "devops",
+                "priceVnd": 195000
+              },
+              {
+                "id": "c11",
+                "title": "Course 11",
+                "category": "ai",
+                "priceVnd": 208000
+              },
+              {
+                "id": "c12",
+                "title": "Course 12",
+                "category": "redis",
+                "priceVnd": 115000
+              },
+              {
+                "id": "c13",
+                "title": "Course 13",
+                "category": "database",
+                "priceVnd": 119000
+              },
+              {
+                "id": "c14",
+                "title": "Course 14",
+                "category": "node",
+                "priceVnd": 224000
+              },
+              {
+                "id": "c15",
+                "title": "Course 15",
+                "category": "react",
+                "priceVnd": 148000
+              },
+              {
+                "id": "c16",
+                "title": "Course 16",
+                "category": "devops",
+                "priceVnd": 276000
+              },
+              {
+                "id": "c17",
+                "title": "Course 17",
+                "category": "ai",
+                "priceVnd": 195000
+              },
+              {
+                "id": "c18",
+                "title": "Course 18",
+                "category": "redis",
+                "priceVnd": 233000
+              },
+              {
+                "id": "c19",
+                "title": "Course 19",
+                "category": "database",
+                "priceVnd": 195000
+              },
+              {
+                "id": "c20",
+                "title": "Course 20",
+                "category": "node",
+                "priceVnd": 282000
+              },
+              {
+                "id": "c21",
+                "title": "Course 21",
+                "category": "react",
+                "priceVnd": 203000
+              },
+              {
+                "id": "c22",
+                "title": "Course 22",
+                "category": "devops",
+                "priceVnd": 141000
+              },
+              {
+                "id": "c23",
+                "title": "Course 23",
+                "category": "ai",
+                "priceVnd": 240000
+              },
+              {
+                "id": "c24",
+                "title": "Course 24",
+                "category": "redis",
+                "priceVnd": 154000
+              },
+              {
+                "id": "c25",
+                "title": "Course 25",
+                "category": "database",
+                "priceVnd": 202000
+              },
+              {
+                "id": "c26",
+                "title": "Course 26",
+                "category": "node",
+                "priceVnd": 144000
+              },
+              {
+                "id": "c27",
+                "title": "Course 27",
+                "category": "react",
+                "priceVnd": 241000
+              },
+              {
+                "id": "c28",
+                "title": "Course 28",
+                "category": "devops",
+                "priceVnd": 234000
+              },
+              {
+                "id": "c29",
+                "title": "Course 29",
+                "category": "ai",
+                "priceVnd": 169000
+              },
+              {
+                "id": "c30",
+                "title": "Course 30",
+                "category": "redis",
+                "priceVnd": 195000
+              },
+              {
+                "id": "c31",
+                "title": "Course 31",
+                "category": "database",
+                "priceVnd": 241000
+              },
+              {
+                "id": "c32",
+                "title": "Course 32",
+                "category": "node",
+                "priceVnd": 141000
+              },
+              {
+                "id": "c33",
+                "title": "Course 33",
+                "category": "react",
+                "priceVnd": 156000
+              },
+              {
+                "id": "c34",
+                "title": "Course 34",
+                "category": "devops",
+                "priceVnd": 236000
+              },
+              {
+                "id": "c35",
+                "title": "Course 35",
+                "category": "ai",
+                "priceVnd": 253000
+              },
+              {
+                "id": "c36",
+                "title": "Course 36",
+                "category": "redis",
+                "priceVnd": 190000
+              },
+              {
+                "id": "c37",
+                "title": "Course 37",
+                "category": "database",
+                "priceVnd": 218000
+              },
+              {
+                "id": "c38",
+                "title": "Course 38",
+                "category": "node",
+                "priceVnd": 254000
+              },
+              {
+                "id": "c39",
+                "title": "Course 39",
+                "category": "react",
+                "priceVnd": 177000
+              },
+              {
+                "id": "c40",
+                "title": "Course 40",
+                "category": "devops",
+                "priceVnd": 252000
+              },
+              {
+                "id": "c41",
+                "title": "Course 41",
+                "category": "ai",
+                "priceVnd": 222000
+              },
+              {
+                "id": "c42",
+                "title": "Course 42",
+                "category": "redis",
+                "priceVnd": 195000
+              },
+              {
+                "id": "c43",
+                "title": "Course 43",
+                "category": "database",
+                "priceVnd": 154000
+              },
+              {
+                "id": "c44",
+                "title": "Course 44",
+                "category": "node",
+                "priceVnd": 156000
+              },
+              {
+                "id": "c45",
+                "title": "Course 45",
+                "category": "react",
+                "priceVnd": 108000
+              },
+              {
+                "id": "c46",
+                "title": "Course 46",
+                "category": "devops",
+                "priceVnd": 190000
+              },
+              {
+                "id": "c47",
+                "title": "Course 47",
+                "category": "ai",
+                "priceVnd": 137000
+              },
+              {
+                "id": "c48",
+                "title": "Course 48",
+                "category": "redis",
+                "priceVnd": 142000
+              },
+              {
+                "id": "c49",
+                "title": "Course 49",
+                "category": "database",
+                "priceVnd": 196000
+              },
+              {
+                "id": "c50",
+                "title": "Course 50",
+                "category": "node",
+                "priceVnd": 261000
+              },
+              {
+                "id": "c51",
+                "title": "Course 51",
+                "category": "react",
+                "priceVnd": 127000
+              },
+              {
+                "id": "c52",
+                "title": "Course 52",
+                "category": "devops",
+                "priceVnd": 248000
+              },
+              {
+                "id": "c53",
+                "title": "Course 53",
+                "category": "ai",
+                "priceVnd": 146000
+              },
+              {
+                "id": "c54",
+                "title": "Course 54",
+                "category": "redis",
+                "priceVnd": 231000
+              },
+              {
+                "id": "c55",
+                "title": "Course 55",
+                "category": "database",
+                "priceVnd": 288000
+              },
+              {
+                "id": "c56",
+                "title": "Course 56",
+                "category": "node",
+                "priceVnd": 162000
+              },
+              {
+                "id": "c57",
+                "title": "Course 57",
+                "category": "react",
+                "priceVnd": 128000
+              },
+              {
+                "id": "c58",
+                "title": "Course 58",
+                "category": "devops",
+                "priceVnd": 111000
+              },
+              {
+                "id": "c59",
+                "title": "Course 59",
+                "category": "ai",
+                "priceVnd": 278000
+              },
+              {
+                "id": "c60",
+                "title": "Course 60",
+                "category": "redis",
+                "priceVnd": 215000
+              },
+              {
+                "id": "c61",
+                "title": "Course 61",
+                "category": "database",
+                "priceVnd": 295000
+              },
+              {
+                "id": "c62",
+                "title": "Course 62",
+                "category": "node",
+                "priceVnd": 243000
+              },
+              {
+                "id": "c63",
+                "title": "Course 63",
+                "category": "react",
+                "priceVnd": 274000
+              },
+              {
+                "id": "c64",
+                "title": "Course 64",
+                "category": "devops",
+                "priceVnd": 168000
+              },
+              {
+                "id": "c65",
+                "title": "Course 65",
+                "category": "ai",
+                "priceVnd": 186000
+              },
+              {
+                "id": "c66",
+                "title": "Course 66",
+                "category": "redis",
+                "priceVnd": 252000
+              },
+              {
+                "id": "c67",
+                "title": "Course 67",
+                "category": "database",
+                "priceVnd": 285000
+              },
+              {
+                "id": "c68",
+                "title": "Course 68",
+                "category": "node",
+                "priceVnd": 197000
+              },
+              {
+                "id": "c69",
+                "title": "Course 69",
+                "category": "react",
+                "priceVnd": 163000
+              },
+              {
+                "id": "c70",
+                "title": "Course 70",
+                "category": "devops",
+                "priceVnd": 290000
+              },
+              {
+                "id": "c71",
+                "title": "Course 71",
+                "category": "ai",
+                "priceVnd": 230000
+              },
+              {
+                "id": "c72",
+                "title": "Course 72",
+                "category": "redis",
+                "priceVnd": 293000
+              },
+              {
+                "id": "c73",
+                "title": "Course 73",
+                "category": "database",
+                "priceVnd": 120000
+              },
+              {
+                "id": "c74",
+                "title": "Course 74",
+                "category": "node",
+                "priceVnd": 291000
+              },
+              {
+                "id": "c75",
+                "title": "Course 75",
+                "category": "react",
+                "priceVnd": 248000
+              },
+              {
+                "id": "c76",
+                "title": "Course 76",
+                "category": "devops",
+                "priceVnd": 169000
+              },
+              {
+                "id": "c77",
+                "title": "Course 77",
+                "category": "ai",
+                "priceVnd": 222000
+              },
+              {
+                "id": "c78",
+                "title": "Course 78",
+                "category": "redis",
+                "priceVnd": 280000
+              },
+              {
+                "id": "c79",
+                "title": "Course 79",
+                "category": "database",
+                "priceVnd": 117000
+              },
+              {
+                "id": "c80",
+                "title": "Course 80",
+                "category": "node",
+                "priceVnd": 255000
+              },
+              {
+                "id": "c81",
+                "title": "Course 81",
+                "category": "react",
+                "priceVnd": 292000
+              },
+              {
+                "id": "c82",
+                "title": "Course 82",
+                "category": "devops",
+                "priceVnd": 156000
+              },
+              {
+                "id": "c83",
+                "title": "Course 83",
+                "category": "ai",
+                "priceVnd": 222000
+              },
+              {
+                "id": "c84",
+                "title": "Course 84",
+                "category": "redis",
+                "priceVnd": 108000
+              },
+              {
+                "id": "c85",
+                "title": "Course 85",
+                "category": "database",
+                "priceVnd": 241000
+              },
+              {
+                "id": "c86",
+                "title": "Course 86",
+                "category": "node",
+                "priceVnd": 207000
+              },
+              {
+                "id": "c87",
+                "title": "Course 87",
+                "category": "react",
+                "priceVnd": 138000
+              },
+              {
+                "id": "c88",
+                "title": "Course 88",
+                "category": "devops",
+                "priceVnd": 265000
+              },
+              {
+                "id": "c89",
+                "title": "Course 89",
+                "category": "ai",
+                "priceVnd": 253000
+              },
+              {
+                "id": "c90",
+                "title": "Course 90",
+                "category": "redis",
+                "priceVnd": 165000
+              },
+              {
+                "id": "c91",
+                "title": "Course 91",
+                "category": "database",
+                "priceVnd": 185000
+              },
+              {
+                "id": "c92",
+                "title": "Course 92",
+                "category": "node",
+                "priceVnd": 135000
+              },
+              {
+                "id": "c93",
+                "title": "Course 93",
+                "category": "react",
+                "priceVnd": 163000
+              },
+              {
+                "id": "c94",
+                "title": "Course 94",
+                "category": "devops",
+                "priceVnd": 227000
+              },
+              {
+                "id": "c95",
+                "title": "Course 95",
+                "category": "ai",
+                "priceVnd": 127000
+              },
+              {
+                "id": "c96",
+                "title": "Course 96",
+                "category": "redis",
+                "priceVnd": 259000
+              },
+              {
+                "id": "c97",
+                "title": "Course 97",
+                "category": "database",
+                "priceVnd": 194000
+              },
+              {
+                "id": "c98",
+                "title": "Course 98",
+                "category": "node",
+                "priceVnd": 139000
+              },
+              {
+                "id": "c99",
+                "title": "Course 99",
+                "category": "react",
+                "priceVnd": 251000
+              },
+              {
+                "id": "c100",
+                "title": "Course 100",
+                "category": "devops",
+                "priceVnd": 140000
+              },
+              {
+                "id": "c101",
+                "title": "Course 101",
+                "category": "ai",
+                "priceVnd": 105000
+              },
+              {
+                "id": "c102",
+                "title": "Course 102",
+                "category": "redis",
+                "priceVnd": 264000
+              },
+              {
+                "id": "c103",
+                "title": "Course 103",
+                "category": "database",
+                "priceVnd": 252000
+              },
+              {
+                "id": "c104",
+                "title": "Course 104",
+                "category": "node",
+                "priceVnd": 223000
+              },
+              {
+                "id": "c105",
+                "title": "Course 105",
+                "category": "react",
+                "priceVnd": 296000
+              },
+              {
+                "id": "c106",
+                "title": "Course 106",
+                "category": "devops",
+                "priceVnd": 141000
+              },
+              {
+                "id": "c107",
+                "title": "Course 107",
+                "category": "ai",
+                "priceVnd": 218000
+              },
+              {
+                "id": "c108",
+                "title": "Course 108",
+                "category": "redis",
+                "priceVnd": 195000
+              },
+              {
+                "id": "c109",
+                "title": "Course 109",
+                "category": "database",
+                "priceVnd": 201000
+              },
+              {
+                "id": "c110",
+                "title": "Course 110",
+                "category": "node",
+                "priceVnd": 187000
+              },
+              {
+                "id": "c111",
+                "title": "Course 111",
+                "category": "react",
+                "priceVnd": 226000
+              },
+              {
+                "id": "c112",
+                "title": "Course 112",
+                "category": "devops",
+                "priceVnd": 171000
+              },
+              {
+                "id": "c113",
+                "title": "Course 113",
+                "category": "ai",
+                "priceVnd": 213000
+              },
+              {
+                "id": "c114",
+                "title": "Course 114",
+                "category": "redis",
+                "priceVnd": 226000
+              },
+              {
+                "id": "c115",
+                "title": "Course 115",
+                "category": "database",
+                "priceVnd": 108000
+              },
+              {
+                "id": "c116",
+                "title": "Course 116",
+                "category": "node",
+                "priceVnd": 270000
+              },
+              {
+                "id": "c117",
+                "title": "Course 117",
+                "category": "react",
+                "priceVnd": 164000
+              },
+              {
+                "id": "c118",
+                "title": "Course 118",
+                "category": "devops",
+                "priceVnd": 186000
+              },
+              {
+                "id": "c119",
+                "title": "Course 119",
+                "category": "ai",
+                "priceVnd": 160000
+              },
+              {
+                "id": "c120",
+                "title": "Course 120",
+                "category": "redis",
+                "priceVnd": 292000
+              }
+            ],
+            "steps": [
+              {
+                "advance": 660
+              },
+              {
+                "as": "r1",
+                "getCourse": "c9"
+              },
+              {
+                "as": "u2",
+                "updateCoursePrice": "c8",
+                "priceVnd": 256000,
+                "slow": true
+              },
+              {
+                "as": "r3",
+                "getCourse": "c11",
+                "slow": true
+              },
+              {
+                "as": "l4",
+                "listCategory": "devops"
+              },
+              {
+                "as": "r5",
+                "getCourse": "c9"
+              },
+              {
+                "as": "l6",
+                "listCategory": "react",
+                "slow": true
+              },
+              {
+                "as": "r7",
+                "getCourse": "c93"
+              },
+              {
+                "as": "r8",
+                "getCourse": "c44"
+              },
+              {
+                "as": "u9",
+                "updateCoursePrice": "c54",
+                "priceVnd": 244000
+              },
+              {
+                "as": "l10",
+                "listCategory": "react"
+              },
+              {
+                "as": "l11",
+                "listCategory": "react"
+              },
+              {
+                "as": "l12",
+                "listCategory": "redis"
+              },
+              {
+                "as": "u13",
+                "updateCoursePrice": "c4",
+                "priceVnd": 274000,
+                "slow": true
+              },
+              {
+                "as": "r14",
+                "getCourse": "c7"
+              },
+              {
+                "as": "l15",
+                "listCategory": "node"
+              },
+              {
+                "as": "l16",
+                "listCategory": "devops"
+              },
+              {
+                "resume": "r3"
+              },
+              {
+                "as": "r17",
+                "getCourse": "c11"
+              },
+              {
+                "as": "l18",
+                "listCategory": "node",
+                "slow": true
+              },
+              {
+                "advance": 240
+              },
+              {
+                "as": "r19",
+                "getCourse": "c12"
+              },
+              {
+                "as": "r20",
+                "getCourse": "c4",
+                "slow": true
+              },
+              {
+                "as": "u21",
+                "updateCoursePrice": "c8",
+                "priceVnd": 292000
+              },
+              {
+                "as": "r22",
+                "getCourse": "c7"
+              },
+              {
+                "as": "l23",
+                "listCategory": "devops"
+              },
+              {
+                "as": "r24",
+                "getCourse": "c6"
+              },
+              {
+                "resume": "u13"
+              },
+              {
+                "as": "l25",
+                "listCategory": "database",
+                "slow": true
+              },
+              {
+                "as": "u26",
+                "updateCoursePrice": "c2",
+                "priceVnd": 127000
+              },
+              {
+                "as": "u27",
+                "updateCoursePrice": "c21",
+                "priceVnd": 286000,
+                "slow": true
+              },
+              {
+                "as": "u28",
+                "updateCoursePrice": "c10",
+                "priceVnd": 295000
+              },
+              {
+                "as": "l29",
+                "listCategory": "devops"
+              },
+              {
+                "as": "u30",
+                "updateCoursePrice": "c22",
+                "priceVnd": 271000
+              },
+              {
+                "as": "u31",
+                "updateCoursePrice": "c5",
+                "priceVnd": 225000
+              },
+              {
+                "as": "r32",
+                "getCourse": "c6"
+              },
+              {
+                "as": "u33",
+                "updateCoursePrice": "c2",
+                "priceVnd": 186000
+              },
+              {
+                "as": "l34",
+                "listCategory": "database"
+              },
+              {
+                "as": "r35",
+                "getCourse": "c4"
+              },
+              {
+                "as": "l36",
+                "listCategory": "devops"
+              },
+              {
+                "advance": 1440
+              },
+              {
+                "as": "r37",
+                "getCourse": "c8"
+              },
+              {
+                "resume": "l6"
+              },
+              {
+                "as": "r38",
+                "getCourse": "c81",
+                "slow": true
+              },
+              {
+                "resume": "u2"
+              },
+              {
+                "resume": "l18"
+              },
+              {
+                "as": "r39",
+                "getCourse": "c104",
+                "slow": true
+              },
+              {
+                "as": "r40",
+                "getCourse": "c12"
+              },
+              {
+                "as": "u41",
+                "updateCoursePrice": "c26",
+                "priceVnd": 139000,
+                "slow": true
+              },
+              {
+                "as": "l42",
+                "listCategory": "react"
+              },
+              {
+                "resume": "l25"
+              },
+              {
+                "as": "r43",
+                "getCourse": "c11"
+              },
+              {
+                "as": "r44",
+                "getCourse": "c12",
+                "slow": true
+              },
+              {
+                "as": "l45",
+                "listCategory": "react",
+                "slow": true
+              },
+              {
+                "as": "r46",
+                "getCourse": "c3"
+              },
+              {
+                "as": "r47",
+                "getCourse": "c1"
+              },
+              {
+                "as": "u48",
+                "updateCoursePrice": "c8",
+                "priceVnd": 259000,
+                "slow": true
+              },
+              {
+                "resume": "r44"
+              },
+              {
+                "as": "r49",
+                "getCourse": "c2"
+              },
+              {
+                "as": "u50",
+                "updateCoursePrice": "c8",
+                "priceVnd": 255000
+              },
+              {
+                "as": "r51",
+                "getCourse": "c2"
+              },
+              {
+                "resume": "u41"
+              },
+              {
+                "resume": "r38"
+              },
+              {
+                "as": "l52",
+                "listCategory": "node"
+              },
+              {
+                "resume": "r39"
+              },
+              {
+                "as": "r53",
+                "getCourse": "c11"
+              },
+              {
+                "as": "r54",
+                "getCourse": "c9"
+              },
+              {
+                "as": "r55",
+                "getCourse": "c40"
+              },
+              {
+                "as": "u56",
+                "updateCoursePrice": "c106",
+                "priceVnd": 204000
+              },
+              {
+                "as": "r57",
+                "getCourse": "c3"
+              },
+              {
+                "advance": 120
+              },
+              {
+                "as": "u58",
+                "updateCoursePrice": "c1",
+                "priceVnd": 233000,
+                "slow": true
+              },
+              {
+                "advance": 1320
+              },
+              {
+                "as": "r59",
+                "getCourse": "c116"
+              },
+              {
+                "as": "r60",
+                "getCourse": "c2"
+              },
+              {
+                "as": "l61",
+                "listCategory": "devops"
+              },
+              {
+                "as": "r62",
+                "getCourse": "c7"
+              },
+              {
+                "as": "r63",
+                "getCourse": "c45"
+              },
+              {
+                "as": "u64",
+                "updateCoursePrice": "c8",
+                "priceVnd": 144000,
+                "slow": true
+              },
+              {
+                "as": "l65",
+                "listCategory": "database"
+              },
+              {
+                "as": "r66",
+                "getCourse": "c15"
+              },
+              {
+                "as": "r67",
+                "getCourse": "c7"
+              },
+              {
+                "as": "u68",
+                "updateCoursePrice": "c4",
+                "priceVnd": 127000,
+                "slow": true
+              },
+              {
+                "as": "u69",
+                "updateCoursePrice": "c10",
+                "priceVnd": 119000
+              },
+              {
+                "as": "r70",
+                "getCourse": "c11",
+                "slow": true
+              },
+              {
+                "as": "l71",
+                "listCategory": "redis"
+              },
+              {
+                "as": "l72",
+                "listCategory": "redis"
+              },
+              {
+                "resume": "u58"
+              },
+              {
+                "as": "l73",
+                "listCategory": "redis"
+              },
+              {
+                "advance": 600
+              },
+              {
+                "resume": "r20"
+              },
+              {
+                "as": "l74",
+                "listCategory": "node"
+              },
+              {
+                "as": "r75",
+                "getCourse": "c7",
+                "slow": true
+              },
+              {
+                "as": "l76",
+                "listCategory": "ai"
+              },
+              {
+                "resume": "u64"
+              },
+              {
+                "as": "l77",
+                "listCategory": "node"
+              },
+              {
+                "as": "r78",
+                "getCourse": "c4"
+              },
+              {
+                "as": "u79",
+                "updateCoursePrice": "c2",
+                "priceVnd": 165000
+              },
+              {
+                "as": "r80",
+                "getCourse": "c3"
+              },
+              {
+                "as": "l81",
+                "listCategory": "redis"
+              },
+              {
+                "as": "r82",
+                "getCourse": "c8"
+              },
+              {
+                "as": "l83",
+                "listCategory": "devops"
+              },
+              {
+                "advance": 1080
+              },
+              {
+                "as": "r84",
+                "getCourse": "c1"
+              },
+              {
+                "as": "u85",
+                "updateCoursePrice": "c3",
+                "priceVnd": 137000
+              },
+              {
+                "resume": "u48"
+              },
+              {
+                "resume": "u68"
+              },
+              {
+                "resume": "r75"
+              },
+              {
+                "resume": "l45"
+              },
+              {
+                "as": "l86",
+                "listCategory": "redis"
+              },
+              {
+                "as": "r87",
+                "getCourse": "c3"
+              },
+              {
+                "as": "r88",
+                "getCourse": "c8",
+                "slow": true
+              },
+              {
+                "as": "r89",
+                "getCourse": "c80"
+              },
+              {
+                "as": "l90",
+                "listCategory": "redis"
+              },
+              {
+                "as": "u91",
+                "updateCoursePrice": "c30",
+                "priceVnd": 231000,
+                "slow": true
+              },
+              {
+                "as": "u92",
+                "updateCoursePrice": "c10",
+                "priceVnd": 140000
+              },
+              {
+                "as": "u93",
+                "updateCoursePrice": "c23",
+                "priceVnd": 263000
+              },
+              {
+                "resume": "u27"
+              },
+              {
+                "as": "r94",
+                "getCourse": "c7",
+                "slow": true
+              },
+              {
+                "as": "l95",
+                "listCategory": "ai"
+              },
+              {
+                "as": "r96",
+                "getCourse": "c42"
+              },
+              {
+                "as": "l97",
+                "listCategory": "node"
+              },
+              {
+                "resume": "r88"
+              },
+              {
+                "as": "r98",
+                "getCourse": "c7"
+              },
+              {
+                "as": "r99",
+                "getCourse": "c11"
+              },
+              {
+                "as": "l100",
+                "listCategory": "node",
+                "slow": true
+              },
+              {
+                "as": "l101",
+                "listCategory": "redis"
+              },
+              {
+                "resume": "r94"
+              },
+              {
+                "as": "l102",
+                "listCategory": "node"
+              },
+              {
+                "resume": "l100"
+              },
+              {
+                "as": "r103",
+                "getCourse": "c8"
+              },
+              {
+                "as": "l104",
+                "listCategory": "react"
+              },
+              {
+                "as": "r105",
+                "getCourse": "c21"
+              },
+              {
+                "advance": 240
+              },
+              {
+                "advance": 1080
+              },
+              {
+                "as": "r106",
+                "getCourse": "c27"
+              },
+              {
+                "as": "l107",
+                "listCategory": "node",
+                "slow": true
+              },
+              {
+                "as": "l108",
+                "listCategory": "ai"
+              },
+              {
+                "as": "u109",
+                "updateCoursePrice": "c2",
+                "priceVnd": 106000,
+                "slow": true
+              },
+              {
+                "as": "r110",
+                "getCourse": "c43"
+              },
+              {
+                "as": "r111",
+                "getCourse": "c4"
+              },
+              {
+                "advance": 840
+              },
+              {
+                "as": "r112",
+                "getCourse": "c75",
+                "slow": true
+              },
+              {
+                "as": "r113",
+                "getCourse": "c119",
+                "slow": true
+              },
+              {
+                "as": "u114",
+                "updateCoursePrice": "c7",
+                "priceVnd": 269000
+              },
+              {
+                "as": "r115",
+                "getCourse": "c4"
+              },
+              {
+                "resume": "r113"
+              },
+              {
+                "as": "r116",
+                "getCourse": "c110"
+              },
+              {
+                "as": "u117",
+                "updateCoursePrice": "c10",
+                "priceVnd": 155000
+              },
+              {
+                "as": "u118",
+                "updateCoursePrice": "c71",
+                "priceVnd": 270000
+              },
+              {
+                "as": "r119",
+                "getCourse": "c3"
+              },
+              {
+                "resume": "u109"
+              },
+              {
+                "as": "u120",
+                "updateCoursePrice": "c43",
+                "priceVnd": 196000
+              },
+              {
+                "advance": 420
+              },
+              {
+                "resume": "u91"
+              },
+              {
+                "as": "r121",
+                "getCourse": "c7"
+              },
+              {
+                "resume": "l107"
+              },
+              {
+                "resume": "r112"
+              },
+              {
+                "advance": 660
+              },
+              {
+                "as": "r122",
+                "getCourse": "c102"
+              },
+              {
+                "advance": 1020
+              },
+              {
+                "resume": "r70"
+              },
+              {
+                "as": "l123",
+                "listCategory": "react"
+              },
+              {
+                "as": "l124",
+                "listCategory": "database"
+              },
+              {
+                "as": "r125",
+                "getCourse": "c3"
+              },
+              {
+                "as": "r126",
+                "getCourse": "c3"
+              },
+              {
+                "advance": 600
+              },
+              {
+                "as": "r127",
+                "getCourse": "c9"
+              },
+              {
+                "as": "r128",
+                "getCourse": "c6",
+                "slow": true
+              },
+              {
+                "advance": 720
+              },
+              {
+                "as": "l129",
+                "listCategory": "ai"
+              },
+              {
+                "as": "r130",
+                "getCourse": "c10"
+              },
+              {
+                "as": "l131",
+                "listCategory": "node"
+              },
+              {
+                "as": "r132",
+                "getCourse": "c1"
+              },
+              {
+                "as": "u133",
+                "updateCoursePrice": "c12",
+                "priceVnd": 132000
+              },
+              {
+                "as": "l134",
+                "listCategory": "devops"
+              },
+              {
+                "as": "l135",
+                "listCategory": "react",
+                "slow": true
+              },
+              {
+                "resume": "r128"
+              },
+              {
+                "as": "r136",
+                "getCourse": "c2"
+              },
+              {
+                "as": "u137",
+                "updateCoursePrice": "c70",
+                "priceVnd": 134000
+              },
+              {
+                "as": "u138",
+                "updateCoursePrice": "c6",
+                "priceVnd": 140000,
+                "slow": true
+              },
+              {
+                "as": "r139",
+                "getCourse": "c7"
+              },
+              {
+                "as": "l140",
+                "listCategory": "node"
+              },
+              {
+                "as": "r141",
+                "getCourse": "c1",
+                "slow": true
+              },
+              {
+                "resume": "l135"
+              },
+              {
+                "as": "u142",
+                "updateCoursePrice": "c69",
+                "priceVnd": 218000
+              },
+              {
+                "as": "r143",
+                "getCourse": "c84"
+              },
+              {
+                "as": "u144",
+                "updateCoursePrice": "c1",
+                "priceVnd": 198000
+              },
+              {
+                "resume": "r141"
+              },
+              {
+                "as": "l145",
+                "listCategory": "react"
+              },
+              {
+                "as": "l146",
+                "listCategory": "devops"
+              },
+              {
+                "advance": 1500
+              },
+              {
+                "as": "r147",
+                "getCourse": "c6"
+              },
+              {
+                "as": "u148",
+                "updateCoursePrice": "c5",
+                "priceVnd": 221000
+              },
+              {
+                "as": "r149",
+                "getCourse": "c10"
+              },
+              {
+                "resume": "u138"
+              },
+              {
+                "as": "r150",
+                "getCourse": "c10"
+              },
+              {
+                "as": "u151",
+                "updateCoursePrice": "c84",
+                "priceVnd": 218000
+              },
+              {
+                "as": "r152",
+                "getCourse": "c71"
+              },
+              {
+                "as": "l153",
+                "listCategory": "database"
+              },
+              {
+                "as": "r154",
+                "getCourse": "c5"
+              },
+              {
+                "as": "u155",
+                "updateCoursePrice": "c4",
+                "priceVnd": 157000
+              },
+              {
+                "as": "u156",
+                "updateCoursePrice": "c102",
+                "priceVnd": 294000
+              },
+              {
+                "as": "r157",
+                "getCourse": "c79"
+              },
+              {
+                "as": "u158",
+                "updateCoursePrice": "c57",
+                "priceVnd": 185000,
+                "slow": true
+              },
+              {
+                "as": "r159",
+                "getCourse": "c7"
+              },
+              {
+                "as": "r160",
+                "getCourse": "c82"
+              },
+              {
+                "as": "r161",
+                "getCourse": "c10"
+              },
+              {
+                "advance": 420
+              },
+              {
+                "as": "u162",
+                "updateCoursePrice": "c25",
+                "priceVnd": 184000
+              },
+              {
+                "as": "r163",
+                "getCourse": "c110"
+              },
+              {
+                "as": "r164",
+                "getCourse": "c9"
+              },
+              {
+                "as": "l165",
+                "listCategory": "devops"
+              },
+              {
+                "as": "u166",
+                "updateCoursePrice": "c12",
+                "priceVnd": 167000
+              },
+              {
+                "as": "r167",
+                "getCourse": "c5"
+              },
+              {
+                "resume": "u158"
+              },
+              {
+                "as": "u168",
+                "updateCoursePrice": "c3",
+                "priceVnd": 188000
+              },
+              {
+                "as": "r169",
+                "getCourse": "c10"
+              },
+              {
+                "as": "r170",
+                "getCourse": "c8",
+                "slow": true
+              },
+              {
+                "as": "u171",
+                "updateCoursePrice": "c9",
+                "priceVnd": 284000
+              },
+              {
+                "as": "u172",
+                "updateCoursePrice": "c6",
+                "priceVnd": 169000,
+                "slow": true
+              },
+              {
+                "as": "l173",
+                "listCategory": "devops"
+              },
+              {
+                "as": "r174",
+                "getCourse": "c26"
+              },
+              {
+                "resume": "u172"
+              },
+              {
+                "as": "l175",
+                "listCategory": "devops"
+              },
+              {
+                "as": "r176",
+                "getCourse": "c9"
+              },
+              {
+                "as": "r177",
+                "getCourse": "c2",
+                "slow": true
+              },
+              {
+                "as": "u178",
+                "updateCoursePrice": "c4",
+                "priceVnd": 201000
+              },
+              {
+                "as": "l179",
+                "listCategory": "ai"
+              },
+              {
+                "as": "u180",
+                "updateCoursePrice": "c6",
+                "priceVnd": 286000
+              },
+              {
+                "as": "r181",
+                "getCourse": "c1"
+              },
+              {
+                "as": "l182",
+                "listCategory": "react"
+              },
+              {
+                "as": "r183",
+                "getCourse": "c2"
+              },
+              {
+                "as": "r184",
+                "getCourse": "c25"
+              },
+              {
+                "as": "r185",
+                "getCourse": "c6"
+              },
+              {
+                "as": "r186",
+                "getCourse": "c6"
+              },
+              {
+                "as": "l187",
+                "listCategory": "react"
+              },
+              {
+                "as": "r188",
+                "getCourse": "c10"
+              },
+              {
+                "resume": "r170"
+              },
+              {
+                "as": "u189",
+                "updateCoursePrice": "c7",
+                "priceVnd": 220000
+              },
+              {
+                "as": "r190",
+                "getCourse": "c3"
+              },
+              {
+                "resume": "r177"
+              },
+              {
+                "as": "u191",
+                "updateCoursePrice": "c4",
+                "priceVnd": 231000
+              },
+              {
+                "as": "r192",
+                "getCourse": "c6"
+              },
+              {
+                "as": "r193",
+                "getCourse": "c9"
+              },
+              {
+                "as": "u194",
+                "updateCoursePrice": "c112",
+                "priceVnd": 201000
+              },
+              {
+                "as": "r195",
+                "getCourse": "c8"
+              },
+              {
+                "as": "r196",
+                "getCourse": "c1"
+              },
+              {
+                "as": "r197",
+                "getCourse": "c9"
+              },
+              {
+                "as": "r198",
+                "getCourse": "c9"
+              },
+              {
+                "as": "r199",
+                "getCourse": "c80"
+              },
+              {
+                "as": "r200",
+                "getCourse": "c10"
+              },
+              {
+                "as": "u201",
+                "updateCoursePrice": "c68",
+                "priceVnd": 297000
+              },
+              {
+                "as": "l202",
+                "listCategory": "database"
+              },
+              {
+                "as": "u203",
+                "updateCoursePrice": "c18",
+                "priceVnd": 221000
+              },
+              {
+                "as": "r204",
+                "getCourse": "c9"
+              },
+              {
+                "as": "u205",
+                "updateCoursePrice": "c1",
+                "priceVnd": 279000
+              },
+              {
+                "advance": 1560
+              },
+              {
+                "as": "u206",
+                "updateCoursePrice": "c1",
+                "priceVnd": 109000
+              },
+              {
+                "as": "u207",
+                "updateCoursePrice": "c6",
+                "priceVnd": 249000,
+                "slow": true
+              },
+              {
+                "advance": 420
+              },
+              {
+                "as": "l208",
+                "listCategory": "ai"
+              },
+              {
+                "as": "r209",
+                "getCourse": "c9"
+              },
+              {
+                "as": "u210",
+                "updateCoursePrice": "c8",
+                "priceVnd": 158000
+              },
+              {
+                "as": "r211",
+                "getCourse": "c9"
+              },
+              {
+                "resume": "u207"
+              },
+              {
+                "as": "l212",
+                "listCategory": "ai"
+              },
+              {
+                "as": "r213",
+                "getCourse": "c2"
+              },
+              {
+                "as": "u214",
+                "updateCoursePrice": "c11",
+                "priceVnd": 216000
+              },
+              {
+                "as": "r215",
+                "getCourse": "c9",
+                "slow": true
+              },
+              {
+                "as": "r216",
+                "getCourse": "c9"
+              },
+              {
+                "resume": "r215"
+              },
+              {
+                "advance": 1440
+              },
+              {
+                "as": "r217",
+                "getCourse": "c4"
+              },
+              {
+                "as": "r218",
+                "getCourse": "c59"
+              },
+              {
+                "as": "u219",
+                "updateCoursePrice": "c12",
+                "priceVnd": 99000
+              },
+              {
+                "as": "u220",
+                "updateCoursePrice": "c1",
+                "priceVnd": 177000
+              },
+              {
+                "as": "r221",
+                "getCourse": "c39"
+              },
+              {
+                "as": "r222",
+                "getCourse": "c7"
+              },
+              {
+                "as": "u223",
+                "updateCoursePrice": "c9",
+                "priceVnd": 183000
+              },
+              {
+                "as": "r224",
+                "getCourse": "c3"
+              },
+              {
+                "as": "l225",
+                "listCategory": "devops"
+              },
+              {
+                "as": "l226",
+                "listCategory": "database"
+              },
+              {
+                "advance": 1560
+              },
+              {
+                "advance": 600
+              },
+              {
+                "advance": 900
+              },
+              {
+                "as": "r227",
+                "getCourse": "c9"
+              },
+              {
+                "as": "r228",
+                "getCourse": "c30"
+              },
+              {
+                "advance": 1320
+              },
+              {
+                "as": "l229",
+                "listCategory": "database"
+              },
+              {
+                "as": "r230",
+                "getCourse": "c11"
+              },
+              {
+                "as": "l231",
+                "listCategory": "react"
+              },
+              {
+                "as": "r232",
+                "getCourse": "c10"
+              },
+              {
+                "as": "u233",
+                "updateCoursePrice": "c5",
+                "priceVnd": 249000
+              },
+              {
+                "as": "r234",
+                "getCourse": "c10"
+              },
+              {
+                "advance": 540
+              },
+              {
+                "as": "r235",
+                "getCourse": "c98"
+              },
+              {
+                "as": "u236",
+                "updateCoursePrice": "c1",
+                "priceVnd": 171000
+              },
+              {
+                "as": "r237",
+                "getCourse": "c8",
+                "slow": true
+              },
+              {
+                "as": "r238",
+                "getCourse": "c32"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "as": "r239",
+                "getCourse": "c59"
+              },
+              {
+                "as": "u240",
+                "updateCoursePrice": "c11",
+                "priceVnd": 269000,
+                "slow": true
+              },
+              {
+                "as": "r241",
+                "getCourse": "c115"
+              },
+              {
+                "as": "r242",
+                "getCourse": "c11"
+              },
+              {
+                "as": "r243",
+                "getCourse": "c9"
+              },
+              {
+                "as": "u244",
+                "updateCoursePrice": "c5",
+                "priceVnd": 226000
+              },
+              {
+                "resume": "u240"
+              },
+              {
+                "as": "r245",
+                "getCourse": "c25"
+              },
+              {
+                "as": "u246",
+                "updateCoursePrice": "c5",
+                "priceVnd": 163000
+              },
+              {
+                "as": "r247",
+                "getCourse": "c10"
+              },
+              {
+                "as": "l248",
+                "listCategory": "ai"
+              },
+              {
+                "as": "r249",
+                "getCourse": "c8"
+              },
+              {
+                "resume": "r237"
+              },
+              {
+                "as": "r250",
+                "getCourse": "c9"
+              },
+              {
+                "as": "r251",
+                "getCourse": "c10"
+              },
+              {
+                "advance": 540
+              },
+              {
+                "as": "r252",
+                "getCourse": "c75"
+              },
+              {
+                "as": "u253",
+                "updateCoursePrice": "c30",
+                "priceVnd": 211000
+              },
+              {
+                "advance": 960
+              },
+              {
+                "advance": 120
+              },
+              {
+                "as": "u254",
+                "updateCoursePrice": "c5",
+                "priceVnd": 157000
+              },
+              {
+                "as": "r255",
+                "getCourse": "c118"
+              },
+              {
+                "as": "r256",
+                "getCourse": "c48"
+              },
+              {
+                "as": "r257",
+                "getCourse": "c7"
+              },
+              {
+                "as": "r258",
+                "getCourse": "c12",
+                "slow": true
+              },
+              {
+                "as": "u259",
+                "updateCoursePrice": "c58",
+                "priceVnd": 272000
+              },
+              {
+                "advance": 420
+              },
+              {
+                "as": "u260",
+                "updateCoursePrice": "c3",
+                "priceVnd": 241000
+              },
+              {
+                "as": "r261",
+                "getCourse": "c94"
+              },
+              {
+                "as": "u262",
+                "updateCoursePrice": "c30",
+                "priceVnd": 143000
+              },
+              {
+                "as": "r263",
+                "getCourse": "c71"
+              },
+              {
+                "as": "r264",
+                "getCourse": "c3"
+              },
+              {
+                "resume": "r258"
+              },
+              {
+                "as": "r265",
+                "getCourse": "c99",
+                "slow": true
+              },
+              {
+                "as": "u266",
+                "updateCoursePrice": "c8",
+                "priceVnd": 230000
+              },
+              {
+                "as": "r267",
+                "getCourse": "c4"
+              },
+              {
+                "as": "r268",
+                "getCourse": "c11",
+                "slow": true
+              },
+              {
+                "as": "r269",
+                "getCourse": "c84"
+              },
+              {
+                "advance": 1680
+              },
+              {
+                "resume": "r265"
+              },
+              {
+                "as": "u270",
+                "updateCoursePrice": "c87",
+                "priceVnd": 99000
+              },
+              {
+                "as": "r271",
+                "getCourse": "c2"
+              },
+              {
+                "resume": "r268"
+              },
+              {
+                "as": "l272",
+                "listCategory": "ai",
+                "slow": true
+              },
+              {
+                "as": "u273",
+                "updateCoursePrice": "c1",
+                "priceVnd": 240000
+              },
+              {
+                "as": "u274",
+                "updateCoursePrice": "c8",
+                "priceVnd": 134000,
+                "slow": true
+              },
+              {
+                "as": "r275",
+                "getCourse": "c12"
+              },
+              {
+                "as": "r276",
+                "getCourse": "c3"
+              },
+              {
+                "as": "r277",
+                "getCourse": "c1"
+              },
+              {
+                "resume": "u274"
+              },
+              {
+                "as": "u278",
+                "updateCoursePrice": "c5",
+                "priceVnd": 140000
+              },
+              {
+                "as": "r279",
+                "getCourse": "c10"
+              },
+              {
+                "resume": "l272"
+              },
+              {
+                "as": "r280",
+                "getCourse": "c1"
+              },
+              {
+                "as": "u281",
+                "updateCoursePrice": "c10",
+                "priceVnd": 210000,
+                "slow": true
+              },
+              {
+                "as": "r282",
+                "getCourse": "c93",
+                "slow": true
+              },
+              {
+                "advance": 420
+              },
+              {
+                "as": "r283",
+                "getCourse": "c34"
+              },
+              {
+                "resume": "r282"
+              },
+              {
+                "as": "r284",
+                "getCourse": "c1"
+              },
+              {
+                "as": "u285",
+                "updateCoursePrice": "c11",
+                "priceVnd": 192000
+              },
+              {
+                "advance": 120
+              },
+              {
+                "as": "r286",
+                "getCourse": "c2"
+              },
+              {
+                "as": "r287",
+                "getCourse": "c2"
+              },
+              {
+                "advance": 1800
+              },
+              {
+                "resume": "u281"
+              },
+              {
+                "as": "u288",
+                "updateCoursePrice": "c3",
+                "priceVnd": 191000
+              },
+              {
+                "as": "l289",
+                "listCategory": "react",
+                "slow": true
+              },
+              {
+                "as": "r290",
+                "getCourse": "c104"
+              },
+              {
+                "advance": 1620
+              },
+              {
+                "advance": 1140
+              },
+              {
+                "resume": "l289"
+              },
+              {
+                "as": "l291",
+                "listCategory": "database"
+              },
+              {
+                "as": "r292",
+                "getCourse": "c2"
+              },
+              {
+                "as": "l293",
+                "listCategory": "ai",
+                "slow": true
+              },
+              {
+                "advance": 1080
+              },
+              {
+                "resume": "l293"
+              },
+              {
+                "as": "r294",
+                "getCourse": "c1"
+              },
+              {
+                "as": "l295",
+                "listCategory": "devops"
+              },
+              {
+                "as": "u296",
+                "updateCoursePrice": "c70",
+                "priceVnd": 261000
+              },
+              {
+                "as": "r297",
+                "getCourse": "c99"
+              },
+              {
+                "as": "r298",
+                "getCourse": "c3"
+              },
+              {
+                "as": "r299",
+                "getCourse": "c11"
+              },
+              {
+                "as": "r300",
+                "getCourse": "c2"
+              },
+              {
+                "as": "r301",
+                "getCourse": "c11"
+              },
+              {
+                "as": "l302",
+                "listCategory": "devops"
+              },
+              {
+                "as": "r303",
+                "getCourse": "c1"
+              },
+              {
+                "as": "r304",
+                "getCourse": "c26"
+              },
+              {
+                "as": "u305",
+                "updateCoursePrice": "c6",
+                "priceVnd": 167000
+              },
+              {
+                "as": "r306",
+                "getCourse": "c5",
+                "slow": true
+              },
+              {
+                "as": "u307",
+                "updateCoursePrice": "c11",
+                "priceVnd": 220000
+              },
+              {
+                "as": "u308",
+                "updateCoursePrice": "c1",
+                "priceVnd": 266000
+              },
+              {
+                "as": "l309",
+                "listCategory": "redis"
+              },
+              {
+                "as": "r310",
+                "getCourse": "c8"
+              },
+              {
+                "advance": 660
+              },
+              {
+                "as": "u311",
+                "updateCoursePrice": "c10",
+                "priceVnd": 260000
+              },
+              {
+                "as": "r312",
+                "getCourse": "c117"
+              },
+              {
+                "as": "r313",
+                "getCourse": "c2"
+              },
+              {
+                "as": "u314",
+                "updateCoursePrice": "c8",
+                "priceVnd": 229000
+              },
+              {
+                "as": "r315",
+                "getCourse": "c11"
+              },
+              {
+                "as": "l316",
+                "listCategory": "react"
+              },
+              {
+                "as": "u317",
+                "updateCoursePrice": "c59",
+                "priceVnd": 295000
+              },
+              {
+                "as": "u318",
+                "updateCoursePrice": "c1",
+                "priceVnd": 267000,
+                "slow": true
+              },
+              {
+                "as": "r319",
+                "getCourse": "c60"
+              },
+              {
+                "resume": "r306"
+              },
+              {
+                "as": "r320",
+                "getCourse": "c7"
+              },
+              {
+                "advance": 1020
+              },
+              {
+                "as": "l321",
+                "listCategory": "react"
+              },
+              {
+                "as": "r322",
+                "getCourse": "c110"
+              },
+              {
+                "as": "r323",
+                "getCourse": "c7"
+              },
+              {
+                "as": "u324",
+                "updateCoursePrice": "c39",
+                "priceVnd": 202000
+              },
+              {
+                "as": "l325",
+                "listCategory": "database"
+              },
+              {
+                "as": "r326",
+                "getCourse": "c3"
+              },
+              {
+                "advance": 540
+              },
+              {
+                "as": "u327",
+                "updateCoursePrice": "c6",
+                "priceVnd": 179000
+              },
+              {
+                "as": "l328",
+                "listCategory": "devops"
+              },
+              {
+                "as": "r329",
+                "getCourse": "c106"
+              },
+              {
+                "as": "u330",
+                "updateCoursePrice": "c1",
+                "priceVnd": 245000
+              },
+              {
+                "as": "r331",
+                "getCourse": "c10",
+                "slow": true
+              },
+              {
+                "as": "l332",
+                "listCategory": "react"
+              },
+              {
+                "as": "r333",
+                "getCourse": "c11"
+              },
+              {
+                "as": "r334",
+                "getCourse": "c7"
+              },
+              {
+                "as": "r335",
+                "getCourse": "c2"
+              },
+              {
+                "as": "l336",
+                "listCategory": "react",
+                "slow": true
+              },
+              {
+                "as": "r337",
+                "getCourse": "c104",
+                "slow": true
+              },
+              {
+                "as": "l338",
+                "listCategory": "database"
+              },
+              {
+                "as": "l339",
+                "listCategory": "devops"
+              },
+              {
+                "as": "r340",
+                "getCourse": "c39"
+              },
+              {
+                "as": "r341",
+                "getCourse": "c14"
+              },
+              {
+                "as": "r342",
+                "getCourse": "c2"
+              },
+              {
+                "as": "u343",
+                "updateCoursePrice": "c12",
+                "priceVnd": 153000
+              },
+              {
+                "as": "l344",
+                "listCategory": "node"
+              },
+              {
+                "as": "r345",
+                "getCourse": "c12",
+                "slow": true
+              },
+              {
+                "as": "l346",
+                "listCategory": "react"
+              },
+              {
+                "as": "u347",
+                "updateCoursePrice": "c8",
+                "priceVnd": 205000
+              },
+              {
+                "as": "l348",
+                "listCategory": "ai"
+              },
+              {
+                "as": "l349",
+                "listCategory": "node"
+              },
+              {
+                "as": "u350",
+                "updateCoursePrice": "c10",
+                "priceVnd": 250000
+              },
+              {
+                "as": "u351",
+                "updateCoursePrice": "c6",
+                "priceVnd": 189000,
+                "slow": true
+              },
+              {
+                "as": "r352",
+                "getCourse": "c5"
+              },
+              {
+                "advance": 1020
+              },
+              {
+                "as": "u353",
+                "updateCoursePrice": "c11",
+                "priceVnd": 267000
+              },
+              {
+                "advance": 780
+              },
+              {
+                "resume": "u318"
+              },
+              {
+                "as": "r354",
+                "getCourse": "c12"
+              },
+              {
+                "as": "l355",
+                "listCategory": "database",
+                "slow": true
+              },
+              {
+                "as": "l356",
+                "listCategory": "devops"
+              },
+              {
+                "as": "u357",
+                "updateCoursePrice": "c9",
+                "priceVnd": 127000
+              },
+              {
+                "as": "r358",
+                "getCourse": "c18"
+              },
+              {
+                "resume": "r331"
+              },
+              {
+                "as": "u359",
+                "updateCoursePrice": "c6",
+                "priceVnd": 145000
+              },
+              {
+                "as": "u360",
+                "updateCoursePrice": "c78",
+                "priceVnd": 178000,
+                "slow": true
+              },
+              {
+                "as": "u361",
+                "updateCoursePrice": "c3",
+                "priceVnd": 286000
+              },
+              {
+                "resume": "l336"
+              },
+              {
+                "as": "u362",
+                "updateCoursePrice": "c14",
+                "priceVnd": 105000
+              },
+              {
+                "as": "u363",
+                "updateCoursePrice": "c5",
+                "priceVnd": 266000
+              },
+              {
+                "as": "u364",
+                "updateCoursePrice": "c7",
+                "priceVnd": 268000
+              },
+              {
+                "resume": "u360"
+              },
+              {
+                "as": "r365",
+                "getCourse": "c56"
+              },
+              {
+                "as": "r366",
+                "getCourse": "c9"
+              },
+              {
+                "advance": 1320
+              },
+              {
+                "advance": 1800
+              },
+              {
+                "as": "l367",
+                "listCategory": "database"
+              },
+              {
+                "as": "r368",
+                "getCourse": "c6"
+              },
+              {
+                "advance": 1800
+              },
+              {
+                "as": "u369",
+                "updateCoursePrice": "c1",
+                "priceVnd": 126000
+              },
+              {
+                "as": "r370",
+                "getCourse": "c9"
+              },
+              {
+                "advance": 120
+              },
+              {
+                "advance": 1800
+              },
+              {
+                "as": "r371",
+                "getCourse": "c32"
+              },
+              {
+                "as": "l372",
+                "listCategory": "ai"
+              },
+              {
+                "resume": "r337"
+              },
+              {
+                "as": "r373",
+                "getCourse": "c101"
+              },
+              {
+                "as": "l374",
+                "listCategory": "redis"
+              },
+              {
+                "advance": 420
+              },
+              {
+                "resume": "u351"
+              },
+              {
+                "as": "l375",
+                "listCategory": "react",
+                "slow": true
+              },
+              {
+                "advance": 780
+              },
+              {
+                "resume": "r345"
+              },
+              {
+                "resume": "l355"
+              },
+              {
+                "as": "r376",
+                "getCourse": "c11"
+              },
+              {
+                "resume": "l375"
+              },
+              {
+                "as": "u377",
+                "updateCoursePrice": "c4",
+                "priceVnd": 250000
+              },
+              {
+                "as": "u378",
+                "updateCoursePrice": "c12",
+                "priceVnd": 149000
+              },
+              {
+                "as": "r379",
+                "getCourse": "c11"
+              },
+              {
+                "as": "r380",
+                "getCourse": "c4"
+              },
+              {
+                "as": "r381",
+                "getCourse": "c4"
+              },
+              {
+                "as": "r382",
+                "getCourse": "c1"
+              },
+              {
+                "as": "r383",
+                "getCourse": "c94",
+                "slow": true
+              },
+              {
+                "as": "r384",
+                "getCourse": "c16",
+                "slow": true
+              },
+              {
+                "as": "r385",
+                "getCourse": "c5"
+              },
+              {
+                "as": "r386",
+                "getCourse": "c6"
+              },
+              {
+                "as": "r387",
+                "getCourse": "c37"
+              },
+              {
+                "as": "u388",
+                "updateCoursePrice": "c3",
+                "priceVnd": 100000
+              },
+              {
+                "as": "l389",
+                "listCategory": "database"
+              },
+              {
+                "advance": 1440
+              },
+              {
+                "as": "r390",
+                "getCourse": "c2"
+              },
+              {
+                "advance": 1680
+              },
+              {
+                "as": "l391",
+                "listCategory": "node"
+              },
+              {
+                "as": "l392",
+                "listCategory": "database"
+              },
+              {
+                "as": "r393",
+                "getCourse": "c11"
+              },
+              {
+                "as": "u394",
+                "updateCoursePrice": "c7",
+                "priceVnd": 226000
+              },
+              {
+                "advance": 1500
+              },
+              {
+                "advance": 120
+              },
+              {
+                "as": "r395",
+                "getCourse": "c4",
+                "slow": true
+              },
+              {
+                "as": "u396",
+                "updateCoursePrice": "c11",
+                "priceVnd": 292000
+              },
+              {
+                "as": "l397",
+                "listCategory": "database"
+              },
+              {
+                "resume": "r384"
+              },
+              {
+                "resume": "r383"
+              },
+              {
+                "as": "u398",
+                "updateCoursePrice": "c1",
+                "priceVnd": 294000
+              },
+              {
+                "as": "r399",
+                "getCourse": "c11"
+              },
+              {
+                "advance": 600
+              },
+              {
+                "as": "r400",
+                "getCourse": "c7"
+              },
+              {
+                "resume": "r395"
+              },
+              {
+                "as": "r401",
+                "getCourse": "c95"
+              },
+              {
+                "as": "l402",
+                "listCategory": "devops"
+              },
+              {
+                "advance": 900
+              },
+              {
+                "as": "r403",
+                "getCourse": "c9",
+                "slow": true
+              },
+              {
+                "as": "r404",
+                "getCourse": "c2"
+              },
+              {
+                "as": "r405",
+                "getCourse": "c4"
+              },
+              {
+                "advance": 900
+              },
+              {
+                "as": "r406",
+                "getCourse": "c12"
+              },
+              {
+                "as": "l407",
+                "listCategory": "react"
+              },
+              {
+                "as": "r408",
+                "getCourse": "c1",
+                "slow": true
+              },
+              {
+                "as": "l409",
+                "listCategory": "ai",
+                "slow": true
+              },
+              {
+                "as": "r410",
+                "getCourse": "c82"
+              },
+              {
+                "as": "u411",
+                "updateCoursePrice": "c11",
+                "priceVnd": 108000
+              },
+              {
+                "as": "u412",
+                "updateCoursePrice": "c22",
+                "priceVnd": 151000,
+                "slow": true
+              },
+              {
+                "as": "r413",
+                "getCourse": "c2"
+              },
+              {
+                "advance": 1440
+              },
+              {
+                "as": "r414",
+                "getCourse": "c4",
+                "slow": true
+              },
+              {
+                "as": "l415",
+                "listCategory": "database"
+              },
+              {
+                "as": "r416",
+                "getCourse": "c75"
+              },
+              {
+                "as": "r417",
+                "getCourse": "c51"
+              },
+              {
+                "as": "r418",
+                "getCourse": "c82"
+              },
+              {
+                "as": "l419",
+                "listCategory": "ai"
+              },
+              {
+                "as": "l420",
+                "listCategory": "redis"
+              },
+              {
+                "as": "r421",
+                "getCourse": "c6",
+                "slow": true
+              },
+              {
+                "as": "u422",
+                "updateCoursePrice": "c10",
+                "priceVnd": 102000,
+                "slow": true
+              },
+              {
+                "as": "u423",
+                "updateCoursePrice": "c6",
+                "priceVnd": 103000
+              },
+              {
+                "as": "u424",
+                "updateCoursePrice": "c1",
+                "priceVnd": 104000
+              },
+              {
+                "as": "r425",
+                "getCourse": "c10"
+              },
+              {
+                "resume": "r414"
+              },
+              {
+                "advance": 300
+              },
+              {
+                "advance": 1320
+              },
+              {
+                "as": "r426",
+                "getCourse": "c11"
+              },
+              {
+                "as": "u427",
+                "updateCoursePrice": "c7",
+                "priceVnd": 100000
+              },
+              {
+                "as": "r428",
+                "getCourse": "c2"
+              },
+              {
+                "as": "l429",
+                "listCategory": "devops",
+                "slow": true
+              },
+              {
+                "as": "r430",
+                "getCourse": "c2"
+              },
+              {
+                "as": "u431",
+                "updateCoursePrice": "c6",
+                "priceVnd": 210000,
+                "slow": true
+              },
+              {
+                "resume": "l409"
+              },
+              {
+                "as": "r432",
+                "getCourse": "c6"
+              },
+              {
+                "as": "l433",
+                "listCategory": "node"
+              },
+              {
+                "as": "r434",
+                "getCourse": "c11"
+              },
+              {
+                "as": "l435",
+                "listCategory": "node"
+              },
+              {
+                "as": "u436",
+                "updateCoursePrice": "c2",
+                "priceVnd": 279000
+              },
+              {
+                "advance": 600
+              },
+              {
+                "as": "r437",
+                "getCourse": "c8",
+                "slow": true
+              },
+              {
+                "as": "r438",
+                "getCourse": "c12"
+              },
+              {
+                "as": "u439",
+                "updateCoursePrice": "c3",
+                "priceVnd": 189000
+              },
+              {
+                "resume": "u412"
+              },
+              {
+                "resume": "r437"
+              },
+              {
+                "as": "l440",
+                "listCategory": "redis",
+                "slow": true
+              },
+              {
+                "as": "l441",
+                "listCategory": "ai"
+              },
+              {
+                "advance": 660
+              },
+              {
+                "as": "l442",
+                "listCategory": "devops"
+              },
+              {
+                "resume": "r421"
+              },
+              {
+                "as": "r443",
+                "getCourse": "c71"
+              },
+              {
+                "advance": 1440
+              },
+              {
+                "advance": 540
+              },
+              {
+                "as": "u444",
+                "updateCoursePrice": "c9",
+                "priceVnd": 162000
+              },
+              {
+                "resume": "r403"
+              },
+              {
+                "as": "r445",
+                "getCourse": "c31"
+              },
+              {
+                "as": "r446",
+                "getCourse": "c9"
+              },
+              {
+                "as": "r447",
+                "getCourse": "c89"
+              },
+              {
+                "as": "r448",
+                "getCourse": "c6"
+              },
+              {
+                "as": "u449",
+                "updateCoursePrice": "c46",
+                "priceVnd": 135000
+              },
+              {
+                "resume": "u422"
+              },
+              {
+                "as": "r450",
+                "getCourse": "c8"
+              },
+              {
+                "as": "r451",
+                "getCourse": "c3",
+                "slow": true
+              },
+              {
+                "as": "r452",
+                "getCourse": "c11"
+              },
+              {
+                "as": "l453",
+                "listCategory": "database"
+              },
+              {
+                "as": "u454",
+                "updateCoursePrice": "c8",
+                "priceVnd": 253000
+              },
+              {
+                "as": "r455",
+                "getCourse": "c21"
+              },
+              {
+                "advance": 1740
+              },
+              {
+                "resume": "u431"
+              },
+              {
+                "as": "u456",
+                "updateCoursePrice": "c63",
+                "priceVnd": 130000
+              },
+              {
+                "as": "r457",
+                "getCourse": "c9"
+              },
+              {
+                "as": "u458",
+                "updateCoursePrice": "c11",
+                "priceVnd": 274000
+              },
+              {
+                "as": "r459",
+                "getCourse": "c10",
+                "slow": true
+              },
+              {
+                "resume": "l429"
+              },
+              {
+                "as": "r460",
+                "getCourse": "c104"
+              },
+              {
+                "as": "r461",
+                "getCourse": "c2"
+              },
+              {
+                "as": "r462",
+                "getCourse": "c4"
+              },
+              {
+                "as": "r463",
+                "getCourse": "c1",
+                "slow": true
+              },
+              {
+                "as": "l464",
+                "listCategory": "node"
+              },
+              {
+                "as": "r465",
+                "getCourse": "c3"
+              },
+              {
+                "as": "r466",
+                "getCourse": "c55"
+              },
+              {
+                "as": "l467",
+                "listCategory": "database"
+              },
+              {
+                "as": "l468",
+                "listCategory": "react"
+              },
+              {
+                "as": "u469",
+                "updateCoursePrice": "c9",
+                "priceVnd": 283000
+              },
+              {
+                "as": "u470",
+                "updateCoursePrice": "c27",
+                "priceVnd": 107000
+              },
+              {
+                "advance": 60
+              },
+              {
+                "as": "l471",
+                "listCategory": "devops"
+              },
+              {
+                "as": "u472",
+                "updateCoursePrice": "c11",
+                "priceVnd": 214000
+              },
+              {
+                "as": "u473",
+                "updateCoursePrice": "c2",
+                "priceVnd": 199000
+              },
+              {
+                "resume": "r408"
+              },
+              {
+                "as": "r474",
+                "getCourse": "c1"
+              },
+              {
+                "as": "l475",
+                "listCategory": "node"
+              },
+              {
+                "as": "u476",
+                "updateCoursePrice": "c8",
+                "priceVnd": 103000
+              },
+              {
+                "as": "u477",
+                "updateCoursePrice": "c4",
+                "priceVnd": 288000
+              },
+              {
+                "advance": 1620
+              },
+              {
+                "resume": "r451"
+              },
+              {
+                "as": "r478",
+                "getCourse": "c11"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "as": "r479",
+                "getCourse": "c15"
+              },
+              {
+                "advance": 480
+              },
+              {
+                "as": "r480",
+                "getCourse": "c6"
+              },
+              {
+                "as": "l481",
+                "listCategory": "ai",
+                "slow": true
+              },
+              {
+                "as": "r482",
+                "getCourse": "c6"
+              },
+              {
+                "as": "r483",
+                "getCourse": "c12",
+                "slow": true
+              },
+              {
+                "as": "l484",
+                "listCategory": "react"
+              },
+              {
+                "as": "r485",
+                "getCourse": "c94"
+              },
+              {
+                "as": "u486",
+                "updateCoursePrice": "c3",
+                "priceVnd": 103000,
+                "slow": true
+              },
+              {
+                "as": "u487",
+                "updateCoursePrice": "c1",
+                "priceVnd": 147000
+              },
+              {
+                "as": "u488",
+                "updateCoursePrice": "c109",
+                "priceVnd": 192000
+              },
+              {
+                "advance": 1620
+              },
+              {
+                "as": "r489",
+                "getCourse": "c4"
+              },
+              {
+                "as": "l490",
+                "listCategory": "node"
+              },
+              {
+                "as": "r491",
+                "getCourse": "c38"
+              },
+              {
+                "resume": "l481"
+              },
+              {
+                "as": "l492",
+                "listCategory": "database"
+              },
+              {
+                "as": "r493",
+                "getCourse": "c11"
+              },
+              {
+                "resume": "r459"
+              },
+              {
+                "as": "l494",
+                "listCategory": "ai"
+              },
+              {
+                "as": "u495",
+                "updateCoursePrice": "c36",
+                "priceVnd": 166000
+              },
+              {
+                "as": "u496",
+                "updateCoursePrice": "c20",
+                "priceVnd": 173000
+              },
+              {
+                "as": "u497",
+                "updateCoursePrice": "c10",
+                "priceVnd": 136000,
+                "slow": true
+              },
+              {
+                "as": "l498",
+                "listCategory": "devops",
+                "slow": true
+              },
+              {
+                "advance": 300
+              },
+              {
+                "as": "r499",
+                "getCourse": "c6",
+                "slow": true
+              },
+              {
+                "as": "r500",
+                "getCourse": "c4"
+              },
+              {
+                "as": "u501",
+                "updateCoursePrice": "c3",
+                "priceVnd": 137000
+              },
+              {
+                "as": "u502",
+                "updateCoursePrice": "c9",
+                "priceVnd": 182000,
+                "slow": true
+              },
+              {
+                "as": "r503",
+                "getCourse": "c8"
+              },
+              {
+                "as": "u504",
+                "updateCoursePrice": "c117",
+                "priceVnd": 255000
+              },
+              {
+                "advance": 1080
+              },
+              {
+                "resume": "r483"
+              },
+              {
+                "resume": "l440"
+              },
+              {
+                "resume": "r463"
+              },
+              {
+                "resume": "u486"
+              },
+              {
+                "resume": "u497"
+              },
+              {
+                "resume": "l498"
+              },
+              {
+                "resume": "r499"
+              },
+              {
+                "resume": "u502"
+              },
+              {
+                "as": "z1",
+                "getCourse": "c1"
+              },
+              {
+                "as": "z2",
+                "getCourse": "c2"
+              },
+              {
+                "as": "z3",
+                "getCourse": "c3"
+              },
+              {
+                "as": "z4",
+                "getCourse": "c4"
+              },
+              {
+                "as": "z5",
+                "getCourse": "c5"
+              },
+              {
+                "as": "z6",
+                "getCourse": "c6"
+              },
+              {
+                "as": "z7",
+                "getCourse": "c7"
+              },
+              {
+                "as": "z8",
+                "getCourse": "c8"
+              },
+              {
+                "as": "z9",
+                "getCourse": "c9"
+              },
+              {
+                "as": "z10",
+                "getCourse": "c10"
+              },
+              {
+                "as": "z11",
+                "getCourse": "c11"
+              },
+              {
+                "as": "z12",
+                "getCourse": "c12"
+              },
+              {
+                "as": "yredis",
+                "listCategory": "redis"
+              },
+              {
+                "as": "ydatabase",
+                "listCategory": "database"
+              },
+              {
+                "as": "ynode",
+                "listCategory": "node"
+              },
+              {
+                "as": "yreact",
+                "listCategory": "react"
+              },
+              {
+                "as": "ydevops",
+                "listCategory": "devops"
+              },
+              {
+                "as": "yai",
+                "listCategory": "ai"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": "+660s\nr1 getCourse c9 -> Course 9 281000 (db)\nu2 updateCoursePrice c8 256000 -> waiting for PostgreSQL\nr3 getCourse c11 -> waiting for PostgreSQL\nl4 listCategory devops -> c10 195000, c100 140000, c106 141000, c112 171000, c118 186000, c16 276000, c22 141000, c28 234000, c34 236000, c4 138000, c40 252000, c46 190000, c52 248000, c58 111000, c64 168000, c70 290000, c76 169000, c82 156000, c88 265000, c94 227000 (db)\nr5 getCourse c9 -> Course 9 281000 (cache)\nl6 listCategory react -> waiting for PostgreSQL\nr7 getCourse c93 -> Course 93 163000 (db)\nr8 getCourse c44 -> Course 44 156000 (db)\nu9 updateCoursePrice c54 244000 -> ok\nl10 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 203000, c27 241000, c3 172000, c33 156000, c39 177000, c45 108000, c51 127000, c57 128000, c63 274000, c69 163000, c75 248000, c81 292000, c87 138000, c9 281000, c93 163000, c99 251000 (db)\nl11 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 203000, c27 241000, c3 172000, c33 156000, c39 177000, c45 108000, c51 127000, c57 128000, c63 274000, c69 163000, c75 248000, c81 292000, c87 138000, c9 281000, c93 163000, c99 251000 (cache)\nl12 listCategory redis -> c102 264000, c108 195000, c114 226000, c12 115000, c120 292000, c18 233000, c24 154000, c30 195000, c36 190000, c42 195000, c48 142000, c54 244000, c6 265000, c60 215000, c66 252000, c72 293000, c78 280000, c84 108000, c90 165000, c96 259000 (db)\nu13 updateCoursePrice c4 274000 -> waiting for PostgreSQL\nr14 getCourse c7 -> Course 7 193000 (db)\nl15 listCategory node -> c104 223000, c110 187000, c116 270000, c14 224000, c2 102000, c20 282000, c26 144000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 197000, c74 291000, c8 218000, c80 255000, c86 207000, c92 135000, c98 139000 (db)\nl16 listCategory devops -> c10 195000, c100 140000, c106 141000, c112 171000, c118 186000, c16 276000, c22 141000, c28 234000, c34 236000, c4 138000, c40 252000, c46 190000, c52 248000, c58 111000, c64 168000, c70 290000, c76 169000, c82 156000, c88 265000, c94 227000 (cache)\nresume r3: r3 getCourse c11 -> Course 11 208000 (db)\nr17 getCourse c11 -> Course 11 208000 (cache)\nl18 listCategory node -> c104 223000, c110 187000, c116 270000, c14 224000, c2 102000, c20 282000, c26 144000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 197000, c74 291000, c8 218000, c80 255000, c86 207000, c92 135000, c98 139000 (cache)\n+240s\nr19 getCourse c12 -> Course 12 115000 (db)\nr20 getCourse c4 -> waiting for PostgreSQL\nu21 updateCoursePrice c8 292000 -> ok\nr22 getCourse c7 -> Course 7 193000 (cache)\nl23 listCategory devops -> c10 195000, c100 140000, c106 141000, c112 171000, c118 186000, c16 276000, c22 141000, c28 234000, c34 236000, c4 138000, c40 252000, c46 190000, c52 248000, c58 111000, c64 168000, c70 290000, c76 169000, c82 156000, c88 265000, c94 227000 (cache)\nr24 getCourse c6 -> Course 6 265000 (db)\nresume u13: u13 updateCoursePrice c4 274000 -> ok\nl25 listCategory database -> waiting for PostgreSQL\nu26 updateCoursePrice c2 127000 -> ok\nu27 updateCoursePrice c21 286000 -> waiting for PostgreSQL\nu28 updateCoursePrice c10 295000 -> ok\nl29 listCategory devops -> c10 295000, c100 140000, c106 141000, c112 171000, c118 186000, c16 276000, c22 141000, c28 234000, c34 236000, c4 274000, c40 252000, c46 190000, c52 248000, c58 111000, c64 168000, c70 290000, c76 169000, c82 156000, c88 265000, c94 227000 (db)\nu30 updateCoursePrice c22 271000 -> ok\nu31 updateCoursePrice c5 225000 -> ok\nr32 getCourse c6 -> Course 6 265000 (cache)\nu33 updateCoursePrice c2 186000 -> ok\nl34 listCategory database -> c1 207000, c103 252000, c109 201000, c115 108000, c13 119000, c19 195000, c25 202000, c31 241000, c37 218000, c43 154000, c49 196000, c55 288000, c61 295000, c67 285000, c7 193000, c73 120000, c79 117000, c85 241000, c91 185000, c97 194000 (db)\nr35 getCourse c4 -> Course 4 274000 (db)\nl36 listCategory devops -> c10 295000, c100 140000, c106 141000, c112 171000, c118 186000, c16 276000, c22 271000, c28 234000, c34 236000, c4 274000, c40 252000, c46 190000, c52 248000, c58 111000, c64 168000, c70 290000, c76 169000, c82 156000, c88 265000, c94 227000 (db)\n+1440s\nr37 getCourse c8 -> Course 8 292000 (db)\nresume l6: l6 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 203000, c27 241000, c3 172000, c33 156000, c39 177000, c45 108000, c51 127000, c57 128000, c63 274000, c69 163000, c75 248000, c81 292000, c87 138000, c9 281000, c93 163000, c99 251000 (db)\nr38 getCourse c81 -> waiting for PostgreSQL\nresume u2: u2 updateCoursePrice c8 256000 -> ok\nresume l18: l18 listCategory node -> c104 223000, c110 187000, c116 270000, c14 224000, c2 102000, c20 282000, c26 144000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 197000, c74 291000, c8 218000, c80 255000, c86 207000, c92 135000, c98 139000 (cache)\nr39 getCourse c104 -> waiting for PostgreSQL\nr40 getCourse c12 -> Course 12 115000 (cache)\nu41 updateCoursePrice c26 139000 -> waiting for PostgreSQL\nl42 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 203000, c27 241000, c3 172000, c33 156000, c39 177000, c45 108000, c51 127000, c57 128000, c63 274000, c69 163000, c75 248000, c81 292000, c87 138000, c9 281000, c93 163000, c99 251000 (cache)\nresume l25: l25 listCategory database -> c1 207000, c103 252000, c109 201000, c115 108000, c13 119000, c19 195000, c25 202000, c31 241000, c37 218000, c43 154000, c49 196000, c55 288000, c61 295000, c67 285000, c7 193000, c73 120000, c79 117000, c85 241000, c91 185000, c97 194000 (db)\nr43 getCourse c11 -> Course 11 208000 (cache)\nr44 getCourse c12 -> Course 12 115000 (cache)\nl45 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 203000, c27 241000, c3 172000, c33 156000, c39 177000, c45 108000, c51 127000, c57 128000, c63 274000, c69 163000, c75 248000, c81 292000, c87 138000, c9 281000, c93 163000, c99 251000 (cache)\nr46 getCourse c3 -> Course 3 172000 (db)\nr47 getCourse c1 -> Course 1 207000 (db)\nu48 updateCoursePrice c8 259000 -> waiting for PostgreSQL\nresume r44: r44 getCourse c12 -> Course 12 115000 (cache)\nr49 getCourse c2 -> Course 2 186000 (db)\nu50 updateCoursePrice c8 255000 -> ok\nr51 getCourse c2 -> Course 2 186000 (cache)\nresume u41: u41 updateCoursePrice c26 139000 -> ok\nresume r38: r38 getCourse c81 -> Course 81 292000 (db)\nl52 listCategory node -> c104 223000, c110 187000, c116 270000, c14 224000, c2 186000, c20 282000, c26 139000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 197000, c74 291000, c8 255000, c80 255000, c86 207000, c92 135000, c98 139000 (db)\nresume r39: r39 getCourse c104 -> Course 104 223000 (db)\nr53 getCourse c11 -> Course 11 208000 (cache)\nr54 getCourse c9 -> Course 9 281000 (cache)\nr55 getCourse c40 -> Course 40 252000 (db)\nu56 updateCoursePrice c106 204000 -> ok\nr57 getCourse c3 -> Course 3 172000 (cache)\n+120s\nu58 updateCoursePrice c1 233000 -> waiting for PostgreSQL\n+1320s\nr59 getCourse c116 -> Course 116 270000 (db)\nr60 getCourse c2 -> Course 2 186000 (cache)\nl61 listCategory devops -> c10 295000, c100 140000, c106 204000, c112 171000, c118 186000, c16 276000, c22 271000, c28 234000, c34 236000, c4 274000, c40 252000, c46 190000, c52 248000, c58 111000, c64 168000, c70 290000, c76 169000, c82 156000, c88 265000, c94 227000 (db)\nr62 getCourse c7 -> Course 7 193000 (cache)\nr63 getCourse c45 -> Course 45 108000 (db)\nu64 updateCoursePrice c8 144000 -> waiting for PostgreSQL\nl65 listCategory database -> c1 207000, c103 252000, c109 201000, c115 108000, c13 119000, c19 195000, c25 202000, c31 241000, c37 218000, c43 154000, c49 196000, c55 288000, c61 295000, c67 285000, c7 193000, c73 120000, c79 117000, c85 241000, c91 185000, c97 194000 (cache)\nr66 getCourse c15 -> Course 15 148000 (db)\nr67 getCourse c7 -> Course 7 193000 (cache)\nu68 updateCoursePrice c4 127000 -> waiting for PostgreSQL\nu69 updateCoursePrice c10 119000 -> ok\nr70 getCourse c11 -> Course 11 208000 (cache)\nl71 listCategory redis -> c102 264000, c108 195000, c114 226000, c12 115000, c120 292000, c18 233000, c24 154000, c30 195000, c36 190000, c42 195000, c48 142000, c54 244000, c6 265000, c60 215000, c66 252000, c72 293000, c78 280000, c84 108000, c90 165000, c96 259000 (cache)\nl72 listCategory redis -> c102 264000, c108 195000, c114 226000, c12 115000, c120 292000, c18 233000, c24 154000, c30 195000, c36 190000, c42 195000, c48 142000, c54 244000, c6 265000, c60 215000, c66 252000, c72 293000, c78 280000, c84 108000, c90 165000, c96 259000 (cache)\nresume u58: u58 updateCoursePrice c1 233000 -> ok\nl73 listCategory redis -> c102 264000, c108 195000, c114 226000, c12 115000, c120 292000, c18 233000, c24 154000, c30 195000, c36 190000, c42 195000, c48 142000, c54 244000, c6 265000, c60 215000, c66 252000, c72 293000, c78 280000, c84 108000, c90 165000, c96 259000 (cache)\n+600s\nresume r20: r20 getCourse c4 -> Course 4 138000 (db)\nl74 listCategory node -> c104 223000, c110 187000, c116 270000, c14 224000, c2 186000, c20 282000, c26 139000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 197000, c74 291000, c8 255000, c80 255000, c86 207000, c92 135000, c98 139000 (cache)\nr75 getCourse c7 -> waiting for PostgreSQL\nl76 listCategory ai -> c101 105000, c107 218000, c11 208000, c113 213000, c119 160000, c17 195000, c23 240000, c29 169000, c35 253000, c41 222000, c47 137000, c5 225000, c53 146000, c59 278000, c65 186000, c71 230000, c77 222000, c83 222000, c89 253000, c95 127000 (db)\nresume u64: u64 updateCoursePrice c8 144000 -> ok\nl77 listCategory node -> c104 223000, c110 187000, c116 270000, c14 224000, c2 186000, c20 282000, c26 139000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 197000, c74 291000, c8 144000, c80 255000, c86 207000, c92 135000, c98 139000 (db)\nr78 getCourse c4 -> Course 4 274000 (cache)\nu79 updateCoursePrice c2 165000 -> ok\nr80 getCourse c3 -> Course 3 172000 (cache)\nl81 listCategory redis -> c102 264000, c108 195000, c114 226000, c12 115000, c120 292000, c18 233000, c24 154000, c30 195000, c36 190000, c42 195000, c48 142000, c54 244000, c6 265000, c60 215000, c66 252000, c72 293000, c78 280000, c84 108000, c90 165000, c96 259000 (db)\nr82 getCourse c8 -> Course 8 144000 (db)\nl83 listCategory devops -> c10 119000, c100 140000, c106 204000, c112 171000, c118 186000, c16 276000, c22 271000, c28 234000, c34 236000, c4 274000, c40 252000, c46 190000, c52 248000, c58 111000, c64 168000, c70 290000, c76 169000, c82 156000, c88 265000, c94 227000 (db)\n+1080s\nr84 getCourse c1 -> Course 1 233000 (db)\nu85 updateCoursePrice c3 137000 -> ok\nresume u48: u48 updateCoursePrice c8 259000 -> ok\nresume u68: u68 updateCoursePrice c4 127000 -> ok\nresume r75: r75 getCourse c7 -> Course 7 193000 (db)\nresume l45: l45 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 203000, c27 241000, c3 172000, c33 156000, c39 177000, c45 108000, c51 127000, c57 128000, c63 274000, c69 163000, c75 248000, c81 292000, c87 138000, c9 281000, c93 163000, c99 251000 (cache)\nl86 listCategory redis -> c102 264000, c108 195000, c114 226000, c12 115000, c120 292000, c18 233000, c24 154000, c30 195000, c36 190000, c42 195000, c48 142000, c54 244000, c6 265000, c60 215000, c66 252000, c72 293000, c78 280000, c84 108000, c90 165000, c96 259000 (cache)\nr87 getCourse c3 -> Course 3 137000 (db)\nr88 getCourse c8 -> waiting for PostgreSQL\nr89 getCourse c80 -> Course 80 255000 (db)\nl90 listCategory redis -> c102 264000, c108 195000, c114 226000, c12 115000, c120 292000, c18 233000, c24 154000, c30 195000, c36 190000, c42 195000, c48 142000, c54 244000, c6 265000, c60 215000, c66 252000, c72 293000, c78 280000, c84 108000, c90 165000, c96 259000 (cache)\nu91 updateCoursePrice c30 231000 -> waiting for PostgreSQL\nu92 updateCoursePrice c10 140000 -> ok\nu93 updateCoursePrice c23 263000 -> ok\nresume u27: u27 updateCoursePrice c21 286000 -> ok\nr94 getCourse c7 -> Course 7 193000 (cache)\nl95 listCategory ai -> c101 105000, c107 218000, c11 208000, c113 213000, c119 160000, c17 195000, c23 263000, c29 169000, c35 253000, c41 222000, c47 137000, c5 225000, c53 146000, c59 278000, c65 186000, c71 230000, c77 222000, c83 222000, c89 253000, c95 127000 (db)\nr96 getCourse c42 -> Course 42 195000 (db)\nl97 listCategory node -> c104 223000, c110 187000, c116 270000, c14 224000, c2 165000, c20 282000, c26 139000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 197000, c74 291000, c8 259000, c80 255000, c86 207000, c92 135000, c98 139000 (db)\nresume r88: r88 getCourse c8 -> Course 8 259000 (db)\nr98 getCourse c7 -> Course 7 193000 (cache)\nr99 getCourse c11 -> Course 11 208000 (db)\nl100 listCategory node -> c104 223000, c110 187000, c116 270000, c14 224000, c2 165000, c20 282000, c26 139000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 197000, c74 291000, c8 259000, c80 255000, c86 207000, c92 135000, c98 139000 (cache)\nl101 listCategory redis -> c102 264000, c108 195000, c114 226000, c12 115000, c120 292000, c18 233000, c24 154000, c30 195000, c36 190000, c42 195000, c48 142000, c54 244000, c6 265000, c60 215000, c66 252000, c72 293000, c78 280000, c84 108000, c90 165000, c96 259000 (cache)\nresume r94: r94 getCourse c7 -> Course 7 193000 (cache)\nl102 listCategory node -> c104 223000, c110 187000, c116 270000, c14 224000, c2 165000, c20 282000, c26 139000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 197000, c74 291000, c8 259000, c80 255000, c86 207000, c92 135000, c98 139000 (cache)\nresume l100: l100 listCategory node -> c104 223000, c110 187000, c116 270000, c14 224000, c2 165000, c20 282000, c26 139000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 197000, c74 291000, c8 259000, c80 255000, c86 207000, c92 135000, c98 139000 (cache)\nr103 getCourse c8 -> Course 8 259000 (cache)\nl104 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 286000, c27 241000, c3 137000, c33 156000, c39 177000, c45 108000, c51 127000, c57 128000, c63 274000, c69 163000, c75 248000, c81 292000, c87 138000, c9 281000, c93 163000, c99 251000 (db)\nr105 getCourse c21 -> Course 21 286000 (db)\n+240s\n+1080s\nr106 getCourse c27 -> Course 27 241000 (db)\nl107 listCategory node -> c104 223000, c110 187000, c116 270000, c14 224000, c2 165000, c20 282000, c26 139000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 197000, c74 291000, c8 259000, c80 255000, c86 207000, c92 135000, c98 139000 (cache)\nl108 listCategory ai -> c101 105000, c107 218000, c11 208000, c113 213000, c119 160000, c17 195000, c23 263000, c29 169000, c35 253000, c41 222000, c47 137000, c5 225000, c53 146000, c59 278000, c65 186000, c71 230000, c77 222000, c83 222000, c89 253000, c95 127000 (cache)\nu109 updateCoursePrice c2 106000 -> waiting for PostgreSQL\nr110 getCourse c43 -> Course 43 154000 (db)\nr111 getCourse c4 -> Course 4 127000 (db)\n+840s\nr112 getCourse c75 -> waiting for PostgreSQL\nr113 getCourse c119 -> waiting for PostgreSQL\nu114 updateCoursePrice c7 269000 -> ok\nr115 getCourse c4 -> Course 4 127000 (cache)\nresume r113: r113 getCourse c119 -> Course 119 160000 (db)\nr116 getCourse c110 -> Course 110 187000 (db)\nu117 updateCoursePrice c10 155000 -> ok\nu118 updateCoursePrice c71 270000 -> ok\nr119 getCourse c3 -> Course 3 137000 (cache)\nresume u109: u109 updateCoursePrice c2 106000 -> ok\nu120 updateCoursePrice c43 196000 -> ok\n+420s\nresume u91: u91 updateCoursePrice c30 231000 -> ok\nr121 getCourse c7 -> Course 7 269000 (db)\nresume l107: l107 listCategory node -> c104 223000, c110 187000, c116 270000, c14 224000, c2 165000, c20 282000, c26 139000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 197000, c74 291000, c8 259000, c80 255000, c86 207000, c92 135000, c98 139000 (cache)\nresume r112: r112 getCourse c75 -> Course 75 248000 (db)\n+660s\nr122 getCourse c102 -> Course 102 264000 (db)\n+1020s\nresume r70: r70 getCourse c11 -> Course 11 208000 (cache)\nl123 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 286000, c27 241000, c3 137000, c33 156000, c39 177000, c45 108000, c51 127000, c57 128000, c63 274000, c69 163000, c75 248000, c81 292000, c87 138000, c9 281000, c93 163000, c99 251000 (db)\nl124 listCategory database -> c1 233000, c103 252000, c109 201000, c115 108000, c13 119000, c19 195000, c25 202000, c31 241000, c37 218000, c43 196000, c49 196000, c55 288000, c61 295000, c67 285000, c7 269000, c73 120000, c79 117000, c85 241000, c91 185000, c97 194000 (db)\nr125 getCourse c3 -> Course 3 137000 (db)\nr126 getCourse c3 -> Course 3 137000 (cache)\n+600s\nr127 getCourse c9 -> Course 9 281000 (db)\nr128 getCourse c6 -> waiting for PostgreSQL\n+720s\nl129 listCategory ai -> c101 105000, c107 218000, c11 208000, c113 213000, c119 160000, c17 195000, c23 263000, c29 169000, c35 253000, c41 222000, c47 137000, c5 225000, c53 146000, c59 278000, c65 186000, c71 270000, c77 222000, c83 222000, c89 253000, c95 127000 (db)\nr130 getCourse c10 -> Course 10 155000 (db)\nl131 listCategory node -> c104 223000, c110 187000, c116 270000, c14 224000, c2 106000, c20 282000, c26 139000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 197000, c74 291000, c8 259000, c80 255000, c86 207000, c92 135000, c98 139000 (db)\nr132 getCourse c1 -> Course 1 233000 (db)\nu133 updateCoursePrice c12 132000 -> ok\nl134 listCategory devops -> c10 155000, c100 140000, c106 204000, c112 171000, c118 186000, c16 276000, c22 271000, c28 234000, c34 236000, c4 127000, c40 252000, c46 190000, c52 248000, c58 111000, c64 168000, c70 290000, c76 169000, c82 156000, c88 265000, c94 227000 (db)\nl135 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 286000, c27 241000, c3 137000, c33 156000, c39 177000, c45 108000, c51 127000, c57 128000, c63 274000, c69 163000, c75 248000, c81 292000, c87 138000, c9 281000, c93 163000, c99 251000 (cache)\nresume r128: r128 getCourse c6 -> Course 6 265000 (db)\nr136 getCourse c2 -> Course 2 106000 (db)\nu137 updateCoursePrice c70 134000 -> ok\nu138 updateCoursePrice c6 140000 -> waiting for PostgreSQL\nr139 getCourse c7 -> Course 7 269000 (cache)\nl140 listCategory node -> c104 223000, c110 187000, c116 270000, c14 224000, c2 106000, c20 282000, c26 139000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 197000, c74 291000, c8 259000, c80 255000, c86 207000, c92 135000, c98 139000 (cache)\nr141 getCourse c1 -> Course 1 233000 (cache)\nresume l135: l135 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 286000, c27 241000, c3 137000, c33 156000, c39 177000, c45 108000, c51 127000, c57 128000, c63 274000, c69 163000, c75 248000, c81 292000, c87 138000, c9 281000, c93 163000, c99 251000 (cache)\nu142 updateCoursePrice c69 218000 -> ok\nr143 getCourse c84 -> Course 84 108000 (db)\nu144 updateCoursePrice c1 198000 -> ok\nresume r141: r141 getCourse c1 -> Course 1 233000 (cache)\nl145 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 286000, c27 241000, c3 137000, c33 156000, c39 177000, c45 108000, c51 127000, c57 128000, c63 274000, c69 218000, c75 248000, c81 292000, c87 138000, c9 281000, c93 163000, c99 251000 (db)\nl146 listCategory devops -> c10 155000, c100 140000, c106 204000, c112 171000, c118 186000, c16 276000, c22 271000, c28 234000, c34 236000, c4 127000, c40 252000, c46 190000, c52 248000, c58 111000, c64 168000, c70 134000, c76 169000, c82 156000, c88 265000, c94 227000 (db)\n+1500s\nr147 getCourse c6 -> Course 6 265000 (cache)\nu148 updateCoursePrice c5 221000 -> ok\nr149 getCourse c10 -> Course 10 155000 (cache)\nresume u138: u138 updateCoursePrice c6 140000 -> ok\nr150 getCourse c10 -> Course 10 155000 (cache)\nu151 updateCoursePrice c84 218000 -> ok\nr152 getCourse c71 -> Course 71 270000 (db)\nl153 listCategory database -> c1 198000, c103 252000, c109 201000, c115 108000, c13 119000, c19 195000, c25 202000, c31 241000, c37 218000, c43 196000, c49 196000, c55 288000, c61 295000, c67 285000, c7 269000, c73 120000, c79 117000, c85 241000, c91 185000, c97 194000 (db)\nr154 getCourse c5 -> Course 5 221000 (db)\nu155 updateCoursePrice c4 157000 -> ok\nu156 updateCoursePrice c102 294000 -> ok\nr157 getCourse c79 -> Course 79 117000 (db)\nu158 updateCoursePrice c57 185000 -> waiting for PostgreSQL\nr159 getCourse c7 -> Course 7 269000 (db)\nr160 getCourse c82 -> Course 82 156000 (db)\nr161 getCourse c10 -> Course 10 155000 (cache)\n+420s\nu162 updateCoursePrice c25 184000 -> ok\nr163 getCourse c110 -> Course 110 187000 (db)\nr164 getCourse c9 -> Course 9 281000 (cache)\nl165 listCategory devops -> c10 155000, c100 140000, c106 204000, c112 171000, c118 186000, c16 276000, c22 271000, c28 234000, c34 236000, c4 157000, c40 252000, c46 190000, c52 248000, c58 111000, c64 168000, c70 134000, c76 169000, c82 156000, c88 265000, c94 227000 (db)\nu166 updateCoursePrice c12 167000 -> ok\nr167 getCourse c5 -> Course 5 221000 (cache)\nresume u158: u158 updateCoursePrice c57 185000 -> ok\nu168 updateCoursePrice c3 188000 -> ok\nr169 getCourse c10 -> Course 10 155000 (cache)\nr170 getCourse c8 -> waiting for PostgreSQL\nu171 updateCoursePrice c9 284000 -> ok\nu172 updateCoursePrice c6 169000 -> waiting for PostgreSQL\nl173 listCategory devops -> c10 155000, c100 140000, c106 204000, c112 171000, c118 186000, c16 276000, c22 271000, c28 234000, c34 236000, c4 157000, c40 252000, c46 190000, c52 248000, c58 111000, c64 168000, c70 134000, c76 169000, c82 156000, c88 265000, c94 227000 (cache)\nr174 getCourse c26 -> Course 26 139000 (db)\nresume u172: u172 updateCoursePrice c6 169000 -> ok\nl175 listCategory devops -> c10 155000, c100 140000, c106 204000, c112 171000, c118 186000, c16 276000, c22 271000, c28 234000, c34 236000, c4 157000, c40 252000, c46 190000, c52 248000, c58 111000, c64 168000, c70 134000, c76 169000, c82 156000, c88 265000, c94 227000 (cache)\nr176 getCourse c9 -> Course 9 284000 (db)\nr177 getCourse c2 -> Course 2 106000 (cache)\nu178 updateCoursePrice c4 201000 -> ok\nl179 listCategory ai -> c101 105000, c107 218000, c11 208000, c113 213000, c119 160000, c17 195000, c23 263000, c29 169000, c35 253000, c41 222000, c47 137000, c5 221000, c53 146000, c59 278000, c65 186000, c71 270000, c77 222000, c83 222000, c89 253000, c95 127000 (db)\nu180 updateCoursePrice c6 286000 -> ok\nr181 getCourse c1 -> Course 1 198000 (db)\nl182 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 286000, c27 241000, c3 188000, c33 156000, c39 177000, c45 108000, c51 127000, c57 185000, c63 274000, c69 218000, c75 248000, c81 292000, c87 138000, c9 284000, c93 163000, c99 251000 (db)\nr183 getCourse c2 -> Course 2 106000 (cache)\nr184 getCourse c25 -> Course 25 184000 (db)\nr185 getCourse c6 -> Course 6 286000 (db)\nr186 getCourse c6 -> Course 6 286000 (cache)\nl187 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 286000, c27 241000, c3 188000, c33 156000, c39 177000, c45 108000, c51 127000, c57 185000, c63 274000, c69 218000, c75 248000, c81 292000, c87 138000, c9 284000, c93 163000, c99 251000 (cache)\nr188 getCourse c10 -> Course 10 155000 (cache)\nresume r170: r170 getCourse c8 -> Course 8 259000 (db)\nu189 updateCoursePrice c7 220000 -> ok\nr190 getCourse c3 -> Course 3 188000 (db)\nresume r177: r177 getCourse c2 -> Course 2 106000 (cache)\nu191 updateCoursePrice c4 231000 -> ok\nr192 getCourse c6 -> Course 6 286000 (cache)\nr193 getCourse c9 -> Course 9 284000 (cache)\nu194 updateCoursePrice c112 201000 -> ok\nr195 getCourse c8 -> Course 8 259000 (cache)\nr196 getCourse c1 -> Course 1 198000 (cache)\nr197 getCourse c9 -> Course 9 284000 (cache)\nr198 getCourse c9 -> Course 9 284000 (cache)\nr199 getCourse c80 -> Course 80 255000 (db)\nr200 getCourse c10 -> Course 10 155000 (cache)\nu201 updateCoursePrice c68 297000 -> ok\nl202 listCategory database -> c1 198000, c103 252000, c109 201000, c115 108000, c13 119000, c19 195000, c25 184000, c31 241000, c37 218000, c43 196000, c49 196000, c55 288000, c61 295000, c67 285000, c7 220000, c73 120000, c79 117000, c85 241000, c91 185000, c97 194000 (db)\nu203 updateCoursePrice c18 221000 -> ok\nr204 getCourse c9 -> Course 9 284000 (cache)\nu205 updateCoursePrice c1 279000 -> ok\n+1560s\nu206 updateCoursePrice c1 109000 -> ok\nu207 updateCoursePrice c6 249000 -> waiting for PostgreSQL\n+420s\nl208 listCategory ai -> c101 105000, c107 218000, c11 208000, c113 213000, c119 160000, c17 195000, c23 263000, c29 169000, c35 253000, c41 222000, c47 137000, c5 221000, c53 146000, c59 278000, c65 186000, c71 270000, c77 222000, c83 222000, c89 253000, c95 127000 (cache)\nr209 getCourse c9 -> Course 9 284000 (cache)\nu210 updateCoursePrice c8 158000 -> ok\nr211 getCourse c9 -> Course 9 284000 (cache)\nresume u207: u207 updateCoursePrice c6 249000 -> ok\nl212 listCategory ai -> c101 105000, c107 218000, c11 208000, c113 213000, c119 160000, c17 195000, c23 263000, c29 169000, c35 253000, c41 222000, c47 137000, c5 221000, c53 146000, c59 278000, c65 186000, c71 270000, c77 222000, c83 222000, c89 253000, c95 127000 (cache)\nr213 getCourse c2 -> Course 2 106000 (db)\nu214 updateCoursePrice c11 216000 -> ok\nr215 getCourse c9 -> Course 9 284000 (cache)\nr216 getCourse c9 -> Course 9 284000 (cache)\nresume r215: r215 getCourse c9 -> Course 9 284000 (cache)\n+1440s\nr217 getCourse c4 -> Course 4 231000 (db)\nr218 getCourse c59 -> Course 59 278000 (db)\nu219 updateCoursePrice c12 99000 -> ok\nu220 updateCoursePrice c1 177000 -> ok\nr221 getCourse c39 -> Course 39 177000 (db)\nr222 getCourse c7 -> Course 7 220000 (db)\nu223 updateCoursePrice c9 183000 -> ok\nr224 getCourse c3 -> Course 3 188000 (cache)\nl225 listCategory devops -> c10 155000, c100 140000, c106 204000, c112 201000, c118 186000, c16 276000, c22 271000, c28 234000, c34 236000, c4 231000, c40 252000, c46 190000, c52 248000, c58 111000, c64 168000, c70 134000, c76 169000, c82 156000, c88 265000, c94 227000 (db)\nl226 listCategory database -> c1 177000, c103 252000, c109 201000, c115 108000, c13 119000, c19 195000, c25 184000, c31 241000, c37 218000, c43 196000, c49 196000, c55 288000, c61 295000, c67 285000, c7 220000, c73 120000, c79 117000, c85 241000, c91 185000, c97 194000 (db)\n+1560s\n+600s\n+900s\nr227 getCourse c9 -> Course 9 183000 (db)\nr228 getCourse c30 -> Course 30 231000 (db)\n+1320s\nl229 listCategory database -> c1 177000, c103 252000, c109 201000, c115 108000, c13 119000, c19 195000, c25 184000, c31 241000, c37 218000, c43 196000, c49 196000, c55 288000, c61 295000, c67 285000, c7 220000, c73 120000, c79 117000, c85 241000, c91 185000, c97 194000 (db)\nr230 getCourse c11 -> Course 11 216000 (db)\nl231 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 286000, c27 241000, c3 188000, c33 156000, c39 177000, c45 108000, c51 127000, c57 185000, c63 274000, c69 218000, c75 248000, c81 292000, c87 138000, c9 183000, c93 163000, c99 251000 (db)\nr232 getCourse c10 -> Course 10 155000 (db)\nu233 updateCoursePrice c5 249000 -> ok\nr234 getCourse c10 -> Course 10 155000 (cache)\n+540s\nr235 getCourse c98 -> Course 98 139000 (db)\nu236 updateCoursePrice c1 171000 -> ok\nr237 getCourse c8 -> waiting for PostgreSQL\nr238 getCourse c32 -> Course 32 141000 (db)\n+60s\nr239 getCourse c59 -> Course 59 278000 (db)\nu240 updateCoursePrice c11 269000 -> waiting for PostgreSQL\nr241 getCourse c115 -> Course 115 108000 (db)\nr242 getCourse c11 -> Course 11 216000 (cache)\nr243 getCourse c9 -> Course 9 183000 (cache)\nu244 updateCoursePrice c5 226000 -> ok\nresume u240: u240 updateCoursePrice c11 269000 -> ok\nr245 getCourse c25 -> Course 25 184000 (db)\nu246 updateCoursePrice c5 163000 -> ok\nr247 getCourse c10 -> Course 10 155000 (cache)\nl248 listCategory ai -> c101 105000, c107 218000, c11 269000, c113 213000, c119 160000, c17 195000, c23 263000, c29 169000, c35 253000, c41 222000, c47 137000, c5 163000, c53 146000, c59 278000, c65 186000, c71 270000, c77 222000, c83 222000, c89 253000, c95 127000 (db)\nr249 getCourse c8 -> Course 8 158000 (db)\nresume r237: r237 getCourse c8 -> Course 8 158000 (db)\nr250 getCourse c9 -> Course 9 183000 (cache)\nr251 getCourse c10 -> Course 10 155000 (cache)\n+540s\nr252 getCourse c75 -> Course 75 248000 (db)\nu253 updateCoursePrice c30 211000 -> ok\n+960s\n+120s\nu254 updateCoursePrice c5 157000 -> ok\nr255 getCourse c118 -> Course 118 186000 (db)\nr256 getCourse c48 -> Course 48 142000 (db)\nr257 getCourse c7 -> Course 7 220000 (db)\nr258 getCourse c12 -> waiting for PostgreSQL\nu259 updateCoursePrice c58 272000 -> ok\n+420s\nu260 updateCoursePrice c3 241000 -> ok\nr261 getCourse c94 -> Course 94 227000 (db)\nu262 updateCoursePrice c30 143000 -> ok\nr263 getCourse c71 -> Course 71 270000 (db)\nr264 getCourse c3 -> Course 3 241000 (db)\nresume r258: r258 getCourse c12 -> Course 12 99000 (db)\nr265 getCourse c99 -> waiting for PostgreSQL\nu266 updateCoursePrice c8 230000 -> ok\nr267 getCourse c4 -> Course 4 231000 (db)\nr268 getCourse c11 -> waiting for PostgreSQL\nr269 getCourse c84 -> Course 84 218000 (db)\n+1680s\nresume r265: r265 getCourse c99 -> Course 99 251000 (db)\nu270 updateCoursePrice c87 99000 -> ok\nr271 getCourse c2 -> Course 2 106000 (db)\nresume r268: r268 getCourse c11 -> Course 11 269000 (db)\nl272 listCategory ai -> waiting for PostgreSQL\nu273 updateCoursePrice c1 240000 -> ok\nu274 updateCoursePrice c8 134000 -> waiting for PostgreSQL\nr275 getCourse c12 -> Course 12 99000 (cache)\nr276 getCourse c3 -> Course 3 241000 (cache)\nr277 getCourse c1 -> Course 1 240000 (db)\nresume u274: u274 updateCoursePrice c8 134000 -> ok\nu278 updateCoursePrice c5 140000 -> ok\nr279 getCourse c10 -> Course 10 155000 (db)\nresume l272: l272 listCategory ai -> c101 105000, c107 218000, c11 269000, c113 213000, c119 160000, c17 195000, c23 263000, c29 169000, c35 253000, c41 222000, c47 137000, c5 157000, c53 146000, c59 278000, c65 186000, c71 270000, c77 222000, c83 222000, c89 253000, c95 127000 (db)\nr280 getCourse c1 -> Course 1 240000 (cache)\nu281 updateCoursePrice c10 210000 -> waiting for PostgreSQL\nr282 getCourse c93 -> waiting for PostgreSQL\n+420s\nr283 getCourse c34 -> Course 34 236000 (db)\nresume r282: r282 getCourse c93 -> Course 93 163000 (db)\nr284 getCourse c1 -> Course 1 240000 (cache)\nu285 updateCoursePrice c11 192000 -> ok\n+120s\nr286 getCourse c2 -> Course 2 106000 (cache)\nr287 getCourse c2 -> Course 2 106000 (cache)\n+1800s\nresume u281: u281 updateCoursePrice c10 210000 -> ok\nu288 updateCoursePrice c3 191000 -> ok\nl289 listCategory react -> waiting for PostgreSQL\nr290 getCourse c104 -> Course 104 223000 (db)\n+1620s\n+1140s\nresume l289: l289 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 286000, c27 241000, c3 191000, c33 156000, c39 177000, c45 108000, c51 127000, c57 185000, c63 274000, c69 218000, c75 248000, c81 292000, c87 99000, c9 183000, c93 163000, c99 251000 (db)\nl291 listCategory database -> c1 240000, c103 252000, c109 201000, c115 108000, c13 119000, c19 195000, c25 184000, c31 241000, c37 218000, c43 196000, c49 196000, c55 288000, c61 295000, c67 285000, c7 220000, c73 120000, c79 117000, c85 241000, c91 185000, c97 194000 (db)\nr292 getCourse c2 -> Course 2 106000 (db)\nl293 listCategory ai -> waiting for PostgreSQL\n+1080s\nresume l293: l293 listCategory ai -> c101 105000, c107 218000, c11 192000, c113 213000, c119 160000, c17 195000, c23 263000, c29 169000, c35 253000, c41 222000, c47 137000, c5 140000, c53 146000, c59 278000, c65 186000, c71 270000, c77 222000, c83 222000, c89 253000, c95 127000 (db)\nr294 getCourse c1 -> Course 1 240000 (db)\nl295 listCategory devops -> c10 210000, c100 140000, c106 204000, c112 201000, c118 186000, c16 276000, c22 271000, c28 234000, c34 236000, c4 231000, c40 252000, c46 190000, c52 248000, c58 272000, c64 168000, c70 134000, c76 169000, c82 156000, c88 265000, c94 227000 (db)\nu296 updateCoursePrice c70 261000 -> ok\nr297 getCourse c99 -> Course 99 251000 (db)\nr298 getCourse c3 -> Course 3 191000 (db)\nr299 getCourse c11 -> Course 11 192000 (db)\nr300 getCourse c2 -> Course 2 106000 (cache)\nr301 getCourse c11 -> Course 11 192000 (cache)\nl302 listCategory devops -> c10 210000, c100 140000, c106 204000, c112 201000, c118 186000, c16 276000, c22 271000, c28 234000, c34 236000, c4 231000, c40 252000, c46 190000, c52 248000, c58 272000, c64 168000, c70 261000, c76 169000, c82 156000, c88 265000, c94 227000 (db)\nr303 getCourse c1 -> Course 1 240000 (cache)\nr304 getCourse c26 -> Course 26 139000 (db)\nu305 updateCoursePrice c6 167000 -> ok\nr306 getCourse c5 -> waiting for PostgreSQL\nu307 updateCoursePrice c11 220000 -> ok\nu308 updateCoursePrice c1 266000 -> ok\nl309 listCategory redis -> c102 294000, c108 195000, c114 226000, c12 99000, c120 292000, c18 221000, c24 154000, c30 143000, c36 190000, c42 195000, c48 142000, c54 244000, c6 167000, c60 215000, c66 252000, c72 293000, c78 280000, c84 218000, c90 165000, c96 259000 (db)\nr310 getCourse c8 -> Course 8 134000 (db)\n+660s\nu311 updateCoursePrice c10 260000 -> ok\nr312 getCourse c117 -> Course 117 164000 (db)\nr313 getCourse c2 -> Course 2 106000 (cache)\nu314 updateCoursePrice c8 229000 -> ok\nr315 getCourse c11 -> Course 11 220000 (db)\nl316 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 286000, c27 241000, c3 191000, c33 156000, c39 177000, c45 108000, c51 127000, c57 185000, c63 274000, c69 218000, c75 248000, c81 292000, c87 99000, c9 183000, c93 163000, c99 251000 (cache)\nu317 updateCoursePrice c59 295000 -> ok\nu318 updateCoursePrice c1 267000 -> waiting for PostgreSQL\nr319 getCourse c60 -> Course 60 215000 (db)\nresume r306: r306 getCourse c5 -> Course 5 140000 (db)\nr320 getCourse c7 -> Course 7 220000 (db)\n+1020s\nl321 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 286000, c27 241000, c3 191000, c33 156000, c39 177000, c45 108000, c51 127000, c57 185000, c63 274000, c69 218000, c75 248000, c81 292000, c87 99000, c9 183000, c93 163000, c99 251000 (cache)\nr322 getCourse c110 -> Course 110 187000 (db)\nr323 getCourse c7 -> Course 7 220000 (cache)\nu324 updateCoursePrice c39 202000 -> ok\nl325 listCategory database -> c1 266000, c103 252000, c109 201000, c115 108000, c13 119000, c19 195000, c25 184000, c31 241000, c37 218000, c43 196000, c49 196000, c55 288000, c61 295000, c67 285000, c7 220000, c73 120000, c79 117000, c85 241000, c91 185000, c97 194000 (db)\nr326 getCourse c3 -> Course 3 191000 (cache)\n+540s\nu327 updateCoursePrice c6 179000 -> ok\nl328 listCategory devops -> c10 260000, c100 140000, c106 204000, c112 201000, c118 186000, c16 276000, c22 271000, c28 234000, c34 236000, c4 231000, c40 252000, c46 190000, c52 248000, c58 272000, c64 168000, c70 261000, c76 169000, c82 156000, c88 265000, c94 227000 (db)\nr329 getCourse c106 -> Course 106 204000 (db)\nu330 updateCoursePrice c1 245000 -> ok\nr331 getCourse c10 -> waiting for PostgreSQL\nl332 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 286000, c27 241000, c3 191000, c33 156000, c39 202000, c45 108000, c51 127000, c57 185000, c63 274000, c69 218000, c75 248000, c81 292000, c87 99000, c9 183000, c93 163000, c99 251000 (db)\nr333 getCourse c11 -> Course 11 220000 (cache)\nr334 getCourse c7 -> Course 7 220000 (cache)\nr335 getCourse c2 -> Course 2 106000 (cache)\nl336 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 286000, c27 241000, c3 191000, c33 156000, c39 202000, c45 108000, c51 127000, c57 185000, c63 274000, c69 218000, c75 248000, c81 292000, c87 99000, c9 183000, c93 163000, c99 251000 (cache)\nr337 getCourse c104 -> waiting for PostgreSQL\nl338 listCategory database -> c1 245000, c103 252000, c109 201000, c115 108000, c13 119000, c19 195000, c25 184000, c31 241000, c37 218000, c43 196000, c49 196000, c55 288000, c61 295000, c67 285000, c7 220000, c73 120000, c79 117000, c85 241000, c91 185000, c97 194000 (db)\nl339 listCategory devops -> c10 260000, c100 140000, c106 204000, c112 201000, c118 186000, c16 276000, c22 271000, c28 234000, c34 236000, c4 231000, c40 252000, c46 190000, c52 248000, c58 272000, c64 168000, c70 261000, c76 169000, c82 156000, c88 265000, c94 227000 (cache)\nr340 getCourse c39 -> Course 39 202000 (db)\nr341 getCourse c14 -> Course 14 224000 (db)\nr342 getCourse c2 -> Course 2 106000 (cache)\nu343 updateCoursePrice c12 153000 -> ok\nl344 listCategory node -> c104 223000, c110 187000, c116 270000, c14 224000, c2 106000, c20 282000, c26 139000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 297000, c74 291000, c8 229000, c80 255000, c86 207000, c92 135000, c98 139000 (db)\nr345 getCourse c12 -> waiting for PostgreSQL\nl346 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 286000, c27 241000, c3 191000, c33 156000, c39 202000, c45 108000, c51 127000, c57 185000, c63 274000, c69 218000, c75 248000, c81 292000, c87 99000, c9 183000, c93 163000, c99 251000 (cache)\nu347 updateCoursePrice c8 205000 -> ok\nl348 listCategory ai -> c101 105000, c107 218000, c11 220000, c113 213000, c119 160000, c17 195000, c23 263000, c29 169000, c35 253000, c41 222000, c47 137000, c5 140000, c53 146000, c59 295000, c65 186000, c71 270000, c77 222000, c83 222000, c89 253000, c95 127000 (db)\nl349 listCategory node -> c104 223000, c110 187000, c116 270000, c14 224000, c2 106000, c20 282000, c26 139000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 297000, c74 291000, c8 205000, c80 255000, c86 207000, c92 135000, c98 139000 (db)\nu350 updateCoursePrice c10 250000 -> ok\nu351 updateCoursePrice c6 189000 -> waiting for PostgreSQL\nr352 getCourse c5 -> Course 5 140000 (cache)\n+1020s\nu353 updateCoursePrice c11 267000 -> ok\n+780s\nresume u318: u318 updateCoursePrice c1 267000 -> ok\nr354 getCourse c12 -> Course 12 153000 (db)\nl355 listCategory database -> waiting for PostgreSQL\nl356 listCategory devops -> c10 250000, c100 140000, c106 204000, c112 201000, c118 186000, c16 276000, c22 271000, c28 234000, c34 236000, c4 231000, c40 252000, c46 190000, c52 248000, c58 272000, c64 168000, c70 261000, c76 169000, c82 156000, c88 265000, c94 227000 (db)\nu357 updateCoursePrice c9 127000 -> ok\nr358 getCourse c18 -> Course 18 221000 (db)\nresume r331: r331 getCourse c10 -> Course 10 260000 (db)\nu359 updateCoursePrice c6 145000 -> ok\nu360 updateCoursePrice c78 178000 -> waiting for PostgreSQL\nu361 updateCoursePrice c3 286000 -> ok\nresume l336: l336 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 286000, c27 241000, c3 191000, c33 156000, c39 202000, c45 108000, c51 127000, c57 185000, c63 274000, c69 218000, c75 248000, c81 292000, c87 99000, c9 183000, c93 163000, c99 251000 (cache)\nu362 updateCoursePrice c14 105000 -> ok\nu363 updateCoursePrice c5 266000 -> ok\nu364 updateCoursePrice c7 268000 -> ok\nresume u360: u360 updateCoursePrice c78 178000 -> ok\nr365 getCourse c56 -> Course 56 162000 (db)\nr366 getCourse c9 -> Course 9 127000 (db)\n+1320s\n+1800s\nl367 listCategory database -> c1 267000, c103 252000, c109 201000, c115 108000, c13 119000, c19 195000, c25 184000, c31 241000, c37 218000, c43 196000, c49 196000, c55 288000, c61 295000, c67 285000, c7 268000, c73 120000, c79 117000, c85 241000, c91 185000, c97 194000 (db)\nr368 getCourse c6 -> Course 6 145000 (db)\n+1800s\nu369 updateCoursePrice c1 126000 -> ok\nr370 getCourse c9 -> Course 9 127000 (db)\n+120s\n+1800s\nr371 getCourse c32 -> Course 32 141000 (db)\nl372 listCategory ai -> c101 105000, c107 218000, c11 267000, c113 213000, c119 160000, c17 195000, c23 263000, c29 169000, c35 253000, c41 222000, c47 137000, c5 266000, c53 146000, c59 295000, c65 186000, c71 270000, c77 222000, c83 222000, c89 253000, c95 127000 (db)\nresume r337: r337 getCourse c104 -> Course 104 223000 (db)\nr373 getCourse c101 -> Course 101 105000 (db)\nl374 listCategory redis -> c102 294000, c108 195000, c114 226000, c12 153000, c120 292000, c18 221000, c24 154000, c30 143000, c36 190000, c42 195000, c48 142000, c54 244000, c6 145000, c60 215000, c66 252000, c72 293000, c78 178000, c84 218000, c90 165000, c96 259000 (db)\n+420s\nresume u351: u351 updateCoursePrice c6 189000 -> ok\nl375 listCategory react -> waiting for PostgreSQL\n+780s\nresume r345: r345 getCourse c12 -> Course 12 153000 (db)\nresume l355: l355 listCategory database -> c1 267000, c103 252000, c109 201000, c115 108000, c13 119000, c19 195000, c25 184000, c31 241000, c37 218000, c43 196000, c49 196000, c55 288000, c61 295000, c67 285000, c7 220000, c73 120000, c79 117000, c85 241000, c91 185000, c97 194000 (db)\nr376 getCourse c11 -> Course 11 267000 (db)\nresume l375: l375 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 286000, c27 241000, c3 286000, c33 156000, c39 202000, c45 108000, c51 127000, c57 185000, c63 274000, c69 218000, c75 248000, c81 292000, c87 99000, c9 127000, c93 163000, c99 251000 (db)\nu377 updateCoursePrice c4 250000 -> ok\nu378 updateCoursePrice c12 149000 -> ok\nr379 getCourse c11 -> Course 11 267000 (cache)\nr380 getCourse c4 -> Course 4 250000 (db)\nr381 getCourse c4 -> Course 4 250000 (cache)\nr382 getCourse c1 -> Course 1 126000 (db)\nr383 getCourse c94 -> waiting for PostgreSQL\nr384 getCourse c16 -> waiting for PostgreSQL\nr385 getCourse c5 -> Course 5 266000 (db)\nr386 getCourse c6 -> Course 6 189000 (db)\nr387 getCourse c37 -> Course 37 218000 (db)\nu388 updateCoursePrice c3 100000 -> ok\nl389 listCategory database -> c1 126000, c103 252000, c109 201000, c115 108000, c13 119000, c19 195000, c25 184000, c31 241000, c37 218000, c43 196000, c49 196000, c55 288000, c61 295000, c67 285000, c7 268000, c73 120000, c79 117000, c85 241000, c91 185000, c97 194000 (db)\n+1440s\nr390 getCourse c2 -> Course 2 106000 (db)\n+1680s\nl391 listCategory node -> c104 223000, c110 187000, c116 270000, c14 105000, c2 106000, c20 282000, c26 139000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 297000, c74 291000, c8 205000, c80 255000, c86 207000, c92 135000, c98 139000 (db)\nl392 listCategory database -> c1 126000, c103 252000, c109 201000, c115 108000, c13 119000, c19 195000, c25 184000, c31 241000, c37 218000, c43 196000, c49 196000, c55 288000, c61 295000, c67 285000, c7 268000, c73 120000, c79 117000, c85 241000, c91 185000, c97 194000 (cache)\nr393 getCourse c11 -> Course 11 267000 (cache)\nu394 updateCoursePrice c7 226000 -> ok\n+1500s\n+120s\nr395 getCourse c4 -> waiting for PostgreSQL\nu396 updateCoursePrice c11 292000 -> ok\nl397 listCategory database -> c1 126000, c103 252000, c109 201000, c115 108000, c13 119000, c19 195000, c25 184000, c31 241000, c37 218000, c43 196000, c49 196000, c55 288000, c61 295000, c67 285000, c7 226000, c73 120000, c79 117000, c85 241000, c91 185000, c97 194000 (db)\nresume r384: r384 getCourse c16 -> Course 16 276000 (db)\nresume r383: r383 getCourse c94 -> Course 94 227000 (db)\nu398 updateCoursePrice c1 294000 -> ok\nr399 getCourse c11 -> Course 11 292000 (db)\n+600s\nr400 getCourse c7 -> Course 7 226000 (db)\nresume r395: r395 getCourse c4 -> Course 4 250000 (db)\nr401 getCourse c95 -> Course 95 127000 (db)\nl402 listCategory devops -> c10 250000, c100 140000, c106 204000, c112 201000, c118 186000, c16 276000, c22 271000, c28 234000, c34 236000, c4 250000, c40 252000, c46 190000, c52 248000, c58 272000, c64 168000, c70 261000, c76 169000, c82 156000, c88 265000, c94 227000 (db)\n+900s\nr403 getCourse c9 -> waiting for PostgreSQL\nr404 getCourse c2 -> Course 2 106000 (db)\nr405 getCourse c4 -> Course 4 250000 (cache)\n+900s\nr406 getCourse c12 -> Course 12 149000 (db)\nl407 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 286000, c27 241000, c3 100000, c33 156000, c39 202000, c45 108000, c51 127000, c57 185000, c63 274000, c69 218000, c75 248000, c81 292000, c87 99000, c9 127000, c93 163000, c99 251000 (db)\nr408 getCourse c1 -> waiting for PostgreSQL\nl409 listCategory ai -> waiting for PostgreSQL\nr410 getCourse c82 -> Course 82 156000 (db)\nu411 updateCoursePrice c11 108000 -> ok\nu412 updateCoursePrice c22 151000 -> waiting for PostgreSQL\nr413 getCourse c2 -> Course 2 106000 (cache)\n+1440s\nr414 getCourse c4 -> Course 4 250000 (cache)\nl415 listCategory database -> c1 294000, c103 252000, c109 201000, c115 108000, c13 119000, c19 195000, c25 184000, c31 241000, c37 218000, c43 196000, c49 196000, c55 288000, c61 295000, c67 285000, c7 226000, c73 120000, c79 117000, c85 241000, c91 185000, c97 194000 (db)\nr416 getCourse c75 -> Course 75 248000 (db)\nr417 getCourse c51 -> Course 51 127000 (db)\nr418 getCourse c82 -> Course 82 156000 (cache)\nl419 listCategory ai -> c101 105000, c107 218000, c11 108000, c113 213000, c119 160000, c17 195000, c23 263000, c29 169000, c35 253000, c41 222000, c47 137000, c5 266000, c53 146000, c59 295000, c65 186000, c71 270000, c77 222000, c83 222000, c89 253000, c95 127000 (db)\nl420 listCategory redis -> c102 294000, c108 195000, c114 226000, c12 149000, c120 292000, c18 221000, c24 154000, c30 143000, c36 190000, c42 195000, c48 142000, c54 244000, c6 189000, c60 215000, c66 252000, c72 293000, c78 178000, c84 218000, c90 165000, c96 259000 (db)\nr421 getCourse c6 -> waiting for PostgreSQL\nu422 updateCoursePrice c10 102000 -> waiting for PostgreSQL\nu423 updateCoursePrice c6 103000 -> ok\nu424 updateCoursePrice c1 104000 -> ok\nr425 getCourse c10 -> Course 10 250000 (db)\nresume r414: r414 getCourse c4 -> Course 4 250000 (cache)\n+300s\n+1320s\nr426 getCourse c11 -> Course 11 108000 (db)\nu427 updateCoursePrice c7 100000 -> ok\nr428 getCourse c2 -> Course 2 106000 (db)\nl429 listCategory devops -> waiting for PostgreSQL\nr430 getCourse c2 -> Course 2 106000 (cache)\nu431 updateCoursePrice c6 210000 -> waiting for PostgreSQL\nresume l409: l409 listCategory ai -> c101 105000, c107 218000, c11 292000, c113 213000, c119 160000, c17 195000, c23 263000, c29 169000, c35 253000, c41 222000, c47 137000, c5 266000, c53 146000, c59 295000, c65 186000, c71 270000, c77 222000, c83 222000, c89 253000, c95 127000 (db)\nr432 getCourse c6 -> Course 6 103000 (db)\nl433 listCategory node -> c104 223000, c110 187000, c116 270000, c14 105000, c2 106000, c20 282000, c26 139000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 297000, c74 291000, c8 205000, c80 255000, c86 207000, c92 135000, c98 139000 (db)\nr434 getCourse c11 -> Course 11 108000 (cache)\nl435 listCategory node -> c104 223000, c110 187000, c116 270000, c14 105000, c2 106000, c20 282000, c26 139000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 297000, c74 291000, c8 205000, c80 255000, c86 207000, c92 135000, c98 139000 (cache)\nu436 updateCoursePrice c2 279000 -> ok\n+600s\nr437 getCourse c8 -> waiting for PostgreSQL\nr438 getCourse c12 -> Course 12 149000 (db)\nu439 updateCoursePrice c3 189000 -> ok\nresume u412: u412 updateCoursePrice c22 151000 -> ok\nresume r437: r437 getCourse c8 -> Course 8 205000 (db)\nl440 listCategory redis -> waiting for PostgreSQL\nl441 listCategory ai -> c101 105000, c107 218000, c11 108000, c113 213000, c119 160000, c17 195000, c23 263000, c29 169000, c35 253000, c41 222000, c47 137000, c5 266000, c53 146000, c59 295000, c65 186000, c71 270000, c77 222000, c83 222000, c89 253000, c95 127000 (cache)\n+660s\nl442 listCategory devops -> c10 250000, c100 140000, c106 204000, c112 201000, c118 186000, c16 276000, c22 151000, c28 234000, c34 236000, c4 250000, c40 252000, c46 190000, c52 248000, c58 272000, c64 168000, c70 261000, c76 169000, c82 156000, c88 265000, c94 227000 (db)\nresume r421: r421 getCourse c6 -> Course 6 189000 (db)\nr443 getCourse c71 -> Course 71 270000 (db)\n+1440s\n+540s\nu444 updateCoursePrice c9 162000 -> ok\nresume r403: r403 getCourse c9 -> Course 9 127000 (db)\nr445 getCourse c31 -> Course 31 241000 (db)\nr446 getCourse c9 -> Course 9 162000 (db)\nr447 getCourse c89 -> Course 89 253000 (db)\nr448 getCourse c6 -> Course 6 103000 (cache)\nu449 updateCoursePrice c46 135000 -> ok\nresume u422: u422 updateCoursePrice c10 102000 -> ok\nr450 getCourse c8 -> Course 8 205000 (cache)\nr451 getCourse c3 -> waiting for PostgreSQL\nr452 getCourse c11 -> Course 11 108000 (cache)\nl453 listCategory database -> c1 104000, c103 252000, c109 201000, c115 108000, c13 119000, c19 195000, c25 184000, c31 241000, c37 218000, c43 196000, c49 196000, c55 288000, c61 295000, c67 285000, c7 100000, c73 120000, c79 117000, c85 241000, c91 185000, c97 194000 (db)\nu454 updateCoursePrice c8 253000 -> ok\nr455 getCourse c21 -> Course 21 286000 (db)\n+1740s\nresume u431: u431 updateCoursePrice c6 210000 -> ok\nu456 updateCoursePrice c63 130000 -> ok\nr457 getCourse c9 -> Course 9 162000 (cache)\nu458 updateCoursePrice c11 274000 -> ok\nr459 getCourse c10 -> waiting for PostgreSQL\nresume l429: l429 listCategory devops -> c10 250000, c100 140000, c106 204000, c112 201000, c118 186000, c16 276000, c22 271000, c28 234000, c34 236000, c4 250000, c40 252000, c46 190000, c52 248000, c58 272000, c64 168000, c70 261000, c76 169000, c82 156000, c88 265000, c94 227000 (db)\nr460 getCourse c104 -> Course 104 223000 (db)\nr461 getCourse c2 -> Course 2 279000 (db)\nr462 getCourse c4 -> Course 4 250000 (db)\nr463 getCourse c1 -> waiting for PostgreSQL\nl464 listCategory node -> c104 223000, c110 187000, c116 270000, c14 105000, c2 279000, c20 282000, c26 139000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 297000, c74 291000, c8 253000, c80 255000, c86 207000, c92 135000, c98 139000 (db)\nr465 getCourse c3 -> Course 3 189000 (db)\nr466 getCourse c55 -> Course 55 288000 (db)\nl467 listCategory database -> c1 104000, c103 252000, c109 201000, c115 108000, c13 119000, c19 195000, c25 184000, c31 241000, c37 218000, c43 196000, c49 196000, c55 288000, c61 295000, c67 285000, c7 100000, c73 120000, c79 117000, c85 241000, c91 185000, c97 194000 (cache)\nl468 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 286000, c27 241000, c3 189000, c33 156000, c39 202000, c45 108000, c51 127000, c57 185000, c63 130000, c69 218000, c75 248000, c81 292000, c87 99000, c9 162000, c93 163000, c99 251000 (db)\nu469 updateCoursePrice c9 283000 -> ok\nu470 updateCoursePrice c27 107000 -> ok\n+60s\nl471 listCategory devops -> c10 102000, c100 140000, c106 204000, c112 201000, c118 186000, c16 276000, c22 151000, c28 234000, c34 236000, c4 250000, c40 252000, c46 135000, c52 248000, c58 272000, c64 168000, c70 261000, c76 169000, c82 156000, c88 265000, c94 227000 (db)\nu472 updateCoursePrice c11 214000 -> ok\nu473 updateCoursePrice c2 199000 -> ok\nresume r408: r408 getCourse c1 -> Course 1 294000 (db)\nr474 getCourse c1 -> Course 1 104000 (db)\nl475 listCategory node -> c104 223000, c110 187000, c116 270000, c14 105000, c2 199000, c20 282000, c26 139000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 297000, c74 291000, c8 253000, c80 255000, c86 207000, c92 135000, c98 139000 (db)\nu476 updateCoursePrice c8 103000 -> ok\nu477 updateCoursePrice c4 288000 -> ok\n+1620s\nresume r451: r451 getCourse c3 -> Course 3 189000 (db)\nr478 getCourse c11 -> Course 11 214000 (db)\n+60s\nr479 getCourse c15 -> Course 15 148000 (db)\n+480s\nr480 getCourse c6 -> Course 6 210000 (db)\nl481 listCategory ai -> waiting for PostgreSQL\nr482 getCourse c6 -> Course 6 210000 (cache)\nr483 getCourse c12 -> waiting for PostgreSQL\nl484 listCategory react -> c105 296000, c111 226000, c117 164000, c15 148000, c21 286000, c27 107000, c3 189000, c33 156000, c39 202000, c45 108000, c51 127000, c57 185000, c63 130000, c69 218000, c75 248000, c81 292000, c87 99000, c9 283000, c93 163000, c99 251000 (db)\nr485 getCourse c94 -> Course 94 227000 (db)\nu486 updateCoursePrice c3 103000 -> waiting for PostgreSQL\nu487 updateCoursePrice c1 147000 -> ok\nu488 updateCoursePrice c109 192000 -> ok\n+1620s\nr489 getCourse c4 -> Course 4 288000 (db)\nl490 listCategory node -> c104 223000, c110 187000, c116 270000, c14 105000, c2 199000, c20 282000, c26 139000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 297000, c74 291000, c8 103000, c80 255000, c86 207000, c92 135000, c98 139000 (db)\nr491 getCourse c38 -> Course 38 254000 (db)\nresume l481: l481 listCategory ai -> c101 105000, c107 218000, c11 214000, c113 213000, c119 160000, c17 195000, c23 263000, c29 169000, c35 253000, c41 222000, c47 137000, c5 266000, c53 146000, c59 295000, c65 186000, c71 270000, c77 222000, c83 222000, c89 253000, c95 127000 (db)\nl492 listCategory database -> c1 147000, c103 252000, c109 192000, c115 108000, c13 119000, c19 195000, c25 184000, c31 241000, c37 218000, c43 196000, c49 196000, c55 288000, c61 295000, c67 285000, c7 100000, c73 120000, c79 117000, c85 241000, c91 185000, c97 194000 (db)\nr493 getCourse c11 -> Course 11 214000 (cache)\nresume r459: r459 getCourse c10 -> Course 10 102000 (db)\nl494 listCategory ai -> c101 105000, c107 218000, c11 214000, c113 213000, c119 160000, c17 195000, c23 263000, c29 169000, c35 253000, c41 222000, c47 137000, c5 266000, c53 146000, c59 295000, c65 186000, c71 270000, c77 222000, c83 222000, c89 253000, c95 127000 (cache)\nu495 updateCoursePrice c36 166000 -> ok\nu496 updateCoursePrice c20 173000 -> ok\nu497 updateCoursePrice c10 136000 -> waiting for PostgreSQL\nl498 listCategory devops -> waiting for PostgreSQL\n+300s\nr499 getCourse c6 -> Course 6 210000 (cache)\nr500 getCourse c4 -> Course 4 288000 (cache)\nu501 updateCoursePrice c3 137000 -> ok\nu502 updateCoursePrice c9 182000 -> waiting for PostgreSQL\nr503 getCourse c8 -> Course 8 103000 (db)\nu504 updateCoursePrice c117 255000 -> ok\n+1080s\nresume r483: r483 getCourse c12 -> Course 12 149000 (db)\nresume l440: l440 listCategory redis -> c102 294000, c108 195000, c114 226000, c12 149000, c120 292000, c18 221000, c24 154000, c30 143000, c36 190000, c42 195000, c48 142000, c54 244000, c6 103000, c60 215000, c66 252000, c72 293000, c78 178000, c84 218000, c90 165000, c96 259000 (db)\nresume r463: r463 getCourse c1 -> Course 1 104000 (db)\nresume u486: u486 updateCoursePrice c3 103000 -> ok\nresume u497: u497 updateCoursePrice c10 136000 -> ok\nresume l498: l498 listCategory devops -> c10 102000, c100 140000, c106 204000, c112 201000, c118 186000, c16 276000, c22 151000, c28 234000, c34 236000, c4 288000, c40 252000, c46 135000, c52 248000, c58 272000, c64 168000, c70 261000, c76 169000, c82 156000, c88 265000, c94 227000 (db)\nresume r499: r499 getCourse c6 -> Course 6 210000 (cache)\nresume u502: u502 updateCoursePrice c9 182000 -> ok\nz1 getCourse c1 -> Course 1 147000 (db)\nz2 getCourse c2 -> Course 2 199000 (db)\nz3 getCourse c3 -> Course 3 103000 (db)\nz4 getCourse c4 -> Course 4 288000 (cache)\nz5 getCourse c5 -> Course 5 266000 (db)\nz6 getCourse c6 -> Course 6 210000 (cache)\nz7 getCourse c7 -> Course 7 100000 (db)\nz8 getCourse c8 -> Course 8 103000 (cache)\nz9 getCourse c9 -> Course 9 182000 (db)\nz10 getCourse c10 -> Course 10 136000 (db)\nz11 getCourse c11 -> Course 11 214000 (cache)\nz12 getCourse c12 -> Course 12 149000 (cache)\nyredis listCategory redis -> c102 294000, c108 195000, c114 226000, c12 149000, c120 292000, c18 221000, c24 154000, c30 143000, c36 166000, c42 195000, c48 142000, c54 244000, c6 210000, c60 215000, c66 252000, c72 293000, c78 178000, c84 218000, c90 165000, c96 259000 (db)\nydatabase listCategory database -> c1 147000, c103 252000, c109 192000, c115 108000, c13 119000, c19 195000, c25 184000, c31 241000, c37 218000, c43 196000, c49 196000, c55 288000, c61 295000, c67 285000, c7 100000, c73 120000, c79 117000, c85 241000, c91 185000, c97 194000 (cache)\nynode listCategory node -> c104 223000, c110 187000, c116 270000, c14 105000, c2 199000, c20 173000, c26 139000, c32 141000, c38 254000, c44 156000, c50 261000, c56 162000, c62 243000, c68 297000, c74 291000, c8 103000, c80 255000, c86 207000, c92 135000, c98 139000 (db)\nyreact listCategory react -> c105 296000, c111 226000, c117 255000, c15 148000, c21 286000, c27 107000, c3 103000, c33 156000, c39 202000, c45 108000, c51 127000, c57 185000, c63 130000, c69 218000, c75 248000, c81 292000, c87 99000, c9 182000, c93 163000, c99 251000 (db)\nydevops listCategory devops -> c10 136000, c100 140000, c106 204000, c112 201000, c118 186000, c16 276000, c22 151000, c28 234000, c34 236000, c4 288000, c40 252000, c46 135000, c52 248000, c58 272000, c64 168000, c70 261000, c76 169000, c82 156000, c88 265000, c94 227000 (db)\nyai listCategory ai -> c101 105000, c107 218000, c11 214000, c113 213000, c119 160000, c17 195000, c23 263000, c29 169000, c35 253000, c41 222000, c47 137000, c5 266000, c53 146000, c59 295000, c65 186000, c71 270000, c77 222000, c83 222000, c89 253000, c95 127000 (cache)"
+        }
+      ]
+    }
+  ]
+}

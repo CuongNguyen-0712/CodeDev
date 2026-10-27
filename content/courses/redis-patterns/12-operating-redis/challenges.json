@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_rdp_431",
+      "name": "operating-redis-memory-eviction-persistence",
+      "type": "quiz",
+      "title": "Operating Redis: memory, eviction & persistence",
+      "description": "Three statements on the shared Redis instance of CodeDev after learners were logged out and logins started to fail: what volatile-lru evicts, what allkeys-lru would do to sessions, and what AOF with everysec does and does not protect.",
+      "difficulty": "medium",
+      "outcomes": [
+        "rate-limits-ops"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "One Redis instance holds sessions, rate-limit counters, the leaderboard and the catalog cache.\n$ redis-cli CONFIG GET maxmemory-policy\nmaxmemory-policy volatile-lru\n$ redis-cli INFO keyspace\ndb0:keys=2140332,expires=61204,avg_ttl=402113\n$ redis-cli --scan --pattern 'catalog:search:*' --count 1000 | head -3 | xargs -n1 redis-cli TTL\n(integer) -1\n(integer) -1\n(integer) -1\n$ redis-cli INFO stats | grep evicted_keys\nevicted_keys:48211\n\nStatement: \"Because the policy is volatile-lru, Redis makes room by evicting the least recently used catalog:search keys, so the sessions are safe.\"",
+          "explanation": "False. volatile-lru only chooses among keys that have an expiry set. The catalog:search keys have no TTL (TTL returns -1), so they are never candidates; the keys that do have one are the sessions, the rate-limit counters and other short-lived keys, about 61,000 of 2.1 million. Those are what the 48,211 evictions removed, which is why learners were logged out. When no key with a TTL is left to evict, volatile-* behaves like noeviction and writes fail with an OOM error. The misconception is that an LRU policy always evicts \"the cache\": it evicts what the policy lets it see, and cache keys written without a TTL are invisible to every volatile-* policy.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The team considers switching the same shared instance to allkeys-lru.\nSessions are stored as session:<id> with EX 604800 (7 days), refreshed when the learner makes a request.\nINFO memory: used_memory_human:3.98G  maxmemory_human:4.00G\n\nStatement: \"With allkeys-lru on this instance, Redis can evict the session of a learner who has been idle for a few hours, long before its 7-day TTL, and that learner is logged out.\"",
+          "explanation": "True. allkeys-lru considers every key, with or without a TTL, and picks keys that have not been used recently (Redis samples keys and approximates LRU). An idle learner's session is exactly such a key, and the TTL is only an upper bound on its life, not a guarantee that it lives that long. allkeys-lru is a good policy for a pure cache, where losing a key costs one reload; it is the wrong policy for data whose loss logs users out. The usual fix is to separate them: a cache instance with allkeys-lru or allkeys-lfu, and an instance for sessions and the leaderboard with noeviction and a memory alert well below maxmemory. The misconception is that a TTL protects a key from eviction.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "redis.conf of the instance that holds the leaderboard:\nappendonly yes\nappendfsync everysec\nreplica-read-only yes\n# one replica, asynchronous replication; Sentinel promotes the replica if the primary fails\n\nStatement: \"With appendonly yes and appendfsync everysec, a crash of the primary or a failover loses no write that Redis has acknowledged, so lb:global can be the only copy of the scores.\"",
+          "explanation": "False. everysec writes the AOF to disk about once a second, so a crash of the machine can lose roughly the last second of acknowledged writes (appendfsync always narrows that window at a large cost in throughput). Replication is asynchronous: if Sentinel promotes the replica, writes that the old primary acknowledged but had not yet sent are lost, whatever the AOF settings of the old primary. Persistence makes a restart much less painful; it does not turn Redis into the source of truth. The scores belong in learner_score in PostgreSQL, and the leaderboard should be rebuildable from it (lesson 3.3). The misconception is to read \"durable\" in AOF as \"no acknowledged write is ever lost\".",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,5517 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_rdp_321",
+      "name": "versioned-score-update-quiz",
+      "type": "quiz",
+      "title": "Is this update really newer?",
+      "description": "Two pieces of evidence from the score consumer: a Lua script that compares versions, and a timeline of two workers that check before they write.",
+      "difficulty": "medium",
+      "outcomes": [
+        "leaderboard"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The consumer applies { learnerId, totalScore, version } with this script (KEYS[1] = lb:all, KEYS[2] = lb:ver, ARGV = learnerId, totalScore, version):\n\nlocal stored = redis.call('HGET', KEYS[2], ARGV[1])\nif stored and stored >= ARGV[3] then\n  return 'skipped'\nend\nredis.call('ZADD', KEYS[1], ARGV[2], ARGV[1])\nredis.call('HSET', KEYS[2], ARGV[1], ARGV[3])\nreturn 'applied'\n\nConsumer log for u_2290:\n\n10:41:07.112 v9  total 300 -> applied\n10:41:52.840 v10 total 340 -> skipped\n10:42:30.005 v11 total 380 -> skipped\n\n> HGET lb:ver u_2290\n\"9\"\n\nStatement: \"Versions 10 and 11 are skipped because the script compares the versions as strings, and \\\"9\\\" sorts after \\\"10\\\" and \\\"11\\\".\"",
+          "explanation": "True. HGET returns a bulk string and ARGV values are strings, so Lua's >= compares them character by character: \"9\" >= \"10\" is true because '9' comes after '1'. Every version from 10 to 89 now looks older than 9, so the learner's score is frozen at 300 until version 90. The fix is tonumber() on both sides (or storing a fixed-width version). The misconception is that Redis knows the hash value is a number: everything in a hash is a string, and the comparison follows the types of the language that does it.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A reviewer suggests dropping the script and doing the check in TypeScript, because \"every Redis command is atomic anyway\":\n\nconst stored = Number(await redis.hget(\"lb:ver\", u.learnerId) ?? 0);\nif (u.version > stored) {\n  await redis.zadd(\"lb:all\", u.totalScore, u.learnerId);\n  await redis.hset(\"lb:ver\", u.learnerId, String(u.version));\n}\n\nTimeline with two consumer workers (u_2290, stored version 14, total 340):\n\nt1 worker A  HGET lb:ver u_2290 -> \"14\"   (A holds v16, total 410)\nt2 worker B  HGET lb:ver u_2290 -> \"14\"   (B holds v15, total 380)\nt3 worker A  ZADD lb:all 410 u_2290; HSET lb:ver u_2290 16\nt4 worker B  ZADD lb:all 380 u_2290; HSET lb:ver u_2290 15\n\nStatement: \"Because each of HGET, ZADD and HSET is atomic, this version of the code cannot end with an older total on the board.\"",
+          "explanation": "False. Each command is atomic on its own, but the check (HGET) and the write (ZADD, HSET) are separate round trips, and another worker can run in between. At t2 worker B read version 14 before A wrote 16, so B still believes v15 is newer and overwrites 410 with 380 - and even moves the stored version back to 15. Check and write must be one unit: a Lua script (EVAL/EVALSHA), or WATCH lb:ver + MULTI/EXEC with a retry when EXEC returns null. The misconception is that atomic commands make a sequence of commands atomic.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_rdp_322",
+      "name": "versioned-score-updates",
+      "type": "mini_coding",
+      "title": "Apply only newer score updates",
+      "description": "CodeDev's leaderboard consumer applies score updates from PostgreSQL to the Redis board. After each graded submission, PostgreSQL recomputes the learner's total and increments learner_score.version in the same transaction; an outbox relay then sends { learnerId, totalScore, version }. Two consumer workers read the stream and the relay retries, so an update can arrive twice, and an older update can arrive after a newer one. The shipped consumer did ZADD for every message: a slow worker put a learner back from 340 to 300 points, and a learner who had hidden themselves from the leaderboard reappeared. totalScore null means the learner left the board (show_on_leaderboard turned off, or the account deleted).\n\nWrite applyUpdate(redis, update). Keys: lb:all is the sorted set (member = learnerId, score = totalScore); lb:ver is a hash, field = learnerId, value = the last applied version as a decimal string. The update comes from JSON, so check it at runtime. Return:\n- \"invalid\" when learnerId is not a non-empty string, version is not a positive safe integer, or totalScore is neither null nor a safe integer >= 0. Nothing changes.\n- \"duplicate\" when version equals the stored version (the same database row again; the payload is not compared). Nothing changes.\n- \"stale\" when version is lower than the stored version. Nothing changes.\n- \"applied\" when version is higher, or the learner has no stored version (counts as 0; members written before versions existed have none): ZADD the total - a total of 0 is a score, not a removal - or ZREM the learner when totalScore is null, and store the version in lb:ver, also for a removal, so an older update that arrives later cannot bring the learner back.\nCompare versions as numbers: lb:ver holds strings, and \"9\" must be lower than \"10\". The protocol must not depend on arrival order: any order of the same updates must end with the same lb:all and lb:ver. In production the check and the writes run as one Lua script; the in-memory model in the starter is single-threaded, so plain calls are enough here.\n\nInput (stdin): { \"initial\"?: { \"board\"?: [[learnerId, score]], \"versions\"?: [[learnerId, version]] }, \"updates\": [update], \"orders\"?: k, \"summary\"?: true }. Output: one line per update with its outcome, the board (member count, then ranks) and the stored versions sorted by learner id; with orders, whether k other orders of the same updates end the same; with summary, a count per outcome instead of the per-update lines, and only the top 10. Do not change the types, FakeClock, FakeRedis or the test runner.",
+      "difficulty": "hard",
+      "outcomes": [
+        "leaderboard"
+      ],
+      "points": 40,
+      "hints": [
+        "For one learner, which single number tells you whether an incoming update is newer than what the board shows - and where must that number live so that it is still there after the learner has left the board?",
+        "Look at what hget returns (a string or null) and how you compare it with the incoming version, at what you write to lb:ver when totalScore is null, and at how you tell a total of 0 apart from a removal.",
+        "The same protocol on a different board, course ratings: hash rating:ver, sorted set rating:avg, stored version \"8\" for course c_12. Updates arrive: v12 avg 45 -> 12 > 8, ZADD and store \"12\"; v9 avg 41 -> 9 < 12, stale (compared as strings, \"9\" would look newer than \"12\"); v12 again -> duplicate; v13 with avg null (course unpublished) -> ZREM and store \"13\"; v10 avg 43 arriving last -> stale, and the course stays off the list."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: a late older total and a retried update after a newer total",
+          "input": {
+            "initial": {
+              "board": [
+                [
+                  "u_2290",
+                  300
+                ],
+                [
+                  "u_1001",
+                  520
+                ],
+                [
+                  "u_0815",
+                  610
+                ]
+              ],
+              "versions": [
+                [
+                  "u_2290",
+                  13
+                ],
+                [
+                  "u_1001",
+                  21
+                ],
+                [
+                  "u_0815",
+                  30
+                ]
+              ]
+            },
+            "updates": [
+              {
+                "learnerId": "u_2290",
+                "totalScore": 340,
+                "version": 14
+              },
+              {
+                "learnerId": "u_1001",
+                "totalScore": 560,
+                "version": 22
+              },
+              {
+                "learnerId": "u_2290",
+                "totalScore": 300,
+                "version": 13
+              },
+              {
+                "learnerId": "u_2290",
+                "totalScore": 340,
+                "version": 14
+              },
+              {
+                "learnerId": "u_2290",
+                "totalScore": 380,
+                "version": 15
+              },
+              {
+                "learnerId": "u_1001",
+                "totalScore": 520,
+                "version": 21
+              },
+              {
+                "learnerId": "u_0815",
+                "totalScore": 640,
+                "version": 31
+              }
+            ],
+            "orders": 6
+          },
+          "expected": "\"u_2290\" v14 total 340 -> applied\n\"u_1001\" v22 total 560 -> applied\n\"u_2290\" v13 total 300 -> stale\n\"u_2290\" v14 total 340 -> duplicate\n\"u_2290\" v15 total 380 -> applied\n\"u_1001\" v21 total 520 -> stale\n\"u_0815\" v31 total 640 -> applied\nboard (3): 1. u_0815 640 | 2. u_1001 560 | 3. u_2290 380\nversions: u_0815=31 u_1001=22 u_2290=15\nsame final board and versions in 6 of 6 other orders",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Leaving the board keeps the version, so an older total cannot bring the learner back",
+          "input": {
+            "initial": {
+              "board": [
+                [
+                  "u_5",
+                  120
+                ],
+                [
+                  "u_6",
+                  90
+                ]
+              ],
+              "versions": [
+                [
+                  "u_5",
+                  3
+                ],
+                [
+                  "u_6",
+                  2
+                ]
+              ]
+            },
+            "updates": [
+              {
+                "learnerId": "u_5",
+                "totalScore": null,
+                "version": 4
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 120,
+                "version": 3
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 100,
+                "version": 2
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": null,
+                "version": 4
+              },
+              {
+                "learnerId": "u_6",
+                "totalScore": 95,
+                "version": 3
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 150,
+                "version": 5
+              },
+              {
+                "learnerId": "u_7",
+                "totalScore": 40,
+                "version": 1
+              },
+              {
+                "learnerId": "u_7",
+                "totalScore": 40,
+                "version": 1
+              }
+            ],
+            "orders": 6
+          },
+          "expected": "\"u_5\" v4 total null -> applied\n\"u_5\" v3 total 120 -> stale\n\"u_5\" v2 total 100 -> stale\n\"u_5\" v4 total null -> duplicate\n\"u_6\" v3 total 95 -> applied\n\"u_5\" v5 total 150 -> applied\n\"u_7\" v1 total 40 -> applied\n\"u_7\" v1 total 40 -> duplicate\nboard (3): 1. u_5 150 | 2. u_6 95 | 3. u_7 40\nversions: u_5=5 u_6=3 u_7=1\nsame final board and versions in 6 of 6 other orders",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Versions above 9 are compared as numbers, not as strings",
+          "input": {
+            "initial": {
+              "board": [
+                [
+                  "u_7",
+                  300
+                ],
+                [
+                  "u_8",
+                  200
+                ]
+              ],
+              "versions": [
+                [
+                  "u_7",
+                  9
+                ],
+                [
+                  "u_8",
+                  99
+                ]
+              ]
+            },
+            "updates": [
+              {
+                "learnerId": "u_7",
+                "totalScore": 340,
+                "version": 10
+              },
+              {
+                "learnerId": "u_7",
+                "totalScore": 380,
+                "version": 11
+              },
+              {
+                "learnerId": "u_7",
+                "totalScore": 320,
+                "version": 9
+              },
+              {
+                "learnerId": "u_7",
+                "totalScore": 900,
+                "version": 100
+              },
+              {
+                "learnerId": "u_7",
+                "totalScore": 880,
+                "version": 99
+              },
+              {
+                "learnerId": "u_8",
+                "totalScore": 210,
+                "version": 100
+              },
+              {
+                "learnerId": "u_8",
+                "totalScore": 190,
+                "version": 98
+              },
+              {
+                "learnerId": "u_8",
+                "totalScore": 250,
+                "version": 1000
+              },
+              {
+                "learnerId": "u_8",
+                "totalScore": 240,
+                "version": 999
+              }
+            ],
+            "orders": 6
+          },
+          "expected": "\"u_7\" v10 total 340 -> applied\n\"u_7\" v11 total 380 -> applied\n\"u_7\" v9 total 320 -> stale\n\"u_7\" v100 total 900 -> applied\n\"u_7\" v99 total 880 -> stale\n\"u_8\" v100 total 210 -> applied\n\"u_8\" v98 total 190 -> stale\n\"u_8\" v1000 total 250 -> applied\n\"u_8\" v999 total 240 -> stale\nboard (2): 1. u_7 900 | 2. u_8 250\nversions: u_7=100 u_8=1000\nsame final board and versions in 6 of 6 other orders",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A total of 0 stays on the board, and members without a stored version accept any update",
+          "input": {
+            "initial": {
+              "board": [
+                [
+                  "u_3",
+                  40
+                ],
+                [
+                  "u_8",
+                  70
+                ],
+                [
+                  "u_9",
+                  15
+                ]
+              ],
+              "versions": [
+                [
+                  "u_3",
+                  1
+                ]
+              ]
+            },
+            "updates": [
+              {
+                "learnerId": "u_3",
+                "totalScore": 0,
+                "version": 2
+              },
+              {
+                "learnerId": "u_8",
+                "totalScore": 75,
+                "version": 1
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": 0,
+                "version": 4
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": 10,
+                "version": 3
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 40,
+                "version": 1
+              }
+            ],
+            "orders": 4
+          },
+          "expected": "\"u_3\" v2 total 0 -> applied\n\"u_8\" v1 total 75 -> applied\n\"u_9\" v4 total 0 -> applied\n\"u_9\" v3 total 10 -> stale\n\"u_3\" v1 total 40 -> stale\nboard (3): 1. u_8 75 | 2. u_9 0 | 3. u_3 0\nversions: u_3=2 u_8=1 u_9=4\nsame final board and versions in 4 of 4 other orders",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Invalid updates change nothing and do not block the next valid update",
+          "input": {
+            "initial": {
+              "board": [
+                [
+                  "u_4",
+                  100
+                ]
+              ],
+              "versions": [
+                [
+                  "u_4",
+                  5
+                ]
+              ]
+            },
+            "updates": [
+              {
+                "learnerId": "",
+                "totalScore": 120,
+                "version": 6
+              },
+              {
+                "learnerId": 17,
+                "totalScore": 120,
+                "version": 6
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": 120,
+                "version": 0
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": 120,
+                "version": -6
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": 120,
+                "version": 6.5
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": 120,
+                "version": "6"
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": 120,
+                "version": null
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": -5,
+                "version": 6
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": 2.5,
+                "version": 6
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": "120",
+                "version": 6
+              },
+              {
+                "learnerId": "u_4",
+                "version": 6
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": 120,
+                "version": 9007199254740992
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": 130,
+                "version": 6
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": 125,
+                "version": 6
+              }
+            ]
+          },
+          "expected": "\"\" v6 total 120 -> invalid\n17 v6 total 120 -> invalid\n\"u_4\" v0 total 120 -> invalid\n\"u_4\" v-6 total 120 -> invalid\n\"u_4\" v6.5 total 120 -> invalid\n\"u_4\" v\"6\" total 120 -> invalid\n\"u_4\" vnull total 120 -> invalid\n\"u_4\" v6 total -5 -> invalid\n\"u_4\" v6 total 2.5 -> invalid\n\"u_4\" v6 total \"120\" -> invalid\n\"u_4\" v6 total undefined -> invalid\n\"u_4\" v9007199254740992 total 120 -> invalid\n\"u_4\" v6 total 130 -> applied\n\"u_4\" v6 total 125 -> duplicate\nboard (1): 1. u_4 130\nversions: u_4=6",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Same version with a different payload is a duplicate: the version decides",
+          "input": {
+            "initial": {
+              "versions": [
+                [
+                  "u_1",
+                  41
+                ]
+              ],
+              "board": [
+                [
+                  "u_1",
+                  800
+                ]
+              ]
+            },
+            "updates": [
+              {
+                "learnerId": "u_1",
+                "totalScore": 820,
+                "version": 42
+              },
+              {
+                "learnerId": "u_1",
+                "totalScore": 999,
+                "version": 42
+              },
+              {
+                "learnerId": "u_1",
+                "totalScore": null,
+                "version": 42
+              },
+              {
+                "learnerId": "u_2",
+                "totalScore": 50,
+                "version": 7
+              },
+              {
+                "learnerId": "u_2",
+                "totalScore": 55,
+                "version": 7
+              },
+              {
+                "learnerId": "u_2",
+                "totalScore": null,
+                "version": 8
+              },
+              {
+                "learnerId": "u_2",
+                "totalScore": 60,
+                "version": 8
+              }
+            ]
+          },
+          "expected": "\"u_1\" v42 total 820 -> applied\n\"u_1\" v42 total 999 -> duplicate\n\"u_1\" v42 total null -> duplicate\n\"u_2\" v7 total 50 -> applied\n\"u_2\" v7 total 55 -> duplicate\n\"u_2\" v8 total null -> applied\n\"u_2\" v8 total 60 -> duplicate\nboard (1): 1. u_1 820\nversions: u_1=42 u_2=8",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "About 1,000 deliveries for 50 learners, retried and out of order, in 3 other orders",
+          "input": {
+            "updates": [
+              {
+                "learnerId": "u_1",
+                "totalScore": 228,
+                "version": 7
+              },
+              {
+                "learnerId": "u_1",
+                "totalScore": 328,
+                "version": 9
+              },
+              {
+                "learnerId": "u_1",
+                "totalScore": 588,
+                "version": 17
+              },
+              {
+                "learnerId": "u_1",
+                "totalScore": 398,
+                "version": 12
+              },
+              {
+                "learnerId": "u_2",
+                "totalScore": 178,
+                "version": 15
+              },
+              {
+                "learnerId": "u_1",
+                "totalScore": 218,
+                "version": 6
+              },
+              {
+                "learnerId": "u_1",
+                "totalScore": 408,
+                "version": 13
+              },
+              {
+                "learnerId": "u_1",
+                "totalScore": 438,
+                "version": 14
+              },
+              {
+                "learnerId": "u_1",
+                "totalScore": 348,
+                "version": 11
+              },
+              {
+                "learnerId": "u_1",
+                "totalScore": 348,
+                "version": 10
+              },
+              {
+                "learnerId": "u_2",
+                "totalScore": 138,
+                "version": 13
+              },
+              {
+                "learnerId": "u_2",
+                "totalScore": 88,
+                "version": 11
+              },
+              {
+                "learnerId": "u_2",
+                "totalScore": 278,
+                "version": 20
+              },
+              {
+                "learnerId": "u_1",
+                "totalScore": 408,
+                "version": 13
+              },
+              {
+                "learnerId": "u_1",
+                "totalScore": 538,
+                "version": 16
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 208,
+                "version": 6
+              },
+              {
+                "learnerId": "u_2",
+                "totalScore": 128,
+                "version": 12
+              },
+              {
+                "learnerId": "u_2",
+                "totalScore": 168,
+                "version": 14
+              },
+              {
+                "learnerId": "u_2",
+                "totalScore": 278,
+                "version": 19
+              },
+              {
+                "learnerId": "u_2",
+                "totalScore": 188,
+                "version": 17
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 158,
+                "version": 5
+              },
+              {
+                "learnerId": "u_1",
+                "totalScore": 268,
+                "version": 8
+              },
+              {
+                "learnerId": "u_1",
+                "totalScore": 658,
+                "version": 18
+              },
+              {
+                "learnerId": "u_2",
+                "totalScore": 278,
+                "version": 19
+              },
+              {
+                "learnerId": "u_1",
+                "totalScore": 658,
+                "version": 18
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 458,
+                "version": 13
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 268,
+                "version": 7
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 78,
+                "version": 1
+              },
+              {
+                "learnerId": "u_2",
+                "totalScore": 188,
+                "version": 16
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 128,
+                "version": 4
+              },
+              {
+                "learnerId": "u_2",
+                "totalScore": 188,
+                "version": 17
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 88,
+                "version": 2
+              },
+              {
+                "learnerId": "u_1",
+                "totalScore": 468,
+                "version": 15
+              },
+              {
+                "learnerId": "u_2",
+                "totalScore": 138,
+                "version": 13
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": 355,
+                "version": 12
+              },
+              {
+                "learnerId": "u_2",
+                "totalScore": null,
+                "version": 21
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": 105,
+                "version": 7
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 488,
+                "version": 15
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 78,
+                "version": 1
+              },
+              {
+                "learnerId": "u_1",
+                "totalScore": 348,
+                "version": 11
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 438,
+                "version": 11
+              },
+              {
+                "learnerId": "u_2",
+                "totalScore": 188,
+                "version": 16
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": 295,
+                "version": 11
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 108,
+                "version": 3
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 263,
+                "version": 15
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 363,
+                "version": 17
+              },
+              {
+                "learnerId": "u_2",
+                "totalScore": 238,
+                "version": 18
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 308,
+                "version": 8
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_2",
+                "totalScore": 88,
+                "version": 11
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": 185,
+                "version": 9
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 463,
+                "version": 20
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 523,
+                "version": 21
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": 95,
+                "version": 6
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 458,
+                "version": 13
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 378,
+                "version": 9
+              },
+              {
+                "learnerId": "u_1",
+                "totalScore": 538,
+                "version": 16
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": 125,
+                "version": 8
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 333,
+                "version": 16
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 438,
+                "version": 10
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": null,
+                "version": 13
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 143,
+                "version": 12
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 583,
+                "version": 23
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": 225,
+                "version": 10
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": 295,
+                "version": 11
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 553,
+                "version": 22
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 458,
+                "version": 12
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 478,
+                "version": 14
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 73,
+                "version": 11
+              },
+              {
+                "learnerId": "u_6",
+                "totalScore": 318,
+                "version": 5
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": 185,
+                "version": 9
+              },
+              {
+                "learnerId": "u_7",
+                "totalScore": 146,
+                "version": 7
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": 225,
+                "version": 10
+              },
+              {
+                "learnerId": "u_6",
+                "totalScore": 268,
+                "version": 4
+              },
+              {
+                "learnerId": "u_6",
+                "totalScore": 368,
+                "version": 6
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 163,
+                "version": 13
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": null,
+                "version": 14
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 433,
+                "version": 18
+              },
+              {
+                "learnerId": "u_6",
+                "totalScore": 218,
+                "version": 1
+              },
+              {
+                "learnerId": "u_6",
+                "totalScore": 228,
+                "version": 2
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 73,
+                "version": 11
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 463,
+                "version": 19
+              },
+              {
+                "learnerId": "u_6",
+                "totalScore": 518,
+                "version": 9
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 203,
+                "version": 14
+              },
+              {
+                "learnerId": "u_7",
+                "totalScore": 236,
+                "version": 12
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 458,
+                "version": 13
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 603,
+                "version": 24
+              },
+              {
+                "learnerId": "u_6",
+                "totalScore": 398,
+                "version": 7
+              },
+              {
+                "learnerId": "u_7",
+                "totalScore": 166,
+                "version": 10
+              },
+              {
+                "learnerId": "u_7",
+                "totalScore": 146,
+                "version": 8
+              },
+              {
+                "learnerId": "u_6",
+                "totalScore": 398,
+                "version": 7
+              },
+              {
+                "learnerId": "u_7",
+                "totalScore": 256,
+                "version": 14
+              },
+              {
+                "learnerId": "u_7",
+                "totalScore": 246,
+                "version": 13
+              },
+              {
+                "learnerId": "u_7",
+                "totalScore": 256,
+                "version": 15
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": 232,
+                "version": 2
+              },
+              {
+                "learnerId": "u_6",
+                "totalScore": 268,
+                "version": 3
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": 432,
+                "version": 6
+              },
+              {
+                "learnerId": "u_8",
+                "totalScore": 439,
+                "version": 16
+              },
+              {
+                "learnerId": "u_8",
+                "totalScore": 319,
+                "version": 12
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 463,
+                "version": 19
+              },
+              {
+                "learnerId": "u_8",
+                "totalScore": 249,
+                "version": 11
+              },
+              {
+                "learnerId": "u_7",
+                "totalScore": 126,
+                "version": 6
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 158,
+                "version": 5
+              },
+              {
+                "learnerId": "u_8",
+                "totalScore": 619,
+                "version": 19
+              },
+              {
+                "learnerId": "u_8",
+                "totalScore": 569,
+                "version": 18
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": 202,
+                "version": 1
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 438,
+                "version": 10
+              },
+              {
+                "learnerId": "u_8",
+                "totalScore": 689,
+                "version": 20
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 583,
+                "version": 23
+              },
+              {
+                "learnerId": "u_6",
+                "totalScore": 368,
+                "version": 6
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": 492,
+                "version": 10
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": 95,
+                "version": 6
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 488,
+                "version": 15
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": null,
+                "version": 13
+              },
+              {
+                "learnerId": "u_6",
+                "totalScore": 468,
+                "version": 8
+              },
+              {
+                "learnerId": "u_8",
+                "totalScore": 379,
+                "version": 13
+              },
+              {
+                "learnerId": "u_8",
+                "totalScore": 249,
+                "version": 11
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 458,
+                "version": 12
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": 482,
+                "version": 9
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_3",
+                "totalScore": 268,
+                "version": 7
+              },
+              {
+                "learnerId": "u_7",
+                "totalScore": 156,
+                "version": 9
+              },
+              {
+                "learnerId": "u_8",
+                "totalScore": 619,
+                "version": 19
+              },
+              {
+                "learnerId": "u_8",
+                "totalScore": 319,
+                "version": 12
+              },
+              {
+                "learnerId": "u_7",
+                "totalScore": 156,
+                "version": 9
+              },
+              {
+                "learnerId": "u_7",
+                "totalScore": 216,
+                "version": 11
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": 105,
+                "version": 7
+              },
+              {
+                "learnerId": "u_8",
+                "totalScore": 419,
+                "version": 15
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": 302,
+                "version": 3
+              },
+              {
+                "learnerId": "u_8",
+                "totalScore": 409,
+                "version": 14
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": null,
+                "version": 12
+              },
+              {
+                "learnerId": "u_10",
+                "totalScore": null,
+                "version": 11
+              },
+              {
+                "learnerId": "u_6",
+                "totalScore": 228,
+                "version": 2
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 333,
+                "version": 16
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": 352,
+                "version": 4
+              },
+              {
+                "learnerId": "u_8",
+                "totalScore": 619,
+                "version": 19
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": 412,
+                "version": 5
+              },
+              {
+                "learnerId": "u_8",
+                "totalScore": 569,
+                "version": 18
+              },
+              {
+                "learnerId": "u_10",
+                "totalScore": null,
+                "version": 10
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_10",
+                "totalScore": null,
+                "version": 7
+              },
+              {
+                "learnerId": "u_8",
+                "totalScore": 509,
+                "version": 17
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": 562,
+                "version": 11
+              },
+              {
+                "learnerId": "u_10",
+                "totalScore": null,
+                "version": 6
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 553,
+                "version": 22
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 523,
+                "version": 21
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": 302,
+                "version": 3
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": null,
+                "version": 12
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": 482,
+                "version": 8
+              },
+              {
+                "learnerId": "u_4",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_10",
+                "totalScore": null,
+                "version": 14
+              },
+              {
+                "learnerId": "u_11",
+                "totalScore": 310,
+                "version": 16
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_11",
+                "totalScore": 300,
+                "version": 15
+              },
+              {
+                "learnerId": "u_10",
+                "totalScore": null,
+                "version": 8
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": null,
+                "version": 14
+              },
+              {
+                "learnerId": "u_10",
+                "totalScore": null,
+                "version": 12
+              },
+              {
+                "learnerId": "u_2",
+                "totalScore": 278,
+                "version": 19
+              },
+              {
+                "learnerId": "u_10",
+                "totalScore": null,
+                "version": 12
+              },
+              {
+                "learnerId": "u_10",
+                "totalScore": null,
+                "version": 18
+              },
+              {
+                "learnerId": "u_11",
+                "totalScore": 110,
+                "version": 11
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": 235,
+                "version": 1
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": null,
+                "version": 14
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": 432,
+                "version": 7
+              },
+              {
+                "learnerId": "u_10",
+                "totalScore": null,
+                "version": 9
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": null,
+                "version": 12
+              },
+              {
+                "learnerId": "u_10",
+                "totalScore": null,
+                "version": 18
+              },
+              {
+                "learnerId": "u_11",
+                "totalScore": 180,
+                "version": 12
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": 482,
+                "version": 9
+              },
+              {
+                "learnerId": "u_10",
+                "totalScore": null,
+                "version": 13
+              },
+              {
+                "learnerId": "u_6",
+                "totalScore": 268,
+                "version": 4
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": 432,
+                "version": 7
+              },
+              {
+                "learnerId": "u_10",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": 232,
+                "version": 2
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": 412,
+                "version": 5
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": 315,
+                "version": 4
+              },
+              {
+                "learnerId": "u_10",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_11",
+                "totalScore": 330,
+                "version": 17
+              },
+              {
+                "learnerId": "u_11",
+                "totalScore": 110,
+                "version": 11
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": null,
+                "version": 13
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": 315,
+                "version": 3
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": 355,
+                "version": 7
+              },
+              {
+                "learnerId": "u_10",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_13",
+                "totalScore": 40,
+                "version": 7
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": null,
+                "version": 10
+              },
+              {
+                "learnerId": "u_8",
+                "totalScore": 249,
+                "version": 11
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": null,
+                "version": 19
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": 345,
+                "version": 5
+              },
+              {
+                "learnerId": "u_11",
+                "totalScore": 260,
+                "version": 14
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": 492,
+                "version": 10
+              },
+              {
+                "learnerId": "u_11",
+                "totalScore": 250,
+                "version": 13
+              },
+              {
+                "learnerId": "u_11",
+                "totalScore": 180,
+                "version": 12
+              },
+              {
+                "learnerId": "u_5",
+                "totalScore": 603,
+                "version": 24
+              },
+              {
+                "learnerId": "u_10",
+                "totalScore": null,
+                "version": 14
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": null,
+                "version": 11
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": 405,
+                "version": 8
+              },
+              {
+                "learnerId": "u_13",
+                "totalScore": 170,
+                "version": 10
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": null,
+                "version": 18
+              },
+              {
+                "learnerId": "u_13",
+                "totalScore": 180,
+                "version": 11
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": 245,
+                "version": 2
+              },
+              {
+                "learnerId": "u_14",
+                "totalScore": 252,
+                "version": 15
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": null,
+                "version": 21
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": 355,
+                "version": 6
+              },
+              {
+                "learnerId": "u_13",
+                "totalScore": null,
+                "version": 12
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": 315,
+                "version": 4
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": null,
+                "version": 20
+              },
+              {
+                "learnerId": "u_13",
+                "totalScore": 180,
+                "version": 11
+              },
+              {
+                "learnerId": "u_13",
+                "totalScore": null,
+                "version": 13
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": null,
+                "version": 18
+              },
+              {
+                "learnerId": "u_7",
+                "totalScore": 246,
+                "version": 13
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": 755,
+                "version": 17
+              },
+              {
+                "learnerId": "u_9",
+                "totalScore": 492,
+                "version": 10
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": 465,
+                "version": 9
+              },
+              {
+                "learnerId": "u_13",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": null,
+                "version": 14
+              },
+              {
+                "learnerId": "u_14",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_13",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_13",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_13",
+                "totalScore": 60,
+                "version": 8
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": 345,
+                "version": 5
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 174,
+                "version": 1
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": null,
+                "version": 22
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 304,
+                "version": 3
+              },
+              {
+                "learnerId": "u_13",
+                "totalScore": 60,
+                "version": 8
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 514,
+                "version": 6
+              },
+              {
+                "learnerId": "u_13",
+                "totalScore": 0,
+                "version": 6
+              },
+              {
+                "learnerId": "u_14",
+                "totalScore": 252,
+                "version": 14
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": null,
+                "version": 20
+              },
+              {
+                "learnerId": "u_14",
+                "totalScore": null,
+                "version": 20
+              },
+              {
+                "learnerId": "u_13",
+                "totalScore": null,
+                "version": 18
+              },
+              {
+                "learnerId": "u_13",
+                "totalScore": 120,
+                "version": 9
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 724,
+                "version": 11
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 564,
+                "version": 7
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 374,
+                "version": 4
+              },
+              {
+                "learnerId": "u_14",
+                "totalScore": 202,
+                "version": 12
+              },
+              {
+                "learnerId": "u_14",
+                "totalScore": null,
+                "version": 18
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": 405,
+                "version": 8
+              },
+              {
+                "learnerId": "u_13",
+                "totalScore": null,
+                "version": 14
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": 755,
+                "version": 17
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 234,
+                "version": 2
+              },
+              {
+                "learnerId": "u_11",
+                "totalScore": 300,
+                "version": 15
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 1004,
+                "version": 19
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 1024,
+                "version": 20
+              },
+              {
+                "learnerId": "u_13",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_14",
+                "totalScore": 222,
+                "version": 13
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 684,
+                "version": 10
+              },
+              {
+                "learnerId": "u_14",
+                "totalScore": 222,
+                "version": 13
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 444,
+                "version": 5
+              },
+              {
+                "learnerId": "u_14",
+                "totalScore": 172,
+                "version": 11
+              },
+              {
+                "learnerId": "u_14",
+                "totalScore": 202,
+                "version": 12
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 614,
+                "version": 9
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 874,
+                "version": 14
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 874,
+                "version": 14
+              },
+              {
+                "learnerId": "u_14",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 974,
+                "version": 18
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": 232,
+                "version": 8
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": 122,
+                "version": 6
+              },
+              {
+                "learnerId": "u_14",
+                "totalScore": null,
+                "version": 19
+              },
+              {
+                "learnerId": "u_14",
+                "totalScore": null,
+                "version": 21
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 754,
+                "version": 12
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": 302,
+                "version": 9
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": null,
+                "version": 21
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": 332,
+                "version": 11
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 574,
+                "version": 8
+              },
+              {
+                "learnerId": "u_12",
+                "totalScore": null,
+                "version": 19
+              },
+              {
+                "learnerId": "u_14",
+                "totalScore": null,
+                "version": 22
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": 312,
+                "version": 10
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 374,
+                "version": 4
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 884,
+                "version": 15
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 974,
+                "version": 17
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 724,
+                "version": 11
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": null,
+                "version": 22
+              },
+              {
+                "learnerId": "u_13",
+                "totalScore": 0,
+                "version": 6
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 804,
+                "version": 13
+              },
+              {
+                "learnerId": "u_14",
+                "totalScore": null,
+                "version": 20
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": 382,
+                "version": 13
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": null,
+                "version": 19
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": 382,
+                "version": 12
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": 122,
+                "version": 6
+              },
+              {
+                "learnerId": "u_17",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_14",
+                "totalScore": null,
+                "version": 18
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 724,
+                "version": 11
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 874,
+                "version": 14
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": 762,
+                "version": 25
+              },
+              {
+                "learnerId": "u_17",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 904,
+                "version": 16
+              },
+              {
+                "learnerId": "u_18",
+                "totalScore": 213,
+                "version": 5
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": 802,
+                "version": 27
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": null,
+                "version": 14
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": null,
+                "version": 23
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": 762,
+                "version": 25
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": 192,
+                "version": 7
+              },
+              {
+                "learnerId": "u_14",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_14",
+                "totalScore": null,
+                "version": 19
+              },
+              {
+                "learnerId": "u_17",
+                "totalScore": null,
+                "version": 11
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": null,
+                "version": 20
+              },
+              {
+                "learnerId": "u_18",
+                "totalScore": 83,
+                "version": 2
+              },
+              {
+                "learnerId": "u_18",
+                "totalScore": 153,
+                "version": 4
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_18",
+                "totalScore": 353,
+                "version": 8
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": 762,
+                "version": 26
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": 302,
+                "version": 9
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": null,
+                "version": 21
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": null,
+                "version": 24
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 754,
+                "version": 12
+              },
+              {
+                "learnerId": "u_10",
+                "totalScore": null,
+                "version": 12
+              },
+              {
+                "learnerId": "u_17",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_19",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_17",
+                "totalScore": null,
+                "version": 14
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": null,
+                "version": 18
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": 872,
+                "version": 28
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 564,
+                "version": 7
+              },
+              {
+                "learnerId": "u_19",
+                "totalScore": 110,
+                "version": 7
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": null,
+                "version": 19
+              },
+              {
+                "learnerId": "u_18",
+                "totalScore": 83,
+                "version": 1
+              },
+              {
+                "learnerId": "u_19",
+                "totalScore": 40,
+                "version": 6
+              },
+              {
+                "learnerId": "u_18",
+                "totalScore": 153,
+                "version": 3
+              },
+              {
+                "learnerId": "u_18",
+                "totalScore": 293,
+                "version": 7
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 304,
+                "version": 3
+              },
+              {
+                "learnerId": "u_17",
+                "totalScore": null,
+                "version": 12
+              },
+              {
+                "learnerId": "u_19",
+                "totalScore": 480,
+                "version": 20
+              },
+              {
+                "learnerId": "u_17",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_19",
+                "totalScore": 150,
+                "version": 8
+              },
+              {
+                "learnerId": "u_19",
+                "totalScore": 200,
+                "version": 10
+              },
+              {
+                "learnerId": "u_19",
+                "totalScore": 340,
+                "version": 13
+              },
+              {
+                "learnerId": "u_19",
+                "totalScore": null,
+                "version": 14
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": null,
+                "version": 14
+              },
+              {
+                "learnerId": "u_17",
+                "totalScore": null,
+                "version": 13
+              },
+              {
+                "learnerId": "u_20",
+                "totalScore": 264,
+                "version": 11
+              },
+              {
+                "learnerId": "u_18",
+                "totalScore": 263,
+                "version": 6
+              },
+              {
+                "learnerId": "u_18",
+                "totalScore": 353,
+                "version": 8
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_18",
+                "totalScore": 263,
+                "version": 6
+              },
+              {
+                "learnerId": "u_20",
+                "totalScore": 484,
+                "version": 17
+              },
+              {
+                "learnerId": "u_19",
+                "totalScore": 480,
+                "version": 20
+              },
+              {
+                "learnerId": "u_20",
+                "totalScore": 574,
+                "version": 19
+              },
+              {
+                "learnerId": "u_21",
+                "totalScore": 298,
+                "version": 5
+              },
+              {
+                "learnerId": "u_19",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_19",
+                "totalScore": 310,
+                "version": 12
+              },
+              {
+                "learnerId": "u_20",
+                "totalScore": 364,
+                "version": 14
+              },
+              {
+                "learnerId": "u_19",
+                "totalScore": null,
+                "version": 19
+              },
+              {
+                "learnerId": "u_21",
+                "totalScore": 238,
+                "version": 4
+              },
+              {
+                "learnerId": "u_19",
+                "totalScore": 340,
+                "version": 13
+              },
+              {
+                "learnerId": "u_19",
+                "totalScore": null,
+                "version": 18
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 974,
+                "version": 17
+              },
+              {
+                "learnerId": "u_19",
+                "totalScore": 160,
+                "version": 9
+              },
+              {
+                "learnerId": "u_18",
+                "totalScore": 153,
+                "version": 3
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": 332,
+                "version": 11
+              },
+              {
+                "learnerId": "u_21",
+                "totalScore": 498,
+                "version": 11
+              },
+              {
+                "learnerId": "u_20",
+                "totalScore": 574,
+                "version": 20
+              },
+              {
+                "learnerId": "u_21",
+                "totalScore": 168,
+                "version": 2
+              },
+              {
+                "learnerId": "u_19",
+                "totalScore": 250,
+                "version": 11
+              },
+              {
+                "learnerId": "u_19",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_21",
+                "totalScore": 398,
+                "version": 8
+              },
+              {
+                "learnerId": "u_21",
+                "totalScore": 498,
+                "version": 10
+              },
+              {
+                "learnerId": "u_19",
+                "totalScore": 540,
+                "version": 21
+              },
+              {
+                "learnerId": "u_15",
+                "totalScore": 614,
+                "version": 9
+              },
+              {
+                "learnerId": "u_21",
+                "totalScore": 298,
+                "version": 6
+              },
+              {
+                "learnerId": "u_20",
+                "totalScore": 284,
+                "version": 12
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": 802,
+                "version": 27
+              },
+              {
+                "learnerId": "u_21",
+                "totalScore": 128,
+                "version": 1
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_20",
+                "totalScore": 644,
+                "version": 21
+              },
+              {
+                "learnerId": "u_20",
+                "totalScore": 404,
+                "version": 15
+              },
+              {
+                "learnerId": "u_21",
+                "totalScore": 208,
+                "version": 3
+              },
+              {
+                "learnerId": "u_17",
+                "totalScore": null,
+                "version": 11
+              },
+              {
+                "learnerId": "u_22",
+                "totalScore": 343,
+                "version": 10
+              },
+              {
+                "learnerId": "u_22",
+                "totalScore": 203,
+                "version": 6
+              },
+              {
+                "learnerId": "u_19",
+                "totalScore": 150,
+                "version": 8
+              },
+              {
+                "learnerId": "u_20",
+                "totalScore": 304,
+                "version": 13
+              },
+              {
+                "learnerId": "u_20",
+                "totalScore": 464,
+                "version": 16
+              },
+              {
+                "learnerId": "u_20",
+                "totalScore": 544,
+                "version": 18
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": 292,
+                "version": 15
+              },
+              {
+                "learnerId": "u_21",
+                "totalScore": 338,
+                "version": 7
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": 212,
+                "version": 13
+              },
+              {
+                "learnerId": "u_16",
+                "totalScore": null,
+                "version": 20
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": null,
+                "version": 23
+              },
+              {
+                "learnerId": "u_22",
+                "totalScore": 453,
+                "version": 13
+              },
+              {
+                "learnerId": "u_22",
+                "totalScore": 283,
+                "version": 9
+              },
+              {
+                "learnerId": "u_21",
+                "totalScore": 438,
+                "version": 9
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": 442,
+                "version": 19
+              },
+              {
+                "learnerId": "u_22",
+                "totalScore": 393,
+                "version": 11
+              },
+              {
+                "learnerId": "u_22",
+                "totalScore": 263,
+                "version": 8
+              },
+              {
+                "learnerId": "u_22",
+                "totalScore": 443,
+                "version": 12
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": null,
+                "version": 22
+              },
+              {
+                "learnerId": "u_22",
+                "totalScore": 243,
+                "version": 7
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": 672,
+                "version": 30
+              },
+              {
+                "learnerId": "u_22",
+                "totalScore": 263,
+                "version": 8
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": null,
+                "version": 26
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": 152,
+                "version": 11
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": null,
+                "version": 25
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": 162,
+                "version": 12
+              },
+              {
+                "learnerId": "u_19",
+                "totalScore": null,
+                "version": 18
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": null,
+                "version": 24
+              },
+              {
+                "learnerId": "u_24",
+                "totalScore": 411,
+                "version": 7
+              },
+              {
+                "learnerId": "u_22",
+                "totalScore": 493,
+                "version": 15
+              },
+              {
+                "learnerId": "u_19",
+                "totalScore": 310,
+                "version": 12
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": 162,
+                "version": 12
+              },
+              {
+                "learnerId": "u_20",
+                "totalScore": 284,
+                "version": 12
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": 372,
+                "version": 18
+              },
+              {
+                "learnerId": "u_22",
+                "totalScore": 483,
+                "version": 14
+              },
+              {
+                "learnerId": "u_21",
+                "totalScore": 498,
+                "version": 11
+              },
+              {
+                "learnerId": "u_24",
+                "totalScore": null,
+                "version": 12
+              },
+              {
+                "learnerId": "u_22",
+                "totalScore": 443,
+                "version": 12
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": null,
+                "version": 27
+              },
+              {
+                "learnerId": "u_24",
+                "totalScore": 191,
+                "version": 1
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": null,
+                "version": 28
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": 372,
+                "version": 17
+              },
+              {
+                "learnerId": "u_24",
+                "totalScore": 501,
+                "version": 9
+              },
+              {
+                "learnerId": "u_24",
+                "totalScore": null,
+                "version": 5
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": null,
+                "version": 23
+              },
+              {
+                "learnerId": "u_25",
+                "totalScore": null,
+                "version": 8
+              },
+              {
+                "learnerId": "u_24",
+                "totalScore": 341,
+                "version": 6
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": 562,
+                "version": 21
+              },
+              {
+                "learnerId": "u_24",
+                "totalScore": null,
+                "version": 5
+              },
+              {
+                "learnerId": "u_20",
+                "totalScore": 574,
+                "version": 20
+              },
+              {
+                "learnerId": "u_22",
+                "totalScore": 393,
+                "version": 11
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": 222,
+                "version": 14
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": 332,
+                "version": 16
+              },
+              {
+                "learnerId": "u_24",
+                "totalScore": 201,
+                "version": 2
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": 512,
+                "version": 20
+              },
+              {
+                "learnerId": "u_24",
+                "totalScore": 271,
+                "version": 3
+              },
+              {
+                "learnerId": "u_24",
+                "totalScore": null,
+                "version": 11
+              },
+              {
+                "learnerId": "u_24",
+                "totalScore": 431,
+                "version": 8
+              },
+              {
+                "learnerId": "u_24",
+                "totalScore": 521,
+                "version": 10
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 251,
+                "version": 13
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": null,
+                "version": 22
+              },
+              {
+                "learnerId": "u_24",
+                "totalScore": null,
+                "version": 4
+              },
+              {
+                "learnerId": "u_25",
+                "totalScore": 40,
+                "version": 6
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": 652,
+                "version": 29
+              },
+              {
+                "learnerId": "u_22",
+                "totalScore": 203,
+                "version": 6
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 191,
+                "version": 11
+              },
+              {
+                "learnerId": "u_25",
+                "totalScore": 40,
+                "version": 6
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": null,
+                "version": 27
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 231,
+                "version": 12
+              },
+              {
+                "learnerId": "u_20",
+                "totalScore": 574,
+                "version": 19
+              },
+              {
+                "learnerId": "u_25",
+                "totalScore": null,
+                "version": 11
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": 652,
+                "version": 29
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 671,
+                "version": 27
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": null,
+                "version": 22
+              },
+              {
+                "learnerId": "u_21",
+                "totalScore": 498,
+                "version": 10
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 371,
+                "version": 17
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 361,
+                "version": 16
+              },
+              {
+                "learnerId": "u_25",
+                "totalScore": null,
+                "version": 8
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 771,
+                "version": 29
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": null,
+                "version": 20
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": 442,
+                "version": 19
+              },
+              {
+                "learnerId": "u_25",
+                "totalScore": 60,
+                "version": 7
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": null,
+                "version": 19
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 821,
+                "version": 30
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 601,
+                "version": 24
+              },
+              {
+                "learnerId": "u_25",
+                "totalScore": null,
+                "version": 9
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": 222,
+                "version": 14
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 571,
+                "version": 23
+              },
+              {
+                "learnerId": "u_25",
+                "totalScore": 60,
+                "version": 7
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 631,
+                "version": 26
+              },
+              {
+                "learnerId": "u_27",
+                "totalScore": 304,
+                "version": 7
+              },
+              {
+                "learnerId": "u_21",
+                "totalScore": 168,
+                "version": 2
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": null,
+                "version": 18
+              },
+              {
+                "learnerId": "u_21",
+                "totalScore": 298,
+                "version": 6
+              },
+              {
+                "learnerId": "u_25",
+                "totalScore": null,
+                "version": 10
+              },
+              {
+                "learnerId": "u_27",
+                "totalScore": 214,
+                "version": 4
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 861,
+                "version": 32
+              },
+              {
+                "learnerId": "u_22",
+                "totalScore": 493,
+                "version": 15
+              },
+              {
+                "learnerId": "u_24",
+                "totalScore": 501,
+                "version": 9
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 321,
+                "version": 15
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 301,
+                "version": 14
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": null,
+                "version": 21
+              },
+              {
+                "learnerId": "u_27",
+                "totalScore": 244,
+                "version": 5
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 121,
+                "version": 6
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 141,
+                "version": 7
+              },
+              {
+                "learnerId": "u_24",
+                "totalScore": 411,
+                "version": 7
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 331,
+                "version": 12
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 631,
+                "version": 25
+              },
+              {
+                "learnerId": "u_22",
+                "totalScore": 343,
+                "version": 10
+              },
+              {
+                "learnerId": "u_27",
+                "totalScore": 374,
+                "version": 8
+              },
+              {
+                "learnerId": "u_23",
+                "totalScore": null,
+                "version": 28
+              },
+              {
+                "learnerId": "u_27",
+                "totalScore": 164,
+                "version": 3
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 771,
+                "version": 29
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 821,
+                "version": 31
+              },
+              {
+                "learnerId": "u_27",
+                "totalScore": 384,
+                "version": 10
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 581,
+                "version": 17
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 221,
+                "version": 10
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 421,
+                "version": 14
+              },
+              {
+                "learnerId": "u_24",
+                "totalScore": null,
+                "version": 11
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 821,
+                "version": 30
+              },
+              {
+                "learnerId": "u_27",
+                "totalScore": null,
+                "version": 14
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 721,
+                "version": 28
+              },
+              {
+                "learnerId": "u_27",
+                "totalScore": 124,
+                "version": 2
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 421,
+                "version": 14
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 171,
+                "version": 8
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 631,
+                "version": 26
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 197,
+                "version": 13
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 231,
+                "version": 12
+              },
+              {
+                "learnerId": "u_27",
+                "totalScore": 124,
+                "version": 1
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 297,
+                "version": 18
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 171,
+                "version": 8
+              },
+              {
+                "learnerId": "u_27",
+                "totalScore": 424,
+                "version": 11
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 121,
+                "version": 6
+              },
+              {
+                "learnerId": "u_27",
+                "totalScore": 164,
+                "version": 3
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 511,
+                "version": 16
+              },
+              {
+                "learnerId": "u_24",
+                "totalScore": 201,
+                "version": 2
+              },
+              {
+                "learnerId": "u_27",
+                "totalScore": 274,
+                "version": 6
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 631,
+                "version": 18
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 281,
+                "version": 11
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 171,
+                "version": 9
+              },
+              {
+                "learnerId": "u_27",
+                "totalScore": 514,
+                "version": 13
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": null,
+                "version": 18
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 227,
+                "version": 14
+              },
+              {
+                "learnerId": "u_27",
+                "totalScore": 374,
+                "version": 9
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 641,
+                "version": 19
+              },
+              {
+                "learnerId": "u_27",
+                "totalScore": 494,
+                "version": 12
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": null,
+                "version": 19
+              },
+              {
+                "learnerId": "u_25",
+                "totalScore": null,
+                "version": 10
+              },
+              {
+                "learnerId": "u_27",
+                "totalScore": 494,
+                "version": 12
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 537,
+                "version": 27
+              },
+              {
+                "learnerId": "u_27",
+                "totalScore": 384,
+                "version": 10
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 457,
+                "version": 23
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 401,
+                "version": 13
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 297,
+                "version": 15
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 177,
+                "version": 12
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 507,
+                "version": 25
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 141,
+                "version": 7
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 491,
+                "version": 15
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 457,
+                "version": 24
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 361,
+                "version": 16
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 681,
+                "version": 20
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": null,
+                "version": 22
+              },
+              {
+                "learnerId": "u_24",
+                "totalScore": null,
+                "version": 12
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 421,
+                "version": 14
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 401,
+                "version": 13
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": 143,
+                "version": 9
+              },
+              {
+                "learnerId": "u_30",
+                "totalScore": null,
+                "version": 4
+              },
+              {
+                "learnerId": "u_27",
+                "totalScore": 244,
+                "version": 5
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 251,
+                "version": 13
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 297,
+                "version": 16
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 407,
+                "version": 22
+              },
+              {
+                "learnerId": "u_30",
+                "totalScore": 32,
+                "version": 2
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": 153,
+                "version": 10
+              },
+              {
+                "learnerId": "u_30",
+                "totalScore": null,
+                "version": 3
+              },
+              {
+                "learnerId": "u_27",
+                "totalScore": 424,
+                "version": 11
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 741,
+                "version": 21
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 597,
+                "version": 28
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 741,
+                "version": 21
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": 183,
+                "version": 12
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 537,
+                "version": 26
+              },
+              {
+                "learnerId": "u_30",
+                "totalScore": 32,
+                "version": 1
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 167,
+                "version": 11
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": null,
+                "version": 19
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 397,
+                "version": 21
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": 265,
+                "version": 12
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": null,
+                "version": 18
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 297,
+                "version": 15
+              },
+              {
+                "learnerId": "u_27",
+                "totalScore": 374,
+                "version": 8
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 397,
+                "version": 20
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 407,
+                "version": 22
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": null,
+                "version": 13
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 597,
+                "version": 28
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 367,
+                "version": 19
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": 53,
+                "version": 6
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 297,
+                "version": 16
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": 153,
+                "version": 10
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": 265,
+                "version": 13
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 331,
+                "version": 12
+              },
+              {
+                "learnerId": "u_30",
+                "totalScore": null,
+                "version": 7
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 537,
+                "version": 27
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": null,
+                "version": 14
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": null,
+                "version": 23
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 177,
+                "version": 12
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": 183,
+                "version": 11
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": null,
+                "version": 21
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": 133,
+                "version": 8
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": 123,
+                "version": 7
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": 53,
+                "version": 6
+              },
+              {
+                "learnerId": "u_30",
+                "totalScore": null,
+                "version": 6
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": null,
+                "version": 20
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 197,
+                "version": 13
+              },
+              {
+                "learnerId": "u_30",
+                "totalScore": 32,
+                "version": 1
+              },
+              {
+                "learnerId": "u_30",
+                "totalScore": null,
+                "version": 5
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": 245,
+                "version": 11
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": 315,
+                "version": 15
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 457,
+                "version": 23
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 457,
+                "version": 24
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": 425,
+                "version": 18
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": null,
+                "version": 26
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 297,
+                "version": 16
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": 295,
+                "version": 14
+              },
+              {
+                "learnerId": "u_28",
+                "totalScore": 631,
+                "version": 18
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": 385,
+                "version": 17
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": null,
+                "version": 21
+              },
+              {
+                "learnerId": "u_27",
+                "totalScore": 374,
+                "version": 8
+              },
+              {
+                "learnerId": "u_33",
+                "totalScore": 381,
+                "version": 7
+              },
+              {
+                "learnerId": "u_34",
+                "totalScore": 109,
+                "version": 7
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": null,
+                "version": 21
+              },
+              {
+                "learnerId": "u_34",
+                "totalScore": 219,
+                "version": 9
+              },
+              {
+                "learnerId": "u_33",
+                "totalScore": 431,
+                "version": 9
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": null,
+                "version": 20
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": 325,
+                "version": 16
+              },
+              {
+                "learnerId": "u_33",
+                "totalScore": 281,
+                "version": 5
+              },
+              {
+                "learnerId": "u_29",
+                "totalScore": 177,
+                "version": 12
+              },
+              {
+                "learnerId": "u_34",
+                "totalScore": 269,
+                "version": 10
+              },
+              {
+                "learnerId": "u_34",
+                "totalScore": 149,
+                "version": 8
+              },
+              {
+                "learnerId": "u_33",
+                "totalScore": 381,
+                "version": 7
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": null,
+                "version": 28
+              },
+              {
+                "learnerId": "u_33",
+                "totalScore": 311,
+                "version": 6
+              },
+              {
+                "learnerId": "u_33",
+                "totalScore": 101,
+                "version": 2
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": null,
+                "version": 19
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": null,
+                "version": 27
+              },
+              {
+                "learnerId": "u_35",
+                "totalScore": 81,
+                "version": 11
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": null,
+                "version": 22
+              },
+              {
+                "learnerId": "u_33",
+                "totalScore": 381,
+                "version": 8
+              },
+              {
+                "learnerId": "u_33",
+                "totalScore": 161,
+                "version": 3
+              },
+              {
+                "learnerId": "u_26",
+                "totalScore": 631,
+                "version": 26
+              },
+              {
+                "learnerId": "u_34",
+                "totalScore": 329,
+                "version": 12
+              },
+              {
+                "learnerId": "u_25",
+                "totalScore": null,
+                "version": 8
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": 315,
+                "version": 15
+              },
+              {
+                "learnerId": "u_33",
+                "totalScore": 231,
+                "version": 4
+              },
+              {
+                "learnerId": "u_34",
+                "totalScore": 69,
+                "version": 6
+              },
+              {
+                "learnerId": "u_30",
+                "totalScore": null,
+                "version": 4
+              },
+              {
+                "learnerId": "u_34",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_35",
+                "totalScore": 301,
+                "version": 17
+              },
+              {
+                "learnerId": "u_34",
+                "totalScore": 329,
+                "version": 13
+              },
+              {
+                "learnerId": "u_35",
+                "totalScore": 291,
+                "version": 16
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_34",
+                "totalScore": null,
+                "version": 14
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": null,
+                "version": 24
+              },
+              {
+                "learnerId": "u_33",
+                "totalScore": 71,
+                "version": 1
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": null,
+                "version": 25
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": null,
+                "version": 19
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_30",
+                "totalScore": null,
+                "version": 3
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": 265,
+                "version": 13
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": null,
+                "version": 13
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": null,
+                "version": 26
+              },
+              {
+                "learnerId": "u_34",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": 143,
+                "version": 9
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 6
+              },
+              {
+                "learnerId": "u_34",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_35",
+                "totalScore": 431,
+                "version": 19
+              },
+              {
+                "learnerId": "u_34",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_35",
+                "totalScore": 361,
+                "version": 18
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 9
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 14
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": 295,
+                "version": 14
+              },
+              {
+                "learnerId": "u_35",
+                "totalScore": 271,
+                "version": 15
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 8
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 12
+              },
+              {
+                "learnerId": "u_34",
+                "totalScore": 329,
+                "version": 11
+              },
+              {
+                "learnerId": "u_33",
+                "totalScore": 161,
+                "version": 3
+              },
+              {
+                "learnerId": "u_35",
+                "totalScore": 191,
+                "version": 13
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 7
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": 265,
+                "version": 12
+              },
+              {
+                "learnerId": "u_35",
+                "totalScore": 201,
+                "version": 14
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_33",
+                "totalScore": 231,
+                "version": 4
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 18
+              },
+              {
+                "learnerId": "u_35",
+                "totalScore": 121,
+                "version": 12
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 10
+              },
+              {
+                "learnerId": "u_32",
+                "totalScore": 385,
+                "version": 17
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 20
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": 234,
+                "version": 1
+              },
+              {
+                "learnerId": "u_38",
+                "totalScore": 171,
+                "version": 11
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": 264,
+                "version": 2
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": 284,
+                "version": 3
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": 334,
+                "version": 5
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": 294,
+                "version": 4
+              },
+              {
+                "learnerId": "u_35",
+                "totalScore": 291,
+                "version": 16
+              },
+              {
+                "learnerId": "u_38",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_37",
+                "totalScore": 552,
+                "version": 13
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 11
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 22
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_37",
+                "totalScore": 482,
+                "version": 12
+              },
+              {
+                "learnerId": "u_37",
+                "totalScore": null,
+                "version": 14
+              },
+              {
+                "learnerId": "u_34",
+                "totalScore": 269,
+                "version": 10
+              },
+              {
+                "learnerId": "u_38",
+                "totalScore": 211,
+                "version": 12
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 13
+              },
+              {
+                "learnerId": "u_37",
+                "totalScore": 302,
+                "version": 8
+              },
+              {
+                "learnerId": "u_37",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_37",
+                "totalScore": 412,
+                "version": 11
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 8
+              },
+              {
+                "learnerId": "u_37",
+                "totalScore": 362,
+                "version": 9
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 20
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 21
+              },
+              {
+                "learnerId": "u_38",
+                "totalScore": null,
+                "version": 23
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 7
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 19
+              },
+              {
+                "learnerId": "u_37",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_38",
+                "totalScore": null,
+                "version": 18
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 10
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 11
+              },
+              {
+                "learnerId": "u_37",
+                "totalScore": 372,
+                "version": 10
+              },
+              {
+                "learnerId": "u_38",
+                "totalScore": null,
+                "version": 19
+              },
+              {
+                "learnerId": "u_37",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_37",
+                "totalScore": 262,
+                "version": 7
+              },
+              {
+                "learnerId": "u_37",
+                "totalScore": 192,
+                "version": 6
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 12
+              },
+              {
+                "learnerId": "u_37",
+                "totalScore": null,
+                "version": 14
+              },
+              {
+                "learnerId": "u_38",
+                "totalScore": 171,
+                "version": 11
+              },
+              {
+                "learnerId": "u_38",
+                "totalScore": null,
+                "version": 24
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 9
+              },
+              {
+                "learnerId": "u_34",
+                "totalScore": 269,
+                "version": 10
+              },
+              {
+                "learnerId": "u_39",
+                "totalScore": null,
+                "version": 2
+              },
+              {
+                "learnerId": "u_39",
+                "totalScore": null,
+                "version": 7
+              },
+              {
+                "learnerId": "u_38",
+                "totalScore": 251,
+                "version": 13
+              },
+              {
+                "learnerId": "u_38",
+                "totalScore": null,
+                "version": 20
+              },
+              {
+                "learnerId": "u_38",
+                "totalScore": null,
+                "version": 22
+              },
+              {
+                "learnerId": "u_33",
+                "totalScore": 381,
+                "version": 8
+              },
+              {
+                "learnerId": "u_35",
+                "totalScore": 361,
+                "version": 18
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 22
+              },
+              {
+                "learnerId": "u_38",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_31",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 258,
+                "version": 8
+              },
+              {
+                "learnerId": "u_39",
+                "totalScore": null,
+                "version": 11
+              },
+              {
+                "learnerId": "u_39",
+                "totalScore": null,
+                "version": 10
+              },
+              {
+                "learnerId": "u_39",
+                "totalScore": null,
+                "version": 12
+              },
+              {
+                "learnerId": "u_38",
+                "totalScore": null,
+                "version": 25
+              },
+              {
+                "learnerId": "u_39",
+                "totalScore": null,
+                "version": 4
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 398,
+                "version": 12
+              },
+              {
+                "learnerId": "u_38",
+                "totalScore": null,
+                "version": 14
+              },
+              {
+                "learnerId": "u_39",
+                "totalScore": null,
+                "version": 3
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 378,
+                "version": 11
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 398,
+                "version": 13
+              },
+              {
+                "learnerId": "u_38",
+                "totalScore": null,
+                "version": 21
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 18
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 408,
+                "version": 14
+              },
+              {
+                "learnerId": "u_38",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_37",
+                "totalScore": 262,
+                "version": 7
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 288,
+                "version": 9
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": 264,
+                "version": 2
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 528,
+                "version": 16
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 338,
+                "version": 10
+              },
+              {
+                "learnerId": "u_39",
+                "totalScore": null,
+                "version": 14
+              },
+              {
+                "learnerId": "u_39",
+                "totalScore": null,
+                "version": 5
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 808,
+                "version": 25
+              },
+              {
+                "learnerId": "u_39",
+                "totalScore": null,
+                "version": 6
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 558,
+                "version": 18
+              },
+              {
+                "learnerId": "u_39",
+                "totalScore": 93,
+                "version": 1
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 228,
+                "version": 7
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 468,
+                "version": 15
+              },
+              {
+                "learnerId": "u_39",
+                "totalScore": null,
+                "version": 8
+              },
+              {
+                "learnerId": "u_37",
+                "totalScore": 552,
+                "version": 13
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 338,
+                "version": 10
+              },
+              {
+                "learnerId": "u_39",
+                "totalScore": null,
+                "version": 13
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_39",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_37",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_37",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 538,
+                "version": 17
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 778,
+                "version": 24
+              },
+              {
+                "learnerId": "u_39",
+                "totalScore": null,
+                "version": 8
+              },
+              {
+                "learnerId": "u_39",
+                "totalScore": null,
+                "version": 9
+              },
+              {
+                "learnerId": "u_37",
+                "totalScore": 362,
+                "version": 9
+              },
+              {
+                "learnerId": "u_36",
+                "totalScore": 334,
+                "version": 5
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 158,
+                "version": 6
+              },
+              {
+                "learnerId": "u_41",
+                "totalScore": 237,
+                "version": 14
+              },
+              {
+                "learnerId": "u_38",
+                "totalScore": null,
+                "version": 22
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 778,
+                "version": 24
+              },
+              {
+                "learnerId": "u_41",
+                "totalScore": 397,
+                "version": 18
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 158,
+                "version": 6
+              },
+              {
+                "learnerId": "u_37",
+                "totalScore": 482,
+                "version": 12
+              },
+              {
+                "learnerId": "u_41",
+                "totalScore": 287,
+                "version": 15
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": 141,
+                "version": 4
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 718,
+                "version": 23
+              },
+              {
+                "learnerId": "u_41",
+                "totalScore": 227,
+                "version": 13
+              },
+              {
+                "learnerId": "u_41",
+                "totalScore": 427,
+                "version": 19
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": 311,
+                "version": 8
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": 51,
+                "version": 2
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 608,
+                "version": 21
+              },
+              {
+                "learnerId": "u_41",
+                "totalScore": 377,
+                "version": 17
+              },
+              {
+                "learnerId": "u_41",
+                "totalScore": 227,
+                "version": 13
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 228,
+                "version": 7
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": 191,
+                "version": 6
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 658,
+                "version": 22
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": 71,
+                "version": 3
+              },
+              {
+                "learnerId": "u_41",
+                "totalScore": null,
+                "version": 21
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 288,
+                "version": 9
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 558,
+                "version": 19
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": 551,
+                "version": 14
+              },
+              {
+                "learnerId": "u_38",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_38",
+                "totalScore": null,
+                "version": 25
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": 511,
+                "version": 12
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": 31,
+                "version": 1
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 558,
+                "version": 20
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 46,
+                "version": 6
+              },
+              {
+                "learnerId": "u_39",
+                "totalScore": null,
+                "version": 2
+              },
+              {
+                "learnerId": "u_41",
+                "totalScore": 497,
+                "version": 20
+              },
+              {
+                "learnerId": "u_41",
+                "totalScore": 187,
+                "version": 11
+              },
+              {
+                "learnerId": "u_39",
+                "totalScore": null,
+                "version": 11
+              },
+              {
+                "learnerId": "u_41",
+                "totalScore": 207,
+                "version": 12
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": 251,
+                "version": 7
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 156,
+                "version": 8
+              },
+              {
+                "learnerId": "u_39",
+                "totalScore": null,
+                "version": 3
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 196,
+                "version": 10
+              },
+              {
+                "learnerId": "u_41",
+                "totalScore": 287,
+                "version": 15
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": 191,
+                "version": 5
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": 251,
+                "version": 7
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": 361,
+                "version": 9
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 558,
+                "version": 19
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 356,
+                "version": 14
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 116,
+                "version": 7
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 246,
+                "version": 11
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": 471,
+                "version": 11
+              },
+              {
+                "learnerId": "u_41",
+                "totalScore": 307,
+                "version": 16
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": 71,
+                "version": 3
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": 401,
+                "version": 10
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 398,
+                "version": 13
+              },
+              {
+                "learnerId": "u_41",
+                "totalScore": 397,
+                "version": 18
+              },
+              {
+                "learnerId": "u_41",
+                "totalScore": null,
+                "version": 21
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 246,
+                "version": 11
+              },
+              {
+                "learnerId": "u_38",
+                "totalScore": null,
+                "version": 19
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 606,
+                "version": 23
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 398,
+                "version": 12
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 586,
+                "version": 21
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 446,
+                "version": 17
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": 511,
+                "version": 12
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 636,
+                "version": 24
+              },
+              {
+                "learnerId": "u_40",
+                "totalScore": 608,
+                "version": 21
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 506,
+                "version": 19
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": null,
+                "version": 14
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 586,
+                "version": 22
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 316,
+                "version": 13
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": 531,
+                "version": 13
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 386,
+                "version": 15
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 726,
+                "version": 26
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": 471,
+                "version": 11
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 556,
+                "version": 20
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": null,
+                "version": 11
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": null,
+                "version": 18
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": 553,
+                "version": 25
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": 433,
+                "version": 23
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": 383,
+                "version": 20
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 676,
+                "version": 25
+              },
+              {
+                "learnerId": "u_41",
+                "totalScore": 427,
+                "version": 19
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 176,
+                "version": 9
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": 551,
+                "version": 14
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 556,
+                "version": 20
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 476,
+                "version": 18
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": 191,
+                "version": 1
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 306,
+                "version": 12
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": null,
+                "version": 7
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": 221,
+                "version": 2
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": 403,
+                "version": 21
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": 331,
+                "version": 6
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 416,
+                "version": 16
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": 363,
+                "version": 19
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 786,
+                "version": 27
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": 321,
+                "version": 5
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": 423,
+                "version": 22
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 116,
+                "version": 7
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 586,
+                "version": 21
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 606,
+                "version": 23
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": null,
+                "version": 14
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": 551,
+                "version": 17
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": null,
+                "version": 13
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 156,
+                "version": 8
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": 691,
+                "version": 22
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 196,
+                "version": 10
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": null,
+                "version": 12
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": 381,
+                "version": 10
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": null,
+                "version": 12
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": 261,
+                "version": 3
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 306,
+                "version": 12
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": 531,
+                "version": 13
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": null,
+                "version": 8
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": 311,
+                "version": 8
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": 573,
+                "version": 26
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": null,
+                "version": 13
+              },
+              {
+                "learnerId": "u_41",
+                "totalScore": 377,
+                "version": 17
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_42",
+                "totalScore": 191,
+                "version": 6
+              },
+              {
+                "learnerId": "u_46",
+                "totalScore": 202,
+                "version": 11
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": 281,
+                "version": 4
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 446,
+                "version": 17
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": 493,
+                "version": 24
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": null,
+                "version": 8
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": 661,
+                "version": 20
+              },
+              {
+                "learnerId": "u_47",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 416,
+                "version": 16
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": 391,
+                "version": 11
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": null,
+                "version": 12
+              },
+              {
+                "learnerId": "u_47",
+                "totalScore": null,
+                "version": 17
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": 371,
+                "version": 9
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": 403,
+                "version": 21
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": 621,
+                "version": 18
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": null,
+                "version": 11
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 506,
+                "version": 19
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": 553,
+                "version": 25
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": null,
+                "version": 7
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": 681,
+                "version": 21
+              },
+              {
+                "learnerId": "u_46",
+                "totalScore": 52,
+                "version": 7
+              },
+              {
+                "learnerId": "u_46",
+                "totalScore": 122,
+                "version": 9
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": 423,
+                "version": 22
+              },
+              {
+                "learnerId": "u_47",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_48",
+                "totalScore": 217,
+                "version": 1
+              },
+              {
+                "learnerId": "u_46",
+                "totalScore": 52,
+                "version": 7
+              },
+              {
+                "learnerId": "u_47",
+                "totalScore": null,
+                "version": 15
+              },
+              {
+                "learnerId": "u_48",
+                "totalScore": 377,
+                "version": 4
+              },
+              {
+                "learnerId": "u_46",
+                "totalScore": 192,
+                "version": 10
+              },
+              {
+                "learnerId": "u_47",
+                "totalScore": 140,
+                "version": 12
+              },
+              {
+                "learnerId": "u_49",
+                "totalScore": null,
+                "version": 9
+              },
+              {
+                "learnerId": "u_48",
+                "totalScore": 327,
+                "version": 3
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": 691,
+                "version": 23
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 726,
+                "version": 26
+              },
+              {
+                "learnerId": "u_47",
+                "totalScore": 80,
+                "version": 11
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": 631,
+                "version": 19
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 356,
+                "version": 14
+              },
+              {
+                "learnerId": "u_47",
+                "totalScore": null,
+                "version": 19
+              },
+              {
+                "learnerId": "u_49",
+                "totalScore": 180,
+                "version": 10
+              },
+              {
+                "learnerId": "u_46",
+                "totalScore": 272,
+                "version": 12
+              },
+              {
+                "learnerId": "u_46",
+                "totalScore": 52,
+                "version": 6
+              },
+              {
+                "learnerId": "u_48",
+                "totalScore": 577,
+                "version": 9
+              },
+              {
+                "learnerId": "u_46",
+                "totalScore": 192,
+                "version": 10
+              },
+              {
+                "learnerId": "u_49",
+                "totalScore": 260,
+                "version": 13
+              },
+              {
+                "learnerId": "u_46",
+                "totalScore": 102,
+                "version": 8
+              },
+              {
+                "learnerId": "u_48",
+                "totalScore": 497,
+                "version": 6
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": 371,
+                "version": 9
+              },
+              {
+                "learnerId": "u_47",
+                "totalScore": null,
+                "version": 13
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": 621,
+                "version": 18
+              },
+              {
+                "learnerId": "u_49",
+                "totalScore": 310,
+                "version": 14
+              },
+              {
+                "learnerId": "u_47",
+                "totalScore": null,
+                "version": 16
+              },
+              {
+                "learnerId": "u_48",
+                "totalScore": 547,
+                "version": 8
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": null,
+                "version": 13
+              },
+              {
+                "learnerId": "u_47",
+                "totalScore": null,
+                "version": 14
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 386,
+                "version": 15
+              },
+              {
+                "learnerId": "u_49",
+                "totalScore": 410,
+                "version": 16
+              },
+              {
+                "learnerId": "u_48",
+                "totalScore": null,
+                "version": 10
+              },
+              {
+                "learnerId": "u_50",
+                "totalScore": 279,
+                "version": 14
+              },
+              {
+                "learnerId": "u_50",
+                "totalScore": 289,
+                "version": 15
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": 691,
+                "version": 22
+              },
+              {
+                "learnerId": "u_47",
+                "totalScore": null,
+                "version": 18
+              },
+              {
+                "learnerId": "u_50",
+                "totalScore": 179,
+                "version": 11
+              },
+              {
+                "learnerId": "u_49",
+                "totalScore": 190,
+                "version": 12
+              },
+              {
+                "learnerId": "u_49",
+                "totalScore": 140,
+                "version": 6
+              },
+              {
+                "learnerId": "u_47",
+                "totalScore": null,
+                "version": 20
+              },
+              {
+                "learnerId": "u_50",
+                "totalScore": null,
+                "version": 22
+              },
+              {
+                "learnerId": "u_49",
+                "totalScore": null,
+                "version": 7
+              },
+              {
+                "learnerId": "u_50",
+                "totalScore": 259,
+                "version": 13
+              },
+              {
+                "learnerId": "u_48",
+                "totalScore": 267,
+                "version": 2
+              },
+              {
+                "learnerId": "u_48",
+                "totalScore": 497,
+                "version": 7
+              },
+              {
+                "learnerId": "u_48",
+                "totalScore": 437,
+                "version": 5
+              },
+              {
+                "learnerId": "u_45",
+                "totalScore": 381,
+                "version": 10
+              },
+              {
+                "learnerId": "u_44",
+                "totalScore": 363,
+                "version": 19
+              },
+              {
+                "learnerId": "u_50",
+                "totalScore": null,
+                "version": 19
+              },
+              {
+                "learnerId": "u_49",
+                "totalScore": 420,
+                "version": 17
+              },
+              {
+                "learnerId": "u_49",
+                "totalScore": null,
+                "version": 8
+              },
+              {
+                "learnerId": "u_49",
+                "totalScore": 350,
+                "version": 15
+              },
+              {
+                "learnerId": "u_50",
+                "totalScore": null,
+                "version": 26
+              },
+              {
+                "learnerId": "u_48",
+                "totalScore": null,
+                "version": 11
+              },
+              {
+                "learnerId": "u_50",
+                "totalScore": null,
+                "version": 18
+              },
+              {
+                "learnerId": "u_47",
+                "totalScore": 140,
+                "version": 12
+              },
+              {
+                "learnerId": "u_50",
+                "totalScore": 249,
+                "version": 12
+              },
+              {
+                "learnerId": "u_50",
+                "totalScore": null,
+                "version": 24
+              },
+              {
+                "learnerId": "u_50",
+                "totalScore": 339,
+                "version": 17
+              },
+              {
+                "learnerId": "u_50",
+                "totalScore": 289,
+                "version": 15
+              },
+              {
+                "learnerId": "u_50",
+                "totalScore": 309,
+                "version": 16
+              },
+              {
+                "learnerId": "u_46",
+                "totalScore": 202,
+                "version": 11
+              },
+              {
+                "learnerId": "u_49",
+                "totalScore": 180,
+                "version": 11
+              },
+              {
+                "learnerId": "u_48",
+                "totalScore": 217,
+                "version": 1
+              },
+              {
+                "learnerId": "u_48",
+                "totalScore": 327,
+                "version": 3
+              },
+              {
+                "learnerId": "u_50",
+                "totalScore": null,
+                "version": 21
+              },
+              {
+                "learnerId": "u_50",
+                "totalScore": null,
+                "version": 20
+              },
+              {
+                "learnerId": "u_50",
+                "totalScore": null,
+                "version": 23
+              },
+              {
+                "learnerId": "u_50",
+                "totalScore": null,
+                "version": 27
+              },
+              {
+                "learnerId": "u_50",
+                "totalScore": null,
+                "version": 25
+              },
+              {
+                "learnerId": "u_47",
+                "totalScore": null,
+                "version": 19
+              },
+              {
+                "learnerId": "u_50",
+                "totalScore": null,
+                "version": 20
+              },
+              {
+                "learnerId": "u_50",
+                "totalScore": null,
+                "version": 23
+              },
+              {
+                "learnerId": "u_50",
+                "totalScore": null,
+                "version": 27
+              },
+              {
+                "learnerId": "u_49",
+                "totalScore": 420,
+                "version": 17
+              },
+              {
+                "learnerId": "u_47",
+                "totalScore": null,
+                "version": 18
+              },
+              {
+                "learnerId": "u_43",
+                "totalScore": 586,
+                "version": 21
+              },
+              {
+                "learnerId": "u_50",
+                "totalScore": 339,
+                "version": 17
+              },
+              {
+                "learnerId": "u_49",
+                "totalScore": 420,
+                "version": 17
+              },
+              {
+                "learnerId": "u_49",
+                "totalScore": 190,
+                "version": 12
+              }
+            ],
+            "orders": 3,
+            "summary": true
+          },
+          "expected": "applied: 215; duplicate: 20; stale: 763\nboard (26): 1. u_15 1024 | 2. u_16 872 | 3. u_26 861 | 4. u_40 808 | 5. u_43 786 | 6. u_28 741 | 7. u_45 691 | 8. u_8 689 | 9. u_23 672 | 10. u_1 658\nversions: u_1=18 u_10=18 u_11=17 u_12=22 u_13=18 u_14=22 u_15=20 u_16=28 u_17=17 u_18=8 u_19=21 u_2=21 u_20=21 u_21=11 u_22=15 u_23=30 u_24=12 u_25=11 u_26=32 u_27=14 u_28=21 u_29=28 u_3=15 u_30=7 u_31=21 u_32=28 u_33=9 u_34=17 u_35=19 u_36=22 u_37=17 u_38=25 u_39=15 u_4=17 u_40=25 u_41=21 u_42=17 u_43=27 u_44=26 u_45=23 u_46=12 u_47=20 u_48=11 u_49=17 u_5=24 u_50=27 u_6=9 u_7=15 u_8=20 u_9=17\nsame final board and versions in 3 of 3 other orders",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

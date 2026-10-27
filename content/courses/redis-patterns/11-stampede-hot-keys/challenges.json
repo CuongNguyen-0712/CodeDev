@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_rdp_421",
+      "name": "cache-stampede-hot-keys",
+      "type": "quiz",
+      "title": "Cache stampedes & hot keys",
+      "description": "Three statements on what happened when the cached detail page of CodeDev's most popular course expired at the evening peak, and on the fixes: a short lock with SET NX EX and TTL jitter.",
+      "difficulty": "medium",
+      "outcomes": [
+        "ttl-cache-aside"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "API log and metrics, Tuesday 19:00 (5 API instances, PostgreSQL pool of 20 connections per instance):\n18:59:59.990 cache hit  course:detail:nodejs-api-security  (TTL left 0.01 s)\n19:00:00.004 cache miss course:detail:nodejs-api-security -> load from PostgreSQL\n19:00:00.006 cache miss course:detail:nodejs-api-security -> load from PostgreSQL\n... 1,897 \"cache miss\" lines for this key between 19:00:00.000 and 19:00:01.000 ...\n19:00:01.412 cache miss course:detail:nodejs-api-security -> load failed: timeout acquiring a connection (pool 20/20)\n\nINFO stats, delta over 19:00:00-19:00:01:  keyspace_misses +1912   keyspace_hits +2210\npg_stat_statements, delta over the same second:\n  query: SELECT ... FROM course c JOIN lesson l ... WHERE c.slug = $1   calls +100   mean_exec_time 182 ms\npg_stat_activity: 100 active, 0 idle (before 19:00: 9 active)\nGET /courses/:slug  p99 41 ms -> 6.8 s\n\nStatement: \"This is a cache stampede: almost all the extra load comes from one key that expired while it was in heavy use, and every request that missed it tried to run the same query.\"",
+          "explanation": "True. The log shows 1,897 misses for one key in the second after its TTL ran out, and Redis counts about as many misses in total, so the misses are not spread over many keys. Every miss followed cache-aside to the letter - miss, load, store - so every concurrent request tried to load the same row: only 100 got a connection (5 instances x 20), the rest timed out waiting for the pool. Before 19:00 the same traffic cost 9 active connections because the key absorbed it. The common misconception is to read this as \"PostgreSQL is too slow\" or \"we need a bigger pool\": a bigger pool lets more identical queries run at once and makes the database slower for everyone.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The fix proposed in the incident review (ioredis):\nconst gotLock = (await redis.set(`lock:${key}`, token, \"EX\", 5, \"NX\")) === \"OK\";\nif (gotLock) {\n  try {\n    const data = await db.loadCourseDetail(slug);      // about 180 ms, 2 s at worst\n    await redis.set(key, JSON.stringify(data), \"EX\", 3600);\n    return data;\n  } finally {\n    await redis.eval(RELEASE_IF_OWNER, 1, `lock:${key}`, token); // DEL only if the value is still our token\n  }\n}\nreturn waitForCachedValue(key);                          // poll the key every 50 ms, up to 1 s\n\nStatement: \"Only the request that wins SET NX loads from PostgreSQL while the lock exists, and if that request's process dies before it releases the lock, the lock disappears by itself after at most 5 seconds so another request can load.\"",
+          "explanation": "True. SET with NX writes the key only if it does not exist, and Redis runs it atomically, so among all requests on all instances exactly one gets \"OK\"; the others get null and wait for the value instead of querying. EX 5 is the safety net: a crashed holder cannot release the lock, but the key expires and the next request can take it. The lock TTL must be longer than a slow load (here 5 s against at most 2 s), otherwise it can expire while the first load is still running and a second loader starts. RELEASE_IF_OWNER compares the token before deleting, so a holder whose lock already expired cannot delete a lock that now belongs to someone else. The common mistake is a lock without EX, which a single crash turns into a key that is never rebuilt.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After a deploy at 08:00, a warm-up job writes all 3,000 course detail keys:\nfor (const slug of slugs) await redis.set(`course:detail:${slug}`, json(slug), \"EX\", 3600);\n\nDashboard since then: cache misses and PostgreSQL CPU are flat, except for a spike at 09:00:00, 10:00:00, 11:00:00 ... that lasts about 2 seconds each time.\n\nStatement: \"Adding a random jitter of a few minutes to each TTL would not reduce these spikes, because every key still has to be loaded from PostgreSQL once per hour anyway.\"",
+          "explanation": "False. The spikes come from synchronised expiry: the warm-up wrote 3,000 keys within a few seconds with the same TTL, so they all expire in the same seconds every hour and their reloads land on PostgreSQL together. Jitter (for example EX 3600 plus a random 0-300 seconds) does not reduce the number of reloads per hour, but it spreads them over minutes, and the database cares about the peak, not the hourly total. Popular keys are reloaded within a second of expiring, so with the same fixed TTL they stay in step hour after hour. The misconception is to judge a cache fix by total load instead of by load per second.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
