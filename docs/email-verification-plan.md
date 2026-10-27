@@ -610,6 +610,8 @@ Trạng thái bước 2: claim `verifyLockAt`, `proxy.js`, guard API (`allowLock
 
 Trạng thái bước 3: hộp thoại 12.4 (`components/settings/linkConflictDialog.jsx`) và `GET|POST /api/user/delete-unverified` đã làm, test route + DB (`__tests__/auth/deleteUnverified.test.js`, `accountPurge.test.js`). Khác 12.4: thông tin hộp thoại (username của B, có xóa được không, ngày xóa) nằm trong cookie niêm phong `cd_link_conflict` do callback ghi, không nằm trên URL; route xóa chỉ chạy khi có cookie đó của đúng session, nên link `/settings?linkError=...` giả mạo không mở được hộp thoại xóa. Xác nhận lần 2 = gõ username của A. Chưa thử với Google / GitHub thật (cần OAuth thật). Bước 4 (docs, test) làm cùng từng bước.
 
+Lên prod 2026-10-27: backup Neon `backup-before-verify-lock-20261027` (`br-damp-pine-a4tgrlm9`), rồi migration `20261026_001`, `_002`, `_003` trên `production`; sau đó chỉ 4 commit của mục 12 (cherry-pick, cộng file migration 001) được fast-forward lên `origin/develop` (Preview) và `origin/main` (Production, deploy `c374939`). Sau backfill: 14 user, 8 chưa xác minh, khóa sớm nhất 2026-10-29 10:18 UTC, xóa sớm nhất 2026-11-05. Cron 03:00 UTC gửi mail nhắc khóa cho 8 user đó. `develop` local còn giữ 4 commit gốc (hash khác): lần push sau cần `git pull` (merge sạch, đã thử bằng `git merge-tree`).
+
 ### 12.1 Mốc thời gian
 
 Tính theo giờ (như migration `20261026_001`), không theo ngày lịch. T0 = lúc đăng ký.
