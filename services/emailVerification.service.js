@@ -38,10 +38,13 @@ export const emailVerificationService = {
         }
     },
 
-    /** Queues the "verify or the account is deleted" reminder (plan 11.2). Never throws. */
-    remind: async (userId) => {
+    /**
+     * Queues a reminder: "lock" = verify before the grace period ends (plan 12), "purge" = verify or
+     * the account is deleted (11.2). Never throws.
+     */
+    remind: async (userId, kind = "purge") => {
         try {
-            const outboxId = await emailTokenDb.enqueue("email.verify_requested", { userId, reminder: true });
+            const outboxId = await emailTokenDb.enqueue("email.verify_requested", { userId, reminder: kind });
             await processAuthOutbox({ ids: [outboxId], limit: 1 });
             return true;
         } catch (error) {
@@ -50,19 +53,27 @@ export const emailVerificationService = {
         }
     },
 
-    /** Outbox handler: issues a token and mails the link. Throws when sending fails (retried). */
-    send: async (userId, { reminder = false } = {}) => {
+    /**
+     * Outbox handler: issues a token and mails the link. `reminder`: null, "lock" or "purge".
+     * Throws when sending fails (retried).
+     */
+    send: async (userId, { reminder = null } = {}) => {
         const token = generateRefreshToken();
         const issued = await emailTokenDb.issue({ userPublicId: userId, purpose: "verify_email", tokenHash: hashToken(token), ttlSec: TTL_SEC });
         if (!issued) return; // already verified, blocked or deleted
 
         const url = `${process.env.NEXTAUTH_URL}/auth/verify-email?token=${token}`;
+        const lockDeadline = issued.verifyLockAt && new Date(issued.verifyLockAt) > new Date() ? formatDeadline(issued.verifyLockAt) : null;
         const deadline = issued.purgeAfter ? formatDeadline(issued.purgeAfter) : null;
-        const message = createElement(VerifyEmailTemplate, { name: issued.name, email: issued.email, url, hours: Math.round(TTL_SEC / 3600), deadline });
+        const message = createElement(VerifyEmailTemplate, { name: issued.name, email: issued.email, url, hours: Math.round(TTL_SEC / 3600), lockDeadline, deadline });
+
+        let subject = "Verify your email for CodeDev";
+        if (reminder === "lock" && lockDeadline) subject = `Verify your email by ${lockDeadline} to keep using CodeDev`;
+        if (reminder === "purge" && deadline) subject = `Verify your email by ${deadline} to keep your CodeDev account`;
 
         await sendMail({
             to: issued.email,
-            subject: reminder && deadline ? `Verify your email by ${deadline} to keep your CodeDev account` : "Verify your email for CodeDev",
+            subject,
             html: await render(message),
             text: await render(message, { plainText: true }),
         });

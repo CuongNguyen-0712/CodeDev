@@ -4,8 +4,8 @@ import { processAuthOutbox } from "@/services/authOutbox.service";
 import { emailVerificationService } from "@/services/emailVerification.service";
 
 /**
- * Daily job for never-verified accounts (docs/email-verification-plan.md 11.2): one reminder 2 days
- * before the deadline, then permanent deletion. Run by the cron route
+ * Daily job for unverified accounts (docs/email-verification-plan.md 11.2, 12): one reminder 2 days
+ * before the lock, one 2 days before deletion, then permanent deletion. Run by the cron route
  * (POST|GET /api/internal/account-maintenance) and by the in-process outbox worker.
  * `dryRun` reports what would be deleted and changes nothing. Never throws.
  */
@@ -14,8 +14,11 @@ export async function runAccountMaintenance({ dryRun = false, limit = 50 } = {})
 
     try {
         if (!dryRun) {
+            for (const userId of await accountPurgeDb.claimLockReminders({ limit })) {
+                if (await emailVerificationService.remind(userId, "lock")) report.reminded += 1;
+            }
             for (const userId of await accountPurgeDb.claimReminders({ limit })) {
-                if (await emailVerificationService.remind(userId)) report.reminded += 1;
+                if (await emailVerificationService.remind(userId, "purge")) report.reminded += 1;
             }
         }
 

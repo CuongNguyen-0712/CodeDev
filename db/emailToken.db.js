@@ -12,12 +12,13 @@ export const emailTokenDb = {
      *   link_account: the provider email is no longer the user's email (the pending link was
      *     decided on that match), or the verification state no longer fits `payload.mode`
      *     ('claim' = unverified account, plan 11.1; 'confirm' = verified account, 11.3 B).
-     * Also returns `purgeAfter` (verify reminders quote the deletion date, 11.2).
+     * Also returns `purgeAfter` and `verifyLockAt` (verify mails quote the deletion and lock dates,
+     * 11.2 and 12).
      */
     issue: async ({ userPublicId, purpose, tokenHash, ttlSec, payload = null }) => {
         return withTransaction(async (client) => {
             const userRes = await client.query(
-                `SELECT u.id, u.email, u.email_verified, u.purge_after, i.name
+                `SELECT u.id, u.email, u.email_verified, u.purge_after, u.verify_lock_at, i.name
                  FROM identity.users u
                  LEFT JOIN profile.info i ON i.user_id = u.id
                  WHERE u.public_id = $1 AND u.status = 'active'
@@ -41,7 +42,7 @@ export const emailTokenDb = {
                  VALUES ($1, $2, $3, $4, now() + make_interval(secs => $5), $6::jsonb);`,
                 [user.id, purpose, user.email, tokenHash, ttlSec, payload ? JSON.stringify(payload) : null]
             );
-            return { email: user.email, name: user.name, purgeAfter: user.purge_after };
+            return { email: user.email, name: user.name, purgeAfter: user.purge_after, verifyLockAt: user.verify_lock_at };
         });
     },
 

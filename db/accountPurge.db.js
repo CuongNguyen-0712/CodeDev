@@ -4,7 +4,8 @@ import { sessionDb } from "@/db/session.db";
 
 /**
  * Never-verified accounts (docs/email-verification-plan.md 11.2): identity.users.purge_after is
- * set on sign-up (trigger, migration 20261024_001) and cleared for good once the email is verified.
+ * set on sign-up (trigger, migrations 20261024_001, 20261026_003) and cleared for good once the
+ * email is verified. verify_lock_at (plan 12) is the end of the 7-day grace period.
  */
 export const accountPurgeDb = {
     /**
@@ -20,6 +21,28 @@ export const accountPurgeDb = {
                    AND purge_reminded_at IS NULL AND purge_after - interval '2 days' <= now()
                    AND ($2::text[] IS NULL OR public_id = ANY($2::text[]))
                  ORDER BY purge_after
+                 LIMIT $1
+                 FOR UPDATE SKIP LOCKED
+             )
+             RETURNING u.public_id;`,
+            [limit, userIds]
+        );
+        return res.rows.map((r) => r.public_id);
+    },
+
+    /**
+     * Same as claimReminders for the lock deadline (plan 12): accounts locking within 48 hours,
+     * not yet locked. Covers accounts that were verified once and changed their email.
+     */
+    claimLockReminders: async ({ limit = 50, userIds = null } = {}) => {
+        const res = await sql(
+            `UPDATE identity.users u SET lock_reminded_at = now()
+             WHERE u.id IN (
+                 SELECT id FROM identity.users
+                 WHERE verify_lock_at > now() AND email_verified IS NOT TRUE AND status = 'active'
+                   AND lock_reminded_at IS NULL AND verify_lock_at - interval '48 hours' <= now()
+                   AND ($2::text[] IS NULL OR public_id = ANY($2::text[]))
+                 ORDER BY verify_lock_at
                  LIMIT $1
                  FOR UPDATE SKIP LOCKED
              )

@@ -1109,10 +1109,13 @@ Table identity.users {
   email_verified boolean [default: false]
   purge_after timestamptz
   purge_reminded_at timestamptz
+  verify_lock_at timestamptz
+  lock_reminded_at timestamptz
 
   indexes {
     `lower(email::text)` [unique, name: 'users_email_lower_uq']
     purge_after [name: 'users_purge_after_idx', note: 'WHERE (purge_after IS NOT NULL)']
+    verify_lock_at [name: 'users_verify_lock_at_idx', note: 'WHERE (verify_lock_at IS NOT NULL)']
   }
 }
 
