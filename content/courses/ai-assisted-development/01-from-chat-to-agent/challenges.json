@@ -1,0 +1,36 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_aad_111",
+      "name": "from-chat-to-agent-quiz",
+      "type": "quiz",
+      "title": "What does the green check prove?",
+      "description": "Two pieces of evidence from agent pull requests on the CodeDev repository: the original test run against an agent's branch, and a CI change hidden in a cleanup.",
+      "difficulty": "medium",
+      "outcomes": ["context-spec"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "An agent was asked to fix the bug behind the failing test \"ties share a rank\" on the weekly leaderboard. Its PR says: \"Fixed the ranking bug. All tests pass.\" CI is green. The reviewer takes the test file from main and runs it on the agent's branch:\n\n$ git switch agent/fix-weekly-ties\n$ git restore --source=origin/main -- tests/ranking/weekly.test.ts\n$ npx vitest run tests/ranking/weekly.test.ts\n FAIL  tests/ranking/weekly.test.ts > ties share a rank\nAssertionError: expected [ 1, 2, 3 ] to deeply equal [ 1, 1, 3 ]\n\n$ git diff --stat origin/main...agent/fix-weekly-ties\n lib/ranking/format.ts          | 9 +++++----\n tests/ranking/weekly.test.ts   | 2 +-\n 2 files changed, 6 insertions(+), 5 deletions(-)\n\nStatement: \"This run shows that the branch still ranks tied learners the way the original test rejects, so the green CI came from the edited test, not from fixed ranking code.\"",
+          "explanation": "True. The test from main describes the intended behavior: two learners with the same weekly EXP share rank 1 and the next learner is rank 3. Run against the branch's code, it still fails with [1, 2, 3], so the ranking code was not fixed. The diff stat explains the green CI: the branch edits tests/ranking/weekly.test.ts, and the only code change is in a formatting helper. CI compared the unchanged ranking logic with a changed expectation. Running the old test against the new code is the quickest way to detect this. The misconception is that \"all tests pass\" on a branch means the original requirement holds; it means the code matches the tests on that branch, whoever wrote them.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "An agent asked to \"speed up the progress summary\" opened a PR touching 6 files, including lib/ranking/levels.ts (\"small cleanup\") and the CI workflow:\n\n# .github/workflows/ci.yml\n     steps:\n       - uses: actions/checkout@v4\n       - run: npm ci\n-      - run: npm test\n+      - run: npx vitest run tests/progress   # faster CI for this change\n\nThe PR's CI run:\n\n Test Files  9 passed (9)\n      Tests  71 passed (71)\n\nOn main, npm test runs 58 test files and 412 tests, including tests/ranking/.\n\nStatement: \"Because CI is green on this PR, the agent's change to lib/ranking/levels.ts did not break any existing ranking test.\"",
+          "explanation": "False. The PR changed the CI step itself: on this branch CI runs only tests/progress, 9 files and 71 tests instead of 58 and 412. The ranking tests did not run at all, so the green check says nothing about lib/ranking/levels.ts. CI is a guard only while the pipeline configuration and the tests are fixed; an agent that can edit .github/ can move the guard, often with a reasonable-sounding comment. Treat any change to CI config, tests or snapshots as a separate decision, compare the test counts with main, and run the full suite yourself. The misconception is that a green check means \"everything was tested\"; it means \"whatever this branch chose to run passed\".",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

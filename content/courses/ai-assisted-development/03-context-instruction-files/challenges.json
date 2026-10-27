@@ -1,0 +1,46 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_aad_131",
+      "name": "context-instruction-files-quiz",
+      "type": "quiz",
+      "title": "Which context helped, which one hurt?",
+      "description": "Three pieces of evidence from agent sessions on the CodeDev repository: a whole-repository dump, an instruction file that names a missing script, and a long instruction file that disagrees with itself.",
+      "difficulty": "medium",
+      "outcomes": ["context-spec"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Request: \"Here is the whole repository (one packed file: 1,912 files, 2.4 MB). tests/progress/completion.test.ts fails. Fix it.\"\n\nAfter the agent's change:\n\n$ git diff --stat\n legacy/progress/completion.ts | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)\n\n$ grep -rn \"legacy/progress\" app lib tests | wc -l\n0\n\n$ head -3 tests/progress/completion.test.ts\nimport { describe, it, expect } from \"vitest\";\nimport { completionPercent } from \"../../lib/progress/completion\";\n\n$ npx vitest run tests/progress/completion.test.ts\n FAIL  2 of 3 lessons is 67%\nAssertionError: expected 66 to be 67\n\nStatement: \"Because the whole repository was in the context, the agent's edit was made in the code that the failing test runs.\"",
+          "explanation": "False. The test imports lib/progress/completion, but the agent edited legacy/progress/completion.ts, an old copy that nothing in app, lib or tests imports (the grep finds 0 references). That is why the test still fails with the same message. A whole-repository dump puts dead copies, archived folders and generated files next to the real code, and a file with the right name in the wrong folder is an easy mistake. Naming the failing test, its output and the file it imports would have pointed straight at lib/progress/completion.ts. The misconception is that more context can only help, because the right file is somewhere in it; being present is not the same as being chosen.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The repository's AGENTS.md says:\n\n## Commands\n- Unit tests: `npm run test:unit`\n- Lint: `npm run lint`\n\npackage.json:\n\n\"scripts\": {\n  \"dev\": \"next dev\",\n  \"build\": \"next build\",\n  \"lint\": \"eslint .\",\n  \"test\": \"vitest run\"\n}\n\nThe agent's final message:\n\n\"I ran `npm run test:unit` as the project instructions say, but it failed with: npm error Missing script: \\\"test:unit\\\". I could not run the tests. The change is small and should be safe.\"\n\nStatement: \"The agent did not run the tests because the instruction file names a script that does not exist in package.json.\"",
+          "explanation": "True. The agent followed the instruction file, the command failed because package.json has no test:unit script (the tests run with npm test), and the agent stopped there and reported the change as \"should be safe\" without evidence. The instruction file made the result less trustworthy than no instruction at all, because a wrong command is trusted. The fix is to correct the line (npm test) and to check the file in CI, for example with a script that verifies every npm run command and every path it mentions. As a reviewer, also reject \"I could not run the tests\" as a final state: the task is not done until the tests ran. The misconception is that an instruction file is documentation that can lag behind the code; for an agent it is executable advice and must be true.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The repository's CLAUDE.md has 640 lines. Two of them:\n\nline 14:   All queries use the parameterized helper: db.query(text, params). Never build SQL from strings.\nline 523:  Example (from the 2023 style guide): db.query(\"SELECT * FROM users WHERE email = '\" + email + \"'\")\n\nThe agent's diff for a new course search endpoint:\n\n+  const rows = await db.query(\n+    \"SELECT id, title FROM content.courses WHERE title ILIKE '%\" + q + \"%' LIMIT 20\"\n+  );\n\nStatement: \"Because line 14 states the rule first and clearly, the agent followed it, and the example at line 523 had no effect on this diff.\"",
+          "explanation": "False. The diff builds SQL by concatenating the search text q, exactly the pattern of the old example and the opposite of line 14 (and a SQL injection, lesson 3.1). Nothing guarantees that the first line, or the clearest one, wins when an instruction file contradicts itself; a 640-line file that mixes current rules with a pasted old style guide makes it more likely that an important line loses. The fix is to delete the outdated example, keep the file short enough to read in two minutes, and enforce the rule with something that does not depend on the model, such as a lint rule or a test for injection. The misconception is that instruction files work like code with a fixed precedence; they are context, and contradictions make the result unpredictable.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

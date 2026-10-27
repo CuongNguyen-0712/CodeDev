@@ -1,0 +1,796 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_aad_211",
+      "name": "reading-diffs-quiz",
+      "type": "quiz",
+      "title": "Read the hunk before you trust it",
+      "description": "Two hunks from a coding agent's pull request: what a hunk header tells you about line numbers and size, and what a pair of identical - and + lines with a \"No newline\" marker really changed.",
+      "difficulty": "medium",
+      "outcomes": [
+        "review-ai-code"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A coding agent changed src/lib/progress.ts. git diff shows this hunk:\n\n@@ -40,7 +40,9 @@\n export function progressPercent(completed: string[], lessons: string[]): number {\n   const done = completed.length;\n   const total = lessons.length;\n-  if (total === 0) return 0;\n-  return Math.round((done / total) * 100);\n+  if (total <= 0) return 0;\n+  // Never show 100% before the last lesson is done.\n+  const percent = Math.floor((done / total) * 100);\n+  return done < total ? Math.min(percent, 99) : 100;\n }\n\nexport function nextLesson(completed: string[], lessons: string[]): string | null {\n\nStatement: \"In the new version of the file this hunk covers lines 40 to 48, and the change adds two lines more than it removes.\"",
+          "explanation": "True. In @@ -40,7 +40,9 @@ the part after + describes the new file: the hunk starts at line 40 and spans 9 lines, so lines 40 to 48. The part after - describes the old file: 7 lines from line 40. Both counts include the context lines (the ones starting with a space), which are the same on both sides: here 5 context lines, 2 removed (5 + 2 = 7) and 4 added (5 + 4 = 9), so the hunk is 2 lines longer than before. The misconception is that the numbers after the comma count only changed lines; they count every line of the hunk on that side, which is why you can check a hunk is complete by counting.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The agent's pull request also lists src/config/limits.ts | 2 +- in git diff --stat. The file's diff:\n\ndiff --git a/src/config/limits.ts b/src/config/limits.ts\nindex 3e1f0a2..9b7c4d1 100644\n--- a/src/config/limits.ts\n+++ b/src/config/limits.ts\n@@ -1,3 +1,3 @@\n export const MAX_HINTS = 3;\n export const MAX_ATTEMPTS = 5;\n-export const MAX_STREAK_BONUS = 50;\n\\ No newline at end of file\n+export const MAX_STREAK_BONUS = 50;\n\nStatement: \"The agent changed the value of MAX_STREAK_BONUS in this hunk.\"",
+          "explanation": "False. The removed line and the added line have the same text. The marker \"\\ No newline at end of file\" belongs to the line just above it: in the old file, that last line had no line break after it. The new file ends with a line break, so Git shows the line as removed and added again, and --stat counts it as 1 insertion and 1 deletion. Nothing about the value changed. Agents and editors that rewrite whole files often add or drop the final newline or change line endings; that noise inflates the line counts and can hide the one hunk that matters. The misconception is that every -/+ pair is a change of content: compare the two lines character by character, and read the marker.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_aad_212",
+      "name": "diff-file-summary",
+      "type": "mini_coding",
+      "title": "Summarise a diff before you read it",
+      "description": "A coding agent's pull request on the CodeDev platform was approved as \"a 20-line fix\" to the progress bar, while the same diff deleted a database migration further down. The review bot now prints a summary of every file a diff touches before anyone reads the hunks. Write parseDiff(diff), which reads the text of one git diff (unified format, Git's default options; paths never contain spaces) and returns one entry per file, in order: path (the path after the change; a deleted file keeps the path it had), from (the old path when the file was renamed, otherwise null), status (\"added\" when the header has \"new file mode\", \"deleted\" for \"deleted file mode\", \"renamed\" when the two paths in \"diff --git a/<old> b/<new>\" differ, otherwise \"modified\", which includes mode-only changes), binary (true when Git printed \"Binary files ... differ\"), and added / removed: the number of lines starting with \"+\" / \"-\" inside the file's hunks (the lines after an \"@@\" header, until the next \"diff --git\" line). The \"--- a/...\" and \"+++ b/...\" header lines are not changes, but a changed line inside a hunk can itself start with \"--\", \"++\" or \"diff --git\". \"\\ No newline at end of file\" and context lines (starting with a space) are not counted. Ignore any text before the first \"diff --git\" line; a text with none has no files. The test runner reads the diff from stdin and prints { files, totals } as JSON, with totals = { files, added, removed }.",
+      "difficulty": "easy",
+      "outcomes": [
+        "review-ai-code"
+      ],
+      "points": 20,
+      "hints": [
+        "How does a human reader know whether a line that starts with \"---\" is the old-file header or a removed line? What has already happened in the file by the time each of them appears?",
+        "Split the text on \"\\n\" and walk the lines with two pieces of state: the file you are filling in (none before the first \"diff --git\") and whether you have reached that file's first \"@@\". Before the first \"@@\" only header lines can appear (new file mode, deleted file mode, rename from/to, index, ---, +++, Binary files); after it, only the first character of each line matters.",
+        "A similar walk on a different diff: \"diff --git a/docs/a.md b/docs/b.md\", \"similarity index 95%\", \"rename from docs/a.md\", \"rename to docs/b.md\", \"--- a/docs/a.md\", \"+++ b/docs/b.md\", \"@@ -1,2 +1,2 @@\", \"----\", \"+---\", \" # Title\". The paths differ, so the entry is renamed with from docs/a.md and path docs/b.md. The \"---\" and \"+++\" lines come before the \"@@\", so they are headers. After the \"@@\", \"----\" is one removed line (its content is \"---\") and \"+---\" is one added line: 1 added, 1 removed."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident PR: \"a 20-line fix\" that also deletes a migration further down",
+          "input": "diff --git a/src/lib/progress.ts b/src/lib/progress.ts\nindex f0b7f4b..7e624e5 100644\n--- a/src/lib/progress.ts\n+++ b/src/lib/progress.ts\n@@ -1,4 +1,3 @@\n import type { Enrollment } from \"./types\";\n-import { round } from \"./math\";\n \n export const LESSON_WEIGHT = 1;\n@@ -41,8 +40,10 @@ export const LESSON_WEIGHT = 1;\n export function progressPercent(completed: string[], lessons: string[]): number {\n   const done = completed.length;\n   const total = lessons.length;\n-  if (total === 0) return 0;\n-  return round((done / total) * 100);\n+  if (total <= 0) return 0;\n+  // Never show 100% before the last lesson is done.\n+  const percent = Math.floor((done / total) * 100);\n+  return done < total ? Math.min(percent, 99) : 100;\n }\n \n export function nextLesson(completed: string[], lessons: string[]): string | null {\ndiff --git a/src/lib/progress.test.ts b/src/lib/progress.test.ts\nindex 1d4da15..4484450 100644\n--- a/src/lib/progress.test.ts\n+++ b/src/lib/progress.test.ts\n@@ -18,6 +18,22 @@ test(\"no lessons\", () => {\n   expect(progressPercent([], [])).toBe(0);\n });\n \n+test(\"never shows 100% before the last lesson\", () => {\n+  const lessons = Array.from({ length: 200 }, (_, i) => `l${i}`);\n+  expect(progressPercent(lessons.slice(0, 199), lessons)).toBe(99);\n+});\n+\n+test(\"shows 100% when every lesson is done\", () => {\n+  expect(progressPercent([\"a\", \"b\", \"c\"], [\"a\", \"b\", \"c\"])).toBe(100);\n+});\n+\n+test(\"rounds down\", () => {\n+  expect(progressPercent([\"a\", \"b\"], [\"a\", \"b\", \"c\"])).toBe(66);\n+});\n+\n+test(\"one lesson of three is 33%\", () => {\n+  expect(progressPercent([\"a\"], [\"a\", \"b\", \"c\"])).toBe(33);\n+});\n test(\"half way\", () => {\n   expect(progressPercent([\"a\"], [\"a\", \"b\"])).toBe(50);\n });\ndiff --git a/db/migrations/20261012_003_enrollment_source.sql b/db/migrations/20261012_003_enrollment_source.sql\ndeleted file mode 100644\nindex 858e511..0000000\n--- a/db/migrations/20261012_003_enrollment_source.sql\n+++ /dev/null\n@@ -1,14 +0,0 @@\n--- 20261012_003_enrollment_source.sql\n--- Adds enrollments.source: where the learner enrolled from.\n--- Read by POST /enrollments and the admin \"Enrollments by source\" chart.\n-\n-ALTER TABLE enrollment.enrollments\n-  ADD COLUMN source text NOT NULL DEFAULT 'catalog';\n-\n-ALTER TABLE enrollment.enrollments\n-  ADD CONSTRAINT enrollments_source_check\n-  CHECK (source IN ('catalog', 'roadmap', 'invite'));\n-\n--- Backfill: enrollments created from a roadmap page.\n-UPDATE enrollment.enrollments SET source = 'roadmap'\n-WHERE created_from_roadmap_id IS NOT NULL;\n",
+          "expected": {
+            "files": [
+              {
+                "path": "src/lib/progress.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 4,
+                "removed": 3
+              },
+              {
+                "path": "src/lib/progress.test.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 16,
+                "removed": 0
+              },
+              {
+                "path": "db/migrations/20261012_003_enrollment_source.sql",
+                "from": null,
+                "status": "deleted",
+                "binary": false,
+                "added": 0,
+                "removed": 14
+              }
+            ],
+            "totals": {
+              "files": 3,
+              "added": 20,
+              "removed": 17
+            }
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A new file, a rename with one changed line, and a missing newline at end of file",
+          "input": "diff --git a/src/lib/streakBadge.ts b/src/lib/streakBadge.ts\nnew file mode 100644\nindex 0000000..ad7df6f\n--- /dev/null\n+++ b/src/lib/streakBadge.ts\n@@ -0,0 +1,7 @@\n+import type { Streak } from \"./streaks\";\n+\n+export function streakBadge(streak: Streak): string | null {\n+  if (streak.current >= 30) return \"streak-30\";\n+  if (streak.current >= 7) return \"streak-7\";\n+  return null;\n+}\n\\ No newline at end of file\ndiff --git a/src/lib/exp.ts b/src/lib/expRules.ts\nsimilarity index 91%\nrename from src/lib/exp.ts\nrename to src/lib/expRules.ts\nindex c3a4024..15d08ac 100644\n--- a/src/lib/exp.ts\n+++ b/src/lib/expRules.ts\n@@ -9,7 +9,7 @@ import { clamp } from \"./math\";\n export const BASE_LESSON_EXP = 10;\n export const QUIZ_EXP = { easy: 5, medium: 8, hard: 12 };\n \n-export const STREAK_BONUS_PERCENT = 10;\n+export const STREAK_BONUS_PERCENT = 100;\n \n export function streakBonus(exp: number): number {\n   return Math.round((exp * STREAK_BONUS_PERCENT) / 100);\ndiff --git a/src/config/limits.ts b/src/config/limits.ts\nindex d207186..81a4531 100644\n--- a/src/config/limits.ts\n+++ b/src/config/limits.ts\n@@ -1,3 +1,3 @@\n export const MAX_HINTS = 3;\n export const MAX_ATTEMPTS = 5;\n-export const MAX_STREAK_BONUS = 50;\n\\ No newline at end of file\n+export const MAX_STREAK_BONUS = 50;\n",
+          "expected": {
+            "files": [
+              {
+                "path": "src/lib/streakBadge.ts",
+                "from": null,
+                "status": "added",
+                "binary": false,
+                "added": 7,
+                "removed": 0
+              },
+              {
+                "path": "src/lib/expRules.ts",
+                "from": "src/lib/exp.ts",
+                "status": "renamed",
+                "binary": false,
+                "added": 1,
+                "removed": 1
+              },
+              {
+                "path": "src/config/limits.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 1,
+                "removed": 1
+              }
+            ],
+            "totals": {
+              "files": 3,
+              "added": 9,
+              "removed": 2
+            }
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Binary files, a pure rename and a mode change count no lines",
+          "input": "diff --git a/public/image/static/logo.png b/public/image/static/logo.png\nindex e509370..806ab00 100644\nBinary files a/public/image/static/logo.png and b/public/image/static/logo.png differ\ndiff --git a/public/badges/streak-7.png b/public/badges/streak-7.png\nnew file mode 100644\nindex 0000000..8d64e36\nBinary files /dev/null and b/public/badges/streak-7.png differ\ndiff --git a/public/badges/streak-5.png b/public/badges/streak-5.png\ndeleted file mode 100644\nindex 8c194f2..0000000\nBinary files a/public/badges/streak-5.png and /dev/null differ\ndiff --git a/content/courses/sql-basics/notes.md b/content/courses/sql-basics/instructor-notes.md\nsimilarity index 100%\nrename from content/courses/sql-basics/notes.md\nrename to content/courses/sql-basics/instructor-notes.md\ndiff --git a/scripts/seed-local.sh b/scripts/seed-local.sh\nold mode 100644\nnew mode 100755\n",
+          "expected": {
+            "files": [
+              {
+                "path": "public/image/static/logo.png",
+                "from": null,
+                "status": "modified",
+                "binary": true,
+                "added": 0,
+                "removed": 0
+              },
+              {
+                "path": "public/badges/streak-7.png",
+                "from": null,
+                "status": "added",
+                "binary": true,
+                "added": 0,
+                "removed": 0
+              },
+              {
+                "path": "public/badges/streak-5.png",
+                "from": null,
+                "status": "deleted",
+                "binary": true,
+                "added": 0,
+                "removed": 0
+              },
+              {
+                "path": "content/courses/sql-basics/instructor-notes.md",
+                "from": "content/courses/sql-basics/notes.md",
+                "status": "renamed",
+                "binary": false,
+                "added": 0,
+                "removed": 0
+              },
+              {
+                "path": "scripts/seed-local.sh",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 0,
+                "removed": 0
+              }
+            ],
+            "totals": {
+              "files": 5,
+              "added": 0,
+              "removed": 0
+            }
+          },
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Changed lines that start with ---, +++ or diff --git (SQL comments, a .patch file, front matter)",
+          "input": "diff --git a/patches/markdown-it+14.1.0.patch b/patches/markdown-it+14.1.0.patch\nnew file mode 100644\nindex 0000000..1e52c75\n--- /dev/null\n+++ b/patches/markdown-it+14.1.0.patch\n@@ -0,0 +1,9 @@\n+diff --git a/node_modules/markdown-it/lib/renderer.mjs b/node_modules/markdown-it/lib/renderer.mjs\n+index 0d2c1a4..7f3e9b2 100644\n+--- a/node_modules/markdown-it/lib/renderer.mjs\n++++ b/node_modules/markdown-it/lib/renderer.mjs\n+@@ -20,3 +20,3 @@ default_rules.code_inline = function (tokens, idx) {\n+   const token = tokens[idx]\n+-  return '<code>' + token.content + '</code>'\n++  return '<code dir=\"auto\">' + token.content + '</code>'\n+ }\ndiff --git a/db/seeds/demo-learners.sql b/db/seeds/demo-learners.sql\nindex 242de13..93e1261 100644\n--- a/db/seeds/demo-learners.sql\n+++ b/db/seeds/demo-learners.sql\n@@ -3,4 +3,4 @@\n -- Demo learners for local development.\n--- Passwords are 'demo1234' (bcrypt, cost 4).\n+-- Passwords come from DEMO_PASSWORD in .env.local.\n INSERT INTO identity.users (id, email, display_name)\n VALUES\n@@ -30,2 +30,5 @@\n   ('u_029', 'linh@codedev.test', 'Linh'),\n   ('u_030', 'minh@codedev.test', 'Minh');\n+\n+-- --- leaderboard fixtures ---\n+INSERT INTO ranking.weekly_scores (user_id, score) VALUES ('u_029', 120), ('u_030', 95);\ndiff --git a/content/courses/sql-basics/README.md b/content/courses/sql-basics/README.md\nindex c779e4a..0370ae1 100644\n--- a/content/courses/sql-basics/README.md\n+++ b/content/courses/sql-basics/README.md\n@@ -1,5 +1,3 @@\n----\n-title: SQL basics\n----\n+# SQL basics\n \n Twelve lessons on SELECT, JOIN and GROUP BY, using the Beanbox coffee shop data.\n",
+          "expected": {
+            "files": [
+              {
+                "path": "patches/markdown-it+14.1.0.patch",
+                "from": null,
+                "status": "added",
+                "binary": false,
+                "added": 9,
+                "removed": 0
+              },
+              {
+                "path": "db/seeds/demo-learners.sql",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 4,
+                "removed": 1
+              },
+              {
+                "path": "content/courses/sql-basics/README.md",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 1,
+                "removed": 3
+              }
+            ],
+            "totals": {
+              "files": 3,
+              "added": 14,
+              "removed": 4
+            }
+          },
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Notes before the first diff --git line belong to no file",
+          "input": "Agent summary\n- progressPercent no longer rounds 199/200 up to 100\n+ added 4 tests for the edge cases\n-- all tests pass (npm test)\n\ndiff --git a/src/lib/progress.ts b/src/lib/progress.ts\nindex f0b7f4b..7e624e5 100644\n--- a/src/lib/progress.ts\n+++ b/src/lib/progress.ts\n@@ -43,3 +43,3 @@\n   const total = lessons.length;\n-  if (total === 0) return 0;\n+  if (total <= 0) return 0;\n   return Math.floor((done / total) * 100);\n",
+          "expected": {
+            "files": [
+              {
+                "path": "src/lib/progress.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 1,
+                "removed": 1
+              }
+            ],
+            "totals": {
+              "files": 1,
+              "added": 1,
+              "removed": 1
+            }
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "An empty diff has no files",
+          "input": "",
+          "expected": {
+            "files": [],
+            "totals": {
+              "files": 0,
+              "added": 0,
+              "removed": 0
+            }
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Text without any diff --git line (invalid input) has no files",
+          "input": "nothing to commit, working tree clean\n",
+          "expected": {
+            "files": [],
+            "totals": {
+              "files": 0,
+              "added": 0,
+              "removed": 0
+            }
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large diff: 60 files of an agent refactor, several hunks per file",
+          "input": "diff --git a/src/features/f00/service.ts b/src/features/f00/service.ts\nindex f2ff338..dbc6e95 100644\n--- a/src/features/f00/service.ts\n+++ b/src/features/f00/service.ts\n@@ -5,9 +5,11 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxxxxxxxx\");\n-  old0_1(c0, \"xxxxxxxxxxxxxxxxx\");\n-  old0_2(c0, \"xxxxxxxxxxxxxxxxxxxxxxxxx\");\n+  next0_0(c0, \"yyyyyyyyyyyyyyy\");\n+  next0_1(c0, \"yyyyyy\");\n+  next0_2(c0, \"yyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next0_3(c0, \"yyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -45,8 +45,11 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxxxxxxxxxxxxxxx\");\n-  old1_1(c1, \"xxxxxxxx\");\n+  next1_0(c1, \"yyyyyyyyyyyyyyyyyyyy\");\n+  next1_1(c1, \"yyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_2(c1, \"yyyyyyyyyyyy\");\n+  next1_3(c1, \"yyyyy\");\n+  next1_4(c1, \"yyyyyyyyyyyyyyy\");\n   return done(c1);\n }\n \n@@ -96,7 +96,8 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n-  old2_0(c2, \"xxxxxxxx\");\n+  next2_0(c2, \"yyyyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c2);\n }\n \n@@ -164,8 +164,11 @@ export function step3(input: Input) {\n   const a3 = load(3);\n   const b3 = map(a3);\n   const c3 = check(b3);\n-  old3_0(c3, \"xxxxxxxxxxxx\");\n-  old3_1(c3, \"xxxxxxxxxxxxxxxxxxxxx\");\n+  next3_0(c3, \"yyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next3_1(c3, \"yyyyy\");\n+  next3_2(c3, \"\");\n+  next3_3(c3, \"yyyyyyyyyyyyyyyyyyyyy\");\n+  next3_4(c3, \"yyyyyy\");\n   return done(c3);\n }\n \ndiff --git a/src/features/f01/service.ts b/src/features/f01/service.ts\nindex d802f3b..f85b960 100644\n--- a/src/features/f01/service.ts\n+++ b/src/features/f01/service.ts\n@@ -5,7 +5,7 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxxxxxxxxx\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -61,6 +61,10 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n+  next1_0(c1, \"yyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_1(c1, \"yyyyyyy\");\n+  next1_2(c1, \"yyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_3(c1, \"yyyyyyyyy\");\n   return done(c1);\n }\n \n@@ -127,7 +127,11 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n-  old2_0(c2, \"xxxxxxxxxxxxxxxxxxxxx\");\n+  next2_0(c2, \"yyyyyyyyyyyyyyyyy\");\n+  next2_1(c2, \"yyyyyyyyyyyy\");\n+  next2_2(c2, \"yyyyyyyyyyyyyy\");\n+  next2_3(c2, \"yyyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c2);\n }\n \n@@ -175,7 +175,6 @@ export function step3(input: Input) {\n   const a3 = load(3);\n   const b3 = map(a3);\n   const c3 = check(b3);\n-  old3_0(c3, \"xxxxxxxxxxxxxxxxxxxxxxxx\");\n   return done(c3);\n }\n \ndiff --git a/src/features/f02/service.ts b/src/features/f02/service.ts\nindex 4d38d55..8bb59ba 100644\n--- a/src/features/f02/service.ts\n+++ b/src/features/f02/service.ts\n@@ -5,7 +5,12 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxx\");\n+  next0_0(c0, \"yyyyyyyyyyyyy\");\n+  next0_1(c0, \"yyyyyyy\");\n+  next0_2(c0, \"yyyyyyyyyyy\");\n+  next0_3(c0, \"yyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next0_4(c0, \"yyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -55,9 +55,9 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"\");\n-  old1_1(c1, \"xxxxxxxxxxxxx\");\n-  old1_2(c1, \"xxxxxxxxxxxxxxxxx\");\n+  next1_0(c1, \"yyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_1(c1, \"yyyyyyyyyyyyyyyyyyy\");\n+  next1_2(c1, \"yyyyyyyyyyyyyyyyyyyyyyy\");\n   return done(c1);\n }\n \ndiff --git a/public/image/course-3.png b/public/image/course-3.png\nindex 7acc412..ff36d04 100644\nBinary files a/public/image/course-3.png and b/public/image/course-3.png differ\ndiff --git a/src/features/f04/service.ts b/src/features/f04/service.ts\nindex f929665..7917ad6 100644\n--- a/src/features/f04/service.ts\n+++ b/src/features/f04/service.ts\n@@ -5,7 +5,9 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxxxxxxxx\");\n+  next0_0(c0, \"yyyyyyyyyyyyyyyyy\");\n+  next0_1(c0, \"yyyyyyyyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -45,8 +45,6 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxx\");\n-  old1_1(c1, \"xxxx\");\n   return done(c1);\n }\n \n@@ -99,7 +99,10 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n-  old2_0(c2, \"xxxx\");\n+  next2_0(c2, \"yyyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next2_1(c2, \"yyyyy\");\n+  next2_2(c2, \"yyyyyyyyy\");\n+  ++attempts;\n   return done(c2);\n }\n \ndiff --git a/src/features/f5/schema.ts b/src/features/f5/schema.ts\nnew file mode 100644\nindex 0000000..51fcfae\n--- /dev/null\n+++ b/src/features/f5/schema.ts\n@@ -0,0 +1,15 @@\n+export const field0 = \"f5_0\";\n+export const field1 = \"f5_1\";\n+export const field2 = \"f5_2\";\n+export const field3 = \"f5_3\";\n+export const field4 = \"f5_4\";\n+export const field5 = \"f5_5\";\n+export const field6 = \"f5_6\";\n+export const field7 = \"f5_7\";\n+export const field8 = \"f5_8\";\n+export const field9 = \"f5_9\";\n+export const field10 = \"f5_10\";\n+export const field11 = \"f5_11\";\n+export const field12 = \"f5_12\";\n+export const field13 = \"f5_13\";\n+export const field14 = \"f5_14\";\ndiff --git a/src/features/f06/service.ts b/src/features/f06/service.ts\nindex d005496..a91f48c 100644\n--- a/src/features/f06/service.ts\n+++ b/src/features/f06/service.ts\n@@ -5,7 +5,9 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxxxxx\");\n+  next0_0(c0, \"yyyy\");\n+  next0_1(c0, \"yyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -53,10 +53,9 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxxxxxxxxxxxxxxx\");\n-  old1_1(c1, \"xxxxxxxxxxxxxxxxxxxx\");\n-  old1_2(c1, \"xxxxxxxxxxxxxxx\");\n-  old1_3(c1, \"xxxxxxxxxxxxxxxxxxxxxxxxxx\");\n+  next1_0(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_1(c1, \"yyyyyyyyyyyyyyyyyyyy\");\n+  next1_2(c1, \"yyyy\");\n   return done(c1);\n }\n \n@@ -93,10 +93,7 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n-  old2_0(c2, \"xxxxxxxxxxxx\");\n-  old2_1(c2, \"xxxxxxxxxx\");\n-  old2_2(c2, \"x\");\n-  old2_3(c2, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxx\");\n+  ++attempts;\n   return done(c2);\n }\n \n@@ -161,6 +161,7 @@ export function step3(input: Input) {\n   const a3 = load(3);\n   const b3 = map(a3);\n   const c3 = check(b3);\n+  next3_0(c3, \"yyyyyyyyyyyyyy\");\n   return done(c3);\n }\n \ndiff --git a/db/migrations/20261007_007_cleanup.sql b/db/migrations/20261007_007_cleanup.sql\ndeleted file mode 100644\nindex e1b4939..0000000\n--- a/db/migrations/20261007_007_cleanup.sql\n+++ /dev/null\n@@ -1,11 +0,0 @@\n--- step 0: drop legacy column c0\n-ALTER TABLE t7 DROP COLUMN c1;\n-ALTER TABLE t7 DROP COLUMN c2;\n--- step 3: drop legacy column c3\n-ALTER TABLE t7 DROP COLUMN c4;\n-ALTER TABLE t7 DROP COLUMN c5;\n--- step 6: drop legacy column c6\n-ALTER TABLE t7 DROP COLUMN c7;\n-ALTER TABLE t7 DROP COLUMN c8;\n--- step 9: drop legacy column c9\n-ALTER TABLE t7 DROP COLUMN c10;\ndiff --git a/src/features/f08/service.ts b/src/features/f08/service.ts\nindex 5067a42..5f1d872 100644\n--- a/src/features/f08/service.ts\n+++ b/src/features/f08/service.ts\n@@ -5,10 +5,10 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxxxxxxxxxxxxx\");\n-  old0_1(c0, \"x\");\n-  old0_2(c0, \"xxxxxxxxxxxxxx\");\n-  old0_3(c0, \"xxxxxxxxxxxxxxxxx\");\n+  next0_0(c0, \"yyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next0_1(c0, \"yyyyyyyyyy\");\n+  next0_2(c0, \"yyyyyyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -63,10 +63,10 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxxxxxxxxxxxxxxxxxxxxxx\");\n-  old1_1(c1, \"xxxxxxxxxxxxxxxxxxxxxxx\");\n-  old1_2(c1, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxx\");\n-  old1_3(c1, \"xxxxxxxxxxxxxx\");\n+  next1_0(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_1(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_2(c1, \"yyyyyyyyyyyyy\");\n+  next1_3(c1, \"yyyyyyyyyyyyyyyyyyyyyyy\");\n   return done(c1);\n }\n \ndiff --git a/src/legacy/f9.ts b/src/features/f09/service.ts\nsimilarity index 93%\nrename from src/legacy/f9.ts\nrename to src/features/f09/service.ts\nindex 6609da2..3c325da 100644\n--- a/src/legacy/f9.ts\n+++ b/src/features/f09/service.ts\n@@ -1,3 +1,3 @@\n // moved\n-export const legacy9 = true;\n+export const legacy9 = false;\n export {};\ndiff --git a/src/features/f10/service.ts b/src/features/f10/service.ts\nindex 1e1f27a..a7b3e13 100644\n--- a/src/features/f10/service.ts\n+++ b/src/features/f10/service.ts\n@@ -5,8 +5,12 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxxxxxxxxxxxxxxxxx\");\n-  old0_1(c0, \"xxxxxxxxxxxxxxxxxxxxxx\");\n+  next0_0(c0, \"yy\");\n+  next0_1(c0, \"yy\");\n+  next0_2(c0, \"yyyyyyyyyyyyyyyyyyyy\");\n+  next0_3(c0, \"yyy\");\n+  next0_4(c0, \"yyyyyyyyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -48,6 +48,9 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n+  next1_0(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_1(c1, \"yyyyyyyyyyyyyyy\");\n+  next1_2(c1, \"yyyyyyyyyyyyyyyyyyyyyyyy\");\n   return done(c1);\n }\n \ndiff --git a/src/features/f11/service.ts b/src/features/f11/service.ts\nindex cb00e2f..b109c5c 100644\n--- a/src/features/f11/service.ts\n+++ b/src/features/f11/service.ts\n@@ -5,10 +5,7 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxxxxxxxxxxx\");\n-  old0_1(c0, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxx\");\n-  old0_2(c0, \"xxxxxxxxxxxxxx\");\n-  old0_3(c0, \"xxxxxxxxxxxxxxxx\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -64,9 +64,9 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxxxxxx\");\n-  old1_1(c1, \"xxxxxxxx\");\n-  old1_2(c1, \"xxxxxxxxxxx\");\n+  next1_0(c1, \"yyyyy\");\n+  next1_1(c1, \"yyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_2(c1, \"\");\n   return done(c1);\n }\n \n@@ -105,9 +105,10 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n-  old2_0(c2, \"xxxx\");\n-  old2_1(c2, \"xxxxxxxxxxxxxxxxxxxxx\");\n-  old2_2(c2, \"xxxxxxxxxxxxxxx\");\n+  next2_0(c2, \"yyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next2_1(c2, \"yyyyyyyy\");\n+  next2_2(c2, \"yyy\");\n+  ++attempts;\n   return done(c2);\n }\n \ndiff --git a/src/features/f12/service.ts b/src/features/f12/service.ts\nindex 5d23c76..d0075e4 100644\n--- a/src/features/f12/service.ts\n+++ b/src/features/f12/service.ts\n@@ -5,6 +5,9 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n+  next0_0(c0, \"yyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next0_1(c0, \"yyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -51,9 +51,7 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxxxxxxx\");\n-  old1_1(c1, \"xxxxxx\");\n-  old1_2(c1, \"x\");\n+  next1_0(c1, \"yyyyyyyyyyyyyyyyyyyyyy\");\n   return done(c1);\n }\n \ndiff --git a/public/image/course-13.png b/public/image/course-13.png\nindex be47c9e..3c4d3a5 100644\nBinary files a/public/image/course-13.png and b/public/image/course-13.png differ\ndiff --git a/src/features/f14/service.ts b/src/features/f14/service.ts\nindex dc873e4..79fc5c6 100644\n--- a/src/features/f14/service.ts\n+++ b/src/features/f14/service.ts\n@@ -5,10 +5,7 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxx\");\n-  old0_1(c0, \"xxxxxxxxxxxxxxxxxxx\");\n-  old0_2(c0, \"xxxxxxxxxxxxxxxxxxxxxxxxxxx\");\n-  old0_3(c0, \"xxxxxxxxxxxx\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -46,6 +46,6 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n   return done(c1);\n }\n \n@@ -92,10 +92,10 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n-  old2_0(c2, \"xxxx\");\n-  old2_1(c2, \"xxxxxxxxxxxxxxxxxxxx\");\n-  old2_2(c2, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxx\");\n-  old2_3(c2, \"xxxxxxxxxxxxxxxxxxxxx\");\n+  next2_0(c2, \"yyyyyyyyyyyyyyyyyy\");\n+  next2_1(c2, \"yyyyyyyyyyyyy\");\n+  next2_2(c2, \"yyyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c2);\n }\n \n@@ -159,7 +159,9 @@ export function step3(input: Input) {\n   const a3 = load(3);\n   const b3 = map(a3);\n   const c3 = check(b3);\n-  old3_0(c3, \"xxxxx\");\n+  next3_0(c3, \"yyyyyy\");\n+  next3_1(c3, \"yyyy\");\n+  next3_2(c3, \"yyyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n   return done(c3);\n }\n \ndiff --git a/src/features/f15/schema.ts b/src/features/f15/schema.ts\nnew file mode 100644\nindex 0000000..163a998\n--- /dev/null\n+++ b/src/features/f15/schema.ts\n@@ -0,0 +1,21 @@\n+export const field0 = \"f15_0\";\n+export const field1 = \"f15_1\";\n+export const field2 = \"f15_2\";\n+export const field3 = \"f15_3\";\n+export const field4 = \"f15_4\";\n+export const field5 = \"f15_5\";\n+export const field6 = \"f15_6\";\n+export const field7 = \"f15_7\";\n+export const field8 = \"f15_8\";\n+export const field9 = \"f15_9\";\n+export const field10 = \"f15_10\";\n+export const field11 = \"f15_11\";\n+export const field12 = \"f15_12\";\n+export const field13 = \"f15_13\";\n+export const field14 = \"f15_14\";\n+export const field15 = \"f15_15\";\n+export const field16 = \"f15_16\";\n+export const field17 = \"f15_17\";\n+export const field18 = \"f15_18\";\n+export const field19 = \"f15_19\";\n+export const field20 = \"f15_20\";\ndiff --git a/src/features/f16/service.ts b/src/features/f16/service.ts\nindex 4b92a5f..699ed33 100644\n--- a/src/features/f16/service.ts\n+++ b/src/features/f16/service.ts\n@@ -5,10 +5,10 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxxxxxxxx\");\n-  old0_1(c0, \"xxxxxxxxxxxxxxxxxxxxxxxxxx\");\n-  old0_2(c0, \"xxxxxxxxxxxxxxxxxxx\");\n-  old0_3(c0, \"xxx\");\n+  next0_0(c0, \"yyyyy\");\n+  next0_1(c0, \"yyyyyyyyyyyyyyyyyyy\");\n+  next0_2(c0, \"yyyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -63,7 +63,9 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxxxxxxxx\");\n+  next1_0(c1, \"yyyyyyyyyyyyy\");\n+  next1_1(c1, \"yyyyyy\");\n+  next1_2(c1, \"yyyyyyyyyyyyy\");\n   return done(c1);\n }\n \ndiff --git a/db/migrations/20261017_008_cleanup.sql b/db/migrations/20261017_008_cleanup.sql\ndeleted file mode 100644\nindex 30ae126..0000000\n--- a/db/migrations/20261017_008_cleanup.sql\n+++ /dev/null\n@@ -1,10 +0,0 @@\n--- step 0: drop legacy column c0\n-ALTER TABLE t17 DROP COLUMN c1;\n-ALTER TABLE t17 DROP COLUMN c2;\n--- step 3: drop legacy column c3\n-ALTER TABLE t17 DROP COLUMN c4;\n-ALTER TABLE t17 DROP COLUMN c5;\n--- step 6: drop legacy column c6\n-ALTER TABLE t17 DROP COLUMN c7;\n-ALTER TABLE t17 DROP COLUMN c8;\n--- step 9: drop legacy column c9\ndiff --git a/src/features/f18/service.ts b/src/features/f18/service.ts\nindex a9ffc5a..b97bdb1 100644\n--- a/src/features/f18/service.ts\n+++ b/src/features/f18/service.ts\n@@ -5,8 +5,8 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxx\");\n-  old0_1(c0, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxx\");\n+  next0_0(c0, \"yyyyyyyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -58,6 +58,11 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n+  next1_0(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_1(c1, \"y\");\n+  next1_2(c1, \"yyyyyyyyyyyy\");\n+  next1_3(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_4(c1, \"yyyyyyy\");\n   return done(c1);\n }\n \n@@ -121,8 +121,7 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n-  old2_0(c2, \"xxxxxxxxxxxxx\");\n-  old2_1(c2, \"xx\");\n+  ++attempts;\n   return done(c2);\n }\n \n@@ -172,10 +172,9 @@ export function step3(input: Input) {\n   const a3 = load(3);\n   const b3 = map(a3);\n   const c3 = check(b3);\n-  old3_0(c3, \"xxxx\");\n-  old3_1(c3, \"xxxxxxxxxxxxxxxxxx\");\n-  old3_2(c3, \"xxxxxxxxx\");\n-  old3_3(c3, \"xxxxx\");\n+  next3_0(c3, \"yyyyyyyyyyy\");\n+  next3_1(c3, \"yyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next3_2(c3, \"yyyyyyyyyyy\");\n   return done(c3);\n }\n \ndiff --git a/src/legacy/f19.ts b/src/features/f19/service.ts\nsimilarity index 97%\nrename from src/legacy/f19.ts\nrename to src/features/f19/service.ts\nindex d105f8c..92b2883 100644\n--- a/src/legacy/f19.ts\n+++ b/src/features/f19/service.ts\n@@ -1,3 +1,3 @@\n // moved\n-export const legacy19 = true;\n+export const legacy19 = false;\n export {};\ndiff --git a/src/features/f20/service.ts b/src/features/f20/service.ts\nindex db54cba..854cee3 100644\n--- a/src/features/f20/service.ts\n+++ b/src/features/f20/service.ts\n@@ -5,9 +5,8 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxxxx\");\n-  old0_1(c0, \"xxxxxxxxxxxxxxxxxxxxxx\");\n-  old0_2(c0, \"xxxxxxxxxxxxxxxxxxxxxxx\");\n+  next0_0(c0, \"yyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -51,10 +51,7 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxxx\");\n-  old1_1(c1, \"xxx\");\n-  old1_2(c1, \"xxxxx\");\n-  old1_3(c1, \"xxxxxxxxxxxxxxxxxxxxxxxx\");\n+  next1_0(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n   return done(c1);\n }\n \ndiff --git a/src/features/f21/service.ts b/src/features/f21/service.ts\nindex b413f41..9e14d2b 100644\n--- a/src/features/f21/service.ts\n+++ b/src/features/f21/service.ts\n@@ -5,9 +5,7 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxx\");\n-  old0_1(c0, \"xxxxxxxxxxxxxxxxx\");\n-  old0_2(c0, \"xxx\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -58,7 +58,10 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxxxxxxxxxxxxxxxxxxxxxx\");\n+  next1_0(c1, \"yyyyyyy\");\n+  next1_1(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_2(c1, \"yyyyyyyyyyyyyyyyyyyy\");\n+  next1_3(c1, \"yyyyy\");\n   return done(c1);\n }\n \n@@ -125,9 +125,7 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n-  old2_0(c2, \"xxxxxxxxxxxxx\");\n-  old2_1(c2, \"xxxxxxxxxxxxxx\");\n-  old2_2(c2, \"xxxxxxxxxxx\");\n+  ++attempts;\n   return done(c2);\n }\n \ndiff --git a/src/features/f22/service.ts b/src/features/f22/service.ts\nindex dda07ff..881eacb 100644\n--- a/src/features/f22/service.ts\n+++ b/src/features/f22/service.ts\n@@ -5,7 +5,11 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxxxxxxxxx\");\n+  next0_0(c0, \"yyyyyyyyyyyyyyyyyy\");\n+  next0_1(c0, \"yyyyyyyy\");\n+  next0_2(c0, \"yyyyyyyyyyyyyyyyyyyyy\");\n+  next0_3(c0, \"yyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -52,8 +52,11 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxxxxxxxxxxxxxxxxx\");\n-  old1_1(c1, \"xxxxxx\");\n+  next1_0(c1, \"\");\n+  next1_1(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_2(c1, \"yyyy\");\n+  next1_3(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_4(c1, \"yyyyyyyyyyyyyyyyyyyy\");\n   return done(c1);\n }\n \n@@ -93,6 +93,11 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n+  next2_0(c2, \"yyyyyyyyyyyyyyyyyyy\");\n+  next2_1(c2, \"y\");\n+  next2_2(c2, \"yyyyyyy\");\n+  next2_3(c2, \"yyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c2);\n }\n \ndiff --git a/public/image/course-23.png b/public/image/course-23.png\nindex b321f17..1a4fa80 100644\nBinary files a/public/image/course-23.png and b/public/image/course-23.png differ\ndiff --git a/src/features/f24/service.ts b/src/features/f24/service.ts\nindex 5ec21f8..0422b4e 100644\n--- a/src/features/f24/service.ts\n+++ b/src/features/f24/service.ts\n@@ -5,10 +5,9 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxx\");\n-  old0_1(c0, \"xxxxxxx\");\n-  old0_2(c0, \"xxxxxxxxxxxxxxxxxxx\");\n-  old0_3(c0, \"xxxxxxx\");\n+  next0_0(c0, \"yyyyyyyyyyyyyyyyyy\");\n+  next0_1(c0, \"yyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -72,7 +72,10 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxxxxx\");\n+  next1_0(c1, \"\");\n+  next1_1(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_2(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_3(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n   return done(c1);\n }\n \n@@ -135,7 +135,10 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n-  old2_0(c2, \"xxxxxxxxxxxxxxxxxxxxxxx\");\n+  next2_0(c2, \"yyyyyyyyyy\");\n+  next2_1(c2, \"yyyyyyyyyy\");\n+  next2_2(c2, \"yyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c2);\n }\n \n@@ -176,9 +176,8 @@ export function step3(input: Input) {\n   const a3 = load(3);\n   const b3 = map(a3);\n   const c3 = check(b3);\n-  old3_0(c3, \"xxxxxxxxxxxxxxxxxxxxxx\");\n-  old3_1(c3, \"xxxxxxxxxxxxxxxxxxxxxxx\");\n-  old3_2(c3, \"xxxxxxxxxxxxxxxxxxxx\");\n+  next3_0(c3, \"yyyyyyyyyyyyyyyyyy\");\n+  next3_1(c3, \"yyyyyyyyyyyyyyyyyyyyyy\");\n   return done(c3);\n }\n \ndiff --git a/src/features/f25/schema.ts b/src/features/f25/schema.ts\nnew file mode 100644\nindex 0000000..77c0d38\n--- /dev/null\n+++ b/src/features/f25/schema.ts\n@@ -0,0 +1,16 @@\n+export const field0 = \"f25_0\";\n+export const field1 = \"f25_1\";\n+export const field2 = \"f25_2\";\n+export const field3 = \"f25_3\";\n+export const field4 = \"f25_4\";\n+export const field5 = \"f25_5\";\n+export const field6 = \"f25_6\";\n+export const field7 = \"f25_7\";\n+export const field8 = \"f25_8\";\n+export const field9 = \"f25_9\";\n+export const field10 = \"f25_10\";\n+export const field11 = \"f25_11\";\n+export const field12 = \"f25_12\";\n+export const field13 = \"f25_13\";\n+export const field14 = \"f25_14\";\n+export const field15 = \"f25_15\";\ndiff --git a/src/features/f26/service.ts b/src/features/f26/service.ts\nindex ccca4b3..1f7ff9d 100644\n--- a/src/features/f26/service.ts\n+++ b/src/features/f26/service.ts\n@@ -5,8 +5,10 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxxxx\");\n-  old0_1(c0, \"xxxxxxxxxxxxxx\");\n+  next0_0(c0, \"yyyyyyyyyyyyyy\");\n+  next0_1(c0, \"yyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next0_2(c0, \"yyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -61,7 +61,11 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxx\");\n+  next1_0(c1, \"yyyyyyyyyyy\");\n+  next1_1(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_2(c1, \"yyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_3(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_4(c1, \"yyyyyyyyyyyyyy\");\n   return done(c1);\n }\n \n@@ -122,10 +122,7 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n-  old2_0(c2, \"xxxxxxxxxxxxxxxxxxxxxxxxx\");\n-  old2_1(c2, \"xxxxxxxxxxxxxxxxxxxx\");\n-  old2_2(c2, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxx\");\n-  old2_3(c2, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxx\");\n+  ++attempts;\n   return done(c2);\n }\n \ndiff --git a/db/migrations/20261027_000_cleanup.sql b/db/migrations/20261027_000_cleanup.sql\ndeleted file mode 100644\nindex 0ae931b..0000000\n--- a/db/migrations/20261027_000_cleanup.sql\n+++ /dev/null\n@@ -1,14 +0,0 @@\n--- step 0: drop legacy column c0\n-ALTER TABLE t27 DROP COLUMN c1;\n-ALTER TABLE t27 DROP COLUMN c2;\n--- step 3: drop legacy column c3\n-ALTER TABLE t27 DROP COLUMN c4;\n-ALTER TABLE t27 DROP COLUMN c5;\n--- step 6: drop legacy column c6\n-ALTER TABLE t27 DROP COLUMN c7;\n-ALTER TABLE t27 DROP COLUMN c8;\n--- step 9: drop legacy column c9\n-ALTER TABLE t27 DROP COLUMN c10;\n-ALTER TABLE t27 DROP COLUMN c11;\n--- step 12: drop legacy column c12\n-ALTER TABLE t27 DROP COLUMN c13;\ndiff --git a/src/features/f28/service.ts b/src/features/f28/service.ts\nindex b903058..b64b50a 100644\n--- a/src/features/f28/service.ts\n+++ b/src/features/f28/service.ts\n@@ -5,10 +5,11 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxxxxxxxxxxxxxxxxx\");\n-  old0_1(c0, \"xxxxxxxxxxx\");\n-  old0_2(c0, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxx\");\n-  old0_3(c0, \"xxxxxxxxx\");\n+  next0_0(c0, \"yyyyyyyyyyyyyyyyyyyy\");\n+  next0_1(c0, \"yyyyyy\");\n+  next0_2(c0, \"yyyyyyyy\");\n+  next0_3(c0, \"yyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -65,8 +65,10 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxxxxxxxxxxxxxxxxxx\");\n-  old1_1(c1, \"xxx\");\n+  next1_0(c1, \"yyyyyyyyyyyyyyyyyyy\");\n+  next1_1(c1, \"yyyyyy\");\n+  next1_2(c1, \"yyyyyyyyyyyyy\");\n+  next1_3(c1, \"yy\");\n   return done(c1);\n }\n \ndiff --git a/src/legacy/f29.ts b/src/features/f29/service.ts\nsimilarity index 84%\nrename from src/legacy/f29.ts\nrename to src/features/f29/service.ts\nindex 27364ea..6e57a42 100644\n--- a/src/legacy/f29.ts\n+++ b/src/features/f29/service.ts\n@@ -1,3 +1,3 @@\n // moved\n-export const legacy29 = true;\n+export const legacy29 = false;\n export {};\ndiff --git a/src/features/f30/service.ts b/src/features/f30/service.ts\nindex 0ebfcfb..b2ab9f8 100644\n--- a/src/features/f30/service.ts\n+++ b/src/features/f30/service.ts\n@@ -5,8 +5,8 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxx\");\n-  old0_1(c0, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxx\");\n+  next0_0(c0, \"yyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -46,8 +46,6 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxxxxxxxxxxxxxxxxxx\");\n-  old1_1(c1, \"xxxxxxxxxxxxxxxxxxx\");\n   return done(c1);\n }\n \n@@ -104,8 +104,10 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n-  old2_0(c2, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxx\");\n-  old2_1(c2, \"xxxxxxxxxxxxxxxxxxxxxx\");\n+  next2_0(c2, \"yyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next2_1(c2, \"yyyyyyyy\");\n+  next2_2(c2, \"yyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c2);\n }\n \ndiff --git a/src/features/f31/service.ts b/src/features/f31/service.ts\nindex 58ec1b0..19d54ed 100644\n--- a/src/features/f31/service.ts\n+++ b/src/features/f31/service.ts\n@@ -5,8 +5,9 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxxxxx\");\n-  old0_1(c0, \"xxxx\");\n+  next0_0(c0, \"yyyyyyyyy\");\n+  next0_1(c0, \"yyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -57,7 +57,7 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxxxxx\");\n+  next1_0(c1, \"yyyyyyyy\");\n   return done(c1);\n }\n \n@@ -103,9 +103,12 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n-  old2_0(c2, \"xxxxxx\");\n-  old2_1(c2, \"xxxxxxxxxxxxxxxxx\");\n-  old2_2(c2, \"xxxxxxxxxxxxxxxxxxxxx\");\n+  next2_0(c2, \"yyyyyyyyyyyy\");\n+  next2_1(c2, \"yy\");\n+  next2_2(c2, \"yyyyyyyyyyyy\");\n+  next2_3(c2, \"yyyy\");\n+  next2_4(c2, \"yyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c2);\n }\n \ndiff --git a/src/features/f32/service.ts b/src/features/f32/service.ts\nindex 9e64f4a..0de5c87 100644\n--- a/src/features/f32/service.ts\n+++ b/src/features/f32/service.ts\n@@ -5,6 +5,8 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n+  next0_0(c0, \"\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -66,8 +66,11 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxxxxxxxxxxxxxxx\");\n-  old1_1(c1, \"xx\");\n+  next1_0(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_1(c1, \"yyyyyy\");\n+  next1_2(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_3(c1, \"yyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_4(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n   return done(c1);\n }\n \ndiff --git a/public/image/course-33.png b/public/image/course-33.png\nindex 62116dc..97c1b30 100644\nBinary files a/public/image/course-33.png and b/public/image/course-33.png differ\ndiff --git a/src/features/f34/service.ts b/src/features/f34/service.ts\nindex 043998f..d2a563a 100644\n--- a/src/features/f34/service.ts\n+++ b/src/features/f34/service.ts\n@@ -5,10 +5,11 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"\");\n-  old0_1(c0, \"xxxxxxxxxxxxxxxxxxxxxxx\");\n-  old0_2(c0, \"xxxxxxxxxxxx\");\n-  old0_3(c0, \"xxxxxxxxxxxxxxxxxxxxxx\");\n+  next0_0(c0, \"yyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next0_1(c0, \"yyyy\");\n+  next0_2(c0, \"yyyyyyyyyyyyyyyyyy\");\n+  next0_3(c0, \"yyyyyyyyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -63,7 +63,8 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxx\");\n+  next1_0(c1, \"yyyyyyyyyy\");\n+  next1_1(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n   return done(c1);\n }\n \n@@ -110,7 +110,11 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n-  old2_0(c2, \"xxxxxxxxxxxxxxxxxxxxxx\");\n+  next2_0(c2, \"yyyyyyyyyyyyyyyyyy\");\n+  next2_1(c2, \"yyyyyyyyyyyyyyyyyyyyyy\");\n+  next2_2(c2, \"yyyyyyyyyyyyyyyy\");\n+  next2_3(c2, \"\");\n+  ++attempts;\n   return done(c2);\n }\n \n@@ -152,7 +152,11 @@ export function step3(input: Input) {\n   const a3 = load(3);\n   const b3 = map(a3);\n   const c3 = check(b3);\n-  old3_0(c3, \"xxxxxxxxxxx\");\n+  next3_0(c3, \"yyyyyyyyyy\");\n+  next3_1(c3, \"yyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next3_2(c3, \"yyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next3_3(c3, \"yyyyyyyyy\");\n+  next3_4(c3, \"yyyyyyyyyyyyyyy\");\n   return done(c3);\n }\n \ndiff --git a/src/features/f35/schema.ts b/src/features/f35/schema.ts\nnew file mode 100644\nindex 0000000..31b937c\n--- /dev/null\n+++ b/src/features/f35/schema.ts\n@@ -0,0 +1,15 @@\n+export const field0 = \"f35_0\";\n+export const field1 = \"f35_1\";\n+export const field2 = \"f35_2\";\n+export const field3 = \"f35_3\";\n+export const field4 = \"f35_4\";\n+export const field5 = \"f35_5\";\n+export const field6 = \"f35_6\";\n+export const field7 = \"f35_7\";\n+export const field8 = \"f35_8\";\n+export const field9 = \"f35_9\";\n+export const field10 = \"f35_10\";\n+export const field11 = \"f35_11\";\n+export const field12 = \"f35_12\";\n+export const field13 = \"f35_13\";\n+export const field14 = \"f35_14\";\ndiff --git a/src/features/f36/service.ts b/src/features/f36/service.ts\nindex ffde75e..be5a3e1 100644\n--- a/src/features/f36/service.ts\n+++ b/src/features/f36/service.ts\n@@ -5,7 +5,7 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxx\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -60,7 +60,9 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxxxxxxxxxxxxxxxx\");\n+  next1_0(c1, \"yyyyyyyyyyyyyy\");\n+  next1_1(c1, \"yyyyyyyyyyyyyy\");\n+  next1_2(c1, \"yyyyyy\");\n   return done(c1);\n }\n \ndiff --git a/db/migrations/20261037_001_cleanup.sql b/db/migrations/20261037_001_cleanup.sql\ndeleted file mode 100644\nindex 5eee291..0000000\n--- a/db/migrations/20261037_001_cleanup.sql\n+++ /dev/null\n@@ -1,7 +0,0 @@\n--- step 0: drop legacy column c0\n-ALTER TABLE t37 DROP COLUMN c1;\n-ALTER TABLE t37 DROP COLUMN c2;\n--- step 3: drop legacy column c3\n-ALTER TABLE t37 DROP COLUMN c4;\n-ALTER TABLE t37 DROP COLUMN c5;\n--- step 6: drop legacy column c6\ndiff --git a/src/features/f38/service.ts b/src/features/f38/service.ts\nindex 8edb405..e6c1fc2 100644\n--- a/src/features/f38/service.ts\n+++ b/src/features/f38/service.ts\n@@ -5,8 +5,11 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxx\");\n-  old0_1(c0, \"xxxxxxxxxxxx\");\n+  next0_0(c0, \"\");\n+  next0_1(c0, \"yyyyyy\");\n+  next0_2(c0, \"\");\n+  next0_3(c0, \"yyyyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -51,8 +51,8 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxxxxxxxxxxxxxxxxxxxxxxx\");\n-  old1_1(c1, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxx\");\n+  next1_0(c1, \"y\");\n+  next1_1(c1, \"yyyyyyyyyyy\");\n   return done(c1);\n }\n \n@@ -111,6 +111,11 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n+  next2_0(c2, \"yyyyyyyyyyyyyyyyyyyyy\");\n+  next2_1(c2, \"yyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next2_2(c2, \"\");\n+  next2_3(c2, \"yyyyyyyyyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c2);\n }\n \ndiff --git a/src/legacy/f39.ts b/src/features/f39/service.ts\nsimilarity index 83%\nrename from src/legacy/f39.ts\nrename to src/features/f39/service.ts\nindex 8186ce4..0db8bea 100644\n--- a/src/legacy/f39.ts\n+++ b/src/features/f39/service.ts\n@@ -1,3 +1,3 @@\n // moved\n-export const legacy39 = true;\n+export const legacy39 = false;\n export {};\ndiff --git a/src/features/f40/service.ts b/src/features/f40/service.ts\nindex c30d1b6..cedbf22 100644\n--- a/src/features/f40/service.ts\n+++ b/src/features/f40/service.ts\n@@ -5,6 +5,12 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n+  next0_0(c0, \"yyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next0_1(c0, \"yyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next0_2(c0, \"yyyyyyyyyyyyyyyy\");\n+  next0_3(c0, \"yy\");\n+  next0_4(c0, \"\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -62,7 +62,6 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxxxx\");\n   return done(c1);\n }\n \n@@ -127,6 +127,7 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n+  ++attempts;\n   return done(c2);\n }\n \ndiff --git a/src/features/f41/service.ts b/src/features/f41/service.ts\nindex 2c40cf7..bae8004 100644\n--- a/src/features/f41/service.ts\n+++ b/src/features/f41/service.ts\n@@ -5,6 +5,7 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -46,10 +46,11 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxxxxxxxxxxxxxxx\");\n-  old1_1(c1, \"xxxxxxxxxxxxxxxxxxxxxxxxxxx\");\n-  old1_2(c1, \"xxxxxxxxxxxxxxxxxxxxxxxx\");\n-  old1_3(c1, \"xxxxxxxxxxxxxxxxxxxxxxxxxxx\");\n+  next1_0(c1, \"y\");\n+  next1_1(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_2(c1, \"yyyyyyyyyyyyyyyyy\");\n+  next1_3(c1, \"yyyyyyyyyyyyyyyy\");\n+  next1_4(c1, \"yyyyyyyyyyyyy\");\n   return done(c1);\n }\n \n@@ -109,10 +109,8 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n-  old2_0(c2, \"xxxxxxxxxxxxxxxxxxxxx\");\n-  old2_1(c2, \"xxxxxxxxxxxxxxxxxx\");\n-  old2_2(c2, \"xxxxxxxxxxxxxx\");\n-  old2_3(c2, \"xxxxxxxxxxxxxxxxxxxxx\");\n+  next2_0(c2, \"yyyyyyyyyyy\");\n+  ++attempts;\n   return done(c2);\n }\n \n@@ -168,10 +168,11 @@ export function step3(input: Input) {\n   const a3 = load(3);\n   const b3 = map(a3);\n   const c3 = check(b3);\n-  old3_0(c3, \"xxxxx\");\n-  old3_1(c3, \"x\");\n-  old3_2(c3, \"x\");\n-  old3_3(c3, \"xxxxxxxxxxxxxxx\");\n+  next3_0(c3, \"yyyyyyyyyyyy\");\n+  next3_1(c3, \"yyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next3_2(c3, \"yy\");\n+  next3_3(c3, \"yyyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next3_4(c3, \"yyyyyyyyyyyyy\");\n   return done(c3);\n }\n \n@@ -209,7 +209,8 @@ export function step4(input: Input) {\n   const a4 = load(4);\n   const b4 = map(a4);\n   const c4 = check(b4);\n-  old4_0(c4, \"xxxxxxx\");\n+  next4_0(c4, \"yyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c4);\n }\n \ndiff --git a/src/features/f42/service.ts b/src/features/f42/service.ts\nindex 800933f..25b5982 100644\n--- a/src/features/f42/service.ts\n+++ b/src/features/f42/service.ts\n@@ -5,7 +5,8 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxxxxxxx\");\n+  next0_0(c0, \"yyyyyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -68,8 +68,6 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxx\");\n-  old1_1(c1, \"xxxx\");\n   return done(c1);\n }\n \n@@ -133,9 +133,9 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n-  old2_0(c2, \"x\");\n-  old2_1(c2, \"xxxxxxxxxxxxxxx\");\n-  old2_2(c2, \"\");\n+  next2_0(c2, \"yyyyyyyyyyyyyyyyyy\");\n+  next2_1(c2, \"yyyyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c2);\n }\n \ndiff --git a/public/image/course-43.png b/public/image/course-43.png\nindex 22f759c..b9becba 100644\nBinary files a/public/image/course-43.png and b/public/image/course-43.png differ\ndiff --git a/src/features/f44/service.ts b/src/features/f44/service.ts\nindex 953b0f5..fcd643c 100644\n--- a/src/features/f44/service.ts\n+++ b/src/features/f44/service.ts\n@@ -5,6 +5,8 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n+  next0_0(c0, \"yyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -52,6 +52,9 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n+  next1_0(c1, \"yyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_1(c1, \"yyyyyyyyyyyyyyy\");\n+  next1_2(c1, \"yyyyyyyyyyyyyyy\");\n   return done(c1);\n }\n \ndiff --git a/src/features/f45/schema.ts b/src/features/f45/schema.ts\nnew file mode 100644\nindex 0000000..b254372\n--- /dev/null\n+++ b/src/features/f45/schema.ts\n@@ -0,0 +1,24 @@\n+export const field0 = \"f45_0\";\n+export const field1 = \"f45_1\";\n+export const field2 = \"f45_2\";\n+export const field3 = \"f45_3\";\n+export const field4 = \"f45_4\";\n+export const field5 = \"f45_5\";\n+export const field6 = \"f45_6\";\n+export const field7 = \"f45_7\";\n+export const field8 = \"f45_8\";\n+export const field9 = \"f45_9\";\n+export const field10 = \"f45_10\";\n+export const field11 = \"f45_11\";\n+export const field12 = \"f45_12\";\n+export const field13 = \"f45_13\";\n+export const field14 = \"f45_14\";\n+export const field15 = \"f45_15\";\n+export const field16 = \"f45_16\";\n+export const field17 = \"f45_17\";\n+export const field18 = \"f45_18\";\n+export const field19 = \"f45_19\";\n+export const field20 = \"f45_20\";\n+export const field21 = \"f45_21\";\n+export const field22 = \"f45_22\";\n+export const field23 = \"f45_23\";\ndiff --git a/src/features/f46/service.ts b/src/features/f46/service.ts\nindex 711888b..3066df0 100644\n--- a/src/features/f46/service.ts\n+++ b/src/features/f46/service.ts\n@@ -5,7 +5,12 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxxxxxxxxxxxxxxx\");\n+  next0_0(c0, \"yyyyyyyyyyyyyyyyy\");\n+  next0_1(c0, \"yyyyyyyyyyyyyy\");\n+  next0_2(c0, \"yyyyyyyyyyyyyyy\");\n+  next0_3(c0, \"yyyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next0_4(c0, \"yyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -45,9 +45,10 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxx\");\n-  old1_1(c1, \"xxxxxxxxxxx\");\n-  old1_2(c1, \"xxxxxxxxxxxxxxxxxxxxxxxxx\");\n+  next1_0(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_1(c1, \"yyyyyyyyyyy\");\n+  next1_2(c1, \"yyyy\");\n+  next1_3(c1, \"yyyy\");\n   return done(c1);\n }\n \n@@ -91,6 +91,7 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n+  ++attempts;\n   return done(c2);\n }\n \n@@ -138,9 +138,7 @@ export function step3(input: Input) {\n   const a3 = load(3);\n   const b3 = map(a3);\n   const c3 = check(b3);\n-  old3_0(c3, \"xxxxxxxxxxxxxxxxxxxxxxx\");\n-  old3_1(c3, \"xxxxxxxxxxxxxxxxxxxxxx\");\n-  old3_2(c3, \"xxxxxxxxx\");\n+  next3_0(c3, \"yyyyyyyyyyyyyyyyyyyyyy\");\n   return done(c3);\n }\n \ndiff --git a/db/migrations/20261047_002_cleanup.sql b/db/migrations/20261047_002_cleanup.sql\ndeleted file mode 100644\nindex 19d93bf..0000000\n--- a/db/migrations/20261047_002_cleanup.sql\n+++ /dev/null\n@@ -1,4 +0,0 @@\n--- step 0: drop legacy column c0\n-ALTER TABLE t47 DROP COLUMN c1;\n-ALTER TABLE t47 DROP COLUMN c2;\n--- step 3: drop legacy column c3\ndiff --git a/src/features/f48/service.ts b/src/features/f48/service.ts\nindex 2f128a7..afdf443 100644\n--- a/src/features/f48/service.ts\n+++ b/src/features/f48/service.ts\n@@ -5,6 +5,7 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -51,6 +51,7 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n+  next1_0(c1, \"yyyyyyyyyyyyyyyyyy\");\n   return done(c1);\n }\n \ndiff --git a/src/legacy/f49.ts b/src/features/f49/service.ts\nsimilarity index 87%\nrename from src/legacy/f49.ts\nrename to src/features/f49/service.ts\nindex 4e4006d..ae6bbe8 100644\n--- a/src/legacy/f49.ts\n+++ b/src/features/f49/service.ts\n@@ -1,3 +1,3 @@\n // moved\n-export const legacy49 = true;\n+export const legacy49 = false;\n export {};\ndiff --git a/src/features/f50/service.ts b/src/features/f50/service.ts\nindex 93f5bce..75de00b 100644\n--- a/src/features/f50/service.ts\n+++ b/src/features/f50/service.ts\n@@ -5,8 +5,8 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxxx\");\n-  old0_1(c0, \"xxxxxxxxxxxxxxxxxxxxxxxxx\");\n+  next0_0(c0, \"y\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -63,8 +63,7 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxxxxxxxxx\");\n-  old1_1(c1, \"xxxxxxxxxxxxxxxxxxxxxxxxxx\");\n+  next1_0(c1, \"yyyyy\");\n   return done(c1);\n }\n \n@@ -127,6 +127,11 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n+  next2_0(c2, \"yyyyyy\");\n+  next2_1(c2, \"yyyyyyyyyyyyyyy\");\n+  next2_2(c2, \"yyyyyyyyyyyy\");\n+  next2_3(c2, \"yyyyyyyyyyy\");\n+  ++attempts;\n   return done(c2);\n }\n \ndiff --git a/src/features/f51/service.ts b/src/features/f51/service.ts\nindex 7c8db73..971a0c2 100644\n--- a/src/features/f51/service.ts\n+++ b/src/features/f51/service.ts\n@@ -5,10 +5,10 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxxxxxxxxxxxxxxx\");\n-  old0_1(c0, \"xxxxxxxxxxxxxxxxxxxxx\");\n-  old0_2(c0, \"xxxxxxxxxxx\");\n-  old0_3(c0, \"xxxxxxxxxxxxx\");\n+  next0_0(c0, \"yyyyyyyyyyyyyyyyyyyyyy\");\n+  next0_1(c0, \"yyyyyyyyyyyyyyyyyyyyy\");\n+  next0_2(c0, \"yyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -66,8 +66,10 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxxxxxxxxx\");\n-  old1_1(c1, \"xxxxxxxxxxxxxxxxxxxxxx\");\n+  next1_0(c1, \"yyyyyyyyy\");\n+  next1_1(c1, \"yyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_2(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_3(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n   return done(c1);\n }\n \n@@ -126,8 +126,8 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n-  old2_0(c2, \"xxxxxxxxxxxxxxxxx\");\n-  old2_1(c2, \"xxxxxxx\");\n+  next2_0(c2, \"yyyyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c2);\n }\n \n@@ -185,6 +185,9 @@ export function step3(input: Input) {\n   const a3 = load(3);\n   const b3 = map(a3);\n   const c3 = check(b3);\n+  next3_0(c3, \"yyyyyyyyyyyyyyyyyyy\");\n+  next3_1(c3, \"yyyyyyyyyyyyyyyyyyyyyyy\");\n+  next3_2(c3, \"yyyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n   return done(c3);\n }\n \n@@ -233,8 +233,9 @@ export function step4(input: Input) {\n   const a4 = load(4);\n   const b4 = map(a4);\n   const c4 = check(b4);\n-  old4_0(c4, \"xxxx\");\n-  old4_1(c4, \"\");\n+  next4_0(c4, \"yyyyyyyyyyyyyyyyyyy\");\n+  next4_1(c4, \"yyyyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c4);\n }\n \ndiff --git a/src/features/f52/service.ts b/src/features/f52/service.ts\nindex c8c51c9..af78860 100644\n--- a/src/features/f52/service.ts\n+++ b/src/features/f52/service.ts\n@@ -5,8 +5,7 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxxxxxxxx\");\n-  old0_1(c0, \"xxxxxxxxxxxxxxxxx\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -69,7 +69,9 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxxxxxxxxxxxxxxxxxxxxxxx\");\n+  next1_0(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_1(c1, \"yyyyyyyyyyyyy\");\n+  next1_2(c1, \"yyyyyyyyy\");\n   return done(c1);\n }\n \n@@ -137,7 +137,10 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n-  old2_0(c2, \"xxxxxxxxxxxxxxxxxx\");\n+  next2_0(c2, \"yyyyyyyyyyyyyyyyyyy\");\n+  next2_1(c2, \"yyyyyyyyyyyyy\");\n+  next2_2(c2, \"y\");\n+  ++attempts;\n   return done(c2);\n }\n \n@@ -192,9 +192,8 @@ export function step3(input: Input) {\n   const a3 = load(3);\n   const b3 = map(a3);\n   const c3 = check(b3);\n-  old3_0(c3, \"xxxxxxxxxxxxxxx\");\n-  old3_1(c3, \"xxxxxxxxxxxxxxxxxxxxxxxxx\");\n-  old3_2(c3, \"xxxxxxxxxxxxxxxx\");\n+  next3_0(c3, \"yyyyyyyyyyyyyy\");\n+  next3_1(c3, \"yy\");\n   return done(c3);\n }\n \ndiff --git a/public/image/course-53.png b/public/image/course-53.png\nindex b208132..db0dfaa 100644\nBinary files a/public/image/course-53.png and b/public/image/course-53.png differ\ndiff --git a/src/features/f54/service.ts b/src/features/f54/service.ts\nindex 2abb7e8..79e9e11 100644\n--- a/src/features/f54/service.ts\n+++ b/src/features/f54/service.ts\n@@ -5,7 +5,10 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"xxxxxxxxxxxx\");\n+  next0_0(c0, \"yyyyyyyyyyyyyyyyyyyyy\");\n+  next0_1(c0, \"yyy\");\n+  next0_2(c0, \"yyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -64,6 +64,8 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n+  next1_0(c1, \"yyyyyyyyyyyyyyyyyyy\");\n+  next1_1(c1, \"yyyyyyyyyyyyyyyyyyyyyyyy\");\n   return done(c1);\n }\n \n@@ -129,7 +129,8 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n-  old2_0(c2, \"xxxxxxxxxxxxxxxxxxxxxxx\");\n+  next2_0(c2, \"yyyyyyyyyy\");\n+  ++attempts;\n   return done(c2);\n }\n \ndiff --git a/src/features/f55/schema.ts b/src/features/f55/schema.ts\nnew file mode 100644\nindex 0000000..ddaec29\n--- /dev/null\n+++ b/src/features/f55/schema.ts\n@@ -0,0 +1,14 @@\n+export const field0 = \"f55_0\";\n+export const field1 = \"f55_1\";\n+export const field2 = \"f55_2\";\n+export const field3 = \"f55_3\";\n+export const field4 = \"f55_4\";\n+export const field5 = \"f55_5\";\n+export const field6 = \"f55_6\";\n+export const field7 = \"f55_7\";\n+export const field8 = \"f55_8\";\n+export const field9 = \"f55_9\";\n+export const field10 = \"f55_10\";\n+export const field11 = \"f55_11\";\n+export const field12 = \"f55_12\";\n+export const field13 = \"f55_13\";\ndiff --git a/src/features/f56/service.ts b/src/features/f56/service.ts\nindex ef8533b..b53e609 100644\n--- a/src/features/f56/service.ts\n+++ b/src/features/f56/service.ts\n@@ -5,6 +5,9 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n+  next0_0(c0, \"yyyyyyyyyyyyy\");\n+  next0_1(c0, \"yyyyyyyyyyyyyyyyyyyyyyy\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -47,9 +47,9 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"x\");\n-  old1_1(c1, \"xxxxxxxxxxxxxxxxxxxxxxxx\");\n-  old1_2(c1, \"xxxxxxxxxxxxxxxxxxxxx\");\n+  next1_0(c1, \"yyyyyyyyyyyyyyyyyyyyy\");\n+  next1_1(c1, \"yyyyyyyyyyyyyyyyyyyyyyyyyy\");\n+  next1_2(c1, \"yyyyyyyyyyyyyy\");\n   return done(c1);\n }\n \n@@ -91,6 +91,7 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n+  ++attempts;\n   return done(c2);\n }\n \n@@ -140,8 +140,6 @@ export function step3(input: Input) {\n   const a3 = load(3);\n   const b3 = map(a3);\n   const c3 = check(b3);\n-  old3_0(c3, \"xxxxxxxxxxxxxxxxxxxxxx\");\n-  old3_1(c3, \"xxxxxxx\");\n   return done(c3);\n }\n \ndiff --git a/db/migrations/20261057_003_cleanup.sql b/db/migrations/20261057_003_cleanup.sql\ndeleted file mode 100644\nindex 9a336b9..0000000\n--- a/db/migrations/20261057_003_cleanup.sql\n+++ /dev/null\n@@ -1,6 +0,0 @@\n--- step 0: drop legacy column c0\n-ALTER TABLE t57 DROP COLUMN c1;\n-ALTER TABLE t57 DROP COLUMN c2;\n--- step 3: drop legacy column c3\n-ALTER TABLE t57 DROP COLUMN c4;\n-ALTER TABLE t57 DROP COLUMN c5;\ndiff --git a/src/features/f58/service.ts b/src/features/f58/service.ts\nindex c282c39..548b918 100644\n--- a/src/features/f58/service.ts\n+++ b/src/features/f58/service.ts\n@@ -5,8 +5,7 @@ export function step0(input: Input) {\n   const a0 = load(0);\n   const b0 = map(a0);\n   const c0 = check(b0);\n-  old0_0(c0, \"\");\n-  old0_1(c0, \"xxxx\");\n+  ++attempts;\n   return done(c0);\n }\n \n@@ -45,9 +45,6 @@ export function step1(input: Input) {\n   const a1 = load(1);\n   const b1 = map(a1);\n   const c1 = check(b1);\n-  old1_0(c1, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxx\");\n-  old1_1(c1, \"xx\");\n-  old1_2(c1, \"xxxxxxxxxxxxxxxxxxxxxxxx\");\n   return done(c1);\n }\n \n@@ -112,6 +112,10 @@ export function step2(input: Input) {\n   const a2 = load(2);\n   const b2 = map(a2);\n   const c2 = check(b2);\n+  next2_0(c2, \"yyyy\");\n+  next2_1(c2, \"yyyyyyyyyyyyyyyy\");\n+  next2_2(c2, \"yyyyyyyy\");\n+  ++attempts;\n   return done(c2);\n }\n \ndiff --git a/src/legacy/f59.ts b/src/features/f59/service.ts\nsimilarity index 84%\nrename from src/legacy/f59.ts\nrename to src/features/f59/service.ts\nindex 4783370..6cc9c8b 100644\n--- a/src/legacy/f59.ts\n+++ b/src/features/f59/service.ts\n@@ -1,3 +1,3 @@\n // moved\n-export const legacy59 = true;\n+export const legacy59 = false;\n export {};\n",
+          "expected": {
+            "files": [
+              {
+                "path": "src/features/f00/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 17,
+                "removed": 8
+              },
+              {
+                "path": "src/features/f01/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 10,
+                "removed": 3
+              },
+              {
+                "path": "src/features/f02/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 9,
+                "removed": 4
+              },
+              {
+                "path": "public/image/course-3.png",
+                "from": null,
+                "status": "modified",
+                "binary": true,
+                "added": 0,
+                "removed": 0
+              },
+              {
+                "path": "src/features/f04/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 7,
+                "removed": 4
+              },
+              {
+                "path": "src/features/f5/schema.ts",
+                "from": null,
+                "status": "added",
+                "binary": false,
+                "added": 15,
+                "removed": 0
+              },
+              {
+                "path": "src/features/f06/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 8,
+                "removed": 9
+              },
+              {
+                "path": "db/migrations/20261007_007_cleanup.sql",
+                "from": null,
+                "status": "deleted",
+                "binary": false,
+                "added": 0,
+                "removed": 11
+              },
+              {
+                "path": "src/features/f08/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 8,
+                "removed": 8
+              },
+              {
+                "path": "src/features/f09/service.ts",
+                "from": "src/legacy/f9.ts",
+                "status": "renamed",
+                "binary": false,
+                "added": 1,
+                "removed": 1
+              },
+              {
+                "path": "src/features/f10/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 9,
+                "removed": 2
+              },
+              {
+                "path": "src/features/f11/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 8,
+                "removed": 10
+              },
+              {
+                "path": "src/features/f12/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 4,
+                "removed": 3
+              },
+              {
+                "path": "public/image/course-13.png",
+                "from": null,
+                "status": "modified",
+                "binary": true,
+                "added": 0,
+                "removed": 0
+              },
+              {
+                "path": "src/features/f14/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 8,
+                "removed": 9
+              },
+              {
+                "path": "src/features/f15/schema.ts",
+                "from": null,
+                "status": "added",
+                "binary": false,
+                "added": 21,
+                "removed": 0
+              },
+              {
+                "path": "src/features/f16/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 7,
+                "removed": 5
+              },
+              {
+                "path": "db/migrations/20261017_008_cleanup.sql",
+                "from": null,
+                "status": "deleted",
+                "binary": false,
+                "added": 0,
+                "removed": 10
+              },
+              {
+                "path": "src/features/f18/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 11,
+                "removed": 8
+              },
+              {
+                "path": "src/features/f19/service.ts",
+                "from": "src/legacy/f19.ts",
+                "status": "renamed",
+                "binary": false,
+                "added": 1,
+                "removed": 1
+              },
+              {
+                "path": "src/features/f20/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 3,
+                "removed": 7
+              },
+              {
+                "path": "src/features/f21/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 6,
+                "removed": 7
+              },
+              {
+                "path": "src/features/f22/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 15,
+                "removed": 3
+              },
+              {
+                "path": "public/image/course-23.png",
+                "from": null,
+                "status": "modified",
+                "binary": true,
+                "added": 0,
+                "removed": 0
+              },
+              {
+                "path": "src/features/f24/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 13,
+                "removed": 9
+              },
+              {
+                "path": "src/features/f25/schema.ts",
+                "from": null,
+                "status": "added",
+                "binary": false,
+                "added": 16,
+                "removed": 0
+              },
+              {
+                "path": "src/features/f26/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 10,
+                "removed": 7
+              },
+              {
+                "path": "db/migrations/20261027_000_cleanup.sql",
+                "from": null,
+                "status": "deleted",
+                "binary": false,
+                "added": 0,
+                "removed": 14
+              },
+              {
+                "path": "src/features/f28/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 9,
+                "removed": 6
+              },
+              {
+                "path": "src/features/f29/service.ts",
+                "from": "src/legacy/f29.ts",
+                "status": "renamed",
+                "binary": false,
+                "added": 1,
+                "removed": 1
+              },
+              {
+                "path": "src/features/f30/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 6,
+                "removed": 6
+              },
+              {
+                "path": "src/features/f31/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 10,
+                "removed": 6
+              },
+              {
+                "path": "src/features/f32/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 7,
+                "removed": 2
+              },
+              {
+                "path": "public/image/course-33.png",
+                "from": null,
+                "status": "modified",
+                "binary": true,
+                "added": 0,
+                "removed": 0
+              },
+              {
+                "path": "src/features/f34/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 17,
+                "removed": 7
+              },
+              {
+                "path": "src/features/f35/schema.ts",
+                "from": null,
+                "status": "added",
+                "binary": false,
+                "added": 15,
+                "removed": 0
+              },
+              {
+                "path": "src/features/f36/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 4,
+                "removed": 2
+              },
+              {
+                "path": "db/migrations/20261037_001_cleanup.sql",
+                "from": null,
+                "status": "deleted",
+                "binary": false,
+                "added": 0,
+                "removed": 7
+              },
+              {
+                "path": "src/features/f38/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 12,
+                "removed": 4
+              },
+              {
+                "path": "src/features/f39/service.ts",
+                "from": "src/legacy/f39.ts",
+                "status": "renamed",
+                "binary": false,
+                "added": 1,
+                "removed": 1
+              },
+              {
+                "path": "src/features/f40/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 7,
+                "removed": 1
+              },
+              {
+                "path": "src/features/f41/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 15,
+                "removed": 13
+              },
+              {
+                "path": "src/features/f42/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 5,
+                "removed": 6
+              },
+              {
+                "path": "public/image/course-43.png",
+                "from": null,
+                "status": "modified",
+                "binary": true,
+                "added": 0,
+                "removed": 0
+              },
+              {
+                "path": "src/features/f44/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 5,
+                "removed": 0
+              },
+              {
+                "path": "src/features/f45/schema.ts",
+                "from": null,
+                "status": "added",
+                "binary": false,
+                "added": 24,
+                "removed": 0
+              },
+              {
+                "path": "src/features/f46/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 12,
+                "removed": 7
+              },
+              {
+                "path": "db/migrations/20261047_002_cleanup.sql",
+                "from": null,
+                "status": "deleted",
+                "binary": false,
+                "added": 0,
+                "removed": 4
+              },
+              {
+                "path": "src/features/f48/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 2,
+                "removed": 0
+              },
+              {
+                "path": "src/features/f49/service.ts",
+                "from": "src/legacy/f49.ts",
+                "status": "renamed",
+                "binary": false,
+                "added": 1,
+                "removed": 1
+              },
+              {
+                "path": "src/features/f50/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 8,
+                "removed": 4
+              },
+              {
+                "path": "src/features/f51/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 16,
+                "removed": 10
+              },
+              {
+                "path": "src/features/f52/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 10,
+                "removed": 7
+              },
+              {
+                "path": "public/image/course-53.png",
+                "from": null,
+                "status": "modified",
+                "binary": true,
+                "added": 0,
+                "removed": 0
+              },
+              {
+                "path": "src/features/f54/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 8,
+                "removed": 2
+              },
+              {
+                "path": "src/features/f55/schema.ts",
+                "from": null,
+                "status": "added",
+                "binary": false,
+                "added": 14,
+                "removed": 0
+              },
+              {
+                "path": "src/features/f56/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 7,
+                "removed": 5
+              },
+              {
+                "path": "db/migrations/20261057_003_cleanup.sql",
+                "from": null,
+                "status": "deleted",
+                "binary": false,
+                "added": 0,
+                "removed": 6
+              },
+              {
+                "path": "src/features/f58/service.ts",
+                "from": null,
+                "status": "modified",
+                "binary": false,
+                "added": 5,
+                "removed": 5
+              },
+              {
+                "path": "src/features/f59/service.ts",
+                "from": "src/legacy/f59.ts",
+                "status": "renamed",
+                "binary": false,
+                "added": 1,
+                "removed": 1
+              }
+            ],
+            "totals": {
+              "files": 60,
+              "added": 429,
+              "removed": 257
+            }
+          },
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

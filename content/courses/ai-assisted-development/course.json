@@ -1,0 +1,85 @@
+{
+  "publicId": "ai-assisted-development",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793018052/codedev/courses/ai-assisted-development/cover",
+  "title": "AI-Assisted Development: Working with Claude Code, Copilot & Cursor from Prompt to Pull Request",
+  "concept": "Use AI coding assistants and agents like an engineer: break work into steps you can verify, give the assistant the right context, let tests be the contract for generated code, review AI pull requests for correctness, security, dependencies and secrets, and know when to stop asking and debug yourself.",
+  "description": "An intermediate course for developers who already use an AI coding assistant and want the code it writes to survive review and production. Every lesson starts from something that happened on the CodeDev learning platform - an AI pull request that concatenated a learner's search text into SQL, a test the assistant wrote that could never fail, a package name the model invented, an API key pasted into a chat, a catch block that swallowed the payment error - and shows the habit that would have caught it: specs and acceptance tests first, the right context and instruction files (AGENTS.md, CLAUDE.md), small steps and small commits, reading diffs, checking dependencies, redacting secrets, review checklists, and where vibe coding stops being safe. 12 lessons with True/False quizzes on real prompts, diffs and logs, and TypeScript challenges graded by hidden tests - you may use AI to solve them, the hidden tests decide.",
+  "level": "intermediate",
+  "durationMinutes": 360,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "AI Engineering",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 100,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    { "priceType": "points", "amount": 300 },
+    { "priceType": "money", "amount": 149000, "currency": "VND" }
+  ],
+  "completionRules": {},
+  "recommendedLevel": { "min": 3, "max": 8 },
+  "domain": "ai",
+  "learningOutcomes": [
+    { "code": "context-spec", "text": "Break work into small verifiable steps and give an AI assistant the right context: spec, relevant files, conventions and tests" },
+    { "code": "tests-as-contract", "text": "Use tests as the contract for generated code and spot tests that cannot fail" },
+    { "code": "review-ai-code", "text": "Review AI-generated diffs for correctness, injection, swallowed errors and changes outside the task" },
+    { "code": "supply-chain-secrets", "text": "Keep invented packages and secrets out: verify dependencies against a registry and redact before prompting" },
+    { "code": "when-not-ai", "text": "Decide when to stop prompting and debug or write the code yourself, and keep an honest AI usage log" }
+  ],
+  "testedVersions": { "TypeScript": "5.9.3 (tsc --strict in the code runner)", "AI tools": "Claude Code, GitHub Copilot, Cursor (lesson examples, check current versions)" },
+  "lastReviewedAt": "2026-10-26",
+  "sourceLinks": [
+    "https://docs.anthropic.com/en/docs/claude-code/overview",
+    "https://docs.github.com/en/copilot",
+    "https://owasp.org/www-community/attacks/SQL_Injection"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "Challenges run fixed code and fixtures in the code runner; working with a real coding agent on a repository is self-practice"
+  ],
+  "scenario": { "title": "Review the AI-Generated PR", "quiz": "chal_quiz_aad_311", "fixBug": "chal_coding_aad_312" },
+  "careerRoles": ["backend_developer", "frontend_developer", "fullstack_developer", "qa_engineer"],
+  "skills": { "typescript": 3, "testing": 4, "sql": 1, "machine_learning": 1 },
+  "goals": ["grow_in_role", "build_projects"],
+  "prerequisites": ["web-http-fundamentals"],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Working with an AI Pair",
+      "lessons": [
+        { "orderIndex": 1, "folder": "01-from-chat-to-agent", "title": "From chat to coding agent: what changes when the AI edits your repo", "sanityId": "lesson-aad-1-1" },
+        { "orderIndex": 2, "folder": "02-spec-and-tests-first", "title": "How to give the AI a spec and acceptance tests before any code", "sanityId": "lesson-aad-1-2" },
+        { "orderIndex": 3, "folder": "03-context-instruction-files", "title": "Context that helps: the right files, conventions & AGENTS.md / CLAUDE.md", "sanityId": "lesson-aad-1-3" }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Verifying What the AI Wrote",
+      "lessons": [
+        { "orderIndex": 1, "folder": "04-reading-diffs", "title": "How to read an AI diff before you accept it", "sanityId": "lesson-aad-2-1" },
+        { "orderIndex": 2, "folder": "05-fake-tests", "title": "Tests that cannot fail: spotting the AI's fake tests", "sanityId": "lesson-aad-2-2" },
+        { "orderIndex": 3, "folder": "06-edge-cases", "title": "Edge cases the AI forgets: empty input, time zones & large data", "sanityId": "lesson-aad-2-3" }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Reviewing AI Pull Requests",
+      "lessons": [
+        { "orderIndex": 1, "folder": "07-review-ai-pr-sql-injection", "title": "Review the AI-generated PR: SQL injection in a search endpoint", "sanityId": "lesson-aad-3-1" },
+        { "orderIndex": 2, "folder": "08-swallowed-exceptions", "title": "Swallowed exceptions: the catch block that hid a failed payment", "sanityId": "lesson-aad-3-2" },
+        { "orderIndex": 3, "folder": "09-review-checklist", "title": "An automated review checklist: tests added, no unknown dependencies, no TODOs", "sanityId": "lesson-aad-3-3" }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Safety & Judgment",
+      "lessons": [
+        { "orderIndex": 1, "folder": "10-packages-that-dont-exist", "title": "Packages that don't exist: checking AI-suggested dependencies", "sanityId": "lesson-aad-4-1" },
+        { "orderIndex": 2, "folder": "11-secrets-in-prompts", "title": "Keep secrets out of prompts: redact before you paste", "sanityId": "lesson-aad-4-2" },
+        { "orderIndex": 3, "folder": "12-vibe-coding-limits", "title": "Vibe coding: when to use it, when to stop & how to keep an AI usage log", "sanityId": "lesson-aad-4-3" }
+      ]
+    }
+  ]
+}

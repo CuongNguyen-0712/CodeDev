@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_aad_312",
+      "key": "challenges/python/chal_coding_aad_312/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "course_search.py",
+      "size": 3117
+    }
+  ]
+}

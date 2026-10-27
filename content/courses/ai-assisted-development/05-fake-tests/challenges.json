@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_aad_221",
+      "name": "fake-tests-quiz",
+      "type": "quiz",
+      "title": "Could this test ever fail?",
+      "description": "Two tests an AI assistant wrote for the CodeDev EXP rules. For each, decide what the test really checks by asking which change to the code would make it fail.",
+      "difficulty": "medium",
+      "outcomes": [
+        "tests-as-contract"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// src/lib/exp.test.ts (Vitest), written by an AI assistant\ntest(\"rejects a negative base EXP\", async () => {\n  try {\n    await awardLessonExp({ userId: \"u_1\", baseExp: -5, streakDays: 0 });\n    expect(true).toBe(false); // should not get here\n  } catch (error) {\n    expect(error).toBeDefined();\n  }\n});\n\nStatement: \"This test passes even if awardLessonExp accepts -5 without throwing and saves the EXP.\"",
+          "explanation": "True. If awardLessonExp does not throw, the next line runs: expect(true).toBe(false) throws an assertion error. That error is thrown inside the try block, so the catch block catches it, and expect(error).toBeDefined() passes because the assertion error is defined. The test passes whether the function throws or not: no change to awardLessonExp can make it fail. Assert the rejection itself instead, for example await expect(awardLessonExp({ ... baseExp: -5 ... })).rejects.toThrow(RangeError), and check that nothing was saved. The misconception is that a test containing a failing expect must fail; an expect throws an ordinary error, and a catch block swallows it like any other.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// src/lib/exp.ts\nexport const STREAK_BONUS_PERCENT = 10;\nexport function lessonExp(baseExp: number, streakDays: number): number {\n  const bonus = streakDays >= 7 ? Math.round((baseExp * STREAK_BONUS_PERCENT) / 100) : 0;\n  return baseExp + bonus;\n}\n\n// src/lib/exp.bonus.test.ts (Vitest), written by an AI assistant\nimport { vi, test, expect } from \"vitest\";\nimport { lessonExp } from \"./exp\";\n\nvi.mock(\"./exp\", () => ({ lessonExp: vi.fn(() => 11) }));\n\ntest(\"a 7-day streak gives the 10% bonus\", () => {\n  expect(lessonExp(10, 7)).toBe(11);\n});\n\nStatement: \"If someone changes STREAK_BONUS_PERCENT from 10 to 100, this test fails, because lessonExp(10, 7) would then return 20.\"",
+          "explanation": "False. vi.mock(\"./exp\", factory) replaces the whole module for this test file (Vitest hoists the call above the imports), so the imported lessonExp is the mock, which returns 11 whatever the arguments and whatever exp.ts contains. The real function never runs: the test checks that the mock returns what the mock was told to return. Mock the collaborators of the code under test (a repository, a clock, an HTTP client), never the code under test itself. The quick check is mutation thinking: change the constant, run the test, and watch it stay green. The misconception is that a test named after a behaviour and calling a function with that name exercises the real code.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

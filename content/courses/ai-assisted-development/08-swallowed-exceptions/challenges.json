@@ -1,0 +1,965 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_aad_321",
+      "name": "swallowed-exceptions-statements",
+      "type": "quiz",
+      "title": "Swallowed exceptions: what the catch blocks do",
+      "description": "Two statements about the enrollment-with-payment code an AI assistant wrote for premium courses: what happens to a learner whose card is declined, and when catching an error without rethrowing it is the right call.",
+      "difficulty": "medium",
+      "outcomes": [
+        "review-ai-code"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// enrollment.service.ts (AI-generated, merged in PR #655)\nasync function enrollWithPayment(req: EnrollRequest, deps: Deps): Promise<EnrollOutcome> {\n  const enrollment = await deps.enrollments.insert({ userId: req.userId, courseId: req.courseId });\n  const chargeId = await chargeLearner(req, enrollment.id, deps);\n  await deps.enrollments.activate(enrollment.id, chargeId);\n  try {\n    await deps.mailer.sendReceipt(req.userId, req.courseId);\n  } catch {\n    // the receipt is not critical\n  }\n  return { status: \"enrolled\", enrollmentId: enrollment.id };\n}\n\nasync function chargeLearner(req: EnrollRequest, enrollmentId: string, deps: Deps): Promise<string | null> {\n  try {\n    const charge = await deps.gateway.charge({ paymentMethodId: req.paymentMethodId,\n      amountVnd: req.priceVnd, idempotencyKey: enrollmentId });\n    return charge.chargeId;\n  } catch (e) {\n    return null;\n  }\n}\n\nThe gateway throws PaymentDeclinedError(\"insufficient_funds\") for this learner's card.\n\nStatement: \"The learner gets a payment error and no enrollment is stored.\"",
+          "explanation": "False. chargeLearner catches the PaymentDeclinedError and returns null, so enrollWithPayment never sees a failure: it activates the enrollment with chargeId null and returns status \"enrolled\". The learner gets the course for free, and because the catch neither logs nor rethrows, nothing in the logs or the error tracker shows it - finance finds it a month later in reconciliation. A catch that turns an error into null or [] does not handle the error, it changes its meaning. The misconception is that wrapping a call in try/catch makes code safer; here it is what made the failure invisible.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// enrollment.service.ts (after review), the end of enrollWithPayment\n  await deps.enrollments.activate(enrollment.id, chargeId); // chargeId of a captured payment\n  try {\n    await deps.mailer.sendReceipt(req.userId, req.courseId);\n  } catch (error) {\n    deps.logger.warn(\"receipt_failed\", {\n      enrollmentId: enrollment.id, userId: req.userId, courseId: req.courseId, reason: messageOf(error),\n    });\n  }\n  return { status: \"enrolled\", enrollmentId: enrollment.id };\n\nStatement: \"Catching the mailer error here and still returning status enrolled is a reasonable design: the payment and the enrollment are already committed, and the warning carries what is needed to resend the receipt.\"",
+          "explanation": "True. The rule is not \"never catch\"; it is \"never hide\". At this point the money is captured and the enrollment is active, so failing the request would tell a learner who paid that something went wrong and invite a second payment. The receipt is a side effect that can be retried, so the code decides the outcome deliberately (the learner is enrolled) and keeps the evidence (a warn line with the enrollment, the learner, the course and the reason) that support or a retry job can act on. Compare it with the AI's catch { } on the same call: same control flow, but nothing tells anyone that a receipt was never sent. The misconception is to judge a catch block by whether it rethrows instead of by whether the failure is still visible and the outcome is correct.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_aad_322",
+      "name": "swallowed-exceptions-failed-payment",
+      "type": "fix_bug",
+      "title": "Swallowed exceptions: the payment that failed silently",
+      "description": "An AI coding assistant wrote the enrollment flow for premium courses on CodeDev from the request \"create the enrollment, charge the learner's payment method, activate the enrollment and email a receipt. Handle errors.\" Finance's monthly reconciliation found 23 learners with an active premium enrollment and no captured payment, and the logs have no line about any of them.\n\nFix enrollWithPayment(req, deps):\n- Insert the enrollment (it starts pending), charge req.paymentMethodId for req.priceVnd with the enrollment id as idempotencyKey, activate the enrollment with the charge id, then send the receipt.\n- PaymentDeclinedError from the gateway: remove the enrollment, call logger.warn(\"payment_declined\", context) with reason = the error's code, and return { status: \"payment_declined\", code }.\n- Any other error from the gateway: remove the enrollment, call logger.error(\"payment_failed\", context) with reason = the error's message, and throw the same error.\n- The receipt email fails: the learner stays enrolled; call logger.warn(\"receipt_failed\", context) with reason = the error's message and return { status: \"enrolled\", enrollmentId }.\n- DuplicateEnrollmentError from insert: let it propagate; nothing is charged.\nEvery log context is { enrollmentId, userId, courseId, reason }; log nothing on success.\n\nThe file contains an in-memory enrollments table, a fake gateway that behaves by payment method id (pm_ok..., pm_declined_<code>, pm_timeout, pm_broken), a mailer that bounces the users listed in the test, and a runner that processes the test's requests in order and prints each outcome (or the error it threw), every log line, the remaining enrollment rows and the captured charges. Do not change the error classes, the types, the fakes or the runner.",
+      "difficulty": "medium",
+      "outcomes": [
+        "review-ai-code"
+      ],
+      "points": 30,
+      "hints": [
+        "When the gateway declines a card, what value does chargeLearner return, and what does enrollWithPayment do with that value next? Who finds out that the charge failed?",
+        "Look at the two catch blocks: the one in chargeLearner that returns null and the empty one around sendReceipt. For each, decide what the outcome should be (map, rethrow or continue), what must be undone (the pending row), and what must be left behind as evidence (a log line with its context).",
+        "A similar case on another flow: issuing a certificate. try { pdf = await renderer.render(id) } catch (error) { await certificates.remove(id); if (error instanceof TemplateMissingError) { logger.warn(\"certificate_template_missing\", ctx(error.template)); return { status: \"not_issued\" }; } logger.error(\"certificate_failed\", ctx(error.message)); throw error; } - the expected failure is mapped to a result, the unexpected one is rethrown, both undo the partial row and both are logged with context."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A learner pays and is enrolled, with the charge id on the row",
+          "input": {
+            "requests": [
+              {
+                "userId": "u_7",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_visa"
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 3,
+          "expected": "#1 u_7 aad pm_ok_visa: enrolled enr_1\nrows:\n  enr_1 u_7 aad active ch_1\ncaptured: ch_1=149000@enr_1"
+        },
+        {
+          "name": "Declined card: no enrollment, a warn log line, the outcome says declined",
+          "input": {
+            "requests": [
+              {
+                "userId": "u_8",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_declined_insufficient_funds"
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 3,
+          "expected": "log warn payment_declined enrollmentId=enr_1 userId=u_8 courseId=aad reason=insufficient_funds\n#1 u_8 aad pm_declined_insufficient_funds: payment_declined insufficient_funds\nrows:\ncaptured: none"
+        },
+        {
+          "name": "Gateway timeout: rolled back, logged as error, the error is thrown again",
+          "input": {
+            "requests": [
+              {
+                "userId": "u_9",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_timeout"
+              },
+              {
+                "userId": "u_10",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_master"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": "log error payment_failed enrollmentId=enr_1 userId=u_9 courseId=aad reason=gateway timeout after 10000 ms\n#1 u_9 aad pm_timeout: threw GatewayError: gateway timeout after 10000 ms\n#2 u_10 aad pm_ok_master: enrolled enr_2\nrows:\n  enr_2 u_10 aad active ch_1\ncaptured: ch_1=149000@enr_2"
+        },
+        {
+          "name": "Receipt email bounces: still enrolled, warn log line",
+          "input": {
+            "bouncingUsers": [
+              "u_11"
+            ],
+            "requests": [
+              {
+                "userId": "u_11",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_12",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_visa"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": "log warn receipt_failed enrollmentId=enr_1 userId=u_11 courseId=aad reason=smtp 550 mailbox unavailable\n#1 u_11 aad pm_ok_visa: enrolled enr_1\n#2 u_12 aad pm_ok_visa: enrolled enr_2\nrows:\n  enr_1 u_11 aad active ch_1\n  enr_2 u_12 aad active ch_2\ncaptured: ch_1=149000@enr_1, ch_2=149000@enr_2"
+        },
+        {
+          "name": "Declined, then a retry with another card enrolls the learner",
+          "input": {
+            "requests": [
+              {
+                "userId": "u_13",
+                "courseId": "trf",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_declined_expired_card"
+              },
+              {
+                "userId": "u_13",
+                "courseId": "trf",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_master"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": "log warn payment_declined enrollmentId=enr_1 userId=u_13 courseId=trf reason=expired_card\n#1 u_13 trf pm_declined_expired_card: payment_declined expired_card\n#2 u_13 trf pm_ok_master: enrolled enr_2\nrows:\n  enr_2 u_13 trf active ch_1\ncaptured: ch_1=199000@enr_2"
+        },
+        {
+          "name": "Already enrolled: the duplicate error propagates and nothing is charged",
+          "input": {
+            "existing": [
+              {
+                "userId": "u_14",
+                "courseId": "aad",
+                "chargeId": "ch_legacy_77"
+              }
+            ],
+            "requests": [
+              {
+                "userId": "u_14",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_visa"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": "#1 u_14 aad pm_ok_visa: threw DuplicateEnrollmentError: u_14 is already enrolled in aad\nrows:\n  enr_1 u_14 aad active ch_legacy_77\ncaptured: none"
+        },
+        {
+          "name": "An unexpected gateway error is not a decline",
+          "input": {
+            "requests": [
+              {
+                "userId": "u_15",
+                "courseId": "nmm",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_broken"
+              },
+              {
+                "userId": "u_15",
+                "courseId": "nmm",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_visa"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": "log error payment_failed enrollmentId=enr_1 userId=u_15 courseId=nmm reason=unexpected gateway response: 502 Bad Gateway\n#1 u_15 nmm pm_broken: threw Error: unexpected gateway response: 502 Bad Gateway\n#2 u_15 nmm pm_ok_visa: enrolled enr_2\nrows:\n  enr_2 u_15 nmm active ch_1\ncaptured: ch_1=99000@enr_2"
+        },
+        {
+          "name": "120 requests: mixed cards, retries, duplicates and bounced receipts",
+          "input": {
+            "existing": [
+              {
+                "userId": "u_101",
+                "courseId": "aad",
+                "chargeId": "ch_legacy_1"
+              }
+            ],
+            "bouncingUsers": [
+              "u_102",
+              "u_120"
+            ],
+            "requests": [
+              {
+                "userId": "u_100",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_101",
+                "courseId": "aad",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_declined_insufficient_funds"
+              },
+              {
+                "userId": "u_102",
+                "courseId": "aad",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_103",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_broken"
+              },
+              {
+                "userId": "u_104",
+                "courseId": "aad",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_105",
+                "courseId": "aad",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_timeout"
+              },
+              {
+                "userId": "u_106",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_107",
+                "courseId": "aad",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_108",
+                "courseId": "aad",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_109",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_declined_expired_card"
+              },
+              {
+                "userId": "u_110",
+                "courseId": "aad",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_111",
+                "courseId": "aad",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_declined_insufficient_funds"
+              },
+              {
+                "userId": "u_112",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_113",
+                "courseId": "aad",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_broken"
+              },
+              {
+                "userId": "u_114",
+                "courseId": "aad",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_115",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_timeout"
+              },
+              {
+                "userId": "u_116",
+                "courseId": "aad",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_117",
+                "courseId": "aad",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_118",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_119",
+                "courseId": "aad",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_declined_expired_card"
+              },
+              {
+                "userId": "u_120",
+                "courseId": "aad",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_121",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_declined_insufficient_funds"
+              },
+              {
+                "userId": "u_122",
+                "courseId": "aad",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_123",
+                "courseId": "aad",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_broken"
+              },
+              {
+                "userId": "u_124",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_125",
+                "courseId": "aad",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_timeout"
+              },
+              {
+                "userId": "u_126",
+                "courseId": "aad",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_127",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_128",
+                "courseId": "aad",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_129",
+                "courseId": "aad",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_declined_expired_card"
+              },
+              {
+                "userId": "u_130",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_131",
+                "courseId": "aad",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_declined_insufficient_funds"
+              },
+              {
+                "userId": "u_132",
+                "courseId": "aad",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_133",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_broken"
+              },
+              {
+                "userId": "u_134",
+                "courseId": "aad",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_135",
+                "courseId": "aad",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_timeout"
+              },
+              {
+                "userId": "u_136",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_137",
+                "courseId": "aad",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_138",
+                "courseId": "aad",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_139",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_declined_expired_card"
+              },
+              {
+                "userId": "u_100",
+                "courseId": "aad",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_101",
+                "courseId": "aad",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_declined_insufficient_funds"
+              },
+              {
+                "userId": "u_102",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_103",
+                "courseId": "aad",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_broken"
+              },
+              {
+                "userId": "u_104",
+                "courseId": "aad",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_105",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_timeout"
+              },
+              {
+                "userId": "u_106",
+                "courseId": "aad",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_107",
+                "courseId": "aad",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_108",
+                "courseId": "aad",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_109",
+                "courseId": "aad",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_declined_expired_card"
+              },
+              {
+                "userId": "u_110",
+                "courseId": "trf",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_111",
+                "courseId": "trf",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_declined_insufficient_funds"
+              },
+              {
+                "userId": "u_112",
+                "courseId": "trf",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_113",
+                "courseId": "trf",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_broken"
+              },
+              {
+                "userId": "u_114",
+                "courseId": "trf",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_115",
+                "courseId": "trf",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_timeout"
+              },
+              {
+                "userId": "u_116",
+                "courseId": "trf",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_117",
+                "courseId": "trf",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_118",
+                "courseId": "trf",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_119",
+                "courseId": "trf",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_declined_expired_card"
+              },
+              {
+                "userId": "u_120",
+                "courseId": "trf",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_121",
+                "courseId": "trf",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_declined_insufficient_funds"
+              },
+              {
+                "userId": "u_122",
+                "courseId": "trf",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_123",
+                "courseId": "trf",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_broken"
+              },
+              {
+                "userId": "u_124",
+                "courseId": "trf",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_125",
+                "courseId": "trf",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_timeout"
+              },
+              {
+                "userId": "u_126",
+                "courseId": "trf",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_127",
+                "courseId": "trf",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_128",
+                "courseId": "trf",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_129",
+                "courseId": "trf",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_declined_expired_card"
+              },
+              {
+                "userId": "u_130",
+                "courseId": "trf",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_131",
+                "courseId": "trf",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_declined_insufficient_funds"
+              },
+              {
+                "userId": "u_132",
+                "courseId": "trf",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_133",
+                "courseId": "trf",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_broken"
+              },
+              {
+                "userId": "u_134",
+                "courseId": "trf",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_135",
+                "courseId": "trf",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_timeout"
+              },
+              {
+                "userId": "u_136",
+                "courseId": "trf",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_137",
+                "courseId": "trf",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_138",
+                "courseId": "trf",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_139",
+                "courseId": "trf",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_declined_expired_card"
+              },
+              {
+                "userId": "u_100",
+                "courseId": "trf",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_101",
+                "courseId": "trf",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_declined_insufficient_funds"
+              },
+              {
+                "userId": "u_102",
+                "courseId": "trf",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_103",
+                "courseId": "trf",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_broken"
+              },
+              {
+                "userId": "u_104",
+                "courseId": "trf",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_105",
+                "courseId": "trf",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_timeout"
+              },
+              {
+                "userId": "u_106",
+                "courseId": "trf",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_107",
+                "courseId": "trf",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_108",
+                "courseId": "trf",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_109",
+                "courseId": "trf",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_declined_expired_card"
+              },
+              {
+                "userId": "u_110",
+                "courseId": "trf",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_111",
+                "courseId": "trf",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_declined_insufficient_funds"
+              },
+              {
+                "userId": "u_112",
+                "courseId": "trf",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_113",
+                "courseId": "trf",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_broken"
+              },
+              {
+                "userId": "u_114",
+                "courseId": "trf",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_115",
+                "courseId": "trf",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_timeout"
+              },
+              {
+                "userId": "u_116",
+                "courseId": "trf",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_117",
+                "courseId": "trf",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_118",
+                "courseId": "trf",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_119",
+                "courseId": "trf",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_declined_expired_card"
+              },
+              {
+                "userId": "u_120",
+                "courseId": "nmm",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_121",
+                "courseId": "nmm",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_declined_insufficient_funds"
+              },
+              {
+                "userId": "u_122",
+                "courseId": "nmm",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_123",
+                "courseId": "nmm",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_broken"
+              },
+              {
+                "userId": "u_124",
+                "courseId": "nmm",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_125",
+                "courseId": "nmm",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_timeout"
+              },
+              {
+                "userId": "u_126",
+                "courseId": "nmm",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_127",
+                "courseId": "nmm",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_128",
+                "courseId": "nmm",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_129",
+                "courseId": "nmm",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_declined_expired_card"
+              },
+              {
+                "userId": "u_130",
+                "courseId": "nmm",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_131",
+                "courseId": "nmm",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_declined_insufficient_funds"
+              },
+              {
+                "userId": "u_132",
+                "courseId": "nmm",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_133",
+                "courseId": "nmm",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_broken"
+              },
+              {
+                "userId": "u_134",
+                "courseId": "nmm",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_master"
+              },
+              {
+                "userId": "u_135",
+                "courseId": "nmm",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_timeout"
+              },
+              {
+                "userId": "u_136",
+                "courseId": "nmm",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_137",
+                "courseId": "nmm",
+                "priceVnd": 149000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_138",
+                "courseId": "nmm",
+                "priceVnd": 199000,
+                "paymentMethodId": "pm_ok_visa"
+              },
+              {
+                "userId": "u_139",
+                "courseId": "nmm",
+                "priceVnd": 99000,
+                "paymentMethodId": "pm_declined_expired_card"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": "#1 u_100 aad pm_ok_visa: enrolled enr_2\n#2 u_101 aad pm_declined_insufficient_funds: threw DuplicateEnrollmentError: u_101 is already enrolled in aad\n  log warn receipt_failed enrollmentId=enr_3 userId=u_102 courseId=aad reason=smtp 550 mailbox unavailable\n#3 u_102 aad pm_ok_master: enrolled enr_3\n  log error payment_failed enrollmentId=enr_4 userId=u_103 courseId=aad reason=unexpected gateway response: 502 Bad Gateway\n#4 u_103 aad pm_broken: threw Error: unexpected gateway response: 502 Bad Gateway\n#5 u_104 aad pm_ok_master: enrolled enr_5\n  log error payment_failed enrollmentId=enr_6 userId=u_105 courseId=aad reason=gateway timeout after 10000 ms\n#6 u_105 aad pm_timeout: threw GatewayError: gateway timeout after 10000 ms\n#7 u_106 aad pm_ok_visa: enrolled enr_7\n#8 u_107 aad pm_ok_visa: enrolled enr_8\n#9 u_108 aad pm_ok_visa: enrolled enr_9\n  log warn payment_declined enrollmentId=enr_10 userId=u_109 courseId=aad reason=expired_card\n#10 u_109 aad pm_declined_expired_card: payment_declined expired_card\n#11 u_110 aad pm_ok_visa: enrolled enr_11\n  log warn payment_declined enrollmentId=enr_12 userId=u_111 courseId=aad reason=insufficient_funds\n#12 u_111 aad pm_declined_insufficient_funds: payment_declined insufficient_funds\n#13 u_112 aad pm_ok_master: enrolled enr_13\n  log error payment_failed enrollmentId=enr_14 userId=u_113 courseId=aad reason=unexpected gateway response: 502 Bad Gateway\n#14 u_113 aad pm_broken: threw Error: unexpected gateway response: 502 Bad Gateway\n#15 u_114 aad pm_ok_master: enrolled enr_15\n  log error payment_failed enrollmentId=enr_16 userId=u_115 courseId=aad reason=gateway timeout after 10000 ms\n#16 u_115 aad pm_timeout: threw GatewayError: gateway timeout after 10000 ms\n#17 u_116 aad pm_ok_visa: enrolled enr_17\n#18 u_117 aad pm_ok_visa: enrolled enr_18\n#19 u_118 aad pm_ok_visa: enrolled enr_19\n  log warn payment_declined enrollmentId=enr_20 userId=u_119 courseId=aad reason=expired_card\n#20 u_119 aad pm_declined_expired_card: payment_declined expired_card\n  log warn receipt_failed enrollmentId=enr_21 userId=u_120 courseId=aad reason=smtp 550 mailbox unavailable\n#21 u_120 aad pm_ok_visa: enrolled enr_21\n  log warn payment_declined enrollmentId=enr_22 userId=u_121 courseId=aad reason=insufficient_funds\n#22 u_121 aad pm_declined_insufficient_funds: payment_declined insufficient_funds\n#23 u_122 aad pm_ok_master: enrolled enr_23\n  log error payment_failed enrollmentId=enr_24 userId=u_123 courseId=aad reason=unexpected gateway response: 502 Bad Gateway\n#24 u_123 aad pm_broken: threw Error: unexpected gateway response: 502 Bad Gateway\n#25 u_124 aad pm_ok_master: enrolled enr_25\n  log error payment_failed enrollmentId=enr_26 userId=u_125 courseId=aad reason=gateway timeout after 10000 ms\n#26 u_125 aad pm_timeout: threw GatewayError: gateway timeout after 10000 ms\n#27 u_126 aad pm_ok_visa: enrolled enr_27\n#28 u_127 aad pm_ok_visa: enrolled enr_28\n#29 u_128 aad pm_ok_visa: enrolled enr_29\n  log warn payment_declined enrollmentId=enr_30 userId=u_129 courseId=aad reason=expired_card\n#30 u_129 aad pm_declined_expired_card: payment_declined expired_card\n#31 u_130 aad pm_ok_visa: enrolled enr_31\n  log warn payment_declined enrollmentId=enr_32 userId=u_131 courseId=aad reason=insufficient_funds\n#32 u_131 aad pm_declined_insufficient_funds: payment_declined insufficient_funds\n#33 u_132 aad pm_ok_master: enrolled enr_33\n  log error payment_failed enrollmentId=enr_34 userId=u_133 courseId=aad reason=unexpected gateway response: 502 Bad Gateway\n#34 u_133 aad pm_broken: threw Error: unexpected gateway response: 502 Bad Gateway\n#35 u_134 aad pm_ok_master: enrolled enr_35\n  log error payment_failed enrollmentId=enr_36 userId=u_135 courseId=aad reason=gateway timeout after 10000 ms\n#36 u_135 aad pm_timeout: threw GatewayError: gateway timeout after 10000 ms\n#37 u_136 aad pm_ok_visa: enrolled enr_37\n#38 u_137 aad pm_ok_visa: enrolled enr_38\n#39 u_138 aad pm_ok_visa: enrolled enr_39\n  log warn payment_declined enrollmentId=enr_40 userId=u_139 courseId=aad reason=expired_card\n#40 u_139 aad pm_declined_expired_card: payment_declined expired_card\n#41 u_100 aad pm_ok_visa: threw DuplicateEnrollmentError: u_100 is already enrolled in aad\n#42 u_101 aad pm_declined_insufficient_funds: threw DuplicateEnrollmentError: u_101 is already enrolled in aad\n#43 u_102 aad pm_ok_master: threw DuplicateEnrollmentError: u_102 is already enrolled in aad\n  log error payment_failed enrollmentId=enr_41 userId=u_103 courseId=aad reason=unexpected gateway response: 502 Bad Gateway\n#44 u_103 aad pm_broken: threw Error: unexpected gateway response: 502 Bad Gateway\n#45 u_104 aad pm_ok_master: threw DuplicateEnrollmentError: u_104 is already enrolled in aad\n  log error payment_failed enrollmentId=enr_42 userId=u_105 courseId=aad reason=gateway timeout after 10000 ms\n#46 u_105 aad pm_timeout: threw GatewayError: gateway timeout after 10000 ms\n#47 u_106 aad pm_ok_visa: threw DuplicateEnrollmentError: u_106 is already enrolled in aad\n#48 u_107 aad pm_ok_visa: threw DuplicateEnrollmentError: u_107 is already enrolled in aad\n#49 u_108 aad pm_ok_visa: threw DuplicateEnrollmentError: u_108 is already enrolled in aad\n  log warn payment_declined enrollmentId=enr_43 userId=u_109 courseId=aad reason=expired_card\n#50 u_109 aad pm_declined_expired_card: payment_declined expired_card\n#51 u_110 trf pm_ok_visa: enrolled enr_44\n  log warn payment_declined enrollmentId=enr_45 userId=u_111 courseId=trf reason=insufficient_funds\n#52 u_111 trf pm_declined_insufficient_funds: payment_declined insufficient_funds\n#53 u_112 trf pm_ok_master: enrolled enr_46\n  log error payment_failed enrollmentId=enr_47 userId=u_113 courseId=trf reason=unexpected gateway response: 502 Bad Gateway\n#54 u_113 trf pm_broken: threw Error: unexpected gateway response: 502 Bad Gateway\n#55 u_114 trf pm_ok_master: enrolled enr_48\n  log error payment_failed enrollmentId=enr_49 userId=u_115 courseId=trf reason=gateway timeout after 10000 ms\n#56 u_115 trf pm_timeout: threw GatewayError: gateway timeout after 10000 ms\n#57 u_116 trf pm_ok_visa: enrolled enr_50\n#58 u_117 trf pm_ok_visa: enrolled enr_51\n#59 u_118 trf pm_ok_visa: enrolled enr_52\n  log warn payment_declined enrollmentId=enr_53 userId=u_119 courseId=trf reason=expired_card\n#60 u_119 trf pm_declined_expired_card: payment_declined expired_card\n  log warn receipt_failed enrollmentId=enr_54 userId=u_120 courseId=trf reason=smtp 550 mailbox unavailable\n#61 u_120 trf pm_ok_visa: enrolled enr_54\n  log warn payment_declined enrollmentId=enr_55 userId=u_121 courseId=trf reason=insufficient_funds\n#62 u_121 trf pm_declined_insufficient_funds: payment_declined insufficient_funds\n#63 u_122 trf pm_ok_master: enrolled enr_56\n  log error payment_failed enrollmentId=enr_57 userId=u_123 courseId=trf reason=unexpected gateway response: 502 Bad Gateway\n#64 u_123 trf pm_broken: threw Error: unexpected gateway response: 502 Bad Gateway\n#65 u_124 trf pm_ok_master: enrolled enr_58\n  log error payment_failed enrollmentId=enr_59 userId=u_125 courseId=trf reason=gateway timeout after 10000 ms\n#66 u_125 trf pm_timeout: threw GatewayError: gateway timeout after 10000 ms\n#67 u_126 trf pm_ok_visa: enrolled enr_60\n#68 u_127 trf pm_ok_visa: enrolled enr_61\n#69 u_128 trf pm_ok_visa: enrolled enr_62\n  log warn payment_declined enrollmentId=enr_63 userId=u_129 courseId=trf reason=expired_card\n#70 u_129 trf pm_declined_expired_card: payment_declined expired_card\n#71 u_130 trf pm_ok_visa: enrolled enr_64\n  log warn payment_declined enrollmentId=enr_65 userId=u_131 courseId=trf reason=insufficient_funds\n#72 u_131 trf pm_declined_insufficient_funds: payment_declined insufficient_funds\n#73 u_132 trf pm_ok_master: enrolled enr_66\n  log error payment_failed enrollmentId=enr_67 userId=u_133 courseId=trf reason=unexpected gateway response: 502 Bad Gateway\n#74 u_133 trf pm_broken: threw Error: unexpected gateway response: 502 Bad Gateway\n#75 u_134 trf pm_ok_master: enrolled enr_68\n  log error payment_failed enrollmentId=enr_69 userId=u_135 courseId=trf reason=gateway timeout after 10000 ms\n#76 u_135 trf pm_timeout: threw GatewayError: gateway timeout after 10000 ms\n#77 u_136 trf pm_ok_visa: enrolled enr_70\n#78 u_137 trf pm_ok_visa: enrolled enr_71\n#79 u_138 trf pm_ok_visa: enrolled enr_72\n  log warn payment_declined enrollmentId=enr_73 userId=u_139 courseId=trf reason=expired_card\n#80 u_139 trf pm_declined_expired_card: payment_declined expired_card\n#81 u_100 trf pm_ok_visa: enrolled enr_74\n  log warn payment_declined enrollmentId=enr_75 userId=u_101 courseId=trf reason=insufficient_funds\n#82 u_101 trf pm_declined_insufficient_funds: payment_declined insufficient_funds\n  log warn receipt_failed enrollmentId=enr_76 userId=u_102 courseId=trf reason=smtp 550 mailbox unavailable\n#83 u_102 trf pm_ok_master: enrolled enr_76\n  log error payment_failed enrollmentId=enr_77 userId=u_103 courseId=trf reason=unexpected gateway response: 502 Bad Gateway\n#84 u_103 trf pm_broken: threw Error: unexpected gateway response: 502 Bad Gateway\n#85 u_104 trf pm_ok_master: enrolled enr_78\n  log error payment_failed enrollmentId=enr_79 userId=u_105 courseId=trf reason=gateway timeout after 10000 ms\n#86 u_105 trf pm_timeout: threw GatewayError: gateway timeout after 10000 ms\n#87 u_106 trf pm_ok_visa: enrolled enr_80\n#88 u_107 trf pm_ok_visa: enrolled enr_81\n#89 u_108 trf pm_ok_visa: enrolled enr_82\n  log warn payment_declined enrollmentId=enr_83 userId=u_109 courseId=trf reason=expired_card\n#90 u_109 trf pm_declined_expired_card: payment_declined expired_card\n#91 u_110 trf pm_ok_visa: threw DuplicateEnrollmentError: u_110 is already enrolled in trf\n  log warn payment_declined enrollmentId=enr_84 userId=u_111 courseId=trf reason=insufficient_funds\n#92 u_111 trf pm_declined_insufficient_funds: payment_declined insufficient_funds\n#93 u_112 trf pm_ok_master: threw DuplicateEnrollmentError: u_112 is already enrolled in trf\n  log error payment_failed enrollmentId=enr_85 userId=u_113 courseId=trf reason=unexpected gateway response: 502 Bad Gateway\n#94 u_113 trf pm_broken: threw Error: unexpected gateway response: 502 Bad Gateway\n#95 u_114 trf pm_ok_master: threw DuplicateEnrollmentError: u_114 is already enrolled in trf\n  log error payment_failed enrollmentId=enr_86 userId=u_115 courseId=trf reason=gateway timeout after 10000 ms\n#96 u_115 trf pm_timeout: threw GatewayError: gateway timeout after 10000 ms\n#97 u_116 trf pm_ok_visa: threw DuplicateEnrollmentError: u_116 is already enrolled in trf\n#98 u_117 trf pm_ok_visa: threw DuplicateEnrollmentError: u_117 is already enrolled in trf\n#99 u_118 trf pm_ok_visa: threw DuplicateEnrollmentError: u_118 is already enrolled in trf\n  log warn payment_declined enrollmentId=enr_87 userId=u_119 courseId=trf reason=expired_card\n#100 u_119 trf pm_declined_expired_card: payment_declined expired_card\n  log warn receipt_failed enrollmentId=enr_88 userId=u_120 courseId=nmm reason=smtp 550 mailbox unavailable\n#101 u_120 nmm pm_ok_visa: enrolled enr_88\n  log warn payment_declined enrollmentId=enr_89 userId=u_121 courseId=nmm reason=insufficient_funds\n#102 u_121 nmm pm_declined_insufficient_funds: payment_declined insufficient_funds\n#103 u_122 nmm pm_ok_master: enrolled enr_90\n  log error payment_failed enrollmentId=enr_91 userId=u_123 courseId=nmm reason=unexpected gateway response: 502 Bad Gateway\n#104 u_123 nmm pm_broken: threw Error: unexpected gateway response: 502 Bad Gateway\n#105 u_124 nmm pm_ok_master: enrolled enr_92\n  log error payment_failed enrollmentId=enr_93 userId=u_125 courseId=nmm reason=gateway timeout after 10000 ms\n#106 u_125 nmm pm_timeout: threw GatewayError: gateway timeout after 10000 ms\n#107 u_126 nmm pm_ok_visa: enrolled enr_94\n#108 u_127 nmm pm_ok_visa: enrolled enr_95\n#109 u_128 nmm pm_ok_visa: enrolled enr_96\n  log warn payment_declined enrollmentId=enr_97 userId=u_129 courseId=nmm reason=expired_card\n#110 u_129 nmm pm_declined_expired_card: payment_declined expired_card\n#111 u_130 nmm pm_ok_visa: enrolled enr_98\n  log warn payment_declined enrollmentId=enr_99 userId=u_131 courseId=nmm reason=insufficient_funds\n#112 u_131 nmm pm_declined_insufficient_funds: payment_declined insufficient_funds\n#113 u_132 nmm pm_ok_master: enrolled enr_100\n  log error payment_failed enrollmentId=enr_101 userId=u_133 courseId=nmm reason=unexpected gateway response: 502 Bad Gateway\n#114 u_133 nmm pm_broken: threw Error: unexpected gateway response: 502 Bad Gateway\n#115 u_134 nmm pm_ok_master: enrolled enr_102\n  log error payment_failed enrollmentId=enr_103 userId=u_135 courseId=nmm reason=gateway timeout after 10000 ms\n#116 u_135 nmm pm_timeout: threw GatewayError: gateway timeout after 10000 ms\n#117 u_136 nmm pm_ok_visa: enrolled enr_104\n#118 u_137 nmm pm_ok_visa: enrolled enr_105\n#119 u_138 nmm pm_ok_visa: enrolled enr_106\n  log warn payment_declined enrollmentId=enr_107 userId=u_139 courseId=nmm reason=expired_card\n#120 u_139 nmm pm_declined_expired_card: payment_declined expired_card\nrows:\n  enr_1 u_101 aad active ch_legacy_1\n  enr_2 u_100 aad active ch_1\n  enr_3 u_102 aad active ch_2\n  enr_5 u_104 aad active ch_3\n  enr_7 u_106 aad active ch_4\n  enr_8 u_107 aad active ch_5\n  enr_9 u_108 aad active ch_6\n  enr_11 u_110 aad active ch_7\n  enr_13 u_112 aad active ch_8\n  enr_15 u_114 aad active ch_9\n  enr_17 u_116 aad active ch_10\n  enr_18 u_117 aad active ch_11\n  enr_19 u_118 aad active ch_12\n  enr_21 u_120 aad active ch_13\n  enr_23 u_122 aad active ch_14\n  enr_25 u_124 aad active ch_15\n  enr_27 u_126 aad active ch_16\n  enr_28 u_127 aad active ch_17\n  enr_29 u_128 aad active ch_18\n  enr_31 u_130 aad active ch_19\n  enr_33 u_132 aad active ch_20\n  enr_35 u_134 aad active ch_21\n  enr_37 u_136 aad active ch_22\n  enr_38 u_137 aad active ch_23\n  enr_39 u_138 aad active ch_24\n  enr_44 u_110 trf active ch_25\n  enr_46 u_112 trf active ch_26\n  enr_48 u_114 trf active ch_27\n  enr_50 u_116 trf active ch_28\n  enr_51 u_117 trf active ch_29\n  enr_52 u_118 trf active ch_30\n  enr_54 u_120 trf active ch_31\n  enr_56 u_122 trf active ch_32\n  enr_58 u_124 trf active ch_33\n  enr_60 u_126 trf active ch_34\n  enr_61 u_127 trf active ch_35\n  enr_62 u_128 trf active ch_36\n  enr_64 u_130 trf active ch_37\n  enr_66 u_132 trf active ch_38\n  enr_68 u_134 trf active ch_39\n  enr_70 u_136 trf active ch_40\n  enr_71 u_137 trf active ch_41\n  enr_72 u_138 trf active ch_42\n  enr_74 u_100 trf active ch_43\n  enr_76 u_102 trf active ch_44\n  enr_78 u_104 trf active ch_45\n  enr_80 u_106 trf active ch_46\n  enr_81 u_107 trf active ch_47\n  enr_82 u_108 trf active ch_48\n  enr_88 u_120 nmm active ch_49\n  enr_90 u_122 nmm active ch_50\n  enr_92 u_124 nmm active ch_51\n  enr_94 u_126 nmm active ch_52\n  enr_95 u_127 nmm active ch_53\n  enr_96 u_128 nmm active ch_54\n  enr_98 u_130 nmm active ch_55\n  enr_100 u_132 nmm active ch_56\n  enr_102 u_134 nmm active ch_57\n  enr_104 u_136 nmm active ch_58\n  enr_105 u_137 nmm active ch_59\n  enr_106 u_138 nmm active ch_60\ncaptured: ch_1=149000@enr_2, ch_2=99000@enr_3, ch_3=199000@enr_5, ch_4=149000@enr_7, ch_5=199000@enr_8, ch_6=99000@enr_9, ch_7=199000@enr_11, ch_8=149000@enr_13, ch_9=99000@enr_15, ch_10=199000@enr_17, ch_11=99000@enr_18, ch_12=149000@enr_19, ch_13=99000@enr_21, ch_14=199000@enr_23, ch_15=149000@enr_25, ch_16=99000@enr_27, ch_17=149000@enr_28, ch_18=199000@enr_29, ch_19=149000@enr_31, ch_20=99000@enr_33, ch_21=199000@enr_35, ch_22=149000@enr_37, ch_23=199000@enr_38, ch_24=99000@enr_39, ch_25=99000@enr_44, ch_26=199000@enr_46, ch_27=149000@enr_48, ch_28=99000@enr_50, ch_29=149000@enr_51, ch_30=199000@enr_52, ch_31=149000@enr_54, ch_32=99000@enr_56, ch_33=199000@enr_58, ch_34=149000@enr_60, ch_35=199000@enr_61, ch_36=99000@enr_62, ch_37=199000@enr_64, ch_38=149000@enr_66, ch_39=99000@enr_68, ch_40=199000@enr_70, ch_41=99000@enr_71, ch_42=149000@enr_72, ch_43=99000@enr_74, ch_44=199000@enr_76, ch_45=149000@enr_78, ch_46=99000@enr_80, ch_47=149000@enr_81, ch_48=199000@enr_82, ch_49=199000@enr_88, ch_50=149000@enr_90, ch_51=99000@enr_92, ch_52=199000@enr_94, ch_53=99000@enr_95, ch_54=149000@enr_96, ch_55=99000@enr_98, ch_56=199000@enr_100, ch_57=149000@enr_102, ch_58=99000@enr_104, ch_59=149000@enr_105, ch_60=199000@enr_106"
+        }
+      ]
+    }
+  ]
+}

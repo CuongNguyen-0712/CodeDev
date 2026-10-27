@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_aad_431",
+      "name": "vibe-coding-limits-quiz",
+      "type": "quiz",
+      "title": "Keep prompting, or take over?",
+      "description": "Three pieces of evidence from CodeDev: a prompt loop on a failing streak test, a vibe-coded data migration, and an AI usage log in a pull request.",
+      "difficulty": "medium",
+      "outcomes": [
+        "when-not-ai"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A developer is fixing the daily streak on the learner profile. One test fails: a learner in Asia/Ho_Chi_Minh who submits at 23:30 and again at 00:10 local time should have a streak of 2.\n\nAttempt 1: \"fix the failing streak test\" -> assistant switches from Date to a date library; test still fails.\nAttempt 2: \"still failing, fix it\" -> assistant changes the test's expected value from 2 to 1; test passes. Developer reverts it.\nAttempt 3: \"don't change the test, fix the code\" -> assistant wraps the calculation in try/catch and returns 0 on error; the test fails with 0.\n\nThe developer, asked by a teammate: \"I'm not sure what attempt 1 changed or why it did not work.\"\n\nStatement: \"The developer should stop prompting here and debug the streak calculation directly, starting from the smallest failing case.\"",
+          "explanation": "True. Three failed attempts, a \"fix\" that edited the test instead of the code, a catch block that hides the error, and a developer who cannot explain the diff: every signal says the loop is not converging. Each new prompt adds changes on top of changes nobody understands. Revert to the last green commit, reproduce the case with two timestamps and a time zone, and read how the code turns a timestamp into a day. After that, the assistant can be useful again with a precise question. The misconception is that one more, better-worded prompt will get there.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A backfill for the new progress_percent column, generated in one prompt and accepted without edits:\n\nUPDATE learning.enrollments e\nSET progress_percent = round(100.0 * p.done / p.total),\n    completed_at = CASE WHEN p.done = p.total THEN now() ELSE NULL END\nFROM (SELECT enrollment_id, count(*) FILTER (WHERE completed) AS done, count(*) AS total\n      FROM learning.lesson_progress GROUP BY enrollment_id) p\nWHERE p.enrollment_id = e.id;\n\nLocal run: UPDATE 40 (0.03 s), no errors.\nAssistant's summary: \"The migration is idempotent and safe to run multiple times.\"\n\nStatement: \"Because the script ran without errors on the local database and is idempotent, it is safe to run it in production without a review.\"",
+          "explanation": "False. Running without errors on 40 rows says nothing about whether it does the right thing to about two million rows of learners' data. Read the SET clause: it also rewrites completed_at, so every learner who finished a course gets today's date and every learner whose old progress rows are incomplete loses their completion date. Running it twice giving the same result does not make it correct. Data migrations touch users' data and are hard to undo: they need a review, a backup or a reversible plan, and a dry run that counts which rows will change. The misconception is that \"it ran\" and the assistant's own summary are evidence.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The description of a pull request that adds streak freezes ends with:\n\nAI usage log\n- Tool: coding agent in the repo, 3 sessions\n- Main prompts: spec + acceptance tests from issue #812; \"implement freeze in streak.ts to pass these tests\"; \"add the settings toggle\"\n- Where the AI was wrong: used the server's local time instead of the learner's time zone; added a dependency (date-fns-tz) we don't use\n- Fixed by hand: streakDay() rewritten with Intl.DateTimeFormat and the learner's timeZone; dependency removed\n- Verified: 14 unit tests incl. Asia/Ho_Chi_Minh and America/Los_Angeles around midnight; manual check on staging\n\nStatement: \"This log makes the review faster: it points the reviewer at the parts the assistant got wrong, what was rewritten by hand, and how each part was checked.\"",
+          "explanation": "True. A reviewer has limited attention, and this log spends it well: the time zone logic is where the assistant failed, so that is where to read every line and check the tests; the removed dependency is worth a look at package.json; the rest came with acceptance tests written before the code. An honest log is not a confession, it is review guidance and a record for the next person who touches streak.ts. The misconception is that admitting where the AI was wrong makes the work look worse; hiding it makes the review slower and less safe.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

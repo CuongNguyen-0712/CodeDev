@@ -1,0 +1,4952 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_aad_331",
+      "name": "review-checklist-statements",
+      "type": "quiz",
+      "title": "An automated review checklist: what it proves",
+      "description": "Two statements about the automated checklist that runs on every CodeDev pull request: what a passing tests check tells you about PR #612, and which packages the dependency check reports for a package.json diff.",
+      "difficulty": "medium",
+      "outcomes": [
+        "review-ai-code"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Checklist output for PR #612 (the course search endpoint from lesson 3.1):\n[\n  { \"check\": \"tests\", \"passed\": true, \"details\": [] },\n  { \"check\": \"dependencies\", \"passed\": true, \"details\": [] },\n  { \"check\": \"debug_markers\", \"passed\": true, \"details\": [] },\n  { \"check\": \"paths\", \"passed\": false, \"details\": [\"config/rate-limits.ts\"] },\n  { \"check\": \"size\", \"passed\": true, \"details\": [] }\n]\n\nThe test file added by the PR:\ntest(\"searches courses\", async () => {\n  const result = await searchCourses(\"react\");\n  expect(result).toBeDefined();\n  expect(Array.isArray(result)).toBe(true);\n});\n\nStatement: \"Because the tests check passed, the PR's tests check the new search behaviour.\"",
+          "explanation": "False. The tests check only asks whether a test file changed when source files changed; src/courses/search.test.ts was added, so it passes. It cannot tell whether the test asserts anything useful, and this one passes for any function that returns an array - including the injectable query. A checklist turns cheap, mechanical questions into a red or green mark so the human reviewer can spend their time on the questions it cannot answer: does the test fail when the behaviour is wrong? The misconception is to read a passed check as a passed review.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "package.json in a PR, before and after:\nbefore: \"dependencies\": { \"express\": \"^4.21.2\", \"pg\": \"^8.13.1\", \"zod\": \"^3.23.8\" },\n        \"devDependencies\": { \"jest\": \"^29.7.0\", \"lodash\": \"^4.17.21\" }\nafter:  \"dependencies\": { \"express\": \"^4.21.2\", \"pg\": \"^8.13.1\", \"zod\": \"^3.24.1\",\n                          \"lodash\": \"^4.17.21\", \"sql-sanitize-lite\": \"^1.4.2\" },\n        \"devDependencies\": { \"jest\": \"^29.7.0\" }\n\npolicy.knownDependencies = [\"express\", \"pg\", \"zod\", \"jest\"]\nThe dependency check reports every name that is in the after manifest (dependencies or devDependencies), was in neither section before, and is not in knownDependencies.\n\nStatement: \"The dependency check reports sql-sanitize-lite and nothing else for this diff.\"",
+          "explanation": "True. zod only changed its version range, so it is not new. lodash moved from devDependencies to dependencies; it was already in the project, so it is not new either, even though it is not on the allowlist. sql-sanitize-lite is in neither section before and not on the allowlist, so it is the one finding - the package the agent invented in lesson 3.1, this time added to package.json. The rule targets the supply-chain question \"what code is entering the project that nobody has vetted?\"; version bumps and moves are reviewed differently (changelog, lock file diff). The misconception is that any change to package.json is a new dependency, which makes the check so noisy that people stop reading it.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_aad_332",
+      "name": "automated-review-checklist",
+      "type": "mini_coding",
+      "title": "An automated review checklist for pull requests",
+      "description": "Before a human opens a pull request on the CodeDev API repository, a bot posts a checklist. Most PRs are now written with an AI assistant, and the same mechanical problems keep coming back: source changed with no test, a package nobody has vetted, a forgotten console.log, files the task never mentioned, and PRs too large to review. Write reviewChecklist(pr).\n\nInput (JSON on stdin): { files: [{ path, status (\"added\" | \"modified\" | \"removed\" | \"renamed\", path is the new path), additions, deletions, addedLines: string[] }], packageJson: { before, after } (each may have dependencies and devDependencies: { name: version }, either may be missing), policy: { knownDependencies: string[], allowedPaths: string[], maxChangedLines } }.\n\nOutput: a JSON array of exactly five { check, passed, details } objects in this order. details is sorted (default string order) without duplicates, and passed is true exactly when details is empty.\n1. \"tests\": a source file is a path that starts with \"src/\", ends with .ts, .tsx, .js or .jsx, does not end with .d.ts and is not a test file. A test file has \".test.\" or \".spec.\" in its file name, or a folder named test, tests or __tests__ in its path. Ignoring removed files: if at least one source file changed and no test file changed, details = those source paths.\n2. \"dependencies\": every name in after (dependencies or devDependencies) that was in neither section of before and is not in knownDependencies.\n3. \"debug_markers\": for every file that is not removed, \"<path>: <marker>\" for each marker TODO, FIXME and console.log( found in any of its addedLines (case-sensitive substring), once per file and marker.\n4. \"paths\": every changed file, removed ones included, whose path matches no allowedPaths entry. An entry ending in \"/\" matches paths that start with it; any other entry matches only that exact path.\n5. \"size\": the sum of additions + deletions of all files except lock files (file name package-lock.json, yarn.lock or pnpm-lock.yaml). If it is greater than maxChangedLines, details = [\"<sum> changed lines, limit <maxChangedLines>\"].",
+      "difficulty": "medium",
+      "outcomes": [
+        "review-ai-code",
+        "supply-chain-secrets"
+      ],
+      "points": 30,
+      "hints": [
+        "Each check is a small function that returns a list of findings; passed only says whether the list is empty. Which files does each check look at - all of them, or only the ones that were not removed?",
+        "Write the two path predicates first (isTestFile and isSourceFile) and the allowedPaths matcher, and test them on src/courses/__tests__/search.ts, src/types/global.d.ts, srcx/tools/seed.ts and README.md.orig. For dependencies, build the set of names from both sections before and after, so a package that moved between sections is not new.",
+        "A similar check on a different input: report lessons whose slug changed but whose redirect list did not. findings = lessons.filter(l => l.slugChanged && !l.redirectAdded).map(l => l.id); then [...new Set(findings)].sort() and { check: \"redirects\", passed: findings.length === 0, details }. One small rule, one list, sorted and deduplicated at the end."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A search PR: tests present, debug markers and a config change outside the allowed paths",
+          "input": {
+            "files": [
+              {
+                "path": "src/courses/search.repository.ts",
+                "status": "added",
+                "additions": 15,
+                "deletions": 0,
+                "addedLines": [
+                  "import { sanitize } from \"sql-sanitize-lite\";",
+                  "import { db } from \"../db\";",
+                  "export async function searchCourses(q: string, level?: string): Promise<CourseHit[]> {",
+                  "  const term = sanitize(q.trim());",
+                  "    \"WHERE title ILIKE '%\" + term + \"%' AND status = 'published'\";",
+                  "  if (level) sql += \" AND level = '\" + level + \"'\";"
+                ]
+              },
+              {
+                "path": "src/courses/search.controller.ts",
+                "status": "added",
+                "additions": 9,
+                "deletions": 0,
+                "addedLines": [
+                  "searchRouter.get(\"/courses/search\", async (req, res) => {",
+                  "  } catch (e) {",
+                  "    res.json([]);"
+                ]
+              },
+              {
+                "path": "src/courses/search.service.ts",
+                "status": "added",
+                "additions": 12,
+                "deletions": 0,
+                "addedLines": [
+                  "export async function search(q: string, level?: string) {",
+                  "  // TODO: cache popular searches",
+                  "  console.log(\"search\", q, level);",
+                  "  return searchCourses(q, level);"
+                ]
+              },
+              {
+                "path": "src/types/shims.d.ts",
+                "status": "added",
+                "additions": 1,
+                "deletions": 0,
+                "addedLines": [
+                  "declare module \"sql-sanitize-lite\";"
+                ]
+              },
+              {
+                "path": "src/courses/search.test.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 0,
+                "addedLines": [
+                  "jest.mock(\"sql-sanitize-lite\", () => ({ sanitize: (s: string) => s }), { virtual: true });",
+                  "  expect(result).toBeDefined();"
+                ]
+              },
+              {
+                "path": "config/rate-limits.ts",
+                "status": "modified",
+                "additions": 1,
+                "deletions": 1,
+                "addedLines": [
+                  "  loginAttemptsPerMinute: 50,"
+                ]
+              },
+              {
+                "path": "src/server.ts",
+                "status": "modified",
+                "additions": 2,
+                "deletions": 0,
+                "addedLines": [
+                  "import { searchRouter } from \"./courses/search.controller\";",
+                  "app.use(searchRouter);"
+                ]
+              }
+            ],
+            "packageJson": {
+              "before": {
+                "dependencies": {
+                  "express": "^4.21.2",
+                  "pg": "^8.13.1",
+                  "zod": "^3.23.8"
+                },
+                "devDependencies": {
+                  "jest": "^29.7.0",
+                  "typescript": "^5.9.3"
+                }
+              },
+              "after": {
+                "dependencies": {
+                  "express": "^4.21.2",
+                  "pg": "^8.13.1",
+                  "zod": "^3.23.8"
+                },
+                "devDependencies": {
+                  "jest": "^29.7.0",
+                  "typescript": "^5.9.3"
+                }
+              }
+            },
+            "policy": {
+              "knownDependencies": [
+                "@types/express",
+                "@types/jest",
+                "@types/supertest",
+                "eslint",
+                "express",
+                "jest",
+                "pg",
+                "pino",
+                "supertest",
+                "ts-jest",
+                "typescript",
+                "zod"
+              ],
+              "allowedPaths": [
+                "src/",
+                "test/",
+                "package.json",
+                "package-lock.json",
+                "README.md"
+              ],
+              "maxChangedLines": 400
+            }
+          },
+          "hidden": false,
+          "score": 3,
+          "expected": [
+            {
+              "check": "tests",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "dependencies",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "debug_markers",
+              "passed": false,
+              "details": [
+                "src/courses/search.service.ts: TODO",
+                "src/courses/search.service.ts: console.log("
+              ]
+            },
+            {
+              "check": "paths",
+              "passed": false,
+              "details": [
+                "config/rate-limits.ts"
+              ]
+            },
+            {
+              "check": "size",
+              "passed": true,
+              "details": []
+            }
+          ]
+        },
+        {
+          "name": "A new runtime dependency and a source change without tests",
+          "input": {
+            "files": [
+              {
+                "path": "src/courses/search.repository.ts",
+                "status": "modified",
+                "additions": 12,
+                "deletions": 4,
+                "addedLines": [
+                  "import { sanitize } from \"sql-sanitize-lite\";",
+                  "  const term = sanitize(q.trim());"
+                ]
+              },
+              {
+                "path": "package.json",
+                "status": "modified",
+                "additions": 2,
+                "deletions": 1,
+                "addedLines": [
+                  "    \"sql-sanitize-lite\": \"^1.4.2\",",
+                  "    \"zod\": \"^3.24.1\""
+                ]
+              },
+              {
+                "path": "package-lock.json",
+                "status": "modified",
+                "additions": 41,
+                "deletions": 3,
+                "addedLines": [
+                  "    \"node_modules/sql-sanitize-lite\": {"
+                ]
+              }
+            ],
+            "packageJson": {
+              "before": {
+                "dependencies": {
+                  "express": "^4.21.2",
+                  "pg": "^8.13.1",
+                  "zod": "^3.23.8"
+                },
+                "devDependencies": {
+                  "jest": "^29.7.0",
+                  "typescript": "^5.9.3"
+                }
+              },
+              "after": {
+                "dependencies": {
+                  "express": "^4.21.2",
+                  "pg": "^8.13.1",
+                  "zod": "^3.24.1",
+                  "sql-sanitize-lite": "^1.4.2"
+                },
+                "devDependencies": {
+                  "jest": "^29.7.0",
+                  "typescript": "^5.9.3"
+                }
+              }
+            },
+            "policy": {
+              "knownDependencies": [
+                "@types/express",
+                "@types/jest",
+                "@types/supertest",
+                "eslint",
+                "express",
+                "jest",
+                "pg",
+                "pino",
+                "supertest",
+                "ts-jest",
+                "typescript",
+                "zod"
+              ],
+              "allowedPaths": [
+                "src/",
+                "test/",
+                "package.json",
+                "package-lock.json",
+                "README.md"
+              ],
+              "maxChangedLines": 400
+            }
+          },
+          "hidden": false,
+          "score": 3,
+          "expected": [
+            {
+              "check": "tests",
+              "passed": false,
+              "details": [
+                "src/courses/search.repository.ts"
+              ]
+            },
+            {
+              "check": "dependencies",
+              "passed": false,
+              "details": [
+                "sql-sanitize-lite"
+              ]
+            },
+            {
+              "check": "debug_markers",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "paths",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "size",
+              "passed": true,
+              "details": []
+            }
+          ]
+        },
+        {
+          "name": "Dependencies: dev and runtime, a moved package and an allowlisted one are not reported",
+          "input": {
+            "files": [
+              {
+                "path": "package.json",
+                "status": "modified",
+                "additions": 6,
+                "deletions": 2,
+                "addedLines": [
+                  "    \"lodash\": \"^4.17.21\",",
+                  "    \"expresss\": \"^1.0.3\","
+                ]
+              },
+              {
+                "path": "test/search.e2e.ts",
+                "status": "modified",
+                "additions": 3,
+                "deletions": 1,
+                "addedLines": [
+                  "import { advanceTimersBy } from \"vitest-fake-timers-pro\";"
+                ]
+              }
+            ],
+            "packageJson": {
+              "before": {
+                "dependencies": {
+                  "express": "^4.21.2",
+                  "pg": "^8.13.1"
+                },
+                "devDependencies": {
+                  "jest": "^29.7.0",
+                  "lodash": "^4.17.21",
+                  "typescript": "^5.9.3"
+                }
+              },
+              "after": {
+                "dependencies": {
+                  "express": "^4.21.2",
+                  "pg": "^8.13.1",
+                  "lodash": "^4.17.21",
+                  "pino": "^9.5.0",
+                  "expresss": "^1.0.3"
+                },
+                "devDependencies": {
+                  "jest": "^29.7.0",
+                  "typescript": "^5.9.3",
+                  "vitest-fake-timers-pro": "^0.3.1",
+                  "@codedev-ai/test-utils": "^2.0.0"
+                }
+              }
+            },
+            "policy": {
+              "knownDependencies": [
+                "@types/express",
+                "@types/jest",
+                "@types/supertest",
+                "eslint",
+                "express",
+                "jest",
+                "pg",
+                "pino",
+                "supertest",
+                "ts-jest",
+                "typescript",
+                "zod"
+              ],
+              "allowedPaths": [
+                "src/",
+                "test/",
+                "package.json",
+                "package-lock.json",
+                "README.md"
+              ],
+              "maxChangedLines": 400
+            }
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": [
+            {
+              "check": "tests",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "dependencies",
+              "passed": false,
+              "details": [
+                "@codedev-ai/test-utils",
+                "expresss",
+                "vitest-fake-timers-pro"
+              ]
+            },
+            {
+              "check": "debug_markers",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "paths",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "size",
+              "passed": true,
+              "details": []
+            }
+          ]
+        },
+        {
+          "name": "Test files in __tests__ count; .d.ts and removed files need no tests",
+          "input": {
+            "files": [
+              {
+                "path": "src/courses/search.repository.ts",
+                "status": "modified",
+                "additions": 10,
+                "deletions": 6,
+                "addedLines": [
+                  "  const { rows } = await db.query(sql, params);"
+                ]
+              },
+              {
+                "path": "src/courses/__tests__/search.ts",
+                "status": "added",
+                "additions": 30,
+                "deletions": 0,
+                "addedLines": [
+                  "  expect(await titles(\"don't\")).toEqual([\"Don't Repeat Yourself: Refactoring TypeScript\"]);"
+                ]
+              },
+              {
+                "path": "src/types/global.d.ts",
+                "status": "modified",
+                "additions": 1,
+                "deletions": 0,
+                "addedLines": [
+                  "  requestId: string;"
+                ]
+              },
+              {
+                "path": "src/legacy/oldSearch.ts",
+                "status": "removed",
+                "additions": 0,
+                "deletions": 48,
+                "addedLines": []
+              }
+            ],
+            "packageJson": {
+              "before": {
+                "dependencies": {
+                  "express": "^4.21.2",
+                  "pg": "^8.13.1",
+                  "zod": "^3.23.8"
+                },
+                "devDependencies": {
+                  "jest": "^29.7.0",
+                  "typescript": "^5.9.3"
+                }
+              },
+              "after": {
+                "dependencies": {
+                  "express": "^4.21.2",
+                  "pg": "^8.13.1",
+                  "zod": "^3.23.8"
+                },
+                "devDependencies": {
+                  "jest": "^29.7.0",
+                  "typescript": "^5.9.3"
+                }
+              }
+            },
+            "policy": {
+              "knownDependencies": [
+                "@types/express",
+                "@types/jest",
+                "@types/supertest",
+                "eslint",
+                "express",
+                "jest",
+                "pg",
+                "pino",
+                "supertest",
+                "ts-jest",
+                "typescript",
+                "zod"
+              ],
+              "allowedPaths": [
+                "src/",
+                "test/",
+                "package.json",
+                "package-lock.json",
+                "README.md"
+              ],
+              "maxChangedLines": 400
+            }
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": [
+            {
+              "check": "tests",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "dependencies",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "debug_markers",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "paths",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "size",
+              "passed": true,
+              "details": []
+            }
+          ]
+        },
+        {
+          "name": "Paths: removed, renamed and exact-match entries",
+          "input": {
+            "files": [
+              {
+                "path": ".github/workflows/ci.yml",
+                "status": "removed",
+                "additions": 0,
+                "deletions": 31,
+                "addedLines": []
+              },
+              {
+                "path": "src/courses/catalog-search.ts",
+                "status": "renamed",
+                "additions": 2,
+                "deletions": 2,
+                "addedLines": [
+                  "export const SEARCH_LIMIT = 20;"
+                ]
+              },
+              {
+                "path": "srcx/tools/seed.ts",
+                "status": "added",
+                "additions": 25,
+                "deletions": 0,
+                "addedLines": [
+                  "// FIXME: hard-coded admin id"
+                ]
+              },
+              {
+                "path": "README.md.orig",
+                "status": "added",
+                "additions": 80,
+                "deletions": 0,
+                "addedLines": [
+                  "## Search"
+                ]
+              },
+              {
+                "path": "README.md",
+                "status": "modified",
+                "additions": 4,
+                "deletions": 1,
+                "addedLines": [
+                  "## Search",
+                  "GET /courses/search?q=&level="
+                ]
+              },
+              {
+                "path": "db/migrations/20261027_001_search_index.sql",
+                "status": "added",
+                "additions": 3,
+                "deletions": 0,
+                "addedLines": [
+                  "CREATE INDEX courses_title_trgm ON courses USING gin (title gin_trgm_ops);"
+                ]
+              },
+              {
+                "path": "test/catalog-search.test.ts",
+                "status": "modified",
+                "additions": 6,
+                "deletions": 0,
+                "addedLines": [
+                  "  expect(SEARCH_LIMIT).toBe(20);"
+                ]
+              }
+            ],
+            "packageJson": {
+              "before": {
+                "dependencies": {
+                  "express": "^4.21.2",
+                  "pg": "^8.13.1",
+                  "zod": "^3.23.8"
+                },
+                "devDependencies": {
+                  "jest": "^29.7.0",
+                  "typescript": "^5.9.3"
+                }
+              },
+              "after": {
+                "dependencies": {
+                  "express": "^4.21.2",
+                  "pg": "^8.13.1",
+                  "zod": "^3.23.8"
+                },
+                "devDependencies": {
+                  "jest": "^29.7.0",
+                  "typescript": "^5.9.3"
+                }
+              }
+            },
+            "policy": {
+              "knownDependencies": [
+                "@types/express",
+                "@types/jest",
+                "@types/supertest",
+                "eslint",
+                "express",
+                "jest",
+                "pg",
+                "pino",
+                "supertest",
+                "ts-jest",
+                "typescript",
+                "zod"
+              ],
+              "allowedPaths": [
+                "src/",
+                "test/",
+                "package.json",
+                "package-lock.json",
+                "README.md"
+              ],
+              "maxChangedLines": 400
+            }
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": [
+            {
+              "check": "tests",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "dependencies",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "debug_markers",
+              "passed": false,
+              "details": [
+                "srcx/tools/seed.ts: FIXME"
+              ]
+            },
+            {
+              "check": "paths",
+              "passed": false,
+              "details": [
+                ".github/workflows/ci.yml",
+                "README.md.orig",
+                "db/migrations/20261027_001_search_index.sql",
+                "srcx/tools/seed.ts"
+              ]
+            },
+            {
+              "check": "size",
+              "passed": true,
+              "details": []
+            }
+          ]
+        },
+        {
+          "name": "Size: lock files are not counted and the limit itself passes",
+          "input": {
+            "files": [
+              {
+                "path": "src/progress/progress.service.ts",
+                "status": "modified",
+                "additions": 199,
+                "deletions": 100,
+                "addedLines": [
+                  "export async function recordProgress(userId: string, lessonId: string) {"
+                ]
+              },
+              {
+                "path": "src/progress/progress.service.test.ts",
+                "status": "added",
+                "additions": 100,
+                "deletions": 0,
+                "addedLines": [
+                  "  it(\"records progress once per lesson\", async () => {"
+                ]
+              },
+              {
+                "path": "package-lock.json",
+                "status": "modified",
+                "additions": 900,
+                "deletions": 300,
+                "addedLines": [
+                  "    \"node_modules/pino\": {"
+                ]
+              },
+              {
+                "path": "package.json",
+                "status": "modified",
+                "additions": 1,
+                "deletions": 0,
+                "addedLines": [
+                  "    \"pino\": \"^9.5.0\","
+                ]
+              }
+            ],
+            "packageJson": {
+              "before": {
+                "dependencies": {
+                  "express": "^4.21.2",
+                  "pg": "^8.13.1",
+                  "zod": "^3.23.8"
+                },
+                "devDependencies": {
+                  "jest": "^29.7.0",
+                  "typescript": "^5.9.3"
+                }
+              },
+              "after": {
+                "dependencies": {
+                  "express": "^4.21.2",
+                  "pg": "^8.13.1",
+                  "zod": "^3.23.8",
+                  "pino": "^9.5.0"
+                },
+                "devDependencies": {
+                  "jest": "^29.7.0",
+                  "typescript": "^5.9.3"
+                }
+              }
+            },
+            "policy": {
+              "knownDependencies": [
+                "@types/express",
+                "@types/jest",
+                "@types/supertest",
+                "eslint",
+                "express",
+                "jest",
+                "pg",
+                "pino",
+                "supertest",
+                "ts-jest",
+                "typescript",
+                "zod"
+              ],
+              "allowedPaths": [
+                "src/",
+                "test/",
+                "package.json",
+                "package-lock.json",
+                "README.md"
+              ],
+              "maxChangedLines": 400
+            }
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": [
+            {
+              "check": "tests",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "dependencies",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "debug_markers",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "paths",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "size",
+              "passed": true,
+              "details": []
+            }
+          ]
+        },
+        {
+          "name": "An empty PR without dependency sections passes every check",
+          "input": {
+            "files": [],
+            "packageJson": {
+              "before": {},
+              "after": {}
+            },
+            "policy": {
+              "knownDependencies": [
+                "@types/express",
+                "@types/jest",
+                "@types/supertest",
+                "eslint",
+                "express",
+                "jest",
+                "pg",
+                "pino",
+                "supertest",
+                "ts-jest",
+                "typescript",
+                "zod"
+              ],
+              "allowedPaths": [
+                "src/",
+                "test/",
+                "package.json",
+                "package-lock.json",
+                "README.md"
+              ],
+              "maxChangedLines": 400
+            }
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": [
+            {
+              "check": "tests",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "dependencies",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "debug_markers",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "paths",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "size",
+              "passed": true,
+              "details": []
+            }
+          ]
+        },
+        {
+          "name": "300 files: markers deduplicated, details sorted, size over the limit",
+          "input": {
+            "files": [
+              {
+                "path": "src/courses/module-0.ts",
+                "status": "modified",
+                "additions": 4,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-113.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-226.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/ranking/fix-39.ts",
+                "status": "modified",
+                "additions": 8,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-152.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-265.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-78.ts",
+                "status": "modified",
+                "additions": 7,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-191.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-4.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/ranking/case-117.test.ts",
+                "status": "modified",
+                "additions": 6,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-230.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-43.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-156.ts",
+                "status": "modified",
+                "additions": 5,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/billing/fix-269.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-82.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-195.ts",
+                "status": "modified",
+                "additions": 4,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-8.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-121.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-234.ts",
+                "status": "modified",
+                "additions": 8,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/billing/case-47.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-160.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-273.ts",
+                "status": "modified",
+                "additions": 7,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-86.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/lessons/fix-199.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-12.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-125.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-238.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-51.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-164.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/lessons/case-277.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-90.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-203.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-16.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/ranking/fix-129.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-242.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-55.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-168.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-281.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-94.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/ranking/case-207.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-20.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-133.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-246.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/billing/fix-59.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-172.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-285.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-98.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-211.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-24.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/billing/case-137.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-250.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-63.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-176.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/lessons/fix-289.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-102.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-215.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-28.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-141.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-254.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/lessons/case-67.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-180.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-293.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-106.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/ranking/fix-219.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-32.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-145.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-258.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-71.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-184.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/ranking/case-297.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-110.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-223.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-36.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/billing/fix-149.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-262.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-75.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-188.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-1.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-114.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/billing/case-227.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-40.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-153.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-266.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/lessons/fix-79.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-192.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-5.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-118.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-231.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-44.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/lessons/case-157.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-270.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-83.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-196.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/ranking/fix-9.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-122.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-235.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-48.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-161.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-274.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/ranking/case-87.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-200.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-13.ts",
+                "status": "modified",
+                "additions": 7,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-126.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/billing/fix-239.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-52.ts",
+                "status": "modified",
+                "additions": 6,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-165.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-278.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-91.ts",
+                "status": "modified",
+                "additions": 5,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-204.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/billing/case-17.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-130.ts",
+                "status": "modified",
+                "additions": 4,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-243.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-56.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/lessons/fix-169.ts",
+                "status": "modified",
+                "additions": 8,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-282.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-95.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-208.ts",
+                "status": "modified",
+                "additions": 7,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-21.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-134.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/lessons/case-247.test.ts",
+                "status": "modified",
+                "additions": 6,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-60.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-173.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-286.ts",
+                "status": "modified",
+                "additions": 5,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/ranking/fix-99.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-212.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-25.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-138.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-251.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-64.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/ranking/case-177.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-290.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-103.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-216.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/billing/fix-29.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-142.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-255.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-68.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-181.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-294.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/billing/case-107.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-220.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-33.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-146.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/lessons/fix-259.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-72.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-185.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-298.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-111.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-224.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/lessons/case-37.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-150.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-263.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-76.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/ranking/fix-189.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-2.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-115.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-228.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-41.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-154.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/ranking/case-267.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-80.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-193.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-6.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/billing/fix-119.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-232.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-45.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-158.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-271.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-84.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/billing/case-197.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-10.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-123.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-236.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/lessons/fix-49.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-162.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-275.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-88.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-201.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-14.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/lessons/case-127.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-240.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-53.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-166.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/ranking/fix-279.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-92.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-205.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-18.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-131.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-244.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/ranking/case-57.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-170.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-283.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-96.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/billing/fix-209.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-22.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-135.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-248.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-61.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-174.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/billing/case-287.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-100.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-213.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-26.ts",
+                "status": "modified",
+                "additions": 5,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/lessons/fix-139.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-252.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-65.ts",
+                "status": "modified",
+                "additions": 4,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-178.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-291.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-104.ts",
+                "status": "modified",
+                "additions": 8,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/lessons/case-217.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-30.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-143.ts",
+                "status": "modified",
+                "additions": 7,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-256.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/ranking/fix-69.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-182.ts",
+                "status": "modified",
+                "additions": 6,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-295.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-108.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-221.ts",
+                "status": "modified",
+                "additions": 5,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-34.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/ranking/case-147.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-260.ts",
+                "status": "modified",
+                "additions": 4,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-73.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-186.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/billing/fix-299.ts",
+                "status": "modified",
+                "additions": 8,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-112.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-225.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-38.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-151.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-264.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/billing/case-77.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-190.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-3.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-116.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/lessons/fix-229.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-42.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-155.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-268.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-81.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-194.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/lessons/case-7.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-120.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-233.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-46.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/ranking/fix-159.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-272.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-85.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-198.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-11.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-124.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/ranking/case-237.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-50.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-163.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-276.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/billing/fix-89.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-202.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-15.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-128.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-241.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-54.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/billing/case-167.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-280.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-93.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-206.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/lessons/fix-19.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-132.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-245.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-58.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-171.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-284.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/lessons/case-97.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-210.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-23.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-136.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/ranking/fix-249.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-62.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-175.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-288.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-101.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-214.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/ranking/case-27.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-140.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-253.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-66.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/billing/fix-179.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-292.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-105.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-218.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/lessons/module-31.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-144.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/billing/case-257.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "return value;",
+                  "console.log(\"debug\", value);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-70.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-183.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "// TODOS for the next sprint",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-296.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "const value = compute(input);",
+                  "// todo: lowercase is not a marker",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "scripts/lessons/fix-109.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/courses/module-222.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODO: handle pagination",
+                  "console.error(\"not a debug marker\");",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/billing/module-35.ts",
+                "status": "added",
+                "additions": 4,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/auth/module-148.ts",
+                "status": "added",
+                "additions": 7,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.log(\"debug\", value);",
+                  "// FIXME: race condition",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/ranking/module-261.ts",
+                "status": "added",
+                "additions": 5,
+                "deletions": 0,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "console.error(\"not a debug marker\");",
+                  "const value = compute(input);",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "src/progress/module-74.ts",
+                "status": "added",
+                "additions": 8,
+                "deletions": 2,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// TODOS for the next sprint",
+                  "return value;",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "test/lessons/case-187.test.ts",
+                "status": "added",
+                "additions": 6,
+                "deletions": 1,
+                "addedLines": [
+                  "const value = compute(input);",
+                  "// FIXME: race condition",
+                  "// TODO: handle pagination",
+                  "return value;"
+                ]
+              },
+              {
+                "path": "package-lock.json",
+                "status": "modified",
+                "additions": 5000,
+                "deletions": 4000,
+                "addedLines": []
+              }
+            ],
+            "packageJson": {
+              "before": {
+                "dependencies": {
+                  "express": "^4.21.2",
+                  "pg": "^8.13.1",
+                  "zod": "^3.23.8"
+                },
+                "devDependencies": {
+                  "jest": "^29.7.0",
+                  "typescript": "^5.9.3"
+                }
+              },
+              "after": {
+                "dependencies": {
+                  "express": "^4.21.2",
+                  "pg": "^8.13.1",
+                  "zod": "^3.23.8"
+                },
+                "devDependencies": {
+                  "jest": "^29.7.0",
+                  "typescript": "^5.9.3"
+                }
+              }
+            },
+            "policy": {
+              "knownDependencies": [
+                "@types/express",
+                "@types/jest",
+                "@types/supertest",
+                "eslint",
+                "express",
+                "jest",
+                "pg",
+                "pino",
+                "supertest",
+                "ts-jest",
+                "typescript",
+                "zod"
+              ],
+              "allowedPaths": [
+                "src/",
+                "test/",
+                "package.json",
+                "package-lock.json",
+                "README.md"
+              ],
+              "maxChangedLines": 400
+            }
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": [
+            {
+              "check": "tests",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "dependencies",
+              "passed": true,
+              "details": []
+            },
+            {
+              "check": "debug_markers",
+              "passed": false,
+              "details": [
+                "scripts/billing/fix-119.ts: TODO",
+                "scripts/billing/fix-179.ts: FIXME",
+                "scripts/billing/fix-179.ts: TODO",
+                "scripts/billing/fix-209.ts: console.log(",
+                "scripts/billing/fix-239.ts: TODO",
+                "scripts/billing/fix-299.ts: FIXME",
+                "scripts/billing/fix-299.ts: TODO",
+                "scripts/billing/fix-59.ts: FIXME",
+                "scripts/billing/fix-59.ts: TODO",
+                "scripts/billing/fix-89.ts: console.log(",
+                "scripts/lessons/fix-139.ts: FIXME",
+                "scripts/lessons/fix-139.ts: TODO",
+                "scripts/lessons/fix-169.ts: console.log(",
+                "scripts/lessons/fix-19.ts: FIXME",
+                "scripts/lessons/fix-19.ts: TODO",
+                "scripts/lessons/fix-199.ts: TODO",
+                "scripts/lessons/fix-259.ts: FIXME",
+                "scripts/lessons/fix-259.ts: TODO",
+                "scripts/lessons/fix-289.ts: console.log(",
+                "scripts/lessons/fix-49.ts: console.log(",
+                "scripts/lessons/fix-79.ts: TODO",
+                "scripts/ranking/fix-129.ts: console.log(",
+                "scripts/ranking/fix-159.ts: TODO",
+                "scripts/ranking/fix-219.ts: FIXME",
+                "scripts/ranking/fix-219.ts: TODO",
+                "scripts/ranking/fix-249.ts: console.log(",
+                "scripts/ranking/fix-279.ts: TODO",
+                "scripts/ranking/fix-39.ts: TODO",
+                "scripts/ranking/fix-9.ts: console.log(",
+                "scripts/ranking/fix-99.ts: FIXME",
+                "scripts/ranking/fix-99.ts: TODO",
+                "src/auth/module-10.ts: TODO",
+                "src/auth/module-100.ts: FIXME",
+                "src/auth/module-100.ts: console.log(",
+                "src/auth/module-106.ts: TODO",
+                "src/auth/module-118.ts: TODO",
+                "src/auth/module-124.ts: FIXME",
+                "src/auth/module-124.ts: console.log(",
+                "src/auth/module-130.ts: TODO",
+                "src/auth/module-142.ts: TODO",
+                "src/auth/module-148.ts: FIXME",
+                "src/auth/module-148.ts: console.log(",
+                "src/auth/module-154.ts: TODO",
+                "src/auth/module-166.ts: TODO",
+                "src/auth/module-172.ts: FIXME",
+                "src/auth/module-172.ts: console.log(",
+                "src/auth/module-178.ts: TODO",
+                "src/auth/module-190.ts: TODO",
+                "src/auth/module-196.ts: FIXME",
+                "src/auth/module-196.ts: console.log(",
+                "src/auth/module-202.ts: TODO",
+                "src/auth/module-214.ts: TODO",
+                "src/auth/module-22.ts: TODO",
+                "src/auth/module-220.ts: FIXME",
+                "src/auth/module-220.ts: console.log(",
+                "src/auth/module-226.ts: TODO",
+                "src/auth/module-238.ts: TODO",
+                "src/auth/module-244.ts: FIXME",
+                "src/auth/module-244.ts: console.log(",
+                "src/auth/module-250.ts: TODO",
+                "src/auth/module-262.ts: TODO",
+                "src/auth/module-268.ts: FIXME",
+                "src/auth/module-268.ts: console.log(",
+                "src/auth/module-274.ts: TODO",
+                "src/auth/module-28.ts: FIXME",
+                "src/auth/module-28.ts: console.log(",
+                "src/auth/module-286.ts: TODO",
+                "src/auth/module-292.ts: FIXME",
+                "src/auth/module-292.ts: console.log(",
+                "src/auth/module-298.ts: TODO",
+                "src/auth/module-34.ts: TODO",
+                "src/auth/module-4.ts: FIXME",
+                "src/auth/module-4.ts: console.log(",
+                "src/auth/module-46.ts: TODO",
+                "src/auth/module-52.ts: FIXME",
+                "src/auth/module-52.ts: console.log(",
+                "src/auth/module-58.ts: TODO",
+                "src/auth/module-70.ts: TODO",
+                "src/auth/module-76.ts: FIXME",
+                "src/auth/module-76.ts: console.log(",
+                "src/auth/module-82.ts: TODO",
+                "src/auth/module-94.ts: TODO",
+                "src/billing/module-11.ts: FIXME",
+                "src/billing/module-11.ts: TODO",
+                "src/billing/module-113.ts: console.log(",
+                "src/billing/module-131.ts: FIXME",
+                "src/billing/module-131.ts: TODO",
+                "src/billing/module-143.ts: TODO",
+                "src/billing/module-155.ts: FIXME",
+                "src/billing/module-155.ts: TODO",
+                "src/billing/module-161.ts: console.log(",
+                "src/billing/module-185.ts: console.log(",
+                "src/billing/module-191.ts: TODO",
+                "src/billing/module-203.ts: FIXME",
+                "src/billing/module-203.ts: TODO",
+                "src/billing/module-215.ts: TODO",
+                "src/billing/module-23.ts: TODO",
+                "src/billing/module-233.ts: console.log(",
+                "src/billing/module-251.ts: FIXME",
+                "src/billing/module-251.ts: TODO",
+                "src/billing/module-263.ts: TODO",
+                "src/billing/module-275.ts: FIXME",
+                "src/billing/module-275.ts: TODO",
+                "src/billing/module-281.ts: console.log(",
+                "src/billing/module-35.ts: FIXME",
+                "src/billing/module-35.ts: TODO",
+                "src/billing/module-41.ts: console.log(",
+                "src/billing/module-65.ts: console.log(",
+                "src/billing/module-71.ts: TODO",
+                "src/billing/module-83.ts: FIXME",
+                "src/billing/module-83.ts: TODO",
+                "src/billing/module-95.ts: TODO",
+                "src/courses/module-102.ts: TODO",
+                "src/courses/module-108.ts: FIXME",
+                "src/courses/module-108.ts: console.log(",
+                "src/courses/module-114.ts: TODO",
+                "src/courses/module-12.ts: FIXME",
+                "src/courses/module-12.ts: console.log(",
+                "src/courses/module-126.ts: TODO",
+                "src/courses/module-132.ts: FIXME",
+                "src/courses/module-132.ts: console.log(",
+                "src/courses/module-138.ts: TODO",
+                "src/courses/module-150.ts: TODO",
+                "src/courses/module-156.ts: FIXME",
+                "src/courses/module-156.ts: console.log(",
+                "src/courses/module-162.ts: TODO",
+                "src/courses/module-174.ts: TODO",
+                "src/courses/module-18.ts: TODO",
+                "src/courses/module-180.ts: FIXME",
+                "src/courses/module-180.ts: console.log(",
+                "src/courses/module-186.ts: TODO",
+                "src/courses/module-198.ts: TODO",
+                "src/courses/module-204.ts: FIXME",
+                "src/courses/module-204.ts: console.log(",
+                "src/courses/module-210.ts: TODO",
+                "src/courses/module-222.ts: TODO",
+                "src/courses/module-228.ts: FIXME",
+                "src/courses/module-228.ts: console.log(",
+                "src/courses/module-234.ts: TODO",
+                "src/courses/module-246.ts: TODO",
+                "src/courses/module-252.ts: FIXME",
+                "src/courses/module-252.ts: console.log(",
+                "src/courses/module-258.ts: TODO",
+                "src/courses/module-270.ts: TODO",
+                "src/courses/module-276.ts: FIXME",
+                "src/courses/module-276.ts: console.log(",
+                "src/courses/module-282.ts: TODO",
+                "src/courses/module-294.ts: TODO",
+                "src/courses/module-30.ts: TODO",
+                "src/courses/module-36.ts: FIXME",
+                "src/courses/module-36.ts: console.log(",
+                "src/courses/module-42.ts: TODO",
+                "src/courses/module-54.ts: TODO",
+                "src/courses/module-6.ts: TODO",
+                "src/courses/module-60.ts: FIXME",
+                "src/courses/module-60.ts: console.log(",
+                "src/courses/module-66.ts: TODO",
+                "src/courses/module-78.ts: TODO",
+                "src/courses/module-84.ts: FIXME",
+                "src/courses/module-84.ts: console.log(",
+                "src/courses/module-90.ts: TODO",
+                "src/lessons/module-1.ts: console.log(",
+                "src/lessons/module-103.ts: TODO",
+                "src/lessons/module-115.ts: FIXME",
+                "src/lessons/module-115.ts: TODO",
+                "src/lessons/module-121.ts: console.log(",
+                "src/lessons/module-145.ts: console.log(",
+                "src/lessons/module-151.ts: TODO",
+                "src/lessons/module-163.ts: FIXME",
+                "src/lessons/module-163.ts: TODO",
+                "src/lessons/module-175.ts: TODO",
+                "src/lessons/module-193.ts: console.log(",
+                "src/lessons/module-211.ts: FIXME",
+                "src/lessons/module-211.ts: TODO",
+                "src/lessons/module-223.ts: TODO",
+                "src/lessons/module-235.ts: FIXME",
+                "src/lessons/module-235.ts: TODO",
+                "src/lessons/module-241.ts: console.log(",
+                "src/lessons/module-25.ts: console.log(",
+                "src/lessons/module-265.ts: console.log(",
+                "src/lessons/module-271.ts: TODO",
+                "src/lessons/module-283.ts: FIXME",
+                "src/lessons/module-283.ts: TODO",
+                "src/lessons/module-295.ts: TODO",
+                "src/lessons/module-31.ts: TODO",
+                "src/lessons/module-43.ts: FIXME",
+                "src/lessons/module-43.ts: TODO",
+                "src/lessons/module-55.ts: TODO",
+                "src/lessons/module-73.ts: console.log(",
+                "src/lessons/module-91.ts: FIXME",
+                "src/lessons/module-91.ts: TODO",
+                "src/progress/module-110.ts: TODO",
+                "src/progress/module-116.ts: FIXME",
+                "src/progress/module-116.ts: console.log(",
+                "src/progress/module-122.ts: TODO",
+                "src/progress/module-134.ts: TODO",
+                "src/progress/module-14.ts: TODO",
+                "src/progress/module-140.ts: FIXME",
+                "src/progress/module-140.ts: console.log(",
+                "src/progress/module-146.ts: TODO",
+                "src/progress/module-158.ts: TODO",
+                "src/progress/module-164.ts: FIXME",
+                "src/progress/module-164.ts: console.log(",
+                "src/progress/module-170.ts: TODO",
+                "src/progress/module-182.ts: TODO",
+                "src/progress/module-188.ts: FIXME",
+                "src/progress/module-188.ts: console.log(",
+                "src/progress/module-194.ts: TODO",
+                "src/progress/module-2.ts: TODO",
+                "src/progress/module-20.ts: FIXME",
+                "src/progress/module-20.ts: console.log(",
+                "src/progress/module-206.ts: TODO",
+                "src/progress/module-212.ts: FIXME",
+                "src/progress/module-212.ts: console.log(",
+                "src/progress/module-218.ts: TODO",
+                "src/progress/module-230.ts: TODO",
+                "src/progress/module-236.ts: FIXME",
+                "src/progress/module-236.ts: console.log(",
+                "src/progress/module-242.ts: TODO",
+                "src/progress/module-254.ts: TODO",
+                "src/progress/module-26.ts: TODO",
+                "src/progress/module-260.ts: FIXME",
+                "src/progress/module-260.ts: console.log(",
+                "src/progress/module-266.ts: TODO",
+                "src/progress/module-278.ts: TODO",
+                "src/progress/module-284.ts: FIXME",
+                "src/progress/module-284.ts: console.log(",
+                "src/progress/module-290.ts: TODO",
+                "src/progress/module-38.ts: TODO",
+                "src/progress/module-44.ts: FIXME",
+                "src/progress/module-44.ts: console.log(",
+                "src/progress/module-50.ts: TODO",
+                "src/progress/module-62.ts: TODO",
+                "src/progress/module-68.ts: FIXME",
+                "src/progress/module-68.ts: console.log(",
+                "src/progress/module-74.ts: TODO",
+                "src/progress/module-86.ts: TODO",
+                "src/progress/module-92.ts: FIXME",
+                "src/progress/module-92.ts: console.log(",
+                "src/progress/module-98.ts: TODO",
+                "src/ranking/module-105.ts: console.log(",
+                "src/ranking/module-111.ts: TODO",
+                "src/ranking/module-123.ts: FIXME",
+                "src/ranking/module-123.ts: TODO",
+                "src/ranking/module-135.ts: TODO",
+                "src/ranking/module-15.ts: TODO",
+                "src/ranking/module-153.ts: console.log(",
+                "src/ranking/module-171.ts: FIXME",
+                "src/ranking/module-171.ts: TODO",
+                "src/ranking/module-183.ts: TODO",
+                "src/ranking/module-195.ts: FIXME",
+                "src/ranking/module-195.ts: TODO",
+                "src/ranking/module-201.ts: console.log(",
+                "src/ranking/module-225.ts: console.log(",
+                "src/ranking/module-231.ts: TODO",
+                "src/ranking/module-243.ts: FIXME",
+                "src/ranking/module-243.ts: TODO",
+                "src/ranking/module-255.ts: TODO",
+                "src/ranking/module-273.ts: console.log(",
+                "src/ranking/module-291.ts: FIXME",
+                "src/ranking/module-291.ts: TODO",
+                "src/ranking/module-3.ts: FIXME",
+                "src/ranking/module-3.ts: TODO",
+                "src/ranking/module-33.ts: console.log(",
+                "src/ranking/module-51.ts: FIXME",
+                "src/ranking/module-51.ts: TODO",
+                "src/ranking/module-63.ts: TODO",
+                "src/ranking/module-75.ts: FIXME",
+                "src/ranking/module-75.ts: TODO",
+                "src/ranking/module-81.ts: console.log(",
+                "test/billing/case-107.test.ts: FIXME",
+                "test/billing/case-107.test.ts: TODO",
+                "test/billing/case-137.test.ts: console.log(",
+                "test/billing/case-167.test.ts: TODO",
+                "test/billing/case-17.test.ts: console.log(",
+                "test/billing/case-227.test.ts: FIXME",
+                "test/billing/case-227.test.ts: TODO",
+                "test/billing/case-257.test.ts: console.log(",
+                "test/billing/case-287.test.ts: TODO",
+                "test/billing/case-47.test.ts: TODO",
+                "test/lessons/case-127.test.ts: TODO",
+                "test/lessons/case-187.test.ts: FIXME",
+                "test/lessons/case-187.test.ts: TODO",
+                "test/lessons/case-217.test.ts: console.log(",
+                "test/lessons/case-247.test.ts: TODO",
+                "test/lessons/case-67.test.ts: FIXME",
+                "test/lessons/case-67.test.ts: TODO",
+                "test/lessons/case-7.test.ts: TODO",
+                "test/lessons/case-97.test.ts: console.log(",
+                "test/ranking/case-147.test.ts: FIXME",
+                "test/ranking/case-147.test.ts: TODO",
+                "test/ranking/case-177.test.ts: console.log(",
+                "test/ranking/case-207.test.ts: TODO",
+                "test/ranking/case-267.test.ts: FIXME",
+                "test/ranking/case-267.test.ts: TODO",
+                "test/ranking/case-27.test.ts: FIXME",
+                "test/ranking/case-27.test.ts: TODO",
+                "test/ranking/case-297.test.ts: console.log(",
+                "test/ranking/case-57.test.ts: console.log(",
+                "test/ranking/case-87.test.ts: TODO"
+              ]
+            },
+            {
+              "check": "paths",
+              "passed": false,
+              "details": [
+                "scripts/billing/fix-119.ts",
+                "scripts/billing/fix-149.ts",
+                "scripts/billing/fix-179.ts",
+                "scripts/billing/fix-209.ts",
+                "scripts/billing/fix-239.ts",
+                "scripts/billing/fix-269.ts",
+                "scripts/billing/fix-29.ts",
+                "scripts/billing/fix-299.ts",
+                "scripts/billing/fix-59.ts",
+                "scripts/billing/fix-89.ts",
+                "scripts/lessons/fix-109.ts",
+                "scripts/lessons/fix-139.ts",
+                "scripts/lessons/fix-169.ts",
+                "scripts/lessons/fix-19.ts",
+                "scripts/lessons/fix-199.ts",
+                "scripts/lessons/fix-229.ts",
+                "scripts/lessons/fix-259.ts",
+                "scripts/lessons/fix-289.ts",
+                "scripts/lessons/fix-49.ts",
+                "scripts/lessons/fix-79.ts",
+                "scripts/ranking/fix-129.ts",
+                "scripts/ranking/fix-159.ts",
+                "scripts/ranking/fix-189.ts",
+                "scripts/ranking/fix-219.ts",
+                "scripts/ranking/fix-249.ts",
+                "scripts/ranking/fix-279.ts",
+                "scripts/ranking/fix-39.ts",
+                "scripts/ranking/fix-69.ts",
+                "scripts/ranking/fix-9.ts",
+                "scripts/ranking/fix-99.ts"
+              ]
+            },
+            {
+              "check": "size",
+              "passed": false,
+              "details": [
+                "2100 changed lines, limit 400"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
